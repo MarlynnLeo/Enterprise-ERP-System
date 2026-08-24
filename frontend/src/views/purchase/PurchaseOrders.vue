@@ -548,18 +548,18 @@
     >
       <div v-loading="detailLoading" class="order-view">
         <el-descriptions :column="2" border class="purchase-view-desc">
-          <el-descriptions-item label="订单编号">{{ viewData.orderNumber }}</el-descriptions-item>
-          <el-descriptions-item label="订单日期">{{ viewData.order_date }}</el-descriptions-item>
+          <el-descriptions-item label="订单编号">{{ viewData.orderNo }}</el-descriptions-item>
+          <el-descriptions-item label="订单日期">{{ viewData.orderDate }}</el-descriptions-item>
           <el-descriptions-item label="供应商">{{ viewData.supplierName }}</el-descriptions-item>
-          <el-descriptions-item label="预计交货日期">{{ viewData.expected_delivery_date }}</el-descriptions-item>
-          <el-descriptions-item label="联系人">{{ viewData.contact_person || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="联系电话">{{ viewData.contact_phone || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="预计交货日期">{{ viewData.expectedDeliveryDate }}</el-descriptions-item>
+          <el-descriptions-item label="联系人">{{ viewData.contactPerson || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="联系电话">{{ viewData.contactPhone || '-' }}</el-descriptions-item>
           <el-descriptions-item label="状态">
             <el-tag :type="getStatusType(viewData.status)">{{ getStatusText(viewData.status) }}</el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="订单金额">{{ formatCurrency(viewData.totalAmount) }}</el-descriptions-item>
-          <el-descriptions-item label="关联申请单" v-if="viewData.requisition_number">{{ viewData.requisition_number }}</el-descriptions-item>
-          <el-descriptions-item label="备注" :span="viewData.requisition_number ? 1 : 2">{{ viewData.notes || '无' }}</el-descriptions-item>
+          <el-descriptions-item label="关联申请单" v-if="viewData.requisitionNumber">{{ viewData.requisitionNumber }}</el-descriptions-item>
+          <el-descriptions-item label="备注" :span="viewData.requisitionNumber ? 1 : 2">{{ viewData.remarks || '无' }}</el-descriptions-item>
         </el-descriptions>
         <el-divider content-position="center">订单明细</el-divider>
         <el-table :data="viewData.items || []" border class="w-full purchase-view-table">

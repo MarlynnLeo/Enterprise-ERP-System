@@ -205,10 +205,10 @@
   text-shadow: 0 0 10px color-mix(in srgb, var(--color-bg-overlay) 50%, transparent) !important;
 }
 
-[data-theme="tech"] .sidebar .el-menu-item,
-[data-theme="tech"] .sidebar .el-sub-menu__title,
-[data-theme="tech"] .app-sidebar .el-menu-item,
-[data-theme="tech"] .app-sidebar .el-sub-menu__title {
+[data-theme="tech"] .sidebar .app-menu-link,
+[data-theme="tech"] .sidebar .app-menu-title,
+[data-theme="tech"] .app-sidebar .app-menu-link,
+[data-theme="tech"] .app-sidebar .app-menu-title {
   border-radius: 0 !important;
   z-index: 1;
 }

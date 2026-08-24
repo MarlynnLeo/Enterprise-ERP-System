@@ -191,10 +191,10 @@
   background: none !important;
 }
 
-[data-theme="premium"] .sidebar .el-menu-item,
-[data-theme="premium"] .sidebar .el-sub-menu__title,
-[data-theme="premium"] .app-sidebar .el-menu-item,
-[data-theme="premium"] .app-sidebar .el-sub-menu__title {
+[data-theme="premium"] .sidebar .app-menu-link,
+[data-theme="premium"] .sidebar .app-menu-title,
+[data-theme="premium"] .app-sidebar .app-menu-link,
+[data-theme="premium"] .app-sidebar .app-menu-title {
   padding-left: 14px !important;
   font-size: 13px !important;
   font-weight: 650 !important;

@@ -111,6 +111,13 @@ const FALLBACK_DICTIONARY = {
     cancelled: { name: '已取消', color: 'danger' },
     rejected: { name: '已拒绝', color: 'danger' },
   },
+  outsourced_status: {
+    pending: { name: '待确认', color: 'warning' },
+    confirmed: { name: '已确认', color: 'primary' },
+    in_progress: { name: '加工中', color: 'primary' },
+    completed: { name: '已完成', color: 'success' },
+    cancelled: { name: '已取消', color: 'danger' },
+  },
   sales_status: {
     draft: { name: '草稿', color: 'info' },
     pending: { name: '待处理', color: 'warning' },

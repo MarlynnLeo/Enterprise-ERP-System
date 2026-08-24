@@ -244,20 +244,36 @@ export const isMenuDisplayable = (menu) => {
   return Boolean(menu) && Number(menu.type) !== 2 && isFlagEnabled(menu.visible) && isFlagEnabled(menu.status)
 }
 
-export const hasVisibleChildren = (menu) => {
-  return Array.isArray(menu?.children) && menu.children.some(isVisibleMenuNode)
-}
+// Normalize the permission response once so recursive menu rendering does not
+// repeatedly filter and inspect the complete raw tree on every interaction.
+export const prepareMenuTree = (nodes) => {
+  if (!Array.isArray(nodes) || nodes.length === 0) return []
 
-export const isVisibleMenuNode = (menu) => {
-  return isMenuDisplayable(menu) && (Boolean(menu.path) || hasVisibleChildren(menu))
-}
+  const prepare = (items) => {
+    const result = []
+    for (const item of items) {
+      if (!item || typeof item !== 'object') continue
 
-export const getVisibleChildren = (menu) => {
-  return Array.isArray(menu?.children) ? menu.children.filter(isVisibleMenuNode) : []
-}
+      const children = Array.isArray(item.children) ? prepare(item.children) : []
+      const prepared = {
+        ...item,
+        path: item.path || '',
+        icon: item.icon || '',
+        children,
+        hasChildren: children.length > 0
+      }
+      prepared.menuIndex = prepared.hasChildren
+        ? `menu-${prepared.id}`
+        : (prepared.path || `menu-${prepared.id}`)
+      const isVisible = isMenuDisplayable(prepared) &&
+        (Boolean(prepared.path) || prepared.hasChildren)
 
-export const getMenuIndex = (menu) => {
-  return hasVisibleChildren(menu) ? `menu-${menu.id}` : (menu.path || `menu-${menu.id}`)
+      if (isVisible) result.push(prepared)
+    }
+    return result
+  }
+
+  return prepare(nodes)
 }
 
 export const isRouteMatch = (menuPath, currentPath) => {
@@ -269,11 +285,9 @@ export const resolveMenuNavigationState = (nodes, currentPath, ancestors = []) =
   let best = { activePath: currentPath, openeds: [], score: -1 }
 
   for (const menu of nodes || []) {
-    if (!isVisibleMenuNode(menu)) continue
-
-    const visibleChildren = getVisibleChildren(menu)
-    const menuHasChildren = visibleChildren.length > 0
-    const menuIndex = getMenuIndex(menu)
+    const visibleChildren = menu.children
+    const menuHasChildren = menu.hasChildren
+    const menuIndex = menu.menuIndex
     const nextAncestors = menuHasChildren ? [...ancestors, menuIndex] : ancestors
 
     if (menu.path && isRouteMatch(menu.path, currentPath)) {
@@ -302,10 +316,10 @@ export const buildMenuSearchOptions = (nodes, parentBreadcrumbs = []) => {
   const options = []
 
   for (const item of nodes || []) {
-    if (!isMenuDisplayable(item) || !item.name) continue
+    if (!item?.name) continue
 
     const currentBreadcrumbs = [...parentBreadcrumbs, item.name]
-    const visibleChildren = getVisibleChildren(item)
+    const visibleChildren = item.children
 
     if (item.path && visibleChildren.length === 0) {
       options.push({

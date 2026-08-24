@@ -180,6 +180,23 @@ const PURCHASE_REQUISITION_TRANSITIONS = {
   cancelled: [],
 };
 
+// 委外加工单：确认后可进入加工中，入库完成后由系统自动标记完成。
+const OUTSOURCED_PROCESSING_TRANSITIONS = {
+  pending: ['confirmed', 'cancelled'],
+  confirmed: ['in_progress', 'cancelled'],
+  in_progress: ['completed', 'cancelled'],
+  completed: [],
+  cancelled: [],
+};
+
+// 委外入库单：确认入库时过账库存，完成后为终态。
+const OUTSOURCED_RECEIPT_TRANSITIONS = {
+  pending: ['confirmed', 'cancelled'],
+  confirmed: ['completed', 'cancelled'],
+  completed: [],
+  cancelled: [],
+};
+
 // 与 PURCHASE_RECEIPT_STATUS_TRANSITIONS 统一，消除双状态机
 const PURCHASE_RECEIPT_TRANSITIONS = PURCHASE_RECEIPT_STATUS_TRANSITIONS;
 
@@ -365,6 +382,20 @@ const registry = {
     terminal: terminalFromFlow(PURCHASE_REQUISITION_TRANSITIONS),
     aliases: {},
   },
+  outsourcedProcessing: {
+    table: 'outsourced_processings',
+    statusColumn: 'status',
+    transitions: OUTSOURCED_PROCESSING_TRANSITIONS,
+    terminal: terminalFromFlow(OUTSOURCED_PROCESSING_TRANSITIONS),
+    aliases: {},
+  },
+  outsourcedReceipt: {
+    table: 'outsourced_processing_receipts',
+    statusColumn: 'status',
+    transitions: OUTSOURCED_RECEIPT_TRANSITIONS,
+    terminal: terminalFromFlow(OUTSOURCED_RECEIPT_TRANSITIONS),
+    aliases: {},
+  },
   purchaseReceipt: {
     table: 'purchase_receipts',
     statusColumn: 'status',
@@ -528,6 +559,8 @@ module.exports = {
   SALES_PACKING_TRANSITIONS,
   PURCHASE_RETURN_TRANSITIONS,
   PURCHASE_RECEIPT_STATUS_TRANSITIONS,
+  OUTSOURCED_PROCESSING_TRANSITIONS,
+  OUTSOURCED_RECEIPT_TRANSITIONS,
   INVENTORY_INBOUND_TRANSITIONS,
   INVENTORY_OUTBOUND_TRANSITIONS,
   INVENTORY_CHECK_TRANSITIONS,

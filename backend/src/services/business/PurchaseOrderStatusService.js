@@ -203,12 +203,13 @@ class PurchaseOrderStatusService {
           SUM(unqualified_quantity) as total_unqualified,
           SUM(warehoused_quantity) as total_warehoused,
           COUNT(*) as item_count,
-          SUM(CASE WHEN warehoused_quantity >= quantity THEN 1 ELSE 0 END) as completed_items
+          SUM(CASE WHEN received_quantity + ? >= quantity THEN 1 ELSE 0 END) as received_items,
+          SUM(CASE WHEN warehoused_quantity + ? >= quantity THEN 1 ELSE 0 END) as completed_items
         FROM purchase_order_items
         WHERE order_id = ?
       `;
 
-    const [itemsResult] = await client.execute(itemsQuery, [orderId]);
+    const [itemsResult] = await client.execute(itemsQuery, [QUANTITY_EPSILON, QUANTITY_EPSILON, orderId]);
     const stats = itemsResult && itemsResult[0];
     const itemCount = parseInt(stats?.item_count, 10) || 0;
 
@@ -223,10 +224,13 @@ class PurchaseOrderStatusService {
     const totalQualified = parseFloat(stats.total_qualified) || 0;
     const totalUnqualified = parseFloat(stats.total_unqualified) || 0;
     const totalWarehoused = parseFloat(stats.total_warehoused) || 0;
+    const receivedItems = parseInt(stats.received_items, 10) || 0;
     const completedItems = parseInt(stats.completed_items, 10) || 0;
     const completionPercentage = totalQuantity > 0 ? (totalWarehoused / totalQuantity) * 100 : 0;
     const canComplete =
-      totalQuantity > 0 && totalWarehoused + QUANTITY_EPSILON >= totalQuantity;
+      totalQuantity > 0 &&
+      completedItems === itemCount &&
+      totalWarehoused + QUANTITY_EPSILON >= totalQuantity;
 
     return {
       orderId,
@@ -237,6 +241,7 @@ class PurchaseOrderStatusService {
       totalUnqualified,
       totalWarehoused,
       itemCount,
+      receivedItems,
       completedItems,
       completionPercentage,
       canComplete,
@@ -246,6 +251,15 @@ class PurchaseOrderStatusService {
   static deriveStatusFromQuantityStats(currentStatus, stats) {
     if (currentStatus === 'cancelled' || !stats) {
       return currentStatus;
+    }
+
+    // 订单还有任意明细未足量收货时，不能进入检验完成、入库中或已完成。
+    // 必须先保留“部分收货”，避免某一条物料已收货/检验就把整张订单提前结束。
+    const hasOutstandingReceivedLine = Number.isFinite(stats.receivedItems)
+      ? stats.receivedItems < stats.itemCount
+      : stats.totalReceived + QUANTITY_EPSILON < stats.totalQuantity;
+    if (hasOutstandingReceivedLine) {
+      return stats.totalReceived > 0 ? 'partial_received' : currentStatus;
     }
 
     if (stats.canComplete) {

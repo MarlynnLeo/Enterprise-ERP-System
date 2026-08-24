@@ -67,4 +67,32 @@ describe('purchase service invariants', () => {
 
     expect(connection.execute).toHaveBeenCalledTimes(2);
   });
+
+  test('keeps an order partially received while any material line is still outstanding', () => {
+    const status = PurchaseOrderStatusService.deriveStatusFromQuantityStats('approved', {
+      totalQuantity: 202,
+      totalReceived: 2,
+      totalInspected: 2,
+      totalWarehoused: 0,
+      itemCount: 2,
+      receivedItems: 1,
+      canComplete: false,
+    });
+
+    expect(status).toBe('partial_received');
+  });
+
+  test('does not complete from aggregate warehousing when one material line is incomplete', () => {
+    const status = PurchaseOrderStatusService.deriveStatusFromQuantityStats('warehousing', {
+      totalQuantity: 202,
+      totalReceived: 202,
+      totalInspected: 202,
+      totalWarehoused: 202,
+      itemCount: 2,
+      receivedItems: 2,
+      canComplete: false,
+    });
+
+    expect(status).toBe('warehousing');
+  });
 });

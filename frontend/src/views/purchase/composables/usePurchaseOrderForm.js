@@ -441,14 +441,21 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
           const taxAmount = explicitTaxAmount ?? (totalPrice === null ? null : totalPrice * taxRate)
           return { ...item, taxRate: taxRate, taxAmount: taxAmount, price, quantity, totalPrice: totalPrice }
         })
+        const normalizeFormDate = (dateVal) => {
+          if (!dateVal) return ''
+          const formatted = formatDate(dateVal)
+          return formatted === '-' ? '' : formatted
+        }
         Object.assign(orderForm, {
-          orderNumber: data.orderNo, orderDate: formatDate(data.orderDate),
-          expectedDeliveryDate: formatDate(data.expectedDeliveryDate),
+          orderNumber: data.orderNo,
+          orderDate: normalizeFormDate(data.orderDate) || formatLocalDate(new Date()),
+          expectedDeliveryDate: normalizeFormDate(data.expectedDeliveryDate),
           supplierId: String(data.supplierId || ''),
           supplierName: data.supplierName,
           contactPerson: data.contactPerson,
           contactPhone: data.contactPhone,
-          notes: data.notes || data.remarks, status: data.status || 'draft',
+          notes: data.notes || data.remarks || '',
+          status: data.status || 'draft',
           requisitionId: data.requisitionId,
           requisitionNumber: data.requisitionNumber,
           items: processedItems
@@ -475,10 +482,10 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
       await orderFormRef.value.validate()
       const invalidPriceRows = orderForm.items
         .map((item, index) => ({ item, index }))
-        .filter(({ item }) => item.materialId && toNumberOrNull(item.price) === null)
+        .filter(({ item }) => item.materialId && (toNumberOrNull(item.price) === null || toNumberOrNull(item.price) <= 0))
         .map(({ index }) => index + 1)
       if (invalidPriceRows.length > 0) {
-        ElMessage.error(`第 ${invalidPriceRows.join(', ')} 行采购单价缺失，请确认价格权限或维护采购价后再提交`)
+        ElMessage.error(`第 ${invalidPriceRows.join(', ')} 行采购单价缺失或不能为0，请维护采购单价后再提交`)
         return
       }
       const validItems = orderForm.items.filter(item => item.materialId)
@@ -501,10 +508,11 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
         metalPriceSchemeId:
           orderForm.items.find((item) => item.metalPriceSchemeId)?.metalPriceSchemeId || null,
         supplierId: orderForm.supplierId,
-        expectedDeliveryDate: orderForm.expectedDeliveryDate,
+        expectedDeliveryDate: (orderForm.expectedDeliveryDate && orderForm.expectedDeliveryDate !== '-') ? orderForm.expectedDeliveryDate : null,
         contactPerson: orderForm.contactPerson,
         contactPhone: orderForm.contactPhone,
-        notes: orderForm.notes,
+        notes: orderForm.notes || '',
+        remarks: orderForm.notes || '',
         totalAmount: Number((subtotal + taxAmount).toFixed(2)),
         taxRate: normalizeTaxRate(orderForm.taxRate, defaultVATRate.value),
         taxAmount: Number(taxAmount.toFixed(2)),
@@ -544,7 +552,11 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
       else { await purchaseApi.createOrder(formDataToSubmit); ElMessage.success('采购订单创建成功') }
       orderDialog.visible = false
       if (loadOrdersCallback) loadOrdersCallback()
-    } catch (error) { console.error('提交表单失败:', error); ElMessage.error(error.message || '提交失败，请检查表单') }
+    } catch (error) {
+      console.error('提交表单失败:', error)
+      const errorMsg = error.response?.data?.message || error.message || '提交失败，请检查表单'
+      ElMessage.error(errorMsg)
+    }
   }
 
   // ========== 采购申请相关 ==========

@@ -18,6 +18,38 @@ const InventoryService = require('../../services/InventoryService');
 const { safeString, safeNumber } = require('../../utils/typeHelper');
 const { parsePagination, appendPaginationSQL } = require('../../utils/safePagination');
 const { getRequestActorLabel } = require('../../utils/userUtils');
+const {
+  OUTSOURCED_PROCESSING_TRANSITIONS,
+  OUTSOURCED_RECEIPT_TRANSITIONS,
+} = require('../../constants/statusRegistry');
+
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+const getProcessingValidationError = ({
+  processing_date,
+  supplier_id,
+  supplier_name,
+  expected_delivery_date,
+  materials,
+  products,
+}) => {
+  if (!ISO_DATE_PATTERN.test(String(processing_date || ''))) {
+    return '加工日期不能为空且必须为 YYYY-MM-DD 格式';
+  }
+  if (!Number.isFinite(Number(supplier_id)) || Number(supplier_id) <= 0 || !String(supplier_name || '').trim()) {
+    return '加工厂不能为空';
+  }
+  if (!ISO_DATE_PATTERN.test(String(expected_delivery_date || ''))) {
+    return '预计交期不能为空且必须为 YYYY-MM-DD 格式';
+  }
+  if (!Array.isArray(materials) || materials.length === 0) {
+    return '至少需要一条发料物料';
+  }
+  if (!Array.isArray(products) || products.length === 0) {
+    return '至少需要一条加工成品';
+  }
+  return null;
+};
 
 // 状态常量
 const STATUS = {
@@ -31,22 +63,32 @@ const STATUS = {
 };
 
 // 加工单状态转换规则
-const PROCESSING_STATUS_TRANSITIONS = {
-  pending: new Set(['confirmed', 'cancelled']),
-  // Completion is a side effect of confirming the related receipt. It must
-  // never be writable through the processing-order status endpoint.
-  confirmed: new Set(['cancelled']),
-  in_progress: new Set(['completed', 'cancelled']),
-  completed: new Set(),
-  cancelled: new Set(),
-};
+const toTransitionSets = (transitions) =>
+  Object.fromEntries(Object.entries(transitions).map(([status, next]) => [status, new Set(next)]));
+
+const PROCESSING_STATUS_TRANSITIONS = toTransitionSets(OUTSOURCED_PROCESSING_TRANSITIONS);
 
 // 入库单独立状态转换规则（入库单业务流程与加工单不同）
-const RECEIPT_STATUS_TRANSITIONS = {
-  pending: new Set(['confirmed', 'cancelled']),
-  confirmed: new Set(['completed', 'cancelled']),
-  completed: new Set(),
-  cancelled: new Set(),
+const RECEIPT_STATUS_TRANSITIONS = toTransitionSets(OUTSOURCED_RECEIPT_TRANSITIONS);
+
+const classifyStatusUpdateError = (error, fallbackMessage) => {
+  const message = String(error?.message || fallbackMessage);
+  const insufficientStock = /库存不足|FIFO批次库存不足/.test(message);
+  const businessFailure =
+    insufficientStock ||
+    /缺少有效成本|找不到外委发料台账|无法安全回退|分录生成失败|数量必须大于0|没有明细|不存在|不能/.test(
+      message
+    );
+
+  return {
+    message: businessFailure ? message : fallbackMessage,
+    errorCode: insufficientStock
+      ? 'INSUFFICIENT_STOCK'
+      : businessFailure
+        ? 'VALIDATION_ERROR'
+        : 'SERVER_ERROR',
+    statusCode: businessFailure ? 400 : 500,
+  };
 };
 
 /**
@@ -183,6 +225,19 @@ const createProcessing = async (req, res) => {
       products,
     } = mapKeysToSnake(req.body || {});
 
+    const validationError = getProcessingValidationError({
+      processing_date,
+      supplier_id,
+      supplier_name,
+      expected_delivery_date,
+      materials,
+      products,
+    });
+    if (validationError) {
+      await connection.rollback();
+      return ResponseHandler.error(res, validationError, 'VALIDATION_ERROR', 400);
+    }
+
     // 处理委外加工单数据
 
     // 生成加工单号
@@ -304,6 +359,19 @@ const updateProcessing = async (req, res) => {
       materials,
       products,
     } = mapKeysToSnake(req.body || {});
+
+    const validationError = getProcessingValidationError({
+      processing_date,
+      supplier_id,
+      supplier_name,
+      expected_delivery_date,
+      materials,
+      products,
+    });
+    if (validationError) {
+      await connection.rollback();
+      return ResponseHandler.error(res, validationError, 'VALIDATION_ERROR', 400);
+    }
 
     // 更新委外加工单数据
 
@@ -488,7 +556,7 @@ const updateProcessingStatus = async (req, res) => {
     // 初始化warnings数组
     const warnings = [];
 
-    if (!['pending', 'confirmed', 'completed', 'cancelled'].includes(status)) {
+    if (!Object.prototype.hasOwnProperty.call(PROCESSING_STATUS_TRANSITIONS, status)) {
       await connection.rollback();
       return ResponseHandler.error(res, '无效的状态值', 'VALIDATION_ERROR', 400);
     }
@@ -595,7 +663,10 @@ const updateProcessingStatus = async (req, res) => {
     }
 
     // 如果从已确认状态取消，需要回退已扣减的发料库存
-    if (status === 'cancelled' && currentStatus === STATUS.PROCESSING.CONFIRMED) {
+    if (
+      status === 'cancelled' &&
+      [STATUS.PROCESSING.CONFIRMED, STATUS.PROCESSING.IN_PROGRESS].includes(currentStatus)
+    ) {
       const [materials] = await connection.execute(
         'SELECT id, processing_id, material_id, material_code, material_name, specification, unit, unit_id, quantity, remark, created_at, updated_at FROM outsourced_processing_materials WHERE processing_id = ?',
         [id]
@@ -678,7 +749,14 @@ const updateProcessingStatus = async (req, res) => {
   } catch (error) {
     await connection.rollback();
     logger.error('更新委外加工单状态失败:', error);
-    ResponseHandler.error(res, '更新委外加工单状态失败', 'SERVER_ERROR', 500, error);
+    const classified = classifyStatusUpdateError(error, '更新委外加工单状态失败');
+    ResponseHandler.error(
+      res,
+      classified.message,
+      classified.errorCode,
+      classified.statusCode,
+      error
+    );
   } finally {
     connection.release();
   }
@@ -1039,7 +1117,7 @@ const updateReceiptStatus = async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
-    if (!['pending', 'confirmed', 'completed', 'cancelled'].includes(status)) {
+    if (!Object.prototype.hasOwnProperty.call(RECEIPT_STATUS_TRANSITIONS, status)) {
       await connection.rollback();
       return ResponseHandler.error(res, '无效的状态值', 'VALIDATION_ERROR', 400);
     }
@@ -1154,8 +1232,13 @@ const updateReceiptStatus = async (req, res) => {
         if (pendingReceipts[0].cnt === 0) {
           await connection.execute(
             `UPDATE outsourced_processings SET status = ?, updated_at = CURRENT_TIMESTAMP
-             WHERE id = ? AND status = ?`,
-            [STATUS.PROCESSING.COMPLETED, existingReceipt[0].processing_id, STATUS.PROCESSING.CONFIRMED]
+             WHERE id = ? AND status IN (?, ?)`,
+            [
+              STATUS.PROCESSING.COMPLETED,
+              existingReceipt[0].processing_id,
+              STATUS.PROCESSING.CONFIRMED,
+              STATUS.PROCESSING.IN_PROGRESS,
+            ]
           );
           logger.info(`委外加工单 ${existingReceipt[0].processing_id} 所有入库单已确认，自动标记为完成`);
         }
@@ -1168,7 +1251,14 @@ const updateReceiptStatus = async (req, res) => {
   } catch (error) {
     await connection.rollback();
     logger.error('更新委外入库单状态失败:', error);
-    ResponseHandler.error(res, '更新委外入库单状态失败', 'SERVER_ERROR', 500, error);
+    const classified = classifyStatusUpdateError(error, '更新委外入库单状态失败');
+    ResponseHandler.error(
+      res,
+      classified.message,
+      classified.errorCode,
+      classified.statusCode,
+      error
+    );
   } finally {
     connection.release();
   }
@@ -1187,4 +1277,6 @@ module.exports = {
   updateReceipt,
   updateReceiptStatus,
   PROCESSING_STATUS_TRANSITIONS,
+  RECEIPT_STATUS_TRANSITIONS,
+  classifyStatusUpdateError,
 };

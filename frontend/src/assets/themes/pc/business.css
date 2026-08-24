@@ -171,10 +171,10 @@
 }
 
 /* 指示条宽度/颜色已由 shell-sidebar-indicator-width + accent 提供 */
-[data-theme="business"] .sidebar .el-menu-item,
-[data-theme="business"] .sidebar .el-sub-menu__title,
-[data-theme="business"] .app-sidebar .el-menu-item,
-[data-theme="business"] .app-sidebar .el-sub-menu__title {
+[data-theme="business"] .sidebar .app-menu-link,
+[data-theme="business"] .sidebar .app-menu-title,
+[data-theme="business"] .app-sidebar .app-menu-link,
+[data-theme="business"] .app-sidebar .app-menu-title {
   border-radius: 0 !important;
 }
 

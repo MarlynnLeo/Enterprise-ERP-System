@@ -38,6 +38,7 @@ html.dark .app-shell {
   --shell-sidebar-expanded-width: 220px;
   --shell-sidebar-collapsed-width: 64px;
   --shell-menu-item-padding-x: 20px;
+  --shell-menu-font-size: 13px;
   --shell-menu-icon-size: 18px;
   flex: 0 0 var(--shell-sidebar-expanded-width);
   width: var(--shell-sidebar-expanded-width) !important;
@@ -100,9 +101,8 @@ html.dark .app-shell {
   align-items: center; /* 确保文字内容垂直居中 */
 }
 .logo-container .title,
-.app-menu .el-menu-item > span,
-.app-menu .el-sub-menu__title > span,
-.app-menu .el-sub-menu__icon-arrow {
+.app-menu .app-menu-label,
+.app-menu .app-menu-arrow {
   transition:
     opacity 120ms ease,
     transform 120ms ease,
@@ -146,25 +146,33 @@ html.dark .app-shell {
 .sidebar-menu::-webkit-scrollbar-thumb:hover {
   background: color-mix(in srgb, var(--shell-accent) 52%, transparent);
 }
-.menu-loading {
-  padding: 15px;
+.app-menu-list {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
-.app-menu .el-menu-item.is-active {
-  background: linear-gradient(90deg, var(--shell-accent-soft), transparent);
-  border-left: 3px solid var(--shell-accent);
-  border-radius: var(--shell-radius-sm);
+.app-menu-node {
+  margin: 0;
+  padding: 0;
 }
-.app-menu .el-menu-item, .app-menu .el-sub-menu__title {
+.app-menu-item {
   width: 100%;
   box-sizing: border-box;
+  color: var(--el-text-color-primary);
+  cursor: pointer;
   border-radius: var(--shell-radius-sm);
-  /* Element Plus submenu collapse measures height; vertical margins cause jumps. */
   height: var(--shell-menu-item-height, 44px) !important;
   min-height: var(--shell-menu-item-height, 44px) !important;
   line-height: var(--shell-menu-item-height, 44px) !important;
   margin: 0 !important;
   padding-left: var(--shell-menu-item-padding-x) !important;
   padding-right: 14px !important;
+  text-align: left;
+  font: inherit;
+  font-size: var(--shell-menu-font-size, 13px);
+  background: transparent;
+  border: 0;
   display: flex;
   align-items: center;
   transition:
@@ -173,48 +181,64 @@ html.dark .app-shell {
     border-color 150ms ease,
     box-shadow 150ms ease !important;
 }
-.app-menu .el-sub-menu,
-.app-menu .el-menu--inline {
-  margin: 0 !important;
-  padding: 0 !important;
+.app-menu-item:hover {
+  background-color: var(--shell-control-hover-bg) !important;
 }
-.app-menu .el-menu--inline .el-menu-item,
-.app-menu .el-menu--inline .el-sub-menu__title {
-  margin-top: 0 !important;
-  margin-bottom: 0 !important;
+.app-menu-item.is-active {
+  background: linear-gradient(90deg, var(--shell-accent-soft), transparent);
+  border-left: 3px solid var(--shell-accent);
+  color: var(--shell-sidebar-active-text, var(--shell-accent));
+  font-weight: 500;
 }
-.app-menu .el-collapse-transition-enter-active,
-.app-menu .el-collapse-transition-leave-active {
-  transition-property: height !important;
+.app-menu-title.is-opened,
+.app-menu-title.is-active-path {
+  color: var(--shell-sidebar-active-text, var(--shell-accent));
 }
-.app-menu .el-menu-item .el-icon,
-.app-menu .el-sub-menu__title .el-icon {
+.app-menu-list .app-menu-icon {
   width: var(--shell-menu-icon-size);
   min-width: var(--shell-menu-icon-size);
+  flex-shrink: 0;
   margin-right: 8px;
   font-size: var(--shell-menu-icon-size);
 }
-.app-menu .el-sub-menu__icon-arrow {
-  right: 14px;
+.app-menu-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.app-menu .el-menu-item:hover, .app-menu .el-sub-menu__title:hover {
-  background-color: var(--shell-control-hover-bg) !important;
+.app-menu-arrow {
+  flex: none;
+  margin-left: 4px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  transition: transform 120ms ease;
 }
-/* 二级菜单项增加左侧缩进 */
-.app-menu .el-sub-menu .el-menu-item {
+.app-menu-title.is-opened .app-menu-arrow {
+  transform: rotate(90deg);
+}
+.app-menu-children {
+  margin: 0 !important;
+  padding: 0 !important;
+  display: none;
+}
+.app-menu-children.is-open {
+  display: block;
+}
+.app-menu-list.is-depth-1 > .app-menu-node > .app-menu-item {
   padding-left: 25px !important;
 }
-/* 三级菜单项（如果有）增加更多缩进 */
-.app-menu .el-sub-menu .el-sub-menu .el-menu-item {
+.app-menu-list.is-depth-2 > .app-menu-node > .app-menu-item,
+.app-menu-list.is-depth-3 > .app-menu-node > .app-menu-item {
   padding-left: 45px !important;
 }
-/* 嵌套分组（财务总账/应收等）只靠缩进区分层级，字号与基础数据二级菜单一致 */
-.app-menu .el-sub-menu .el-sub-menu > .el-sub-menu__title {
+.app-menu-list.is-depth-1 > .app-menu-node > .app-menu-title {
   padding-left: 20px !important;
   position: relative;
   background: linear-gradient(90deg, color-mix(in srgb, var(--shell-accent) 4%, transparent), transparent) !important;
 }
-.app-menu .el-sub-menu .el-sub-menu > .el-sub-menu__title::before {
+.app-menu-list.is-depth-1 > .app-menu-node > .app-menu-title::before {
   content: '';
   position: absolute;
   left: 8px;
@@ -224,14 +248,6 @@ html.dark .app-shell {
   height: 16px;
   background: linear-gradient(180deg, var(--shell-accent), color-mix(in srgb, var(--shell-accent) 30%, transparent));
   border-radius: 2px;
-}
-/* 三级菜单项激活状态：走侧栏激活字色，避免反转侧栏上 --shell-accent（主色）与底色撞色 */
-.app-menu .el-sub-menu .el-sub-menu .el-menu-item.is-active {
-  color: var(--shell-sidebar-active-text, var(--shell-accent)) !important;
-  font-weight: 500;
-}
-.app-menu .el-sub-menu .el-sub-menu .el-menu-item.is-active .el-icon {
-  opacity: 1;
 }
 .header {
   display: flex;
@@ -424,10 +440,14 @@ html.dark .app-shell {
   flex-basis: var(--shell-sidebar-collapsed-width);
   width: var(--shell-sidebar-collapsed-width) !important;
 }
+/* 主线程繁忙或用户要求减少动画时，避免侧栏宽度动画继续触发整页重排。 */
+html.perf-low-end .sidebar,
+html.perf-reduced-motion .sidebar {
+  transition: none !important;
+}
 .sidebar.is-resizing .logo-container .title,
-.sidebar.is-resizing .app-menu .el-menu-item > span,
-.sidebar.is-resizing .app-menu .el-sub-menu__title > span,
-.sidebar.is-resizing .app-menu .el-sub-menu__icon-arrow {
+.sidebar.is-resizing .app-menu .app-menu-label,
+.sidebar.is-resizing .app-menu .app-menu-arrow {
   transition-property: opacity, transform, color !important;
 }
 .sidebar.is-mini .sidebar-menu {
@@ -438,8 +458,7 @@ html.dark .app-shell {
 .sidebar.is-mini .app-menu {
   width: 100% !important;
 }
-.sidebar.is-mini .app-menu .el-menu-item,
-.sidebar.is-mini .app-menu .el-sub-menu__title {
+.sidebar.is-mini .app-menu .app-menu-item {
   width: 100% !important;
   min-width: 0;
   justify-content: center;
@@ -448,29 +467,20 @@ html.dark .app-shell {
   margin-left: 0 !important;
   margin-right: 0 !important;
 }
-.sidebar.is-mini .app-menu .el-menu-item > span,
-.sidebar.is-mini .app-menu .el-sub-menu__title > span {
+.sidebar.is-mini .app-menu .app-menu-label {
   width: 0;
   opacity: 0;
   visibility: hidden;
   overflow: hidden;
   transform: translateX(-4px);
 }
-.sidebar.is-mini .app-menu .el-sub-menu__icon-arrow {
+.sidebar.is-mini .app-menu .app-menu-arrow {
   display: none;
 }
-.sidebar.is-mini .app-menu .el-menu-tooltip__trigger {
-  width: 100%;
-  height: 100%;
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding-left: 0 !important;
-  padding-right: 0 !important;
+.sidebar.is-mini .app-menu-children {
+  display: none !important;
 }
-.sidebar.is-mini .app-menu .el-menu-item .el-icon,
-.sidebar.is-mini .app-menu .el-sub-menu__title .el-icon {
+.sidebar.is-mini .app-menu .app-menu-icon {
   width: var(--shell-menu-icon-size);
   min-width: var(--shell-menu-icon-size);
   margin: 0 !important;

@@ -27,6 +27,7 @@ const ACTION_SEL = '.el-button, .el-link, .el-dropdown'
 // for old and new pages.
 const CONTAINER_SEL =
   '.table-actions, .operation-buttons, .operation-btns, .operation-column-actions, .flex-wrap, .row-actions'
+const PROBE_ATTR = 'data-erp-operation-measure-probe'
 
 const MIN_WIDTH = 72
 const MAX_WIDTH = 500
@@ -41,6 +42,7 @@ let resizeHandler = null
 let rafId = 0
 let debounceTimer = null
 let pendingRoots = new Set()
+const pendingTables = new Set()
 let observedTables = new WeakSet()
 let appliedWidths = new WeakMap()
 
@@ -125,6 +127,7 @@ function measureCellWidth(cell) {
 
   // 创建探针容器（position:fixed 脱离文档流，visibility:hidden 不可见）
   const probe = document.createElement('div')
+  probe.setAttribute(PROBE_ATTR, 'true')
   probe.style.cssText =
     'position:fixed;top:-9999px;left:-9999px;' +
     'visibility:hidden;pointer-events:none;' +
@@ -194,6 +197,47 @@ function getTables(root) {
   return [...root.querySelectorAll('.el-table')]
 }
 
+function isProbeNode(node) {
+  return Boolean(
+    node &&
+    node.nodeType === 1 &&
+    (node.matches?.(`[${PROBE_ATTR}]`) || node.closest?.(`[${PROBE_ATTR}]`))
+  )
+}
+
+function addTablesFromNode(node, tables) {
+  if (!node || node.nodeType !== 1 || isProbeNode(node)) return
+
+  if (node.matches?.('.el-table')) {
+    tables.add(node)
+  }
+  if (node !== document.body && node !== document.documentElement) {
+    node.querySelectorAll?.('.el-table').forEach((table) => tables.add(table))
+  }
+
+  const containingTable = node.closest?.('.el-table')
+  if (containingTable) tables.add(containingTable)
+}
+
+function isRelevantAttributeMutation(target, attributeName) {
+  if (!target || target.nodeType !== 1 || isProbeNode(target)) return false
+
+  // Widths written by this plugin must not schedule another measurement.
+  if (
+    attributeName === 'style' &&
+    target.matches?.('col, .operation-column, .operation-column-header')
+  ) {
+    return false
+  }
+
+  return Boolean(
+    target.closest?.(
+      `${OPERATION_COLUMN_SEL}, ${OPERATION_HEADER_SEL}, ${CONTAINER_SEL}, ${ACTION_SEL}`
+    ) ||
+    target.matches?.(`${OPERATION_COLUMN_SEL}, ${OPERATION_HEADER_SEL}, ${CONTAINER_SEL}, ${ACTION_SEL}`)
+  )
+}
+
 function updateAll(root) {
   getTables(root).forEach((table) => {
     // 注册到 ResizeObserver（首次时）
@@ -258,55 +302,35 @@ export function initOperationColumnAutoWidth(appRoot = document.body) {
 
   schedule(document)
 
-  // MutationObserver：同时检测 addedNodes 和 removedNodes
+  // MutationObserver：只调度受影响的表格，并忽略插件自己的测量探针。
   mutationObserver = new MutationObserver((mutations) => {
-    let hit = false
+    const tables = new Set()
 
     for (const m of mutations) {
-      if (hit) break
+      if (isProbeNode(m.target)) continue
 
-      // ── childList：按钮增减（v-if 双向切换）──────────────────────────────
       if (m.type === 'childList') {
-        // 合并 addedNodes + removedNodes 一起扫描：
-        // v-if false→true：addedNodes 有真实元素（nodeType=1）
-        // v-if true→false：addedNodes 只有注释节点（nodeType=8），
-        //                  removedNodes 有真实元素 → 必须检查 removedNodes！
         for (const node of [...m.addedNodes, ...m.removedNodes]) {
-          if (node.nodeType !== 1) continue
-          if (
-            node.matches?.(ACTION_SEL + ', .table-actions, .operation-buttons, .operation-btns, .operation-column-actions, .flex-wrap, .row-actions, .el-table, .el-table__body') ||
-            node.querySelector?.(ACTION_SEL + ', .operation-column')
-          ) {
-            hit = true
-            break
-          }
+          addTablesFromNode(node, tables)
         }
-
-        // 兜底：mutation 的直接父节点就在操作列容器里
-        if (!hit && m.target?.closest?.('.operation-column, .table-actions, .operation-buttons, .operation-column-actions, .flex-wrap, .row-actions')) {
-          hit = true
-        }
+        addTablesFromNode(m.target, tables)
       }
 
-      // ── attributes：v-show、disabled 等属性变化 ──────────────────────────
-      if (
-        !hit &&
-        m.type === 'attributes' &&
-        m.target?.nodeType === 1 &&
-        (
-          m.target.closest?.('.operation-column') ||
-          m.target.matches?.(ACTION_SEL + ', .table-actions, .operation-buttons, .operation-btns, .operation-column-actions, .flex-wrap, .row-actions')
-        )
-      ) {
-        hit = true
+      if (m.type === 'attributes' && isRelevantAttributeMutation(m.target, m.attributeName)) {
+        addTablesFromNode(m.target, tables)
       }
     }
 
-    if (!hit) return
+    if (tables.size === 0) return
 
-    // 防抖 60ms，合并短时间内的多次变化
+    // 防抖 60ms，合并同一批 DOM 变化。
+    tables.forEach((table) => pendingTables.add(table))
     clearTimeout(debounceTimer)
-    debounceTimer = setTimeout(() => schedule(document), 60)
+    debounceTimer = setTimeout(() => {
+      const nextTables = [...pendingTables]
+      pendingTables.clear()
+      nextTables.forEach((table) => schedule(table))
+    }, 60)
   })
 
   mutationObserver.observe(appRoot || document.body, {
@@ -339,6 +363,7 @@ export function destroyOperationColumnAutoWidth() {
   debounceTimer = null
 
   pendingRoots.clear()
+  pendingTables.clear()
 }
 
 // ─── Vite HMR 支持 ───────────────────────────────────────────────────────────

@@ -1,53 +1,83 @@
 <template>
+  <ul class="app-menu-list" :class="`is-depth-${depth}`" role="menu">
   <template v-for="menu in menus" :key="menu.id">
-    <!-- 过滤掉按钮权限(type=2)和没有path的项目 -->
-    <template v-if="menu.type !== 2 && (menu.path || hasVisibleChildren(menu))">
-      <!-- 有可显示的子菜单的项目作为 sub-menu -->
-      <el-sub-menu
-        v-if="hasVisibleChildren(menu)"
-        :index="getMenuIndex(menu)"
+    <li
+      v-if="menu.menuIndex"
+      class="app-menu-node"
+      :class="{ 'is-branch': menu.hasChildren, 'is-opened': menu.hasChildren && isOpen(menu), 'is-active': isActive(menu) }"
+      role="none"
+    >
+      <button
+        v-if="menu.hasChildren"
+        type="button"
+        class="app-menu-item app-menu-title"
+        :class="{ 'is-opened': isOpen(menu), 'is-active-path': isActivePath(menu) }"
+        role="menuitem"
+        :aria-expanded="isOpen(menu) ? 'true' : 'false'"
+        :title="mini ? getMenuLabel(menu) : undefined"
+        @click.stop="toggleMenu(menu)"
       >
-        <template #title>
-          <el-icon v-if="menu.icon">
-            <component :is="getIconComponent(menu.icon)" />
-          </el-icon>
-          <span>{{ getMenuLabel(menu) }}</span>
-        </template>
-        <!-- 递归渲染子菜单（过滤掉按钮权限） -->
-        <sidebar-menu :menus="getVisibleChildren(menu)" />
-      </el-sub-menu>
-      <!-- 没有可显示子菜单的项目作为 menu-item -->
-      <el-menu-item
-        v-else
-        :index="menu.path"
+        <el-icon v-if="menu.icon" class="app-menu-icon"><component :is="getIconComponent(menu.icon)" /></el-icon>
+        <span class="app-menu-label">{{ getMenuLabel(menu) }}</span>
+        <el-icon class="app-menu-arrow"><component :is="getIconComponent('icon-arrow-right')" /></el-icon>
+      </button>
+      <div v-if="menu.hasChildren && isOpen(menu)" class="app-menu-children is-open" role="group">
+        <SidebarMenu
+          :menus="menu.children"
+          :open-chain="openChain"
+          :active-path="activePath"
+          :parent-chain="parentChain.concat(menu.menuIndex)"
+          :depth="depth + 1"
+          :mini="mini"
+          @toggle="forwardToggle"
+          @navigate="navigate"
+        />
+      </div>
+      <button
+        v-if="!menu.hasChildren && menu.path"
+        type="button"
+        class="app-menu-item app-menu-link"
+        :class="{ 'is-active': isActive(menu) }"
+        role="menuitem"
+        :title="mini ? getMenuLabel(menu) : undefined"
+        @click.stop="navigate(menu.path)"
       >
-        <el-icon v-if="menu.icon">
-          <component :is="getIconComponent(menu.icon)" />
-        </el-icon>
-        <span>{{ getMenuLabel(menu) }}</span>
-      </el-menu-item>
-    </template>
+        <el-icon v-if="menu.icon" class="app-menu-icon"><component :is="getIconComponent(menu.icon)" /></el-icon>
+        <span class="app-menu-label">{{ getMenuLabel(menu) }}</span>
+      </button>
+    </li>
   </template>
+  </ul>
 </template>
 <script setup>
 import { useI18n } from 'vue-i18n'
 import {
-  getIconComponent,
-  getMenuIndex,
-  getVisibleChildren,
-  hasVisibleChildren
+  getIconComponent
 } from '../../utils/menuNavigation'
 defineOptions({
   name: 'SidebarMenu' // 递归组件需要名称
 })
-const _props = defineProps({
+const props = defineProps({
   menus: {
     type: Array,
     default: () => []
-  }
+  },
+  openChain: { type: Array, default: () => [] },
+  activePath: { type: String, default: '' },
+  parentChain: { type: Array, default: () => [] },
+  depth: { type: Number, default: 0 },
+  mini: { type: Boolean, default: false }
 })
+const emit = defineEmits(['toggle', 'navigate'])
 
 const { t } = useI18n()
+
+const isOpen = (menu) => props.openChain.includes(menu.menuIndex)
+const isActive = (menu) => Boolean(menu.path && props.activePath && menu.path === props.activePath)
+const isActivePath = (menu) => isOpen(menu) && Boolean(props.activePath)
+const toggleMenu = (menu) => emit('toggle', menu.menuIndex, props.parentChain)
+const navigate = (path) => path && emit('navigate', path)
+const forwardToggle = (index, parentChain) => emit('toggle', index, parentChain)
 
 /**
  * 菜单路径到 i18n 翻译 key 的映射表

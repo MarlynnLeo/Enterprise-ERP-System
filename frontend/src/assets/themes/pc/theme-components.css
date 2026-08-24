@@ -432,16 +432,16 @@
   box-shadow: var(--shell-shadow, 0 8px 28px color-mix(in srgb, var(--ds-black, #000) 8%, transparent));
 }
 
-[data-theme] .sidebar .el-menu,
-[data-theme] .app-sidebar .el-menu {
+[data-theme] .sidebar .app-menu-list,
+[data-theme] .app-sidebar .app-menu-list {
   background: transparent !important;
   border-right: none !important;
 }
 
-[data-theme] .sidebar .el-menu-item,
-[data-theme] .sidebar .el-sub-menu__title,
-[data-theme] .app-sidebar .el-menu-item,
-[data-theme] .app-sidebar .el-sub-menu__title {
+[data-theme] .sidebar .app-menu-link,
+[data-theme] .sidebar .app-menu-title,
+[data-theme] .app-sidebar .app-menu-link,
+[data-theme] .app-sidebar .app-menu-title {
   color: var(--shell-sidebar-text-muted, var(--color-text-secondary)) !important;
   border-radius: var(--shell-radius-md, var(--radius-md, 8px)) !important;
   margin: 0 !important;
@@ -453,24 +453,24 @@
     border-color var(--transition-fast, 0.15s) ease !important;
 }
 
-[data-theme] .sidebar .el-menu-item span,
-[data-theme] .sidebar .el-sub-menu__title span,
-[data-theme] .app-sidebar .el-menu-item span,
-[data-theme] .app-sidebar .el-sub-menu__title span {
+[data-theme] .sidebar .app-menu-link span,
+[data-theme] .sidebar .app-menu-title span,
+[data-theme] .app-sidebar .app-menu-link span,
+[data-theme] .app-sidebar .app-menu-title span {
   color: inherit !important;
 }
 
-[data-theme] .sidebar .el-menu-item .el-icon,
-[data-theme] .sidebar .el-sub-menu__title .el-icon,
-[data-theme] .app-sidebar .el-menu-item .el-icon,
-[data-theme] .app-sidebar .el-sub-menu__title .el-icon {
+[data-theme] .sidebar .app-menu-link .el-icon,
+[data-theme] .sidebar .app-menu-title .el-icon,
+[data-theme] .app-sidebar .app-menu-link .el-icon,
+[data-theme] .app-sidebar .app-menu-title .el-icon {
   color: inherit !important;
 }
 
-[data-theme] .sidebar .el-menu-item:hover,
-[data-theme] .sidebar .el-sub-menu__title:hover,
-[data-theme] .app-sidebar .el-menu-item:hover,
-[data-theme] .app-sidebar .el-sub-menu__title:hover {
+[data-theme] .sidebar .app-menu-link:hover,
+[data-theme] .sidebar .app-menu-title:hover,
+[data-theme] .app-sidebar .app-menu-link:hover,
+[data-theme] .app-sidebar .app-menu-title:hover {
   background: var(
     --shell-sidebar-hover-bg,
     color-mix(in srgb, var(--color-primary) 8%, transparent)
@@ -480,8 +480,8 @@
   box-shadow: var(--shell-sidebar-hover-shadow, none) !important;
 }
 
-[data-theme] .sidebar .el-menu-item.is-active,
-[data-theme] .app-sidebar .el-menu-item.is-active {
+[data-theme] .sidebar .app-menu-link.is-active,
+[data-theme] .app-sidebar .app-menu-link.is-active {
   background: var(
     --shell-sidebar-active-bg,
     linear-gradient(
@@ -497,8 +497,8 @@
 }
 
 /* 可选 ::before 轨道（宽度 0 时不可见；kacon 设为 3px） */
-[data-theme] .sidebar .el-menu-item.is-active::before,
-[data-theme] .app-sidebar .el-menu-item.is-active::before {
+[data-theme] .sidebar .app-menu-link.is-active::before,
+[data-theme] .app-sidebar .app-menu-link.is-active::before {
   content: '';
   position: absolute;
   left: 0;
@@ -510,10 +510,10 @@
   pointer-events: none;
 }
 
-[data-theme] .sidebar .el-menu-item.is-active span,
-[data-theme] .app-sidebar .el-menu-item.is-active span,
-[data-theme] .sidebar .el-menu-item.is-active .el-icon,
-[data-theme] .app-sidebar .el-menu-item.is-active .el-icon {
+[data-theme] .sidebar .app-menu-link.is-active span,
+[data-theme] .app-sidebar .app-menu-link.is-active span,
+[data-theme] .sidebar .app-menu-link.is-active .el-icon,
+[data-theme] .app-sidebar .app-menu-link.is-active .el-icon {
   color: inherit !important;
 }
 
@@ -531,44 +531,44 @@
   padding-right: 8px !important;
 }
 
-[data-theme] .sidebar .el-menu-item .el-icon,
-[data-theme] .sidebar .el-sub-menu__title .el-icon,
-[data-theme] .app-sidebar .el-menu-item .el-icon,
-[data-theme] .app-sidebar .el-sub-menu__title .el-icon {
+[data-theme] .sidebar .app-menu-link .el-icon,
+[data-theme] .sidebar .app-menu-title .el-icon,
+[data-theme] .app-sidebar .app-menu-link .el-icon,
+[data-theme] .app-sidebar .app-menu-title .el-icon {
   opacity: var(--shell-menu-icon-opacity, 0.55);
   font-size: var(--shell-menu-icon-size, 18px) !important;
 }
 
-[data-theme] .sidebar .el-menu-item:hover .el-icon,
-[data-theme] .sidebar .el-sub-menu__title:hover .el-icon,
-[data-theme] .app-sidebar .el-menu-item:hover .el-icon,
-[data-theme] .app-sidebar .el-sub-menu__title:hover .el-icon {
+[data-theme] .sidebar .app-menu-link:hover .el-icon,
+[data-theme] .sidebar .app-menu-title:hover .el-icon,
+[data-theme] .app-sidebar .app-menu-link:hover .el-icon,
+[data-theme] .app-sidebar .app-menu-title:hover .el-icon {
   opacity: var(--shell-menu-icon-opacity-hover, 0.85);
 }
 
-[data-theme] .sidebar .el-menu-item.is-active .el-icon,
-[data-theme] .app-sidebar .el-menu-item.is-active .el-icon,
-[data-theme] .sidebar .el-sub-menu.is-active > .el-sub-menu__title .el-icon,
-[data-theme] .app-sidebar .el-sub-menu.is-active > .el-sub-menu__title .el-icon {
+[data-theme] .sidebar .app-menu-link.is-active .el-icon,
+[data-theme] .app-sidebar .app-menu-link.is-active .el-icon,
+[data-theme] .sidebar .app-menu-title.is-active-path .el-icon,
+[data-theme] .app-sidebar .app-menu-title.is-active-path .el-icon {
   opacity: 1;
 }
 
 /*
- * 子项选中时父级 el-sub-menu 会带 .is-active，标题仍画在侧栏底上（没有 active-bg）。
+ * 子项选中时父级 app-menu-node 会带 .is-active，标题仍画在侧栏底上（没有 active-bg）。
  * 必须用 --shell-sidebar-text：商务/专业/活力等反转侧栏的 --color-primary 就是侧栏底色。
  */
-[data-theme] .sidebar .el-sub-menu.is-active > .el-sub-menu__title,
-[data-theme] .app-sidebar .el-sub-menu.is-active > .el-sub-menu__title {
+[data-theme] .sidebar .app-menu-title.is-active-path,
+[data-theme] .app-sidebar .app-menu-title.is-active-path {
   color: var(--shell-sidebar-text, var(--color-text-primary)) !important;
   font-weight: var(--shell-sidebar-active-weight, 600) !important;
 }
 
-[data-theme] .sidebar .el-sub-menu.is-active > .el-sub-menu__title span,
-[data-theme] .app-sidebar .el-sub-menu.is-active > .el-sub-menu__title span,
-[data-theme] .sidebar .el-sub-menu.is-active > .el-sub-menu__title .el-icon,
-[data-theme] .app-sidebar .el-sub-menu.is-active > .el-sub-menu__title .el-icon,
-[data-theme] .sidebar .el-sub-menu.is-active > .el-sub-menu__title .el-sub-menu__icon-arrow,
-[data-theme] .app-sidebar .el-sub-menu.is-active > .el-sub-menu__title .el-sub-menu__icon-arrow {
+[data-theme] .sidebar .app-menu-title.is-active-path span,
+[data-theme] .app-sidebar .app-menu-title.is-active-path span,
+[data-theme] .sidebar .app-menu-title.is-active-path .el-icon,
+[data-theme] .app-sidebar .app-menu-title.is-active-path .el-icon,
+[data-theme] .sidebar .app-menu-title.is-active-path .app-menu-arrow,
+[data-theme] .app-sidebar .app-menu-title.is-active-path .app-menu-arrow {
   color: inherit !important;
 }
 

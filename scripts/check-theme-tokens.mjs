@@ -129,10 +129,10 @@ for (const id of THEMES) {
   }
 
   // 禁止主题再写菜单激活背景/文字色（应走 shell token + theme-components）
-  // 允许：.is-active .el-icon、.el-sub-menu.is-active、仅 font-weight 已迁到 token
+  // 允许：.is-active .el-icon、分支菜单 active-path、仅 font-weight 已迁到 token
   const menuActiveBlocks = [
     ...css.matchAll(
-      /\[data-theme[^\]]*\][^{]*\.el-menu-item\.is-active(?![-\w.])[^{]*\{([^}]*)\}/g
+      /\[data-theme[^\]]*\][^{]*\.app-menu-link\.is-active(?![-\w.])[^{]*\{([^}]*)\}/g
     ),
   ]
   for (const m of menuActiveBlocks) {
@@ -154,7 +154,7 @@ for (const must of [
   '--shell-sidebar-active-bg',
   '--shell-sidebar-active-shadow',
   '--shell-sidebar-rail-width',
-  '.sidebar .el-menu-item.is-active',
+    '.sidebar .app-menu-link.is-active',
 ]) {
   if (!componentsSrc.includes(must)) {
     errors.push(`theme-components.css 缺少侧栏壳: ${must}`)

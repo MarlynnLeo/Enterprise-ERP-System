@@ -790,8 +790,8 @@ html.perf-low-end *::after {
 
 html.perf-low-end .el-button,
 html.perf-low-end .el-card,
-html.perf-low-end .el-menu-item,
-html.perf-low-end .el-sub-menu__title,
+html.perf-low-end .app-menu-link,
+html.perf-low-end .app-menu-title,
 html.perf-low-end .sidebar,
 html.perf-low-end .app-sidebar {
   transition-property: color, background-color, border-color, opacity !important;

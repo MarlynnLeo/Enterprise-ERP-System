@@ -66,6 +66,10 @@
         <div class="stat-label">已确认</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
+        <div class="stat-value">{{ processingStats.inProgressCount || 0 }}</div>
+        <div class="stat-label">加工中</div>
+      </el-card>
+      <el-card class="stat-card" shadow="hover">
         <div class="stat-value">{{ processingStats.completedCount || 0 }}</div>
         <div class="stat-label">已完成</div>
       </el-card>
@@ -141,6 +145,15 @@
             <el-button
               v-if="scope.row.status === 'confirmed'"
               size="small"
+              type="primary"
+              @click="updateProcessingStatus(scope.row, 'in_progress')"
+              v-permission="'purchase:processing:update'"
+            >
+              开始加工
+            </el-button>
+            <el-button
+              v-if="['confirmed', 'in_progress'].includes(scope.row.status)"
+              size="small"
               type="success"
               @click="handleCreateReceipt(scope.row)"
               v-permission="'purchase:processing-receipts:create'"
@@ -194,9 +207,9 @@
           </template>
           <el-row :gutter="16">
             <el-col :span="12">
-              <el-form-item label="加工日期" prop="processingDate">
-                <el-date-picker
-                  v-model="processingForm.processing_date"
+                <el-form-item label="加工日期" prop="processingDate">
+                  <el-date-picker
+                  v-model="processingForm.processingDate"
                   type="date"
                   placeholder="选择日期"
                   value-format="YYYY-MM-DD"
@@ -208,7 +221,7 @@
             <el-col :span="12">
               <el-form-item label="预计交期" prop="expectedDeliveryDate">
                 <el-date-picker
-                  v-model="processingForm.expected_delivery_date"
+                  v-model="processingForm.expectedDeliveryDate"
                   type="date"
                   placeholder="选择日期"
                   value-format="YYYY-MM-DD"
@@ -245,7 +258,7 @@
             <el-col :span="12">
               <el-form-item label="联系人" prop="contactPerson">
                 <el-input
-                  v-model="processingForm.contact_person"
+                  v-model="processingForm.contactPerson"
                   placeholder="请输入联系人"
                   :disabled="viewOnly"
                   class="w-full"
@@ -255,7 +268,7 @@
           </el-row>
           <el-form-item label="联系电话" prop="contactPhone">
             <el-input
-              v-model="processingForm.contact_phone"
+              v-model="processingForm.contactPhone"
               placeholder="请输入联系电话"
               :disabled="viewOnly"
               class="w-full"
@@ -567,6 +580,7 @@ const processingStats = reactive({
   total: 0,
   pendingCount: 0,
   confirmedCount: 0,
+  inProgressCount: 0,
   completedCount: 0,
   cancelledCount: 0
 });
@@ -584,21 +598,21 @@ const processing = ref(false);
 const processingFormRef = ref(null);
 // 对话框表单数据
 const processingForm = reactive({
-  processing_date: formatLocalDate(new Date()),
+  processingDate: formatLocalDate(new Date()),
   supplierId: '',
-  supplier_name: '',
-  expected_delivery_date: '',
-  contact_person: '',
-  contact_phone: '',
+  supplierName: '',
+  expectedDeliveryDate: '',
+  contactPerson: '',
+  contactPhone: '',
   remarks: '',
   materials: [],
   products: []
 });
 // 对话框表单验证规则
 const processingRules = {
-  processing_date: [{ required: true, message: '请选择加工日期', trigger: 'change' }],
+  processingDate: [{ required: true, message: '请选择加工日期', trigger: 'change' }],
   supplierId: [{ required: true, message: '请选择加工厂', trigger: 'change' }],
-  expected_delivery_date: [{ required: true, message: '请选择预计交期', trigger: 'change' }]
+  expectedDeliveryDate: [{ required: true, message: '请选择预计交期', trigger: 'change' }]
 };
 // 供应商数据
 const supplierOptions = ref([]);
@@ -746,12 +760,12 @@ const dialogTitle = computed(() => {
 });
 // 重置处理表单
 const resetProcessingForm = () => {
-  processingForm.processing_date = formatLocalDate(new Date());
+  processingForm.processingDate = formatLocalDate(new Date());
   processingForm.supplierId = '';
   processingForm.supplierName = '';
-  processingForm.expected_delivery_date = '';
-  processingForm.contact_person = '';
-  processingForm.contact_phone = '';
+  processingForm.expectedDeliveryDate = '';
+  processingForm.contactPerson = '';
+  processingForm.contactPhone = '';
   processingForm.remarks = '';
   processingForm.materials = [];
   processingForm.products = [];
@@ -776,8 +790,8 @@ const handleSupplierChange = () => {
 
   if (selectedSupplier) {
     processingForm.supplierName = selectedSupplier.name;
-    processingForm.contact_person = selectedSupplier.contact_person || '';
-    processingForm.contact_phone = selectedSupplier.contact_phone || '';
+    processingForm.contactPerson = selectedSupplier.contact_person || '';
+    processingForm.contactPhone = selectedSupplier.contact_phone || '';
     } else {
   }
 };
@@ -790,12 +804,12 @@ const loadProcessingDetail = async () => {
     // 拦截器已解包，response.data 就是业务数据
     const data = response.data;
     // 填充表单数据
-    processingForm.processing_date = data.processingDate;
+    processingForm.processingDate = data.processingDate;
     processingForm.supplierId = data.supplierId;
     processingForm.supplierName = data.supplierName;
-    processingForm.expected_delivery_date = data.expectedDeliveryDate;
-    processingForm.contact_person = data.contactPerson;
-    processingForm.contact_phone = data.contactPhone;
+    processingForm.expectedDeliveryDate = data.expectedDeliveryDate;
+    processingForm.contactPerson = data.contactPerson;
+    processingForm.contactPhone = data.contactPhone;
     processingForm.remarks = data.remarks;
     processingForm.materials = data.materials || [];
     processingForm.products = data.products || [];
@@ -826,12 +840,12 @@ const handleSelectMaterial = (row) => {
 
   // 添加物料到清单
   processingForm.materials.push({
-    material_id: row.id,
-    material_code: row.code,
-    material_name: row.name,
+    materialId: row.id,
+    materialCode: row.code,
+    materialName: row.name,
     specification: row.specification,
     unit: row.unitName,
-    unit_id: row.unitId,
+    unitId: row.unitId,
     quantity: 1,
     remark: ''
   });
@@ -861,15 +875,15 @@ const handleSelectProduct = (row) => {
 
   // 添加成品到清单
   processingForm.products.push({
-    product_id: row.id,
-    product_code: row.code,
-    product_name: row.name,
+    productId: row.id,
+    productCode: row.code,
+    productName: row.name,
     specification: row.specification,
     unit: row.unitName,
-    unit_id: row.unitId,
+    unitId: row.unitId,
     quantity: 1,
-    unit_price: 0,
-    total_price: 0,
+    unitPrice: 0,
+    totalPrice: 0,
     remark: ''
   });
 
@@ -887,7 +901,7 @@ const calculateRowTotal = (row) => {
 };
 const calculateTotal = () => {
   return processingForm.products.reduce(
-    (sum, product) => sum + parseFloat(product.total_price || 0),
+    (sum, product) => sum + parseFloat(product.totalPrice || 0),
     0
   );
 };
@@ -915,42 +929,47 @@ const handleProcessingSubmit = async () => {
       ElMessage.error('请至少添加一种加工成品');
       return;
     }
-    // 检查并确保所有必要字段都有值
-    const checkAndFix = (fieldName, defaultValue) => {
-      if (processingForm[fieldName] === undefined) {
-        processingForm[fieldName] = defaultValue;
-      }
+    // 构造只包含 API 字段的请求体，避免表单内部残留 snake_case 别名覆盖已填写的值。
+    const payload = {
+      processingDate: processingForm.processingDate,
+      supplierId: processingForm.supplierId,
+      supplierName: processingForm.supplierName,
+      expectedDeliveryDate: processingForm.expectedDeliveryDate,
+      contactPerson: processingForm.contactPerson,
+      contactPhone: processingForm.contactPhone,
+      remarks: processingForm.remarks,
+      materials: processingForm.materials.map((material) => ({
+        materialId: material.materialId,
+        materialCode: material.materialCode,
+        materialName: material.materialName,
+        specification: material.specification || '',
+        unit: material.unit || '',
+        unitId: material.unitId,
+        quantity: Number(material.quantity || 0),
+        remark: material.remark || ''
+      })),
+      products: processingForm.products.map((product) => ({
+        productId: product.productId,
+        productCode: product.productCode,
+        productName: product.productName,
+        specification: product.specification || '',
+        unit: product.unit || '',
+        unitId: product.unitId,
+        quantity: Number(product.quantity || 0),
+        unitPrice: Number(product.unitPrice || 0),
+        totalPrice: Number(product.totalPrice || 0),
+        remark: product.remark || ''
+      }))
     };
-
-    // 检查主表字段
-    checkAndFix('processing_date', formatLocalDate(new Date()));
-    checkAndFix('supplier_id', '');
-    checkAndFix('supplier_name', '');
-    checkAndFix('expected_delivery_date', '');
-    checkAndFix('contact_person', '');
-    checkAndFix('contact_phone', '');
-    checkAndFix('remarks', '');
-
-    // 检查物料和成品
-    processingForm.materials.forEach((material) => {
-      if (material.remark === undefined) material.remark = '';
-    });
-
-    processingForm.products.forEach((product) => {
-      if (product.remark === undefined) product.remark = '';
-      if (product.total_price === undefined) {
-        product.total_price = parseFloat(product.quantity) * parseFloat(product.unitPrice);
-      }
-    });
 
     processing.value = true;
 
     try {
       if (processingDialogMode.value === 'create') {
-        await purchaseApi.outsourcedProcessing.create(processingForm);
+        await purchaseApi.outsourcedProcessing.create(payload);
         ElMessage.success('创建委外加工单成功');
       } else if (processingDialogMode.value === 'edit') {
-        await purchaseApi.outsourcedProcessing.update(selectedProcessingId.value, processingForm);
+        await purchaseApi.outsourcedProcessing.update(selectedProcessingId.value, payload);
         ElMessage.success('更新委外加工单成功');
       }
 
@@ -1008,6 +1027,7 @@ const updateStats = () => {
   processingStats.total = pagination.total;
   processingStats.pendingCount = processingList.value.filter(item => item.status === 'pending').length;
   processingStats.confirmedCount = processingList.value.filter(item => item.status === 'confirmed').length;
+  processingStats.inProgressCount = processingList.value.filter(item => item.status === 'in_progress').length;
   processingStats.completedCount = processingList.value.filter(item => item.status === 'completed').length;
   processingStats.cancelledCount = processingList.value.filter(item => item.status === 'cancelled').length;
 };

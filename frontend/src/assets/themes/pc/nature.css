@@ -174,10 +174,10 @@
   text-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black, #000) 20%, transparent) !important;
 }
 
-[data-theme="nature"] .sidebar .el-menu-item,
-[data-theme="nature"] .sidebar .el-sub-menu__title,
-[data-theme="nature"] .app-sidebar .el-menu-item,
-[data-theme="nature"] .app-sidebar .el-sub-menu__title {
+[data-theme="nature"] .sidebar .app-menu-link,
+[data-theme="nature"] .sidebar .app-menu-title,
+[data-theme="nature"] .app-sidebar .app-menu-link,
+[data-theme="nature"] .app-sidebar .app-menu-title {
   border-radius: 0 !important;
 }
 

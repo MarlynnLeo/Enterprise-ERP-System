@@ -6,6 +6,7 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { prepareMenuTree } from '../utils/menuNavigation'
 
 export const usePermissionStore = defineStore('permission', () => {
   // ==================== 状态定义 ====================
@@ -18,6 +19,7 @@ export const usePermissionStore = defineStore('permission', () => {
   // 菜单相关
   const menuList = ref([])
   const menuTree = ref([])
+  const preparedMenuTree = computed(() => prepareMenuTree(menuTree.value))
   const menuLoading = ref(false)
   const menuSaveLoading = ref(false)
 
@@ -198,6 +200,7 @@ export const usePermissionStore = defineStore('permission', () => {
     roleSaveLoading,
     menuList,
     menuTree,
+    preparedMenuTree,
     menuLoading,
     menuSaveLoading,
     currentRole,

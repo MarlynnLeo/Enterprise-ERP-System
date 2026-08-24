@@ -169,10 +169,10 @@
   border-bottom: 1px solid var(--shell-border) !important;
 }
 
-[data-theme="dark"] .sidebar .el-menu-item,
-[data-theme="dark"] .sidebar .el-sub-menu__title,
-[data-theme="dark"] .app-sidebar .el-menu-item,
-[data-theme="dark"] .app-sidebar .el-sub-menu__title {
+[data-theme="dark"] .sidebar .app-menu-link,
+[data-theme="dark"] .sidebar .app-menu-title,
+[data-theme="dark"] .app-sidebar .app-menu-link,
+[data-theme="dark"] .app-sidebar .app-menu-title {
   border-radius: 0 !important;
 }
 

@@ -53,9 +53,10 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
     setCurrentItem: setCurrentViewOrder
   } = useListDetailNavigation(orderList)
   const viewData = reactive({
-    id: null, order_number: '', order_date: '', expected_delivery_date: '',
-    supplier_id: '', supplier_name: '', contact_person: '', contact_phone: '',
-    remarks: '', status: '', total_amount: null, requisition_id: null, requisition_number: '', items: []
+    id: null, orderNo: '', orderDate: '', expectedDeliveryDate: '',
+    supplierId: '', supplierName: '', contactPerson: '', contactPhone: '',
+    remarks: '', status: '', totalAmount: null, subtotal: null, taxAmount: null,
+    contractCode: '', requisitionId: null, requisitionNumber: '', items: []
   })
 
   // 到货对话框
@@ -129,19 +130,19 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
       const explicitTotal = toNumberOrNull(item.totalPrice ?? item.totalPrice ?? item.amount)
       const totalPrice = explicitTotal ?? (price === null ? null : quantity * price)
       return {
-        material_id: item.materialId || item.id || '',
-        material_code: item.materialCode || item.code || '',
-        material_name: item.materialName || item.name || '',
+        materialId: item.materialId || item.id || '',
+        materialCode: item.materialCode || item.code || '',
+        materialName: item.materialName || item.name || '',
         specification: item.specification || '', unit: item.unit || item.unitName || '',
         quantity, price,
-        total_price: totalPrice,
-        tax_rate: toNumberOrNull(item.taxRate) ?? 0,
-        tax_amount: toNumberOrNull(item.taxAmount),
-        received_quantity: toNumberOrNull(item.receivedQuantity) ?? 0,
-        warehoused_quantity: toNumberOrNull(item.warehousedQuantity) ?? 0,
-        received_percentage: toNumberOrNull(item.receivedPercentage) ?? 0,
-        warehoused_percentage: toNumberOrNull(item.warehousedPercentage) ?? 0,
-        pending_quantity: toNumberOrNull(item.pendingQuantity) ?? 0
+        totalPrice,
+        taxRate: toNumberOrNull(item.taxRate) ?? 0,
+        taxAmount: toNumberOrNull(item.taxAmount),
+        receivedQuantity: toNumberOrNull(item.receivedQuantity) ?? 0,
+        warehousedQuantity: toNumberOrNull(item.warehousedQuantity) ?? 0,
+        receivedPercentage: toNumberOrNull(item.receivedPercentage) ?? 0,
+        warehousedPercentage: toNumberOrNull(item.warehousedPercentage) ?? 0,
+        pendingQuantity: toNumberOrNull(item.pendingQuantity) ?? 0
       }
     })
   }
@@ -156,15 +157,21 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
         let items = data.items || data.orderItems || data.materialItems || []
         items = fixItemsStructure(items)
         Object.assign(viewData, {
-          id: data.id, order_number: data.orderNo || '',
-          order_date: formatDate(data.orderDate || ''),
-          expected_delivery_date: formatDate(data.expectedDeliveryDate || ''),
-          supplier_id: data.supplierId || '', supplier_name: data.supplierName || '',
-          contact_person: data.contactPerson || '', contact_phone: data.contactPhone || '',
-          notes: data.notes || data.remarks || '', status: data.status || '',
-          total_amount: data.totalAmount ?? data.totalAmount ?? null,
-          requisition_id: data.requisitionId || null,
-          requisition_number: data.requisitionNumber || '', items
+          id: data.id,
+          orderNo: data.orderNo || data.orderNumber || '',
+          orderDate: formatDate(data.orderDate || data.order_date || ''),
+          expectedDeliveryDate: formatDate(data.expectedDeliveryDate || data.expected_delivery_date || ''),
+          supplierId: data.supplierId ?? data.supplier_id ?? '',
+          supplierName: data.supplierName || data.supplier_name || '',
+          contactPerson: data.contactPerson || data.contact_person || '',
+          contactPhone: data.contactPhone || data.contact_phone || '',
+          remarks: data.remarks || data.notes || '', status: data.status || '',
+          totalAmount: data.totalAmount ?? data.total_amount ?? null,
+          subtotal: data.subtotal ?? null,
+          taxAmount: data.taxAmount ?? data.tax_amount ?? null,
+          contractCode: data.contractCode || data.contract_code || '',
+          requisitionId: data.requisitionId ?? data.requisition_id ?? null,
+          requisitionNumber: data.requisitionNumber || data.requisition_number || '', items
         })
         const row = orderList.value.find((item) => String(item.id) === String(id))
         if (row) setCurrentViewOrder(row)
@@ -248,7 +255,12 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
       const items = orderData.items || []
       receiveForm.items = items.map(item => {
         const pendingQty = parseFloat(item.quantity || 0) - parseFloat(item.receivedQuantity || 0)
-        return { ...item, receive_quantity: pendingQty > 0 ? pendingQty : 0, pending_quantity: pendingQty }
+        return {
+          ...item,
+          // 到货数量必须由操作人明确填写，未到货明细默认提交 0。
+          receiveQuantity: 0,
+          pendingQuantity: pendingQty > 0 ? pendingQty : 0
+        }
       })
       const hasPendingItems = receiveForm.items.some(item => parseFloat(item.pendingQuantity || 0) > 0)
       if (!hasPendingItems) { ElMessage.info('该订单所有物料已全部收货完成'); receiveDialogVisible.value = false }
@@ -305,11 +317,11 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
         ElMessage.warning('系统设置读取失败，已使用默认公司信息')
       }
       const printData = {
-        ...companyInfo, order_number: viewData.orderNumber || viewData.orderNo || '', order_no: viewData.orderNumber || viewData.orderNo || '',
-        order_date: formatDate(viewData.order_date), expected_delivery_date: formatDate(viewData.expected_delivery_date), delivery_date: formatDate(viewData.expected_delivery_date),
-        supplier_name: viewData.supplierName || '', contact_person: viewData.contact_person || '-', contact_phone: viewData.contact_phone || '-',
-        status: getStatusText(viewData.status), notes: viewData.notes || '', remark: viewData.notes || '', contract_code: viewData.contract_code || '-',
-        subtotal: formatPlainAmount(viewData.totalAmount), tax_amount: formatPlainAmount(viewData.tax_amount), total_amount: formatPlainAmount(viewData.totalAmount),
+        ...companyInfo, order_number: viewData.orderNo || '', order_no: viewData.orderNo || '',
+        order_date: formatDate(viewData.orderDate), expected_delivery_date: formatDate(viewData.expectedDeliveryDate), delivery_date: formatDate(viewData.expectedDeliveryDate),
+        supplier_name: viewData.supplierName || '', contact_person: viewData.contactPerson || '-', contact_phone: viewData.contactPhone || '-',
+        status: getStatusText(viewData.status), notes: viewData.remarks || '', remark: viewData.remarks || '', contract_code: viewData.contractCode || '-',
+        subtotal: formatPlainAmount(viewData.subtotal), tax_amount: formatPlainAmount(viewData.taxAmount), total_amount: formatPlainAmount(viewData.totalAmount),
         total_quantity: (viewData.items || []).reduce((sum, item) => sum + parseFloat(item.quantity || 0), 0).toFixed(2),
         print_time: new Date().toLocaleString('zh-CN'),
         items: (viewData.items || []).map((item, index) => {
@@ -335,7 +347,7 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
             unit_price: formatPlainAmount(price),
             total_price: formatPlainAmount(totalPrice),
             amount: formatPlainAmount(totalPrice),
-            delivery_date: formatDate(item.deliveryDate || viewData.expected_delivery_date || '')
+            delivery_date: formatDate(item.deliveryDate || viewData.expectedDeliveryDate || '')
           }
         })
       }

@@ -185,10 +185,10 @@
   border-bottom: 1px solid color-mix(in srgb, var(--ds-white, #fff) 10%, transparent) !important;
 }
 
-[data-theme="professional"] .sidebar .el-menu-item,
-[data-theme="professional"] .sidebar .el-sub-menu__title,
-[data-theme="professional"] .app-sidebar .el-menu-item,
-[data-theme="professional"] .app-sidebar .el-sub-menu__title {
+[data-theme="professional"] .sidebar .app-menu-link,
+[data-theme="professional"] .sidebar .app-menu-title,
+[data-theme="professional"] .app-sidebar .app-menu-link,
+[data-theme="professional"] .app-sidebar .app-menu-title {
   border-radius: 0 !important;
 }
 

@@ -103,7 +103,7 @@ const activeIndex = ref(0)
 const inputRef = ref(null)
 
 const menuOptions = computed(() =>
-  buildMenuSearchOptions(permissionStore.preparedMenuTree || permissionStore.menuTree)
+  buildMenuSearchOptions(permissionStore.preparedMenuTree)
 )
 
 const filteredOptions = computed(() => {

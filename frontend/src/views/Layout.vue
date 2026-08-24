@@ -23,30 +23,21 @@
         <h1 class="title app-title">{{ $t('system.title') }}</h1>
       </div>
 
-      <!-- 权限加载中的占位符 -->
-      <div v-if="!permissionsReady" class="menu-loading">
-        <el-skeleton :rows="10" animated />
-      </div>
-      <el-menu
-        v-else
-        ref="menuRef"
-        :default-active="activeMenu"
-        :default-openeds="defaultOpeneds"
+      <nav
         class="sidebar-menu app-menu"
-        router
-        :collapse="isSidebarMenuCollapsed"
-        :collapse-transition="false"
-        :unique-opened="false"
-        background-color="transparent"
-        text-color="var(--el-text-color-primary)"
-        active-text-color="var(--shell-accent)"
+        :class="{ 'is-mini-menu': isSidebarMenuCollapsed }"
+        aria-label="主导航"
       >
-        <!-- 动态菜单（从数据库加载） -->
         <sidebar-menu
           v-if="dynamicMenuTree.length > 0"
           :menus="dynamicMenuTree"
+          :open-chain="openMenuChain"
+          :active-path="activeMenu"
+          :mini="isSidebarMenuCollapsed"
+          @toggle="toggleMenuBranch"
+          @navigate="navigateToMenu"
         />
-      </el-menu>
+      </nav>
     </el-aside>
     <div
       v-if="isMobile && !sidebarCollapsed"
@@ -152,7 +143,7 @@
   </el-container>
 </template>
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../stores/auth'
@@ -189,13 +180,10 @@ const sidebarCollapsed = ref(false)
 const sidebarMini = ref(false)
 const sidebarResizing = ref(false)
 const isMobile = ref(false)
-const menuRef = ref(null)
 let sidebarResizeTimer = null
 let sidebarToggleFrame = 0
-// 权限在路由守卫中统一预加载（router/index.js），进入 Layout 时已就绪
-const permissionsReady = ref(true)
 // 动态菜单树
-const dynamicMenuTree = computed(() => permissionStore.menuTree || [])
+const dynamicMenuTree = computed(() => permissionStore.preparedMenuTree)
 // 加载动态菜单（使用新的用户菜单API，返回已过滤的树形结构）
 const loadDynamicMenus = async () => {
   try {
@@ -223,31 +211,25 @@ const activeMenu = computed(() => {
 const defaultOpeneds = computed(() => {
   return menuNavigationState.value.openeds || []
 })
+const openMenuChain = ref([])
 const isSidebarMenuCollapsed = computed(() => !isMobile.value && sidebarMini.value)
-
-const syncRouteOpenMenus = async () => {
-  if (isSidebarMenuCollapsed.value || defaultOpeneds.value.length === 0) return
-
-  await nextTick()
-  const menu = menuRef.value
-  if (!menu) return
-
-  defaultOpeneds.value.forEach((index) => {
-    try {
-      menu.open(index)
-    } catch {
-      // Element Plus registers submenu instances asynchronously while the tree is changing.
-    }
-  })
+const syncRouteOpenMenus = () => {
+  if (isSidebarMenuCollapsed.value) return
+  openMenuChain.value = defaultOpeneds.value.slice()
 }
-
 watch(
   () => [route.path, dynamicMenuTree.value, isSidebarMenuCollapsed.value],
-  () => {
-    syncRouteOpenMenus()
-  },
+  syncRouteOpenMenus,
   { flush: 'post' }
 )
+const toggleMenuBranch = (index, parentChain = []) => {
+  const current = openMenuChain.value
+  const position = current.indexOf(index)
+  openMenuChain.value = position >= 0 ? current.slice(0, position) : [...parentChain, index]
+}
+const navigateToMenu = (path) => {
+  if (path && path !== route.path) router.push(path).catch(() => {})
+}
 
 // 用户信息
 const userName = computed(() => {
@@ -364,12 +346,8 @@ onMounted(async () => {
   syncMobileLayout()
   window.addEventListener('resize', syncMobileLayout)
 
-  try {
-    // 权限与用户信息已由路由守卫统一预加载，此处仅按需挂载动态菜单
-    await loadDynamicMenus()
-  } catch (error) {
-    console.error('加载菜单失败:', error)
-  }
+  // 权限与用户信息已由路由守卫统一预加载，此处仅按需挂载动态菜单
+  await loadDynamicMenus()
 })
 onBeforeUnmount(() => {
   window.removeEventListener('resize', syncMobileLayout)

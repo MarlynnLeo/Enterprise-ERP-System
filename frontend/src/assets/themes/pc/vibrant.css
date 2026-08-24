@@ -182,10 +182,10 @@
   text-shadow: 0 2px 10px color-mix(in srgb, var(--ds-black, #000) 20%, transparent) !important;
 }
 
-[data-theme="vibrant"] .sidebar .el-menu-item,
-[data-theme="vibrant"] .sidebar .el-sub-menu__title,
-[data-theme="vibrant"] .app-sidebar .el-menu-item,
-[data-theme="vibrant"] .app-sidebar .el-sub-menu__title {
+[data-theme="vibrant"] .sidebar .app-menu-link,
+[data-theme="vibrant"] .sidebar .app-menu-title,
+[data-theme="vibrant"] .app-sidebar .app-menu-link,
+[data-theme="vibrant"] .app-sidebar .app-menu-title {
   border-radius: 0 !important;
 }
 

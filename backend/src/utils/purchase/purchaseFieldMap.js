@@ -92,6 +92,8 @@ const purchaseOrderMap = {
       paymentTermDays: row.payment_term_days ?? null,
       remarks: row.remarks ?? null,
       status: row.status ?? null,
+      requisitionId: row.requisition_id ?? null,
+      requisitionNumber: row.requisition_number ?? null,
       createdBy: row.created_by ?? null,
       createdAt: formatDate(row.created_at),
       updatedAt: formatDate(row.updated_at),

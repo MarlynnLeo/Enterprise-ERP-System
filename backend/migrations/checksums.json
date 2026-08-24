@@ -246,5 +246,6 @@
   "20260820000002_grant_inventory_manager_all_data_scope.js": "ea81aa216af6d789c5fcae9ea132f78e02dd7259a9f87fdfff85abc5f07629c2",
   "20260820000003_disable_row_level_data_scopes.js": "b39f301a9f59e7cfaef62ca9b0fdf775d14c8b4b827af9b083889a52e5ddf2ce",
   "20260822000001_align_component_warehouse_inbound_outbound_access.js": "f7be6765bebc9b73e7914114fcdb1e22eba0c84d4772abb2e70a052c933fc7cb",
-  "20260822000002_align_outsourced_processing_labels.js": "446b6de5127f688183a6db405979fbe1f2ad695f681d8de45afc503bd18ade1e"
+  "20260822000002_align_outsourced_processing_labels.js": "446b6de5127f688183a6db405979fbe1f2ad695f681d8de45afc503bd18ade1e",
+  "20260822000003_seed_outsourced_status_dictionary.js": "f68a5b6e12a6efd6ad54ee82013a612de2776c24acd3907b44107183c5c8eec6"
 }
