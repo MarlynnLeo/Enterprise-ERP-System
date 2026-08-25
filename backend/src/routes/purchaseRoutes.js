@@ -128,6 +128,26 @@ router.get(
   outsourcedProcessingController.getProcessings
 );
 router.get(
+  '/outsourced-processings/options/suppliers',
+  authenticateToken,
+  requirePermission([
+    'purchase:processing:view',
+    'purchase:processing:create',
+    'purchase:processing:update',
+  ]),
+  outsourcedProcessingController.getOutsourcedSupplierOptions
+);
+router.get(
+  '/outsourced-processings/options/materials',
+  authenticateToken,
+  requirePermission([
+    'purchase:processing:view',
+    'purchase:processing:create',
+    'purchase:processing:update',
+  ]),
+  outsourcedProcessingController.getOutsourcedMaterialOptions
+);
+router.get(
   '/outsourced-processings/:id',
   authenticateToken,
   requirePermission('purchase:processing:view'),
@@ -162,6 +182,36 @@ router.put(
 
 // 委外入库路由
 router.get('/outsourced-receipts', authenticateToken, requirePermission('purchase:processing-receipts:view'), outsourcedProcessingController.getReceipts);
+router.get(
+  '/outsourced-receipts/options/warehouses',
+  authenticateToken,
+  requirePermission([
+    'purchase:processing-receipts:view',
+    'purchase:processing-receipts:create',
+    'purchase:processing-receipts:edit',
+  ]),
+  outsourcedProcessingController.getOutsourcedReceiptWarehouseOptions
+);
+router.get(
+  '/outsourced-receipts/options/processings',
+  authenticateToken,
+  requirePermission([
+    'purchase:processing-receipts:view',
+    'purchase:processing-receipts:create',
+    'purchase:processing-receipts:edit',
+  ]),
+  outsourcedProcessingController.getOutsourcedReceiptProcessingOptions
+);
+router.get(
+  '/outsourced-receipts/options/processings/:processingId',
+  authenticateToken,
+  requirePermission([
+    'purchase:processing-receipts:view',
+    'purchase:processing-receipts:create',
+    'purchase:processing-receipts:edit',
+  ]),
+  outsourcedProcessingController.getOutsourcedReceiptProcessingDetail
+);
 router.get(
   '/outsourced-receipts/:id',
   authenticateToken,

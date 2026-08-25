@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * ReceiptDialog.vue
  * @description 前端界面组件文件
@@ -10,11 +10,53 @@
   <AppDialog
     v-model="dialogVisible"
     :title="dialogTitle"
-    mode="form"
+    :mode="viewOnly ? 'view' : 'form'"
     width="850px"
     :before-close="handleClose"
   >
-    <el-form ref="receiptFormRef" :model="receiptForm" :rules="rules" label-width="100px" class="form-container">
+    <div v-if="viewOnly" class="receipt-view">
+      <el-descriptions border :column="2" class="purchase-view-desc">
+        <el-descriptions-item label="入库单号">{{ receiptForm.receiptNo || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="加工单号">{{ receiptForm.processingNo || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="入库日期">{{ formatDate(receiptForm.receiptDate) }}</el-descriptions-item>
+        <el-descriptions-item label="加工厂">{{ receiptForm.supplierName || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="入库仓库">{{ receiptForm.warehouseName || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="操作员">{{ receiptForm.operator || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="状态">
+          <el-tag :type="getStatusType(receiptForm.status)">
+            {{ getStatusLabel(receiptForm.status) }}
+          </el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="入库总金额">
+          <span class="total-amount-highlight">{{ formatPrice(calculateTotal()) }}</span>
+        </el-descriptions-item>
+        <el-descriptions-item label="备注" :span="2">{{ receiptForm.remarks || '无' }}</el-descriptions-item>
+      </el-descriptions>
+
+      <el-divider content-position="center">入库成品明细</el-divider>
+      <el-table :data="receiptForm.items" border class="w-full">
+        <el-table-column type="index" width="60" label="序号" />
+        <el-table-column prop="productCode" label="成品编码" min-width="120" />
+        <el-table-column prop="productName" label="成品名称" min-width="150" />
+        <el-table-column prop="specification" label="规格" min-width="120" />
+        <el-table-column prop="unit" label="单位" width="70" />
+        <el-table-column prop="expectedQuantity" label="应收数量" width="100" />
+        <el-table-column prop="actualQuantity" label="实收数量" width="100" />
+        <el-table-column prop="unitPrice" label="加工单价" width="100">
+          <template #default="{ row }">{{ formatPrice(row.unitPrice) }}</template>
+        </el-table-column>
+        <el-table-column prop="totalPrice" label="小计金额" width="120">
+          <template #default="{ row }">{{ formatPrice(row.totalPrice) }}</template>
+        </el-table-column>
+      </el-table>
+
+      <div class="view-total-section">
+        <span class="total-label">入库总金额：</span>
+        <span class="total-value">{{ formatPrice(calculateTotal()) }}</span>
+      </div>
+    </div>
+
+    <el-form v-else ref="receiptFormRef" :model="receiptForm" :rules="rules" label-width="100px" class="form-container">
       <!-- 基本信息 -->
       <el-card class="data-card">
         <template #header>
@@ -24,9 +66,29 @@
         </template>
         <el-row :gutter="16">
           <el-col :span="12">
-            <el-form-item label="加工单号" prop="processingNo">
+            <el-form-item label="加工单号" prop="processingId">
+              <el-select
+                v-if="!viewOnly && mode === 'create' && !props.processingId"
+                v-model="receiptForm.processingId"
+                filterable
+                remote
+                reserve-keyword
+                placeholder="请搜索或选择加工单"
+                :remote-method="loadProcessingOrders"
+                :loading="processingOrdersLoading"
+                class="w-full"
+                @change="handleSelectProcessingOrder"
+              >
+                <el-option
+                  v-for="item in processingOrderOptions"
+                  :key="item.id"
+                  :label="`${item.processingNo} (${item.supplierName})`"
+                  :value="item.id"
+                />
+              </el-select>
               <el-input
-                v-model="receiptForm.processing_no"
+                v-else
+                v-model="receiptForm.processingNo"
                 placeholder="加工单号"
                 :disabled="true"
                 class="w-full"
@@ -48,7 +110,7 @@
           <el-col :span="12">
             <el-form-item label="入库日期" prop="receiptDate">
               <el-date-picker
-                v-model="receiptForm.receipt_date"
+                v-model="receiptForm.receiptDate"
                 type="date"
                 placeholder="选择日期"
                 value-format="YYYY-MM-DD"
@@ -152,7 +214,7 @@
 
     <template #footer>
       <span class="dialog-footer">
-        <el-button @click="handleClose">取消</el-button>
+        <el-button @click="handleClose">{{ viewOnly ? '关闭' : '取消' }}</el-button>
         <el-button v-if="!viewOnly" type="primary" @click="handleSubmit">
           {{ processing ? '保存中...' : '保存' }}
         </el-button>
@@ -168,7 +230,16 @@ import { ref, computed, reactive, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { purchaseApi } from '@/api/purchase';
 import { ensureValidId } from '@/utils/helpers/dataUtils'
-import { loadLocationOptions } from '@/utils/optionLoaders';
+import {
+  loadOutsourcedReceiptProcessingOptions,
+  loadOutsourcedReceiptWarehouseOptions,
+  searchOutsourcedReceiptProcessingOptions,
+} from '@/utils/optionLoaders';
+import { formatDate } from '@/utils/helpers/dateUtils';
+import {
+  getOutsourcedStatusText,
+  getOutsourcedStatusColor
+} from '@/constants/systemConstants';
 
 
 const props = defineProps({
@@ -209,6 +280,8 @@ const dialogTitle = computed(() => {
 
 // 计算属性：是否为只读模式
 const viewOnly = computed(() => props.mode === 'view');
+const getStatusLabel = (status) => getOutsourcedStatusText(status);
+const getStatusType = (status) => getOutsourcedStatusColor(status);
 
 // 对话框显示状态
 const dialogVisible = computed({
@@ -218,21 +291,26 @@ const dialogVisible = computed({
 
 // 入库单表单
 const receiptForm = reactive({
-  processing_id: null,
-  processing_no: '',
+  receiptNo: '',
+  processingId: null,
+  processingNo: '',
   supplierId: null,
   supplierName: '',
   warehouseId: null,
-  warehouse_name: '',
-  receipt_date: formatLocalDate(new Date()), // 当前日期
+  warehouseName: '',
+  receiptDate: formatLocalDate(new Date()), // 当前日期
   operator: '',
   remarks: '',
+  status: '',
   items: [] // 入库明细
 });
 
 // 表单校验规则
 const rules = {
-  receipt_date: [
+  processingId: [
+    { required: true, message: '请选择委外加工单', trigger: 'change' }
+  ],
+  receiptDate: [
     { required: true, message: '请选择入库日期', trigger: 'blur' }
   ],
   warehouseId: [
@@ -250,11 +328,63 @@ const receiptFormRef = ref(null);
 // 处理中状态
 const processing = ref(false);
 
+// 加工单选择相关状态
+const processingOrderOptions = ref([]);
+const processingOrdersLoading = ref(false);
+
+// 加载加工中或已确认的委外加工单
+const loadProcessingOrders = async (query = '') => {
+  processingOrdersLoading.value = true;
+  try {
+    const list = query
+      ? await searchOutsourcedReceiptProcessingOptions(query)
+      : await loadOutsourcedReceiptProcessingOptions();
+    processingOrderOptions.value = list
+      .map(item => ({
+        id: item.id,
+        processingNo: item.processingNo,
+        supplierName: item.supplierName || '未知厂商'
+      }));
+  } catch (error) {
+    console.error('获取加工单列表失败:', error);
+  } finally {
+    processingOrdersLoading.value = false;
+  }
+};
+
+// 选择加工单时联动带出成品明细
+const handleSelectProcessingOrder = (processingId) => {
+  if (processingId) {
+    loadProcessingDetailById(processingId);
+  }
+};
+
+// 通过加工单ID加载成品明细与供应商信息
+const loadProcessingDetailById = async (processingId) => {
+  if (!processingId) return;
+  try {
+    const response = await purchaseApi.outsourcedReceipts.getProcessingDetail(processingId);
+    const data = response.data;
+
+    receiptForm.processingId = ensureValidId(data.id);
+    receiptForm.processingNo = data.processingNo || '';
+    receiptForm.supplierId = data.supplierId;
+    receiptForm.supplierName = data.supplierName;
+
+    // 转换成品为入库单明细项
+    receiptForm.items = (data.products || [])
+      .map(normalizeProcessingProduct)
+      .filter(item => item.expectedQuantity > 0);
+  } catch (error) {
+    console.error('获取加工单详情失败:', error);
+    ElMessage.error('获取加工单详情失败');
+  }
+};
+
 // 加载仓库数据
 const loadWarehouses = async () => {
   try {
-    const locations = await loadLocationOptions();
-    warehouseOptions.value = locations.filter(item => item.type === 'warehouse');
+    warehouseOptions.value = await loadOutsourcedReceiptWarehouseOptions();
     if (warehouseOptions.value.length === 0) {
       ElMessage.warning('仓库数据加载异常，请确认数据库中是否已添加仓库信息');
     }
@@ -271,8 +401,49 @@ const handleWarehouseChange = (warehouseId) => {
 
   const selectedWarehouse = warehouseOptions.value.find(item => item.id === actualWarehouseId);
   if (selectedWarehouse) {
-    receiptForm.warehouse_name = selectedWarehouse.name;
+    receiptForm.warehouseName = selectedWarehouse.name;
   }
+};
+
+const toFiniteNumber = (value, fallback = 0) => {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : fallback;
+};
+
+const normalizeProcessingProduct = (product) => {
+  const expectedQuantity = toFiniteNumber(product.receivableQuantity, toFiniteNumber(product.quantity));
+  const unitPrice = toFiniteNumber(product.unitPrice);
+
+  return {
+    productId: ensureValidId(product.productId),
+    productCode: product.productCode || '',
+    productName: product.productName || '',
+    specification: product.specification || product.specs || '',
+    unit: product.unit || '',
+    unitId: ensureValidId(product.unitId),
+    expectedQuantity,
+    actualQuantity: expectedQuantity,
+    unitPrice,
+    totalPrice: toFiniteNumber(product.totalPrice, expectedQuantity * unitPrice)
+  };
+};
+
+const normalizeReceiptItem = (item) => {
+  const actualQuantity = toFiniteNumber(item.actualQuantity);
+  const unitPrice = toFiniteNumber(item.unitPrice);
+
+  return {
+    productId: ensureValidId(item.productId),
+    productCode: item.productCode || '',
+    productName: item.productName || '',
+    specification: item.specification || item.specs || '',
+    unit: item.unit || '',
+    unitId: ensureValidId(item.unitId),
+    expectedQuantity: toFiniteNumber(item.expectedQuantity),
+    actualQuantity,
+    unitPrice,
+    totalPrice: toFiniteNumber(item.totalPrice, actualQuantity * unitPrice)
+  };
 };
 
 // 计算行总价
@@ -295,29 +466,20 @@ const loadProcessingDetail = async () => {
   if (!props.processingId) return;
 
   try {
-    const response = await purchaseApi.outsourcedProcessing.getDetail(props.processingId);
+    const response = await purchaseApi.outsourcedReceipts.getProcessingDetail(props.processingId);
     // 拦截器已解包，response.data 就是业务数据
     const data = response.data;
 
     // 填充表单数据
-    receiptForm.processing_id = data.id;
-    receiptForm.processing_no = data.processingNo;
+    receiptForm.processingId = ensureValidId(data.id);
+    receiptForm.processingNo = data.processingNo || '';
     receiptForm.supplierId = data.supplierId;
     receiptForm.supplierName = data.supplierName;
 
     // 转换成品为入库单明细项
-    receiptForm.items = (data.products || []).map(product => ({
-      product_id: product.productId,
-      product_code: product.productCode,
-      product_name: product.productName,
-      specification: product.specification,
-      unit: product.unit,
-      unit_id: product.unitId,
-      expected_quantity: product.quantity,
-      actual_quantity: product.quantity, // 默认实收等于应收
-      unit_price: product.unitPrice,
-      total_price: product.total_price
-    }));
+    receiptForm.items = (data.products || [])
+      .map(normalizeProcessingProduct)
+      .filter(item => item.expectedQuantity > 0);
   } catch (error) {
     console.error('获取加工单详情失败:', error);
     ElMessage.error('获取加工单详情失败');
@@ -334,16 +496,18 @@ const loadReceiptDetail = async () => {
     const data = response.data;
 
     // 填充表单数据，使用工具函数确保数据格式正确
-    receiptForm.processing_id = ensureValidId(data.processingId);
-    receiptForm.processing_no = data.processingNo || '';
+    receiptForm.processingId = ensureValidId(data.processingId);
+    receiptForm.receiptNo = data.receiptNo || '';
+    receiptForm.processingNo = data.processingNo || '';
     receiptForm.supplierId = ensureValidId(data.supplierId);
     receiptForm.supplierName = data.supplierName || '';
-    receiptForm.warehouseId = ensureValidId(data.warehouseId);
-    receiptForm.warehouse_name = data.warehouseName || '';
-    receiptForm.receipt_date = data.receiptDate || formatLocalDate(new Date());
+    receiptForm.warehouseId = ensureValidId(data.locationId ?? data.warehouseId);
+    receiptForm.warehouseName = data.warehouseName || '';
+    receiptForm.receiptDate = data.receiptDate || formatLocalDate(new Date());
     receiptForm.operator = data.operator || '';
     receiptForm.remarks = data.remarks || '';
-    receiptForm.items = data.items || [];
+    receiptForm.status = data.status || '';
+    receiptForm.items = (data.items || []).map(normalizeReceiptItem);
   } catch {
     ElMessage.error('获取入库单详情失败');
   }
@@ -373,11 +537,34 @@ const handleSubmit = async () => {
     processing.value = true;
 
     try {
+      const payload = {
+        processingId: receiptForm.processingId,
+        processingNo: receiptForm.processingNo,
+        supplierId: receiptForm.supplierId,
+        supplierName: receiptForm.supplierName,
+        locationId: receiptForm.warehouseId,
+        warehouseName: receiptForm.warehouseName,
+        receiptDate: receiptForm.receiptDate,
+        operator: receiptForm.operator,
+        remarks: receiptForm.remarks,
+        items: receiptForm.items.map((item) => ({
+          productId: item.productId,
+          productCode: item.productCode,
+          productName: item.productName,
+          specification: item.specification || '',
+          unit: item.unit || '',
+          unitId: item.unitId,
+          expectedQuantity: Number(item.expectedQuantity || 0),
+          actualQuantity: Number(item.actualQuantity || 0),
+          unitPrice: Number(item.unitPrice || 0)
+        }))
+      };
+
       if (props.mode === 'create') {
-        await purchaseApi.outsourcedReceipts.create(receiptForm);
+        await purchaseApi.outsourcedReceipts.create(payload);
         ElMessage.success('创建委外入库单成功');
       } else if (props.mode === 'edit') {
-        await purchaseApi.outsourcedReceipts.update(props.receiptId, receiptForm);
+        await purchaseApi.outsourcedReceipts.update(props.receiptId, payload);
         ElMessage.success('更新委外入库单成功');
       }
 
@@ -410,24 +597,30 @@ watch(() => props.visible, (newVal) => {
   if (newVal) {
     // 初始化数据
     Object.assign(receiptForm, {
-      processing_id: null,
-      processing_no: '',
+      processingId: null,
+      receiptNo: '',
+      processingNo: '',
       supplierId: null,
       supplierName: '',
       warehouseId: null,
-      warehouse_name: '',
-      receipt_date: formatLocalDate(new Date()),
+      warehouseName: '',
+      receiptDate: formatLocalDate(new Date()),
       operator: '',
       remarks: '',
+      status: '',
       items: []
     });
 
     // 加载仓库数据
     loadWarehouses();
 
-    // 如果是创建模式且有加工单ID，加载加工单详情
-    if (props.mode === 'create' && props.processingId) {
-      loadProcessingDetail();
+    // 如果是创建模式且有加工单ID，加载加工单详情；否则加载加工单列表供选择
+    if (props.mode === 'create') {
+      if (props.processingId) {
+        loadProcessingDetail();
+      } else {
+        loadProcessingOrders();
+      }
     }
 
     // 如果是编辑或查看模式，加载入库单详情
@@ -443,6 +636,9 @@ watch(() => props.visible, (newVal) => {
   margin-top: var(--spacing-lg);
 }
 
+.receipt-view {
+  margin-top: var(--spacing-lg);
+}
 
 
 .card-header {
@@ -482,6 +678,18 @@ watch(() => props.visible, (newVal) => {
   min-width: 0;
   white-space: normal;
   word-break: break-word;
+}
+
+.total-amount-highlight {
+  font-size: 16px;
+  font-weight: bold;
+  color: var(--color-danger);
+}
+
+.view-total-section {
+  margin-top: 20px;
+  text-align: right;
+  padding-right: 15px;
 }
 
 :deep(.el-table__cell) {

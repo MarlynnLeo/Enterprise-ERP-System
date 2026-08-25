@@ -174,6 +174,8 @@ export const purchaseApi = {
     getReceipt: (id) => api.get(`/purchase/receipts/${id}`),
     outsourcedProcessing: {
         getList: (params) => api.get('/purchase/outsourced-processings', { params }),
+        getSupplierOptions: (params = {}) => api.get('/purchase/outsourced-processings/options/suppliers', { params }),
+        getMaterialOptions: (params = {}) => api.get('/purchase/outsourced-processings/options/materials', { params }),
         getDetail: (id) => api.get(`/purchase/outsourced-processings/${id}`),
         create: (data) => api.post('/purchase/outsourced-processings', data),
         update: (id, data) => api.put(`/purchase/outsourced-processings/${id}`, data),
@@ -182,6 +184,9 @@ export const purchaseApi = {
     },
     outsourcedReceipts: {
         getList: (params) => api.get('/purchase/outsourced-receipts', { params }),
+        getWarehouseOptions: (params = {}) => api.get('/purchase/outsourced-receipts/options/warehouses', { params }),
+        getProcessingOptions: (params = {}) => api.get('/purchase/outsourced-receipts/options/processings', { params }),
+        getProcessingDetail: (id) => api.get(`/purchase/outsourced-receipts/options/processings/${id}`),
         getDetail: (id) => api.get(`/purchase/outsourced-receipts/${id}`),
         create: (data) => api.post('/purchase/outsourced-receipts', data),
         update: (id, data) => api.put(`/purchase/outsourced-receipts/${id}`, data),

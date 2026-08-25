@@ -869,9 +869,9 @@ const getStatistics = async (req, res) => {
 const getOrderById = async (id) => {
   try {
     const query = `
-      SELECT o.*, s.code as supplier_code
+      SELECT o.*, s.code as supplier_code, s.name as supplier_master_name
       FROM purchase_orders o
-      LEFT JOIN suppliers s ON o.supplier_id = s.id
+        LEFT JOIN suppliers s ON o.supplier_id = s.id
       WHERE o.id = ? AND o.deleted_at IS NULL
     `;
     const [rows] = await pool.query(query, [id]);
@@ -885,6 +885,9 @@ const getOrderById = async (id) => {
     const itemsQuery = `
       SELECT
         poi.*,
+        MAX(m.code) AS resolved_material_code,
+        MAX(m.name) AS resolved_material_name,
+        MAX(m.specs) AS resolved_specification,
         po.order_no,
         COALESCE(u1.name, u2.name) as unit_name,
         COALESCE(poi.unit_id, m.unit_id) as effective_unit_id,
@@ -930,9 +933,15 @@ const getOrderById = async (id) => {
     });
 
     // 明细规范化后走 purchaseOrderMap → 仅 camel 出参
-    const normalizedItems = normalizeItemsUnitPrice(itemRows);
+    const normalizedItems = normalizeItemsUnitPrice(itemRows).map((item) => ({
+      ...item,
+      material_code: item.material_code || item.resolved_material_code || null,
+      material_name: item.material_name || item.resolved_material_name || null,
+      specification: item.specification || item.resolved_specification || null,
+    }));
     const api = purchaseOrderMap.toApi({
       ...order,
+      supplier_name: order.supplier_name || order.supplier_master_name || null,
       items: normalizedItems,
     });
     api.items = (normalizedItems || []).map((it) => {

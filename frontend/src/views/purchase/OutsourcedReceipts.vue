@@ -2,13 +2,24 @@
 /**
  * OutsourcedReceipts.vue
  * @description 前端界面组件文件
-  * @date 2025-08-27
+ * @date 2025-08-27
  * @version 1.0.0
  */
 -->
 <template>
   <div class="module-page outsourced-receipts-container">
-    <PageHeader title="委外入库管理" subtitle="管理委外入库单据" />
+    <PageHeader title="委外入库管理" subtitle="管理委外入库单据">
+      <template #actions>
+        <el-button
+          type="primary"
+          :icon="Plus"
+          @click="handleCreateReceipt"
+          v-permission="'purchase:processing-receipts:create'"
+        >
+          新建委外入库单
+        </el-button>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -44,7 +55,6 @@
             start-placeholder="开始日期"
             end-placeholder="结束日期"
             value-format="YYYY-MM-DD"
-
           />
         </el-form-item>
       </template>
@@ -73,8 +83,8 @@
         border
         class="table-row-click w-full"
         v-loading="loading"
-      
-      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleViewReceipt(row))">
+        @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleViewReceipt(row))"
+      >
         <el-table-column prop="receiptNo" label="入库单号" min-width="150" />
         <el-table-column prop="processingNo" label="加工单号" min-width="150" />
         <el-table-column prop="receiptDate" label="入库日期" min-width="120">
@@ -85,24 +95,22 @@
         <el-table-column prop="supplierName" label="加工厂" min-width="180" />
         <el-table-column prop="warehouseName" label="入库仓库" min-width="120" />
         <el-table-column prop="operator" label="操作员" min-width="100" />
-        <el-table-column prop="status" label="状态" min-width="80">
+        <el-table-column prop="status" label="状态" min-width="90">
           <template #default="scope">
             <el-tag :type="getStatusType(scope.row.status)">
               {{ getStatusLabel(scope.row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
-      >
+        <el-table-column label="操作" min-width="220" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            
             <el-button
               v-if="scope.row.status === 'pending'"
               size="small"
               type="primary"
-              @click="handleEditReceipt(scope.row)"
-
-              v-permission="'purchase:processing-receipts:edit'">
+              @click.stop="handleEditReceipt(scope.row)"
+              v-permission="'purchase:processing-receipts:edit'"
+            >
               编辑
             </el-button>
             <el-button
@@ -110,7 +118,7 @@
               size="small"
               type="success"
               v-permission="'purchase:processing-receipts:edit'"
-              @click="updateReceiptStatus(scope.row, 'confirmed')"
+              @click.stop="updateReceiptStatus(scope.row, 'confirmed')"
             >
               确认入库
             </el-button>
@@ -119,9 +127,26 @@
               size="small"
               type="danger"
               v-permission="'purchase:processing-receipts:edit'"
-              @click="updateReceiptStatus(scope.row, 'cancelled')"
+              @click.stop="updateReceiptStatus(scope.row, 'cancelled')"
             >
               取消
+            </el-button>
+            <el-button
+              v-if="scope.row.status === 'confirmed'"
+              size="small"
+              type="success"
+              v-permission="'purchase:processing-receipts:edit'"
+              @click.stop="updateReceiptStatus(scope.row, 'completed')"
+            >
+              完成入库
+            </el-button>
+            <el-button
+              v-if="['confirmed', 'completed', 'cancelled'].includes(scope.row.status)"
+              size="small"
+              type="info"
+              @click.stop="handleViewReceipt(scope.row)"
+            >
+              查看
             </el-button>
           </template>
         </el-table-column>
@@ -149,6 +174,7 @@
     <ReceiptDialog
       v-model:visible="receiptDialogVisible"
       :mode="receiptDialogMode"
+      :processing-id="selectedProcessingId"
       :receipt-id="selectedReceiptId"
       @success="fetchReceiptList"
     />
@@ -156,10 +182,12 @@
 </template>
 
 <script setup>
+import { useRoute } from 'vue-router';
 import { handleTableRowView } from '@/utils/tableRowView'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue'
 import { purchaseApi } from '@/api/purchase';
 
 import ReceiptDialog from './ReceiptDialog.vue';
@@ -168,6 +196,8 @@ import {
   getOutsourcedStatusText,
   getOutsourcedStatusColor
 } from '@/constants/systemConstants';
+
+const route = useRoute();
 
 // 状态选项（使用统一常量）
 const statusOptions = OUTSOURCED_STATUS_OPTIONS;
@@ -181,9 +211,6 @@ const getStatusType = (status) => {
 const getStatusLabel = (status) => {
   return getOutsourcedStatusText(status);
 };
-
-// 格式化日期
-// formatDate 已统一引用公共实现;
 
 // 搜索表单
 const searchForm = reactive({
@@ -216,6 +243,15 @@ const receiptStats = reactive({
 const receiptDialogVisible = ref(false);
 const receiptDialogMode = ref('view');
 const selectedReceiptId = ref(null);
+const selectedProcessingId = ref(null);
+
+// 新建入库单
+const handleCreateReceipt = () => {
+  selectedReceiptId.value = null;
+  selectedProcessingId.value = null;
+  receiptDialogMode.value = 'create';
+  receiptDialogVisible.value = true;
+};
 
 // 获取入库单列表
 const fetchReceiptList = async () => {
@@ -225,7 +261,7 @@ const fetchReceiptList = async () => {
       page: pagination.page,
       pageSize: pagination.pageSize,
       keyword: searchForm.keyword,
-      supplier_name: searchForm.supplierName,
+      supplierName: searchForm.supplierName,
       status: searchForm.status
     };
 
@@ -243,18 +279,16 @@ const fetchReceiptList = async () => {
     if (response.data?.total !== undefined) {
       pagination.total = Number(response.data.total) || 0;
     } else if (receiptList.value.length > 0) {
-      // 如果API没有返回total，则使用数据长度作为备用
       pagination.total = receiptList.value.length;
     } else {
-      // 没有数据时设置为0
       pagination.total = 0;
     }
 
     // 更新统计数据
     updateStats();
   } catch (error) {
-    console.error('获取委外入库单列表失败:', error);
-    ElMessage.error('获取委外入库单列表失败');
+    console.error('获取委外入库列表失败:', error);
+    ElMessage.error('获取委外入库列表失败');
   } finally {
     loading.value = false;
   }
@@ -262,7 +296,6 @@ const fetchReceiptList = async () => {
 
 // 更新统计数据
 const updateStats = () => {
-  // 实际应用中这应该通过API获取或从列表数据计算
   receiptStats.total = pagination.total;
   receiptStats.pendingCount = receiptList.value.filter(item => item.status === 'pending').length;
   receiptStats.confirmedCount = receiptList.value.filter(item => item.status === 'confirmed').length;
@@ -299,76 +332,71 @@ const handleCurrentChange = (val) => {
   fetchReceiptList();
 };
 
-// 更新入库单状态
-const updateReceiptStatus = async (row, status) => {
-  try {
-    await purchaseApi.outsourcedReceipts.updateStatus(row.id, status);
-    ElMessage.success(`状态更新成功`);
-    fetchReceiptList();
-  } catch (error) {
-    console.error('状态更新失败:', error);
-    ElMessage.error('状态更新失败: ' + (error.response?.data?.message || error.message));
-  }
-};
-
-// 查看入库单
+// 查看委外入库单
 const handleViewReceipt = (row) => {
   selectedReceiptId.value = row.id;
+  selectedProcessingId.value = row.processingId;
   receiptDialogMode.value = 'view';
   receiptDialogVisible.value = true;
 };
 
-// 编辑入库单
+// 编辑委外入库单
 const handleEditReceipt = (row) => {
   selectedReceiptId.value = row.id;
+  selectedProcessingId.value = row.processingId;
   receiptDialogMode.value = 'edit';
   receiptDialogVisible.value = true;
+};
+
+// 更新入库单状态
+const updateReceiptStatus = async (row, status) => {
+  try {
+    await purchaseApi.outsourcedReceipts.updateStatus(row.id, status);
+    ElMessage.success('入库单状态更新成功');
+    fetchReceiptList();
+  } catch (error) {
+    console.error('更新入库单状态失败:', error);
+    ElMessage.error('更新入库单状态失败: ' + (error.response?.data?.message || error.message));
+  }
 };
 
 // 页面加载时获取数据
 onMounted(() => {
   fetchReceiptList();
+  if (route.query.processingId) {
+    selectedProcessingId.value = Number(route.query.processingId);
+    receiptDialogMode.value = 'create';
+    receiptDialogVisible.value = true;
+  }
 });
 </script>
 
 <style scoped>
-.header-card {
-  margin-bottom: 20px;
+.statistics-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
 }
 
-.title-section h2 {
-  margin: 0 0 5px 0;
-  font-size: 20px;
-  color: var(--color-text-primary);
+.stat-card {
+  flex: 1;
 }
 
-.subtitle {
-  margin: 0;
+.stat-value {
+  font-size: 24px;
+  font-weight: bold;
+  color: var(--color-primary);
+  margin-bottom: 8px;
+}
+
+.stat-label {
   font-size: 14px;
   color: var(--color-text-secondary);
 }
 
-.search-form {
+.pagination-container {
+  margin-top: 20px;
   display: flex;
-  flex-wrap: wrap;
-}
-
-/* 统计卡片 */
-
-/* 操作按钮样式 - 与库存出库页面保持一致 */
-.el-table .el-button + .el-button {
-  margin-left: 8px;
-}
-
-
-@media (max-width: 768px) {
-  .statistics-row {
-    flex-direction: column;
-  }
-
-  .stat-card {
-    margin-bottom: 10px;
-    width: 100%;
-  }
+  justify-content: flex-end;
 }
 </style>

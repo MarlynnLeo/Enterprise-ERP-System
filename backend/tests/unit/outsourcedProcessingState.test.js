@@ -1,3 +1,5 @@
+/* global describe, expect, test */
+
 const {
   PROCESSING_STATUS_TRANSITIONS,
   RECEIPT_STATUS_TRANSITIONS,
@@ -19,18 +21,20 @@ describe('outsourced processing state machine', () => {
     expect(PROCESSING_STATUS_TRANSITIONS.confirmed.has('cancelled')).toBe(true);
   });
 
-  test('defines the complete outsourced processing lifecycle in the status registry', () => {
+  test('defines the outsourced processing lifecycle with system-only completion', () => {
     expect(getStatusValues('outsourcedProcessing')).toEqual(
       expect.arrayContaining(['pending', 'confirmed', 'in_progress', 'completed', 'cancelled'])
     );
     expect(isValidTransition('outsourcedProcessing', 'confirmed', 'in_progress')).toBe(true);
     expect(PROCESSING_STATUS_TRANSITIONS.confirmed.has('in_progress')).toBe(true);
     expect(PROCESSING_STATUS_TRANSITIONS.in_progress.has('cancelled')).toBe(true);
+    expect(PROCESSING_STATUS_TRANSITIONS.in_progress.has('completed')).toBe(false);
   });
 
   test('keeps receipt transitions aligned with the registry', () => {
     expect(RECEIPT_STATUS_TRANSITIONS.pending.has('confirmed')).toBe(true);
     expect(isValidTransition('outsourcedReceipt', 'confirmed', 'completed')).toBe(true);
+    expect(RECEIPT_STATUS_TRANSITIONS.confirmed.has('cancelled')).toBe(false);
   });
 
   test('returns an actionable business response for insufficient stock', () => {

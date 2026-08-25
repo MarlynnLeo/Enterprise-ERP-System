@@ -423,4 +423,128 @@
     overscroll-behavior-y: contain;
     -webkit-overflow-scrolling: touch;
   }
+
+  /* ===================================================
+   * 全局列表卡片样式系统 (.global-list-card)
+   * 被 Requisitions、Receipts、Returns、Outbound 等页面共用
+   * =================================================== */
+  .global-list-card {
+    background: var(--bg-card, var(--bg-secondary, #fff));
+    border-radius: 12px;
+    margin: 8px 0;
+    padding: 14px 16px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.07), 0 0 0 1px rgba(0, 0, 0, 0.04);
+    cursor: pointer;
+    transition: box-shadow 0.2s ease, transform 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .global-list-card:active {
+    transform: scale(0.99);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  }
+
+  /* 卡片头部：编号 + 状态标签 */
+  .global-list-card .list-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    gap: 8px;
+  }
+
+  .global-list-card .list-id {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: 0.01em;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* 卡片副标题（关联单号等） */
+  .global-list-card .list-subtitle {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+  }
+
+  /* 卡片主标题（公司名、供应商名等） */
+  .global-list-card .list-title {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* 明细信息区域 */
+  .global-list-card .list-details {
+    background: var(--bg-primary, rgba(0, 0, 0, 0.02));
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 10px;
+  }
+
+  /* 明细行 */
+  .global-list-card .list-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 3px 0;
+    gap: 8px;
+    font-size: 0.8125rem;
+  }
+
+  .global-list-card .list-row + .list-row {
+    border-top: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.05));
+  }
+
+  .global-list-card .list-row .label {
+    color: var(--text-secondary);
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .global-list-card .list-row .value {
+    color: var(--text-primary);
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .global-list-card .list-row .value.amount {
+    color: var(--color-primary);
+    font-weight: 600;
+  }
+
+  /* 操作按钮区域 */
+  .global-list-card .list-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.06));
+  }
+
+  /* 空状态 */
+  .empty-state {
+    padding: 40px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
 </style>

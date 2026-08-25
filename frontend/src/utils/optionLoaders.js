@@ -7,7 +7,7 @@ import { parseListData, parsePaginatedData } from '@/utils/responseParser'
 
 export const OPTION_PAGE_SIZE = 50
 /** 下拉全量拉取时的单页大小（与后端上限对齐） */
-export const OPTION_FETCH_PAGE_SIZE = 200
+export const OPTION_FETCH_PAGE_SIZE = 100
 export const OPTION_CACHE_TTL_MS = 5 * 60 * 1000
 
 const cache = new Map()
@@ -132,26 +132,95 @@ const normalizeKeywordSearch = (params = {}) => {
   return normalized
 }
 
+/**
+ * 统一供应商选项结构。
+ * API 仍保留完整字段，选项消费者只依赖这些稳定的显示/联动字段。
+ */
+export const normalizeSupplierOption = (supplier = {}) => {
+  const contactPerson = supplier.contactPerson || supplier.contact || ''
+  const contactPhone = supplier.contactPhone || supplier.phone || ''
+
+  return {
+    ...supplier,
+    id: supplier.id,
+    code: supplier.code || supplier.supplierCode || '',
+    name: supplier.name || supplier.supplierName || '',
+    contactPerson,
+    contactPhone,
+    contact: contactPerson,
+    phone: contactPhone,
+  }
+}
+
+/**
+ * 统一物料选项结构。
+ * 物料列表接口字段以 camelCase 为主，这里在选项层提供稳定的显示/联动字段。
+ */
+export const normalizeMaterialOption = (material = {}) => ({
+  ...material,
+  id: material.id,
+  code: material.code || material.materialCode || '',
+  name: material.name || material.materialName || '',
+  specification: material.specification || material.specs || '',
+  specs: material.specs || material.specification || '',
+  unitId: material.unitId ?? material.unit_id ?? null,
+  unitName: material.unitName || material.unit_name || material.unit || '',
+  materialType: material.materialType || material.material_type || '',
+})
+
 /** 供应商下拉：默认启用，分页拉全 */
 export const loadSupplierOptions = (params = {}) => {
-  const { status, page: _p, pageSize: _ps, limit: _l, ...rest } = params || {}
+  const { status, page: _p, pageSize: _ps, limit: _l, search: _search, ...rest } = params || {}
   const base = {
     ...rest,
     status: status !== undefined && status !== '' ? status : 1,
   }
   const key = `suppliers:all:${stableSerialize(base)}`
-  return withOptionCache(key, () => fetchAllOptionPages(baseDataApi.getSuppliers, base))
+  return withOptionCache(key, async () => {
+    const suppliers = await fetchAllOptionPages(baseDataApi.getSuppliers, base)
+    return suppliers.map(normalizeSupplierOption)
+  })
 }
 
 export const searchSupplierOptions = (keyword = '', params = {}) => {
   const kw = String(keyword || '').trim()
   return loadSupplierOptions({
     ...params,
-    // 后端供应商多用 keyword；同时带 search 兼容
     keyword: kw || undefined,
-    search: kw || undefined,
   })
 }
+
+const loadSingleOptionPage = (namespace, request, params = {}) => {
+  const normalizedParams = {
+    page: 1,
+    pageSize: OPTION_FETCH_PAGE_SIZE,
+    ...(params || {}),
+  }
+  const key = `${namespace}:${stableSerialize(normalizedParams)}`
+  return withOptionCache(key, async () => {
+    const response = await request(normalizedParams)
+    return parseListData(response, { enableLog: false })
+  })
+}
+
+/**
+ * 委外加工厂选项使用采购领域接口，不依赖基础资料页面权限。
+ * 接口只暴露单据联动需要的字段。
+ */
+export const loadOutsourcedSupplierOptions = (params = {}) => {
+  const { page: _p, pageSize: _ps, limit: _l, ...base } = params || {}
+  return loadSingleOptionPage(
+    'outsourced:suppliers',
+    purchaseApi.outsourcedProcessing.getSupplierOptions,
+    base
+  ).then((suppliers) => suppliers.map(normalizeSupplierOption))
+}
+
+export const searchOutsourcedSupplierOptions = (keyword = '', params = {}) =>
+  loadOutsourcedSupplierOptions({
+    ...params,
+    keyword: String(keyword || '').trim() || undefined,
+  })
 
 const normalizeCustomerParams = (params = {}) => normalizeKeywordSearch(params)
 
@@ -185,7 +254,10 @@ export const loadMaterialOptions = (params = {}) => {
     status: status !== undefined && status !== '' ? status : 1,
   }
   const key = `materials:all:${stableSerialize(base)}`
-  return withOptionCache(key, () => fetchAllOptionPages(baseDataApi.getMaterials, base))
+  return withOptionCache(key, async () => {
+    const materials = await fetchAllOptionPages(baseDataApi.getMaterials, base)
+    return materials.map(normalizeMaterialOption)
+  })
 }
 
 export const searchMaterialOptions = (keyword = '', params = {}) => {
@@ -195,6 +267,49 @@ export const searchMaterialOptions = (keyword = '', params = {}) => {
     search: search || undefined,
   })
 }
+
+/**
+ * 委外发料/成品是单据行角色，不等同于物料主数据类型。
+ * 因此这里返回全部启用物料，不按 raw_material / finished_goods 强制过滤。
+ */
+export const loadOutsourcedMaterialOptions = (params = {}) => {
+  const { page: _p, pageSize: _ps, limit: _l, ...base } = params || {}
+  return loadSingleOptionPage(
+    'outsourced:materials',
+    purchaseApi.outsourcedProcessing.getMaterialOptions,
+    base
+  ).then((materials) => materials.map(normalizeMaterialOption))
+}
+
+export const searchOutsourcedMaterialOptions = (keyword = '', params = {}) =>
+  loadOutsourcedMaterialOptions({
+    ...params,
+    keyword: String(keyword || '').trim() || undefined,
+  })
+
+export const loadOutsourcedReceiptWarehouseOptions = (params = {}) => {
+  const { page: _p, pageSize: _ps, limit: _l, ...base } = params || {}
+  return loadSingleOptionPage(
+    'outsourced-receipts:warehouses',
+    purchaseApi.outsourcedReceipts.getWarehouseOptions,
+    base
+  )
+}
+
+export const loadOutsourcedReceiptProcessingOptions = (params = {}) => {
+  const { page: _p, pageSize: _ps, limit: _l, ...base } = params || {}
+  return loadSingleOptionPage(
+    'outsourced-receipts:processings',
+    purchaseApi.outsourcedReceipts.getProcessingOptions,
+    base
+  )
+}
+
+export const searchOutsourcedReceiptProcessingOptions = (keyword = '', params = {}) =>
+  loadOutsourcedReceiptProcessingOptions({
+    ...params,
+    keyword: String(keyword || '').trim() || undefined,
+  })
 
 /**
  * 统一 BOM 下拉数据结构。

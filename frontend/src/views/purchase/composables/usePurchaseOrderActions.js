@@ -131,18 +131,19 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
       const totalPrice = explicitTotal ?? (price === null ? null : quantity * price)
       return {
         materialId: item.materialId || item.id || '',
-        materialCode: item.materialCode || item.code || '',
-        materialName: item.materialName || item.name || '',
-        specification: item.specification || '', unit: item.unit || item.unitName || '',
+        materialCode: item.materialCode || item.material_code || item.code || '',
+        materialName: item.materialName || item.material_name || item.name || '',
+        specification: item.specification || item.specs || item.resolvedSpecification || item.resolved_specification || '',
+        unit: item.unit || item.unitName || item.unit_name || '',
         quantity, price,
         totalPrice,
         taxRate: toNumberOrNull(item.taxRate) ?? 0,
         taxAmount: toNumberOrNull(item.taxAmount),
-        receivedQuantity: toNumberOrNull(item.receivedQuantity) ?? 0,
-        warehousedQuantity: toNumberOrNull(item.warehousedQuantity) ?? 0,
-        receivedPercentage: toNumberOrNull(item.receivedPercentage) ?? 0,
-        warehousedPercentage: toNumberOrNull(item.warehousedPercentage) ?? 0,
-        pendingQuantity: toNumberOrNull(item.pendingQuantity) ?? 0
+        receivedQuantity: toNumberOrNull(item.receivedQuantity ?? item.received_quantity) ?? 0,
+        warehousedQuantity: toNumberOrNull(item.warehousedQuantity ?? item.warehoused_quantity) ?? 0,
+        receivedPercentage: toNumberOrNull(item.receivedPercentage ?? item.received_percentage) ?? 0,
+        warehousedPercentage: toNumberOrNull(item.warehousedPercentage ?? item.warehoused_percentage) ?? 0,
+        pendingQuantity: toNumberOrNull(item.pendingQuantity ?? item.pending_quantity) ?? 0
       }
     })
   }
@@ -158,7 +159,7 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
         items = fixItemsStructure(items)
         Object.assign(viewData, {
           id: data.id,
-          orderNo: data.orderNo || data.orderNumber || '',
+          orderNo: data.orderNo || data.orderNumber || data.order_no || data.order_number || '',
           orderDate: formatDate(data.orderDate || data.order_date || ''),
           expectedDeliveryDate: formatDate(data.expectedDeliveryDate || data.expected_delivery_date || ''),
           supplierId: data.supplierId ?? data.supplier_id ?? '',

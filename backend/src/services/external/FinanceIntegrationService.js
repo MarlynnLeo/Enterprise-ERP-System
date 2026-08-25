@@ -438,6 +438,157 @@ class FinanceIntegrationService {
     return new Map(rows.map((row) => [Number(row.id), Number.parseFloat(row.unit_cost || 0)]));
   }
 
+  /**
+   * 读取外委发料实际发生的库存成本。
+   *
+   * 委外发料会先由 InventoryService 按 FIFO 拆批写入 inventory_ledger，
+   * 因此这里应以出库台账的 unit_cost 为准，而不是只读取 materials.cost_price。
+   * 后者在历史导入物料上可能为 0，但台账仍然保存了可用成本。
+   */
+  static async getOutsourcedIssueCost(connection, processingNo) {
+    if (!processingNo) {
+      return { totalCost: 0, ledgerLines: 0, invalidCostLines: 0 };
+    }
+
+    const [rows] = await connection.execute(
+      `SELECT ROUND(COALESCE(SUM(ABS(quantity) * unit_cost), 0), 2) AS total_cost,
+              SUM(CASE WHEN COALESCE(unit_cost, 0) <= 0 THEN 1 ELSE 0 END) AS invalid_cost_lines,
+              COUNT(*) AS ledger_lines
+         FROM inventory_ledger
+        WHERE reference_no = ?
+          AND transaction_type = 'outsourced_outbound'
+          AND quantity < 0`,
+      [processingNo]
+    );
+
+    return {
+      totalCost: roundMoney(rows[0]?.total_cost || 0),
+      ledgerLines: Number(rows[0]?.ledger_lines || 0),
+      invalidCostLines: Number(rows[0]?.invalid_cost_lines || 0),
+    };
+  }
+
+  /**
+   * 计算委外入库本次应结转的材料成本和逐行入库成本。
+   *
+   * 材料成本在所有成品足量入库后只应结转一次，因此分批入库按
+   * 本次累计实收数量相对计划总数量的增量进行分摊。加工费则按
+   * 入库明细的加工单价直接计入成品成本。
+   */
+  static async getOutsourcedReceiptCostAllocation(connection, receipt, items) {
+    const processingId = Number(receipt?.processing_id || 0);
+    const receiptId = Number(receipt?.id || receipt?.receipt_id || 0);
+    const normalizedItems = Array.isArray(items) ? items : [];
+    const currentQuantity = normalizedItems.reduce(
+      (sum, item) => sum + Math.max(Number(item.actual_quantity || 0), 0),
+      0
+    );
+
+    if (!processingId || currentQuantity <= 0) {
+      throw new Error('委外入库缺少有效加工单或实收数量');
+    }
+
+    const [productRows] = await connection.execute(
+      `SELECT product_id, quantity
+         FROM outsourced_processing_products
+        WHERE processing_id = ?`,
+      [processingId]
+    );
+    const plannedQuantity = productRows.reduce(
+      (sum, row) => sum + Math.max(Number(row.quantity || 0), 0),
+      0
+    );
+    if (plannedQuantity <= 0) {
+      throw new Error(`委外加工单 ${receipt.processing_no || processingId} 没有有效成品计划数量`);
+    }
+
+    const priorParams = [processingId];
+    let receiptExclusion = '';
+    if (receiptId > 0) {
+      receiptExclusion = ' AND opr.id <> ?';
+      priorParams.push(receiptId);
+    }
+    const [priorRows] = await connection.execute(
+      `SELECT COALESCE(SUM(opri.actual_quantity), 0) AS received_quantity
+         FROM outsourced_processing_receipt_items opri
+         INNER JOIN outsourced_processing_receipts opr
+           ON opr.id = opri.receipt_id
+        WHERE opr.processing_id = ?
+          AND opr.status IN ('confirmed', 'completed')
+          ${receiptExclusion}`,
+      priorParams
+    );
+    const priorQuantity = Math.max(Number(priorRows[0]?.received_quantity || 0), 0);
+
+    let materialCost = 0;
+    const issueCost = await this.getOutsourcedIssueCost(
+      connection,
+      receipt.processing_no
+    );
+    if (issueCost.ledgerLines > 0) {
+      if (issueCost.invalidCostLines > 0) {
+        throw new Error(
+          `委外加工单 ${receipt.processing_no || processingId} 存在零成本发料台账，不能生成委外入库凭证`
+        );
+      }
+      materialCost = issueCost.totalCost;
+    }
+
+    if (materialCost <= 0) {
+      const [materialRows] = await connection.execute(
+        `SELECT material_id, quantity
+           FROM outsourced_processing_materials
+          WHERE processing_id = ?`,
+        [processingId]
+      );
+      const materialCostById = await this.getMaterialCostById(
+        connection,
+        materialRows.map((item) => item.material_id)
+      );
+      materialCost = materialRows.reduce(
+        (sum, item) => sum + Number(item.quantity || 0) * (
+          materialCostById.get(Number(item.material_id)) || 0
+        ),
+        0
+      );
+    }
+    materialCost = roundMoney(materialCost);
+
+    const previousRatio = Math.min(priorQuantity / plannedQuantity, 1);
+    const currentRatio = Math.min((priorQuantity + currentQuantity) / plannedQuantity, 1);
+    const allocatedMaterialCost = roundMoney(
+      roundMoney(materialCost * currentRatio) - roundMoney(materialCost * previousRatio)
+    );
+    const processingFee = roundMoney(
+      normalizedItems.reduce(
+        (sum, item) => sum + Number(item.actual_quantity || 0) * Number(item.unit_price || 0),
+        0
+      )
+    );
+
+    const materialUnitCost = materialCost / plannedQuantity;
+    const materialCostByItemId = new Map();
+    for (const item of normalizedItems) {
+      const quantity = Math.max(Number(item.actual_quantity || 0), 0);
+      const itemMaterialCost = Number((materialUnitCost * quantity).toFixed(6));
+      const unitCost = quantity > 0
+        ? Number((materialUnitCost + Number(item.unit_price || 0)).toFixed(6))
+        : 0;
+      materialCostByItemId.set(Number(item.id), {
+        materialCost: itemMaterialCost,
+        unitCost,
+      });
+    }
+
+    return {
+      materialCost,
+      allocatedMaterialCost,
+      processingFee,
+      totalInventoryValue: roundMoney(allocatedMaterialCost + processingFee),
+      materialCostByItemId,
+    };
+  }
+
   // ==================== 销售模块集成 ====================
 
   /**
@@ -2473,15 +2624,30 @@ class FinanceIntegrationService {
         (materials || []).map((item) => item.material_id)
       );
 
-      // 计算发料总金额（精度修复：整数运算）
-      const totalAmount = (materials || []).reduce((sum, item) => {
-        const unitCost = resolveUnitPrice(item)
-          || materialCostById.get(Number(item.material_id))
-          || 0;
-        return sum + Math.round(
-          parseFloat(item.quantity || 0) * unitCost * 100
-        );
-      }, 0) / 100;
+      // 发料后优先使用实际 FIFO 出库台账成本，避免基础资料成本价为 0 时凭证金额错误。
+      const issueCost = await this.getOutsourcedIssueCost(
+        connection,
+        processing.processing_no
+      );
+      let totalAmount;
+      if (issueCost.ledgerLines > 0) {
+        if (issueCost.invalidCostLines > 0) {
+          throw new Error(
+            `委外加工单 ${processing.processing_no || processing.id} 存在零成本发料台账，不能生成外委发料凭证`
+          );
+        }
+        totalAmount = issueCost.totalCost;
+      } else {
+        // 保留无库存台账调用场景的兼容回退；正常确认流程会命中上面的台账成本。
+        totalAmount = (materials || []).reduce((sum, item) => {
+          const unitCost = resolveUnitPrice(item)
+            || materialCostById.get(Number(item.material_id))
+            || 0;
+          return sum + Math.round(
+            parseFloat(item.quantity || 0) * unitCost * 100
+          );
+        }, 0) / 100;
+      }
 
       if (totalAmount <= 0) {
         if (shouldManageTransaction) {
@@ -2619,27 +2785,14 @@ class FinanceIntegrationService {
       }
 
 
-      // 计算入库总加工费（精度修复：整数运算）
-      const totalProcessingFee = (items || []).reduce((sum, item) => {
-        return sum + Math.round(
-          parseFloat(item.actual_quantity || 0) * parseFloat(item.unit_price || 0) * 100
-        );
-      }, 0) / 100;
-
-      // 获取外委发料时的物料成本
-      let materialCost = 0;
-      if (receipt.processing_id) {
-        const [materialRows] = await connection.execute(
-          `SELECT COALESCE(SUM(opm.quantity * COALESCE(m.cost_price, 0)), 0) AS total_cost
-           FROM outsourced_processing_materials opm
-           LEFT JOIN materials m ON opm.material_id = m.id
-           WHERE opm.processing_id = ?`,
-          [receipt.processing_id]
-        );
-        materialCost = parseFloat(materialRows[0]?.total_cost || 0);
-      }
-
-      const totalInventoryValue = materialCost + totalProcessingFee;
+      const costAllocation = await this.getOutsourcedReceiptCostAllocation(
+        connection,
+        receipt,
+        items
+      );
+      const materialCost = costAllocation.allocatedMaterialCost;
+      const totalProcessingFee = costAllocation.processingFee;
+      const totalInventoryValue = costAllocation.totalInventoryValue;
 
       if (totalInventoryValue <= 0) {
         if (shouldManageTransaction) {

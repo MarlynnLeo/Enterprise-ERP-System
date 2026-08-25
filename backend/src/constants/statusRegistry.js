@@ -180,11 +180,12 @@ const PURCHASE_REQUISITION_TRANSITIONS = {
   cancelled: [],
 };
 
-// 委外加工单：确认后可进入加工中，入库完成后由系统自动标记完成。
+// 委外加工单：完成由“完成入库”动作在入库单完成后推进，不能在确认入库时提前结束。
 const OUTSOURCED_PROCESSING_TRANSITIONS = {
-  pending: ['confirmed', 'cancelled'],
+  pending: ['in_progress', 'confirmed', 'cancelled'],
   confirmed: ['in_progress', 'cancelled'],
-  in_progress: ['completed', 'cancelled'],
+  // 完成只能由委外入库完成流程按累计实收数量自动推进，不能手工跳过入库。
+  in_progress: ['cancelled'],
   completed: [],
   cancelled: [],
 };
@@ -192,7 +193,8 @@ const OUTSOURCED_PROCESSING_TRANSITIONS = {
 // 委外入库单：确认入库时过账库存，完成后为终态。
 const OUTSOURCED_RECEIPT_TRANSITIONS = {
   pending: ['confirmed', 'cancelled'],
-  confirmed: ['completed', 'cancelled'],
+  // 确认入库后库存和凭证已经过账，不能再通过状态接口取消而留下未冲销副作用。
+  confirmed: ['completed'],
   completed: [],
   cancelled: [],
 };
