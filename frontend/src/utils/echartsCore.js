@@ -21,6 +21,7 @@ import {
   VisualMapComponent
 } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
+import { LegacyGridContainLabel } from 'echarts/features'
 
 echarts.use([
   BarChart,
@@ -40,7 +41,8 @@ echarts.use([
   TooltipComponent,
   TransformComponent,
   VisualMapComponent,
-  CanvasRenderer
+  CanvasRenderer,
+  LegacyGridContainLabel
 ])
 
 export { echarts }

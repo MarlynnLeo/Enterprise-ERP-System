@@ -36,24 +36,25 @@ const qualityInspectionItemMap = {
   fromApi(body = {}) {
     const row = {
       id: body.id,
-      item_name: body.itemName,
+      inspection_id: body.inspectionId ?? body.inspection_id,
+      item_name: body.itemName ?? body.item_name,
       standard: body.standard,
       type: body.type,
-      is_critical: body.isCritical,
-      dimension_value: body.dimensionValue,
-      tolerance_upper: body.toleranceUpper,
-      tolerance_lower: body.toleranceLower,
-      actual_value: body.actualValue,
-      measure_1: body.measure1,
-      measure_2: body.measure2,
-      measure_3: body.measure3,
-      measure_4: body.measure4,
-      measure_5: body.measure5,
-      measure_6: body.measure6,
+      is_critical: body.isCritical ?? body.is_critical,
+      dimension_value: body.dimensionValue ?? body.dimension_value,
+      tolerance_upper: body.toleranceUpper ?? body.tolerance_upper,
+      tolerance_lower: body.toleranceLower ?? body.tolerance_lower,
+      actual_value: body.actualValue ?? body.actual_value,
+      measure_1: body.measure1 ?? body.measure_1,
+      measure_2: body.measure2 ?? body.measure_2,
+      measure_3: body.measure3 ?? body.measure_3,
+      measure_4: body.measure4 ?? body.measure_4,
+      measure_5: body.measure5 ?? body.measure_5,
+      measure_6: body.measure6 ?? body.measure_6,
       method: body.method,
       result: body.result,
-      is_qualified: body.isQualified,
-      remark: body.remarks ?? body.remark,
+      is_qualified: body.isQualified ?? body.is_qualified,
+      remark: body.remarks ?? body.remark ?? body.note,
     };
     return Object.fromEntries(Object.entries(row).filter(([, v]) => v !== undefined));
   },
@@ -114,40 +115,50 @@ const qualityInspectionMap = {
     return api;
   },
   fromApi(body = {}) {
+    const qualifiedQty = body.qualifiedQuantity ?? body.qualified_quantity;
+    const unqualifiedQty = body.unqualifiedQuantity ?? body.unqualified_quantity;
+    const qty = body.quantity;
+    const plannedD = body.plannedDate ?? body.planned_date;
+    const actualD = body.actualDate ?? body.actual_date;
+    const matId = body.materialId ?? body.material_id;
+    const prodId = body.productId ?? body.product_id;
+    const refId = body.referenceId ?? body.reference_id;
+    const procId = body.processId ?? body.process_id;
+    const tId = body.taskId ?? body.task_id;
+    const supId = body.supplierId ?? body.supplier_id;
+    const tmplId = body.templateId ?? body.template_id;
+
     const row = {
       id: body.id,
-      inspection_no: body.inspectionNo,
-      inspection_type: body.inspectionType,
+      inspection_no: body.inspectionNo ?? body.inspection_no,
+      inspection_type: body.inspectionType ?? body.inspection_type,
       status: body.status,
-      batch_no: body.batchNo,
-      quantity: body.quantity != null ? toNumber(body.quantity, 0) : undefined,
-      qualified_quantity:
-        body.qualifiedQuantity != null ? toNumber(body.qualifiedQuantity, 0) : undefined,
-      unqualified_quantity:
-        body.unqualifiedQuantity != null ? toNumber(body.unqualifiedQuantity, 0) : undefined,
+      batch_no: body.batchNo ?? body.batch_no,
+      quantity: qty != null ? toNumber(qty, 0) : undefined,
+      qualified_quantity: qualifiedQty != null ? toNumber(qualifiedQty, 0) : undefined,
+      unqualified_quantity: unqualifiedQty != null ? toNumber(unqualifiedQty, 0) : undefined,
       unit: body.unit,
-      unit_id: body.unitId,
-      planned_date: body.plannedDate != null ? formatDate(body.plannedDate) : undefined,
-      actual_date: body.actualDate != null ? formatDate(body.actualDate) : undefined,
-      inspector_id: body.inspectorId,
-      inspector_name: body.inspectorName,
-      material_id: body.materialId != null ? toNumber(body.materialId, body.materialId) : undefined,
-      product_id: body.productId != null ? toNumber(body.productId, body.productId) : undefined,
-      product_name: body.productName,
-      product_code: body.productCode,
-      reference_id:
-        body.referenceId != null ? toNumber(body.referenceId, body.referenceId) : undefined,
-      reference_no: body.referenceNo,
-      process_id: body.processId != null ? toNumber(body.processId, body.processId) : undefined,
-      process_name: body.processName,
-      task_id: body.taskId != null ? toNumber(body.taskId, body.taskId) : undefined,
-      supplier_id: body.supplierId != null ? toNumber(body.supplierId, body.supplierId) : undefined,
-      template_id: body.templateId,
-      standard_type: body.standardType,
-      standard_no: body.standardNo,
-      note: body.note ?? body.remarks,
-      is_first_article: body.isFirstArticle,
-      is_aql: body.isAql,
+      unit_id: body.unitId ?? body.unit_id,
+      planned_date: plannedD != null ? formatDate(plannedD) : undefined,
+      actual_date: actualD != null ? formatDate(actualD) : undefined,
+      inspector_id: body.inspectorId ?? body.inspector_id,
+      inspector_name: body.inspectorName ?? body.inspector_name,
+      material_id: matId != null ? toNumber(matId, matId) : undefined,
+      product_id: prodId != null ? toNumber(prodId, prodId) : undefined,
+      product_name: body.productName ?? body.product_name,
+      product_code: body.productCode ?? body.product_code,
+      reference_id: refId != null ? toNumber(refId, refId) : undefined,
+      reference_no: body.referenceNo ?? body.reference_no,
+      process_id: procId != null ? toNumber(procId, procId) : undefined,
+      process_name: body.processName ?? body.process_name,
+      task_id: tId != null ? toNumber(tId, tId) : undefined,
+      supplier_id: supId != null ? toNumber(supId, supId) : undefined,
+      template_id: tmplId,
+      standard_type: body.standardType ?? body.standard_type,
+      standard_no: body.standardNo ?? body.standard_no,
+      note: body.note ?? body.remarks ?? body.remark,
+      is_first_article: body.isFirstArticle ?? body.is_first_article,
+      is_aql: body.isAql ?? body.is_aql,
     };
     if (Array.isArray(body.items)) {
       row.items = body.items.map((it) => qualityInspectionItemMap.fromApi(it));

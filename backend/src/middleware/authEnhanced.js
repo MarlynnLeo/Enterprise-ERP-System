@@ -84,43 +84,20 @@ async function loadVerifiedAccessUser(decoded) {
     throw createAuthError('令牌已失效，请重新登录', 'TOKEN_REVOKED', 401);
   }
 
-  const passwordExpired = PasswordSecurity.isPasswordExpired(
-    user.password_changed_at,
-    user.password_expires_at
-  );
-  const passwordChangeRequired = PasswordSecurity.isPasswordChangeRequired(user);
-
   return {
     ...decoded,
     id: user.id,
     username: user.username,
     realName: user.real_name,
     tokenVersion: dbTokenVersion,
-    passwordExpired,
-    passwordChangeRequired,
+    passwordExpired: false,
+    passwordChangeRequired: false,
   };
 }
 
-function isPasswordLifecycleEndpoint(req) {
-  const path = req.path;
-  return (
-    path === '/profile' ||
-    path === '/change-password' ||
-    path === '/logout' ||
-    path === '/api/auth/profile' ||
-    path === '/api/auth/change-password' ||
-    path === '/api/auth/logout'
-  );
-}
-
-function enforcePasswordLifecycle(req, user) {
-  if (!user?.passwordChangeRequired || isPasswordLifecycleEndpoint(req)) return null;
-  const error = createAuthError(
-    user.passwordExpired ? '密码已过期，请先修改密码' : '请先修改初始密码',
-    user.passwordExpired ? 'PASSWORD_EXPIRED' : 'PASSWORD_CHANGE_REQUIRED',
-    403
-  );
-  return error;
+function enforcePasswordLifecycle(_req, _user) {
+  // 密码生命周期与强制改密拦截已彻底关闭
+  return null;
 }
 
 /**

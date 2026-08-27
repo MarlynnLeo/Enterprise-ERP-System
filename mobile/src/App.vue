@@ -433,9 +433,10 @@
     border-radius: 12px;
     margin: 8px 0;
     padding: 14px 16px;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.07), 0 0 0 1px rgba(0, 0, 0, 0.04);
+    border: 1px solid var(--surface-border, rgba(0, 0, 0, 0.05));
+    box-shadow: var(--shadow-sm, 0 1px 4px rgba(0, 0, 0, 0.07));
     cursor: pointer;
-    transition: box-shadow 0.2s ease, transform 0.15s ease;
+    transition: box-shadow 0.2s ease, transform 0.15s ease, border-color 0.2s ease;
     -webkit-tap-highlight-color: transparent;
     position: relative;
     overflow: hidden;
@@ -483,6 +484,14 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  /* 明细小节标题（入库物料/退货物料等） */
+  .global-list-card .list-section-title {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
   }
 
   /* 明细信息区域 */

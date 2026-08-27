@@ -63,9 +63,27 @@ import { resetCsrfToken } from '@/services/axiosInstance'
 // ✅ 权限别名映射已迁移至后端 PermissionService.js
 // 后端在返回权限列表时会自动展开别名，前端无需再维护硬编码映射
 
+const normalizeUserData = (userData) => {
+  if (!userData || typeof userData !== 'object') return userData
+  const normalized = { ...userData }
+  if (normalized.realName == null && normalized.real_name != null) {
+    normalized.realName = normalized.real_name
+  }
+  if (normalized.forcePasswordChange == null && normalized.force_password_change != null) {
+    normalized.forcePasswordChange = Boolean(normalized.force_password_change)
+  }
+  if (normalized.passwordExpired == null && normalized.password_expired != null) {
+    normalized.passwordExpired = Boolean(normalized.password_expired)
+  }
+  if (normalized.passwordChangeRequired == null && normalized.password_change_required != null) {
+    normalized.passwordChangeRequired = Boolean(normalized.password_change_required)
+  }
+  return normalized
+}
+
 export const useAuthStore = defineStore('auth', () => {
   const token = ref('')
-  const user = ref(tokenManager.getUser() || null)
+  const user = ref(normalizeUserData(tokenManager.getUser()) || null)
 
   const savedPermissions = permissionManager.getUserPermissions()
   const permissions = ref(Array.isArray(savedPermissions) ? savedPermissions : [])
@@ -97,11 +115,8 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => Boolean(user.value))
   const isAdmin = computed(() => permissionsLoaded.value && permissionSet.has('*'))
-  const mustChangePassword = computed(() => {
-    const flag = user.value?.forcePasswordChange
-    const expired = user.value?.passwordExpired
-    return flag === true || flag === 1 || flag === '1' || expired === true || expired === 1 || expired === '1'
-  })
+  // 强制修改密码功能已彻底关闭
+  const mustChangePassword = computed(() => false)
 
   // 认证令牌由后端 HttpOnly Cookie 管理，前端只清理旧的浏览器可读 token。
   const setAuthHeader = () => {
@@ -145,7 +160,7 @@ export const useAuthStore = defineStore('auth', () => {
       const data = response.data
 
       // 保存用户信息
-      user.value = data.user
+      user.value = normalizeUserData(data.user)
       if (!user.value) {
         throw new Error('登录响应缺少用户信息')
       }
@@ -154,11 +169,13 @@ export const useAuthStore = defineStore('auth', () => {
 
       setAuthHeader()
 
-      // 登录成功后尝试获取用户详细信息（不阻塞登录流程）
-      try {
-        await fetchUserProfile()
-      } catch {
-        // 登录主流程已完成，资料补充加载失败时保持静默。
+      // 只有在无需强制修改密码的情况下，才在登录后获取更详细资料
+      if (!mustChangePassword.value) {
+        try {
+          await fetchUserProfile()
+        } catch {
+          // 登录主流程已完成，资料补充加载失败时保持静默。
+        }
       }
 
       return true
@@ -183,7 +200,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const response = await userApi.updateProfile(userData)
       // 拦截器已解包，response.data 就是用户信息
-      user.value = response.data
+      user.value = normalizeUserData(response.data)
       tokenManager.setUser(user.value)
       return true
     } catch (error) {
@@ -212,7 +229,7 @@ export const useAuthStore = defineStore('auth', () => {
     _userProfilePromise = (async () => {
       try {
         const response = await userApi.getProfileFast({ skipAuthRedirect })
-        user.value = response.data
+        user.value = normalizeUserData(response.data)
         tokenManager.setUser(user.value)
         if (user.value?.id) {
           setRequestCacheUserId(user.value.id)

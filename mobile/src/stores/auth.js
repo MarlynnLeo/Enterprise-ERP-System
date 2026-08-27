@@ -54,6 +54,15 @@ const normalizeUserData = (userData) => {
   if (normalized.realName == null && normalized.real_name != null) {
     normalized.realName = normalized.real_name
   }
+  if (normalized.forcePasswordChange == null && normalized.force_password_change != null) {
+    normalized.forcePasswordChange = Boolean(normalized.force_password_change)
+  }
+  if (normalized.passwordExpired == null && normalized.password_expired != null) {
+    normalized.passwordExpired = Boolean(normalized.password_expired)
+  }
+  if (normalized.passwordChangeRequired == null && normalized.password_change_required != null) {
+    normalized.passwordChangeRequired = Boolean(normalized.password_change_required)
+  }
   if (normalized.departmentName == null && normalized.department_name != null) {
     normalized.departmentName = normalized.department_name
   }
@@ -111,11 +120,8 @@ export const useAuthStore = defineStore('auth', () => {
   const userId = computed(() => user.value?.id)
   const username = computed(() => user.value?.username)
   const realName = computed(() => user.value?.realName || user.value?.username)
-  const mustChangePassword = computed(() => {
-    const flag = user.value?.forcePasswordChange
-    const expired = user.value?.passwordExpired
-    return flag === true || flag === 1 || flag === '1' || expired === true || expired === 1 || expired === '1'
-  })
+  // 强制修改密码功能已彻底关闭
+  const mustChangePassword = computed(() => false)
 
   // ==================== 私有方法 ====================
 

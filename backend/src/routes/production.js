@@ -20,6 +20,32 @@ const {
 const CALENDAR_VIEW_PERMISSIONS = ['production:calendar', 'production:calendar:view', 'production:tasks:view'];
 const CALENDAR_UPDATE_PERMISSIONS = ['production:calendar:update', 'production:tasks:update'];
 
+const TASK_READ_PERMISSIONS = [
+  'production:tasks:view',
+  'production:tasks',
+  'production:process:view',
+  'inventory:outbound:view',
+  'inventory:inbound:view',
+  'quality:inspections:view',
+  'quality:inspections:create',
+  'quality:process:view',
+  'quality:process',
+  'quality:first-article:view',
+  'quality:final:view',
+];
+
+const PROCESS_READ_PERMISSIONS = [
+  'production:process:view',
+  'production:process',
+  'production:tasks:view',
+  'quality:inspections:view',
+  'quality:inspections:create',
+  'quality:process:view',
+  'quality:process',
+  'quality:first-article:view',
+  'quality:final:view',
+];
+
 // 应用认证中间件
 router.use(authenticateToken);
 router.use(desensitizeSensitiveResponse('view'));
@@ -124,12 +150,12 @@ router.get(
 );
 router.get(
   '/tasks',
-  requirePermission(['production:tasks:view', 'inventory:outbound:view', 'inventory:inbound:view']),
+  requirePermission(TASK_READ_PERMISSIONS),
   productionController.getProductionTasks
 );
 router.get(
   '/tasks/:id',
-  requirePermission('production:tasks:view'),
+  requirePermission(TASK_READ_PERMISSIONS),
   productionController.getProductionTaskById
 );
 router.post(
@@ -171,12 +197,12 @@ router.get(
 // 生产过程相关路由
 router.get(
   '/processes',
-  requirePermission('production:process:view'),
+  requirePermission(PROCESS_READ_PERMISSIONS),
   productionController.getProcesses
 );
 router.get(
   '/processes/:id',
-  requirePermission('production:process:view'),
+  requirePermission(PROCESS_READ_PERMISSIONS),
   productionController.getProcessById
 );
 router.put(

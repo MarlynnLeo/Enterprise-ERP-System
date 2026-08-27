@@ -295,7 +295,7 @@ const classifyStatusUpdateError = (error, fallbackMessage) => {
   const insufficientStock = /库存不足|FIFO批次库存不足/.test(message);
   const businessFailure =
     insufficientStock ||
-    /缺少有效成本|找不到外委发料台账|未找到单据|无法安全回退|分录生成失败|数量必须大于0|没有明细|不存在|不能/.test(
+    /缺少有效成本|找不到外委发料台账|未找到单据|无法安全回退|分录生成失败|数量必须大于0|没有明细|没有有效物料|不存在|不能|未配置默认仓库|仓库不存在|仓库ID/.test(
       message
     );
 
@@ -588,14 +588,63 @@ const getIncompleteReceiptProductCount = async (connection, processingId) => {
   return Number(rows[0]?.incomplete_count || 0);
 };
 
-const getValidWarehouse = async (connection, locationId) => {
-  const normalizedLocationId = safeNumber(locationId);
-  if (!normalizedLocationId) return null;
-  const [rows] = await connection.execute(
-    'SELECT id, name FROM locations WHERE id = ? AND deleted_at IS NULL AND (status = 1 OR status = "active")',
-    [normalizedLocationId]
+/**
+ * Resolve the warehouse context from material master data.
+ * The document header warehouse is only a legacy display field; inventory
+ * postings must use the location configured on each material.
+ */
+const getMaterialWarehouseContext = async (connection, materialIds) => {
+  const normalizedMaterialIds = [...new Set(
+    (Array.isArray(materialIds) ? materialIds : [])
+      .map((id) => safeNumber(id))
+      .filter((id) => Number.isInteger(id) && id > 0)
+  )];
+
+  if (normalizedMaterialIds.length === 0) {
+    throw validationError('委外单没有有效物料，无法确定默认仓库');
+  }
+
+  const materialInfoById = await InventoryService.getBatchMaterialInfo(
+    normalizedMaterialIds,
+    connection
   );
-  return rows[0] || null;
+  const locationIds = [...new Set(
+    normalizedMaterialIds.map((id) => safeNumber(materialInfoById.get(id)?.locationId))
+  )].filter((id) => Number.isInteger(id) && id > 0);
+  if (locationIds.length === 0) {
+    throw validationError('委外单物料未配置默认仓库，请先在物料编码管理中设置仓库');
+  }
+  const placeholders = locationIds.map(() => '?').join(',');
+  const [warehouseRows] = await connection.execute(
+    `SELECT id, name
+       FROM locations
+      WHERE id IN (${placeholders})
+        AND deleted_at IS NULL
+        AND (status = 1 OR status = 'active')`,
+    locationIds
+  );
+  const warehouseById = new Map(warehouseRows.map((row) => [Number(row.id), row]));
+
+  for (const materialId of normalizedMaterialIds) {
+    const materialInfo = materialInfoById.get(materialId);
+    const locationId = safeNumber(materialInfo?.locationId);
+    if (!warehouseById.has(locationId)) {
+      throw validationError(
+        `物料 ${materialInfo?.code || materialId} 的默认仓库不存在或已停用，请先在物料编码管理中修正仓库设置`
+      );
+    }
+  }
+
+  const warehouseNames = [...new Set(
+    locationIds.map((locationId) => safeString(warehouseById.get(locationId)?.name)).filter(Boolean)
+  )];
+  return {
+    materialInfoById,
+    warehouseById,
+    primaryLocationId: locationIds[0],
+    headerWarehouseName:
+      warehouseNames.length === 1 ? warehouseNames[0] : '按物料默认仓库（多仓）',
+  };
 };
 
 const getOutsourcedReceiptWarehouseOptions = async (req, res) => {
@@ -1203,15 +1252,16 @@ const updateProcessingStatus = async (req, res) => {
         'SELECT id, processing_id, material_id, material_code, material_name, specification, unit, unit_id, quantity, remark, created_at, updated_at FROM outsourced_processing_materials WHERE processing_id = ?',
         [id]
       );
+      const warehouseContext = await getMaterialWarehouseContext(
+        connection,
+        materials.map((material) => material.material_id)
+      );
 
       // 减少每个发料物料的库存
       for (const material of materials) {
-        let usedWarehouseId;
-        if (existingProcessing[0].location_id) {
-          usedWarehouseId = existingProcessing[0].location_id;
-        } else {
-          usedWarehouseId = await InventoryService.getMaterialLocation(material.material_id, connection);
-        }
+        const materialInfo = warehouseContext.materialInfoById.get(Number(material.material_id));
+        const usedWarehouseId = materialInfo.locationId;
+        const warehouseName = warehouseContext.warehouseById.get(Number(usedWarehouseId))?.name;
 
         try {
           // 出库不指定批次：由 InventoryService 按 FIFO 自动拆批写台账
@@ -1226,6 +1276,7 @@ const updateProcessingStatus = async (req, res) => {
               operator: getRequestActorLabel(req),
               remark: `委外加工发料 ${existingProcessing[0].processing_no}`,
               unitId: material.unit_id,
+              warehouseName,
               // 不传 batchNumber → FIFO 拆批；幂等键按物料行防重
               idempotencyKey: `outsourced_outbound:${existingProcessing[0].processing_no}:${material.material_id}:${usedWarehouseId}:${material.id}`,
             },
@@ -1265,18 +1316,14 @@ const updateProcessingStatus = async (req, res) => {
         );
 
         if (existingReceipts.length === 0) {
-          // 获取可用仓库
-          let receiptLocationId = existingProcessing[0].location_id;
-          let receiptWarehouseName = existingProcessing[0].warehouse_name;
-          if (!receiptLocationId) {
-            const [whRows] = await connection.execute(
-              'SELECT id, name FROM locations WHERE (type = "finished_goods" OR is_default = 1) AND status = 1 AND deleted_at IS NULL ORDER BY (type = "finished_goods") DESC LIMIT 1'
-            );
-            if (whRows.length > 0) {
-              receiptLocationId = whRows[0].id;
-              receiptWarehouseName = whRows[0].name;
-            }
-          }
+          const [products] = await connection.execute(
+            'SELECT product_id, product_code, product_name, specification, unit, unit_id, quantity, unit_price, total_price FROM outsourced_processing_products WHERE processing_id = ?',
+            [id]
+          );
+          const receiptWarehouseContext = await getMaterialWarehouseContext(
+            connection,
+            products.map((product) => product.product_id)
+          );
 
           const receiptNo = await CodeGenerators.generateProcessingReceiptCode(connection);
           const today = new Date().toISOString().slice(0, 10);
@@ -1292,20 +1339,14 @@ const updateProcessingStatus = async (req, res) => {
               safeString(existingProcessing[0].processing_no),
               safeNumber(existingProcessing[0].supplier_id),
               safeString(existingProcessing[0].supplier_name),
-              safeNumber(receiptLocationId),
-              safeString(receiptWarehouseName || '成品库'),
+              safeNumber(receiptWarehouseContext.primaryLocationId),
+              safeString(receiptWarehouseContext.headerWarehouseName),
               today,
               getRequestActorLabel(req),
               `由委外加工单 ${existingProcessing[0].processing_no} 发料出库自动生成`,
             ]
           );
           const newReceiptId = receiptInsert.insertId;
-
-          // 插入加工成品明细到入库单明细表
-          const [products] = await connection.execute(
-            'SELECT product_id, product_code, product_name, specification, unit, unit_id, quantity, unit_price, total_price FROM outsourced_processing_products WHERE processing_id = ?',
-            [id]
-          );
 
           for (const prod of products) {
             const qty = safeNumber(prod.quantity || 0);
@@ -1592,7 +1633,6 @@ const createReceipt = async (req, res) => {
 
     const {
       processing_id,
-      location_id,
       receipt_date,
       operator,
       remarks,
@@ -1639,15 +1679,6 @@ const createReceipt = async (req, res) => {
       );
     }
 
-    const existingWarehouse = await getValidWarehouse(connection, location_id);
-    if (!existingWarehouse) {
-      await connection.rollback();
-      return ResponseHandler.error(res, `仓库ID ${location_id} 不存在，请确保选择了有效的仓库`, 'VALIDATION_ERROR', 400);
-    }
-
-    // 使用仓库表中的名称，确保一致性
-    const validWarehouseName = existingWarehouse.name;
-
     let normalizedItems;
     try {
       normalizedItems = await validateReceiptItems(connection, processing_id, items);
@@ -1659,6 +1690,22 @@ const createReceipt = async (req, res) => {
         'VALIDATION_ERROR',
         400,
         validationError
+      );
+    }
+    let warehouseContext;
+    try {
+      warehouseContext = await getMaterialWarehouseContext(
+        connection,
+        normalizedItems.map((item) => item.product_id)
+      );
+    } catch (warehouseError) {
+      await connection.rollback();
+      return ResponseHandler.error(
+        res,
+        warehouseError.message,
+        'VALIDATION_ERROR',
+        400,
+        warehouseError
       );
     }
 
@@ -1679,8 +1726,8 @@ const createReceipt = async (req, res) => {
           safeString(processing.processing_no),
           safeNumber(processing.supplier_id),
           safeString(processing.supplier_name),
-          safeNumber(location_id),
-          safeString(validWarehouseName), // 使用验证后的仓库名
+          safeNumber(warehouseContext.primaryLocationId),
+          safeString(warehouseContext.headerWarehouseName),
           safeString(receipt_date),
           safeString(operator),
           safeString(remarks),
@@ -1782,7 +1829,7 @@ const updateReceipt = async (req, res) => {
     await connection.beginTransaction();
 
     const { id } = req.params;
-    const { location_id, receipt_date, operator, remarks, items } = mapKeysToSnake(req.body || {});
+    const { receipt_date, operator, remarks, items } = mapKeysToSnake(req.body || {});
 
     // 检查入库单是否存在且状态为待确认
     const [existingReceipt] = await connection.execute(
@@ -1798,12 +1845,6 @@ const updateReceipt = async (req, res) => {
     if (existingReceipt[0].status !== 'pending') {
       await connection.rollback();
       return ResponseHandler.error(res, '只能修改待确认状态的入库单', 'VALIDATION_ERROR', 400);
-    }
-
-    const existingWarehouse = await getValidWarehouse(connection, location_id);
-    if (!existingWarehouse) {
-      await connection.rollback();
-      return ResponseHandler.error(res, `仓库ID ${location_id} 不存在，请确保选择了有效的仓库`, 'VALIDATION_ERROR', 400);
     }
 
     let normalizedItems;
@@ -1824,6 +1865,22 @@ const updateReceipt = async (req, res) => {
         validationError
       );
     }
+    let warehouseContext;
+    try {
+      warehouseContext = await getMaterialWarehouseContext(
+        connection,
+        normalizedItems.map((item) => item.product_id)
+      );
+    } catch (warehouseError) {
+      await connection.rollback();
+      return ResponseHandler.error(
+        res,
+        warehouseError.message,
+        'VALIDATION_ERROR',
+        400,
+        warehouseError
+      );
+    }
 
     // 更新入库单主表
     await connection.execute(
@@ -1831,7 +1888,14 @@ const updateReceipt = async (req, res) => {
         location_id = ?, warehouse_name = ?, receipt_date = ?,
         operator = ?, remarks = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?`,
-      [safeNumber(location_id), safeString(existingWarehouse.name), safeString(receipt_date), safeString(operator), safeString(remarks), id]
+      [
+        safeNumber(warehouseContext.primaryLocationId),
+        safeString(warehouseContext.headerWarehouseName),
+        safeString(receipt_date),
+        safeString(operator),
+        safeString(remarks),
+        id,
+      ]
     );
 
     // 删除旧的入库明细
@@ -1945,14 +2009,22 @@ const updateReceiptStatus = async (req, res) => {
         );
       }
 
-      const warehouse = await getValidWarehouse(
-        connection,
-        existingReceipt[0].location_id
+      const [receiptItems] = await connection.execute(
+        'SELECT id, receipt_id, product_id, product_code, product_name, specification, unit, unit_id, expected_quantity, actual_quantity, unit_price, total_price, created_at, updated_at FROM outsourced_processing_receipt_items WHERE receipt_id = ?',
+        [id]
       );
-      if (!warehouse) {
+      if (receiptItems.length === 0) {
         await connection.rollback();
-        return ResponseHandler.error(res, '入库仓库不存在或已停用', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(res, '委外入库单没有明细，不能确认入库', 'VALIDATION_ERROR', 400);
       }
+      existingReceipt[0].warehouseContext = await getMaterialWarehouseContext(
+        connection,
+        receiptItems.map((item) => item.product_id)
+      );
+
+      // Keep the validated items for the posting phase below. This avoids
+      // resolving a different set of rows after the status update.
+      existingReceipt[0].itemsForPosting = receiptItems;
     }
 
     // 更新入库单状态
@@ -1964,14 +2036,13 @@ const updateReceiptStatus = async (req, res) => {
     // 如果状态为已确认，则需要更新库存
     if (status === STATUS.RECEIPT.CONFIRMED) {
       // 获取入库单明细
-      const [items] = await connection.execute(
-        'SELECT id, receipt_id, product_id, product_code, product_name, specification, unit, unit_id, expected_quantity, actual_quantity, unit_price, total_price, created_at, updated_at FROM outsourced_processing_receipt_items WHERE receipt_id = ?',
-        [id]
-      );
+      const items = existingReceipt[0].itemsForPosting || [];
 
       if (items.length === 0) {
         throw new Error('委外入库单没有明细，不能确认入库');
       }
+
+      const warehouseContext = existingReceipt[0].warehouseContext;
 
       const costAllocation = await FinanceIntegrationService.getOutsourcedReceiptCostAllocation(
         connection,
@@ -1983,7 +2054,9 @@ const updateReceiptStatus = async (req, res) => {
       for (const item of items) {
         try {
           const material_id = item.product_id;
-          const location_id = existingReceipt[0].location_id;
+          const materialInfo = warehouseContext.materialInfoById.get(Number(material_id));
+          const location_id = materialInfo.locationId;
+          const warehouseName = warehouseContext.warehouseById.get(Number(location_id))?.name;
           const actualQuantity = parseFloat(item.actual_quantity);
           if (!Number.isFinite(actualQuantity) || actualQuantity <= 0) {
             throw new Error(`物料 ${item.product_name || item.product_id} 入库数量必须大于0`);
@@ -2008,6 +2081,7 @@ const updateReceiptStatus = async (req, res) => {
               operator: existingReceipt[0].operator || getRequestActorLabel(req),
               remark: `委外入库 ${receiptNo}`,
               unitId: item.unit_id,
+              warehouseName,
               batchNumber: inboundBatch,
               unitCost: inboundUnitCost,
               idempotencyKey: `outsourced_inbound:${receiptNo}:${item.id}`,
@@ -2099,5 +2173,5 @@ module.exports = {
   getProcessingValidationError,
   validateProcessingReferences,
   getIncompleteReceiptProductCount,
-  getValidWarehouse,
+  getMaterialWarehouseContext,
 };

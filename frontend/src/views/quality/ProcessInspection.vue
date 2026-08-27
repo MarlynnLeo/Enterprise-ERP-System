@@ -447,11 +447,11 @@ const updateStats = async () => {
   }
 }
 
-// 获取生产工单选项
+// 获取生产工单选项与工序基础数据
 const fetchPurchaseOrders = async (query = '') => {
   orderLoading.value = true
   try {
-    // 获取生产任务列表
+    // 1. 获取生产任务列表
     const tasksResponse = await productionApi.getProductionTasks({
       pageSize: 50,
       search: query,
@@ -472,16 +472,20 @@ const fetchPurchaseOrders = async (query = '') => {
       unitId: task.unitId
     }))
 
-    // 获取工序数据
-    const processesResponse = await productionApi.getProductionProcesses({
-      pageSize: 50
-    })
-
-    const processesData = parseResponseData(processesResponse, {})
-    allProcesses.value = processesData.list || processesData.rows || processesData.items || []
+    // 2. 独立安全获取初始工序数据（解耦容错，避免工序异常影响工单）
+    try {
+      const processesResponse = await productionApi.getProductionProcesses({
+        pageSize: 50
+      })
+      const processesData = parseResponseData(processesResponse, {})
+      allProcesses.value = processesData.list || processesData.rows || processesData.items || []
+    } catch (procErr) {
+      console.warn('获取工序初始列表失败，将在选择工单时动态按需加载:', procErr)
+      allProcesses.value = []
+    }
   } catch (error) {
     console.error('获取生产工单列表失败:', error)
-    if (error.response?.status !== 404) {
+    if (error.response?.status !== 404 && error.response?.status !== 403) {
       ElMessage.error('获取生产工单列表失败')
     }
     purchaseOrderOptions.value = []
@@ -494,17 +498,45 @@ const fetchPurchaseOrders = async (query = '') => {
 const allProcesses = ref([])
 
 // 根据生产工单获取工序选项
-const handleOrderChange = (orderNo) => {
+const handleOrderChange = async (orderNo) => {
   const order = purchaseOrderOptions.value.find(item => item.orderNo === orderNo)
-  if (order) {
-    form.productName = order.productName
-    form.unit = order.unit
+  if (!order) {
+    processOptions.value = []
+    return
+  }
 
-    // 根据产品ID筛选工序
-    if (order.productId && allProcesses.value.length > 0) {
+  form.productName = order.productName
+  form.unit = order.unit
+
+  // 1. 优先按工单 taskId 精确获取该任务的工序列表
+  if (order.id) {
+    try {
+      const res = await productionApi.getProductionProcesses({
+        taskId: order.id,
+        pageSize: 100
+      })
+      const data = parseResponseData(res, {})
+      const taskProcesses = data.list || data.rows || data.items || []
+      if (taskProcesses.length > 0) {
+        processOptions.value = taskProcesses.map(process => ({
+          id: process.id || process.processId,
+          name: process.processName || process.name,
+          taskId: process.taskId,
+          productId: process.productId
+        }))
+        return
+      }
+    } catch (err) {
+      console.warn('按任务获取工序失败，使用本地筛选兜底:', err)
+    }
+  }
+
+  // 2. 本地兜底筛选：根据产品ID或任务ID匹配工序
+  if (allProcesses.value.length > 0) {
+    if (order.productId) {
       processOptions.value = allProcesses.value.filter(
-        process => (process.productId === order.productId || process.productId === order.productId)
-          || ((process.taskId) && (process.taskId) === order.id)
+        process => (process.productId === order.productId)
+          || (process.taskId && process.taskId === order.id)
       ).map(process => ({
         id: process.id || process.processId,
         name: process.processName || process.name,
@@ -512,7 +544,6 @@ const handleOrderChange = (orderNo) => {
         productId: process.productId
       }))
     } else {
-      // 如果没有工序数据，显示所有工序
       processOptions.value = allProcesses.value.map(process => ({
         id: process.id || process.processId,
         name: process.processName || process.name,
@@ -520,6 +551,8 @@ const handleOrderChange = (orderNo) => {
         productId: process.productId
       }))
     }
+  } else {
+    processOptions.value = []
   }
 }
 

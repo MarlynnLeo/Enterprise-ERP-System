@@ -200,9 +200,9 @@
 
   // 检验表单
   const inspectForm = reactive({
-    qualified_quantity: '',
-    unqualified_quantity: '',
-    inspector_name: '',
+    qualifiedQuantity: '',
+    unqualifiedQuantity: '',
+    inspectorName: '',
     note: ''
   })
 
@@ -419,23 +419,23 @@
       actionLoading.value = true
 
       const submitData = {
-        qualified_quantity: qualifiedQty,
-        unqualified_quantity: unqualifiedQty,
+        qualifiedQuantity: qualifiedQty,
+        unqualifiedQuantity: unqualifiedQty,
         status,
-        inspector_name: inspectForm.inspectorName,
-        actual_date: new Date().toISOString().split('T')[0],
+        inspectorName: inspectForm.inspectorName,
+        actualDate: new Date().toISOString().split('T')[0],
         note: inspectForm.note,
         items: inspectItems.value.map(item => ({
-          item_name: item.itemName,
+          itemName: item.itemName,
           standard: item.standard,
           type: item.type,
-          is_critical: item.isCritical,
+          isCritical: item.isCritical,
           result: item.result,
           remarks: item.remarks,
-          actual_value: item.actualValue || '',
-          dimension_value: item.dimensionValue || null,
-          tolerance_upper: item.toleranceUpper || null,
-          tolerance_lower: item.toleranceLower || null
+          actualValue: item.actualValue || '',
+          dimensionValue: item.dimensionValue || null,
+          toleranceUpper: item.toleranceUpper || null,
+          toleranceLower: item.toleranceLower || null
         }))
       }
 

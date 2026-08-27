@@ -459,7 +459,7 @@ const systemModel = {
       // 插入用户基本信息
       const [result] = await connection.execute(
         `INSERT INTO users (username, password, real_name, email, department_id, position, role, status, force_password_change, password_changed_at, password_expires_at, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, NOW(), DATE_ADD(NOW(), INTERVAL 90 DAY), NOW(), NOW())`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NOW(), NULL, NOW(), NOW())`,
         [
           username,
           hashedPassword,
@@ -735,8 +735,9 @@ const systemModel = {
       throw new Error(`密码不符合安全要求: ${passwordValidation.errors.join(', ')}`);
     }
     const hashedPassword = await PasswordSecurity.hashPassword(password);
-    const connection = await pool.getConnection();
+    let connection;
     try {
+      connection = await pool.getConnection();
       await connection.beginTransaction();
       const [[existingUser]] = await connection.execute(
         'SELECT id, username, password FROM users WHERE id = ? FOR UPDATE',
@@ -746,26 +747,19 @@ const systemModel = {
         await connection.rollback();
         return false;
       }
-      if (await PasswordSecurity.verifyPassword(password, existingUser.password)) {
-        throw new Error('新密码不能与当前密码相同');
-      }
-      if (!(await PasswordSecurity.checkPasswordHistory(id, password, connection))) {
-        throw new Error('新密码不能与最近使用过的密码相同');
-      }
       const [result] = await connection.execute(
         `UPDATE users
             SET password = ?,
                 token_version = COALESCE(token_version, 0) + 1,
-                 force_password_change = 1,
-                 failed_login_attempts = 0,
-                 locked_until = NULL,
-                 password_changed_at = NOW(),
-                password_expires_at = DATE_ADD(NOW(), INTERVAL 90 DAY),
+                force_password_change = 0,
+                failed_login_attempts = 0,
+                locked_until = NULL,
+                password_changed_at = NOW(),
+                password_expires_at = NULL,
                 updated_at = NOW()
           WHERE id = ?`,
         [hashedPassword, id]
       );
-      await PasswordSecurity.savePasswordHistory(id, hashedPassword, connection);
       await RefreshTokenService.revokeUserTokens(id, connection);
       await connection.commit();
       revokeUserSockets(id, 'password_reset');
@@ -775,13 +769,13 @@ const systemModel = {
       };
     } catch (error) {
       try {
-        await connection.rollback();
+        if (connection) await connection.rollback();
       } catch {
         // Preserve the original validation/database error.
       }
       throw error;
     } finally {
-      connection.release();
+      if (connection) connection.release();
     }
   },
 

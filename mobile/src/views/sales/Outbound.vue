@@ -67,78 +67,76 @@
             class="global-list-card"
             @click="viewOutboundDetail(outbound.id)"
           >
-            <div>
-              <div class="list-header">
-                <span class="list-id">{{ outbound.outboundNo }}</span>
-                <Tag :type="getOutboundStatusType(outbound.status)" size="medium">
-                  {{ getOutboundStatusText(outbound.status) }}
-                </Tag>
+            <div class="list-header">
+              <span class="list-id">{{ outbound.outboundNo }}</span>
+              <Tag :type="getOutboundStatusType(outbound.status)" size="medium">
+                {{ getOutboundStatusText(outbound.status) }}
+              </Tag>
+            </div>
+
+            <div class="list-subtitle" v-if="outbound.orderNo">
+              关联订单: {{ outbound.orderNo }}
+            </div>
+
+            <div class="list-title">{{ outbound.customerName }}</div>
+
+            <div class="list-details">
+              <div class="list-row">
+                <span class="label">出库日期:</span>
+                <span class="value">{{ formatDate(outbound.deliveryDate) }}</span>
               </div>
-
-              <div class="list-subtitle" v-if="outbound.orderNo">
-                关联订单: {{ outbound.orderNo }}
+              <div class="list-row" v-if="outbound.totalAmount">
+                <span class="label">出库金额:</span>
+                <span class="value amount">{{ displayAmount(outbound.totalAmount) }}</span>
               </div>
-
-              <div class="list-title">{{ outbound.customerName }}</div>
-
-              <div class="list-details">
-                <div class="list-row">
-                  <span class="label">出库日期:</span>
-                  <span class="value">{{ formatDate(outbound.deliveryDate) }}</span>
-                </div>
-                <div class="list-row" v-if="outbound.totalAmount">
-                  <span class="label">出库金额:</span>
-                  <span class="value amount">{{ displayAmount(outbound.totalAmount) }}</span>
-                </div>
-                <div class="list-row" v-if="outbound.contactPerson || outbound.receiver">
-                  <span class="label">收货人:</span>
-                  <span class="value">{{ outbound.contactPerson || outbound.receiver }}</span>
-                </div>
-                <div class="list-row" v-if="outbound.contactPhone">
-                  <span class="label">联系电话:</span>
-                  <span class="value">{{ outbound.contactPhone }}</span>
-                </div>
+              <div class="list-row" v-if="outbound.contactPerson || outbound.receiver">
+                <span class="label">收货人:</span>
+                <span class="value">{{ outbound.contactPerson || outbound.receiver }}</span>
               </div>
-
-              <div class="list-details" v-if="outbound.itemsCount || (outbound.items && outbound.items.length)">
-                <div class="list-row">
-                  <span class="label">物料数:</span>
-                  <span class="value"
-                    >{{ outbound.itemsCount || outbound.items?.length || 0 }} 项 / {{ outbound.totalQuantity || 0 }} 件</span
-                  >
-                </div>
+              <div class="list-row" v-if="outbound.contactPhone">
+                <span class="label">联系电话:</span>
+                <span class="value">{{ outbound.contactPhone }}</span>
               </div>
+            </div>
 
-              <div class="list-actions">
-                <Button
-                  size="small"
-                  type="primary"
-                  plain
-                  @click.stop="viewOutboundDetail(outbound.id)"
+            <div class="list-details" v-if="outbound.itemsCount || (outbound.items && outbound.items.length)">
+              <div class="list-row">
+                <span class="label">物料数:</span>
+                <span class="value"
+                  >{{ outbound.itemsCount || outbound.items?.length || 0 }} 项 / {{ outbound.totalQuantity || 0 }} 件</span
                 >
-                  查看详情
-                </Button>
-                <Button
-                  v-if="outbound.status === 'draft'"
-                  v-permission="'sales:outbound:update'"
-                  size="small"
-                  type="success"
-                  plain
-                  @click.stop="confirmOutbound(outbound)"
-                >
-                  开始出库
-                </Button>
-                <Button
-                  v-if="outbound.status === 'processing'"
-                  v-permission="'sales:outbound:update'"
-                  size="small"
-                  type="warning"
-                  plain
-                  @click.stop="shipOutbound(outbound)"
-                >
-                  完成出库
-                </Button>
               </div>
+            </div>
+
+            <div class="list-actions">
+              <Button
+                size="small"
+                type="primary"
+                plain
+                @click.stop="viewOutboundDetail(outbound.id)"
+              >
+                查看详情
+              </Button>
+              <Button
+                v-if="outbound.status === 'draft'"
+                v-permission="'sales:outbound:update'"
+                size="small"
+                type="success"
+                plain
+                @click.stop="confirmOutbound(outbound)"
+              >
+                开始出库
+              </Button>
+              <Button
+                v-if="outbound.status === 'processing'"
+                v-permission="'sales:outbound:update'"
+                size="small"
+                type="warning"
+                plain
+                @click.stop="shipOutbound(outbound)"
+              >
+                完成出库
+              </Button>
             </div>
           </div>
         </List>

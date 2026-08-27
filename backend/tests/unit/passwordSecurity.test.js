@@ -2,34 +2,43 @@
 
 const PasswordSecurity = require('../../src/utils/passwordSecurity');
 
-describe('PasswordSecurity policy', () => {
+describe('PasswordSecurity policy (unrestricted)', () => {
   test.each([
     [null, '密码格式无效'],
     [{ value: 'not-a-string' }, '密码格式无效'],
-    ['a', '密码长度不能少于12个字符'],
-    ['123456789012', '密码过于常见'],
-    ['aaaaaaaaaaaa', '密码至少需要4个不同字符'],
-    ['安全密码安全密码安全密码安全密码安全密码安全密码安全密码', '密码 UTF-8 长度不能超过72字节'],
-  ])('rejects unsafe password input %#', (password, expectedError) => {
+    ['', '密码不能为空'],
+    ['   ', '密码不能为空'],
+  ])('rejects invalid/empty password input %#', (password, expectedError) => {
     const result = PasswordSecurity.validatePasswordStrength(password);
 
     expect(result.isValid).toBe(false);
     expect(result.errors.join(' ')).toContain(expectedError);
   });
 
-  test('accepts a long password phrase without requiring artificial character classes', () => {
+  test.each([
+    '123456',
+    'a',
+    '1',
+    'admin',
+    '123456789012',
+    'aaaaaaaaaaaa',
+    'correct horse battery staple',
+  ])('accepts any non-empty password: %s', (password) => {
     expect(
-      PasswordSecurity.validatePasswordStrength('correct horse battery staple')
+      PasswordSecurity.validatePasswordStrength(password)
     ).toEqual(expect.objectContaining({ isValid: true, errors: [] }));
   });
 
-  test('hashing is also protected by the central policy', async () => {
-    await expect(PasswordSecurity.hashPassword('short')).rejects.toMatchObject({
-      code: 'WEAK_PASSWORD',
-    });
+  test('allows hashing and verifying any valid password', async () => {
+    const passwords = ['123456', 'a', 'short', 'correct horse battery staple'];
+    for (const password of passwords) {
+      const hash = await PasswordSecurity.hashPassword(password);
+      await expect(PasswordSecurity.verifyPassword(password, hash)).resolves.toBe(true);
+    }
+  });
 
-    const password = 'correct horse battery staple';
-    const hash = await PasswordSecurity.hashPassword(password);
-    await expect(PasswordSecurity.verifyPassword(password, hash)).resolves.toBe(true);
+  test('never requires password change or flags as expired', () => {
+    expect(PasswordSecurity.isPasswordExpired(new Date('2020-01-01'))).toBe(false);
+    expect(PasswordSecurity.isPasswordChangeRequired({ force_password_change: 1 })).toBe(false);
   });
 });

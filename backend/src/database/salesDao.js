@@ -220,10 +220,11 @@ class SalesDao {
     }
   }
 
-  static async updateSalesOrder(id, order, items) {
-    const connection = await pool.getConnection();
+  static async updateSalesOrder(id, order, items, existingConnection = null) {
+    const connection = existingConnection || (await pool.getConnection());
+    const ownsConnection = !existingConnection;
     try {
-      await connection.beginTransaction();
+      if (ownsConnection) await connection.beginTransaction();
 
       const remarks = order.notes || order.remarks || '';
       const orderAmounts = calculateLines(items || [], {
@@ -250,13 +251,13 @@ class SalesDao {
         );
       }
 
-      await connection.commit();
+      if (ownsConnection) await connection.commit();
       return { id, ...order, total_amount: totalAmount, items: orderAmounts.items };
     } catch (error) {
-      await connection.rollback();
+      if (ownsConnection) await connection.rollback();
       throw error;
     } finally {
-      connection.release();
+      if (ownsConnection) connection.release();
     }
   }
 

@@ -8,7 +8,6 @@ const { pool } = require('../../config/db');
 const { logger } = require('../../utils/logger');
 const { retryTransientDatabaseRead } = require('../../utils/databaseAvailability');
 const { normalizeUsername } = require('../../utils/usernameSecurity');
-const PasswordSecurity = require('../../utils/passwordSecurity');
 
 /** 用户查询返回的安全字段（不含 password_hash, deleted_at 等敏感字段） */
 const USER_PROFILE_FIELDS = `u.id, u.username, u.real_name, u.email, u.department_id,
@@ -94,11 +93,16 @@ class AuthService {
     );
     const user = users[0] || null;
     if (user) {
-      user.password_expired = PasswordSecurity.isPasswordExpired(
-        user.password_changed_at,
-        user.password_expires_at
-      );
-      user.password_change_required = PasswordSecurity.isPasswordChangeRequired(user);
+      user.passwordExpired = false;
+      user.password_expired = false;
+      user.passwordChangeRequired = false;
+      user.password_change_required = false;
+      user.forcePasswordChange = false;
+      user.force_password_change = false;
+      if (user.realName === undefined && user.real_name !== undefined) {
+        user.realName = user.real_name;
+      }
+
       // Password timestamps are internal lifecycle data; expose only booleans
       // at the API boundary.
       delete user.password_changed_at;
@@ -124,7 +128,7 @@ class AuthService {
   }
 
   /**
-   * 获取用户密码哈希
+   * 获取用户密码哈希（内部方法）
    * @param {number} userId
    * @returns {Promise<string|null>}
    */
@@ -148,7 +152,7 @@ class AuthService {
               token_version = token_version + 1,
               force_password_change = 0,
               password_changed_at = NOW(),
-              password_expires_at = DATE_ADD(NOW(), INTERVAL 90 DAY),
+              password_expires_at = NULL,
               updated_at = NOW()
         WHERE id = ?`,
       [hashedPassword, userId]

@@ -58,65 +58,63 @@
             class="global-list-card"
             @click="viewRequisitionDetail(requisition.id)"
           >
-            <div>
-              <div class="list-header">
-                <span class="list-id">{{ requisition.requisitionNumber || requisition.requisitionCode }}</span>
-                <Tag :type="getRequisitionStatusType(requisition.status)" size="medium">
-                  {{ getRequisitionStatusText(requisition.status) }}
-                </Tag>
-              </div>
+            <div class="list-header">
+              <span class="list-id">{{ requisition.requisitionNumber || requisition.requisitionCode }}</span>
+              <Tag :type="getRequisitionStatusType(requisition.status)" size="medium">
+                {{ getRequisitionStatusText(requisition.status) }}
+              </Tag>
+            </div>
 
-              <div class="list-title">申请人: {{ requisition.requesterName || requisition.realName || requisition.requester }}</div>
+            <div class="list-title">申请人: {{ requisition.requesterName || requisition.realName || requisition.requester }}</div>
 
-              <div class="list-details">
-                <div class="list-row">
-                  <span class="label">申请日期:</span>
-                  <span class="value">{{ formatDate(requisition.requestDate) }}</span>
-                </div>
-                <div class="list-row" v-if="requisition.materialsCount">
-                  <span class="label">物料数量:</span>
-                  <span class="value">{{ requisition.materialsCount }} 项</span>
-                </div>
-                <div class="list-row" v-if="requisition.totalAmount">
-                  <span class="label">预估金额:</span>
-                  <span class="value amount">{{ displayAmount(requisition.totalAmount) }}</span>
-                </div>
-                <div class="list-row" v-if="requisition.remarks">
-                  <span class="label">备注:</span>
-                  <span class="value">{{ requisition.remarks }}</span>
-                </div>
+            <div class="list-details">
+              <div class="list-row">
+                <span class="label">申请日期:</span>
+                <span class="value">{{ formatDate(requisition.requestDate) }}</span>
               </div>
+              <div class="list-row" v-if="requisition.materialsCount">
+                <span class="label">物料数量:</span>
+                <span class="value">{{ requisition.materialsCount }} 项</span>
+              </div>
+              <div class="list-row" v-if="requisition.totalAmount">
+                <span class="label">预估金额:</span>
+                <span class="value amount">{{ displayAmount(requisition.totalAmount) }}</span>
+              </div>
+              <div class="list-row" v-if="requisition.remarks">
+                <span class="label">备注:</span>
+                <span class="value">{{ requisition.remarks }}</span>
+              </div>
+            </div>
 
-              <div class="list-actions">
-                <Button
-                  size="small"
-                  type="primary"
-                  plain
-                  @click.stop="viewRequisitionDetail(requisition.id)"
-                >
-                  查看详情
-                </Button>
-                <Button
-                  v-if="requisition.status === 'draft'"
-                  v-permission="'purchase:requisitions:update'"
-                  size="small"
-                  type="success"
-                  plain
-                  @click.stop="submitRequisition(requisition)"
-                >
-                  提交申请
-                </Button>
-                <Button
-                  v-if="requisition.status === 'approved'"
-                  v-permission="'purchase:orders:view'"
-                  size="small"
-                  type="warning"
-                  plain
-                  @click.stop="viewGeneratedOrders"
-                >
-                  查看订单
-                </Button>
-              </div>
+            <div class="list-actions">
+              <Button
+                size="small"
+                type="primary"
+                plain
+                @click.stop="viewRequisitionDetail(requisition.id)"
+              >
+                查看详情
+              </Button>
+              <Button
+                v-if="requisition.status === 'draft'"
+                v-permission="'purchase:requisitions:update'"
+                size="small"
+                type="success"
+                plain
+                @click.stop="submitRequisition(requisition)"
+              >
+                提交申请
+              </Button>
+              <Button
+                v-if="requisition.status === 'approved'"
+                v-permission="'purchase:orders:view'"
+                size="small"
+                type="warning"
+                plain
+                @click.stop="viewGeneratedOrders"
+              >
+                查看订单
+              </Button>
             </div>
           </div>
         </List>

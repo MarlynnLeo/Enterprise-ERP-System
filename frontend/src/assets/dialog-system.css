@@ -73,6 +73,10 @@
   max-width: min(850px, calc(100vw - 24px));
 }
 
+.el-dialog.app-dialog--explicit-width:not(.is-fullscreen) {
+  max-width: min(100%, calc(100vw - 24px));
+}
+
 /* 默认查看/表单：按内容宽度撑开；上限与明细宽弹窗一致 */
 .el-dialog.app-dialog--adaptive:not(.is-fullscreen) {
   --el-dialog-width: max-content;

@@ -54,84 +54,82 @@
             class="global-list-card"
             @click="viewReturnDetail(returnItem.id)"
           >
-            <div>
-              <div class="list-header">
-                <span class="list-id">{{ returnItem.returnNo }}</span>
-                <Tag :type="getReturnStatusType(returnItem.status)" size="medium">
-                  {{ getReturnStatusText(returnItem.status) }}
-                </Tag>
-              </div>
+            <div class="list-header">
+              <span class="list-id">{{ returnItem.returnNo }}</span>
+              <Tag :type="getReturnStatusType(returnItem.status)" size="medium">
+                {{ getReturnStatusText(returnItem.status) }}
+              </Tag>
+            </div>
 
-              <div class="list-subtitle" v-if="returnItem.orderNo">
-                关联订单: {{ returnItem.orderNo }}
-              </div>
+            <div class="list-subtitle" v-if="returnItem.orderNo">
+              关联订单: {{ returnItem.orderNo }}
+            </div>
 
-              <div class="list-title">{{ returnItem.customerName }}</div>
+            <div class="list-title">{{ returnItem.customerName }}</div>
 
-              <div class="list-details">
-                <div class="list-row">
-                  <span class="label">退货日期:</span>
-                  <span class="value">{{ formatDate(returnItem.returnDate) }}</span>
-                </div>
-                <div class="list-row" v-if="returnItem.totalAmount">
-                  <span class="label">退货金额:</span>
-                  <span class="value amount">¥{{ formatAmount(returnItem.totalAmount) }}</span>
-                </div>
-                <div class="list-row" v-if="returnItem.returnReason">
-                  <span class="label">退货原因:</span>
-                  <span class="value">{{ returnItem.returnReason }}</span>
-                </div>
-                <div class="list-row" v-if="returnItem.contactPerson">
-                  <span class="label">联系人:</span>
-                  <span class="value">{{ returnItem.contactPerson }}</span>
-                </div>
+            <div class="list-details">
+              <div class="list-row">
+                <span class="label">退货日期:</span>
+                <span class="value">{{ formatDate(returnItem.returnDate) }}</span>
               </div>
+              <div class="list-row" v-if="returnItem.totalAmount">
+                <span class="label">退货金额:</span>
+                <span class="value amount">{{ displayAmount(returnItem.totalAmount) }}</span>
+              </div>
+              <div class="list-row" v-if="returnItem.returnReason">
+                <span class="label">退货原因:</span>
+                <span class="value">{{ returnItem.returnReason }}</span>
+              </div>
+              <div class="list-row" v-if="returnItem.contactPerson">
+                <span class="label">联系人:</span>
+                <span class="value">{{ returnItem.contactPerson }}</span>
+              </div>
+            </div>
 
-              <div class="list-details" v-if="returnItem.items && returnItem.items.length > 0">
-                <div class="list-title" style="font-size:0.8125rem;margin-bottom:8px;">退货物料 ({{ returnItem.items.length }}项)</div>
-                <div
-                  v-for="(item, index) in returnItem.items.slice(0, 2)"
-                  :key="index"
-                  class="list-row"
-                >
-                  <span class="label" style="color:var(--text-primary)">{{ item.materialName }}</span>
-                  <span class="value">{{ item.quantity }} {{ item.unitName || '' }}</span>
-                </div>
-                <div v-if="returnItem.items.length > 2" class="list-row" style="justify-content:center;margin-top:8px;">
-                  <span class="label">还有 {{ returnItem.items.length - 2 }} 项...</span>
-                </div>
+            <div class="list-details" v-if="returnItem.items && returnItem.items.length > 0">
+              <div class="list-section-title">退货物料 ({{ returnItem.items.length }}项)</div>
+              <div
+                v-for="(item, index) in returnItem.items.slice(0, 2)"
+                :key="index"
+                class="list-row"
+              >
+                <span class="label" style="color:var(--text-primary)">{{ item.materialName }}</span>
+                <span class="value">{{ item.quantity }} {{ item.unitName || '' }}</span>
               </div>
+              <div v-if="returnItem.items.length > 2" class="list-row" style="justify-content:center;margin-top:8px;">
+                <span class="label">还有 {{ returnItem.items.length - 2 }} 项...</span>
+              </div>
+            </div>
 
-              <div class="list-actions">
-                <Button
-                  size="small"
-                  type="primary"
-                  plain
-                  @click.stop="viewReturnDetail(returnItem.id)"
-                >
-                  查看详情
-                </Button>
-                <Button
-                  v-if="returnItem.status === 'draft'"
-                  v-permission="'sales:returns:update'"
-                  size="small"
-                  type="success"
-                  plain
-                  @click.stop="confirmReturn(returnItem)"
-                >
-                  确认退货
-                </Button>
-                <Button
-                  v-if="returnItem.status === 'pending'"
-                  v-permission="'sales:returns:update'"
-                  size="small"
-                  type="warning"
-                  plain
-                  @click.stop="processReturn(returnItem)"
-                >
-                  处理退货
-                </Button>
-              </div>
+            <div class="list-actions">
+              <Button
+                size="small"
+                type="primary"
+                plain
+                @click.stop="viewReturnDetail(returnItem.id)"
+              >
+                查看详情
+              </Button>
+              <Button
+                v-if="returnItem.status === 'draft'"
+                v-permission="'sales:returns:update'"
+                size="small"
+                type="success"
+                plain
+                @click.stop="confirmReturn(returnItem)"
+              >
+                确认退货
+              </Button>
+              <Button
+                v-if="returnItem.status === 'pending'"
+                v-permission="'sales:returns:update'"
+                size="small"
+                type="warning"
+                plain
+                @click.stop="processReturn(returnItem)"
+              >
+                处理退货
+              </Button>
             </div>
           </div>
         </List>
@@ -141,7 +139,7 @@
 </template>
 
 <script setup>
-  import { ref } from 'vue'
+  import { computed, ref } from 'vue'
   import { useRouter } from 'vue-router'
   import {
     NavBar,
@@ -155,11 +153,17 @@
     showConfirmDialog
   } from 'vant'
   import { salesApi } from '@/api'
+  import { useAuthStore } from '@/stores/auth'
+  import { canViewMaterialPrices, formatMaskedPrice } from '@/utils/priceVisibility'
   import { usePagination } from '@/composables/usePagination'
   import { formatAmount, formatDate } from '@/utils/format'
   import { SALES_RETURN_STATUS, getDictText } from '@/constants/dict'
 
   const router = useRouter()
+  const authStore = useAuthStore()
+  const canViewPrice = computed(() => canViewMaterialPrices(authStore.hasPermission))
+  const displayAmount = (amount) =>
+    formatMaskedPrice(amount, canViewPrice.value, (value) => `¥${formatAmount(value)}`)
   const searchValue = ref('')
   const activeTab = ref(0)
 

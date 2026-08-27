@@ -7,10 +7,10 @@
 
 // 密码策略配置
 const PASSWORD_POLICY = {
-  minLength: 12,
+  minLength: 1,
   maxLength: 128,
   maxBcryptBytes: 72,
-  minUniqueChars: 4,
+  minUniqueChars: 1,
   requireUppercase: false,
   requireLowercase: false,
   requireNumbers: false,

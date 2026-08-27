@@ -58,84 +58,82 @@
             class="global-list-card"
             @click="viewReceiptDetail(receipt.id)"
           >
-            <div>
-              <div class="list-header">
-                <span class="list-id">{{ receipt.receiptNo }}</span>
-                <Tag :type="getReceiptStatusType(receipt.status)" size="medium">
-                  {{ getReceiptStatusText(receipt.status) }}
-                </Tag>
-              </div>
+            <div class="list-header">
+              <span class="list-id">{{ receipt.receiptNo }}</span>
+              <Tag :type="getReceiptStatusType(receipt.status)" size="medium">
+                {{ getReceiptStatusText(receipt.status) }}
+              </Tag>
+            </div>
 
-              <div class="list-subtitle" v-if="receipt.orderNo">
-                关联订单: {{ receipt.orderNo }}
-              </div>
+            <div class="list-subtitle" v-if="receipt.orderNo">
+              关联订单: {{ receipt.orderNo }}
+            </div>
 
-              <div class="list-title">{{ receipt.supplierName }}</div>
+            <div class="list-title">{{ receipt.supplierName }}</div>
 
-              <div class="list-details">
-                <div class="list-row">
-                  <span class="label">入库日期:</span>
-                  <span class="value">{{ formatDate(receipt.receiptDate) }}</span>
-                </div>
-                <div class="list-row" v-if="receipt.totalAmount">
-                  <span class="label">入库金额:</span>
-                  <span class="value amount">¥{{ formatAmount(receipt.totalAmount) }}</span>
-                </div>
-                <div class="list-row" v-if="receipt.receiver || receipt.operatorName">
-                  <span class="label">收货人:</span>
-                  <span class="value">{{ receipt.receiver || receipt.operatorName }}</span>
-                </div>
-                <div class="list-row" v-if="receipt.locationName || receipt.warehouseName">
-                  <span class="label">入库仓库:</span>
-                  <span class="value">{{ receipt.locationName || receipt.warehouseName }}</span>
-                </div>
+            <div class="list-details">
+              <div class="list-row">
+                <span class="label">入库日期:</span>
+                <span class="value">{{ formatDate(receipt.receiptDate) }}</span>
               </div>
+              <div class="list-row" v-if="receipt.totalAmount">
+                <span class="label">入库金额:</span>
+                <span class="value amount">{{ displayAmount(receipt.totalAmount) }}</span>
+              </div>
+              <div class="list-row" v-if="receipt.receiver || receipt.operatorName">
+                <span class="label">收货人:</span>
+                <span class="value">{{ receipt.receiver || receipt.operatorName }}</span>
+              </div>
+              <div class="list-row" v-if="receipt.locationName || receipt.warehouseName">
+                <span class="label">入库仓库:</span>
+                <span class="value">{{ receipt.locationName || receipt.warehouseName }}</span>
+              </div>
+            </div>
 
-              <div class="list-details" v-if="receipt.items && receipt.items.length > 0">
-                <div class="list-title" style="font-size:0.8125rem;margin-bottom:8px;">入库物料 ({{ receipt.items.length }}项)</div>
-                <div
-                  v-for="(item, index) in receipt.items.slice(0, 2)"
-                  :key="index"
-                  class="list-row"
-                >
-                  <span class="label" style="color:var(--text-primary)">{{ item.materialName }}</span>
-                  <span class="value">{{ item.quantity }} {{ item.unitName || item.unit || '' }}</span>
-                </div>
-                <div v-if="receipt.items.length > 2" class="list-row" style="justify-content:center;margin-top:8px;">
-                  <span class="label">还有 {{ receipt.items.length - 2 }} 项...</span>
-                </div>
+            <div class="list-details" v-if="receipt.items && receipt.items.length > 0">
+              <div class="list-section-title">入库物料 ({{ receipt.items.length }}项)</div>
+              <div
+                v-for="(item, index) in receipt.items.slice(0, 2)"
+                :key="index"
+                class="list-row"
+              >
+                <span class="label" style="color:var(--text-primary)">{{ item.materialName }}</span>
+                <span class="value">{{ item.quantity }} {{ item.unitName || item.unit || '' }}</span>
               </div>
+              <div v-if="receipt.items.length > 2" class="list-row" style="justify-content:center;margin-top:8px;">
+                <span class="label">还有 {{ receipt.items.length - 2 }} 项...</span>
+              </div>
+            </div>
 
-              <div class="list-actions">
-                <Button
-                  size="small"
-                  type="primary"
-                  plain
-                  @click.stop="viewReceiptDetail(receipt.id)"
-                >
-                  查看详情
-                </Button>
-                <Button
-                  v-if="receipt.status === 'draft'"
-                  v-permission="'purchase:receipts:update'"
-                  size="small"
-                  type="success"
-                  plain
-                  @click.stop="confirmReceipt(receipt)"
-                >
-                  确认入库
-                </Button>
-                <Button
-                  v-if="receipt.status === 'confirmed'"
-                  v-permission="'purchase:receipts:update'"
-                  size="small"
-                  type="warning"
-                  plain
-                  @click.stop="completeReceipt(receipt)"
-                >
-                  完成入库
-                </Button>
-              </div>
+            <div class="list-actions">
+              <Button
+                size="small"
+                type="primary"
+                plain
+                @click.stop="viewReceiptDetail(receipt.id)"
+              >
+                查看详情
+              </Button>
+              <Button
+                v-if="receipt.status === 'draft'"
+                v-permission="'purchase:receipts:update'"
+                size="small"
+                type="success"
+                plain
+                @click.stop="confirmReceipt(receipt)"
+              >
+                确认入库
+              </Button>
+              <Button
+                v-if="receipt.status === 'confirmed'"
+                v-permission="'purchase:receipts:update'"
+                size="small"
+                type="warning"
+                plain
+                @click.stop="completeReceipt(receipt)"
+              >
+                完成入库
+              </Button>
             </div>
           </div>
         </List>
@@ -145,7 +143,7 @@
 </template>
 
 <script setup>
-  import { ref, reactive, onMounted } from 'vue'
+  import { computed, ref, reactive, onMounted } from 'vue'
   import { useRouter } from 'vue-router'
   import {
     NavBar,
@@ -160,11 +158,15 @@
     showConfirmDialog
   } from 'vant'
   import { purchaseApi } from '@/api'
+  import { useAuthStore } from '@/stores/auth'
+  import { canViewMaterialPrices, formatMaskedPrice } from '@/utils/priceVisibility'
   import dayjs from 'dayjs'
 
   const formatDate = (d) => (d ? dayjs(d).format('YYYY-MM-DD') : '—')
 
   const router = useRouter()
+  const authStore = useAuthStore()
+  const canViewPrice = computed(() => canViewMaterialPrices(authStore.hasPermission))
   const searchValue = ref('')
   const refreshing = ref(false)
   const loading = ref(false)
@@ -293,6 +295,10 @@
     if (!amount) return '0.00'
     return parseFloat(amount).toFixed(2)
   }
+
+  // 金额权限脱敏显示
+  const displayAmount = (amount) =>
+    formatMaskedPrice(amount, canViewPrice.value, (value) => `¥${formatAmount(value)}`)
 
   // 查看入库单详情
   const viewReceiptDetail = (id) => {

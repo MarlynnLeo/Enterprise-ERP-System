@@ -126,7 +126,9 @@ router.post(
       const FinanceIntegrationService = require('../services/external/FinanceIntegrationService');
       const db = require('../config/db');
       const [rows] = await db.pool.execute(
-        'SELECT * FROM purchase_receipts WHERE id = ? AND deleted_at IS NULL',
+        `SELECT id, receipt_no, supplier_id, order_id, receipt_date, total_amount, tax_amount, status, created_by
+         FROM purchase_receipts
+         WHERE id = ? AND deleted_at IS NULL`,
         [req.params.receiptId]
       );
       if (!rows[0]) {
@@ -152,7 +154,9 @@ router.post(
       const FinanceIntegrationService = require('../services/external/FinanceIntegrationService');
       const db = require('../config/db');
       const [rows] = await db.pool.execute(
-        'SELECT * FROM sales_outbound WHERE id = ? AND deleted_at IS NULL',
+        `SELECT id, outbound_no, customer_id, order_id, order_no, outbound_date, total_amount, status, created_by
+         FROM sales_outbound
+         WHERE id = ? AND deleted_at IS NULL`,
         [req.params.outboundId]
       );
       if (!rows[0]) {
@@ -178,7 +182,9 @@ router.post(
       const FinanceIntegrationService = require('../services/external/FinanceIntegrationService');
       const db = require('../config/db');
       const [rows] = await db.pool.execute(
-        'SELECT * FROM sales_outbound WHERE id = ? AND deleted_at IS NULL',
+        `SELECT id, outbound_no, customer_id, order_id, order_no, outbound_date, total_amount, status, created_by
+         FROM sales_outbound
+         WHERE id = ? AND deleted_at IS NULL`,
         [req.params.outboundId]
       );
       if (!rows[0]) {

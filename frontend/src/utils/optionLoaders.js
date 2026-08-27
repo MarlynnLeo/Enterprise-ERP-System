@@ -243,6 +243,22 @@ export const searchCustomerOptions = (keyword = '', params = {}) => {
   })
 }
 
+/**
+ * 客户下拉的分页选项：表单远程搜索只需要当前页，不应拉取全部客户。
+ */
+export const loadCustomerPageOptions = (params = {}) => {
+  const normalized = normalizeCustomerParams(params)
+  return loadCachedList('customers:page', baseDataApi.getCustomers, normalized, {
+    defaults: { status: 'active' },
+  })
+}
+
+export const searchCustomerPageOptions = (keyword = '', params = {}) =>
+  loadCustomerPageOptions({
+    ...params,
+    search: String(keyword || '').trim() || undefined,
+  })
+
 export const loadLocationOptions = (params = {}) =>
   loadCachedList('locations', baseDataApi.getLocations, params, { defaults: { status: 1 } })
 

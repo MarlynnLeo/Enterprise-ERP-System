@@ -120,22 +120,12 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="仓库" prop="warehouseId">
-              <el-select
-                v-model="receiptForm.warehouseId"
-                filterable
-                placeholder="请选择仓库"
+            <el-form-item label="入库仓库">
+              <el-input
+                model-value="按成品物料默认仓库自动入库"
+                disabled
                 class="w-full"
-                :disabled="viewOnly"
-                @change="handleWarehouseChange"
-              >
-                <el-option
-                  v-for="item in warehouseOptions"
-                  :key="item.id"
-                  :label="item.name"
-                  :value="item.id"
-                />
-              </el-select>
+              />
             </el-form-item>
           </el-col>
         </el-row>
@@ -232,7 +222,6 @@ import { purchaseApi } from '@/api/purchase';
 import { ensureValidId } from '@/utils/helpers/dataUtils'
 import {
   loadOutsourcedReceiptProcessingOptions,
-  loadOutsourcedReceiptWarehouseOptions,
   searchOutsourcedReceiptProcessingOptions,
 } from '@/utils/optionLoaders';
 import { formatDate } from '@/utils/helpers/dateUtils';
@@ -296,7 +285,6 @@ const receiptForm = reactive({
   processingNo: '',
   supplierId: null,
   supplierName: '',
-  warehouseId: null,
   warehouseName: '',
   receiptDate: formatLocalDate(new Date()), // 当前日期
   operator: '',
@@ -313,16 +301,11 @@ const rules = {
   receiptDate: [
     { required: true, message: '请选择入库日期', trigger: 'blur' }
   ],
-  warehouseId: [
-    { required: true, message: '请选择仓库', trigger: 'change' }
-  ],
   operator: [
     { required: true, message: '请输入操作员', trigger: 'blur' }
   ]
 };
 
-// 仓库选项
-const warehouseOptions = ref([]);
 // 表单引用
 const receiptFormRef = ref(null);
 // 处理中状态
@@ -378,30 +361,6 @@ const loadProcessingDetailById = async (processingId) => {
   } catch (error) {
     console.error('获取加工单详情失败:', error);
     ElMessage.error('获取加工单详情失败');
-  }
-};
-
-// 加载仓库数据
-const loadWarehouses = async () => {
-  try {
-    warehouseOptions.value = await loadOutsourcedReceiptWarehouseOptions();
-    if (warehouseOptions.value.length === 0) {
-      ElMessage.warning('仓库数据加载异常，请确认数据库中是否已添加仓库信息');
-    }
-  } catch (error) {
-    console.error('获取仓库列表失败:', error);
-    ElMessage.error('获取仓库列表失败: ' + (error.response?.data?.message || error.message));
-  }
-};
-
-// 处理仓库变化
-const handleWarehouseChange = (warehouseId) => {
-  // 使用工具函数确保warehouseId是单个有效值
-  const actualWarehouseId = ensureValidId(warehouseId);
-
-  const selectedWarehouse = warehouseOptions.value.find(item => item.id === actualWarehouseId);
-  if (selectedWarehouse) {
-    receiptForm.warehouseName = selectedWarehouse.name;
   }
 };
 
@@ -501,7 +460,6 @@ const loadReceiptDetail = async () => {
     receiptForm.processingNo = data.processingNo || '';
     receiptForm.supplierId = ensureValidId(data.supplierId);
     receiptForm.supplierName = data.supplierName || '';
-    receiptForm.warehouseId = ensureValidId(data.locationId ?? data.warehouseId);
     receiptForm.warehouseName = data.warehouseName || '';
     receiptForm.receiptDate = data.receiptDate || formatLocalDate(new Date());
     receiptForm.operator = data.operator || '';
@@ -528,12 +486,6 @@ const handleSubmit = async () => {
       return;
     }
 
-    // 仓库ID是必须的
-    if (!receiptForm.warehouseId) {
-      ElMessage.error('请选择入库仓库');
-      return;
-    }
-
     processing.value = true;
 
     try {
@@ -542,8 +494,6 @@ const handleSubmit = async () => {
         processingNo: receiptForm.processingNo,
         supplierId: receiptForm.supplierId,
         supplierName: receiptForm.supplierName,
-        locationId: receiptForm.warehouseId,
-        warehouseName: receiptForm.warehouseName,
         receiptDate: receiptForm.receiptDate,
         operator: receiptForm.operator,
         remarks: receiptForm.remarks,
@@ -602,7 +552,6 @@ watch(() => props.visible, (newVal) => {
       processingNo: '',
       supplierId: null,
       supplierName: '',
-      warehouseId: null,
       warehouseName: '',
       receiptDate: formatLocalDate(new Date()),
       operator: '',
@@ -610,9 +559,6 @@ watch(() => props.visible, (newVal) => {
       status: '',
       items: []
     });
-
-    // 加载仓库数据
-    loadWarehouses();
 
     // 如果是创建模式且有加工单ID，加载加工单详情；否则加载加工单列表供选择
     if (props.mode === 'create') {

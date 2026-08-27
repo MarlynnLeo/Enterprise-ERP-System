@@ -168,9 +168,11 @@ const dialogClass = computed(() => {
   if (props.mode === 'view' || props.mode === 'form') {
     parts.push('app-dialog--modal')
   }
-  if (isDocumentWide.value) {
+  if (isDocumentWide.value && !hasExplicitWidth.value) {
     parts.push('app-dialog--document')
-  } else if (!hasExplicitWidth.value && props.mode !== 'preview') {
+  } else if (hasExplicitWidth.value) {
+    parts.push('app-dialog--explicit-width')
+  } else if (props.mode !== 'preview') {
     parts.push('app-dialog--adaptive')
   }
   if (props.customClass) {

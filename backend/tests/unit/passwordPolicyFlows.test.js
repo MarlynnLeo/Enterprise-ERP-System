@@ -16,8 +16,8 @@ describe('password policy enforcement in administrator reset flow', () => {
     pool.execute.mockReset();
   });
 
-  test('rejects a weak reset before opening a database transaction', async () => {
-    await expect(systemModel.resetUserPassword(9, 'short')).rejects.toThrow('密码不符合安全要求');
+  test('rejects an empty password reset before opening a database transaction', async () => {
+    await expect(systemModel.resetUserPassword(9, '')).rejects.toThrow('密码不符合安全要求');
     expect(pool.getConnection).not.toHaveBeenCalled();
   });
 });

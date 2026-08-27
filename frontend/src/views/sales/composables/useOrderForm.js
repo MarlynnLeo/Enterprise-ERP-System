@@ -4,12 +4,12 @@ import { formatLocalDate } from '@/utils/format';
  * @description 销售订单表单逻辑的组合式函数（从 SalesOrders.vue 抽取）
  * 包含：表单数据、验证规则、金额计算、物料操作、客户选择、提交逻辑
  */
-import { ref, reactive, watch, nextTick } from 'vue'
+import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { salesApi, baseDataApi } from '@/api'
 import { parseListData } from '@/utils/responseParser'
 import { searchMaterials } from '@/utils/searchConfig'
-import { loadCustomerOptions, searchCustomerOptions, loadMaterialOptions } from '@/utils/optionLoaders'
+import { loadCustomerPageOptions, searchCustomerPageOptions } from '@/utils/optionLoaders'
 import { checkInventory } from '@/composables/useInventoryCheck'
 import { useFinanceStore } from '@/stores/finance'
 import { storeToRefs } from 'pinia'
@@ -155,6 +155,10 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
     calculateTotalAmount()
   }, { deep: true })
 
+  const totalQuantity = computed(() => form.items
+    .filter(item => item.materialId)
+    .reduce((total, item) => total + (toNumberOrNull(item.quantity) ?? 0), 0))
+
   const calculateItemAmount = (index) => {
     if (index < 0 || index >= form.items.length) return
     const item = form.items[index]
@@ -191,8 +195,7 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
 
   const fetchCustomers = async () => {
     try {
-      // 拉全量启用客户，不再被 pageSize=50 截断
-      const customersData = await loadCustomerOptions()
+      const customersData = await loadCustomerPageOptions()
       customers.value = (customersData || []).map(mapCustomerOption)
       filteredCustomers.value = [...customers.value]
     } catch (error) {
@@ -207,10 +210,10 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
     customerSearchLoading.value = true
     const keyword = String(query || '').trim()
     ;(async () => {
-      // 无关键字：拉全量启用客户；有关键字：服务端按编码/名称搜
+      // 无关键字显示首屏客户；有关键字时由服务端按编码/名称/联系人搜索
       const remoteCustomers = keyword
-        ? await searchCustomerOptions(keyword)
-        : await loadCustomerOptions()
+        ? await searchCustomerPageOptions(keyword)
+        : await loadCustomerPageOptions()
       customers.value = remoteCustomers.map(mapCustomerOption)
       filteredCustomers.value = [...customers.value]
       customerSearchLoading.value = false
@@ -505,7 +508,14 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
       } catch (error) {
         const action = dialogType.value === 'edit' ? '更新' : '创建'
         console.error(`${action}订单失败:`, error)
-        ElMessage.error(`${action}订单失败: ` + (error.message || '未知错误'))
+        const errorData = error.response?.data
+        const errorMessage =
+          errorData?.message ||
+          errorData?.error?.message ||
+          errorData?.error ||
+          error.message ||
+          '未知错误'
+        ElMessage.error(`${action}订单失败: ${errorMessage}`)
       } finally {
         dialogLoading.value = false
         if (orderSaved && fetchDataCallback) await fetchDataCallback()
@@ -518,7 +528,7 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
 
   // ========== 新增/编辑入口 ==========
 
-  const handleAdd = async () => {
+  const handleAdd = () => {
     dialogType.value = 'add'
     Object.keys(form).forEach(key => {
       if (key === 'items') {
@@ -535,34 +545,7 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
     })
     const productsArray = Array.isArray(products.value) ? products.value : []
     filteredProducts.value = [...productsArray]
-    if (customers.value.length === 0) {
-      await fetchCustomers()
-    } else {
-      filteredCustomers.value = [...customers.value]
-    }
-    if (products.value.length === 0) {
-      try {
-        materialsLoading.value = true
-        // 与客户下拉一致：分页拉全量启用物料，避免只显示 50 条
-        const materialsData = await loadMaterialOptions()
-        products.value = (materialsData || []).map(material => ({
-          id: material.id, code: material.code || '', value: material.code || '',
-          name: material.name || '', materialName: material.name || '',
-          specs: material.specs || material.specification || '',
-          drawingNo: material.drawingNo || '',
-          stockQuantity: material.stockQuantity || 0,
-          label: `${material.code || ''} - ${material.name || ''} ${material.specs ? `(${material.specs})` : ''} [库存:${material.stockQuantity || 0}]`,
-          specification: material.specification || material.specs || '',
-          unitId: material.unitId, unitName: material.unitName || '个',
-          price: material.price ?? null
-        })).filter(item => item.id)
-        filteredProducts.value = [...products.value]
-      } catch (error) {
-        console.error('加载物料数据失败:', error)
-      } finally {
-        materialsLoading.value = false
-      }
-    }
+    // 物料使用远程搜索，客户在下拉展开时按页加载；新增弹窗不预加载全量基础资料。
     dialogVisible.value = true
   }
 
@@ -680,7 +663,7 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
     fetchMaterialSuggestions, handleMaterialSelect, handleMaterialClear,
     handleMaterialEnter, handleQuantityEnter,
     // 金额
-    calculateItemAmount, calculateTotalAmount,
+    calculateItemAmount, calculateTotalAmount, totalQuantity,
     // 提交
     handleSubmit, handleAdd, handleEdit,
     // 税率

@@ -183,7 +183,11 @@ class ThreeWayMatchService {
     );
     if (!headers.length) return null;
     const [items] = await db.pool.execute(
-      'SELECT * FROM ap_match_items WHERE match_id = ? ORDER BY id',
+      `SELECT id, match_id, material_id, material_code, material_name,
+              po_qty, po_price, receipt_qty, receipt_price,
+              invoice_qty, invoice_price, qty_variance, amount_variance,
+              within_tolerance, created_at, updated_at
+       FROM ap_match_items WHERE match_id = ? ORDER BY id`,
       [id]
     );
     return { ...headers[0], items };
@@ -209,7 +213,10 @@ class ThreeWayMatchService {
       params
     );
     const [list] = await db.pool.execute(
-      `SELECT h.*, s.name AS supplier_name, pr.receipt_no
+      `SELECT h.id, h.match_no, h.supplier_id, h.purchase_order_id, h.purchase_receipt_id,
+              h.supplier_invoice_number, h.match_date, h.po_amount, h.receipt_amount, h.invoice_amount,
+              h.qty_variance, h.amount_variance, h.status, h.match_result, h.remark, h.created_at,
+              s.name AS supplier_name, pr.receipt_no
        FROM ap_match_headers h
        LEFT JOIN suppliers s ON h.supplier_id = s.id
        LEFT JOIN purchase_receipts pr ON h.purchase_receipt_id = pr.id
@@ -235,7 +242,11 @@ class ThreeWayMatchService {
     try {
       await connection.beginTransaction();
       const [headers] = await connection.execute(
-        'SELECT * FROM ap_match_headers WHERE id = ? FOR UPDATE',
+        `SELECT id, match_no, supplier_id, purchase_order_id, purchase_receipt_id,
+                supplier_invoice_number, match_date, po_amount, receipt_amount, invoice_amount,
+                qty_variance, amount_variance, qty_tolerance_pct, amount_tolerance,
+                status, match_result, remark, created_by, created_at, updated_at
+         FROM ap_match_headers WHERE id = ? FOR UPDATE`,
         [matchId]
       );
       if (!headers.length) throw new Error('匹配单不存在');
@@ -251,7 +262,11 @@ class ThreeWayMatchService {
       };
 
       const [items] = await connection.execute(
-        'SELECT * FROM ap_match_items WHERE match_id = ? FOR UPDATE',
+        `SELECT id, match_id, material_id, material_code, material_name,
+                po_qty, po_price, receipt_qty, receipt_price,
+                invoice_qty, invoice_price, qty_variance, amount_variance,
+                within_tolerance, created_at, updated_at
+         FROM ap_match_items WHERE match_id = ? FOR UPDATE`,
         [matchId]
       );
       if (!items.length) throw new Error('匹配单无明细');
@@ -292,7 +307,11 @@ class ThreeWayMatchService {
       }
 
       const [fresh] = await connection.execute(
-        'SELECT * FROM ap_match_items WHERE match_id = ?',
+        `SELECT id, match_id, material_id, material_code, material_name,
+                po_qty, po_price, receipt_qty, receipt_price,
+                invoice_qty, invoice_price, qty_variance, amount_variance,
+                within_tolerance, created_at, updated_at
+         FROM ap_match_items WHERE match_id = ?`,
         [matchId]
       );
       const receiptAmount = money(
@@ -345,7 +364,9 @@ class ThreeWayMatchService {
     try {
       await connection.beginTransaction();
       const [rows] = await connection.execute(
-        'SELECT * FROM ap_match_headers WHERE id = ? FOR UPDATE',
+        `SELECT id, match_no, supplier_id, purchase_order_id, purchase_receipt_id,
+                status, match_result, remark
+         FROM ap_match_headers WHERE id = ? FOR UPDATE`,
         [matchId]
       );
       if (!rows.length) throw new Error('匹配单不存在');
@@ -376,7 +397,9 @@ class ThreeWayMatchService {
     try {
       await connection.beginTransaction();
       const [rows] = await connection.execute(
-        'SELECT * FROM ap_match_headers WHERE id = ? FOR UPDATE',
+        `SELECT id, match_no, supplier_id, purchase_order_id, purchase_receipt_id,
+                status, match_result, remark
+         FROM ap_match_headers WHERE id = ? FOR UPDATE`,
         [matchId]
       );
       if (!rows.length) throw new Error('匹配单不存在');

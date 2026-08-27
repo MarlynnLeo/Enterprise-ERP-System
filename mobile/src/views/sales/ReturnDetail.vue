@@ -24,7 +24,7 @@
         <Cell title="客户名称" :value="detail.customerName || '--'" />
         <Cell title="关联订单" :value="detail.orderCode || '--'" />
         <Cell title="退货日期" :value="formatDate(detail.returnDate || detail.createdAt)" />
-        <Cell title="退货金额" :value="(detail.totalAmount) ? `¥${detail.totalAmount}` : '--'" />
+        <Cell title="退货金额" :value="displayAmount(detail.totalAmount)" />
         <Cell title="退货原因" :value="detail.reason || '--'" />
       </CellGroup>
 
@@ -65,14 +65,19 @@
 </template>
 
 <script setup>
-  import { ref, onMounted } from 'vue'
+  import { computed, ref, onMounted } from 'vue'
   import { useRoute } from 'vue-router'
   import { NavBar, CellGroup, Cell, Button, Loading, showToast, showConfirmDialog } from 'vant'
   import { salesApi } from '@/api'
+  import { useAuthStore } from '@/stores/auth'
+  import { canViewMaterialPrices, formatMaskedPrice } from '@/utils/priceVisibility'
   import { extractApiData } from '@/utils/apiHelper'
   import { SALES_RETURN_STATUS, getDictText, getDictClass } from '@/constants/dict'
 
   const route = useRoute()
+  const authStore = useAuthStore()
+  const canViewPrice = computed(() => canViewMaterialPrices(authStore.hasPermission))
+  const displayAmount = (amount) => formatMaskedPrice(amount, canViewPrice.value)
   const detail = ref(null)
   const actionLoading = ref(false)
 

@@ -227,6 +227,8 @@ async function handleLogin() {
 }
 
 async function completeLogin() {
+  saveCredentials()
+
   try {
     const dictStore = useDictionaryStore()
     await dictStore.fetchDictionary()
@@ -235,12 +237,6 @@ async function completeLogin() {
   }
 
   ElMessage.success({ message: '登录成功，欢迎回来', duration: 2000 })
-  saveCredentials()
-  if (authStore.mustChangePassword) {
-    ElMessage.warning('首次登录请先修改初始密码')
-    await router.push('/force-password')
-    return
-  }
   await router.push('/')
 }
 

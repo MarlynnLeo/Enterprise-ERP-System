@@ -58,19 +58,20 @@ async function logAuthenticationEvent(req, event, details = {}, user = null) {
   }
 }
 
-const passwordLifecycle = (user) => ({
-  force_password_change: Boolean(user.force_password_change),
-  password_expired: PasswordSecurity.isPasswordExpired(
-    user.password_changed_at,
-    user.password_expires_at
-  ),
-  password_change_required: PasswordSecurity.isPasswordChangeRequired(user),
+const passwordLifecycle = () => ({
+  forcePasswordChange: false,
+  force_password_change: false,
+  passwordExpired: false,
+  password_expired: false,
+  passwordChangeRequired: false,
+  password_change_required: false,
 });
 
 function publicAuthUser(user) {
   return {
     id: user.id,
     username: user.username,
+    realName: user.real_name,
     real_name: user.real_name,
     email: user.email,
     ...passwordLifecycle(user),
@@ -332,57 +333,11 @@ const changePassword = async (req, res) => {
       return ResponseHandler.error(res, '当前密码不正确', 'VALIDATION_ERROR', 400);
     }
 
-    if (await PasswordSecurity.verifyPassword(newPassword, passwordHash)) {
-      return ResponseHandler.error(res, '新密码不能与当前密码相同', 'VALIDATION_ERROR', 400);
-    }
+    // 密码强度验证已解除限制 - 允许任意新密码
+    const hashedNewPassword = await PasswordSecurity.hashPassword(newPassword);
 
-    // 验证新密码强度
-    const passwordValidation = PasswordSecurity.validatePasswordStrength(newPassword);
-    if (!passwordValidation.isValid) {
-      return ResponseHandler.error(
-        res,
-        `密码不符合安全要求：${passwordValidation.errors.join('；')}`,
-        'VALIDATION_ERROR',
-        400
-      );
-    }
-
-
-    // 密码历史：禁止重复使用最近 N 次密码
-    const db = require('../../config/db');
-    const connection = await db.pool.getConnection();
-    try {
-      await connection.beginTransaction();
-      const historyOk = await PasswordSecurity.checkPasswordHistory(
-        userId,
-        newPassword,
-        connection
-      );
-      if (!historyOk) {
-        await connection.rollback();
-        return ResponseHandler.error(
-          res,
-          '新密码不能与最近使用过的密码相同',
-          'VALIDATION_ERROR',
-          400
-        );
-      }
-
-      const hashedNewPassword = await PasswordSecurity.hashPassword(newPassword);
-      // 更新密码时递增 token_version，强制所有设备重新登录
-      await AuthService.updatePassword(userId, hashedNewPassword, connection);
-      await PasswordSecurity.savePasswordHistory(userId, hashedNewPassword, connection);
-      await connection.commit();
-    } catch (error) {
-      try {
-        await connection.rollback();
-      } catch {
-        // Preserve the original password change error.
-      }
-      throw error;
-    } finally {
-      connection.release();
-    }
+    // 更新密码时递增 token_version，强制重新登录
+    await AuthService.updatePassword(userId, hashedNewPassword);
 
     revokeUserSockets(userId, 'password_changed');
     clearTokenCookies(req, res);

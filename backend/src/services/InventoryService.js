@@ -1480,7 +1480,11 @@ class InventoryService {
     const placeholders = uniqueIds.map(() => '?').join(',');
 
     const [rows] = await conn.execute(
-      `SELECT id, code, name, location_id, unit_id, price, COALESCE(cost_price, 0) as cost_price FROM materials WHERE id IN (${placeholders})`,
+      `SELECT id, code, name, location_id, unit_id, price, COALESCE(cost_price, 0) as cost_price
+         FROM materials
+        WHERE id IN (${placeholders})
+          AND status = 1
+          AND deleted_at IS NULL`,
       uniqueIds
     );
 

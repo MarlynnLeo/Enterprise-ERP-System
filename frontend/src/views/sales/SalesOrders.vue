@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * SalesOrders.vue
  * @description 前端界面组件文件
@@ -113,9 +113,9 @@
         <template #empty>
           <EmptyState description="暂无销售订单数据" />
         </template>
-        <el-table-column prop="orderNo" label="订单编号" width="120" fixed resizable show-overflow-tooltip>
+        <el-table-column prop="orderNo" label="订单编号" width="140" fixed resizable show-overflow-tooltip>
         </el-table-column>
-        <el-table-column prop="customerName" label="客户名称" width="250" resizable show-overflow-tooltip>
+        <el-table-column prop="customerName" label="客户名称" width="230" resizable show-overflow-tooltip>
         </el-table-column>
         <el-table-column prop="createdByRealName" label="操作人" width="100" resizable show-overflow-tooltip>
           <template #default="{ row }">
@@ -142,7 +142,7 @@
             {{ formatDate(row.deliveryDate) }}
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="110" resizable show-overflow-tooltip>
+        <el-table-column prop="status" label="状态" width="100" resizable show-overflow-tooltip>
           <template #default="{ row }">
             <el-tag
               :type="getSalesStatusColor(row.status)"
@@ -170,7 +170,7 @@
               type="primary"
               v-permission="'sales:orders:update'"
               @click="handleEdit(row)"
-              v-if="row.status === 'draft' || row.status === 'pending'"
+              v-if="canEdit(row)"
               :disabled="actionLoadingId === row.id"
             >
               编辑
@@ -243,11 +243,12 @@
         </el-pagination>
       </div>
     </el-card>
-    <!-- 新增/编辑订单对话框（宽表单，统一走 AppDialog） -->
+
+    <!-- 新增/编辑订单对话框（宽度适配明细表格完整显示，统一走 AppDialog） -->
     <AppDialog
       v-model="dialogVisible"
       mode="form"
-      wide
+      width="1200px"
       :title="dialogType === 'add' ? '新增订单' : '编辑订单'"
       :loading="dialogLoading"
       :close-on-click-modal="false"
@@ -334,12 +335,12 @@
               :header-cell-style="{ background: 'var(--color-bg-hover)', color: 'var(--color-text-regular)' }"
               empty-text="请添加订单物料"
             >
-              <el-table-column label="物料编码" width="160">
+              <el-table-column label="物料编码" width="120">
                 <template #default="{ row, $index }">
                   <el-autocomplete
                     :ref="(el) => setMaterialSelectRef(el, $index)"
                     v-model="row.code"
-                    placeholder="输入编码/名称/规格"
+                    placeholder="输入"
                     clearable
                     :fetch-suggestions="(query, callback) => fetchMaterialSuggestions(query, callback, $index)"
                     @select="(item) => handleMaterialSelect(item, $index)"
@@ -389,13 +390,17 @@
                   />
                 </template>
               </el-table-column>
-              <el-table-column label="单位" prop="unitName" width="70" />
-              <el-table-column label="金额" width="100">
+              <el-table-column label="单位" prop="unitName" width="60" align="center" show-overflow-tooltip>
+                <template #default="{ row }">
+                  {{ row.unitName || row.unit || '-' }}
+                </template>
+              </el-table-column>
+              <el-table-column label="金额" width="80">
                 <template #default="{ row }">
                     {{ formatCurrency(row.amount) }}
                 </template>
               </el-table-column>
-              <el-table-column label="税率" width="100">
+              <el-table-column label="税率" width="85">
                 <template #default="{ row, $index }">
                   <el-select
                     v-model="row.taxRate"
@@ -418,7 +423,7 @@
                   {{ formatCurrency(row.taxAmount) }}
                 </template>
               </el-table-column>
-              <el-table-column label="备注" width="125">
+              <el-table-column label="备注" min-width="120">
                 <template #default="{ row }">
                   <el-input
                     v-model="row.remark"
@@ -428,13 +433,12 @@
                     clearable />
                 </template>
               </el-table-column>
-              <el-table-column label="操作" min-width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+              <el-table-column label="操作" width="75" fixed="right" align="center" header-align="center" class-name="operation-column" header-class-name="operation-column-header">
                 <template #default="{ $index }">
                   <el-button
                     type="danger"
                     size="small"
                     @click="removeMaterial($index)"
-
                     v-permission="dialogType === 'add' ? 'sales:orders:create' : 'sales:orders:update'">
                     删除
                   </el-button>
@@ -451,13 +455,16 @@
         <!-- 订单汇总 -->
         <div class="order-summary summary-box">
           <el-row :gutter="20">
-            <el-col :span="8" class="text-right">
+            <el-col :span="6" class="text-right">
               <span class="text-regular">小计: {{ formatCurrency(form.subtotal) }}</span>
             </el-col>
-            <el-col :span="8" class="text-right">
+            <el-col :span="6" class="text-right">
               <span class="text-warning">税额: {{ formatCurrency(form.taxAmount) }}</span>
             </el-col>
-            <el-col :span="8" class="text-right">
+            <el-col :span="6" class="text-right">
+              <span class="text-regular">数量合计: {{ formatQuantityTotal(totalQuantity) }}</span>
+            </el-col>
+            <el-col :span="6" class="text-right">
               <span class="text-primary font-weight-700">合计: {{ formatCurrency(form.totalAmount) }}</span>
             </el-col>
           </el-row>
@@ -478,7 +485,7 @@
       v-model="detailsVisible"
       title="订单详情"
       mode="view"
-      width="850px"
+      width="1100px"
       :detail-navigation="orderViewNavigation"
     >
       <div v-loading="detailsLoading" class="order-view">
@@ -516,19 +523,23 @@
                 {{ row.specification || row.productSpecs || '-' }}
               </template>
             </el-table-column>
-            <el-table-column prop="quantity" label="数量" width="90" />
-            <el-table-column prop="unitName" label="单位" width="70" />
+            <el-table-column prop="quantity" label="数量" width="80" />
+            <el-table-column prop="unitName" label="单位" width="60" align="center" show-overflow-tooltip>
+              <template #default="{ row }">
+                {{ row.unitName || row.unit || '-' }}
+              </template>
+            </el-table-column>
             <el-table-column label="单价" width="100">
               <template #default="{ row }">
                 {{ formatCurrency(row.unitPrice) }}
               </template>
             </el-table-column>
-            <el-table-column label="金额" width="120">
+            <el-table-column label="金额" width="100">
               <template #default="{ row }">
                 {{ formatCurrency(row.amount) }}
               </template>
             </el-table-column>
-            <el-table-column prop="remarks" label="备注" width="120" show-overflow-tooltip>
+            <el-table-column prop="remarks" label="备注" min-width="140" show-overflow-tooltip>
               <template #default="{ row }">
                 {{ row.remarks || '-' }}
               </template>
@@ -649,6 +660,11 @@ const formatPrintAmount = (value) => {
   const amount = normalizeAmount(value)
   return amount === null ? '-' : amount.toFixed(2)
 }
+const formatQuantityTotal = (value) => {
+  const quantity = Number(value)
+  if (!Number.isFinite(quantity)) return '0'
+  return quantity.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 6 })
+}
 // 数据规范化处理函数
 const normalizeOrdersData = (orders) => {
   if (!Array.isArray(orders)) return []
@@ -704,6 +720,7 @@ const {
   fetchMaterialSuggestions, handleMaterialSelect, handleMaterialClear,
   handleMaterialEnter, handleQuantityEnter,
   calculateItemAmount,
+  totalQuantity,
   handleSubmit, handleAdd, handleEdit,
   vatRateOptions, financeStore
 } = useOrderForm(fetchData, updateParams)
@@ -713,7 +730,7 @@ const {
   detailsVisible, detailsLoading, currentOrder, actionLoadingId,
   handleConfirm, handleCancel, handleShip,
   handleLock, handleUnlock, handleView,
-  canConfirm, canShip, canCancel, canLock, canUnlock,
+  canConfirm, canEdit, canShip, canCancel, canLock, canUnlock,
   orderViewNavigation
 } = useOrderActions(fetchData, ordersData)
 const {

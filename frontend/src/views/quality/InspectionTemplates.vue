@@ -93,7 +93,7 @@
         border
         class="table-row-click w-full mt-md"
         v-loading="loading"
-      
+
       @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
         <el-table-column prop="templateCode" label="模板编号" min-width="100" />
         <el-table-column prop="templateName" label="模板名称" min-width="150" />
@@ -145,7 +145,7 @@
         <el-table-column label="操作" fixed="right" min-width="360" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
       >
           <template #default="scope">
-            
+
             <el-button
               v-if="scope.row.status !== 'active'"
               size="small"
@@ -477,7 +477,7 @@
           <el-tag v-if="isGeneralTemplate(currentTemplate)" type="success">
             {{ getInspectionTypePrefix(currentTemplate?.inspectionType) }}通用模板
           </el-tag>
-          <span v-else>{{ getMultipleMaterialCodes(currentTemplate?.materialTypes || [currentTemplate?.materialType]) }}</span>
+          <span v-else>{{ getMultipleMaterialCodes(currentTemplate?.materialTypes || [currentTemplate?.materialType], currentTemplate) }}</span>
         </el-descriptions-item>
         <el-descriptions-item label="版本">{{ currentTemplate?.version }}</el-descriptions-item>
         <el-descriptions-item label="默认兜底">
@@ -697,7 +697,7 @@
 </template>
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
-import { ref, reactive, onMounted, nextTick, computed } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 import AQLStandards from './AQLStandards.vue'
 import { Search, Refresh, Plus, Check } from '@element-plus/icons-vue'
@@ -740,8 +740,6 @@ const total = ref(0)
 const materialsList = ref([])
 const loadingMaterials = ref(false)
 const materialsMap = ref({}) // 新增：材料ID到代码的映射
-// 添加一个控制是否已请求过物料列表的状态变量
-const materialDataRequested = ref(false)
 // 用户映射
 const userMap = ref({})
 const userDataRequested = ref(false)
@@ -964,7 +962,25 @@ const fetchData = async () => {
       status: statusFilter.value
     })
     const normalized = normalizeTemplateListResponse(response)
-    templateList.value = normalized.list.map(normalizeTemplateRow)
+    const list = normalized.list.map(normalizeTemplateRow)
+
+    // 自动将后端预加载的物料详情同步注入 materialsMap，避免冗余查询
+    list.forEach(row => {
+      const details = row.materialDetails || row.material_details
+      if (Array.isArray(details)) {
+        details.forEach(m => {
+          if (m && m.id && !materialsMap.value[m.id]) {
+            materialsMap.value[m.id] = {
+              name: m.name,
+              code: m.code,
+              specs: m.specs || m.specification || ''
+            }
+          }
+        })
+      }
+    })
+
+    templateList.value = list
     total.value = normalized.total
   } catch (error) {
     ElMessage.error(`获取模板列表失败: ${getApiErrorMessage(error)}`)
@@ -1051,86 +1067,71 @@ const fetchMaterialsList = async (query = '') => {
   debouncedSearchMaterials(query);
 };
 // ====== 物料搜索相关 (结束) ======
-// 根据ID获取物料编码（同步版本，用于表格显示）
+// 根据ID获取物料编码（纯同步版本，用于表格显示与映射查找）
 const getMaterialCodeById = (id) => {
-  if (!id) return '未指定'
-  // 从映射中查找物料信息
+  if (!id) return ''
+  // 1. 从映射中查找物料信息
   const material = materialsMap.value[id]
   if (material) {
-    return material.code
+    return material.code || material.name || ''
   }
-  // 如果映射中没有，但列表中有
-  const materialInList = materialsList.value.find(item => item.value === id)
+  // 2. 从列表中查找
+  const materialInList = materialsList.value.find(item => item.value === id || item.id === id)
   if (materialInList) {
-    return materialInList.code
+    return materialInList.code || materialInList.name || ''
   }
-  // 物料列表加载期间不显示未解析的内部ID
-  if (loadingMaterials.value) {
-    return ''
-  }
-  // 如果物料数据还没请求过，则请求一次
-  if (Object.keys(materialsMap.value).length === 0 && !materialDataRequested.value) {
-    materialDataRequested.value = true
-    setTimeout(() => {
-      fetchMaterialsList(true)
-    }, 100)
-    return ''
-  }
-  // 都没找到，尝试异步获取单个物料信息
-  fetchSingleMaterial(id)
   return ''
 }
-// 异步获取单个物料信息
-const fetchSingleMaterial = async (id) => {
-  try {
-    const response = await baseDataApi.getMaterial(id)
-    // 拦截器已解包，response.data 就是业务数据
-    if (response.data?.code) {
-      // 将获取到的物料信息添加到映射中
-      materialsMap.value[id] = {
-        name: response.data.name,
-        code: response.data.code,
-        specs: response.data.specs
-      }
-      // 触发重新渲染
-      await nextTick()
+
+// 根据多个ID获取物料编码（纯同步版本，支持传入模板对象优先提取已关联信息）
+const getMultipleMaterialCodes = (ids, template = null) => {
+  if (template) {
+    const details = template.materialDetails || template.material_details
+    if (Array.isArray(details) && details.length > 0) {
+      const codes = details.map(m => m.code || m.name || m.id).filter(Boolean)
+      if (codes.length > 0) return codes.join('、')
     }
-  } catch {
-    // 单条物料补全失败不阻断列表渲染
+    if (template.materialCode || template.material_code) {
+      return template.materialCode || template.material_code
+    }
   }
-}
-// 根据多个ID获取物料编码
-const getMultipleMaterialCodes = (ids) => {
-  if (!ids || ids.length === 0) return '未指定'
-  // 确保ids是数组
+  if (!ids || (Array.isArray(ids) && ids.length === 0)) return '未指定'
   const materialIds = Array.isArray(ids) ? ids : [ids]
-  // 获取每个ID对应的物料编码并拼接
-  const codes = materialIds.map(id => getMaterialCodeById(id)).filter(code => code !== '')
-  if (codes.length === 0) return ''
+  const codes = materialIds.map(id => getMaterialCodeById(id)).filter(code => code !== '' && code !== '未指定')
+  if (codes.length === 0) return '未指定'
   return codes.join('、')
 }
-// 获取表格中显示的物料编码（支持新旧格式）
-const getTableMaterialCodes = (row) => {
-  // 优先使用后端预加载的详细信息，避免闪烁
-  if (row.materialDetails && Array.isArray(row.materialDetails) && row.materialDetails.length > 0) {
-    return row.materialDetails.map(m => m.code).join('、')
-  }
-  // 这里的fallback逻辑保留，以防万一后端没有返回details
 
-  // 优先使用新的 material_types 字段
+// 获取表格中显示的物料编码（纯同步纯函数，支持新旧格式与预加载数据）
+const getTableMaterialCodes = (row) => {
+  if (!row) return '未指定'
+  // 1. 优先使用后端预加载的详细信息，避免闪烁
+  const details = row.materialDetails || row.material_details
+  if (Array.isArray(details) && details.length > 0) {
+    const codes = details.map(m => m.code || m.name || m.id).filter(Boolean)
+    if (codes.length > 0) return codes.join('、')
+  }
+
+  // 2. 兼容直接绑定的物料编码
+  if (row.materialCode || row.material_code) {
+    return row.materialCode || row.material_code
+  }
+
+  // 3. 优先使用新的 materialTypes 字段
   if (row.materialTypes) {
     const materialIds = parseMaterialTypes(row.materialTypes)
     if (materialIds.length > 0) {
-      return getMultipleMaterialCodes(materialIds)
+      const codeStr = getMultipleMaterialCodes(materialIds, row)
+      if (codeStr && codeStr !== '未指定') return codeStr
     }
   }
-  // 兼容旧的 material_type 字段
-  if (row.materialCode) {
-    return row.materialCode
-  }
+
+  // 4. 兼容旧的 materialType 字段
   if (row.materialType) {
-    return getMaterialCodeById(row.materialType)
+    const code = getMaterialCodeById(row.materialType)
+    if (code) return code
   }
+
   return '未指定'
 }
 // 物料选择改变时的处理
@@ -1309,8 +1310,9 @@ const handleEdit = async (row) => {
 
         form.materialTypes = types;
         // 确保下拉列表和映射中包含当前选中的物料
-        if (templateData.material_details && Array.isArray(templateData.material_details)) {
-          templateData.material_details.forEach(material => {
+        const details = templateData.materialDetails || templateData.material_details;
+        if (details && Array.isArray(details)) {
+          details.forEach(material => {
             // 同时更新 materialsMap（用于显示）
             if (!materialsMap.value[material.id]) {
               materialsMap.value[material.id] = {
@@ -1380,6 +1382,20 @@ const handleView = async (row) => {
     // axios 拦截器已自动解包，response.data 是模板详情数据
     const templateData = response.data
     if (templateData) {
+      // 预加载详情中的物料至 materialsMap
+      const details = templateData.materialDetails || templateData.material_details
+      if (Array.isArray(details)) {
+        details.forEach(m => {
+          if (m && m.id && !materialsMap.value[m.id]) {
+            materialsMap.value[m.id] = {
+              name: m.name,
+              code: m.code,
+              specs: m.specs || m.specification || ''
+            }
+          }
+        })
+      }
+
       // 确保模板数据正确
       currentTemplate.value = {
         ...templateData,

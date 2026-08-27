@@ -230,10 +230,7 @@ router.beforeEach(async (to) => {
     }
   }
 
-  if (authStore.isAuthenticated && authStore.mustChangePassword && to.path !== '/force-password') {
-    return '/force-password'
-  }
-  if (authStore.isAuthenticated && !authStore.mustChangePassword && to.path === '/force-password') {
+  if (authStore.isAuthenticated && to.path === '/force-password') {
     return '/'
   }
 

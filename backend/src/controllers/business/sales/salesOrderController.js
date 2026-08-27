@@ -25,6 +25,11 @@ const { STATUS, getConnection, generateSalesOrderNo } = require('./salesShared')
 const { autoGenerateFollowUpDocuments } = require('./salesExchangeController');
 const { generateProductionAndPurchasePlans } = require('./salesPackingController');
 const SYNC_SALES_ORDER_STATUS_DRIFT = false;
+const {
+  INVENTORY_RECONCILE_SALES_ORDER_STATUSES,
+  assertSalesOrderEditable,
+} = require('../../../utils/sales/salesOrderEditPolicy');
+const { DOCUMENT_LINK_TYPES: DocType } = require('../../../constants/documentLinkTypes');
 
 async function canAccessSalesOrder(connection, req, id, options = {}) {
   return ScopeGuard.assertAccess(connection, req, 'sales_order', id, options);
@@ -45,6 +50,115 @@ function assertSalesOrderItemPrices(items = []) {
     const error = new Error(`第 ${invalidRows.join(', ')} 行销售单价缺失或无效，请先维护销售价格`);
     error.statusCode = 400;
     throw error;
+  }
+}
+
+/**
+ * Generated production/purchase documents are part of the order's fulfillment
+ * state. During an order edit, only untouched draft documents may be replaced.
+ * Anything already progressing must be handled in its own module first.
+ */
+async function prepareGeneratedDocumentsForSalesOrderEdit(connection, salesOrderId, salesOrderNo) {
+  const [links] = await connection.execute(
+    `SELECT target_type, target_id
+     FROM document_links
+     WHERE source_type = ? AND source_id = ?
+       AND target_type IN (?, ?)`,
+    [
+      DocType.SALES_ORDER,
+      salesOrderId,
+      DocType.PRODUCTION_PLAN,
+      DocType.PURCHASE_REQUISITION,
+    ]
+  );
+
+  const targets = new Map(
+    links.map((link) => [`${link.target_type}:${link.target_id}`, link])
+  );
+
+  // Document links are the primary relation. The remark lookup keeps older
+  // generated documents safe when link creation was deferred or failed.
+  if (salesOrderNo) {
+    const [plans] = await connection.execute(
+      `SELECT id AS target_id, '${DocType.PRODUCTION_PLAN}' AS target_type
+       FROM production_plans
+       WHERE status = 'draft' AND remark LIKE ?`,
+      [`%${salesOrderNo}%`]
+    );
+    plans.forEach((plan) => targets.set(`${plan.target_type}:${plan.target_id}`, plan));
+
+    const [requisitions] = await connection.execute(
+      `SELECT id AS target_id, '${DocType.PURCHASE_REQUISITION}' AS target_type
+       FROM purchase_requisitions
+       WHERE status = 'draft' AND remarks LIKE ?`,
+      [`%${salesOrderNo}%`]
+    );
+    requisitions.forEach((requisition) =>
+      targets.set(`${requisition.target_type}:${requisition.target_id}`, requisition)
+    );
+  }
+
+  for (const link of targets.values()) {
+    if (link.target_type === DocType.PRODUCTION_PLAN) {
+      const [plans] = await connection.execute(
+        'SELECT id, status FROM production_plans WHERE id = ? FOR UPDATE',
+        [link.target_id]
+      );
+      if (plans.length === 0) continue;
+
+      const plan = plans[0];
+      if (plan.status !== 'draft') {
+        const error = new Error(`生产计划 ${link.target_id} 已进入${plan.status}状态，无法通过销售订单修改明细。`);
+        error.statusCode = 400;
+        throw error;
+      }
+
+      const [activeTasks] = await connection.execute(
+        `SELECT COUNT(*) AS count
+         FROM production_tasks
+         WHERE plan_id = ? AND status <> 'cancelled'`,
+        [plan.id]
+      );
+      if (Number(activeTasks[0]?.count || 0) > 0) {
+        const error = new Error(`生产计划 ${link.target_id} 已生成生产任务，无法修改销售订单明细。`);
+        error.statusCode = 400;
+        throw error;
+      }
+
+      await connection.execute(
+        `UPDATE production_plans
+         SET status = 'cancelled', updated_at = NOW()
+         WHERE id = ? AND status = 'draft'`,
+        [plan.id]
+      );
+    } else if (link.target_type === DocType.PURCHASE_REQUISITION) {
+      const [requisitions] = await connection.execute(
+        'SELECT id, status FROM purchase_requisitions WHERE id = ? FOR UPDATE',
+        [link.target_id]
+      );
+      if (requisitions.length === 0) continue;
+
+      const requisition = requisitions[0];
+      if (requisition.status !== 'draft') {
+        const error = new Error(`采购申请 ${link.target_id} 已进入${requisition.status}状态，无法通过销售订单修改明细。`);
+        error.statusCode = 400;
+        throw error;
+      }
+
+      await connection.execute(
+        `UPDATE purchase_requisitions
+         SET status = 'cancelled'
+         WHERE id = ? AND status = 'draft'`,
+        [requisition.id]
+      );
+    }
+
+    await connection.execute(
+      `DELETE FROM document_links
+       WHERE source_type = ? AND source_id = ?
+         AND target_type = ? AND target_id = ?`,
+      [DocType.SALES_ORDER, salesOrderId, link.target_type, link.target_id]
+    );
   }
 }
 
@@ -917,6 +1031,8 @@ exports.createSalesOrder = async (req, res) => {
 
 
 exports.updateSalesOrder = async (req, res) => {
+  let connection;
+  let transactionStarted = false;
   try {
     const { id } = req.params;
     const requestData = req.body;
@@ -967,34 +1083,118 @@ exports.updateSalesOrder = async (req, res) => {
 
     assertSalesOrderItemPrices(items);
 
-    if (!(await canAccessSalesOrder(db.pool, req, id))) {
+    connection = await db.pool.getConnection();
+    await connection.beginTransaction();
+    transactionStarted = true;
+
+    const [orderRows] = await connection.execute(
+      `SELECT id, order_no, status, is_locked, created_by
+       FROM sales_orders
+       WHERE id = ? AND deleted_at IS NULL
+       FOR UPDATE`,
+      [id]
+    );
+    if (orderRows.length === 0) {
+      await connection.rollback();
+      transactionStarted = false;
+      return ResponseHandler.error(res, '销售订单不存在', 'NOT_FOUND', 404);
+    }
+
+    const currentOrder = orderRows[0];
+    if (!(await canAccessSalesOrder(connection, req, id))) {
+      await connection.rollback();
+      transactionStarted = false;
       return ResponseHandler.forbidden(res, 'No permission to modify this sales order');
     }
 
-    // 调用数据库函数更新订单
-    const updatedOrder = await SalesDao.updateSalesOrder(id, order, items);
+    assertSalesOrderEditable(currentOrder);
 
-    // 如果前端标记需要生成生产/采购计划（编辑订单添加了新物料且库存不足）
-    if (requestData.should_generate_plans) {
+    // Any active outbound document makes the order detail immutable. This
+    // includes draft outbounds because their lines would otherwise go stale.
+    const [outboundRows] = await connection.execute(
+      `SELECT so.id, so.outbound_no, so.status
+       FROM sales_outbound so
+       WHERE so.deleted_at IS NULL
+         AND so.status NOT IN ('cancelled', 'reversed')
+         AND (
+           so.order_id = ?
+           OR EXISTS (
+             SELECT 1
+             FROM sales_outbound_items sobi
+             WHERE sobi.outbound_id = so.id
+               AND sobi.source_order_id = ?
+           )
+         )
+       LIMIT 1`,
+      [id, id]
+    );
+    if (outboundRows.length > 0) {
+      await connection.rollback();
+      transactionStarted = false;
+      return ResponseHandler.error(
+        res,
+        `订单已有${outboundRows[0].status === 'draft' ? '草稿' : '有效'}出库单 ${outboundRows[0].outbound_no || ''}，请先处理出库单后再编辑订单明细。`,
+        'VALIDATION_ERROR',
+        400
+      );
+    }
+
+    const needsInventoryReconciliation = INVENTORY_RECONCILE_SALES_ORDER_STATUSES.includes(
+      currentOrder.status
+    );
+
+    if (needsInventoryReconciliation) {
+      await prepareGeneratedDocumentsForSalesOrderEdit(connection, id, currentOrder.order_no);
+      await InventoryReservationService.releaseInventoryReservation(
+        id,
+        getAuthenticatedUserId(req),
+        connection
+      );
+    }
+
+    // Status is controlled by the order workflow and inventory reconciliation,
+    // not by arbitrary values submitted by the edit form.
+    order.status = currentOrder.status;
+
+    // Keep the order update and reservation release in one transaction.
+    const updatedOrder = await SalesDao.updateSalesOrder(id, order, items, connection);
+    await connection.commit();
+    transactionStarted = false;
+    connection.release();
+    connection = null;
+
+    // Re-evaluate inventory-backed orders after their old reservations/plans
+    // have been removed. This also permits deleting a line from a newly created
+    // ready-to-ship order without leaving reservations for the deleted line.
+    if (needsInventoryReconciliation || requestData.should_generate_plans) {
       try {
-        logger.info(`✅ 编辑订单 ${id}，需要生成生产/采购计划`);
+        logger.info(`编辑订单 ${id}，重新核对库存及后续单据`);
         const userInfo = getAuthenticatedUserInfo(req);
 
-        // 自动生成生产计划和采购申请
-        await autoGenerateFollowUpDocuments(id, items, userInfo);
+        const suggestedStatus = await autoGenerateFollowUpDocuments(id, items, userInfo);
+        if (suggestedStatus && suggestedStatus !== updatedOrder.status) {
+          await SalesDao.updateSalesOrderStatus(id, suggestedStatus);
+          updatedOrder.status = suggestedStatus;
+        }
 
-        logger.info(`✅ 订单 ${id} 的生产/采购计划已生成`);
+        logger.info(`订单 ${id} 的库存及生产/采购状态已重新计算: ${updatedOrder.status}`);
       } catch (planError) {
-        logger.error('⚠️ 生成生产/采购计划失败:', planError);
-        // 不阻止订单更新，只记录错误
+        logger.error('重新生成生产/采购计划失败:', planError);
+        updatedOrder.status = 'shortage';
+        await SalesDao.updateSalesOrderStatus(id, 'shortage');
       }
     }
 
     await desensitizeDataForUser(updatedOrder, req.user, 'view', req.userPermissions);
     ResponseHandler.success(res, updatedOrder, '订单更新成功');
   } catch (error) {
+    if (connection && transactionStarted) {
+      await connection.rollback().catch(() => {});
+    }
     logger.error('更新销售订单失败:', error);
     ResponseHandler.error(res, error.message || '更新销售订单失败', 'SERVER_ERROR', error.statusCode || 500, error);
+  } finally {
+    if (connection) connection.release();
   }
 };
 

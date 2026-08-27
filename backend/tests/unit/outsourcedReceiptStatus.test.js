@@ -17,6 +17,7 @@ jest.mock('../../src/config/db', () => ({
 jest.mock('../../src/models/purchase', () => ({}));
 jest.mock('../../src/services/InventoryService', () => ({
   updateStock: jest.fn(),
+  getBatchMaterialInfo: jest.fn(),
 }));
 jest.mock('../../src/services/external/FinanceIntegrationService', () => ({
   getOutsourcedReceiptCostAllocation: jest.fn(),
@@ -62,6 +63,9 @@ describe('outsourced receipt status side effects', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockConnection.execute.mockReset();
+    InventoryService.getBatchMaterialInfo.mockResolvedValue(new Map([
+      [12147, { locationId: 9, code: 'FG-1', name: '底座（钻孔）' }],
+    ]));
     FinanceIntegrationService.getOutsourcedReceiptCostAllocation.mockResolvedValue({
       materialCostByItemId: new Map([[51, { unitCost: 20 }]]),
     });
@@ -72,8 +76,6 @@ describe('outsourced receipt status side effects', () => {
     mockConnection.execute
       .mockResolvedValueOnce([[receipt('pending')]])
       .mockResolvedValueOnce([[{ id: 12, status: 'in_progress' }]])
-      .mockResolvedValueOnce([[{ id: 3, name: '成品库' }]])
-      .mockResolvedValueOnce([{ affectedRows: 1 }])
       .mockResolvedValueOnce([[
         {
           id: 51,
@@ -83,6 +85,9 @@ describe('outsourced receipt status side effects', () => {
           actual_quantity: '1.00',
         },
       ]]);
+    mockConnection.execute
+      .mockResolvedValueOnce([[{ id: 9, name: '成品库' }]])
+      .mockResolvedValueOnce([{ affectedRows: 1 }]);
 
     const req = {
       params: { id: '5' },
@@ -94,6 +99,10 @@ describe('outsourced receipt status side effects', () => {
     await updateReceiptStatus(req, res);
 
     expect(InventoryService.updateStock).toHaveBeenCalledTimes(1);
+    expect(InventoryService.updateStock).toHaveBeenCalledWith(
+      expect.objectContaining({ locationId: 9, warehouseName: '成品库' }),
+      mockConnection
+    );
     expect(FinanceIntegrationService.generateOutsourcedReceiptEntry).toHaveBeenCalledTimes(1);
     expect(mockConnection.execute.mock.calls.some(([sql]) =>
       String(sql).includes('UPDATE outsourced_processings SET status')

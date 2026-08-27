@@ -324,6 +324,18 @@ export function useOrderActions(fetchDataCallback, tableData) {
 
   // 状态判断函数
   const canConfirm = (row) => ['draft', 'pending'].includes(row.status)
+  const canEdit = (row) =>
+    [
+      'draft',
+      'pending',
+      'confirmed',
+      'ready_to_ship',
+      'shortage',
+      'in_production',
+      'in_procurement',
+    ].includes(row.status) &&
+    !row.isLocked &&
+    !row.hasDraftOutbound
   const canShip = (row) =>
     ['ready_to_ship', 'partial_shipped'].includes(row.status) && !row.hasDraftOutbound
   const canCancel = (row) =>
@@ -356,6 +368,7 @@ export function useOrderActions(fetchDataCallback, tableData) {
     handleUnlock,
     handleView,
     canConfirm,
+    canEdit,
     canShip,
     canCancel,
     canLock,
