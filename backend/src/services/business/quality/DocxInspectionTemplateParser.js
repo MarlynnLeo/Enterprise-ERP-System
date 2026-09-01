@@ -150,7 +150,11 @@ class DocxInspectionTemplateParser {
       }
 
       // 识别检验项目表头行
-      if (row.includes('项目') && (row.includes('检验要求/标准') || row.includes('标准') || row.includes('检测方法') || row.includes('检验要求'))) {
+      const isHeaderRow =
+        row.some((c) => /检验项目|项目名称|^项目$/.test(c)) ||
+        (row.some((c) => c.includes('项目')) &&
+          row.some((c) => c.includes('标准') || c.includes('要求') || c.includes('方法') || c.includes('器具')));
+      if (isHeaderRow) {
         itemsHeaderIndex = r;
         break;
       }
@@ -158,6 +162,37 @@ class DocxInspectionTemplateParser {
 
     // 解析检验项目
     if (itemsHeaderIndex >= 0) {
+      const headerRow = table[itemsHeaderIndex] || [];
+      let itemColIndex = -1;
+      let standardColIndex = -1;
+      let methodColIndex = -1;
+
+      for (let c = 0; c < headerRow.length; c++) {
+        const hText = (headerRow[c] || '').trim();
+        if (
+          itemColIndex === -1 &&
+          (/检验项目|项目名称|^项目$/.test(hText) ||
+            (hText.includes('项目') && !hText.includes('数') && !hText.includes('结论') && !hText.includes('明细')))
+        ) {
+          itemColIndex = c;
+        } else if (
+          standardColIndex === -1 &&
+          (/检验要求|技术要求|检验标准|技术标准|标准|要求/.test(hText) && !hText.includes('项目'))
+        ) {
+          standardColIndex = c;
+        } else if (
+          methodColIndex === -1 &&
+          (/检测方法|检验方法|检测器具|检验器具|检测工具|检验工具|量具|仪器|^方法$/.test(hText))
+        ) {
+          methodColIndex = c;
+        }
+      }
+
+      // 兜底列索引
+      if (itemColIndex === -1) itemColIndex = 0;
+      if (standardColIndex === -1) standardColIndex = itemColIndex + 1;
+      if (methodColIndex === -1) methodColIndex = standardColIndex + 1;
+
       let dataStartRow = itemsHeaderIndex + 1;
       // 跳过实测值次级表头（1#, 2#, ...）
       if (dataStartRow < table.length) {
@@ -171,21 +206,30 @@ class DocxInspectionTemplateParser {
         const row = table[r];
         if (row.length === 0) continue;
 
-        const firstCell = row[0] || '';
+        const firstCell = (row[0] || '').trim();
         // 遇到不合格品处置/结论等行时停止
         if (
           firstCell.includes('不合格') ||
           firstCell.includes('处置') ||
           firstCell.includes('不良数') ||
           firstCell.includes('结论') ||
-          firstCell.includes('判定')
+          firstCell.includes('判定') ||
+          firstCell.includes('备注') ||
+          firstCell.includes('检验员')
         ) {
           break;
         }
 
-        const itemName = row[0] || '';
-        const standard = row[1] || '';
-        const method = row[2] || '';
+        let itemName = (row[itemColIndex] || '').trim();
+        let standard = (row[standardColIndex] || '').trim();
+        let method = (row[methodColIndex] || '').trim();
+
+        // 兼容序号列：若第一列是纯数字序号，则自动从下一列提取实际项目名称
+        if (/^\d+$/.test(itemName) && itemColIndex === 0 && row.length > 1) {
+          itemName = (row[1] || '').trim();
+          standard = (row[2] || '').trim();
+          method = (row[3] || '').trim();
+        }
 
         if (!itemName || itemName === '—' || itemName === '-' || itemName.length > 60) continue;
 
@@ -267,18 +311,31 @@ class DocxInspectionTemplateParser {
           type = 'performance';
         }
 
-        if (textForType.includes('关键') || textForType.includes('破坏扭矩') || textForType.includes('材质') || textForType.includes('材质要求')) {
+        if (
+          textForType.includes('关键') ||
+          textForType.includes('破坏扭矩') ||
+          textForType.includes('材质') ||
+          textForType.includes('材质要求')
+        ) {
           is_critical = true;
         }
 
+        const methodVal = method || '目测';
         items.push({
+          itemName: itemName,
           item_name: itemName,
           standard: standard || '符合要求',
-          inspection_method: method || '目测',
+          method: methodVal,
+          inspectionMethod: methodVal,
+          inspection_method: methodVal,
           type,
+          isCritical: is_critical,
           is_critical,
+          dimensionValue: dimension_value,
           dimension_value,
+          toleranceUpper: tolerance_upper,
           tolerance_upper,
+          toleranceLower: tolerance_lower,
           tolerance_lower,
         });
       }

@@ -759,6 +759,11 @@ class QualityInspection {
           const remark = item.remarks || item.remark || null;
 
           const itemType = this._normalizeItemType(item.type);
+          const fixedMeasurements = Array.from({ length: 6 }, (_, index) =>
+            itemType === 'dimension'
+              ? (item[`measure_${index + 1}`] ?? item[`measure${index + 1}`] ?? null)
+              : null
+          );
 
           // 这里如果是免检我们自动赋予OK通过结果
           let itemResult = null;
@@ -791,19 +796,14 @@ class QualityInspection {
               itemResult,
               actualValue,
               remark,
-              item.measure_1 || null,
-              item.measure_2 || null,
-              item.measure_3 || null,
-              item.measure_4 || null,
-              item.measure_5 || null,
-              item.measure_6 || null,
+              ...fixedMeasurements,
             ]
           );
 
           // 同时写入动态测量子表 (quality_inspection_measurements)
           const insertedItemId = itemResultDb.insertId;
-          const measurements = Array.isArray(item.measurements) ? item.measurements.slice(0, 5) : [];
-          // 优先使用 measurements 数组，其次回退到 measure_1~5
+          const measurements = Array.isArray(item.measurements) ? item.measurements.slice(0, 6) : [];
+          // 优先使用 measurements 数组，其次回退到 measure_1~6
           if (measurements.length > 0) {
             for (const m of measurements) {
               if (m?.measured_value === null || m?.measured_value === undefined || m?.measured_value === '') continue;
@@ -814,8 +814,8 @@ class QualityInspection {
               );
             }
           } else {
-            // 回退: 从 measure_1~5 写入
-            for (let si = 1; si <= 5; si++) {
+            // 回退: 从 measure_1~6 写入
+            for (let si = 1; si <= 6; si++) {
               const val = item[`measure_${si}`];
               if (val !== null && val !== undefined && val !== '') {
                 await connection.query(
@@ -971,6 +971,11 @@ class QualityInspection {
             const remark = item.remarks || item.remark || null;
 
             const itemType = this._normalizeItemType(item.type);
+            const fixedMeasurements = Array.from({ length: 6 }, (_, index) =>
+              itemType === 'dimension'
+                ? (item[`measure_${index + 1}`] ?? item[`measure${index + 1}`] ?? null)
+                : null
+            );
 
             const [updatedItemResult] = await connection.execute(
               `INSERT INTO quality_inspection_items(
@@ -992,18 +997,13 @@ class QualityInspection {
                 item.result || null,
                 item.actual_value || null,
                 remark,
-                item.measure_1 || null,
-                item.measure_2 || null,
-                item.measure_3 || null,
-                item.measure_4 || null,
-                item.measure_5 || null,
-                item.measure_6 || null,
+                ...fixedMeasurements,
               ]
             );
 
             // 同时写入动态测量子表
             const updatedItemId = updatedItemResult.insertId;
-            const measurements = Array.isArray(item.measurements) ? item.measurements.slice(0, 5) : [];
+            const measurements = Array.isArray(item.measurements) ? item.measurements.slice(0, 6) : [];
             if (measurements.length > 0) {
               for (const m of measurements) {
                 if (m?.measured_value === null || m?.measured_value === undefined || m?.measured_value === '') continue;
@@ -1014,7 +1014,7 @@ class QualityInspection {
                 );
               }
             } else {
-              for (let si = 1; si <= 5; si++) {
+              for (let si = 1; si <= 6; si++) {
                 const val = item[`measure_${si}`];
                 if (val !== null && val !== undefined && val !== '') {
                   await connection.execute(

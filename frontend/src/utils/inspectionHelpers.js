@@ -9,7 +9,7 @@ import { qualityApi, purchaseApi, baseDataApi } from '@/api'
 import { parseListData } from '@/utils/responseParser'
 import logger from '@/utils/logger'
 
-export const MAX_INSPECTION_MEASUREMENT_COLUMNS = 5
+export const MAX_INSPECTION_MEASUREMENT_COLUMNS = 6
 
 /** Normalize fixed measurement fields and dynamic measurement rows. */
 export function normalizeInspectionMeasurements(item = {}) {

@@ -108,7 +108,8 @@ class InspectionTemplateResolverService {
       errors.push('模板必须至少配置一个检验项目');
     } else {
       payload.items.forEach((item, index) => {
-        if (!String(item?.item_name || '').trim()) {
+        const itemName = String(item?.item_name || item?.itemName || '').trim();
+        if (!itemName) {
           errors.push(`第${index + 1}个检验项目名称不能为空`);
         }
         if (!String(item?.standard || '').trim()) {
@@ -242,13 +243,20 @@ class InspectionTemplateResolverService {
 
     return templateItems.map((item) => ({
       item_name: item.item_name,
+      itemName: item.item_name,
       standard: item.standard,
       method: item.method,
+      inspectionMethod: item.method,
+      inspection_method: item.method,
       type: item.type,
       is_critical: item.is_critical,
+      isCritical: item.is_critical,
       dimension_value: item.dimension_value,
+      dimensionValue: item.dimension_value,
       tolerance_upper: item.tolerance_upper,
+      toleranceUpper: item.tolerance_upper,
       tolerance_lower: item.tolerance_lower,
+      toleranceLower: item.tolerance_lower,
     }));
   }
 }

@@ -16,7 +16,7 @@
     v-model="dialogVisible"
     :title="`检验报告 - ${inspection?.inspectionNo || inspection?.inspectionNo || ''}`"
     mode="form"
-    width="1100px"
+    width="min(1380px, 96vw)"
   >
     <div ref="reportRef" class="inspection-report">
       <div class="report-header">
@@ -123,6 +123,7 @@ import { ElMessage } from 'element-plus'
 import { getQualityInspectionTypeText } from '@/constants/systemConstants'
 import printService from '@/services/printService'
 import { normalizeInspectionMeasurements, MAX_INSPECTION_MEASUREMENT_COLUMNS } from '@/utils/inspectionHelpers'
+import { formatInspectionMeasurement } from '@/utils/inspectionMeasurement'
 const props = defineProps({
   visible: Boolean,
   inspection: { type: Object, default: null }
@@ -135,7 +136,7 @@ const dialogVisible = computed({
 const reportRef = ref(null)
 const getMeasurement = (row, index) => {
   const value = normalizeInspectionMeasurements(row)[index - 1]
-  return value === null || value === undefined || value === '' ? '{无}' : value
+  return formatInspectionMeasurement(row, value)
 }
 // 辅助函数
 const getStatusText = (status) => {
@@ -186,12 +187,24 @@ const handlePrint = async () => {
     reference_no: insp.purchaseOrderNo || insp.referenceNo || '',
     batch_no: insp.batchNo || '',
     quantity: insp.quantity || insp.totalQuantity || 0,
+    arrival_quantity: insp.arrivalQuantity || insp.receivedQuantity || insp.quantity || insp.totalQuantity || 0,
+    sample_quantity: insp.sampleQuantity || insp.inspectionQuantity || insp.quantity || insp.totalQuantity || 0,
     unit: insp.unit || '',
     inspection_date: formatDate(insp.inspectionDate || insp.actualDate),
     inspector_name: insp.inspector || insp.inspectorName || '',
     status: insp.status || 'pending',
     status_text: getStatusText(insp.status),
     note: insp.note || '',
+    material: insp.material || insp.materialType || '',
+    inspection_basis: insp.inspectionBasis || insp.standardNo || insp.standardType || '',
+    sampling_plan: insp.samplingPlan || insp.aqlPlan || '',
+    unqualified_quantity: insp.unqualifiedQuantity ?? '',
+    unqualified_rate: insp.unqualifiedRate ?? '',
+    major_defect: insp.majorDefect || '',
+    disposition: insp.disposition || '',
+    reviewer_name: insp.reviewerName || insp.reviewer || '',
+    technical_name: insp.technicalName || insp.technical || '',
+    approver_name: insp.approverName || insp.approver || '',
     items: (insp.items || []).map((item, itemIndex) => ({
       ...item,
       index: item.index || itemIndex + 1,
@@ -207,6 +220,7 @@ const handlePrint = async () => {
       remark: item.remark || item.remarks || '',
       type_text: getQualityInspectionTypeText(item.type),
       result_is_passed: item.result === 'passed',
+      result_is_failed: item.result === 'failed',
       ...Object.fromEntries(Array.from({ length: MAX_INSPECTION_MEASUREMENT_COLUMNS }, (_, index) => [
         `measure_${index + 1}`,
         getMeasurement(item, index + 1)
@@ -223,6 +237,8 @@ const handlePrint = async () => {
       result: getStatusText(item.result),
       judgment: getStatusText(item.result),
       remark: item.remark || item.remarks || '',
+      result_is_passed: item.result === 'passed',
+      result_is_failed: item.result === 'failed',
       ...Object.fromEntries(Array.from({ length: MAX_INSPECTION_MEASUREMENT_COLUMNS }, (_, index) => [
         `measure_${index + 1}`,
         getMeasurement(item, index + 1)

@@ -34,23 +34,49 @@
             <el-table-column prop="itemName" label="项目" width="120" show-overflow-tooltip />
             <el-table-column prop="standard" label="检验要求/标准" min-width="180" show-overflow-tooltip />
             <el-table-column prop="method" label="检测方法" width="130" show-overflow-tooltip />
-            <!-- 动态测量值列：根据抽样数量自动增减 -->
-            <el-table-column label="测量值" min-width="320">
-              <template #default="scope">
-                <div class="measure-grid">
-                  <div class="measure-item" v-for="mIdx in currentSampleSize" :key="mIdx - 1">
-                    <el-input
-                      :ref="el => setMeasureInputRef(el, scope.$index, mIdx - 1)"
-                      v-model="scope.row.measurements[mIdx - 1]"
-                      size="small"
-                      placeholder=""
-                      @input="calculateAverageValue(scope.row)"
-                      @blur="formatMeasureByIndex(scope.row, mIdx - 1); checkDimensionTolerance(scope.row, true)"
-                      @keydown.enter="handleMeasureEnter(scope.$index, mIdx - 1, $event)"
+            <!-- 尺寸项录入数值，外观/功能等非尺寸项选择√或× -->
+            <el-table-column label="测量值">
+              <el-table-column
+                v-for="mIdx in currentSampleSize"
+                :key="mIdx"
+                :label="`${mIdx}#`"
+                width="72"
+                align="center"
+              >
+                <template #default="scope">
+                  <el-input
+                    v-if="isDimensionInspectionItem(scope.row)"
+                    :ref="el => setMeasureInputRef(el, scope.$index, mIdx - 1)"
+                    v-model="scope.row.measurements[mIdx - 1]"
+                    class="measurement-control"
+                    size="small"
+                    placeholder=""
+                    @input="calculateAverageValue(scope.row)"
+                    @blur="formatMeasureByIndex(scope.row, mIdx - 1); checkDimensionTolerance(scope.row)"
+                    @keydown.enter="handleMeasureEnter(scope.$index, mIdx - 1, $event)"
+                  />
+                  <el-select
+                    v-else
+                    v-model="scope.row.measurements[mIdx - 1]"
+                    class="measurement-control measurement-choice"
+                    :class="{
+                      'measurement-choice--passed': scope.row.measurements[mIdx - 1] === '√',
+                      'measurement-choice--failed': scope.row.measurements[mIdx - 1] === '×'
+                    }"
+                    size="small"
+                    placeholder=""
+                    clearable
+                    @change="handleQualitativeMeasurementChange(scope.row)"
+                  >
+                    <el-option
+                      v-for="option in QUALITATIVE_MEASUREMENT_OPTIONS"
+                      :key="option.value"
+                      :label="option.label"
+                      :value="option.value"
                     />
-                  </div>
-                </div>
-              </template>
+                  </el-select>
+                </template>
+              </el-table-column>
             </el-table-column>
             <!-- 平均值/范围显示列 -->
             <el-table-column label="范围/平均" width="100">
@@ -174,6 +200,12 @@ import {
   isGeneralInspectionTemplate,
   resolveEffectiveInspectionTemplates
 } from '@/utils/inspectionTemplateResolver'
+import {
+  QUALITATIVE_MEASUREMENT_OPTIONS,
+  isDimensionInspectionItem,
+  normalizeQualitativeMeasurementValue,
+  summarizeQualitativeMeasurements
+} from '@/utils/inspectionMeasurement'
 
 const props = defineProps({
   visible: Boolean,
@@ -200,10 +232,8 @@ const currentInspectionData = ref(null) // 保存完整检验数据用于后续�
 
 // 对话框宽度根据测量值数量动态计算
 const inspectDialogWidth = computed(() => {
-  if (currentSampleSize.value <= 3) return '900px'
-  if (currentSampleSize.value <= MAX_INSPECTION_MEASUREMENT_COLUMNS) return '1100px'
-  if (currentSampleSize.value <= 10) return '1000px'
-  return '1100px'
+  if (currentSampleSize.value <= 3) return '1000px'
+  return 'min(1380px, 96vw)'
 })
 
 // 检验表单
@@ -290,7 +320,7 @@ watch(() => props.visible, async (val) => {
 // 加载检验数据
 const loadInspectionData = async () => {
   try {
-    // 每次打开检验单时先恢复默认的五个测量输入位；已有值再按实际数量收缩。
+    // 每次打开检验单时先恢复默认的六个测量位；已有值再按实际数量收缩。
     currentSampleSize.value = MAX_INSPECTION_MEASUREMENT_COLUMNS
     measureInputRefs.value = []
     const response = await qualityApi.getIncomingInspection(props.row.id)
@@ -498,12 +528,19 @@ const mapInspectionItems = (items) => {
   )
   currentSampleSize.value = size
   return items.map(item => {
+    const normalizedItem = {
+      ...item,
+      type: item.type || item.itemType || item.item_type || 'other'
+    }
     const measurements = normalizeInspectionMeasurements(item)
+      .map((value) => isDimensionInspectionItem(normalizedItem)
+        ? value
+        : normalizeQualitativeMeasurementValue(value))
     while (measurements.length < size) measurements.push('')
     if (measurements.length > size) measurements.length = size
 
     return {
-      ...item,
+      ...normalizedItem,
       itemName: item.itemName || item.item_name || item.name || '',
       standard: item.standard || item.criteria || '',
       method: item.method || item.inspectionMethod || item.inspection_method || '',
@@ -556,6 +593,7 @@ const handleMeasureEnter = (rowIndex, colIndex, event) => {
 }
 
 const formatMeasureByIndex = (item, index) => {
+  if (!isDimensionInspectionItem(item)) return
   const value = item.measurements[index]
   if (value === null || value === undefined || value === '') return
   const num = parseFloat(value)
@@ -563,6 +601,10 @@ const formatMeasureByIndex = (item, index) => {
 }
 
 const calculateAverageValue = (item) => {
+  if (!isDimensionInspectionItem(item)) {
+    handleQualitativeMeasurementChange(item)
+    return
+  }
   if (!item.measurements) return
   const measures = item.measurements.filter(v => v !== null && v !== undefined && v !== '' && !isNaN(parseFloat(v))).map(v => parseFloat(v))
   if (measures.length === 0) { item.actualValue = ''; item.actual_value = ''; return }
@@ -581,6 +623,7 @@ const calculateAverageValue = (item) => {
 }
 
 const checkDimensionTolerance = (item) => {
+  if (!isDimensionInspectionItem(item)) return
   if (!item.dimensionValue) return
   const dimensionValue = parseFloat(item.dimensionValue)
   const toleranceUpper = parseFloat(item.toleranceUpper) || 0
@@ -604,6 +647,13 @@ const checkDimensionTolerance = (item) => {
   } else {
     item.result = defectCount > 0 ? 'failed' : 'passed'
   }
+}
+
+const handleQualitativeMeasurementChange = (item) => {
+  const summary = summarizeQualitativeMeasurements(item.measurements)
+  item.actualValue = summary.text
+  item.actual_value = summary.text
+  item.result = summary.result
 }
 
 // ===== 数量计算 =====
@@ -639,7 +689,12 @@ const submitInspection = async () => {
       items: inspectForm.items.map(item => {
         const mapped = { ...item }
         if (item.measurements && Array.isArray(item.measurements)) {
-          item.measurements.forEach((val, idx) => { mapped[`measure_${idx + 1}`] = val || '' })
+          const isDimension = isDimensionInspectionItem(item)
+          item.measurements.forEach((val, idx) => {
+            mapped[`measure_${idx + 1}`] = isDimension && val !== '' && val !== null && val !== undefined
+              ? val
+              : null
+          })
           mapped.measurements = item.measurements.map((value, index) => ({
             sample_no: index + 1,
             measured_value: value === '' || value === null || value === undefined ? null : value
@@ -720,11 +775,14 @@ const handlePartialNonconformingOnly = async (inspectionId, unqualifiedQty) => {
 </script>
 
 <style scoped>
-.inspection-items { width: 100%; max-width: 100%; overflow: hidden; }
+.inspection-items { width: 100%; max-width: 100%; overflow-x: auto; }
 
-.measure-grid { display: flex; flex-wrap: nowrap; gap: 6px; }
-.measure-item { display: flex; align-items: center; gap: 2px; }
-.measure-grid .el-input { width: 55px; flex: 0 0 auto; }
+.measurement-control { width: 58px; }
+:deep(.measurement-control .el-input__wrapper),
+:deep(.measurement-choice .el-select__wrapper) { padding-left: 6px; padding-right: 6px; }
+:deep(.measurement-choice .el-select__selection) { justify-content: center; }
+:deep(.measurement-choice--passed .el-select__selected-item) { color: var(--el-color-success); font-weight: 700; }
+:deep(.measurement-choice--failed .el-select__selected-item) { color: var(--el-color-danger); font-weight: 700; }
 
 .average-value-display { text-align: center; font-weight: bold; font-size: 13px; }
 .average-value-display .value-passed { color: var(--color-success); }

@@ -43,14 +43,6 @@
         <template #header>
           <div class="card-header">
             <span>检验模板管理</span>
-            <div class="header-buttons">
-              <el-button type="success" size="small" :icon="Upload" @click="handleOpenImportDialog">
-                导入 Word 检验单
-              </el-button>
-              <el-button type="primary" size="small" :icon="Plus" @click="handleCreate">
-                新建模板
-              </el-button>
-            </div>
           </div>
         </template>
 
@@ -243,120 +235,135 @@
         v-model="dialogVisible"
         :title="isEdit ? '编辑检验模板' : '新建检验模板'"
         mode="form"
-        wide
+        width="1050px"
       >
         <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
-          <el-form-item label="模板名称" prop="templateName">
-            <el-input v-model="form.templateName" placeholder="请输入模板名称" />
-          </el-form-item>
+          <!-- 第一行：检验类型、模板名称、通用模板 -->
+          <el-row :gutter="16">
+            <el-col :span="6">
+              <el-form-item label="检验类型" prop="inspectionType">
+                <el-select v-model="form.inspectionType" placeholder="请选择检验类型" class="w-full">
+                  <el-option label="来料检验" value="incoming" />
+                  <el-option label="过程检验" value="process" />
+                  <el-option label="成品检验" value="final" />
+                  <el-option label="首件检验" value="first_article" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="11">
+              <el-form-item label="模板名称" prop="templateName">
+                <el-input v-model="form.templateName" placeholder="请输入模板名称" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="7">
+              <el-form-item label="通用模板">
+                <div style="display: flex; align-items: center; gap: 12px; height: 32px">
+                  <el-checkbox v-model="form.isGeneral" @change="handleGeneralChange"
+                    >设为通用模板</el-checkbox
+                  >
+                  <el-switch
+                    v-if="form.isGeneral"
+                    v-model="form.isDefault"
+                    active-text="默认"
+                    inactive-text="普通"
+                    inline-prompt
+                  />
+                </div>
+              </el-form-item>
+            </el-col>
+          </el-row>
 
-          <el-form-item label="检验类型" prop="inspectionType">
-            <el-select v-model="form.inspectionType" placeholder="请选择检验类型" class="w-full">
-              <el-option label="来料检验" value="incoming" />
-              <el-option label="过程检验" value="process" />
-              <el-option label="成品检验" value="final" />
-              <el-option label="首件检验" value="first_article" />
-            </el-select>
-          </el-form-item>
-
-          <el-form-item label="通用模板">
-            <el-checkbox v-model="form.isGeneral" @change="handleGeneralChange"
-              >设为通用模板</el-checkbox
-            >
-            <span class="form-tip">勾选后，该模板适用于所有物料，无需选择具体物料</span>
-          </el-form-item>
-
-          <el-form-item label="默认兜底" v-if="form.isGeneral">
-            <el-switch v-model="form.isDefault" active-text="默认" inactive-text="普通" />
-            <span class="form-tip"
-              >同一检验类型仅保留一个默认通用模板，用于无专用模板时自动兜底</span
-            >
-          </el-form-item>
-
-          <el-form-item label="优先级" prop="priority">
-            <el-input-number v-model="form.priority" :min="1" :max="999" :step="1" />
-            <span class="form-tip">数值越小越优先；专用模板仍优先于通用模板</span>
-          </el-form-item>
-
-          <el-form-item label="适用物料" prop="materialTypes" v-if="!form.isGeneral">
-            <div class="material-select-container">
-              <el-select
-                v-model="form.materialTypes"
-                placeholder="输入物料编码或名称自动搜索..."
-                filterable
-                remote
-                multiple
-                collapse-tags
-                :max-collapse-tags="0"
-                :reserve-keyword="true"
-                :remote-method="debouncedSearchMaterials"
-                :loading="loadingMaterials"
-                @change="handleMaterialChange"
-                @focus="handleMaterialSelectFocus"
-                class="w-full"
-                popper-class="material-select-popper"
-              >
-                <el-option
-                  v-for="item in materialsList"
-                  :key="item.value"
-                  :label="item.code"
-                  :value="item.value"
+          <!-- 第二行：优先级、适用物料、版本 -->
+          <el-row :gutter="16">
+            <el-col :span="6">
+              <el-form-item label="优先级" prop="priority">
+                <el-input-number
+                  v-model="form.priority"
+                  :min="1"
+                  :max="999"
+                  :step="1"
+                  class="w-full"
+                  style="width: 100%"
+                />
+              </el-form-item>
+            </el-col>
+            <el-col :span="11">
+              <el-form-item label="适用物料" prop="materialTypes">
+                <el-select
+                  v-if="!form.isGeneral"
+                  v-model="form.materialTypes"
+                  placeholder="输入物料编码或名称搜索..."
+                  filterable
+                  remote
+                  multiple
+                  collapse-tags
+                  collapse-tags-tooltip
+                  :max-collapse-tags="2"
+                  :reserve-keyword="true"
+                  :remote-method="debouncedSearchMaterials"
+                  :loading="loadingMaterials"
+                  @change="handleMaterialChange"
+                  @focus="handleMaterialSelectFocus"
+                  class="w-full"
+                  popper-class="material-select-popper"
                 >
-                  <span>{{ item.code }}</span>
-                  <span style="margin-left: 8px; color: var(--color-text-muted); font-size: 12px">{{
-                    item.name
-                  }}</span>
-                </el-option>
-              </el-select>
-              <!-- 已选物料标签列表 -->
-              <div
-                class="selected-materials-list"
-                v-if="form.materialTypes && form.materialTypes.length > 0"
-              >
-                <span class="selected-label">已选物料({{ form.materialTypes.length }})：</span>
-                <el-tag
-                  v-for="materialId in form.materialTypes"
-                  :key="materialId"
-                  closable
-                  type="primary"
-                  size="default"
-                  @close="removeMaterial(materialId)"
-                  class="material-tag"
-                >
-                  {{ getMaterialDisplayText(materialId) }}
-                </el-tag>
-              </div>
-            </div>
-          </el-form-item>
+                  <el-option
+                    v-for="item in materialsList"
+                    :key="item.value"
+                    :label="item.code"
+                    :value="item.value"
+                  >
+                    <span>{{ item.code }}</span>
+                    <span
+                      style="margin-left: 8px; color: var(--color-text-muted); font-size: 12px"
+                      >{{ item.name }}</span
+                    >
+                  </el-option>
+                </el-select>
+                <el-input v-else value="通用模板（适用于全部物料）" disabled />
+              </el-form-item>
+            </el-col>
+            <el-col :span="7">
+              <el-form-item label="版本" prop="version">
+                <el-input v-model="form.version" placeholder="请输入版本号" />
+              </el-form-item>
+            </el-col>
+          </el-row>
 
-          <el-form-item label="版本" prop="version">
-            <el-input v-model="form.version" placeholder="请输入版本号" />
-          </el-form-item>
-
-          <el-form-item label="描述" prop="description">
-            <el-input
-              v-model="form.description"
-              type="textarea"
-              :rows="3"
-              placeholder="请输入模板描述"
-            />
-          </el-form-item>
-          <!-- AQL 抽样设置 -->
-          <el-form-item label="AQL抽样">
-            <el-switch v-model="form.isAql" active-text="启用" inactive-text="关闭" />
-            <span class="form-tip">启用后，使用该模板时将自动应用 AQL 抽样标准</span>
-          </el-form-item>
-          <el-form-item label="AQL等级" v-if="form.isAql">
-            <el-select v-model="form.aqlLevel" placeholder="选择 AQL 级别">
-              <el-option
-                v-for="level in aqlLevelOptions"
-                :key="level"
-                :label="'AQL ' + level"
-                :value="String(level)"
-              />
-            </el-select>
-            <span class="form-tip">按 GB/T 2828.1-2012 标准自动确定抽样数和接收准则</span>
-          </el-form-item>
+          <!-- 描述与 AQL 抽样设置 -->
+          <el-row :gutter="16">
+            <el-col :span="17">
+              <el-form-item label="描述" prop="description">
+                <el-input
+                  v-model="form.description"
+                  type="textarea"
+                  :rows="2"
+                  placeholder="请输入模板描述"
+                />
+              </el-form-item>
+            </el-col>
+            <el-col :span="7">
+              <el-form-item label="AQL抽样">
+                <div style="display: flex; flex-direction: column; gap: 8px; width: 100%">
+                  <el-switch v-model="form.isAql" active-text="启用" inactive-text="关闭" />
+                  <el-select
+                    v-if="form.isAql"
+                    v-model="form.aqlLevel"
+                    placeholder="选择 AQL 级别"
+                    class="w-full"
+                    size="small"
+                  >
+                    <el-option
+                      v-for="level in aqlLevelOptions"
+                      :key="level"
+                      :label="'AQL ' + level"
+                      :value="String(level)"
+                    />
+                  </el-select>
+                </div>
+              </el-form-item>
+            </el-col>
+          </el-row>
 
           <el-form-item label="检验项目" prop="items">
             <div class="items-container">
@@ -380,8 +387,8 @@
                     table-layout="fixed"
                     size="small"
                   >
-                    <el-table-column type="index" width="50" label="序号" fixed />
-                    <el-table-column prop="itemName" label="项目" width="150" fixed>
+                    <el-table-column type="index" width="50" label="序号" />
+                    <el-table-column prop="itemName" label="项目" width="130">
                       <template #default="scope">
                         <el-input
                           v-model="scope.row.itemName"
@@ -417,12 +424,12 @@
                         </div>
                       </template>
                     </el-table-column>
-                    <el-table-column prop="method" label="检测方法" width="130">
+                    <el-table-column prop="method" label="检测方法" width="120">
                       <template #default="scope">
                         <el-input v-model="scope.row.method" placeholder="请输入检测方法" size="small" />
                       </template>
                     </el-table-column>
-                    <el-table-column prop="dimensionValue" label="标准尺寸" width="100">
+                    <el-table-column prop="dimensionValue" label="标准尺寸" width="80">
                       <template #default="scope">
                         <el-input
                           v-if="scope.row.type === 'dimension'"
@@ -432,10 +439,10 @@
                           type="number"
                           :step="0.001"
                         />
-                        <span v-else class="text-muted">仅尺寸类型</span>
+                        <span v-else class="text-muted">尺寸</span>
                       </template>
                     </el-table-column>
-                    <el-table-column prop="toleranceUpper" label="上公差(+)" width="100">
+                    <el-table-column prop="toleranceUpper" label="上公差(+)" width="80">
                       <template #default="scope">
                         <el-input
                           v-if="scope.row.type === 'dimension'"
@@ -445,10 +452,10 @@
                           type="number"
                           :step="0.001"
                         />
-                        <span v-else class="text-muted">仅尺寸类型</span>
+                        <span v-else class="text-muted">尺寸</span>
                       </template>
                     </el-table-column>
-                    <el-table-column prop="toleranceLower" label="下公差(-)" width="100">
+                    <el-table-column prop="toleranceLower" label="下公差(-)" width="80">
                       <template #default="scope">
                         <el-input
                           v-if="scope.row.type === 'dimension'"
@@ -458,7 +465,7 @@
                           type="number"
                           :step="0.001"
                         />
-                        <span v-else class="text-muted">仅尺寸类型</span>
+                        <span v-else class="text-muted">尺寸</span>
                       </template>
                     </el-table-column>
                     <el-table-column
@@ -566,19 +573,39 @@
           <div class="table-container">
             <el-table :data="currentTemplate.items" border>
               <el-table-column type="index" width="50" label="序号" />
-              <el-table-column prop="itemName" label="项目" min-width="120" />
-              <el-table-column prop="standard" label="检验要求/标准" min-width="180" />
-              <el-table-column prop="method" label="检测方法" min-width="130" />
-              <el-table-column prop="dimensionValue" label="标准尺寸" width="100">
+              <el-table-column label="项目" min-width="120">
                 <template #default="scope">
-                  {{ scope.row.dimensionValue || '-' }}
+                  {{ scope.row.itemName || scope.row.item_name || '-' }}
                 </template>
               </el-table-column>
-              <el-table-column prop="tolerance" label="公差范围" width="120">
+              <el-table-column prop="standard" label="检验要求/标准" min-width="180" />
+              <el-table-column label="检测方法" min-width="130">
                 <template #default="scope">
-                  <span v-if="scope.row.toleranceUpper || scope.row.toleranceLower">
-                    +{{ scope.row.toleranceUpper || 0 }} / -{{
-                      Math.abs(scope.row.toleranceLower) || 0
+                  {{
+                    scope.row.method ||
+                    scope.row.inspection_method ||
+                    scope.row.inspectionMethod ||
+                    '-'
+                  }}
+                </template>
+              </el-table-column>
+              <el-table-column label="标准尺寸" width="100">
+                <template #default="scope">
+                  {{ scope.row.dimensionValue ?? scope.row.dimension_value ?? '-' }}
+                </template>
+              </el-table-column>
+              <el-table-column label="公差范围" width="120">
+                <template #default="scope">
+                  <span
+                    v-if="
+                      scope.row.toleranceUpper ||
+                      scope.row.tolerance_upper ||
+                      scope.row.toleranceLower ||
+                      scope.row.tolerance_lower
+                    "
+                  >
+                    +{{ scope.row.toleranceUpper ?? scope.row.tolerance_upper ?? 0 }} / -{{
+                      Math.abs(scope.row.toleranceLower ?? scope.row.tolerance_lower ?? 0)
                     }}
                   </span>
                   <span v-else>-</span>
@@ -859,57 +886,34 @@
             <el-row :gutter="16">
               <el-col :span="16">
                 <el-form-item label="适用物料">
-                  <div class="material-select-container">
-                    <el-select
-                      v-model="parsedTemplateData.materialTypes"
-                      placeholder="搜索并选择关联物料..."
-                      filterable
-                      remote
-                      multiple
-                      collapse-tags
-                      :max-collapse-tags="0"
-                      :reserve-keyword="true"
-                      :remote-method="debouncedSearchMaterials"
-                      :loading="loadingMaterials"
-                      @focus="handleMaterialSelectFocus"
-                      class="w-full"
+                  <el-select
+                    v-model="parsedTemplateData.materialTypes"
+                    placeholder="搜索并选择关联物料..."
+                    filterable
+                    remote
+                    multiple
+                    collapse-tags
+                    collapse-tags-tooltip
+                    :max-collapse-tags="2"
+                    :reserve-keyword="true"
+                    :remote-method="debouncedSearchMaterials"
+                    :loading="loadingMaterials"
+                    @focus="handleMaterialSelectFocus"
+                    class="w-full"
+                  >
+                    <el-option
+                      v-for="item in materialsList"
+                      :key="item.value"
+                      :label="item.code"
+                      :value="item.value"
                     >
-                      <el-option
-                        v-for="item in materialsList"
-                        :key="item.value"
-                        :label="item.code"
-                        :value="item.value"
+                      <span>{{ item.code }}</span>
+                      <span
+                        style="margin-left: 8px; color: var(--color-text-muted); font-size: 12px"
+                        >{{ item.name }}</span
                       >
-                        <span>{{ item.code }}</span>
-                        <span
-                          style="margin-left: 8px; color: var(--color-text-muted); font-size: 12px"
-                          >{{ item.name }}</span
-                        >
-                      </el-option>
-                    </el-select>
-                    <div
-                      class="selected-materials-list"
-                      v-if="
-                        parsedTemplateData.materialTypes &&
-                        parsedTemplateData.materialTypes.length > 0
-                      "
-                    >
-                      <span class="selected-label"
-                        >已关联物料 ({{ parsedTemplateData.materialTypes.length }})：</span
-                      >
-                      <el-tag
-                        v-for="matId in parsedTemplateData.materialTypes"
-                        :key="matId"
-                        closable
-                        type="primary"
-                        size="default"
-                        @close="removeParsedMaterial(matId)"
-                        class="material-tag"
-                      >
-                        {{ getMaterialDisplayText(matId) }}
-                      </el-tag>
-                    </div>
-                  </div>
+                    </el-option>
+                  </el-select>
                 </el-form-item>
               </el-col>
               <el-col :span="8">
@@ -943,9 +947,9 @@
             class="w-full mt-sm"
           >
             <el-table-column type="index" label="序号" width="60" align="center" />
-            <el-table-column prop="item_name" label="项目" min-width="120">
+            <el-table-column prop="itemName" label="项目" min-width="120">
               <template #default="scope">
-                <el-input v-model="scope.row.item_name" size="small" />
+                <el-input v-model="scope.row.itemName" size="small" />
               </template>
             </el-table-column>
             <el-table-column prop="standard" label="检验要求/标准" min-width="200">
@@ -953,16 +957,16 @@
                 <el-input v-model="scope.row.standard" size="small" />
               </template>
             </el-table-column>
-            <el-table-column prop="inspection_method" label="检测方法" min-width="130">
+            <el-table-column prop="method" label="检测方法" min-width="130">
               <template #default="scope">
-                <el-input v-model="scope.row.inspection_method" size="small" />
+                <el-input v-model="scope.row.method" size="small" />
               </template>
             </el-table-column>
             <el-table-column label="公差尺寸 (如适用)" min-width="180">
               <template #default="scope">
                 <div v-if="scope.row.type === 'dimension'" class="flex items-center gap-xs">
                   <el-input-number
-                    v-model="scope.row.dimension_value"
+                    v-model="scope.row.dimensionValue"
                     placeholder="基准"
                     :step="0.01"
                     size="small"
@@ -971,7 +975,7 @@
                   />
                   <span class="text-xs">+</span>
                   <el-input-number
-                    v-model="scope.row.tolerance_upper"
+                    v-model="scope.row.toleranceUpper"
                     placeholder="上差"
                     :step="0.01"
                     size="small"
@@ -980,7 +984,7 @@
                   />
                   <span class="text-xs">-</span>
                   <el-input-number
-                    v-model="scope.row.tolerance_lower"
+                    v-model="scope.row.toleranceLower"
                     placeholder="下差"
                     :step="0.01"
                     size="small"
@@ -1061,6 +1065,10 @@ import {
   isGeneralTemplate as isGeneralTemplateUtil,
 } from '@/utils/inspectionValidation';
 import { getInspectionTypeText, getInspectionTypePrefix } from '@/constants/inspection';
+import {
+  normalizeImportedInspectionItem,
+  normalizeParsedInspectionTemplate,
+} from '@/utils/inspectionTemplateImport';
 // 权限store
 const authStore = useAuthStore();
 // 视图切换
@@ -1754,9 +1762,26 @@ const handleView = async (row) => {
       }
 
       // 确保模板数据正确
+      const rawItems = templateData.InspectionItems || templateData.items || [];
       currentTemplate.value = {
         ...templateData,
-        items: templateData.InspectionItems || [], // 使用InspectionItems作为items
+        items: rawItems.map((item) => ({
+          ...item,
+          itemName: item.itemName || item.item_name || '',
+          item_name: item.itemName || item.item_name || '',
+          standard: item.standard || '',
+          method: item.method || item.inspection_method || item.inspectionMethod || '目测',
+          inspection_method:
+            item.method || item.inspection_method || item.inspectionMethod || '目测',
+          type: item.type || 'other',
+          isCritical: normalizeBoolean(item.isCritical ?? item.is_critical),
+          dimensionValue: item.dimensionValue ?? item.dimension_value ?? null,
+          dimension_value: item.dimensionValue ?? item.dimension_value ?? null,
+          toleranceUpper: item.toleranceUpper ?? item.tolerance_upper ?? null,
+          tolerance_upper: item.toleranceUpper ?? item.tolerance_upper ?? null,
+          toleranceLower: item.toleranceLower ?? item.tolerance_lower ?? null,
+          tolerance_lower: item.toleranceLower ?? item.tolerance_lower ?? null,
+        })),
       };
       setCurrentViewTemplate(row);
       viewDialogVisible.value = true;
@@ -2164,12 +2189,11 @@ const handleFileUploadChange = async (uploadFile) => {
   importLoading.value = true;
   try {
     const res = await qualityApi.parseDocxTemplate(formData);
-    const data = res.data || res;
+    const data = normalizeParsedInspectionTemplate(res.data || res);
     parsedTemplateData.value = {
       ...data,
       isGeneral: false,
       priority: 100,
-      materialTypes: data.materialTypes || [],
     };
     if (Array.isArray(data.materialDetails)) {
       data.materialDetails.forEach((m) => {
@@ -2198,12 +2222,11 @@ const handleParsePreset = async (preset) => {
     const res = await qualityApi.parsePresetDocx({
       fileName: preset.fileName,
     });
-    const data = res.data || res;
+    const data = normalizeParsedInspectionTemplate(res.data || res);
     parsedTemplateData.value = {
       ...data,
       isGeneral: false,
       priority: 100,
-      materialTypes: data.materialTypes || [],
     };
     if (Array.isArray(data.materialDetails)) {
       data.materialDetails.forEach((m) => {
@@ -2266,10 +2289,15 @@ const handleConfirmImport = async () => {
     return;
   }
 
+  const normalizedItems = parsedTemplateData.value.items.map(normalizeImportedInspectionItem);
+
   importSubmitting.value = true;
   try {
     await qualityApi.importPresetDocx({
-      customTemplateData: parsedTemplateData.value,
+      customTemplateData: {
+        ...parsedTemplateData.value,
+        items: normalizedItems,
+      },
     });
     ElMessage.success('检验模板导入成功');
     importDialogVisible.value = false;
@@ -2315,7 +2343,6 @@ const handleConfirmImport = async () => {
   width: 100%;
   overflow-x: auto;
   margin-bottom: 10px;
-  max-width: 820px;
 }
 /* 设置表格中输入框的最大宽度 */
 :deep(.el-table) {
@@ -2335,7 +2362,6 @@ const handleConfirmImport = async () => {
 }
 .standard-input {
   flex: 1;
-  max-width: 140px;
 }
 .standard-button {
   flex-shrink: 0;
@@ -2360,39 +2386,6 @@ const handleConfirmImport = async () => {
 /* 物料选择器样式 */
 .material-select-container {
   width: 100%;
-}
-/* 隐藏 el-select 内部的所有 tags，因为我们在下方单独显示 */
-.material-select-container :deep(.el-select__tags) {
-  max-width: none !important;
-}
-.material-select-container :deep(.el-select__tags-text) {
-  display: none;
-}
-.material-select-container :deep(.el-tag) {
-  display: none !important;
-}
-.material-select-container :deep(.el-select__input) {
-  margin-left: 11px !important;
-}
-.selected-materials-list {
-  margin-top: 8px;
-  padding: 8px 12px;
-  background-color: var(--color-bg-secondary, var(--color-bg-hover));
-  border-radius: 4px;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-.selected-label {
-  color: var(--color-text-secondary, var(--color-text-regular));
-  font-size: 13px;
-  margin-right: 4px;
-  flex-shrink: 0;
-}
-.selected-materials-list .material-tag {
-  margin: 0;
-  display: inline-flex !important;
 }
 
 /* 导入对话框样式 */

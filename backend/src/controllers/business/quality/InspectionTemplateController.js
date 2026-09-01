@@ -99,15 +99,24 @@ class InspectionTemplateController {
     const type = item.type || 'other';
     const isDimension = type === 'dimension';
 
+    const itemName = String(item.item_name || item.itemName || '').trim();
+    const standard = String(item.standard || '').trim();
+    const method =
+      String(item.method || item.inspection_method || item.inspectionMethod || '').trim() || null;
+
     return {
-      item_name: String(item.item_name || '').trim(),
-      standard: String(item.standard || '').trim(),
-      method: String(item.method || item.inspection_method || '').trim() || null,
+      item_name: itemName,
+      standard: standard,
+      method: method,
       type,
-      is_critical: item.is_critical === true || item.is_critical === 1 || item.is_critical === '1',
-      dimension_value: isDimension ? item.dimension_value ?? null : null,
-      tolerance_upper: isDimension ? item.tolerance_upper ?? null : null,
-      tolerance_lower: isDimension ? item.tolerance_lower ?? null : null,
+      is_critical:
+        item.is_critical === true ||
+        item.is_critical === 1 ||
+        item.is_critical === '1' ||
+        item.isCritical === true,
+      dimension_value: isDimension ? (item.dimension_value ?? item.dimensionValue ?? null) : null,
+      tolerance_upper: isDimension ? (item.tolerance_upper ?? item.toleranceUpper ?? null) : null,
+      tolerance_lower: isDimension ? (item.tolerance_lower ?? item.toleranceLower ?? null) : null,
     };
   }
 

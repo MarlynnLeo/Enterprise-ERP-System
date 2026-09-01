@@ -55,8 +55,8 @@
             <el-table-column label="测量值">
               <el-table-column v-for="n in MAX_INSPECTION_MEASUREMENT_COLUMNS" :key="n" :label="`${n}#`" min-width="55">
                 <template #default="{ row }">
-                  <span :class="getMeasurement(row, n) !== null && getMeasurement(row, n) !== '' ? 'text-primary' : 'text-muted'">
-                    {{ getMeasurement(row, n) !== null && getMeasurement(row, n) !== '' ? getMeasurement(row, n) : '{无}' }}
+                  <span :class="getMeasurement(row, n) !== '{无}' ? 'text-primary' : 'text-muted'">
+                    {{ getMeasurement(row, n) }}
                   </span>
                 </template>
               </el-table-column>
@@ -100,6 +100,7 @@ import {
   extractSupplierNameSimple,
   MAX_INSPECTION_MEASUREMENT_COLUMNS
 } from '@/utils/inspectionHelpers'
+import { formatInspectionMeasurement } from '@/utils/inspectionMeasurement'
 const props = defineProps({
   visible: Boolean,
   row: { type: Object, default: null }
@@ -115,7 +116,8 @@ const getMeasurement = (row, index) => {
   const dynamic = row?.measurements?.find((measurement, measurementIndex) =>
     Number(measurement?.sample_no ?? measurement?.sampleNo ?? measurementIndex + 1) === index
   )
-  return dynamic?.measured_value ?? dynamic?.measuredValue ?? dynamic?.value ?? row?.[`measure${index}`] ?? row?.[`measure_${index}`] ?? null
+  const value = dynamic?.measured_value ?? dynamic?.measuredValue ?? dynamic?.value ?? row?.[`measure${index}`] ?? row?.[`measure_${index}`] ?? null
+  return formatInspectionMeasurement(row, value)
 }
 // 监听弹窗打开时加载数据
 watch(() => props.visible, async (val) => {

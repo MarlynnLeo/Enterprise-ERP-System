@@ -257,5 +257,11 @@
   "20260831000007_harden_inventory_ledger_transaction_date.js": "cd714a27d9312f5d12b5de85ad509e3ba2cf22d2d44d55c2bafbfe019dc932e3",
   "20260901000001_reactivate_canonical_print_permissions.js": "c2eb1ca82f0dde470ae68a792542d650cb4c46a19eac55d1c26336eccb33dfb9",
   "20260901000002_resync_role_permission_ssot.js": "3182ed39c068e9d5e1704c304d62d61c96094495323c042f85e0804a67cf5c34",
-  "20260901000003_resync_super_admin_permissions.js": "60fc98c62487ef6b15c1f947e7a429ba51f3b3c3864fc3c41f8dbcb483ccac4b"
+  "20260901000003_resync_super_admin_permissions.js": "60fc98c62487ef6b15c1f947e7a429ba51f3b3c3864fc3c41f8dbcb483ccac4b",
+  "20260901000004_add_inspection_item_method.js": "da40b14e4d02c7dc4acea0b4868e9fb6bb91329501c9fe8c1e624e11bc341040",
+  "20260901000005_align_qrzk_print_fields.js": "180432a46ad16556c749796ba589ac651d6ee05e93239403cc9278ed4af66845",
+  "20260901000006_backfill_quality_inspection_methods.js": "1bd6c2cdc6c304d886253d7582a9eecc2c0e2a86d475c968aeaad985ea708ab9",
+  "20260901000007_restore_qrzk_detection_methods.js": "90b2c834463a288db8b81f6c0f794aad0380fc5e7028d4e0ad3874c5d4a46a09",
+  "20260901000008_support_six_quality_measurements.js": "0eaf542e99c18b48072ca4c057e5a22e30648e96c3c4062bc7d041f96d9239d1",
+  "20260901000009_align_qrzk_paper_layout.js": "d55f130022d2bd10ff7ea108525a9b218d4242a82cab0110f0360d9b2ad865c4"
 }
