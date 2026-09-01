@@ -37,6 +37,11 @@ module.exports = (sequelize) => {
         allowNull: false,
         comment: '检验标准',
       },
+      method: {
+        type: DataTypes.STRING(200),
+        allowNull: true,
+        comment: '检测方法',
+      },
       type: {
         type: DataTypes.ENUM('visual', 'dimension', 'function', 'performance', 'safety', 'other'),
         allowNull: false,

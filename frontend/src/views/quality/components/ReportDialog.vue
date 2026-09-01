@@ -66,16 +66,9 @@
       <div class="report-standards">
         <h3>检验项目</h3>
         <el-table :data="inspection?.items" border>
-          <el-table-column prop="itemName" label="检验项目" min-width="150" show-overflow-tooltip />
-          <el-table-column prop="standard" label="检验标准" min-width="150" show-overflow-tooltip />
-          <el-table-column prop="type" label="检验类型" min-width="100" show-overflow-tooltip>
-            <template #default="scope">{{ getQualityInspectionTypeText(scope.row.type) }}</template>
-          </el-table-column>
-          <el-table-column prop="isCritical" label="关键项" width="80" show-overflow-tooltip>
-            <template #default="scope">
-              <el-tag size="small" :type="scope.row.isCritical ? 'danger' : 'info'">{{ scope.row.isCritical ? '是' : '否' }}</el-tag>
-            </template>
-          </el-table-column>
+          <el-table-column prop="itemName" label="项目" min-width="130" show-overflow-tooltip />
+          <el-table-column prop="standard" label="检验要求/标准" min-width="180" show-overflow-tooltip />
+          <el-table-column prop="method" label="检测方法" min-width="130" show-overflow-tooltip />
           <el-table-column label="测量值">
             <el-table-column v-for="n in MAX_INSPECTION_MEASUREMENT_COLUMNS" :key="n" :label="`${n}#`" min-width="55">
               <template #default="scope">
@@ -205,6 +198,8 @@ const handlePrint = async () => {
       item_code: item.itemCode || item.code || '',
       item_name: item.itemName || item.name || '-',
       specification: item.standard || item.specification || '',
+      method: item.method || item.inspectionMethod || item.inspection_method || '',
+      inspection_method: item.method || item.inspectionMethod || item.inspection_method || '',
       quantity: item.actualValue || item.quantity || '',
       unit_name: item.unit || '',
       result: getStatusText(item.result),
@@ -223,6 +218,8 @@ const handlePrint = async () => {
       item_code: item.itemCode || item.code || '',
       item_name: item.itemName || item.name || '-',
       standard: item.standard || item.specification || '',
+      method: item.method || item.inspectionMethod || item.inspection_method || '',
+      inspection_method: item.method || item.inspectionMethod || item.inspection_method || '',
       result: getStatusText(item.result),
       judgment: getStatusText(item.result),
       remark: item.remark || item.remarks || '',

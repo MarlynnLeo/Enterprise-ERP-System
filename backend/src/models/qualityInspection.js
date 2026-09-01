@@ -772,16 +772,17 @@ class QualityInspection {
           const [itemResultDb] = await connection.query(
             `
               INSERT INTO quality_inspection_items(
-            inspection_id, item_name, standard, type, is_critical,
+            inspection_id, item_name, standard, method, type, is_critical,
             dimension_value, tolerance_upper, tolerance_lower,
             result, actual_value, remark,
             measure_1, measure_2, measure_3, measure_4, measure_5, measure_6
-          ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `,
             [
               inspectionId,
               item.item_name,
               item.standard,
+              item.method || item.inspection_method || null,
               itemType,
               isCritical,
               item.dimension_value || null,
@@ -973,15 +974,16 @@ class QualityInspection {
 
             const [updatedItemResult] = await connection.execute(
               `INSERT INTO quality_inspection_items(
-            inspection_id, item_name, standard, type, is_critical,
+            inspection_id, item_name, standard, method, type, is_critical,
             dimension_value, tolerance_upper, tolerance_lower,
             result, actual_value, remark,
             measure_1, measure_2, measure_3, measure_4, measure_5, measure_6
-          ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
               [
                 id,
                 item.item_name,
                 item.standard,
+                item.method || item.inspection_method || null,
                 itemType,
                 isCritical,
                 item.dimension_value || null,

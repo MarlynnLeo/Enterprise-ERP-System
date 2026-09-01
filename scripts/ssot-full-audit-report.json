@@ -2,7 +2,7 @@
   "summary": {
     "dualCase": 0,
     "frontendSnakeProp": 0,
-    "rawResJson": 22,
+    "rawResJson": 21,
     "redundantMapKeysToCamelFiles": 0,
     "redundantMapKeysToCamelHits": 0,
     "bodySnakeWithoutMap": 0,
@@ -38,22 +38,17 @@
     },
     {
       "file": "backend/src/controllers/business/inventory/inventoryStockController.js",
-      "line": 799,
-      "snippet": "return res.json([]);"
-    },
-    {
-      "file": "backend/src/controllers/business/inventory/inventoryStockController.js",
-      "line": 822,
+      "line": 821,
       "snippet": "return res.json(records);"
     },
     {
       "file": "backend/src/controllers/business/inventory/inventoryStockController.js",
-      "line": 1149,
+      "line": 1148,
       "snippet": "res.send(excelBuffer);"
     },
     {
       "file": "backend/src/controllers/business/inventory/inventoryStockController.js",
-      "line": 1719,
+      "line": 1718,
       "snippet": "res.send(excelBuffer);"
     },
     {

@@ -70,13 +70,14 @@ const createReinspectionTask = async (task, connection) => {
     if (items.length > 0) {
       await connection.query(
         `INSERT INTO quality_inspection_items (
-          inspection_id, item_name, standard, type, is_critical,
+          inspection_id, item_name, standard, method, type, is_critical,
           dimension_value, tolerance_upper, tolerance_lower
         ) VALUES ?`,
         [items.map(item => [
           newInspectionId,
           item.item_name,
           item.standard,
+          item.method,
           item.type,
           item.is_critical,
           item.dimension_value,

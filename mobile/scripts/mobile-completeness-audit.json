@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-10T14:40:58.436Z",
+  "generatedAt": "2026-08-27T02:28:15.573Z",
   "scale": {
     "views": 161,
     "routes": 179,
@@ -37,8 +37,8 @@
     },
     {
       "module": "baseData",
-      "methodCount": 44,
-      "used": 25,
+      "methodCount": 45,
+      "used": 26,
       "unusedSample": [
         "getUsersList",
         "deleteMaterial",
@@ -79,7 +79,7 @@
     },
     {
       "module": "finance",
-      "methodCount": 55,
+      "methodCount": 56,
       "used": 35,
       "unusedSample": [
         "deleteAccount",
@@ -98,7 +98,7 @@
         "updateAsset",
         "getAssetCategories"
       ],
-      "unusedCount": 20
+      "unusedCount": 21
     },
     {
       "module": "hr",
@@ -114,13 +114,12 @@
     {
       "module": "inventory",
       "methodCount": 49,
-      "used": 32,
+      "used": 33,
       "unusedSample": [
         "getStockList",
         "getStockRecords",
         "getMaterialRecords",
         "getMaterialsWithStock",
-        "getMaterialsList",
         "updateOutbound",
         "createInboundFromQuality",
         "updateTransfer",
@@ -130,9 +129,10 @@
         "adjustStock",
         "getTransactionStats",
         "exportTransactionReport",
-        "exportInventoryReport"
+        "exportInventoryReport",
+        "getInventoryLedger"
       ],
-      "unusedCount": 17
+      "unusedCount": 16
     },
     {
       "module": "production",
@@ -286,11 +286,6 @@
       {
         "module": "finance",
         "feature": "budget",
-        "status": "likely_missing"
-      },
-      {
-        "module": "finance",
-        "feature": "pricing",
         "status": "likely_missing"
       },
       {

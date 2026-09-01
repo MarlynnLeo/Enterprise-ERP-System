@@ -54,13 +54,14 @@ export const getDefaultInspectionTemplate = (templates = []) => (
 
 export const mapTemplateItemsToInspectionItems = (items = []) => items.map((item) => ({
   id: item.id,
-  item_name: item.item_name,
-  standard: item.standard,
-  type: item.typeName || 'visual',
-  is_critical: item.is_critical === true || item.is_critical === 1,
-  dimension_value: item.dimension_value ?? null,
-  tolerance_upper: item.tolerance_upper ?? null,
-  tolerance_lower: item.tolerance_lower ?? null,
+  item_name: item.item_name || item.itemName || '',
+  standard: item.standard || '',
+  method: item.method || item.inspection_method || item.inspectionMethod || '',
+  type: item.type || item.typeName || 'other',
+  is_critical: item.is_critical === true || item.is_critical === 1 || item.isCritical === true || item.isCritical === 1,
+  dimension_value: item.dimension_value ?? item.dimensionValue ?? null,
+  tolerance_upper: item.tolerance_upper ?? item.toleranceUpper ?? null,
+  tolerance_lower: item.tolerance_lower ?? item.toleranceLower ?? null,
   actual_value: '',
   result: '',
   remarks: ''

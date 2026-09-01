@@ -31,10 +31,9 @@
       <el-form-item label="检验项目" prop="items">
         <div class="inspection-items">
           <el-table :data="inspectForm.items" border>
-            <el-table-column prop="itemName" label="检验项目" width="120" show-overflow-tooltip />
-            <el-table-column prop="dimensionInfo" label="标准±公差" width="130" show-overflow-tooltip>
-              <template #default="scope">{{ formatDimensionTolerance(scope.row) }}</template>
-            </el-table-column>
+            <el-table-column prop="itemName" label="项目" width="120" show-overflow-tooltip />
+            <el-table-column prop="standard" label="检验要求/标准" min-width="180" show-overflow-tooltip />
+            <el-table-column prop="method" label="检测方法" width="130" show-overflow-tooltip />
             <!-- 动态测量值列：根据抽样数量自动增减 -->
             <el-table-column label="测量值" min-width="320">
               <template #default="scope">
@@ -505,6 +504,9 @@ const mapInspectionItems = (items) => {
 
     return {
       ...item,
+      itemName: item.itemName || item.item_name || item.name || '',
+      standard: item.standard || item.criteria || '',
+      method: item.method || item.inspectionMethod || item.inspection_method || '',
       measurements,
       dimension_value: item.dimensionValue || null,
       tolerance_upper: item.toleranceUpper || null,
@@ -576,18 +578,6 @@ const calculateAverageValue = (item) => {
   item.actual_value = item.actualValue
   item._averageValue = avg
   checkDimensionTolerance(item, false)
-}
-
-const formatDimensionTolerance = (item) => {
-  const hasDimensionValue = item.dimensionValue !== null &&
-    item.dimensionValue !== undefined && item.dimensionValue !== ''
-  if (!hasDimensionValue) return item.standard || item.dimensionInfo || '-'
-  const dimensionValue = parseFloat(item.dimensionValue)
-  if (Number.isNaN(dimensionValue)) return item.standard || item.dimensionInfo || '-'
-  const upper = parseFloat(item.toleranceUpper) || 0
-  const lower = Math.abs(parseFloat(item.toleranceLower)) || 0
-  if (upper === 0 && lower === 0) return dimensionValue.toFixed(2)
-  return `${dimensionValue.toFixed(2)} (+${upper.toFixed(2)}/-${lower.toFixed(2)})`
 }
 
 const checkDimensionTolerance = (item) => {

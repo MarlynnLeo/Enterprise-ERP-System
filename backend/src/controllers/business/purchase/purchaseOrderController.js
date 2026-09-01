@@ -1065,21 +1065,29 @@ const getOrderById = async (id) => {
 
 const getSuppliers = async (req, res) => {
   try {
-    const { status, limit } = req.query;
+    const { status, limit, keyword, search } = req.query;
+    const searchKey = String(keyword || search || '').trim();
     let query =
       'SELECT id, code, name, contact_person, contact_phone, status FROM suppliers WHERE deleted_at IS NULL';
     const queryParams = [];
 
-    if (status !== undefined) {
+    if (status !== undefined && status !== '') {
       query += ' AND status = ?';
       queryParams.push(status);
     }
 
-    query += ' ORDER BY code';
+    if (searchKey) {
+      query += ' AND (code LIKE ? OR name LIKE ? OR contact_person LIKE ?)';
+      queryParams.push(`%${searchKey}%`, `%${searchKey}%`, `%${searchKey}%`);
+    }
+
+    query += ' ORDER BY name, code';
 
     if (limit) {
-      const safeLimit = Math.max(1, Math.min(parseInt(limit, 10) || 100, 100));
+      const safeLimit = Math.max(1, Math.min(parseInt(limit, 10) || 1000, 1000));
       query += ` LIMIT ${safeLimit}`;
+    } else {
+      query += ' LIMIT 1000';
     }
 
     const [rows] = await pool.query(query, queryParams);

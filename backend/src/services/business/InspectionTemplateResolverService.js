@@ -231,7 +231,7 @@ class InspectionTemplateResolverService {
     if (!normalizedTemplateId || Number.isNaN(normalizedTemplateId)) return [];
 
     const [templateItems] = await connection.query(
-      `SELECT ii.item_name, ii.standard, ii.type, ii.is_critical,
+      `SELECT ii.item_name, ii.standard, ii.method, ii.type, ii.is_critical,
               ii.dimension_value, ii.tolerance_upper, ii.tolerance_lower
        FROM template_item_mappings tim
        JOIN inspection_items ii ON tim.item_id = ii.id
@@ -243,6 +243,7 @@ class InspectionTemplateResolverService {
     return templateItems.map((item) => ({
       item_name: item.item_name,
       standard: item.standard,
+      method: item.method,
       type: item.type,
       is_critical: item.is_critical,
       dimension_value: item.dimension_value,

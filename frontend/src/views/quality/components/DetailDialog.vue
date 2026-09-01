@@ -47,10 +47,11 @@
         <template v-if="inspection.items && inspection.items.length > 0">
           <el-divider content-position="center">检验项目</el-divider>
           <el-table :data="inspection.items" border class="w-full" max-height="300">
-            <el-table-column prop="itemName" label="检验项目" width="100" show-overflow-tooltip />
-            <el-table-column label="标准" min-width="80" show-overflow-tooltip>
+            <el-table-column prop="itemName" label="项目" width="100" show-overflow-tooltip />
+            <el-table-column prop="standard" label="检验要求/标准" min-width="180" show-overflow-tooltip>
               <template #default="{ row }">{{ row.standard || row.dimensionInfo || '-' }}</template>
             </el-table-column>
+            <el-table-column prop="method" label="检测方法" width="130" show-overflow-tooltip />
             <el-table-column label="测量值">
               <el-table-column v-for="n in MAX_INSPECTION_MEASUREMENT_COLUMNS" :key="n" :label="`${n}#`" min-width="55">
                 <template #default="{ row }">

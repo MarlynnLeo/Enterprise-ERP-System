@@ -102,6 +102,7 @@ class InspectionTemplateController {
     return {
       item_name: String(item.item_name || '').trim(),
       standard: String(item.standard || '').trim(),
+      method: String(item.method || item.inspection_method || '').trim() || null,
       type,
       is_critical: item.is_critical === true || item.is_critical === 1 || item.is_critical === '1',
       dimension_value: isDimension ? item.dimension_value ?? null : null,
@@ -114,6 +115,7 @@ class InspectionTemplateController {
     return (
       String(existingItem.item_name || '') === payload.item_name &&
       String(existingItem.standard || '') === payload.standard &&
+      String(existingItem.method || '') === String(payload.method || '') &&
       String(existingItem.type || 'other') === payload.type &&
       (existingItem.is_critical === true || existingItem.is_critical === 1) === payload.is_critical &&
       this.normalizeItemValue(existingItem.dimension_value) === this.normalizeItemValue(payload.dimension_value) &&
@@ -124,7 +126,8 @@ class InspectionTemplateController {
 
   async resolveTemplateItemId(item, transaction) {
     const payload = this.buildInspectionItemPayload(item);
-    const sourceItemId = item.reuseItemId || item.id || null;
+    // create/update normalize request bodies to snake_case before resolving items.
+    const sourceItemId = item.reuse_item_id || item.id || null;
 
     if (sourceItemId) {
       const sourceItem = await db.InspectionItem.findByPk(sourceItemId, { transaction });
@@ -817,6 +820,7 @@ class InspectionTemplateController {
             {
               item_name: item.item_name,
               standard: item.standard,
+              method: item.method,
               type: item.type,
               is_critical: item.is_critical,
               dimension_value: item.dimension_value,
@@ -909,7 +913,7 @@ class InspectionTemplateController {
   // 获取可复用的检验项目列表
   async getReusableItems(req, res) {
     try {
-      const { keyword, type } = req.query;
+      const { keyword, type, method } = req.query;
 
       // 构建查询条件
       const where = {};
@@ -923,6 +927,10 @@ class InspectionTemplateController {
 
       if (type) {
         where.type = type;
+      }
+
+      if (method) {
+        where.method = { [Op.like]: `%${method}%` };
       }
 
       // 查询检验项目
@@ -943,13 +951,24 @@ class InspectionTemplateController {
   async createReusableItem(req, res) {
     try {
       const body = mapKeysToSnake(req.body || {});
-      const { item_name, standard, type, is_critical, dimension_value, tolerance_upper, tolerance_lower } = body;
+      const {
+        item_name,
+        standard,
+        method,
+        inspection_method,
+        type,
+        is_critical,
+        dimension_value,
+        tolerance_upper,
+        tolerance_lower,
+      } = body;
+      const detectionMethod = method || inspection_method || null;
 
       // 验证必填字段
-      if (!item_name || !standard || !type) {
+      if (!item_name || !standard) {
         return ResponseHandler.error(
           res,
-          '检验项目名称、检验标准和检验类型不能为空',
+          '项目名称和检验要求/标准不能为空',
           'VALIDATION_ERROR',
           400
         );
@@ -960,6 +979,7 @@ class InspectionTemplateController {
         where: {
           item_name,
           standard,
+          method: detectionMethod,
           type,
         },
       });
@@ -972,6 +992,7 @@ class InspectionTemplateController {
       const newItem = await db.InspectionItem.create({
         item_name,
         standard,
+        method: detectionMethod,
         type,
         is_critical: is_critical || false,
         dimension_value,

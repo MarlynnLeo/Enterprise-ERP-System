@@ -9,6 +9,7 @@ const ensureSupplierId = (id) => {
 
 export const supplierApi = {
     getSuppliers: baseDataApi.getSuppliers,
+    getSupplierOptions: baseDataApi.getSupplierOptions,
     getSupplier: (id) => baseDataApi.getSupplier(ensureSupplierId(id)),
     createSupplier: baseDataApi.createSupplier,
     updateSupplier: (id, supplier) => baseDataApi.updateSupplier(ensureSupplierId(id), supplier),

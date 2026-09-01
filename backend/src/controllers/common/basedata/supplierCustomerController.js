@@ -6,6 +6,7 @@
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const { createCrudController } = require('../../../utils/controllerFactory');
+const { pool } = require('../../../config/db');
 
 const supplierService = require('../../../services/supplierService');
 const SupplierMetalRangePriceService = require('../../../services/business/SupplierMetalRangePriceService');
@@ -211,17 +212,36 @@ const supplierCustomerController = {
 
   async getSupplierOptions(req, res) {
     try {
+      const keyword = String(req.query.search || req.query.keyword || req.query.name || '').trim();
+      const requestedLimit = parseInt(req.query.limit || req.query.pageSize, 10);
+      
+      let query = 'SELECT id, code, name, contact_person, contact_phone FROM suppliers WHERE deleted_at IS NULL AND status = 1';
+      const params = [];
 
-      const pageSize = Math.min(Math.max(parseInt(req.query.limit || req.query.pageSize, 10) || 50, 1), 100);
-      const keyword = req.query.search || req.query.keyword || req.query.name || '';
-      const result = await supplierService.getAllSuppliers(1, pageSize, {
-        status: 1,
-        keyword,
-      });
-      const options = result.list.map((s) => ({
+      if (keyword) {
+        query += ' AND (code LIKE ? OR name LIKE ? OR contact_person LIKE ?)';
+        params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
+      }
+
+      query += ' ORDER BY name, code';
+
+      if (!isNaN(requestedLimit) && requestedLimit > 0) {
+        const safeLimit = Math.min(requestedLimit, 1000);
+        query += ` LIMIT ${safeLimit}`;
+      } else if (!keyword) {
+        // 未传 limit 且无搜索关键字时，默认返回全部活跃供应商（上限1000）
+        query += ' LIMIT 1000';
+      } else {
+        query += ' LIMIT 200';
+      }
+
+      const [rows] = await pool.query(query, params);
+      const options = rows.map((s) => ({
         id: s.id,
         code: s.code,
         name: s.name,
+        contactPerson: s.contact_person,
+        contactPhone: s.contact_phone,
       }));
       ResponseHandler.success(res, options, '获取供应商选项成功');
     } catch (error) {

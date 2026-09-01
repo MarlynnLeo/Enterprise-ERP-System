@@ -770,7 +770,7 @@
         <span class="dialog-footer">
           <el-button @click="receiveDialogVisible = false">取消</el-button>
           <el-button
-            v-permission="'purchase:orders:update'"
+            v-permission="['purchase:orders:pushdown', 'purchase:orders:update']"
             type="primary"
             @click="confirmReceive"
             :loading="receiveDialogLoading"

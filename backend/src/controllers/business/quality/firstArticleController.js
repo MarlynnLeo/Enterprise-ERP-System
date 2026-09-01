@@ -440,13 +440,14 @@ const firstArticleController = {
           await connection.query(
             `
             INSERT INTO quality_inspection_items
-            (inspection_id, item_name, standard, type, actual_value, result, remark)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            (inspection_id, item_name, standard, method, type, actual_value, result, remark)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
           `,
             [
               id,
               item.item_name,
               item.standardValue || item.standard || '',
+              item.method || item.inspection_method || null,
               item.type || 'visual',
               item.actual_value,
               item.result,

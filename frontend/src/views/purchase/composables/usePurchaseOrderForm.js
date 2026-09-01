@@ -183,12 +183,22 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
   // ========== 供应商操作 ==========
   const loadSuppliers = async () => {
     try {
-      const res = await supplierApi.getSuppliers({ page: 1, pageSize: 50 })
-      suppliers.value = parseListData(res, { enableLog: false })
-      filteredSuppliers.value = [...suppliers.value]
+      const res = await supplierApi.getSupplierOptions({ limit: 1000 })
+      const list = parseListData(res, { enableLog: false })
+      suppliers.value = list
+      filteredSuppliers.value = [...list]
     } catch (error) {
-      console.error('获取供应商列表失败:', error)
-      suppliers.value = []; filteredSuppliers.value = []
+      console.warn('获取供应商选项失败，降级调用 getSuppliers:', error)
+      try {
+        const fallbackRes = await supplierApi.getSuppliers({ page: 1, pageSize: 1000 })
+        const fallbackList = parseListData(fallbackRes, { enableLog: false })
+        suppliers.value = fallbackList
+        filteredSuppliers.value = [...fallbackList]
+      } catch (err) {
+        console.error('获取供应商列表彻底失败:', err)
+        suppliers.value = []
+        filteredSuppliers.value = []
+      }
     }
   }
 
@@ -211,27 +221,51 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
   }
 
   const searchSuppliers = async (query) => {
-    if (!query || query.length < 1) { filteredSuppliers.value = suppliers.value.slice(0, 50); return }
+    const q = String(query || '').trim().toLowerCase()
+    if (!q) {
+      filteredSuppliers.value = [...suppliers.value]
+      return
+    }
+    // 优先本地快速模糊匹配（编码、名称、联系人）
+    const localMatches = suppliers.value.filter(s =>
+      String(s.name || '').toLowerCase().includes(q) ||
+      String(s.code || '').toLowerCase().includes(q) ||
+      String(s.contactPerson || s.contact_person || '').toLowerCase().includes(q)
+    )
+    if (localMatches.length > 0) {
+      filteredSuppliers.value = localMatches
+    }
+    
+    // 同时远端精准搜索补充
     supplierLoading.value = true
     try {
-      const res = await supplierApi.getSuppliers({ page: 1, pageSize: 50, keyword: query.trim() })
-      const results = parseListData(res, { enableLog: false })
-      filteredSuppliers.value = results
-      results.forEach(item => { if (!suppliers.value.find(s => s.id === item.id)) suppliers.value.push(item) })
-    } catch (error) { console.error('搜索供应商失败:', error); filteredSuppliers.value = [] }
-    finally { supplierLoading.value = false }
+      const res = await supplierApi.getSupplierOptions({ keyword: q, limit: 200 })
+      const remoteResults = parseListData(res, { enableLog: false })
+      if (remoteResults && remoteResults.length > 0) {
+        const merged = [...filteredSuppliers.value]
+        remoteResults.forEach(item => {
+          if (!merged.some(s => s.id === item.id)) merged.push(item)
+          if (!suppliers.value.some(s => s.id === item.id)) suppliers.value.push(item)
+        })
+        filteredSuppliers.value = merged
+      }
+    } catch (error) {
+      console.error('搜索供应商失败:', error)
+    } finally {
+      supplierLoading.value = false
+    }
   }
 
   const handleSupplierFocus = async () => {
-    if (filteredSuppliers.value.length === 0) {
+    if (suppliers.value.length === 0) {
       supplierLoading.value = true
       try {
-        const res = await supplierApi.getSuppliers({ page: 1, pageSize: 50 })
-        const results = parseListData(res, { enableLog: false })
-        filteredSuppliers.value = results
-        results.forEach(item => { if (!suppliers.value.find(s => s.id === item.id)) suppliers.value.push(item) })
-      } catch (error) { console.error('加载供应商列表失败:', error) }
-      finally { supplierLoading.value = false }
+        await loadSuppliers()
+      } catch (error) {
+        console.error('加载供应商列表失败:', error)
+      } finally {
+        supplierLoading.value = false
+      }
     }
   }
 

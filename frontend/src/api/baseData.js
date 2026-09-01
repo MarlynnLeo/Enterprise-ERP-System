@@ -58,6 +58,7 @@ export const baseDataApi = {
     getCustomerStats: () => api.get('/base-data/customers/stats'),
 
     getSuppliers: (params = {}) => api.get('/base-data/suppliers', { params }),
+    getSupplierOptions: (params = {}) => api.get('/base-data/suppliers/options', { params }),
     getSupplier: (id) => api.get(`/base-data/suppliers/${id}`),
     createSupplier: (supplier) => api.post('/base-data/suppliers', supplier),
     updateSupplier: (id, supplier) => api.put(`/base-data/suppliers/${id}`, supplier),
