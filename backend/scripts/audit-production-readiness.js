@@ -99,7 +99,7 @@ function findMatchingParen(text, openIndex) {
       else if (char === quote) quote = null;
       continue;
     }
-    if (char === '\'' || char === '"' || char === '`') {
+    if (char === "'" || char === '"' || char === '`') {
       quote = char;
     } else if (char === '(') {
       depth += 1;
@@ -123,7 +123,7 @@ function findMatchingBrace(text, openIndex) {
       else if (char === quote) quote = null;
       continue;
     }
-    if (char === '\'' || char === '"' || char === '`') {
+    if (char === "'" || char === '"' || char === '`') {
       quote = char;
     } else if (char === '{') {
       depth += 1;
@@ -137,10 +137,7 @@ function findMatchingBrace(text, openIndex) {
 
 function extractMethodBody(text, methodName) {
   const escapedName = methodName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const methodPattern = new RegExp(
-    `^\\s*(?:static\\s+)?(?:async\\s+)?${escapedName}\\s*\\(`,
-    'm'
-  );
+  const methodPattern = new RegExp(`^\\s*(?:static\\s+)?(?:async\\s+)?${escapedName}\\s*\\(`, 'm');
   const match = methodPattern.exec(text);
   if (!match) return null;
 
@@ -247,13 +244,13 @@ function auditRoutes() {
       const publicRoute = PUBLIC_ROUTES.has(key);
       const selfServiceRoute = SELF_SERVICE_ROUTES.has(key);
       const hasAuth =
-        /authenticate(?:Token|RefreshToken)/.test(declaration.text)
-        || declarationUsesAlias(declaration.text, aliases, 'auth')
-        || hasPriorRouterUse(text, declaration.start, /router\.use\(\s*authenticateToken\s*\)/);
+        /authenticate(?:Token|RefreshToken)/.test(declaration.text) ||
+        declarationUsesAlias(declaration.text, aliases, 'auth') ||
+        hasPriorRouterUse(text, declaration.start, /router\.use\(\s*authenticateToken\s*\)/);
       const hasPermission =
-        /requirePermission\s*\(/.test(declaration.text)
-        || declarationUsesAlias(declaration.text, aliases, 'permission')
-        || hasPriorRouterUse(text, declaration.start, /router\.use\(\s*requirePermission\s*\(/);
+        /requirePermission\s*\(/.test(declaration.text) ||
+        declarationUsesAlias(declaration.text, aliases, 'permission') ||
+        hasPriorRouterUse(text, declaration.start, /router\.use\(\s*requirePermission\s*\(/);
 
       if (!publicRoute && !hasAuth) {
         missingAuth.push(`${key}:${declaration.line}`);
@@ -269,22 +266,21 @@ function auditRoutes() {
 
 function auditRowLevelDataScopeGuards(sourceOverrides = {}) {
   const findings = [];
-  const scopeGuard = sourceOverrides.scopeGuard ?? fs.readFileSync(
-    path.join(srcRoot, 'authorization/ScopeGuard.js'),
-    'utf8'
-  );
-  const dataScopeService = sourceOverrides.dataScopeService ?? fs.readFileSync(
-    path.join(srcRoot, 'services/DataScopeService.js'),
-    'utf8'
-  );
-  const workflowInstances = sourceOverrides.workflowInstances ?? fs.readFileSync(
-    path.join(srcRoot, 'services/business/workflow/instanceMethods.js'),
-    'utf8'
-  );
-  const technicalCommunicationRoutes = sourceOverrides.technicalCommunicationRoutes
-    ?? fs.readFileSync(path.join(srcRoot, 'routes/system/technicalCommunicationRoutes.js'), 'utf8');
-  const technicalCommunicationController = sourceOverrides.technicalCommunicationController
-    ?? fs.readFileSync(
+  const scopeGuard =
+    sourceOverrides.scopeGuard ??
+    fs.readFileSync(path.join(srcRoot, 'authorization/ScopeGuard.js'), 'utf8');
+  const dataScopeService =
+    sourceOverrides.dataScopeService ??
+    fs.readFileSync(path.join(srcRoot, 'services/DataScopeService.js'), 'utf8');
+  const workflowInstances =
+    sourceOverrides.workflowInstances ??
+    fs.readFileSync(path.join(srcRoot, 'services/business/workflow/instanceMethods.js'), 'utf8');
+  const technicalCommunicationRoutes =
+    sourceOverrides.technicalCommunicationRoutes ??
+    fs.readFileSync(path.join(srcRoot, 'routes/system/technicalCommunicationRoutes.js'), 'utf8');
+  const technicalCommunicationController =
+    sourceOverrides.technicalCommunicationController ??
+    fs.readFileSync(
       path.join(srcRoot, 'controllers/system/technicalCommunicationController.js'),
       'utf8'
     );
@@ -293,7 +289,9 @@ function auditRowLevelDataScopeGuards(sourceOverrides = {}) {
   if (!applyListScope) {
     findings.push('ScopeGuard.applyListScope is missing from the row-level authorization SSOT');
   } else if (!/buildRequestOwnerScopeClause|isFinanceSharedAll|isSharedRead/.test(applyListScope)) {
-    findings.push('ScopeGuard.applyListScope must apply DataScope owner clauses (with finance/shared-read exceptions)');
+    findings.push(
+      'ScopeGuard.applyListScope must apply DataScope owner clauses (with finance/shared-read exceptions)'
+    );
   }
 
   const assertAccess = extractMethodBody(scopeGuard, 'assertAccess');
@@ -313,8 +311,8 @@ function auditRowLevelDataScopeGuards(sourceOverrides = {}) {
   if (!loadUserDataScope) {
     findings.push('DataScopeService.loadUserDataScope is missing');
   } else if (
-    !/\bdata_scope\b/.test(loadUserDataScope)
-    || !/\buser_roles\b/.test(loadUserDataScope)
+    !/\bdata_scope\b/.test(loadUserDataScope) ||
+    !/\buser_roles\b/.test(loadUserDataScope)
   ) {
     findings.push('DataScopeService must derive visibility from role data_scope / user_roles');
   } else if (!/is_super_admin/.test(loadUserDataScope)) {
@@ -322,12 +320,10 @@ function auditRowLevelDataScopeGuards(sourceOverrides = {}) {
   }
 
   const isAllScope = extractMethodBody(dataScopeService, 'isAllScope');
-  if (
-    !isAllScope
-    || !/DATA_SCOPE\.ALL/.test(isAllScope)
-    || !/scope\.type/.test(isAllScope)
-  ) {
-    findings.push('DataScopeService.isAllScope must only treat explicit DATA_SCOPE.ALL as unrestricted');
+  if (!isAllScope || !/DATA_SCOPE\.ALL/.test(isAllScope) || !/scope\.type/.test(isAllScope)) {
+    findings.push(
+      'DataScopeService.isAllScope must only treat explicit DATA_SCOPE.ALL as unrestricted'
+    );
   }
 
   // Check the full source (not extractMethodBody): template-literal `${...}` braces
@@ -335,12 +331,14 @@ function auditRowLevelDataScopeGuards(sourceOverrides = {}) {
   if (!/static buildOwnerScopeClause\s*\(/.test(dataScopeService)) {
     findings.push('DataScopeService.buildOwnerScopeClause is missing');
   } else if (
-    !/DATA_SCOPE\.SELF/.test(dataScopeService)
-    || !/departmentIds/.test(dataScopeService)
-    || !/(ownerColumn|created_by)/.test(dataScopeService)
-    || !/locationIds/.test(dataScopeService)
+    !/DATA_SCOPE\.SELF/.test(dataScopeService) ||
+    !/departmentIds/.test(dataScopeService) ||
+    !/(ownerColumn|created_by)/.test(dataScopeService) ||
+    !/locationIds/.test(dataScopeService)
   ) {
-    findings.push('DataScopeService.buildOwnerScopeClause must emit owner/department/location filters');
+    findings.push(
+      'DataScopeService.buildOwnerScopeClause must emit owner/department/location filters'
+    );
   }
 
   if (!/assertRecordExists/.test(dataScopeService)) {
@@ -349,25 +347,29 @@ function auditRowLevelDataScopeGuards(sourceOverrides = {}) {
 
   const canAccessInstance = extractMethodBody(workflowInstances, 'canAccessInstance');
   if (
-    !canAccessInstance
-    || !/WHERE\s+wi\.id\s*=\s*\?/i.test(canAccessInstance)
-    || !/wi\.deleted_at\s+IS\s+NULL/i.test(canAccessInstance)
+    !canAccessInstance ||
+    !/WHERE\s+wi\.id\s*=\s*\?/i.test(canAccessInstance) ||
+    !/wi\.deleted_at\s+IS\s+NULL/i.test(canAccessInstance)
   ) {
-    findings.push('workflow instance visibility must be based on authenticated access and record existence');
+    findings.push(
+      'workflow instance visibility must be based on authenticated access and record existence'
+    );
   } else if (
     /initiator_id\s*=\s*\?|approver_id\s*=\s*\?|workflow_node_approvers|\[\s*instanceId\s*,\s*userId/i.test(
       canAccessInstance
     )
   ) {
-    findings.push('workflow instance details must not be limited to the initiator or assigned approver');
+    findings.push(
+      'workflow instance details must not be limited to the initiator or assigned approver'
+    );
   }
 
   const deleteCommentRoute = collectRouteDeclarations(technicalCommunicationRoutes).find(
     (declaration) => declaration.method === 'DELETE' && declaration.path === '/comments/:commentId'
   );
   if (
-    !deleteCommentRoute
-    || !/requirePermission\(\s*['"]system:tech-comm:delete['"]\s*\)/.test(deleteCommentRoute.text)
+    !deleteCommentRoute ||
+    !/requirePermission\(\s*['"]system:tech-comm:delete['"]\s*\)/.test(deleteCommentRoute.text)
   ) {
     findings.push('technical communication comment deletion must require system:tech-comm:delete');
   }
@@ -382,8 +384,110 @@ function auditRowLevelDataScopeGuards(sourceOverrides = {}) {
   return findings;
 }
 
+function auditPermissionSsotGuards(sourceOverrides = {}) {
+  const findings = [];
+  const permissionService =
+    sourceOverrides.permissionService ??
+    fs.readFileSync(path.join(srcRoot, 'services/PermissionService.js'), 'utf8');
+  const permissionRegistry =
+    sourceOverrides.permissionRegistry ??
+    fs.readFileSync(path.join(srcRoot, 'services/PermissionRegistry.js'), 'utf8');
+  const permissionChangeService =
+    sourceOverrides.permissionChangeService ??
+    fs.readFileSync(path.join(srcRoot, 'services/PermissionChangeService.js'), 'utf8');
+  const roleModel =
+    sourceOverrides.roleModel ?? fs.readFileSync(path.join(srcRoot, 'models/role.js'), 'utf8');
+  const systemModel =
+    sourceOverrides.systemModel ?? fs.readFileSync(path.join(srcRoot, 'models/system.js'), 'utf8');
+  const systemController =
+    sourceOverrides.systemController ??
+    fs.readFileSync(path.join(srcRoot, 'controllers/system/systemController.js'), 'utf8');
+  const lookupPermissions =
+    sourceOverrides.lookupPermissions ??
+    fs.readFileSync(path.join(srcRoot, 'authorization/lookupPermissions.js'), 'utf8');
+  const permissionDiagnostics =
+    sourceOverrides.permissionDiagnostics ??
+    fs.readFileSync(path.join(srcRoot, 'utils/permissionDiagnostics.js'), 'utf8');
+
+  const getUserRolePermissions = extractMethodBody(permissionService, 'getUserRolePermissions');
+  if (!getUserRolePermissions || !/role_permissions/.test(getUserRolePermissions)) {
+    findings.push('user authorization must read role_permissions as its SSOT');
+  } else if (/role_menus|ER_NO_SUCH_TABLE/.test(getUserRolePermissions)) {
+    findings.push('user authorization must not fall back from role_permissions to role_menus');
+  }
+
+  const getAllSystemPermissions = extractMethodBody(permissionService, 'getAllSystemPermissions');
+  if (!getAllSystemPermissions || !/FROM permissions/.test(getAllSystemPermissions)) {
+    findings.push('permission registry must read the permissions table as its SSOT');
+  } else if (/FROM menus|ER_NO_SUCH_TABLE/.test(getAllSystemPermissions)) {
+    findings.push(
+      'permission registry must not fall back to menus when permissions is unavailable'
+    );
+  }
+
+  if (/ER_NO_SUCH_TABLE/.test(roleModel)) {
+    findings.push(
+      'role permission reads must fail closed when the permissions schema is unavailable'
+    );
+  }
+
+  const getRoleById = extractMethodBody(systemModel, 'getRoleById');
+  if (!getRoleById || !/role_permissions/.test(getRoleById)) {
+    findings.push('role detail reads must use role_permissions as their SSOT');
+  } else if (/ER_NO_SUCH_TABLE|menus\.map/.test(getRoleById)) {
+    findings.push('role detail reads must not synthesize permissions from menu assignments');
+  }
+
+  const getRoleSnapshot = extractMethodBody(permissionChangeService, 'getRoleSnapshot');
+  if (!getRoleSnapshot || !/role_permissions/.test(getRoleSnapshot)) {
+    findings.push('permission audit snapshots must read role_permissions');
+  } else if (/resolveMenuPermissions/.test(getRoleSnapshot)) {
+    findings.push('permission audit snapshots must not synthesize permissions from role_menus');
+  }
+
+  if (
+    !/supplementalPermissionCodesForRole/.test(permissionRegistry) ||
+    !/LOOKUP_READ_PERMISSION/.test(permissionRegistry) ||
+    !/COMMON_PERMISSIONS/.test(permissionRegistry)
+  ) {
+    findings.push('role permission rebuilds must preserve lookup and managed-profile permissions');
+  }
+
+  if (/scopedMenuIds\.length\s*\?\s*scopedMenuIds\s*:\s*menuIds/.test(systemModel)) {
+    findings.push('an empty managed-role menu clamp must not restore the unscoped menu selection');
+  }
+
+  const getPermissionCodes = extractMethodBody(systemController, 'getPermissionCodes');
+  if (getPermissionCodes && /ER_NO_SUCH_TABLE|兼容\s*menus/.test(getPermissionCodes)) {
+    findings.push('permission-code API must not fall back to the menus table');
+  }
+
+  const getUsersList = extractMethodBody(systemController, 'getUsersList');
+  if (!getUsersList || /u\.(email|phone)/.test(getUsersList)) {
+    findings.push('lookup user lists must not expose email or phone fields');
+  }
+
+  if (/LEGACY_LOOKUP_READ_PERMISSION|['"]dashboard['"]/.test(lookupPermissions)) {
+    findings.push(
+      'lookup APIs must require explicit lookup:read instead of dashboard compatibility'
+    );
+  }
+
+  const diagnoseUserPermissions = extractMethodBody(
+    permissionDiagnostics,
+    'diagnoseUserPermissions'
+  );
+  if (!diagnoseUserPermissions || !/role_permissions/.test(diagnoseUserPermissions)) {
+    findings.push('permission diagnostics must read role_permissions as their SSOT');
+  } else if (/catch\s*\{[\s\S]*JOIN\s+role_menus/.test(diagnoseUserPermissions)) {
+    findings.push('permission diagnostics must not fall back to role_menus');
+  }
+
+  return findings;
+}
+
 function auditStaticGuards() {
-  const findings = auditRowLevelDataScopeGuards();
+  const findings = [...auditRowLevelDataScopeGuards(), ...auditPermissionSsotGuards()];
   const inventoryBatch = fs.readFileSync(
     path.join(srcRoot, 'controllers/business/inventory/inventoryBatchController.js'),
     'utf8'
@@ -392,15 +496,34 @@ function auditStaticGuards() {
     path.join(srcRoot, 'controllers/business/inventory/inventoryStockController.js'),
     'utf8'
   );
-  const auditInterceptor = fs.readFileSync(path.join(srcRoot, 'middleware/auditLogInterceptor.js'), 'utf8');
-  const auditLogService = fs.readFileSync(path.join(srcRoot, 'services/system/AuditLogService.js'), 'utf8');
-  const backupService = fs.readFileSync(path.join(srcRoot, 'services/system/BackupService.js'), 'utf8');
+  const auditInterceptor = fs.readFileSync(
+    path.join(srcRoot, 'middleware/auditLogInterceptor.js'),
+    'utf8'
+  );
+  const auditLogService = fs.readFileSync(
+    path.join(srcRoot, 'services/system/AuditLogService.js'),
+    'utf8'
+  );
+  const backupService = fs.readFileSync(
+    path.join(srcRoot, 'services/system/BackupService.js'),
+    'utf8'
+  );
   const systemRoutes = fs.readFileSync(path.join(srcRoot, 'routes/system.js'), 'utf8');
-  const restoreScript = fs.readFileSync(path.join(backendRoot, 'scripts/restore-backup.js'), 'utf8');
-  const composeFile = fs.readFileSync(path.resolve(backendRoot, '..', 'docker-compose.yml'), 'utf8');
+  const restoreScript = fs.readFileSync(
+    path.join(backendRoot, 'scripts/restore-backup.js'),
+    'utf8'
+  );
+  const composeFile = fs.readFileSync(
+    path.resolve(backendRoot, '..', 'docker-compose.yml'),
+    'utf8'
+  );
 
-  if (/scopeLocationFilter|scopedLocationIds|DataScopeService|DATA_SCOPE|CUSTOM/.test(inventoryBatch)) {
-    findings.push('inventory batch queries still contain a legacy location-level data scope filter');
+  if (
+    /scopeLocationFilter|scopedLocationIds|DataScopeService|DATA_SCOPE|CUSTOM/.test(inventoryBatch)
+  ) {
+    findings.push(
+      'inventory batch queries still contain a legacy location-level data scope filter'
+    );
   }
   if (/DataScopeService|scopedLocationIds|DATA_SCOPE/.test(inventoryStock)) {
     findings.push('inventory stock queries still contain a legacy row-level data scope guard');
@@ -420,7 +543,10 @@ function auditStaticGuards() {
   if (!/BACKUP_RETENTION_DAYS/.test(backupService) || !/pruneBackups/.test(backupService)) {
     findings.push('backup service does not enforce a configurable retention policy');
   }
-  if (!/erp-backups:\/app\/backups/.test(composeFile) || !/BACKUP_DIR=\/app\/backups/.test(composeFile)) {
+  if (
+    !/erp-backups:\/app\/backups/.test(composeFile) ||
+    !/BACKUP_DIR=\/app\/backups/.test(composeFile)
+  ) {
     findings.push('database backups are not mounted to a persistent Docker volume');
   }
   if (!/checksum mismatch/i.test(restoreScript) || !/non-empty database/i.test(restoreScript)) {
@@ -434,7 +560,9 @@ function auditStaticGuards() {
     .filter((file) => /insert\s+into\s+inventory_ledger/i.test(fs.readFileSync(file, 'utf8')))
     .map((file) => toPosix(path.relative(backendRoot, file)));
   if (directLedgerWriters.length > 0) {
-    findings.push(`inventory ledger writes bypass InventoryService: ${directLedgerWriters.join(', ')}`);
+    findings.push(
+      `inventory ledger writes bypass InventoryService: ${directLedgerWriters.join(', ')}`
+    );
   }
 
   return findings;
@@ -475,10 +603,10 @@ async function main() {
   }
 
   if (
-    routeAudit.missingAuth.length
-    || routeAudit.missingPermission.length
-    || staticFindings.length
-    || missingRegisteredPermissions.length
+    routeAudit.missingAuth.length ||
+    routeAudit.missingPermission.length ||
+    staticFindings.length ||
+    missingRegisteredPermissions.length
   ) {
     process.exitCode = 1;
   } else {
@@ -495,6 +623,7 @@ if (require.main === module) {
 
 module.exports = {
   auditRoutes,
+  auditPermissionSsotGuards,
   auditRowLevelDataScopeGuards,
   auditStaticGuards,
   collectRouteDeclarations,

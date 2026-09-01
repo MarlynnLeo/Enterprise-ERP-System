@@ -155,9 +155,7 @@ describe('BatchManagementService.reserveBatch FIFO connection', () => {
 
   it('rolls back and releases connection when reservation insert fails', async () => {
     const spy = jest.spyOn(BatchManagementService, 'getFIFOOutboundBatches').mockResolvedValue({
-      allocated_batches: [
-        { location_id: 1, batch_number: 'B-1', allocated_quantity: 5 },
-      ],
+      allocated_batches: [{ location_id: 1, batch_number: 'B-1', allocated_quantity: 5 }],
       total_allocated: 5,
       shortage: 0,
     });
@@ -247,7 +245,7 @@ describe('InventoryService batch number normalize on ledger write', () => {
     ).rejects.toThrow(/入库必须提供可追溯批次号/);
   });
 
-  it('updateStock inserts ledger with normalized batch_number (null → empty string never reaches INSERT)', async () => {
+  it('updateStock stages a posting line with normalized batch_number before finance approval', async () => {
     const connection = {
       execute: jest.fn().mockResolvedValue([{ insertId: 55 }]),
       query: jest.fn(),
@@ -263,9 +261,7 @@ describe('InventoryService batch number normalize on ledger write', () => {
     jest.spyOn(InventoryService, 'clearStockCache').mockResolvedValue(undefined);
 
     // 出库未指定批次 → FIFO 路径；这里模拟已有一批
-    connection.query.mockResolvedValueOnce([
-      [{ batch_number: 'FIFO-A', batch_quantity: 20 }],
-    ]);
+    connection.query.mockResolvedValueOnce([[{ batch_number: 'FIFO-A', batch_quantity: 20 }]]);
 
     const result = await InventoryService.updateStock(
       {
@@ -283,10 +279,10 @@ describe('InventoryService batch number normalize on ledger write', () => {
 
     expect(result.success).toBe(true);
     const insertCall = connection.execute.mock.calls.find(
-      ([sql]) => typeof sql === 'string' && /INSERT\s+INTO\s+inventory_ledger/i.test(sql)
+      ([sql]) => typeof sql === 'string' && /INSERT\s+INTO\s+inventory_posting_lines/i.test(sql)
     );
     expect(insertCall).toBeTruthy();
-    // INSERT params: materialId, locationId, type, ..., batch_number at index 10
+    // Posting line params keep batch_number at index 10.
     const params = insertCall[1];
     expect(params[10]).toBe('FIFO-A');
     expect(params[10]).not.toBeNull();
@@ -325,7 +321,7 @@ describe('InventoryService batch number normalize on ledger write', () => {
     );
 
     const insertCall = connection.execute.mock.calls.find(
-      ([sql]) => typeof sql === 'string' && /INSERT\s+INTO\s+inventory_ledger/i.test(sql)
+      ([sql]) => typeof sql === 'string' && /INSERT\s+INTO\s+inventory_posting_lines/i.test(sql)
     );
     expect(insertCall[1][10]).toBe('B-EXPLICIT');
 

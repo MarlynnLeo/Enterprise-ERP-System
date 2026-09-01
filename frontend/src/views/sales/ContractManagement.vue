@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="module-page page-container">
     <!-- 页面头部卡片 -->
     <PageHeader title="合同管理" subtitle="管理采购、销售、服务等合同的全生命周期">
@@ -20,21 +20,22 @@
       <template #advanced>
         <el-form-item label="类型">
           <el-select v-model="filterType" placeholder="全部" clearable @change="fetchList">
-            <el-option label="采购合同" value="purchase" />
-            <el-option label="销售合同" value="sales" />
-            <el-option label="服务合同" value="service" />
-            <el-option label="其他" value="other" />
+            <el-option
+              v-for="opt in CONTRACT_TYPE_OPTIONS"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="filterStatus" placeholder="全部" clearable @change="fetchList">
-            <el-option label="草稿" value="draft" />
-            <el-option label="待审批" value="pending_approval" />
-            <el-option label="生效" value="active" />
-            <el-option label="执行中" value="executing" />
-            <el-option label="已完成" value="completed" />
-            <el-option label="已终止" value="terminated" />
-            <el-option label="已过期" value="expired" />
+            <el-option
+              v-for="opt in CONTRACT_STATUS_OPTIONS"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
           </el-select>
         </el-form-item>
       </template>
@@ -48,12 +49,12 @@
       <el-table-column prop="name" label="合同名称" min-width="200" show-overflow-tooltip />
       <el-table-column prop="type" label="类型" width="100">
         <template #default="{ row }">
-          <el-tag :type="typeTagMap[row.type]" size="small">{{ typeLabel[row.type] }}</el-tag>
+          <el-tag :type="getContractTypeColor(row.type)" size="small">{{ getContractTypeText(row.type) }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column prop="status" label="状态" width="100">
         <template #default="{ row }">
-          <el-tag :type="statusTagMap[row.status]" size="small">{{ statusLabel[row.status] }}</el-tag>
+          <el-tag :type="getContractStatusColor(row.status)" size="small">{{ getContractStatusText(row.status) }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column prop="partyB" label="对方单位" min-width="160" show-overflow-tooltip />
@@ -170,9 +171,9 @@
         <el-descriptions :column="2" border>
           <el-descriptions-item label="合同编号">{{ detailData.code }}</el-descriptions-item>
           <el-descriptions-item label="合同名称">{{ detailData.name }}</el-descriptions-item>
-          <el-descriptions-item label="类型">{{ typeLabel[detailData.type] }}</el-descriptions-item>
+          <el-descriptions-item label="类型">{{ getContractTypeText(detailData.type) }}</el-descriptions-item>
           <el-descriptions-item label="状态">
-            <el-tag :type="statusTagMap[detailData.status]">{{ statusLabel[detailData.status] }}</el-tag>
+            <el-tag :type="getContractStatusColor(detailData.status)">{{ getContractStatusText(detailData.status) }}</el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="甲方">{{ detailData.partyA }}</el-descriptions-item>
           <el-descriptions-item label="乙方">{{ detailData.partyB }}</el-descriptions-item>
@@ -230,6 +231,14 @@ import { contractApi } from '@/api/contract'
 import BusinessApprovalDialog from '@/components/workflow/BusinessApprovalDialog.vue'
 import { useBusinessApproval } from '@/composables/useBusinessApproval'
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
+import {
+  getContractStatusText,
+  getContractStatusColor,
+  getContractTypeText,
+  getContractTypeColor,
+  CONTRACT_STATUS_OPTIONS,
+  CONTRACT_TYPE_OPTIONS
+} from '@/constants/systemConstants'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -252,11 +261,6 @@ const detailVisible = ref(false)
 const formData = ref({})
 const detailData = ref(null)
 const detailLoading = ref(false)
-
-const typeLabel = { purchase: '采购合同', sales: '销售合同', service: '服务合同', other: '其他' }
-const typeTagMap = { purchase: 'warning', sales: 'success', service: 'primary', other: 'info' }
-const statusLabel = { draft: '草稿', pending_approval: '待审批', active: '生效', executing: '执行中', completed: '已完成', terminated: '已终止', expired: '已过期' }
-const statusTagMap = { draft: 'info', pending_approval: 'warning', active: 'success', executing: 'primary', completed: '', terminated: 'danger', expired: 'danger' }
 
 const formatAmount = (v) => v != null ? Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2 }) : '--'
 

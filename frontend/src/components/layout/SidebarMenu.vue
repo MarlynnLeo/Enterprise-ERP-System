@@ -113,7 +113,6 @@ const pathToI18nKey = {
   '/production/equipment-monitoring': 'menu.equipmentMonitoring',
   '/production/material-shortage': 'menu.materialShortage',
   '/production/material-readiness': 'menu.materialReadiness',
-  '/production/mrp': 'menu.mrpPlanning',
   '/production/data-view': 'menu.productionDataView',
   '/production/gantt': 'menu.productionGantt',
   '/production/calendar': 'menu.productionCalendar',

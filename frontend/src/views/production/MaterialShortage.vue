@@ -128,6 +128,7 @@ const handleExport = async () => {
       { header: '当前库存', key: 'current_stock_quantity', width: 12 },
       { header: '本次可用', key: 'stock_quantity', width: 12 },
       { header: '缺料数量', key: 'shortage_quantity', width: 12 },
+      { header: '采购未交货', key: 'pending_receipt_quantity', width: 14 },
       { header: '采购状态', key: 'purchase_status', width: 10 },
       { header: '计划开始日期', key: 'start_date', width: 12 },
       { header: '计划结束日期', key: 'end_date', width: 12 }
@@ -146,6 +147,7 @@ const handleExport = async () => {
         current_stock_quantity: formatQuantity(item.currentStockQuantity),
         stock_quantity: formatQuantity(item.stockQuantity),
         shortage_quantity: formatQuantity(item.shortageQuantity),
+        pending_receipt_quantity: formatQuantity(item.pendingReceiptQuantity || 0),
         purchase_status: item.purchaseStatus === 'requested' ? '已申请' : '待申请',
         start_date: formatDate(item.startDate),
         end_date: formatDate(item.endDate)
@@ -493,6 +495,20 @@ onMounted(() => {
             <span class="text-danger shortage-quantity">
               {{ formatQuantity(scope.row.shortageQuantity) }}
             </span>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="采购未交货" width="120" fixed="right">
+          <template #default="scope">
+            <el-tag
+              v-if="Number(scope.row.pendingReceiptQuantity) > 0"
+              type="success"
+              size="small"
+              effect="light"
+            >
+              {{ formatQuantity(scope.row.pendingReceiptQuantity) }}
+            </el-tag>
+            <span v-else class="text-muted">0</span>
           </template>
         </el-table-column>
 

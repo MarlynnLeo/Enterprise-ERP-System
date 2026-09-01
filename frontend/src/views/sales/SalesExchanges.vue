@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * SalesExchanges.vue
  * @description 前端界面组件文件
@@ -725,14 +725,9 @@ const exchangeStats = ref({
   completed: 1,
   rejected: 0
 })
-// 状态映射 - 使用统一的销售状态
-const exchangeStatuses = [
-  { value: 'pending', label: '待处理' },
-  { value: 'processing', label: '处理中' },
-  { value: 'completed', label: '已完成' },
-  { value: 'rejected', label: '已拒绝' }
-]
-import { getSalesStatusColor, getSalesStatusText } from '@/constants/systemConstants'
+import { getSalesStatusColor, getSalesStatusText, SALES_EXCHANGE_STATUS_OPTIONS } from '@/constants/systemConstants'
+// 状态映射 - 动态绑定统一配置中心
+const exchangeStatuses = SALES_EXCHANGE_STATUS_OPTIONS
 // 获取状态类型
 const getStatusType = (status) => {
   return getSalesStatusColor(status) || 'info'

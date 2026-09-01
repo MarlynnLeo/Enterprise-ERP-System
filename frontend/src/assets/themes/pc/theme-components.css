@@ -881,3 +881,71 @@
   font-weight: 600 !important;
   font-size: 12px !important;
 }
+
+/* ==================================================================
+   全局消除 el-divider 分割线标题背后的突兀白框（Flexbox 现代自适应设计）
+   ================================================================== */
+.el-divider--horizontal {
+  display: flex !important;
+  align-items: center !important;
+  height: auto !important;
+  margin: 18px 0 14px 0 !important;
+  border-top: none !important;
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+/* 纯无文字分割线 */
+.el-divider--horizontal:not(:has(.el-divider__text)) {
+  height: 1px !important;
+  background: var(--color-border-lighter, var(--el-border-color-lighter, #e2e8f0)) !important;
+}
+
+/* 两侧自适应连接线 */
+.el-divider--horizontal:has(.el-divider__text)::before,
+.el-divider--horizontal:has(.el-divider__text)::after {
+  content: '';
+  height: 1px;
+  background: var(--color-border-lighter, var(--el-border-color-lighter, #e2e8f0));
+}
+
+/* 居中标题 */
+.el-divider--horizontal:has(.el-divider__text) {
+  justify-content: center;
+}
+.el-divider--horizontal:has(.el-divider__text)::before,
+.el-divider--horizontal:has(.el-divider__text)::after {
+  flex: 1;
+}
+
+/* 居左标题 */
+.el-divider--horizontal:has(.el-divider__text.is-left)::before {
+  flex: 0 0 16px;
+}
+.el-divider--horizontal:has(.el-divider__text.is-left)::after {
+  flex: 1;
+}
+
+/* 居右标题 */
+.el-divider--horizontal:has(.el-divider__text.is-right)::before {
+  flex: 1;
+}
+.el-divider--horizontal:has(.el-divider__text.is-right)::after {
+  flex: 0 0 16px;
+}
+
+/* 标题文字彻底透明、无白底框、视觉干净融入背景 */
+.el-divider--horizontal .el-divider__text,
+.el-divider__text {
+  position: static !important;
+  transform: none !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  padding: 0 14px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: var(--color-text-primary, var(--el-text-color-primary, #334155)) !important;
+  white-space: nowrap !important;
+  box-shadow: none !important;
+  border: none !important;
+}

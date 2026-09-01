@@ -75,6 +75,22 @@ function extractErrorInfo(error) {
 }
 
 /**
+ * 判断是否为良性/非致命的无害通知
+ * 1. 第三方跨域脚本泛化错误 "Script error."
+ * 2. ResizeObserver 循环交付警告（多见于各类响应式表格、自适应列宽与浮动弹窗）
+ * 3. Vue Router 路由切换中断/重定向良性错误
+ */
+function isBenignError(message) {
+  if (!message) return false
+  const msg = String(message)
+  return (
+    msg === 'Script error.' ||
+    /ResizeObserver loop/i.test(msg) ||
+    /Navigation cancelled|Navigation aborted|Avoided redundant navigation|Redirected when going from/i.test(msg)
+  )
+}
+
+/**
  * 安装全局错误处理器
  * @param {import('vue').App} app - Vue app 实例
  */
@@ -86,6 +102,8 @@ export function setupErrorReporter(app, options = {}) {
     console.error('[Vue Error]', error)
 
     const errorInfo = extractErrorInfo(error)
+    if (isBenignError(errorInfo.message)) return
+
     reportError({
       type: 'vue_error',
       ...errorInfo,
@@ -99,12 +117,15 @@ export function setupErrorReporter(app, options = {}) {
 
   // 2. 未捕获的 JS 异常
   window.onerror = (message, source, lineno, colno, error) => {
-    // 过滤第三方脚本错误（跨域脚本会返回 "Script error."）
-    if (message === 'Script error.' || message === 'ResizeObserver loop limit exceeded') {
+    if (isBenignError(message)) {
       return false
     }
 
     const errorInfo = error ? extractErrorInfo(error) : { message: String(message), stack: '', name: 'Error' }
+    if (isBenignError(errorInfo.message)) {
+      return false
+    }
+
     reportError({
       type: 'js_error',
       ...errorInfo,
@@ -122,6 +143,7 @@ export function setupErrorReporter(app, options = {}) {
   window.addEventListener('unhandledrejection', (event) => {
     const error = event.reason
     const errorInfo = extractErrorInfo(error)
+    if (isBenignError(errorInfo.message)) return
 
     reportError({
       type: 'unhandled_rejection',

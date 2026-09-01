@@ -26,16 +26,54 @@ const purchaseOrderItemMap = {
   },
   toApi(row) {
     if (row == null) return null;
+    const quantity = toNumber(row.quantity, 0);
+    const unitPrice = toNumber(row.price ?? row.unit_price ?? row.unitPrice, 0);
+    const lineTotal = toNumber(
+      row.total ?? row.total_price ?? row.totalPrice ?? row.amount,
+      quantity * unitPrice
+    );
     return {
       id: row.id ?? null,
       materialId: row.material_id ?? null,
       materialCode: row.material_code ?? null,
       materialName: row.material_name ?? null,
       specification: row.specification ?? row.specs ?? null,
-      quantity: toNumber(row.quantity, 0),
-      unitPrice: toNumber(row.price ?? row.unit_price ?? row.unitPrice, 0),
-      amount: toNumber(row.amount, 0),
+      unitId: row.unit_id ?? row.effective_unit_id ?? null,
+      unitName: row.unit_name ?? row.unitName ?? row.unit ?? null,
+      unit: row.unit ?? row.unit_name ?? row.unitName ?? null,
+      quantity,
+      unitPrice,
+      price: unitPrice,
+      amount: lineTotal,
+      totalPrice: lineTotal,
+      total: lineTotal,
       taxRate: row.tax_rate != null ? toNumber(row.tax_rate, 0) : null,
+      taxAmount:
+        row.tax_amount != null
+          ? toNumber(row.tax_amount, 0)
+          : (row.tax_rate != null ? toNumber(lineTotal * toNumber(row.tax_rate, 0), 0) : 0),
+      receivedQuantity:
+        row.received_quantity != null
+          ? toNumber(row.received_quantity, 0)
+          : row.receivedQuantity != null
+            ? toNumber(row.receivedQuantity, 0)
+            : 0,
+      warehousedQuantity:
+        row.warehoused_quantity != null
+          ? toNumber(row.warehoused_quantity, 0)
+          : row.warehousedQuantity != null
+            ? toNumber(row.warehousedQuantity, 0)
+            : 0,
+      unqualifiedQuantity:
+        row.unqualified_quantity != null
+          ? toNumber(row.unqualified_quantity, 0)
+          : row.unqualifiedQuantity != null
+            ? toNumber(row.unqualifiedQuantity, 0)
+            : 0,
+      receivedPercentage: row.received_percentage != null ? toNumber(row.received_percentage, 0) : 0,
+      warehousedPercentage:
+        row.warehoused_percentage != null ? toNumber(row.warehoused_percentage, 0) : 0,
+      pendingQuantity: row.pending_quantity != null ? toNumber(row.pending_quantity, 0) : 0,
       remarks: row.remarks ?? null,
     };
   },

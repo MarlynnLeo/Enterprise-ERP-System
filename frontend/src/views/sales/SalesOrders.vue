@@ -356,6 +356,7 @@
                         <span class="option-row__code">{{ item.code }}</span>
                         <span class="option-row__name">{{ item.name }}</span>
                         <span v-if="item.specs" class="text-muted text-sm">{{ item.specs }}</span>
+                        <span v-if="item.price && Number(item.price) > 0" class="text-emerald-600 font-medium text-sm">¥{{ Number(item.price).toFixed(2) }}</span>
                       </div>
                     </template>
                   </el-autocomplete>
@@ -621,7 +622,7 @@ const _router = useRouter()
 const route = useRoute()
 import { useFormKeyboardNav } from '@/composables/useFormKeyboardNav'
 import { Plus, Upload, Download } from '@element-plus/icons-vue'
-import { getSalesStatusText, getSalesStatusColor } from '@/constants/systemConstants'
+import { getSalesStatusText, getSalesStatusColor, SALES_STATUS_OPTIONS } from '@/constants/systemConstants'
 import printService from '@/services/printService'
 // ========== 组合式函数导入 ==========
 import { useOrderForm } from './composables/useOrderForm'
@@ -636,15 +637,8 @@ const dateRange = ref([])
 const operators = ref([])
 // 常量定义
 const SEARCH_DEBOUNCE_DELAY = 300
-// 状态映射
-const orderStatuses = [
-  { value: 'pending', label: '待处理' },
-  { value: 'confirmed', label: '已确认' },
-  { value: 'in_production', label: '生产中' },
-  { value: 'ready_to_ship', label: '可发货' },
-  { value: 'completed', label: '已完成' },
-  { value: 'cancelled', label: '已取消' }
-]
+// 状态映射（动态绑定配置中心）
+const orderStatuses = SALES_STATUS_OPTIONS
 // 订单统计数据
 const orderStats = ref({
   total: 0, pending: 0, confirmed: 0, inProduction: 0,
@@ -910,21 +904,32 @@ onUnmounted(() => {
   justify-content: flex-start;
 }
 /* 查看对话框中的订单详情样式 */
-.order-details {
+.order-details,
+.order-view {
   padding: 10px 0;
 }
-.order-details :deep(.el-descriptions) {
+.order-details :deep(.el-descriptions),
+.order-view :deep(.el-descriptions) {
   background: var(--color-bg-section);
   border-radius: 8px;
   padding: 12px;
   margin-bottom: 10px;
 }
-.order-details :deep(.el-descriptions__label) {
+.order-details :deep(.el-descriptions__label),
+.order-view :deep(.el-descriptions__label) {
   font-weight: 500;
   color: var(--color-text-secondary);
 }
-.order-details :deep(.el-divider) {
+.order-details :deep(.el-divider),
+.order-view :deep(.el-divider) {
   margin: 20px 0 16px 0;
+}
+.order-details :deep(.el-divider__text),
+.order-view :deep(.el-divider__text) {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
 }
 .order-details :deep(.el-table) {
   border-radius: 8px;

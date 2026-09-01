@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * SalesReturns.vue
  * @description 前端界面组件文件
@@ -368,7 +368,7 @@ const createForm = reactive({
   items: []
 })
 
-import { getSalesStatusText, getSalesStatusColor } from '@/constants/systemConstants'
+import { getSalesStatusText, getSalesStatusColor, SALES_RETURN_STATUS_OPTIONS } from '@/constants/systemConstants'
 import { parseResponseData } from '@/utils/responseParser'
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 const outboundDialog = reactive({
@@ -406,13 +406,8 @@ const returnStats = ref({
   rejected: 0
 })
 
-// 状态映射 - 使用统一的销售状态
-const returnStatuses = [
-  { value: 'pending', label: '待审批' },
-  { value: 'approved', label: '已审批' },
-  { value: 'completed', label: '已完成' },
-  { value: 'rejected', label: '已拒绝' }
-]
+// 状态映射 - 使用统一配置中心的销售退货状态
+const returnStatuses = SALES_RETURN_STATUS_OPTIONS
 
 // 删除未使用的状态映射函数，保留实际使用的退货单和订单状态映射
 

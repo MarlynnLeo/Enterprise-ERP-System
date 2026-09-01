@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * SalesQuotations.vue
  * @description 前端界面组件文件
@@ -533,15 +533,9 @@ const rules = {
     { required: true, message: '请选择有效期', trigger: 'change' }
   ]
 }
-// 状态映射
-const quotationStatuses = [
-  { value: 'draft', label: '待确认' },
-  { value: 'sent', label: '已发送' },
-  { value: 'accepted', label: '已确认' },
-  { value: 'rejected', label: '已拒绝' },
-  { value: 'expired', label: '已过期' }
-]
-import { getSalesQuotationStatusText, getSalesQuotationStatusColor } from '@/constants/systemConstants'
+import { getSalesQuotationStatusText, getSalesQuotationStatusColor, SALES_QUOTATION_STATUS_OPTIONS } from '@/constants/systemConstants'
+// 状态映射 - 动态绑定统一配置中心
+const quotationStatuses = SALES_QUOTATION_STATUS_OPTIONS
 // 获取状态类型（使用统一常量）
 const getStatusType = (status) => {
   return getSalesQuotationStatusColor(status)
@@ -552,8 +546,7 @@ const getStatusText = (status) => {
 }
 // 获取状态显示文本
 const getStatusLabel = (status) => {
-  const statusItem = quotationStatuses.find(item => item.value === status)
-  return statusItem ? statusItem.label : status
+  return getSalesQuotationStatusText(status)
 }
 // 格式化日期
 // formatDate 已统一引用公共实现

@@ -16,6 +16,7 @@ const db = require('../../../config/db');
 const { toLocalDateString } = require('../../../utils/dateUtils');
 const { safeParseId } = require('../../../utils/safeParseId');
 const { getRequestActorLabel } = require('../../../utils/userUtils');
+const InventoryPostingService = require('../../../services/InventoryPostingService');
 
 function getDefaultReportRange(query = {}) {
   const today = new Date();
@@ -63,6 +64,63 @@ function respondGenerateResult(res, result, successMessage, skipMessagePrefix) {
  * 注意: 审批功能已移除，统一通过 RBAC 权限按钮控制
  */
 class FinanceEnhancementController {
+  // ==================== 库存过账财务审核 ====================
+
+  static async listInventoryPostings(req, res) {
+    try {
+      const result = await InventoryPostingService.list(req.query);
+      return ResponseHandler.paginated(
+        res,
+        result.list,
+        result.total,
+        result.page,
+        result.pageSize,
+        '库存过账列表获取成功'
+      );
+    } catch (error) {
+      return respondServiceError(res, error, '获取库存过账列表失败');
+    }
+  }
+
+  static async getInventoryPosting(req, res) {
+    try {
+      const result = await InventoryPostingService.get(req.params.id);
+      return ResponseHandler.success(res, result, '库存过账详情获取成功');
+    } catch (error) {
+      return respondServiceError(res, error, '获取库存过账详情失败');
+    }
+  }
+
+  static async approveInventoryPosting(req, res) {
+    try {
+      const actor = InventoryPostingService.actorFromRequest(req);
+      const result = await InventoryPostingService.approve(req.params.id, actor);
+      return ResponseHandler.success(res, result, '库存过账审核通过，库存已正式入账');
+    } catch (error) {
+      return respondServiceError(res, error, '库存过账审核失败');
+    }
+  }
+
+  static async rejectInventoryPosting(req, res) {
+    try {
+      const actor = InventoryPostingService.actorFromRequest(req);
+      const result = await InventoryPostingService.reject(req.params.id, actor, req.body?.remark || '');
+      return ResponseHandler.success(res, result, '库存过账已驳回');
+    } catch (error) {
+      return respondServiceError(res, error, '驳回库存过账失败');
+    }
+  }
+
+  static async reverseInventoryPosting(req, res) {
+    try {
+      const actor = InventoryPostingService.actorFromRequest(req);
+      const result = await InventoryPostingService.reverse(req.params.id, actor, req.body?.remark || '');
+      return ResponseHandler.success(res, result, '库存过账已反审核并生成冲销流水');
+    } catch (error) {
+      return respondServiceError(res, error, '库存过账反审核失败');
+    }
+  }
+
   // ==================== 手工凭证集成（委托 ManualVoucherService） ====================
 
   /** 专业主路径：可生成凭证的采购入库单 */

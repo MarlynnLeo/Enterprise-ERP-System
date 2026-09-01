@@ -26,10 +26,9 @@ class PermissionDiagnostics {
     try {
       // 1. 检查用户基本信息
       logger.info('📋 1. 用户基本信息');
-      const [users] = await pool.execute(
-        'SELECT id, username, status FROM users WHERE id = ?',
-        [userId]
-      );
+      const [users] = await pool.execute('SELECT id, username, status FROM users WHERE id = ?', [
+        userId,
+      ]);
 
       if (!users.length) {
         logger.info('❌ 用户不存在!');
@@ -128,26 +127,14 @@ class PermissionDiagnostics {
           'SELECT COUNT(*) as count FROM role_menus WHERE role_id = ?',
           [role.id]
         );
-        let permCountVal = 0;
-        try {
-          const [permCount] = await pool.execute(
-            `SELECT COUNT(DISTINCT p.code) as count
-               FROM permissions p
-               JOIN role_permissions rp ON rp.permission_id = p.id
-              WHERE rp.role_id = ? AND p.status = 1`,
-            [role.id]
-          );
-          permCountVal = permCount[0].count;
-        } catch {
-          const [legacy] = await pool.execute(
-            `SELECT COUNT(DISTINCT m.permission) as count
-               FROM menus m
-               JOIN role_menus rm ON m.id = rm.menu_id
-              WHERE rm.role_id = ? AND m.permission IS NOT NULL AND m.permission != ''`,
-            [role.id]
-          );
-          permCountVal = legacy[0].count;
-        }
+        const [permCount] = await pool.execute(
+          `SELECT COUNT(DISTINCT p.code) as count
+             FROM permissions p
+             JOIN role_permissions rp ON rp.permission_id = p.id
+            WHERE rp.role_id = ? AND p.status = 1`,
+          [role.id]
+        );
+        const permCountVal = permCount[0].count;
         logger.info(`   角色 ${role.name}:`);
         logger.info(`     - 关联菜单数: ${menuCount[0].count}`);
         logger.info(`     - 有效权限数(role_permissions): ${permCountVal}`);
@@ -160,10 +147,7 @@ class PermissionDiagnostics {
         logger.info('   ⚠️ 用户没有分配角色，请先分配角色');
       } else if (dbPermissions.length === 0) {
         logger.info('   ⚠️ 用户的角色没有分配任何权限，请为角色分配权限');
-      } else if (
-        hasCachedPermissions &&
-        cachedPermissions.length !== dbPermissions.length
-      ) {
+      } else if (hasCachedPermissions && cachedPermissions.length !== dbPermissions.length) {
         logger.info('   ⚠️ 缓存与数据库不一致，建议清除缓存');
         logger.info('   执行: PermissionService.clearUserPermissionsCache(' + userId + ')');
       } else {
@@ -171,6 +155,7 @@ class PermissionDiagnostics {
       }
     } catch (error) {
       logger.error('❌ 诊断过程出错:', error);
+      throw error;
     }
 
     logger.info('\n' + '='.repeat(80));

@@ -77,9 +77,9 @@ describe('UnifiedAIClient', () => {
     expect(httpPost).toHaveBeenCalledWith(
       'https://integrate.api.nvidia.com/v1/chat/completions',
       expect.objectContaining({
-        model: 'moonshotai/kimi-k2.6',
+        model: 'openai/gpt-oss-120b',
         messages: [{ role: 'user', content: 'hello' }],
-        max_tokens: 16384,
+        max_tokens: 8192,
         temperature: 0.2,
         top_p: 0.8,
         stream: false,
@@ -96,7 +96,7 @@ describe('UnifiedAIClient', () => {
     expect(result).toEqual(
       expect.objectContaining({
         content: '{"ok":true}',
-        model: 'moonshotai/kimi-k2.6',
+        model: 'openai/gpt-oss-120b',
         provider: 'nvidia',
         usage: {
           prompt_tokens: 10,

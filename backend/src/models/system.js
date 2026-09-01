@@ -9,7 +9,7 @@ const { pool } = require('../config/db');
 const { logger } = require('../utils/logger');
 const PasswordSecurity = require('../utils/passwordSecurity');
 const { normalizeUsername } = require('../utils/usernameSecurity');
-const { isSuperAdminRole } = require('../authorization/superAdmin');
+const { isSuperAdminRole, isReservedRoleCode } = require('../authorization/superAdmin');
 const {
   disconnectUserSessions,
   revokeRoleSessionsInTransaction,
@@ -61,13 +61,17 @@ function normalizeIdList(value, fieldName) {
   if (!Array.isArray(value)) {
     throw new Error(`${fieldName} must be an array`);
   }
-  return [...new Set(value.map((id) => {
-    const parsed = Number(id);
-    if (!Number.isInteger(parsed) || parsed <= 0) {
-      throw new Error(`${fieldName} contains invalid id`);
-    }
-    return parsed;
-  }))];
+  return [
+    ...new Set(
+      value.map((id) => {
+        const parsed = Number(id);
+        if (!Number.isInteger(parsed) || parsed <= 0) {
+          throw new Error(`${fieldName} contains invalid id`);
+        }
+        return parsed;
+      })
+    ),
+  ];
 }
 
 async function assertAssignableRoleIds(connection, roleIds, options = {}) {
@@ -131,7 +135,8 @@ function normalizeMenuData(menuData = {}) {
     icon: menuData.icon || null,
     permission: rawPermission ? normalizePermissionCode(rawPermission) : null,
     type: menuData.type !== undefined ? Number(menuData.type) : 1,
-    visible: menuData.visible !== undefined ? normalizeBinaryStatus(menuData.visible, 'visible') : 1,
+    visible:
+      menuData.visible !== undefined ? normalizeBinaryStatus(menuData.visible, 'visible') : 1,
     status: menuData.status !== undefined ? normalizeBinaryStatus(menuData.status) : 1,
     sort_order: Number(menuData.sort_order ?? menuData.sort ?? 0) || 0,
   };
@@ -150,7 +155,10 @@ async function assertDepartmentIsValid(connection, departmentData, id = null) {
   }
 
   if (parentId) {
-    const [[parent]] = await connection.execute('SELECT id, parent_id FROM departments WHERE id = ?', [parentId]);
+    const [[parent]] = await connection.execute(
+      'SELECT id, parent_id FROM departments WHERE id = ?',
+      [parentId]
+    );
     if (!parent) throw new Error('上级部门不存在');
 
     let currentParent = parent.parent_id;
@@ -178,9 +186,7 @@ async function assertDepartmentIsValid(connection, departmentData, id = null) {
     throw new Error('部门编码已存在');
   }
 
-  const parentNameParams = parentId === null
-    ? [name, ...idParams]
-    : [name, parentId, ...idParams];
+  const parentNameParams = parentId === null ? [name, ...idParams] : [name, parentId, ...idParams];
   const parentNameWhere = parentId === null ? 'parent_id IS NULL' : 'parent_id = ?';
   const [sameName] = await connection.execute(
     `SELECT id FROM departments WHERE name = ? AND ${parentNameWhere}${idClause} LIMIT 1`,
@@ -207,6 +213,22 @@ async function assertRoleIsValid(connection, roleData, id = null) {
   if (!name) throw new Error('role name is required');
   if (!code) throw new Error('role code is required');
 
+  // 保留编码兜底校验（路由层 validateRoleInfo 已拦一次，这里防绕过/内部调用）。
+  // 只在编码发生变化时拦截，内置角色改名称/描述不受影响。
+  if (isReservedRoleCode(code)) {
+    let previousCode = null;
+    if (targetId) {
+      const [[existingRole]] = await connection.execute(
+        'SELECT code FROM roles WHERE id = ? LIMIT 1',
+        [targetId]
+      );
+      previousCode = existingRole?.code ?? null;
+    }
+    if (previousCode === null || String(previousCode).toLowerCase() !== code.toLowerCase()) {
+      throw new Error('角色编码为系统保留字，请使用其他编码');
+    }
+  }
+
   const idClause = targetId ? ' AND id <> ?' : '';
   const idParams = targetId ? [targetId] : [];
   const [sameName] = await connection.execute(
@@ -231,6 +253,10 @@ async function assertRoleIsValid(connection, roleData, id = null) {
     code,
     status: roleData.status !== undefined ? normalizeBinaryStatus(roleData.status) : 1,
     // 角色仅控制功能/动作权限，旧行级范围输入一律忽略。
+    // ⚠️ 行级隔离当前整体休眠（见 services/DataScopeService.js 顶部说明与
+    // migrations/20260820000003_disable_row_level_data_scopes.js）。
+    // 这行硬编码是休眠的一部分：若要重新启用行级范围，必须先改这里，
+    // 否则角色管理页面上改 data_scope 永远存不进数据库。
     data_scope: 1,
   };
 }
@@ -242,7 +268,9 @@ async function assertMenuIsValid(connection, menuData, id = null) {
   if (!data.name) throw new Error('menu name is required');
   if (![0, 1, 2].includes(data.type)) throw new Error('menu type must be 0, 1 or 2');
   if (data.parent_id) {
-    const [[parent]] = await connection.execute('SELECT id, parent_id FROM menus WHERE id = ?', [data.parent_id]);
+    const [[parent]] = await connection.execute('SELECT id, parent_id FROM menus WHERE id = ?', [
+      data.parent_id,
+    ]);
     if (!parent) throw new Error('上级菜单不存在');
     if (targetId && data.parent_id === targetId) {
       throw new Error('菜单不能挂到自身下面');
@@ -254,10 +282,9 @@ async function assertMenuIsValid(connection, menuData, id = null) {
       if (Number(currentParent) === targetId) {
         throw new Error('菜单不能挂到自己的子菜单下面');
       }
-      const [[nextParent]] = await connection.execute(
-        'SELECT parent_id FROM menus WHERE id = ?',
-        [currentParent]
-      );
+      const [[nextParent]] = await connection.execute('SELECT parent_id FROM menus WHERE id = ?', [
+        currentParent,
+      ]);
       currentParent = nextParent?.parent_id;
       depth++;
     }
@@ -318,7 +345,7 @@ const systemModel = {
 
     // 获取分页数据，包括关联的部门信息
     const listSql = appendPaginationSQL(
-       `SELECT u.id, u.username, u.real_name, u.email, u.phone,
+      `SELECT u.id, u.username, u.real_name, u.email, u.phone,
               u.department_id, u.position, u.role, u.avatar, u.bio,
               u.status, u.created_at, u.updated_at,
               COALESCE(u.failed_login_attempts, 0) AS failed_login_attempts,
@@ -430,9 +457,10 @@ const systemModel = {
       const departmentId = normalizeNullableId(userData.department_id);
 
       // 检查用户名是否已存在
-      const [existingUsers] = await connection.execute('SELECT id, username, password, token_version, email, phone, role, department_id, status, created_at, updated_at, avatar, real_name, department, position, last_login_at, employee_no, hire_date, birthday, gender, id_card, address, emergency_contact, emergency_phone, salary, employee_status, notes, password_changed_at, password_expires_at, failed_login_attempts, locked_until, last_login_ip, force_password_change, avatar_frame, bio, theme_settings FROM users WHERE username = ?', [
-        username,
-      ]);
+      const [existingUsers] = await connection.execute(
+        'SELECT id, username, password, token_version, email, phone, role, department_id, status, created_at, updated_at, avatar, real_name, department, position, last_login_at, employee_no, hire_date, birthday, gender, id_card, address, emergency_contact, emergency_phone, salary, employee_status, notes, password_changed_at, password_expires_at, failed_login_attempts, locked_until, last_login_ip, force_password_change, avatar_frame, bio, theme_settings FROM users WHERE username = ?',
+        [username]
+      );
 
       if (existingUsers.length > 0) {
         throw new Error('用户名已存在');
@@ -546,22 +574,31 @@ const systemModel = {
         userData.status !== undefined
           ? normalizeBinaryStatus(userData.status)
           : existingUser.status;
-      const nextDepartmentId = userData.department_id !== undefined
-        ? normalizeNullableId(userData.department_id)
-        : existingUser.department_id;
-      const nextPosition = userData.position !== undefined
-        ? (userData.position === null || userData.position === '' ? null : String(userData.position).trim())
-        : existingUser.position;
-      const nextRealName = userData.name !== undefined
-        ? userData.name
-        : (userData.real_name !== undefined ? userData.real_name : existingUser.real_name);
+      const nextDepartmentId =
+        userData.department_id !== undefined
+          ? normalizeNullableId(userData.department_id)
+          : existingUser.department_id;
+      const nextPosition =
+        userData.position !== undefined
+          ? userData.position === null || userData.position === ''
+            ? null
+            : String(userData.position).trim()
+          : existingUser.position;
+      const nextRealName =
+        userData.name !== undefined
+          ? userData.name
+          : userData.real_name !== undefined
+            ? userData.real_name
+            : existingUser.real_name;
       const nextEmail = userData.email !== undefined ? userData.email : existingUser.email;
       const nextPhone = userData.phone !== undefined ? userData.phone : existingUser.phone;
-      const rolesChanged = roleIds !== null && (() => {
-        const before = new Set(existingRoleIds);
-        const after = new Set(roleIds);
-        return before.size !== after.size || [...before].some((roleId) => !after.has(roleId));
-      })();
+      const rolesChanged =
+        roleIds !== null &&
+        (() => {
+          const before = new Set(existingRoleIds);
+          const after = new Set(roleIds);
+          return before.size !== after.size || [...before].some((roleId) => !after.has(roleId));
+        })();
       const securityAttributesChanged =
         rolesChanged ||
         Number(nextDepartmentId ?? 0) !== Number(existingUser.department_id ?? 0) ||
@@ -713,7 +750,11 @@ const systemModel = {
       if (changed) await RefreshTokenService.revokeUserTokens(userId, connection);
       await connection.commit();
     } catch (error) {
-      try { await connection.rollback(); } catch { /* preserve original error */ }
+      try {
+        await connection.rollback();
+      } catch {
+        /* preserve original error */
+      }
       throw error;
     } finally {
       connection.release();
@@ -876,7 +917,9 @@ const systemModel = {
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
-      const [[existing]] = await connection.execute('SELECT id FROM departments WHERE id = ?', [id]);
+      const [[existing]] = await connection.execute('SELECT id FROM departments WHERE id = ?', [
+        id,
+      ]);
       if (!existing) return false;
       const data = await assertDepartmentIsValid(connection, departmentData, id);
       const [result] = await connection.execute(
@@ -1000,7 +1043,10 @@ const systemModel = {
   },
 
   async getRoleById(id) {
-    const [rows] = await pool.execute('SELECT id, name, code, description, status, created_at, updated_at, data_scope, is_super_admin FROM roles WHERE id = ?', [id]);
+    const [rows] = await pool.execute(
+      'SELECT id, name, code, description, status, created_at, updated_at, data_scope, is_super_admin FROM roles WHERE id = ?',
+      [id]
+    );
 
     if (!rows.length) return null;
 
@@ -1019,23 +1065,16 @@ const systemModel = {
     role.permissions = menus; // 兼容旧前端字段
 
     // 鉴权权限码 SSOT
-    try {
-      const [permCodes] = await pool.execute(
-        `SELECT p.id, p.code, p.name, p.module
-           FROM permissions p
-           JOIN role_permissions rp ON rp.permission_id = p.id
-          WHERE rp.role_id = ? AND p.status = 1
-          ORDER BY p.code`,
-        [id]
-      );
-      role.permissionCodes = permCodes.map((p) => p.code);
-      role.permissionRecords = permCodes;
-    } catch (e) {
-      if (e.code !== 'ER_NO_SUCH_TABLE') throw e;
-      role.permissionCodes = [
-        ...new Set(menus.map((m) => m.permission).filter(Boolean)),
-      ];
-    }
+    const [permCodes] = await pool.execute(
+      `SELECT p.id, p.code, p.name, p.module
+         FROM permissions p
+         JOIN role_permissions rp ON rp.permission_id = p.id
+        WHERE rp.role_id = ? AND p.status = 1
+        ORDER BY p.code`,
+      [id]
+    );
+    role.permissionCodes = permCodes.map((permission) => permission.code);
+    role.permissionRecords = permCodes;
 
     return role;
   },
@@ -1047,20 +1086,18 @@ const systemModel = {
       const data = await assertRoleIsValid(connection, roleData);
 
       // 校验角色名称唯一性
-      const [existingName] = await connection.execute(
-        'SELECT id FROM roles WHERE name = ?',
-        [data.name]
-      );
+      const [existingName] = await connection.execute('SELECT id FROM roles WHERE name = ?', [
+        data.name,
+      ]);
       if (existingName.length > 0) {
         throw new Error('角色名称已存在，请使用其他名称');
       }
 
       // 校验角色编码唯一性
       if (data.code) {
-        const [existingCode] = await connection.execute(
-          'SELECT id FROM roles WHERE code = ?',
-          [data.code]
-        );
+        const [existingCode] = await connection.execute('SELECT id FROM roles WHERE code = ?', [
+          data.code,
+        ]);
         if (existingCode.length > 0) {
           throw new Error('角色编码已存在，请使用其他编码');
         }
@@ -1090,12 +1127,15 @@ const systemModel = {
       const { syncRolePermissionsFromMenus } = require('../services/PermissionRegistry');
       const RoleAccessService = require('../services/RoleAccessService');
       if (menuIds.length === 0 && data.code) {
-        await RoleAccessService.applyRole(connection, {
+        const applied = await RoleAccessService.applyRole(connection, {
           id: roleId,
           code: data.code,
           name: data.name,
           is_super_admin: 0,
         });
+        if (applied.skipped === 'custom') {
+          await syncRolePermissionsFromMenus(connection, roleId, []);
+        }
       } else {
         const scopedMenuIds = await RoleAccessService.clampMenuIds(
           connection,
@@ -1111,7 +1151,7 @@ const systemModel = {
             ]);
           }
         }
-        await syncRolePermissionsFromMenus(connection, roleId, scopedMenuIds.length ? scopedMenuIds : menuIds);
+        await syncRolePermissionsFromMenus(connection, roleId, scopedMenuIds);
       }
 
       await connection.commit();
@@ -1142,11 +1182,7 @@ const systemModel = {
         [id]
       );
       if (!existing) throw new Error('NOT_FOUND: role not found');
-      const data = await assertRoleIsValid(
-        connection,
-        { ...existing, ...(roleData || {}) },
-        id
-      );
+      const data = await assertRoleIsValid(connection, { ...existing, ...(roleData || {}) }, id);
       const roleSecurityChanged =
         data.code !== existing.code ||
         Number(data.status) !== Number(existing.status) ||
@@ -1286,11 +1322,7 @@ const systemModel = {
 
       // 删除角色菜单 / 权限关联
       await connection.execute('DELETE FROM role_menus WHERE role_id = ?', [id]);
-      try {
-        await connection.execute('DELETE FROM role_permissions WHERE role_id = ?', [id]);
-      } catch (e) {
-        if (e.code !== 'ER_NO_SUCH_TABLE') throw e;
-      }
+      await connection.execute('DELETE FROM role_permissions WHERE role_id = ?', [id]);
 
       // 删除角色
       const [result] = await connection.execute('DELETE FROM roles WHERE id = ?', [id]);
@@ -1359,7 +1391,10 @@ const systemModel = {
   },
 
   async getMenuById(id) {
-    const [rows] = await pool.execute('SELECT id, parent_id, name, path, component, redirect, icon, permission, type, visible, status, sort_order, created_at, updated_at FROM menus WHERE id = ?', [id]);
+    const [rows] = await pool.execute(
+      'SELECT id, parent_id, name, path, component, redirect, icon, permission, type, visible, status, sort_order, created_at, updated_at FROM menus WHERE id = ?',
+      [id]
+    );
     return rows[0];
   },
 
@@ -1486,7 +1521,7 @@ const systemModel = {
 
         while (currentParent !== null && currentParent !== 0 && depth < maxDepth) {
           if (currentParent === targetId) {
-             throw new Error('操作非法：不能将菜单挂载到它的子级菜单下，这会引发系统死循环');
+            throw new Error('操作非法：不能将菜单挂载到它的子级菜单下，这会引发系统死循环');
           }
           const [parentRecord] = await connection.execute(
             'SELECT parent_id FROM menus WHERE id = ?',
@@ -1650,7 +1685,9 @@ const systemModel = {
       if (menuInfo.length > 0) {
         const menu = menuInfo[0];
         if ((!menu.parent_id || menu.parent_id === 0) && menu.type === 0) {
-          throw new Error(`系统顶级目录「${menu.name}」为核心菜单，不允许删除。如需隐藏请修改其状态`);
+          throw new Error(
+            `系统顶级目录「${menu.name}」为核心菜单，不允许删除。如需隐藏请修改其状态`
+          );
         }
       }
 

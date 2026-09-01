@@ -15,7 +15,6 @@ const { desensitizeData, hasFinancePermission } = require('../../../utils/desens
 const PurchaseOrderStatusService = require('../../../services/business/PurchaseOrderStatusService');
 const PurchasePriceService = require('../../../services/business/PurchasePriceService');
 const { getCurrentUserName } = require('../../../utils/userHelper');
-const DLQService = require('../../../services/business/DLQService');
 const DomainEventService = require('../../../services/business/DomainEventService');
 const AuditLogService = require('../../../services/system/AuditLogService');
 const { lineAmount, normalizeTaxRate, roundMoney, taxAmount: calculateTaxAmount } = require('../../../utils/money');
@@ -1631,72 +1630,6 @@ const updateReceiptStatus = async (req, res) => {
 
     await client.commit();
     DomainEventService.dispatchSoon(domainEventId);
-
-    // ==========================================
-    // [核心] 采购入库完成后，异步触发 MAC(移动加权均价) 成本更新
-    // 修复：此前此调用链路缺失，导致 materials.cost_price 始终未被 MAC 算法更新
-    // ==========================================
-    if (status === STATUS.PURCHASE_RECEIPT.COMPLETED) {
-      setImmediate(async () => {
-        try {
-          const InventoryCostService = require('../../../services/business/InventoryCostService');
-
-          // 从已提交的数据库重新查询入库单物料，获取单价和数量信息
-          const [costItems] = await db.pool.execute(
-            `SELECT ri.material_id, ri.qualified_quantity, ri.received_quantity,
-                    COALESCE(ri.price, poi.price, 0) as unit_price,
-                    m.code as material_code
-             FROM purchase_receipt_items ri
-             LEFT JOIN purchase_receipts pr ON ri.receipt_id = pr.id
-             LEFT JOIN purchase_order_items poi ON pr.order_id = poi.order_id AND ri.material_id = poi.material_id
-             LEFT JOIN materials m ON ri.material_id = m.id
-             WHERE ri.receipt_id = ?`,
-            [id]
-          );
-
-          for (const item of costItems) {
-            if (!item.material_id) continue;
-            const qty = parseFloat(item.qualified_quantity || item.received_quantity || 0);
-            const unitPrice = parseFloat(item.unit_price || 0);
-            if (qty <= 0 || unitPrice <= 0) continue;
-
-            try {
-              await InventoryCostService.generateInboundCostEntry(
-                {
-                  material_id: item.material_id,
-                  quantity: qty,
-                  unit_cost: unitPrice,
-                  reference_no: `GR-${id}`,
-                  transaction_type: 'purchase_inbound',
-                },
-                { userId: getRequestActorLabel(req) }
-              );
-              logger.info(
-                `Material ${item.material_code} MAC cost entry generated (unitPrice=${unitPrice}, quantity=${qty})`
-              );
-            } catch (costErr) {
-              await DLQService.recordSideEffectFailure(
-                'CostAccounting:PurchaseInboundMAC',
-                {
-                  receiptId: id,
-                  materialId: item.material_id,
-                  materialCode: item.material_code,
-                  quantity: qty,
-                  unitPrice,
-                },
-                costErr
-              );
-            }
-          }
-        } catch (macError) {
-          await DLQService.recordSideEffectFailure(
-            'CostAccounting:PurchaseInboundMACBatch',
-            { receiptId: id },
-            macError
-          );
-        }
-      });
-    }
 
     return ResponseHandler.success(res, { newStatus: status }, '采购入库单状态更新成功');
   } catch (error) {

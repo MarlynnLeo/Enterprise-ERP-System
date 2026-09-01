@@ -4,7 +4,7 @@
     @update:model-value="val => emit('update:modelValue', val)"
     :title="title"
     mode="form"
-    wide
+    width="1020px"
     @close="handleClose"
     @open="handleOpen"
   >
@@ -29,12 +29,12 @@
               <el-option
                 v-for="item in productOptions"
                 :key="item.id"
-                :label="`${item.code} - ${item.name}`"
+                :label="`${item.code} - ${item.name}${item.specs || item.specification ? ' (' + (item.specs || item.specification) + ')' : ''}`"
                 :value="item.id">
-                <div class="flex-between">
+                <div class="flex items-center justify-between gap-8">
                   <span class="font-weight-700">{{ item.code }}</span>
-                  <span class="text-muted ml-sm">{{ item.name }}</span>
-                  <span class="text-muted text-sm" v-if="item.specs">{{ item.specs }}</span>
+                  <span class="text-muted text-sm">{{ item.name }}</span>
+                  <span class="text-muted text-xs" v-if="item.specs || item.specification">{{ item.specs || item.specification }}</span>
                 </div>
               </el-option>
             </el-select>
@@ -110,16 +110,17 @@
           row-key="id"
           :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
           default-expand-all
+          :indent="0"
           @selection-change="handleDetailSelectionChange"
         >
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column label="结构" prop="wbs" width="64"></el-table-column>
-          <el-table-column label="物料编码" min-width="140">
+          <el-table-column label="物料编码" min-width="152">
             <template #default="scope">
-              <div>
+              <div @dblclick.stop="openMaterialPicker(scope.row)">
                 <el-select
                   v-model="scope.row.materialCode"
-                  placeholder="请选择物料或输入关键词搜索"
+                  placeholder="双击弹窗选择或输入搜索"
                   class="w-full"
                   filterable
                   remote
@@ -135,13 +136,27 @@
                     :key="item.id"
                     :label="item.code"
                     :value="item.code">
-                    <div class="flex-between">
+                    <div class="flex items-center justify-between gap-8">
                       <span class="font-weight-700">{{ item.code }}</span>
-                      <span class="text-muted ml-sm">{{ item.name }}</span>
+                      <span class="text-muted text-sm">{{ item.name }}</span>
+                      <span class="text-muted text-xs" v-if="item.specs || item.specification">{{ item.specs || item.specification }}</span>
                     </div>
                   </el-option>
                 </el-select>
               </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="关键件" width="70" align="center">
+            <template #header>
+              <div class="flex items-center justify-center gap-4">
+                <span>关键件</span>
+                <el-tooltip content="标记为核心/重点追溯物料，将在详情与追溯中重点高亮展示" placement="top">
+                  <el-icon class="cursor-pointer text-muted"><InfoFilled /></el-icon>
+                </el-tooltip>
+              </div>
+            </template>
+            <template #default="scope">
+              <el-checkbox v-model="scope.row.isCritical" />
             </template>
           </el-table-column>
           <el-table-column label="物料名称" min-width="140" show-overflow-tooltip>
@@ -154,12 +169,12 @@
               <div>{{ scope.row.materialSpecs || '-' }}</div>
             </template>
           </el-table-column>
-          <el-table-column label="用量" width="80">
+          <el-table-column label="用量" width="85">
             <template #default="scope">
               <el-input-number
                 v-model="scope.row.quantity"
-                :min="0.01"
-                :precision="2"
+                :min="0.1"
+                :precision="1"
                 :step="1"
                 :controls="false"
                 placeholder="用量"
@@ -167,7 +182,28 @@
               />
             </template>
           </el-table-column>
-          <el-table-column label="单位" width="55">
+          <el-table-column width="95">
+            <template #header>
+              <div class="flex items-center gap-4">
+                <span>每(基数)</span>
+                <el-tooltip content="每多少个成品消耗该用量。如普通物料填1；40个装一箱的外箱填40" placement="top">
+                  <el-icon class="cursor-pointer text-muted"><InfoFilled /></el-icon>
+                </el-tooltip>
+              </div>
+            </template>
+            <template #default="scope">
+              <el-input-number
+                v-model="scope.row.baseQuantity"
+                :min="0.1"
+                :precision="1"
+                :step="1"
+                :controls="false"
+                placeholder="基数"
+                class="w-full"
+              />
+            </template>
+          </el-table-column>
+          <el-table-column label="单位" width="60">
             <template #default="scope">
               <span>{{ scope.row.unitName || '-' }}</span>
             </template>
@@ -204,16 +240,111 @@
         <el-button type="primary" @click="submitForm" :loading="submitting">确定</el-button>
       </span>
     </template>
-    </AppDialog>
+  </AppDialog>
+
+  <!-- 选择物料对话框（支持模糊搜索与上下相邻编码定位浏览） -->
+  <AppDialog
+    v-model="materialPickerVisible"
+    title="选择物料"
+    mode="form"
+    width="880px"
+    @opened="onMaterialPickerOpened"
+  >
+    <div class="material-picker-content">
+      <!-- 搜索与定位栏 -->
+      <div class="flex items-center justify-between gap-12 mb-12">
+        <div class="flex items-center gap-8 flex-1">
+          <el-input
+            ref="pickerInputRef"
+            v-model="pickerSearchKeyword"
+            placeholder="请输入物料编码或品名定位相关物料"
+            clearable
+            style="max-width: 320px;"
+            @keyup.enter="handlePickerSearch"
+            @clear="handlePickerSearch"
+          >
+            <template #prefix>
+              <el-icon><Search /></el-icon>
+            </template>
+          </el-input>
+          <el-button type="primary" :icon="Search" @click="handlePickerSearch" :loading="pickerLoading">
+            定位 / 查询
+          </el-button>
+          <el-button @click="handlePickerReset">重置</el-button>
+        </div>
+        <div class="text-xs text-danger flex items-center gap-4">
+          <span>注：双击行或选中后按“确认”即可自动回填</span>
+        </div>
+      </div>
+
+      <!-- 物料表格 -->
+      <el-table
+        ref="pickerTableRef"
+        :data="pickerTableData"
+        border
+        stripe
+        height="380"
+        highlight-current-row
+        v-loading="pickerLoading"
+        empty-text="暂无匹配物料"
+        @current-change="handlePickerCurrentRowChange"
+        @row-dblclick="handlePickerConfirmRow"
+      >
+        <el-table-column prop="code" label="编码" width="170" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span class="font-weight-700 text-primary">{{ row.code }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="name" label="品名" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="specs" label="规格" min-width="180" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span>{{ row.specs || row.specification || '-' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="unitName" label="单位" width="70" align="center" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span>{{ row.unitName || '-' }}</span>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <!-- 分页栏 -->
+      <div class="flex items-center justify-between mt-12">
+        <div class="text-xs text-muted">
+          共 {{ pickerTotal }} 条相关物料（按编码顺序排列）
+        </div>
+        <el-pagination
+          v-model:current-page="pickerPage"
+          v-model:page-size="pickerPageSize"
+          :page-sizes="[20, 50, 100, 200]"
+          :total="pickerTotal"
+          size="small"
+          background
+          layout="total, sizes, prev, pager, next"
+          @size-change="fetchPickerMaterials"
+          @current-change="fetchPickerMaterials"
+        />
+      </div>
+    </div>
+
+    <template #footer>
+      <div class="flex justify-end gap-10">
+        <el-button @click="materialPickerVisible = false">取消</el-button>
+        <el-button type="primary" :disabled="!pickerSelectedRow" @click="handlePickerConfirmSelected">
+          确认选择
+        </el-button>
+      </div>
+    </template>
+  </AppDialog>
 </template>
 <script setup>
 import { ref, reactive, computed, watch, nextTick } from 'vue'
-import { Plus, Delete, InfoFilled } from '@element-plus/icons-vue'
+import { Plus, Delete, InfoFilled, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElImageViewer } from 'element-plus'
 import { materialApi } from '@/api/material'
 import { bomApi } from '@/api/bom'
 import { commonApi } from '@/api/common'
-import { parseListData, parseResponseData } from '@/utils/responseParser'
+import { parseListData, parsePaginatedData, parseResponseData } from '@/utils/responseParser'
 import { buildResourceUrl } from '@/config/app'
 const props = defineProps({
   modelValue: Boolean,
@@ -234,6 +365,20 @@ const productOptions = ref([])
 const fileList = ref([])
 const showImageViewer = ref(false)
 const previewList = ref([])
+
+// 选择物料对话框状态
+const materialPickerVisible = ref(false)
+const pickerTargetRow = ref(null)
+const pickerSearchKeyword = ref('')
+const pickerTableData = ref([])
+const pickerLoading = ref(false)
+const pickerTotal = ref(0)
+const pickerPage = ref(1)
+const pickerPageSize = ref(50)
+const pickerSelectedRow = ref(null)
+const pickerInputRef = ref(null)
+const pickerTableRef = ref(null)
+
 const form = reactive({
   id: '',
   productId: '',
@@ -311,7 +456,9 @@ const initForm = (data) => {
       materialSpecs: d.materialSpecs ?? d.material_specs ?? d.specs ?? d.specification ?? '',
       unitId: d.unitId ?? d.unit_id ?? null,
       unitName: d.unitName ?? d.unit_name ?? '',
-      quantity: d.quantity || 1,
+      quantity: d.quantity != null ? d.quantity : 1,
+      baseQuantity: Number(d.baseQuantity ?? d.base_quantity) > 0 ? Number(d.baseQuantity ?? d.base_quantity) : 1,
+      isCritical: Boolean(d.isCritical || Number(d.isCritical) === 1),
       remark: d.remark || '',
       parentId: d.parentId ?? d.parent_id ?? 0,
       level: d.level || 1,
@@ -518,6 +665,8 @@ const addDetail = () => {
     unitId: null,
     unitName: '',
     quantity: 1,
+    baseQuantity: 1,
+    isCritical: false,
     remark: '',
     children: [], // 用于树形展示
     materialOptions: [] // 用于搜索缓存
@@ -547,6 +696,8 @@ const addSubDetailForRow = (row) => {
     unitId: null,
     unitName: '',
     quantity: 1,
+    baseQuantity: 1,
+    isCritical: false,
     remark: '',
     children: [],
     materialOptions: []
@@ -640,6 +791,128 @@ const handleMaterialCodeChangeByRow = async (val, row) => {
     }
   }
 }
+
+// 打开选择物料对话框（支持根据当前输入模糊定位或查看上下相邻编码）
+const openMaterialPicker = (row) => {
+  pickerTargetRow.value = row
+  pickerSearchKeyword.value = row?.materialCode || ''
+  pickerPage.value = 1
+  pickerSelectedRow.value = null
+  materialPickerVisible.value = true
+  fetchPickerMaterials()
+}
+
+const onMaterialPickerOpened = () => {
+  nextTick(() => {
+    pickerInputRef.value?.focus?.()
+  })
+}
+
+const fetchPickerMaterials = async () => {
+  pickerLoading.value = true
+  try {
+    const res = await materialApi.getMaterials({
+      keyword: pickerSearchKeyword.value?.trim() || undefined,
+      page: pickerPage.value,
+      pageSize: pickerPageSize.value,
+      status: 1
+    })
+    const { list, total } = parsePaginatedData(res)
+    pickerTableData.value = Array.isArray(list) ? list : []
+    pickerTotal.value = Number(total) || 0
+
+    // 默认高亮第一条或精确匹配的那一条
+    if (pickerTableData.value.length > 0) {
+      const keyword = pickerSearchKeyword.value?.trim()
+      const match = keyword ? pickerTableData.value.find(m => m.code === keyword) : null
+      const target = match || pickerTableData.value[0]
+      pickerSelectedRow.value = target
+      nextTick(() => {
+        pickerTableRef.value?.setCurrentRow?.(target)
+      })
+    } else {
+      pickerSelectedRow.value = null
+    }
+  } catch (error) {
+    console.error('获取物料列表失败:', error)
+    pickerTableData.value = []
+    pickerTotal.value = 0
+    pickerSelectedRow.value = null
+  } finally {
+    pickerLoading.value = false
+  }
+}
+
+const handlePickerSearch = () => {
+  pickerPage.value = 1
+  fetchPickerMaterials()
+}
+
+const handlePickerReset = () => {
+  pickerSearchKeyword.value = ''
+  pickerPage.value = 1
+  fetchPickerMaterials()
+}
+
+const handlePickerCurrentRowChange = (row) => {
+  if (row) {
+    pickerSelectedRow.value = row
+  }
+}
+
+const handlePickerConfirmRow = async (row) => {
+  if (!row || !pickerTargetRow.value) return
+  const target = pickerTargetRow.value
+  target.materialId = row.id
+  target.materialCode = row.code
+  target.materialName = row.name
+  target.materialSpecs = row.specs || row.specification || ''
+  target.unitId = row.unitId ?? null
+  target.unitName = row.unitName || ''
+
+  // 将选择的物料放到该行的备选列表中，保证 el-select 正常回显
+  if (!target.materialOptions) target.materialOptions = []
+  if (!target.materialOptions.some(m => m.id === row.id || m.code === row.code)) {
+    target.materialOptions.unshift(row)
+  }
+
+  // 若单位缺失，拉一次物料详情补齐
+  if (!target.unitId && row.id) {
+    try {
+      const detailRes = await materialApi.getMaterial(row.id)
+      const detail = parseResponseData(detailRes, row) || row
+      target.unitId = detail.unitId ?? detail.unit_id ?? null
+      target.unitName = detail.unitName || detail.unit || target.unitName || ''
+    } catch (e) {
+      console.error('补齐物料单位失败:', e)
+    }
+  }
+
+  if (form.productId && row.id) {
+    try {
+      const res = await bomApi.detectCircularReference(form.productId, row.id)
+      const result = parseResponseData(res, {})
+      if (result.hasCircle) {
+        ElMessage.error(`检测到循环引用！路径: ${result.path}，该物料不能添加到此BOM`)
+        clearMaterialRow(target)
+        return
+      }
+    } catch (error) {
+      console.error('检测BOM循环引用失败:', error)
+    }
+  }
+
+  materialPickerVisible.value = false
+  ElMessage.success(`已选择物料: ${row.code} (${row.name})`)
+}
+
+const handlePickerConfirmSelected = () => {
+  if (pickerSelectedRow.value) {
+    handlePickerConfirmRow(pickerSelectedRow.value)
+  } else {
+    ElMessage.warning('请先选择一个物料')
+  }
+}
 // 提交表单 (根源解决核心: 在提交业务数据之前上传物理文件)
 const submitForm = async () => {
   if (!formRef.value) return
@@ -705,11 +978,15 @@ const submitForm = async () => {
           attachment: attachmentPath,
           details: form.details.map((d) => ({
             id: d.id,
-            parent_id: d.parentId ?? d.parent_id ?? 0,
+            parent_id: d.parentId ?? 0,
             level: d.level || 1,
             material_id: Number(d.materialId),
             material_code: d.materialCode,
             quantity: Number(d.quantity) || 0,
+            base_quantity: Number(d.baseQuantity) > 0 ? Number(d.baseQuantity) : 1,
+            baseQuantity: Number(d.baseQuantity) > 0 ? Number(d.baseQuantity) : 1,
+            is_critical: d.isCritical ? 1 : 0,
+            isCritical: d.isCritical ? 1 : 0,
             unit_id: d.unitId != null && Number(d.unitId) > 0 ? Number(d.unitId) : null,
             remark: d.remark || null,
           })),
@@ -764,4 +1041,14 @@ const submitForm = async () => {
   width: 100%;
 }
 
+.bom-details :deep(.el-table .el-table__indent) {
+  display: none !important;
+  width: 0 !important;
+  padding: 0 !important;
+}
+
+.bom-details :deep(.el-table .el-table__placeholder) {
+  display: inline-block;
+  width: 14px;
+}
 </style>

@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * SalesOutbound.vue
  * @description 前端界面组件文件
@@ -239,17 +239,17 @@
       v-model="detailsVisible"
       title="出库单详情"
       mode="view"
-      content-width="wide"
+      width="1200px"
       :detail-navigation="salesOutboundViewNavigation"
     >
       <div v-loading="detailsLoading" class="min-h-form">
       <div v-if="currentOutbound" class="outbound-detail-content">
         <el-descriptions :column="2" border>
           <el-descriptions-item label="出库单号">{{ currentOutbound.outboundNo }}</el-descriptions-item>
-          <el-descriptions-item label="关联订单号">{{ currentOutbound.orderNo || currentOutbound.orderNos }}</el-descriptions-item>
+          <el-descriptions-item label="关联订单号">{{ currentOutbound.orderNos || currentOutbound.orderNo || '-' }}</el-descriptions-item>
           <el-descriptions-item label="客户名称">{{ currentOutbound.customerName }}</el-descriptions-item>
-          <el-descriptions-item label="合同编码">{{ currentOutbound.contract_code || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="出库日期">{{ formatDate(currentOutbound.delivery_date) }}</el-descriptions-item>
+          <el-descriptions-item label="合同编码">{{ currentOutbound.contractCode || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="出库日期">{{ formatDate(currentOutbound.deliveryDate) }}</el-descriptions-item>
           <el-descriptions-item label="状态">
             <el-tag :type="getStatusType(currentOutbound.status)">{{ getStatusText(currentOutbound.status) }}</el-tag>
           </el-descriptions-item>
@@ -264,12 +264,33 @@
 
         <el-divider>出库明细</el-divider>
 
-        <el-table :data="currentOutbound.items || []" class="w-full" border>
-          <el-table-column prop="productCode" label="物料编码" width="120" />
-          <el-table-column prop="productName" label="物料名称" min-width="150" show-overflow-tooltip />
-          <el-table-column prop="specification" label="规格" min-width="150" show-overflow-tooltip />
-          <el-table-column prop="quantity" label="数量" width="100" />
-          <el-table-column prop="unit" label="单位" width="80" />
+        <el-table :data="currentOutbound.items || []" class="w-full" border stripe>
+          <el-table-column type="index" label="序号" width="60" align="center" />
+          <el-table-column label="物料编码" min-width="140" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span class="font-medium">{{ row.materialCode || row.productCode || row.code || '-' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="物料名称" min-width="160" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span>{{ row.materialName || row.productName || row.name || '-' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="规格" min-width="150" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span>{{ row.specification || row.specs || row.productSpecs || '-' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="出库数量" width="110" align="right" header-align="right">
+            <template #default="{ row }">
+              <span class="font-bold text-primary">{{ row.quantity != null ? row.quantity : '-' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="单位" width="80" align="center">
+            <template #default="{ row }">
+              <span>{{ row.unitName || row.unit || row.unit_name || '-' }}</span>
+            </template>
+          </el-table-column>
         </el-table>
       </div>
       </div>
@@ -403,9 +424,21 @@
                   </div>
                 </template>
               </el-table-column>
-              <el-table-column label="物料编码" prop="materialCode" width="120" />
-              <el-table-column label="物料名称" prop="productName" width="160" show-overflow-tooltip />
-              <el-table-column label="规格" prop="specification" width="140" show-overflow-tooltip />
+              <el-table-column label="物料编码" min-width="130" show-overflow-tooltip>
+                <template #default="{ row }">
+                  <span>{{ row.materialCode || row.productCode || row.code || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="物料名称" min-width="160" show-overflow-tooltip>
+                <template #default="{ row }">
+                  <span>{{ row.productName || row.materialName || row.name || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="规格" min-width="140" show-overflow-tooltip>
+                <template #default="{ row }">
+                  <span>{{ row.specification || row.specs || row.productSpecs || '-' }}</span>
+                </template>
+              </el-table-column>
               <el-table-column label="订单总量" width="90">
                 <template #default="{ row }">
                   <div>
@@ -437,7 +470,11 @@
                   />
                 </template>
               </el-table-column>
-              <el-table-column label="单位" prop="unitName" width="60" />
+              <el-table-column label="单位" width="70" align="center">
+                <template #default="{ row }">
+                  <span>{{ row.unitName || row.unit || row.unit_name || '-' }}</span>
+                </template>
+              </el-table-column>
               <el-table-column label="库存" width="80">
                 <template #default="{ row }">
                   <span :class="(row.stockQuantity || 0) > 0 ? 'text-stock-ok' : 'text-stock-low'">
@@ -543,9 +580,21 @@
               </span>
             </template>
           </el-table-column>
-          <el-table-column prop="materialCode" label="物料编码" width="110" />
-          <el-table-column prop="materialName" label="物料名称" min-width="140" />
-          <el-table-column prop="specification" label="规格" width="110" />
+          <el-table-column label="物料编码" min-width="120" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span>{{ row.materialCode || row.productCode || row.code || '-' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="物料名称" min-width="150" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span>{{ row.materialName || row.productName || row.name || '-' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="规格" min-width="120" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span>{{ row.specification || row.specs || row.productSpecs || '-' }}</span>
+            </template>
+          </el-table-column>
           <el-table-column prop="remainingQuantity" label="剩余数量" width="100">
             <template #default="{ row }">
               <el-tag type="warning" v-if="row.remainingQuantity > 0">{{ row.remainingQuantity }}</el-tag>
@@ -559,7 +608,11 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="unitName" label="单位" width="80" />
+          <el-table-column label="单位" width="80" align="center">
+            <template #default="{ row }">
+              <span>{{ row.unitName || row.unit || row.unit_name || '-' }}</span>
+            </template>
+          </el-table-column>
           <el-table-column label="发货数量" width="90">
             <template #default="{ row }">
               <el-input
@@ -1780,10 +1833,12 @@ const handleStatusChange = async (row, status) => {
     await fetchOutbounds()
   } catch (error) {
     console.error('状态更新失败:', error)
+    const errorData = error.response?.data
+    const rawMsg = errorData?.message || (typeof errorData?.error === 'string' ? errorData.error : errorData?.error?.message) || error.message || '状态更新失败'
+    const errorMsg = typeof rawMsg === 'string' ? rawMsg : JSON.stringify(rawMsg)
+
     // 处理库存相关错误
     if (error.response?.status === 400) {
-      const errorData = error.response.data
-      const errorMsg = errorData?.error || '状态更新失败'
       // 检查是否是库存不足的错误
       if (errorMsg.includes('库存不足') || errorMsg.includes('没有库存记录')) {
         const materialCode = errorData?.materialCode
@@ -1805,7 +1860,6 @@ const handleStatusChange = async (row, status) => {
         ElMessage.error(errorMsg)
       }
     } else {
-      const errorMsg = error.response?.data?.error || error.message || '状态更新失败'
       ElMessage.error(errorMsg)
     }
   } finally {

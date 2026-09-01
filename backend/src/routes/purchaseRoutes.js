@@ -62,13 +62,13 @@ router.put('/orders/:id/status', authenticateToken, requirePermission('purchase:
 router.put(
   '/orders/:id/items-received',
   authenticateToken,
-  requirePermission('purchase:orders:update'),
+  requirePermission(['purchase:orders:pushdown', 'purchase:orders:update']),
   purchaseOrderController.updateOrderItemsReceived
 );
 router.post(
   '/orders/:id/receive-with-inspection',
   authenticateToken,
-  requirePermission('purchase:orders:update'),
+  requirePermission(['purchase:orders:pushdown', 'purchase:orders:update']),
   purchaseOrderController.receiveWithIncomingInspection
 );
 router.get('/orders-statistics', authenticateToken, requirePermission('purchase:reports:view'), purchaseOrderController.getStatistics);

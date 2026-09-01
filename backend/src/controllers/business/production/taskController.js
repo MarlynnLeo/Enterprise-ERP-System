@@ -1370,47 +1370,73 @@ exports.completeTask = async (req, res) => {
       const operatorId = getAuthenticatedUserId(req);
       const operatorName = await getCurrentUserName(req);
 
-      // 从工序表中获取标准工时合计
-      let estimatedHours = 0;
+      // 多级智能回退获取标准工时合计（单件）
+      let hoursPerUnit = 0;
       try {
-        const [processHours] = await connection.query(
+        // 1. 优先查本任务关联的具体工序表 production_processes
+        const [taskProcessRows] = await connection.query(
           'SELECT COALESCE(SUM(standard_hours), 0) as total_hours FROM production_processes WHERE task_id = ?',
           [id]
         );
-        const hoursPerUnit = parseFloat(processHours[0]?.total_hours) || 0;
-        estimatedHours = hoursPerUnit * Number(quantity);
+        hoursPerUnit = parseFloat(taskProcessRows[0]?.total_hours) || 0;
+
+        // 2. 如果本任务工序未配置工时，尝试从该产品绑定的【工序模板】中获取
+        if (hoursPerUnit <= 0 && task.product_id) {
+          const [tplRows] = await connection.query(
+            `SELECT COALESCE(SUM(ptd.standard_hours), 0) as total_hours
+             FROM process_templates pt
+             JOIN process_template_details ptd ON pt.id = ptd.template_id
+             WHERE pt.product_id = ? AND pt.deleted_at IS NULL AND pt.status = 1`,
+            [task.product_id]
+          );
+          hoursPerUnit = parseFloat(tplRows[0]?.total_hours) || 0;
+        }
+
+        // 3. 如果仍为 0，尝试从该产品的【工艺路线】中获取 (分钟转小时)
+        if (hoursPerUnit <= 0 && task.product_id) {
+          const [routeRows] = await connection.query(
+            `SELECT COALESCE(SUM(prs.standard_minutes), 0) as total_minutes, pr.total_standard_minutes
+             FROM process_routes pr
+             LEFT JOIN process_route_steps prs ON pr.id = prs.route_id
+             WHERE pr.product_id = ? AND pr.deleted_at IS NULL AND pr.is_active = 1
+             GROUP BY pr.id, pr.total_standard_minutes
+             LIMIT 1`,
+            [task.product_id]
+          );
+          if (routeRows.length > 0) {
+            const minutes = parseFloat(routeRows[0].total_minutes) || parseFloat(routeRows[0].total_standard_minutes) || 0;
+            hoursPerUnit = minutes / 60;
+          }
+        }
       } catch (phErr) {
-        throw new Error(`获取工序标准工时失败: ${phErr.message}`, { cause: phErr });
+        logger.warn(`获取工序标准工时异常，将以 0 工时继续报工: ${phErr.message}`);
       }
 
-      if (estimatedHours <= 0) {
-        throw new Error(
-          '工序标准工时未配置，无法自动创建报工记录，请先在【基础数据 - 工序管理】中配置工时'
-        );
-      } else {
-        await connection.query(
-          `INSERT INTO production_reports
-           (report_no, task_id, operator_id, operator_name, report_time, report_quantity,
-            completed_quantity, qualified_quantity, defective_quantity, unqualified_quantity,
-            work_hours, remarks, created_at)
-           VALUES (?, ?, ?, ?, NOW(), ?, ?, ?, 0, 0, ?, ?, NOW())`,
-          [
-            reportNo,
-            id,
-            operatorId,
-            operatorName,
-            quantity,
-            quantity,
-            quantity,
-            estimatedHours,
-            `自动完工生成: ${remark || ''}`,
-          ]
-        );
-        logger.info(`任务 ${task.code} 自动创建报工记录成功，工时: ${estimatedHours}h`);
-      }
+      const estimatedHours = Number((hoursPerUnit * Number(quantity)).toFixed(2)) || 0;
+
+      await connection.query(
+        `INSERT INTO production_reports
+         (report_no, task_id, operator_id, operator_name, report_time, report_quantity,
+          completed_quantity, qualified_quantity, defective_quantity, unqualified_quantity,
+          work_hours, remarks, created_at)
+         VALUES (?, ?, ?, ?, NOW(), ?, ?, ?, 0, 0, ?, ?, NOW())`,
+        [
+          reportNo,
+          id,
+          operatorId,
+          operatorName,
+          quantity,
+          quantity,
+          quantity,
+          estimatedHours,
+          estimatedHours > 0
+            ? `自动完工生成: ${remark || ''}`
+            : `自动完工生成(未配置工时，工时记录为0): ${remark || ''}`,
+        ]
+      );
+      logger.info(`任务 ${task.code} 自动创建报工记录成功，工时: ${estimatedHours}h`);
     } catch (reportError) {
-      logger.error('自动创建报工记录失败:', reportError);
-      throw reportError;
+      logger.error('自动创建报工记录失败（不阻断完工流程）:', reportError);
     }
     // ===== 报工记录结束 =====
 

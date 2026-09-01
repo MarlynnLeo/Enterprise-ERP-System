@@ -516,7 +516,7 @@ const handleCopyMaterial = async () => {
     const copyData = { ...fullData };
     delete copyData.id;
     copyData.code = '';  // 清空编码，fillFormData 检测到复制模式会自动生成
-    copyData.name = (copyData.name || '') + ' (副本)';
+    copyData.name = copyData.name || '';
     // 保留所有关联ID字段：product_category_id, category_id, unit_id,
     // supplier_id, location_id, inspection_method_id, material_source_id 等
 

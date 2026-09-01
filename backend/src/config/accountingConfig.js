@@ -45,13 +45,13 @@ const DEFAULT_ACCOUNT_CODES = {
   // ==================== 负债类 ====================
   SHORT_TERM_LOANS: process.env.ACCOUNT_SHORT_TERM_LOANS || '2001', // 短期借款
   ACCOUNTS_PAYABLE: process.env.ACCOUNT_AP || '2202', // 应付账款
-  ADVANCE_RECEIPTS: process.env.ACCOUNT_ADVANCE_RECEIPTS || '2131', // 预收账款
-  EMPLOYEE_PAYABLE: process.env.ACCOUNT_EMPLOYEE_PAYABLE || '2201', // 应付职工薪酬
+  ADVANCE_RECEIPTS: process.env.ACCOUNT_ADVANCE_RECEIPTS || '2203', // 预收账款
+  EMPLOYEE_PAYABLE: process.env.ACCOUNT_EMPLOYEE_PAYABLE || '2211', // 应付职工薪酬
   TAX_PAYABLE: process.env.ACCOUNT_TAX_PAYABLE || '2221', // 应交税费（总类）
   // 进项/销项必须用明细科目，禁止默认落到 2221 总类（否则辅助核算与税务申报不专业）
-  VAT_INPUT_TAX: process.env.ACCOUNT_VAT_INPUT_TAX || '222101', // 应交增值税-进项税额
-  VAT_OUTPUT_TAX: process.env.ACCOUNT_VAT_OUTPUT_TAX || '222102', // 应交增值税-销项税额
-  VAT_PAYABLE: process.env.ACCOUNT_VAT_PAYABLE || '222103', // 应交增值税
+  VAT_INPUT_TAX: process.env.ACCOUNT_VAT_INPUT_TAX || '222101001', // 应交增值税-进项税额
+  VAT_OUTPUT_TAX: process.env.ACCOUNT_VAT_OUTPUT_TAX || '222101005', // 应交增值税-销项税额
+  VAT_PAYABLE: process.env.ACCOUNT_VAT_PAYABLE || '222101', // 应交增值税
   LONG_TERM_LOANS: process.env.ACCOUNT_LONG_TERM_LOANS || '2501', // 长期借款
 
   // ==================== 所有者权益类 ====================
@@ -62,23 +62,23 @@ const DEFAULT_ACCOUNT_CODES = {
   RETAINED_EARNINGS: process.env.ACCOUNT_RETAINED_EARNINGS || '3104', // 利润分配
 
   // ==================== 成本类 ====================
-  PRODUCTION_COST: process.env.ACCOUNT_PRODUCTION_COST || '5001', // 生产成本
-  MANUFACTURING_EXPENSE: process.env.ACCOUNT_MANUFACTURING || '5101', // 制造费用
+  PRODUCTION_COST: process.env.ACCOUNT_PRODUCTION_COST || '4001', // 生产成本
+  MANUFACTURING_EXPENSE: process.env.ACCOUNT_MANUFACTURING || '4101', // 制造费用
 
   // ==================== 收入类 ====================
-  SALES_REVENUE: process.env.ACCOUNT_SALES_REVENUE || '6001', // 主营业务收入
-  OTHER_REVENUE: process.env.ACCOUNT_OTHER_REVENUE || '6051', // 其他业务收入
-  NON_OPERATING_INCOME: process.env.ACCOUNT_NON_OPERATING_INCOME || '5401', // 营业外收入
+  SALES_REVENUE: process.env.ACCOUNT_SALES_REVENUE || '5001', // 主营业务收入
+  OTHER_REVENUE: process.env.ACCOUNT_OTHER_REVENUE || '5051', // 其他业务收入
+  NON_OPERATING_INCOME: process.env.ACCOUNT_NON_OPERATING_INCOME || '5301', // 营业外收入
 
   // ==================== 费用类（成本类） ====================
-  SALES_COST: process.env.ACCOUNT_SALES_COST || '6401', // 主营业务成本
-  COST_OF_GOODS_SOLD: process.env.ACCOUNT_COGS || '6401', // 销售成本（别名）
-  OTHER_COST: process.env.ACCOUNT_OTHER_COST || '6402', // 其他业务成本
-  SALES_EXPENSE: process.env.ACCOUNT_SALES_EXPENSE || '6601', // 销售费用
-  ADMIN_EXPENSE: process.env.ACCOUNT_ADMIN_EXPENSE || '6201', // 管理费用
-  FINANCE_EXPENSE: process.env.ACCOUNT_FINANCE_EXPENSE || '6603', // 财务费用
-  DEPRECIATION_EXPENSE: process.env.ACCOUNT_DEPRECIATION_EXP || '6602', // 折旧费用
-  NON_OPERATING_EXPENSE: process.env.ACCOUNT_NON_OPERATING_EXPENSE || '6501', // 营业外支出
+  SALES_COST: process.env.ACCOUNT_SALES_COST || '5401', // 主营业务成本
+  COST_OF_GOODS_SOLD: process.env.ACCOUNT_COGS || '5401', // 销售成本（别名）
+  OTHER_COST: process.env.ACCOUNT_OTHER_COST || '5402', // 其他业务成本
+  SALES_EXPENSE: process.env.ACCOUNT_SALES_EXPENSE || '5601', // 销售费用
+  ADMIN_EXPENSE: process.env.ACCOUNT_ADMIN_EXPENSE || '5602', // 管理费用
+  FINANCE_EXPENSE: process.env.ACCOUNT_FINANCE_EXPENSE || '5603', // 财务费用
+  DEPRECIATION_EXPENSE: process.env.ACCOUNT_DEPRECIATION_EXP || '5602', // 折旧费用
+  NON_OPERATING_EXPENSE: process.env.ACCOUNT_NON_OPERATING_EXPENSE || '5711', // 营业外支出
   ASSET_IMPAIRMENT_LOSS: process.env.ACCOUNT_ASSET_IMPAIRMENT_LOSS || '6702', // 资产减值损失
 
   // ==================== 别名映射 ====================
@@ -88,9 +88,9 @@ const DEFAULT_ACCOUNT_CODES = {
 };
 
 DEFAULT_ACCOUNT_CODES.WORK_IN_PROCESS =
-  process.env.ACCOUNT_WORK_IN_PROCESS || process.env.ACCOUNT_WIP || '1409';
+  process.env.ACCOUNT_WORK_IN_PROCESS || process.env.ACCOUNT_WIP || '4001';
 DEFAULT_ACCOUNT_CODES.WIP =
-  process.env.ACCOUNT_WIP || process.env.ACCOUNT_WORK_IN_PROCESS || '1409';
+  process.env.ACCOUNT_WIP || process.env.ACCOUNT_WORK_IN_PROCESS || '4001';
 
 /**
  * 会计科目配置类

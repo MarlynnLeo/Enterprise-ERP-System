@@ -101,11 +101,12 @@
     <el-card class="data-card">
       <el-table
         :data="entriesList"
-        class="w-full"
+        class="table-row-click w-full"
         row-key="id"
         border
         v-loading="loading"
         @expand-change="handleExpandChange"
+        @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewEntry(row))"
       >
         <el-table-column type="expand">
           <template #default="props">
@@ -114,8 +115,7 @@
                 <h4>凭证明细</h4>
                 <span class="expanded-row-description">{{ props.row.description }}</span>
               </div>
-              <el-table :data="props.row.items || []" border class="table-row-click w-full inner-table"
-      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewEntry(row))">
+              <el-table :data="props.row.items || []" border class="w-full inner-table">
                 <el-table-column prop="accountCode" label="科目编码" width="120"></el-table-column>
                 <el-table-column prop="accountName" label="科目名称" width="180"></el-table-column>
                 <el-table-column prop="debitAmount" label="借方金额" width="150">

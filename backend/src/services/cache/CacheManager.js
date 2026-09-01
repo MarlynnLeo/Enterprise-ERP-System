@@ -161,7 +161,7 @@ class CacheManager {
         }
 
         if (keys.length > 0) {
-          await redisCacheService.client.del(keys);
+          await redisCacheService.client.del(...keys);
           logger.debug(`Delete Redis cache by prefix: ${prefix} (${keys.length} keys)`);
         }
         return keys.length;

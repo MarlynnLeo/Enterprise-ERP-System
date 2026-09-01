@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * ProductionProcess.vue
  * @description 生产过程管理页面
@@ -843,6 +843,11 @@ const formatQuantity = (val) => {
 }
 import { baseDataApi, commonApi, financeApi, inventoryApi, productionApi } from '@/api'
 import { parseListData } from '@/utils/responseParser'
+import { getProductionStatusText, getProductionStatusColor } from '@/constants/systemConstants'
+
+// 工序状态标签（统一调用配置中心）
+const getStatusType = (status) => getProductionStatusColor(status)
+const getStatusText = (status) => getProductionStatusText(status)
 import { useAuthStore } from '@/stores/auth'
 import { buildResourceUrl } from '@/config/app'
 // 权限store
@@ -1384,23 +1389,8 @@ const fetchTaskList = async () => {
   }
 }
 
-import { getProductionStatusColor } from '@/constants/systemConstants'
-// 统一状态颜色（工序和任务共用）
-const getStatusType = (status) => {
-  return getProductionStatusColor(status)
-}
 // 任务状态颜色复用
 const getTaskStatusType = getStatusType
-
-// 工序状态文本
-const getStatusText = (status) => {
-  const statusMap = {
-    pending: '待开始',
-    in_progress: '生产中',
-    completed: '已完成'
-  }
-  return statusMap[status] || status
-}
 
 // 任务状态自定义样式类 - 用于生产中/待检验的特殊颜色
 const getTaskStatusClass = (status) => {

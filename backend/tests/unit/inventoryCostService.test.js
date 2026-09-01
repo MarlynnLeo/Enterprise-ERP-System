@@ -37,4 +37,19 @@ describe('InventoryCostService moving average', () => {
 
     expect(result).toBe(18.75);
   });
+
+  test('uses the frozen posting line in cost document identity', () => {
+    const first = InventoryCostService.buildCostDocumentNumber(
+      { reference_no: 'GR-100', material_id: 7, posting_line_id: 11 },
+      'IN'
+    );
+    const second = InventoryCostService.buildCostDocumentNumber(
+      { reference_no: 'GR-100', material_id: 7, posting_line_id: 12 },
+      'IN'
+    );
+
+    expect(first).toBe('GR-100-M7-L11');
+    expect(second).toBe('GR-100-M7-L12');
+    expect(first).not.toBe(second);
+  });
 });

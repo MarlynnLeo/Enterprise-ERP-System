@@ -103,7 +103,13 @@ export const inventoryApi = {
     createOutbound: (data) => api.post('/inventory/outbound', data),
 
     // 更新出库单
-    updateOutbound: (data) => api.put(`/inventory/outbound/${data.id}`, data),
+    updateOutbound: (data) => {
+      const id = data?.id;
+      if (!id || id === 'undefined' || id === 'null') {
+        return Promise.reject(new Error('缺少有效的出库单ID'));
+      }
+      return api.put(`/inventory/outbound/${id}`, data);
+    },
 
     // 获取出库单列表
     getOutboundList: (params) => api.get('/inventory/outbound', {
@@ -118,13 +124,44 @@ export const inventoryApi = {
     }),
 
     // 获取出库单详情
-    getOutbound: (id) => api.get(`/inventory/outbound/${id}`),
+    getOutbound: (id) => {
+      if (!id || id === 'undefined' || id === 'null') {
+        return Promise.reject(new Error('缺少有效的出库单ID'));
+      }
+      return api.get(`/inventory/outbound/${id}`);
+    },
 
     // 删除出库单
-    deleteOutbound: (id) => api.delete(`/inventory/outbound/${id}`),
+    deleteOutbound: (id) => {
+      if (!id || id === 'undefined' || id === 'null') {
+        return Promise.reject(new Error('缺少有效的出库单ID'));
+      }
+      return api.delete(`/inventory/outbound/${id}`);
+    },
 
     // 更新出库单状态
-    updateOutboundStatus: (id, newStatus) => api.put(`/inventory/outbound/${id}/status`, { newStatus }),
+    updateOutboundStatus: (id, newStatus) => {
+      if (!id || id === 'undefined' || id === 'null') {
+        return Promise.reject(new Error('缺少有效的出库单ID'));
+      }
+      return api.put(`/inventory/outbound/${id}/status`, { newStatus });
+    },
+
+    // 撤销出库
+    cancelOutbound: (id, data = {}) => {
+      if (!id || id === 'undefined' || id === 'null') {
+        return Promise.reject(new Error('缺少有效的出库单ID'));
+      }
+      return api.post(`/inventory/outbound/${id}/cancel`, data);
+    },
+
+    // 补发出库
+    supplementOutbound: (id, data = {}) => {
+      if (!id || id === 'undefined' || id === 'null') {
+        return Promise.reject(new Error('缺少有效的出库单ID'));
+      }
+      return api.post(`/inventory/outbound/${id}/supplement`, data);
+    },
 
     // 批量更新出库单状态
     batchUpdateOutboundStatus: (ids, newStatus) => api.put('/inventory/outbound/batch-status', { ids, newStatus }),

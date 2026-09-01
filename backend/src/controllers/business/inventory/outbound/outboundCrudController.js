@@ -126,7 +126,13 @@ const getOutboundList = async (req, res) => {
         COUNT(DISTINCT oi.id) as items_count,
         COALESCE(SUM(oi.quantity), 0) as total_quantity,
         CASE WHEN COUNT(DISTINCT mu.id) = 1 THEN MAX(mu.name) ELSE NULL END as item_unit_name,
-        o.outbound_type,
+        CASE
+          WHEN o.outbound_type IS NOT NULL AND o.outbound_type != '' AND o.outbound_type NOT IN ('manual', 'other') THEN o.outbound_type
+          WHEN o.production_task_id IS NOT NULL OR o.reference_type = 'production_task' THEN 'production'
+          WHEN o.sales_order_id IS NOT NULL OR o.reference_type = 'sales_order' THEN 'sales'
+          WHEN o.reference_type = 'outsourced' THEN 'outsourced'
+          ELSE COALESCE(o.outbound_type, 'manual')
+        END as outbound_type,
         o.reference_id,
         o.reference_type
       FROM inventory_outbound o
@@ -300,7 +306,13 @@ const exportOutbound = async (req, res) => {
         o.outbound_no,
         DATE_FORMAT(o.outbound_date, '%Y-%m-%d') as outbound_date,
         o.status,
-        o.outbound_type,
+        CASE
+          WHEN o.outbound_type IS NOT NULL AND o.outbound_type != '' AND o.outbound_type NOT IN ('manual', 'other') THEN o.outbound_type
+          WHEN o.production_task_id IS NOT NULL OR o.reference_type = 'production_task' THEN 'production'
+          WHEN o.sales_order_id IS NOT NULL OR o.reference_type = 'sales_order' THEN 'sales'
+          WHEN o.reference_type = 'outsourced' THEN 'outsourced'
+          ELSE COALESCE(o.outbound_type, 'manual')
+        END as outbound_type,
         o.reference_type,
         o.reference_id,
         COALESCE(
@@ -547,6 +559,10 @@ const updateOutbound = async (req, res) => {
   const connection = await db.pool.getConnection();
   try {
     const { id } = req.params;
+    const numericId = Number(id);
+    if (!Number.isInteger(numericId) || numericId <= 0) {
+      return ResponseHandler.error(res, '无效的出库单ID', 'VALIDATION_ERROR', 400);
+    }
     const { outbound_date, status, operator, remark = null, items } = mapKeysToSnake(req.body || {});
 
     if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'inventory_outbound', id, '无权修改该出库单'))) {
@@ -645,30 +661,37 @@ const updateOutbound = async (req, res) => {
       await connection.execute('DELETE FROM inventory_outbound_items WHERE outbound_id = ?', [id]);
 
       // 批量预取物料信息（消除循环内 N+1 查询）
-      const itemMaterialIds = items.map(i => i.material_id);
+      const itemMaterialIds = items.map((i) => Number(i.material_id)).filter((id) => Number.isInteger(id) && id > 0);
       const itemMaterialInfoMap = await InventoryService.getBatchMaterialInfo(itemMaterialIds, connection);
 
       // 重新插入明细
       for (const item of items) {
-        if (!item.material_id || !item.quantity || item.quantity <= 0) {
+        const materialId = Number(item.material_id);
+        const quantity = parseFloat(item.quantity);
+        if (!materialId || isNaN(quantity) || quantity <= 0) {
           throw new Error('物料信息不完整或数量无效');
         }
 
-        const matInfo = itemMaterialInfoMap.get(item.material_id);
+        const matInfo = itemMaterialInfoMap.get(materialId);
+        if (!matInfo) {
+          throw new Error(`物料 ${materialId} 不存在或已被停用`);
+        }
 
         // 如果没有提供单位，使用物料的默认单位
-        const unitId = item.unit_id || matInfo.unitId;
+        const unitId = item.unit_id ? Number(item.unit_id) : matInfo.unitId;
 
         // 直接使用物料表中的location_id
         const locationId = matInfo.locationId;
 
         if (!locationId) {
-          throw new Error(`物料 ${item.material_id} 未配置默认仓库，请在【物料管理】中设置存放仓库后再操作`);
+          throw new Error(`物料 ${matInfo.code || materialId} 未配置默认仓库，请在【物料管理】中设置存放仓库后再操作`);
         }
 
+        const itemRemark = item.remark ?? item.remarks ?? null;
+
         await connection.execute(
-          'INSERT INTO inventory_outbound_items (outbound_id, material_id, quantity, unit_id, remark) VALUES (?, ?, ?, ?, ?)',
-          [id, item.material_id, item.quantity, unitId, item.remark]
+          'INSERT INTO inventory_outbound_items (outbound_id, material_id, quantity, planned_quantity, actual_quantity, unit_id, remark) VALUES (?, ?, ?, ?, 0, ?, ?)',
+          [id, materialId, quantity, item.planned_quantity != null ? parseFloat(item.planned_quantity) : quantity, unitId, itemRemark]
         );
       }
     } else {
@@ -702,7 +725,7 @@ const updateOutbound = async (req, res) => {
   } catch (error) {
     await connection.rollback();
     logger.error('更新出库单失败:', error);
-    ResponseHandler.error(res, '更新出库单失败', 'SERVER_ERROR', 500, error);
+    ResponseHandler.error(res, error.message || '更新出库单失败', 'UPDATE_FAILED', 400, error);
   } finally {
     connection.release();
   }

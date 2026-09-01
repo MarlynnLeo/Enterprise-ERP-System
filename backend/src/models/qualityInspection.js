@@ -451,6 +451,29 @@ class QualityInspection {
         `;
         const [items] = await connection.query(itemsQuery, [inspectionId]);
 
+        if (items.length > 0) {
+          const itemIds = items.map((item) => item.id);
+          const placeholders = itemIds.map(() => '?').join(',');
+          const [measurementRows] = await connection.query(
+            `SELECT item_id, sample_no, measured_value, measured_by,
+                    is_qualified, measured_at
+               FROM quality_inspection_measurements
+              WHERE item_id IN (${placeholders})
+              ORDER BY item_id, sample_no`,
+            itemIds
+          );
+          const measurementsByItem = new Map();
+          for (const measurement of measurementRows) {
+            if (!measurementsByItem.has(measurement.item_id)) {
+              measurementsByItem.set(measurement.item_id, []);
+            }
+            measurementsByItem.get(measurement.item_id).push(measurement);
+          }
+          for (const item of items) {
+            item.measurements = measurementsByItem.get(item.id) || [];
+          }
+        }
+
         return {
           ...rows[0],
           items,
@@ -778,10 +801,11 @@ class QualityInspection {
 
           // 同时写入动态测量子表 (quality_inspection_measurements)
           const insertedItemId = itemResultDb.insertId;
-          const measurements = item.measurements || [];
-          // 优先使用 measurements 数组，其次回退到 measure_1~6
+          const measurements = Array.isArray(item.measurements) ? item.measurements.slice(0, 5) : [];
+          // 优先使用 measurements 数组，其次回退到 measure_1~5
           if (measurements.length > 0) {
             for (const m of measurements) {
+              if (m?.measured_value === null || m?.measured_value === undefined || m?.measured_value === '') continue;
               await connection.query(
                 `INSERT INTO quality_inspection_measurements (item_id, sample_no, measured_value, measured_by)
                  VALUES (?, ?, ?, ?)`,
@@ -789,10 +813,10 @@ class QualityInspection {
               );
             }
           } else {
-            // 回退: 从 measure_1~6 写入
-            for (let si = 1; si <= 6; si++) {
+            // 回退: 从 measure_1~5 写入
+            for (let si = 1; si <= 5; si++) {
               const val = item[`measure_${si}`];
-              if (val !== null && val !== undefined) {
+              if (val !== null && val !== undefined && val !== '') {
                 await connection.query(
                   `INSERT INTO quality_inspection_measurements (item_id, sample_no, measured_value)
                    VALUES (?, ?, ?)`,
@@ -927,6 +951,12 @@ class QualityInspection {
         // 如果有检验项，更新检验项
         if (data.items && data.items.length > 0) {
           // 先删除旧的检验项
+          await connection.execute(
+            `DELETE qim FROM quality_inspection_measurements qim
+               INNER JOIN quality_inspection_items qii ON qii.id = qim.item_id
+              WHERE qii.inspection_id = ?`,
+            [id]
+          );
           await connection.execute('DELETE FROM quality_inspection_items WHERE inspection_id = ?', [
             id,
           ]);
@@ -971,9 +1001,10 @@ class QualityInspection {
 
             // 同时写入动态测量子表
             const updatedItemId = updatedItemResult.insertId;
-            const measurements = item.measurements || [];
+            const measurements = Array.isArray(item.measurements) ? item.measurements.slice(0, 5) : [];
             if (measurements.length > 0) {
               for (const m of measurements) {
+                if (m?.measured_value === null || m?.measured_value === undefined || m?.measured_value === '') continue;
                 await connection.execute(
                   `INSERT INTO quality_inspection_measurements (item_id, sample_no, measured_value, measured_by)
                    VALUES (?, ?, ?, ?)`,
@@ -981,9 +1012,9 @@ class QualityInspection {
                 );
               }
             } else {
-              for (let si = 1; si <= 6; si++) {
+              for (let si = 1; si <= 5; si++) {
                 const val = item[`measure_${si}`];
-                if (val !== null && val !== undefined) {
+                if (val !== null && val !== undefined && val !== '') {
                   await connection.execute(
                     `INSERT INTO quality_inspection_measurements (item_id, sample_no, measured_value)
                      VALUES (?, ?, ?)`,

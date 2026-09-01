@@ -82,20 +82,14 @@ class PermissionChangeService {
       [roleId]
     );
     const menuIds = menuRows.map((r) => Number(r.menu_id));
-    let permissions;
-    try {
-      const [permRows] = await pool.execute(
-        `SELECT p.code FROM permissions p
-           JOIN role_permissions rp ON rp.permission_id = p.id
-          WHERE rp.role_id = ? AND p.status = 1
-          ORDER BY p.code`,
-        [roleId]
-      );
-      permissions = permRows.map((r) => r.code);
-    } catch {
-      const resolved = await this.resolveMenuPermissions(menuIds);
-      permissions = resolved.permissions;
-    }
+    const [permRows] = await pool.execute(
+      `SELECT p.code FROM permissions p
+         JOIN role_permissions rp ON rp.permission_id = p.id
+        WHERE rp.role_id = ? AND p.status = 1
+        ORDER BY p.code`,
+      [roleId]
+    );
+    const permissions = permRows.map((row) => row.code);
     return {
       id: role.id,
       name: role.name,

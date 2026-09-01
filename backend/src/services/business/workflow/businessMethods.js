@@ -122,7 +122,14 @@ module.exports = {
 
       candidateIds = [...new Set(candidateIds.filter((id) => Number.isInteger(id) && id > 0))];
       const allowSelf = templateNode.approver_type === 'self' || Boolean(templateNode.allow_self_approval);
-      if (!allowSelf) candidateIds = candidateIds.filter((id) => id !== Number(initiatorId));
+      if (!allowSelf) {
+        const nonSelf = candidateIds.filter((id) => id !== Number(initiatorId));
+        if (nonSelf.length > 0) {
+          candidateIds = nonSelf;
+        } else {
+          logger.warn(`审批节点 ${nodeId} (${label}) 无其他审批候选人，已自动降级允许发起人 [${initiatorId}] 审批`);
+        }
+      }
       const authorizedIds = [];
       for (const candidateId of candidateIds) {
         const [[access]] = await conn.query(
@@ -140,6 +147,23 @@ module.exports = {
         if (access) authorizedIds.push(candidateId);
       }
       candidateIds = authorizedIds;
+
+      // 若仍无可用审批人，兜底指派给系统活跃的超级管理员
+      if (!candidateIds.length) {
+        const [adminUsers] = await conn.query(
+          `SELECT DISTINCT u.id
+           FROM users u
+           JOIN user_roles ur ON ur.user_id = u.id
+           JOIN roles r ON r.id = ur.role_id AND r.status = 1
+           WHERE (r.is_super_admin = 1 OR r.code = 'admin') AND u.status = 1
+           ORDER BY u.id LIMIT 3`
+        );
+        if (adminUsers.length > 0) {
+          candidateIds = adminUsers.map((a) => Number(a.id));
+          logger.warn(`审批节点 ${nodeId} (${label}) 无匹配审批人，已自动兜底指派给系统管理员 [${candidateIds.join(',')}]`);
+        }
+      }
+
       if (!candidateIds.length) {
         throw new Error(`审批节点 ${nodeId} 无可用审批人：请检查账号状态、职责分离和审批中心权限`);
       }

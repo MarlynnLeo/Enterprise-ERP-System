@@ -281,12 +281,16 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
         includeAll: true
       })
       const suggestions = searchResults.map(item => ({
-        value: item.code || '无编码', code: item.code || '无编码',
-        name: item.name || '未命名',
+        value: item.code || '无编码',
+        code: item.code || '无编码',
+        name: item.name || item.materialName || '未命名',
         specs: item.specification || item.specs || '',
-        stockQuantity: item.stockQuantity || 0, id: item.id,
-        unitName: item.unitName || '个', unitId: item.unitId,
-        price: item.price ?? null
+        stockQuantity: item.stockQuantity || 0,
+        id: item.id,
+        unitName: item.unitName || item.unit || '个',
+        unitId: item.unitId,
+        price: item.price ?? item.salePrice ?? item.salesPrice ?? null,
+        taxRate: item.taxRate ?? null
       }))
       filteredProducts.value = suggestions
       callback(suggestions)
@@ -304,20 +308,31 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
       return
     }
     form.items[index].materialId = materialId
-    form.items[index].code = item.code
-    form.items[index].materialCode = item.code
-    form.items[index].name = item.name
-    form.items[index].materialName = item.name
-    form.items[index].specification = item.specs
-    form.items[index].unitName = item.unitName
-    form.items[index].unitId = item.unitId
-    const defaultPrice = toNumberOrNull(item.price)
+    form.items[index].code = item.code || ''
+    form.items[index].materialCode = item.code || ''
+    form.items[index].name = item.name || item.materialName || ''
+    form.items[index].materialName = item.name || item.materialName || ''
+    form.items[index].specification = item.specs || item.specification || ''
+    form.items[index].unitName = item.unitName || item.unit || '个'
+    form.items[index].unitId = item.unitId || null
+
+    if (item.taxRate !== undefined && item.taxRate !== null && !isNaN(Number(item.taxRate))) {
+      form.items[index].taxRate = normalizeTaxRate(item.taxRate, defaultVATRate.value)
+    }
+
+    const defaultPrice = toNumberOrNull(item.price ?? item.salePrice ?? item.salesPrice)
     if (defaultPrice !== null && defaultPrice > 0) {
       form.items[index].unitPrice = defaultPrice
-      const quantity = parseFloat(form.items[index].quantity) || 0
-      form.items[index].amount = quantity * defaultPrice
-      calculateTotalAmount()
+      ElMessage.success({
+        message: `已自动获取 ${item.code} 销售指导价: ¥${Number(defaultPrice).toFixed(2)}`,
+        duration: 2000
+      })
+    } else {
+      form.items[index].unitPrice = ''
     }
+
+    calculateItemAmount(index)
+
     nextTick(() => {
       const quantityInput = quantityInputRefs.value[index]
       if (quantityInput) quantityInput.focus()
@@ -361,11 +376,15 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
       })
       if (exactMatch) {
         const materialItem = {
-          id: exactMatch.id, code: exactMatch.code || exactMatch.materialCode || '',
+          id: exactMatch.id,
+          code: exactMatch.code || exactMatch.materialCode || '',
           name: exactMatch.name || exactMatch.materialName || '',
           specs: exactMatch.specs || exactMatch.specification || '',
           stockQuantity: exactMatch.stockQuantity || 0,
-          unitName: exactMatch.unitName || exactMatch.unit || '', unitId: exactMatch.unitId
+          unitName: exactMatch.unitName || exactMatch.unit || '个',
+          unitId: exactMatch.unitId,
+          price: exactMatch.price ?? exactMatch.salePrice ?? exactMatch.salesPrice ?? null,
+          taxRate: exactMatch.taxRate ?? null
         }
         handleMaterialSelect(materialItem, index); return
       }

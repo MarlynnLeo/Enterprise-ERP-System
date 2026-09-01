@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * Performance.vue
  * @description 前端界面组件文件
@@ -68,7 +68,7 @@
           <el-table-column prop="endDate" label="结束日期" width="120" />
           <el-table-column prop="status" label="状态" width="100">
             <template #default="{ row }">
-              <el-tag :type="periodStatusTag[row.status]" size="small">{{ periodStatusLabel[row.status] }}</el-tag>
+              <el-tag :type="getPerformancePeriodStatusColor(row.status)" size="small">{{ getPerformancePeriodStatusText(row.status) }}</el-tag>
             </template>
           </el-table-column>
           <el-table-column label="操作" min-width="200" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
@@ -100,7 +100,7 @@
             <template #default="{ row }"><el-tag v-if="row.grade" :type="gradeTag[row.grade] || 'info'" size="small">{{ row.grade }}</el-tag></template>
           </el-table-column>
           <el-table-column prop="status" label="状态" width="100">
-            <template #default="{ row }"><el-tag :type="evalStatusTag[row.status] || 'info'" size="small">{{ evalStatusLabel[row.status] || row.status }}</el-tag></template>
+            <template #default="{ row }"><el-tag :type="getPerformanceEvalStatusColor(row.status)" size="small">{{ getPerformanceEvalStatusText(row.status) }}</el-tag></template>
           </el-table-column>
           <el-table-column prop="evaluatorName" label="考核人" width="100" />
           <el-table-column label="操作" min-width="120" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
@@ -185,6 +185,12 @@ import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Edit, Delete, VideoPlay, Check } from '@element-plus/icons-vue'
 import { performanceApi } from '@/api/enhanced'
+import {
+  getPerformancePeriodStatusText,
+  getPerformancePeriodStatusColor,
+  getPerformanceEvalStatusText,
+  getPerformanceEvalStatusColor
+} from '@/constants/systemConstants'
 
 const activeTab = ref('indicators')
 const loading = ref(false)
@@ -200,10 +206,6 @@ const periodForm = ref({})
 
 const catLabel = { work_quality:'工作质量', work_quantity:'工作数量', work_attitude:'工作态度', skill:'技能', other:'其他' }
 const periodTypeLabel = { monthly:'月度', quarterly:'季度', semi_annual:'半年度', annual:'年度' }
-const periodStatusLabel = { draft:'草稿', in_progress:'进行中', scoring:'评分中', completed:'已完成', archived:'已归档' }
-const periodStatusTag = { draft:'info', in_progress:'primary', scoring:'warning', completed:'success', archived:'info' }
-const evalStatusLabel = { draft:'草稿', self_evaluation:'自评中', manager_scoring:'上级评分', completed:'已完成' }
-const evalStatusTag = { draft:'info', self_evaluation:'warning', manager_scoring:'primary', completed:'success' }
 const gradeTag = { S:'danger', A:'success', B:'primary', C:'warning', D:'info' }
 
 const fetchData = async () => {

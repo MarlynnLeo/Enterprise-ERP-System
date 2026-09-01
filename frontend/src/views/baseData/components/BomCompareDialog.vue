@@ -273,8 +273,18 @@ const computeDiff = (bomA, bomB) => {
         const detB = mapB.get(matId)
         const changes = []
 
-        if (Number(detA.quantity) !== Number(detB.quantity)) {
-          changes.push(`用量: ${detB.quantity} → ${detA.quantity}`)
+        const baseA = Number(detA.baseQuantity) > 0 ? Number(detA.baseQuantity) : 1
+        const baseB = Number(detB.baseQuantity) > 0 ? Number(detB.baseQuantity) : 1
+        const critA = Boolean(detA.isCritical)
+        const critB = Boolean(detB.isCritical)
+
+        if (Number(detA.quantity) !== Number(detB.quantity) || baseA !== baseB) {
+          const textA = baseA > 1 ? `${detA.quantity}(每${baseA})` : `${detA.quantity}`
+          const textB = baseB > 1 ? `${detB.quantity}(每${baseB})` : `${detB.quantity}`
+          changes.push(`用量/基数: ${textB} → ${textA}`)
+        }
+        if (critA !== critB) {
+          changes.push(`关键件: ${critB ? '是' : '否'} → ${critA ? '是' : '否'}`)
         }
         if ((detA.remark || '') !== (detB.remark || '')) {
           changes.push('备注变更')

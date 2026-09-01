@@ -41,18 +41,19 @@
   padding: 0 !important;
 }
 
-.module-page > :where(.header-card, .search-card, .action-card, .data-card, .empty-card, .dashboard-card, .chart-card, .info-card, .box-card) {
-  margin-bottom: 20px !important;
+.module-page
+  > :where(.header-card, .search-card, .action-card, .data-card, .empty-card, .box-card) {
+  margin-bottom: 16px !important;
 }
 
-/* 看板/图表卡：嵌套在 grid/row 内也保持统一底边距（子卡） */
-.module-page :where(.dashboard-card, .chart-card, .info-card) {
+/* 常规业务模块信息展示卡：排除统计指标卡，避免向统计卡片泄露下边距 */
+.module-page :where(.info-card:not(.stat-card)) {
   margin-bottom: 16px;
 }
 
 /* 兼容历史 box-card 命名：等同 data-card 间距 */
 .module-page .box-card {
-  margin-bottom: 20px !important;
+  margin-bottom: 16px !important;
 }
 
 /*
@@ -281,13 +282,26 @@
    pages force body cells to one-line ellipsis. */
 .el-table .el-table__header-wrapper .el-table__header thead tr th.el-table__cell,
 .el-table .el-table__fixed-header-wrapper .el-table__header thead tr th.el-table__cell,
-.el-table .el-table__fixed-right .el-table__fixed-header-wrapper .el-table__header thead tr th.el-table__cell {
+.el-table
+  .el-table__fixed-right
+  .el-table__fixed-header-wrapper
+  .el-table__header
+  thead
+  tr
+  th.el-table__cell {
   overflow: visible !important;
 }
 
 .el-table .el-table__header-wrapper .el-table__header thead tr th.el-table__cell > .cell,
 .el-table .el-table__fixed-header-wrapper .el-table__header thead tr th.el-table__cell > .cell,
-.el-table .el-table__fixed-right .el-table__fixed-header-wrapper .el-table__header thead tr th.el-table__cell > .cell {
+.el-table
+  .el-table__fixed-right
+  .el-table__fixed-header-wrapper
+  .el-table__header
+  thead
+  tr
+  th.el-table__cell
+  > .cell {
   white-space: nowrap !important;
   overflow: visible !important;
   text-overflow: clip !important;
@@ -318,10 +332,23 @@
   z-index: calc(var(--el-table-index, 1) + 3);
 }
 
-.el-table.el-table--striped .el-table__body-wrapper tr.el-table__row--striped > td.el-table__cell.el-table-fixed-column--left,
-.el-table.el-table--striped .el-table__body-wrapper tr.el-table__row--striped > td.el-table__cell.el-table-fixed-column--right,
-.el-table.el-table--striped .el-table__fixed-body-wrapper tr.el-table__row--striped > td.el-table__cell,
-.el-table.el-table--striped .el-table__fixed-right .el-table__fixed-body-wrapper tr.el-table__row--striped > td.el-table__cell {
+.el-table.el-table--striped
+  .el-table__body-wrapper
+  tr.el-table__row--striped
+  > td.el-table__cell.el-table-fixed-column--left,
+.el-table.el-table--striped
+  .el-table__body-wrapper
+  tr.el-table__row--striped
+  > td.el-table__cell.el-table-fixed-column--right,
+.el-table.el-table--striped
+  .el-table__fixed-body-wrapper
+  tr.el-table__row--striped
+  > td.el-table__cell,
+.el-table.el-table--striped
+  .el-table__fixed-right
+  .el-table__fixed-body-wrapper
+  tr.el-table__row--striped
+  > td.el-table__cell {
   background: var(--erp-table-fixed-striped-bg) !important;
   background-color: var(--erp-table-fixed-striped-bg) !important;
 }
@@ -478,6 +505,20 @@
 }
 
 .el-table .el-table__cell.el-table-fixed-column--right.operation-column .cell > .el-button,
-.el-table .el-table__cell.el-table-fixed-column--right.operation-column .cell > .el-button + .el-button {
+.el-table
+  .el-table__cell.el-table-fixed-column--right.operation-column
+  .cell
+  > .el-button
+  + .el-button {
   margin-left: 0 !important;
+}
+
+/* ==================================================================
+   全局分割线标题白框清除（确保全站所有页面与弹窗无视觉瑕疵）
+   ================================================================== */
+.el-divider__text {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
 }

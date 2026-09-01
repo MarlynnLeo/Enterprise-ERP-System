@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="module-page scrap-records-container">
     <PageHeader title="报废记录" subtitle="报废登记与审核" />
 
@@ -470,22 +470,16 @@ const submitEdit = async () => {
   }
 }
 
+import { getScrapStatusColor, getScrapStatusText } from '@/constants/systemConstants'
+
+// 状态标签类型（统一调用配置中心）
 const getStatusType = (status) => {
-  const typeMap = {
-    pending: 'warning',
-    approved: 'primary',
-    completed: 'success'
-  }
-  return typeMap[status] || 'info'
+  return getScrapStatusColor(status)
 }
 
+// 状态标签文本（统一调用配置中心）
 const getStatusLabel = (status) => {
-  const labelMap = {
-    pending: '待审批',
-    approved: '已审批',
-    completed: '已完成'
-  }
-  return labelMap[status] || status
+  return getScrapStatusText(status)
 }
 
 onMounted(() => {

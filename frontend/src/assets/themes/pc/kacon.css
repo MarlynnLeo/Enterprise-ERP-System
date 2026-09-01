@@ -648,8 +648,9 @@
 }
 
 [data-theme="kacon"] .el-divider__text {
-  background-color: var(--color-bg-base) !important;
-  color: var(--color-text-secondary) !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  color: var(--color-text-primary) !important;
 }
 
 

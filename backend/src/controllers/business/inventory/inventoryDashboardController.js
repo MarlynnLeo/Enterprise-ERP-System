@@ -4,10 +4,9 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 
 const getDashboardSummary = async (req, res) => {
   try {
-    const ledgerFilter = { sql: '', params: [] };
     const stockLedgerFilter = { sql: '', params: [] };
 
-    // 1. 获取基础统计数据(总库存和价值)
+    // 1. 获取基础统计数据(总库存种类和总金额)
     const stockQuery = `
       SELECT
         COUNT(DISTINCT current_stock.material_id) as totalItems,
@@ -26,19 +25,31 @@ const getDashboardSummary = async (req, res) => {
     const totalItems = stockRes[0]?.totalItems || 0;
     const totalValue = stockRes[0]?.totalValue || 0;
 
-    // 2. 本月出入库单据数和物料数
-    const thisMonthQuery = `
+    // 2. 本月入库与出库单据数、物料数量（基于真实入库单与出库单表）
+    const [thisMonthInboundRes] = await db.pool.execute(`
       SELECT
-        SUM(CASE WHEN transaction_type LIKE '%in%' THEN 1 ELSE 0 END) as inbound_count,
-        SUM(CASE WHEN transaction_type LIKE '%out%' THEN 1 ELSE 0 END) as outbound_count,
-        SUM(CASE WHEN quantity > 0 THEN quantity ELSE 0 END) as inbound_items_qty,
-        SUM(CASE WHEN quantity < 0 THEN ABS(quantity) ELSE 0 END) as outbound_items_qty
-      FROM inventory_ledger
-      WHERE DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(NOW(), '%Y-%m')
-        ${ledgerFilter.sql.replace(/il\./g, '')}
-    `;
-    const [monthRes] = await db.pool.execute(thisMonthQuery, ledgerFilter.params);
-    const monthStats = monthRes[0] || {};
+        COUNT(DISTINCT ii.id) as inbound_count,
+        COALESCE(SUM(iii.quantity), 0) as inbound_items_qty
+      FROM inventory_inbound ii
+      LEFT JOIN inventory_inbound_items iii ON ii.id = iii.inbound_id
+      WHERE DATE_FORMAT(COALESCE(ii.inbound_date, ii.created_at), '%Y-%m') = DATE_FORMAT(NOW(), '%Y-%m')
+        AND (ii.status IS NULL OR ii.status != 'cancelled')
+    `);
+
+    const [thisMonthOutboundRes] = await db.pool.execute(`
+      SELECT
+        COUNT(DISTINCT io.id) as outbound_count,
+        COALESCE(SUM(ioi.quantity), 0) as outbound_items_qty
+      FROM inventory_outbound io
+      LEFT JOIN inventory_outbound_items ioi ON io.id = ioi.outbound_id
+      WHERE DATE_FORMAT(COALESCE(io.outbound_date, io.created_at), '%Y-%m') = DATE_FORMAT(NOW(), '%Y-%m')
+        AND (io.status IS NULL OR io.status != 'cancelled')
+    `);
+
+    const inboundCount = Number(thisMonthInboundRes[0]?.inbound_count) || 0;
+    const inboundItemsQty = Number(thisMonthInboundRes[0]?.inbound_items_qty) || 0;
+    const outboundCount = Number(thisMonthOutboundRes[0]?.outbound_count) || 0;
+    const outboundItemsQty = Number(thisMonthOutboundRes[0]?.outbound_items_qty) || 0;
 
     // 3. 物料分类分布
     const categoryQuery = `
@@ -52,19 +63,54 @@ const getDashboardSummary = async (req, res) => {
     `;
     const [categoryRes] = await db.pool.execute(categoryQuery);
 
-    // 4. 最近12个月的出入库趋势
-    const trendQuery = `
+    // 4. 最近12个月的出入库趋势（聚合 inventory_inbound 与 inventory_outbound）
+    const [inboundTrendRes] = await db.pool.execute(`
       SELECT
-        DATE_FORMAT(created_at, '%Y-%m') as month,
-        SUM(CASE WHEN quantity > 0 THEN quantity ELSE 0 END) as inbound_qty,
-        SUM(CASE WHEN quantity < 0 THEN ABS(quantity) ELSE 0 END) as outbound_qty
-      FROM inventory_ledger
-      WHERE created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
-        ${ledgerFilter.sql.replace(/il\./g, '')}
+        DATE_FORMAT(COALESCE(ii.inbound_date, ii.created_at), '%Y-%m') as month,
+        COALESCE(SUM(iii.quantity), 0) as inbound_qty
+      FROM inventory_inbound ii
+      LEFT JOIN inventory_inbound_items iii ON ii.id = iii.inbound_id
+      WHERE COALESCE(ii.inbound_date, ii.created_at) >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
+        AND (ii.status IS NULL OR ii.status != 'cancelled')
       GROUP BY month
-      ORDER BY month ASC
-    `;
-    const [trendRes] = await db.pool.execute(trendQuery, ledgerFilter.params);
+    `);
+
+    const [outboundTrendRes] = await db.pool.execute(`
+      SELECT
+        DATE_FORMAT(COALESCE(io.outbound_date, io.created_at), '%Y-%m') as month,
+        COALESCE(SUM(ioi.quantity), 0) as outbound_qty
+      FROM inventory_outbound io
+      LEFT JOIN inventory_outbound_items ioi ON io.id = ioi.outbound_id
+      WHERE COALESCE(io.outbound_date, io.created_at) >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
+        AND (io.status IS NULL OR io.status != 'cancelled')
+      GROUP BY month
+    `);
+
+    const trendMap = new Map();
+    for (const row of inboundTrendRes) {
+      if (row.month) {
+        if (!trendMap.has(row.month)) trendMap.set(row.month, { month: row.month, inbound_qty: 0, outbound_qty: 0 });
+        trendMap.get(row.month).inbound_qty = Number(row.inbound_qty) || 0;
+      }
+    }
+    for (const row of outboundTrendRes) {
+      if (row.month) {
+        if (!trendMap.has(row.month)) trendMap.set(row.month, { month: row.month, inbound_qty: 0, outbound_qty: 0 });
+        trendMap.get(row.month).outbound_qty = Number(row.outbound_qty) || 0;
+      }
+    }
+
+    const monthlyTrend = Array.from(trendMap.values())
+      .sort((a, b) => a.month.localeCompare(b.month))
+      .map(item => ({
+        month: item.month,
+        inbound_qty: item.inbound_qty,
+        outbound_qty: item.outbound_qty,
+        inbound: item.inbound_qty,
+        outbound: item.outbound_qty,
+        inboundQty: item.inbound_qty,
+        outboundQty: item.outbound_qty
+      }));
 
     // 5. 预警清单 (分页拉一些足够展示)
     const alertQuery = `
@@ -123,8 +169,8 @@ const getDashboardSummary = async (req, res) => {
       statistics: {
         totalStock: totalItems,
         totalValue: parseFloat(totalValue),
-        inbound: { count: monthStats.inbound_count || 0, items: monthStats.inbound_items_qty || 0 },
-        outbound: { count: monthStats.outbound_count || 0, items: monthStats.outbound_items_qty || 0 },
+        inbound: { count: inboundCount, items: inboundItemsQty },
+        outbound: { count: outboundCount, items: outboundItemsQty },
         alerts: {
           low: alertsList.filter(a => a.type === 'low' || a.type === 'critical').length,
           overstock: alertsList.filter(a => a.type === 'overstock').length
@@ -134,11 +180,7 @@ const getDashboardSummary = async (req, res) => {
         labels: categoryRes.map(c => c.category_name),
         values: categoryRes.map(c => Number(c.item_count))
       },
-      monthlyTrend: trendRes.map(t => ({
-        ...t,
-        inbound_qty: Number(t.inbound_qty),
-        outbound_qty: Number(t.outbound_qty)
-      })),
+      monthlyTrend,
       alertItems: alertsList
     };
 

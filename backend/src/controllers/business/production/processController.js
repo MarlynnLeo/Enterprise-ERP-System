@@ -429,51 +429,79 @@ exports.updateProcess = async (req, res) => {
           );
 
           if (existingReports[0].count === 0) {
-            const [processHours] = await connection.query(
-              'SELECT COALESCE(SUM(standard_hours), 0) as total_hours FROM production_processes WHERE task_id = ?',
+            let hoursPerUnit = 0;
+            const [taskRow] = await connection.query(
+              'SELECT product_id, manager, quantity FROM production_tasks WHERE id = ? AND deleted_at IS NULL',
               [taskId]
             );
-            const hoursPerUnit = parseFloat(processHours[0]?.total_hours) || 0;
+            const taskObj = taskRow[0] || {};
 
-            if (hoursPerUnit <= 0) {
-              warnings.push(
-                '工序标准工时未配置，已跳过自动报工。请在【基础数据-工序管理】配置工时后手工报工。'
-              );
-            } else {
-              const reportNo = await CodeGenerators.generateReportCode(connection);
-              const [taskInfoForHook] = await connection.query(
-                'SELECT manager, quantity FROM production_tasks WHERE id = ? AND deleted_at IS NULL',
+            try {
+              const [taskProcessRows] = await connection.query(
+                'SELECT COALESCE(SUM(standard_hours), 0) as total_hours FROM production_processes WHERE task_id = ?',
                 [taskId]
               );
-              const operatorName = taskInfoForHook[0]?.manager || (await getCurrentUserName(req));
-              const finalQuantity = taskInfoForHook[0]?.quantity || 0;
-              const estimatedHours = hoursPerUnit * finalQuantity;
+              hoursPerUnit = parseFloat(taskProcessRows[0]?.total_hours) || 0;
 
-              await connection.query(
-                `INSERT INTO production_reports
-                (report_no, task_id, operator_id, operator_name, report_time, report_quantity,
-                 completed_quantity, qualified_quantity, defective_quantity, scrap_quantity,
-                 work_hours, remarks, created_at)
-                VALUES (?, ?, 0, ?, NOW(), ?, ?, ?, 0, 0, ?, ?, NOW())`,
-                [
-                  reportNo,
-                  taskId,
-                  operatorName,
-                  finalQuantity,
-                  finalQuantity,
-                  finalQuantity,
-                  estimatedHours,
-                  'Auto generated after process completion',
-                ]
-              );
-              logger.info(
-                `任务 ${taskId} 工序完成附加处理：自动创建报工记录，工时: ${estimatedHours}h (单件${hoursPerUnit}h × ${finalQuantity})`
-              );
+              if (hoursPerUnit <= 0 && taskObj.product_id) {
+                const [tplRows] = await connection.query(
+                  `SELECT COALESCE(SUM(ptd.standard_hours), 0) as total_hours
+                   FROM process_templates pt
+                   JOIN process_template_details ptd ON pt.id = ptd.template_id
+                   WHERE pt.product_id = ? AND pt.deleted_at IS NULL AND pt.status = 1`,
+                  [taskObj.product_id]
+                );
+                hoursPerUnit = parseFloat(tplRows[0]?.total_hours) || 0;
+              }
+
+              if (hoursPerUnit <= 0 && taskObj.product_id) {
+                const [routeRows] = await connection.query(
+                  `SELECT COALESCE(SUM(prs.standard_minutes), 0) as total_minutes, pr.total_standard_minutes
+                   FROM process_routes pr
+                   LEFT JOIN process_route_steps prs ON pr.id = prs.route_id
+                   WHERE pr.product_id = ? AND pr.deleted_at IS NULL AND pr.is_active = 1
+                   GROUP BY pr.id, pr.total_standard_minutes
+                   LIMIT 1`,
+                  [taskObj.product_id]
+                );
+                if (routeRows.length > 0) {
+                  const minutes = parseFloat(routeRows[0].total_minutes) || parseFloat(routeRows[0].total_standard_minutes) || 0;
+                  hoursPerUnit = minutes / 60;
+                }
+              }
+            } catch (phErr) {
+              logger.warn(`获取工序标准工时异常: ${phErr.message}`);
             }
+
+            const operatorName = taskObj.manager || (await getCurrentUserName(req));
+            const finalQuantity = taskObj.quantity || 0;
+            const estimatedHours = Number((hoursPerUnit * finalQuantity).toFixed(2)) || 0;
+
+            const reportNo = await CodeGenerators.generateReportCode(connection);
+            await connection.query(
+              `INSERT INTO production_reports
+              (report_no, task_id, operator_id, operator_name, report_time, report_quantity,
+               completed_quantity, qualified_quantity, defective_quantity, scrap_quantity,
+               work_hours, remarks, created_at)
+              VALUES (?, ?, 0, ?, NOW(), ?, ?, ?, 0, 0, ?, ?, NOW())`,
+              [
+                reportNo,
+                taskId,
+                operatorName,
+                finalQuantity,
+                finalQuantity,
+                finalQuantity,
+                estimatedHours,
+                estimatedHours > 0
+                  ? 'Auto generated after process completion'
+                  : 'Auto generated after process completion (zero hours)',
+              ]
+            );
+            logger.info(
+              `任务 ${taskId} 工序完成附加处理：自动创建报工记录，工时: ${estimatedHours}h (单件${hoursPerUnit}h × ${finalQuantity})`
+            );
           }
         }
-
-        // 成本/成品入库仍由 completeTask 路径之外的入库确认负责
       } else {
         logger.info(`任务 ${taskId} 还有未完成的工序 (${completed}/${total - cancelled})`);
       }

@@ -9,6 +9,68 @@ import { qualityApi, purchaseApi, baseDataApi } from '@/api'
 import { parseListData } from '@/utils/responseParser'
 import logger from '@/utils/logger'
 
+export const MAX_INSPECTION_MEASUREMENT_COLUMNS = 5
+
+/** Normalize fixed measurement fields and dynamic measurement rows. */
+export function normalizeInspectionMeasurements(item = {}) {
+  if (Array.isArray(item.measurements) && item.measurements.length > 0) {
+    const rows = item.measurements.slice()
+    const maxSampleNo = rows.reduce((max, measurement, index) => {
+      const sampleNo = Number(measurement?.sample_no ?? measurement?.sampleNo)
+      return Math.max(max, Number.isFinite(sampleNo) && sampleNo > 0 ? sampleNo : index + 1)
+    }, 0)
+    const normalized = Array.from({
+      length: Math.min(MAX_INSPECTION_MEASUREMENT_COLUMNS, Math.max(rows.length, maxSampleNo))
+    }, () => '')
+    rows.forEach((measurement, index) => {
+      const sampleNo = Number(measurement?.sample_no ?? measurement?.sampleNo)
+      const targetIndex = Number.isFinite(sampleNo) && sampleNo > 0 ? sampleNo - 1 : index
+      if (targetIndex >= MAX_INSPECTION_MEASUREMENT_COLUMNS) return
+      normalized[targetIndex] = measurement && typeof measurement === 'object'
+        ? (measurement.measured_value ?? measurement.measuredValue ?? measurement.value ?? '')
+        : (measurement ?? '')
+    })
+    if (normalized.some((value) => value !== null && value !== undefined && value !== '')) return normalized
+  }
+
+  const fixedValues = Array.from(
+    { length: MAX_INSPECTION_MEASUREMENT_COLUMNS },
+    (_, index) => item[`measure${index + 1}`] ?? item[`measure_${index + 1}`] ?? ''
+  )
+  const lastValueIndex = fixedValues.reduce(
+    (last, value, index) => value !== null && value !== undefined && value !== '' ? index : last,
+    -1
+  )
+  return lastValueIndex >= 0 ? fixedValues.slice(0, lastValueIndex + 1) : []
+}
+
+export function getInspectionMeasurementColumnCount(items = [], fallback = MAX_INSPECTION_MEASUREMENT_COLUMNS) {
+  let count = 0
+  for (const item of items || []) {
+    if (Array.isArray(item?.measurements)) {
+      item.measurements.forEach((measurement, index) => {
+        const value = measurement && typeof measurement === 'object'
+          ? (measurement.measured_value ?? measurement.measuredValue ?? measurement.value)
+          : measurement
+        if (value === null || value === undefined || value === '') return
+        const sampleNo = Number(measurement?.sample_no ?? measurement?.sampleNo)
+        const position = Number.isFinite(sampleNo) && sampleNo > 0 ? sampleNo : index + 1
+        count = Math.max(count, Math.min(MAX_INSPECTION_MEASUREMENT_COLUMNS, position))
+      })
+    }
+    for (let index = 1; index <= MAX_INSPECTION_MEASUREMENT_COLUMNS; index += 1) {
+      const value = item?.[`measure${index}`] ?? item?.[`measure_${index}`]
+      if (value !== null && value !== undefined && value !== '') count = Math.max(count, index)
+    }
+  }
+  if (count > 0) return count
+  if (Number(fallback) === 0) return 0
+  return Math.min(
+    MAX_INSPECTION_MEASUREMENT_COLUMNS,
+    Math.max(1, Number(fallback) || MAX_INSPECTION_MEASUREMENT_COLUMNS)
+  )
+}
+
 /**
  * 从检验单获取或补全供应商信息
  * @param {Object} inspection - 检验单对象
@@ -220,6 +282,8 @@ export async function fetchInspectionDetailWithItems(
   inspectionData = {
     ...inspectionData,
     inspectionNo: inspectionData.inspectionNo || row.inspectionNo || '',
+    templateCode: inspectionData.templateCode || row.templateCode || '',
+    templateName: inspectionData.templateName || row.templateName || '',
     purchaseOrderNo:
       inspectionData.referenceNo ||
       inspectionData.purchaseOrderNo ||
@@ -277,11 +341,19 @@ export async function fetchInspectionDetailWithItems(
   if (inspectionData.items && inspectionData.items.length > 0) {
     inspectionData.items = inspectionData.items.map(item => ({
       ...item,
-      item_name: item.itemName || '未命名检验项',
+      itemName: item.itemName || item.name || '未命名检验项',
       standard: item.standard || item.criteria || '无标准',
-      actual_value: item.actualValue || '-',
+      actualValue: item.actualValue ?? '-',
       result: item.result || '',
-      remarks: item.remarks || item.comment || ''
+      remarks: item.remarks || item.remark || item.comment || '',
+      // API 的标准字段是 camelCase；保留 snake_case 仅用于兼容旧数据。
+      measure1: item.measure1 ?? null,
+      measure2: item.measure2 ?? null,
+      measure3: item.measure3 ?? null,
+      measure4: item.measure4 ?? null,
+      measure5: item.measure5 ?? null,
+      measure6: item.measure6 ?? null,
+      measurements: Array.isArray(item.measurements) ? item.measurements : []
     }))
   }
 

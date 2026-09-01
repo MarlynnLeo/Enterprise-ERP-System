@@ -1,9 +1,9 @@
 <!--
 /**
  * SalesDashboard.vue
- * @description 前端界面组件文件
-  * @date 2025-08-27
- * @version 1.0.0
+ * @description 销售数据概览
+ * @date 2026-08-29
+ * @version 2.0.0
  */
 -->
 <template>
@@ -11,18 +11,19 @@
     <PageHeader title="销售数据概览" subtitle="订单、销售额与回款关键指标">
       <template #actions>
         <span v-if="lastUpdated" class="last-updated">
-            最后更新: {{ new Date(lastUpdated).toLocaleTimeString() }}
-          </span>
+          最后更新: {{ new Date(lastUpdated).toLocaleTimeString() }}
+        </span>
       </template>
     </PageHeader>
+
     <!-- 统计卡片 -->
     <el-row :gutter="16" class="stats-row">
       <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card primary-card" shadow="hover">
-          <div class="stat-value">{{ statistics.orders?.total || 0 }}</div>
+          <div class="stat-value">{{ statistics.orders.total }}</div>
           <div class="stat-label">销售订单</div>
           <div class="stat-secondary">
-            <span class="stat-secondary-value">{{ statistics.orders?.pending || 0 }}</span>
+            <span class="stat-secondary-value">{{ statistics.orders.pending }}</span>
             <span class="stat-secondary-label">待处理</span>
           </div>
         </el-card>
@@ -30,10 +31,10 @@
 
       <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card success-card" shadow="hover">
-          <div class="stat-value">{{ formatCurrency(statistics.currentMonth?.amount) }}</div>
+          <div class="stat-value">{{ formatCurrency(statistics.currentMonth.amount) }}</div>
           <div class="stat-label">本月销售额</div>
           <div class="stat-secondary">
-            <span class="stat-secondary-value">{{ statistics.currentMonth?.count || 0 }}</span>
+            <span class="stat-secondary-value">{{ statistics.currentMonth.count }}</span>
             <span class="stat-secondary-label">订单数</span>
           </div>
         </el-card>
@@ -41,10 +42,10 @@
 
       <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card info-card" shadow="hover">
-          <div class="stat-value">{{ statistics.returns?.total || 0 }}</div>
+          <div class="stat-value">{{ statistics.returns.total }}</div>
           <div class="stat-label">销售退货</div>
           <div class="stat-secondary">
-            <span class="stat-secondary-value">{{ formatCurrency(statistics.returns?.amount) }}</span>
+            <span class="stat-secondary-value">{{ formatCurrency(statistics.returns.amount) }}</span>
             <span class="stat-secondary-label">退货金额</span>
           </div>
         </el-card>
@@ -52,15 +53,16 @@
 
       <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card warning-card" shadow="hover">
-          <div class="stat-value">{{ formatCurrency(statistics.receivables?.collected) }}</div>
+          <div class="stat-value">{{ formatCurrency(statistics.receivables.collected) }}</div>
           <div class="stat-label">销售回款</div>
           <div class="stat-secondary">
-            <span class="stat-secondary-value">{{ formatCurrency(statistics.receivables?.pending) }}</span>
+            <span class="stat-secondary-value">{{ formatCurrency(statistics.receivables.pending) }}</span>
             <span class="stat-secondary-label">待回款</span>
           </div>
         </el-card>
       </el-col>
     </el-row>
+
     <!-- 图表区域 -->
     <el-row :gutter="16" class="mt-md">
       <el-col :xs="24" :md="12">
@@ -75,10 +77,11 @@
             </div>
           </template>
           <div class="chart-container">
-            <canvas ref="salesTrend" height="300"></canvas>
+            <canvas ref="salesTrend"></canvas>
           </div>
         </el-card>
       </el-col>
+
       <el-col :xs="24" :md="12">
         <el-card class="dashboard-card" shadow="hover">
           <template #header>
@@ -87,11 +90,12 @@
             </div>
           </template>
           <div class="chart-container">
-            <canvas ref="customerRank" height="300"></canvas>
+            <canvas ref="customerRank"></canvas>
           </div>
         </el-card>
       </el-col>
     </el-row>
+
     <!-- 最近销售订单 -->
     <el-row class="mt-lg">
       <el-col :span="24">
@@ -103,7 +107,8 @@
                 v-model="search"
                 placeholder="搜索"
                 class="search-input"
-                :prefix-icon="Search" />
+                :prefix-icon="Search"
+              />
             </div>
           </template>
           <el-table
@@ -113,8 +118,8 @@
             border
             :max-height="400"
             :empty-text="recentOrders.length === 0 ? '暂无销售订单' : '没有匹配的数据'"
-          
-      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => router.push(`/sales/orders?id=${row.id}`))">
+            @row-click="(row, column, event) => handleTableRowView(row, column, event, () => router.push(`/sales/orders?id=${row.id}`))"
+          >
             <el-table-column label="订单编号" prop="orderNo" min-width="120" />
             <el-table-column label="客户名称" prop="customerName" min-width="180" />
             <el-table-column label="订单日期" min-width="120">
@@ -141,8 +146,8 @@
                 </el-tag>
               </template>
             </el-table-column>
-            
           </el-table>
+
           <div class="pagination-container" v-if="recentOrders.length > 0">
             <el-pagination
               v-model:current-page="currentPage"
@@ -159,265 +164,210 @@
     </el-row>
   </div>
 </template>
+
 <script setup>
-import { getSalesStatusText, getSalesStatusColor, getCommonStatusText, getCommonStatusColor } from '@/constants/systemConstants'
-import { handleTableRowView } from '@/utils/tableRowView'
-import { parseListData } from '@/utils/responseParser';
-import { formatDate } from '@/utils/helpers/dateUtils'
-import { ref, computed, onMounted, onBeforeUnmount, watch, toRaw, nextTick } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import Chart from '@/utils/chartCore';
-// 安全的Chart.js创建函数
-function createSafeChart(ctx, config) {
-  try {
-    // 验证上下文
-    if (!ctx || typeof ctx.save !== 'function') {
-      console.error('无效的canvas上下文');
-      return null;
-    }
-
-    // 验证上下文是否可用
-    ctx.save();
-    ctx.restore();
-
-    // 创建图表
-    return new Chart(ctx, config);
-  } catch (error) {
-    console.error('创建Chart.js实例失败:', error);
-    return null;
-  }
-}
-import { Search } from '@element-plus/icons-vue';
-import { salesApi } from '@/api';
-import { useDashboard, useCharts } from '@/composables/useDashboard';
+import { Search } from '@element-plus/icons-vue'
+import Chart from '@/utils/chartCore'
+import { salesApi } from '@/api'
+import { formatCurrency, formatQuantity } from '@/utils/dashboardUtils'
+import { formatDate } from '@/utils/helpers/dateUtils'
+import { handleTableRowView } from '@/utils/tableRowView'
+import { parseDataObject, parseListData } from '@/utils/responseParser'
 import {
-  handleDashboardError,
-  formatCurrency,
-  getDefaultStatistics,
-  generateMonthLabels
-} from '@/utils/dashboardUtils';
+  getCommonStatusColor,
+  getCommonStatusText,
+  getSalesStatusColor,
+  getSalesStatusText
+} from '@/constants/systemConstants'
 import {
+  chartColors,
   createBarChartConfig,
-  createLineChartConfig,
-  chartColors
-} from '@/utils/chartConfig';
+  createLineChartConfig
+} from '@/utils/chartConfig'
 
 const router = useRouter()
-// 图表引用
-const salesTrend = ref(null);
-const customerRank = ref(null);
-const chartRefs = {
-  salesTrend,
-  customerRank
-};
-// 销售趋势类型（金额/数量）选择
-const salesTrendType = ref('amount');
-// 使用仪表盘组合式函数
-const {
-  loading,
-  statistics,
-  lastUpdated,
-  loadData
-} = useDashboard('sales', loadSalesData, {
-  autoRefresh: true,
-  immediate: false,
-  refreshInterval: 5 * 60 * 1000 // 5分钟
-});
-// 使用图表管理组合式函数
-const {
-  chartInstances,
-  initAllCharts,
-} = useCharts(chartRefs);
-// 销售订单数据
-const recentOrders = ref([]);
-const search = ref('');
-const currentPage = ref(1);
-const pageSize = ref(10);
+
+// 状态定义
+const loading = ref(false)
+const lastUpdated = ref(null)
+const salesTrendType = ref('amount') // 'amount' | 'count'
+
+// 原始数据
+const rawStats = ref({})
+const rawTrend = ref([])
+const recentOrders = ref([])
+const search = ref('')
+const currentPage = ref(1)
+const pageSize = ref(10)
+
+// Canvas 引用与图表实例
+const salesTrend = ref(null)
+const customerRank = ref(null)
+let salesTrendInstance = null
+let customerRankInstance = null
+
+const toNumber = value => {
+  const num = Number.parseFloat(value)
+  return Number.isNaN(num) ? 0 : num
+}
+
+// 统计数据计算属性
+const statistics = computed(() => {
+  const data = rawStats.value || {}
+  return {
+    orders: {
+      total: toNumber(data.total_orders ?? data.totalOrders ?? (toNumber(data.completed_orders) + toNumber(data.pending_orders))),
+      pending: toNumber(data.pending_orders ?? data.pendingOrders)
+    },
+    currentMonth: {
+      amount: toNumber(data.monthly_sales ?? data.monthlySales),
+      count: toNumber(data.monthly_orders ?? data.monthlyOrders)
+    },
+    returns: {
+      total: toNumber(data.returns_count ?? data.returnsCount),
+      amount: toNumber(data.returns_amount ?? data.returnsAmount)
+    },
+    receivables: {
+      collected: toNumber(data.collected_amount ?? data.collectedAmount),
+      pending: toNumber(data.pending_amount ?? data.pendingAmount)
+    }
+  }
+})
+
+// Top 5 客户
+const topCustomers = computed(() => {
+  const list = rawStats.value?.top_customers || rawStats.value?.topCustomers || []
+  return Array.isArray(list) ? list : []
+})
+
 // 筛选后的订单
 const filteredRecentOrders = computed(() => {
-  const startIndex = (currentPage.value - 1) * pageSize.value;
-  const endIndex = startIndex + pageSize.value;
-
-  // 确保recentOrders是数组
-  let orders = Array.isArray(recentOrders.value) ? recentOrders.value : [];
-
+  let orders = Array.isArray(recentOrders.value) ? recentOrders.value : []
   if (search.value) {
-    const searchValue = search.value.toLowerCase();
+    const q = search.value.trim().toLowerCase()
     orders = orders.filter(order =>
-      (order.orderNo && order.orderNo.toLowerCase().includes(searchValue)) ||
-      (order.customerName && order.customerName.toLowerCase().includes(searchValue)) ||
-      (order.status && order.status.toLowerCase().includes(searchValue))
-    );
+      (order.orderNo && order.orderNo.toLowerCase().includes(q)) ||
+      (order.customerName && order.customerName.toLowerCase().includes(q)) ||
+      (order.status && order.status.toLowerCase().includes(q))
+    )
   }
+  const start = (currentPage.value - 1) * pageSize.value
+  return orders.slice(start, start + pageSize.value)
+})
 
-  return orders.slice(startIndex, endIndex);
-});
 // 分页处理
 function handleSizeChange(size) {
-  pageSize.value = size;
-  currentPage.value = 1;
+  pageSize.value = size
+  currentPage.value = 1
 }
 function handleCurrentChange(page) {
-  currentPage.value = page;
+  currentPage.value = page
 }
-// 格式化日期
-// formatDate: 使用公共实现
-// 获取订单状态颜色
-function getStatusColor(status) { if (!status) return 'info'; return getSalesStatusColor(status) || getCommonStatusColor(status) || 'info'; }
-// 获取付款状态颜色
+
+// 状态解析
+function getStatusColor(status) {
+  if (!status) return 'info'
+  return getSalesStatusColor(status) || getCommonStatusColor(status) || 'info'
+}
+function getStatusText(status) {
+  if (!status) return '-'
+  return getSalesStatusText(status) || getCommonStatusText(status) || status
+}
 function getPaymentStatusColor(status) {
-  if (!status) return 'info';
   const statusMap = {
-    'unpaid': 'danger',
-    'partial': 'warning',
-    'paid': 'success',
-    'refunded': 'info',
-    '未付款': 'danger',
-    '部分付款': 'warning',
-    '已付款': 'success',
-    '已退款': 'info'
-  };
-  return statusMap[status] || 'info';
+    unpaid: 'danger',
+    partial: 'warning',
+    paid: 'success',
+    refunded: 'info',
+    未付款: 'danger',
+    部分付款: 'warning',
+    已付款: 'success',
+    已退款: 'info'
+  }
+  return statusMap[status] || 'info'
 }
-// 获取状态文本
-function getStatusText(status) { if (!status) return '-'; return getSalesStatusText(status) || getCommonStatusText(status) || status; }
-// 获取付款状态文本
 function getPaymentStatusText(status) {
-  if (!status) return '-';
+  if (!status) return '-'
   const paymentStatusTextMap = {
-    'unpaid': '未付款',
-    'partial': '部分付款',
-    'paid': '已付款',
-    'refunded': '已退款'
-  };
-  return paymentStatusTextMap[status] || status;
+    unpaid: '未付款',
+    partial: '部分付款',
+    paid: '已付款',
+    refunded: '已退款'
+  }
+  return paymentStatusTextMap[status] || status
 }
-// 根据订单状态推断付款状态
 function getPaymentStatusFromOrderStatus(orderStatus) {
   const statusMap = {
-    'draft': 'unpaid',
-    'pending': 'unpaid',
-    'confirmed': 'unpaid',
-    'processing': 'unpaid',
-    'in_production': 'unpaid',
-    'ready_to_ship': 'partial',
-    'shipped': 'partial',
-    'delivered': 'paid',
-    'completed': 'paid',
-    'cancelled': 'unpaid'
-  };
-  return statusMap[orderStatus] || 'unpaid';
+    draft: 'unpaid',
+    pending: 'unpaid',
+    confirmed: 'unpaid',
+    processing: 'unpaid',
+    in_production: 'unpaid',
+    ready_to_ship: 'partial',
+    shipped: 'partial',
+    delivered: 'paid',
+    completed: 'paid',
+    cancelled: 'unpaid'
+  }
+  return statusMap[orderStatus] || 'unpaid'
 }
-// 加载销售数据
-async function loadSalesData() {
-  try {
-    // 并行获取多个数据源
-    const [statsResponse, ordersResponse, trendResponse] = await Promise.allSettled([
-      salesApi.getSalesStatistics(),
-      salesApi.getOrders({
-        page: 1,
-        pageSize: 20,
-        sort: 'created_at',
-        order: 'desc'
-      }),
-      salesApi.getSalesTrend()
-    ]);
-    // 处理统计数据
-    let stats = getDefaultStatistics('sales');
-    if (statsResponse.status === 'fulfilled' && statsResponse.value?.data) {
-      const data = statsResponse.value.data;
-      stats = {
-        orders: {
-          total: parseInt(data.completed_orders || 0) + parseInt(data.pending_orders || 0),
-          pending: parseInt(data.pending_orders || 0)
-        },
-        currentMonth: {
-          amount: parseFloat(data.monthly_sales || 0),
-          count: parseInt(data.monthly_orders || 0)
-        },
-        returns: {
-          total: parseInt(data.returns_count || 0),
-          amount: parseFloat(data.returns_amount || 0)
-        },
-        receivables: {
-          collected: parseFloat(data.collected_amount || 0),
-          pending: parseFloat(data.pending_amount || 0)
-        }
-      };
-      // 保存Top客户和产品数据用于图表
-      stats.top_customers = data.top_customers || [];
-      stats.top_products = data.top_products || [];
-    }
-    // 处理趋势数据
-    if (trendResponse.status === 'fulfilled' && trendResponse.value?.data) {
-      stats.trend_data = trendResponse.value.data.trend_data || [];
-    }
-    // 处理订单数据
-    if (ordersResponse.status === 'fulfilled' && ordersResponse.value) {
-      // 使用统一解析器处理响应数据
-      const ordersItems = parseListData(ordersResponse.value, { enableLog: false });
-      recentOrders.value = ordersItems.slice(0, 10).map(order => ({
-        id: order.id,
-        orderNo: order.orderNo || order.orderNumber || `SO${order.id}`,
-        customerName: order.customerName || '未知客户',
-        amount: parseFloat(order.totalAmount || 0),
-        status: order.status || 'pending',
-        orderDate: order.orderDate || new Date().toISOString(),
-        paymentStatus: order.payment_status || getPaymentStatusFromOrderStatus(order.status)
-      }));
-    }
-    return stats;
-  } catch (error) {
-    console.error('获取销售数据失败:', error);
-    throw error;
-  }
+
+// 销毁图表
+function destroyCharts() {
+  salesTrendInstance?.destroy()
+  customerRankInstance?.destroy()
+  salesTrendInstance = null
+  customerRankInstance = null
 }
-// 初始化销售趋势图表
-function initSalesTrendChart() {
-  if (!chartRefs.salesTrend?.value) {
-    return null;
-  }
-  const canvas = chartRefs.salesTrend.value;
-  if (!canvas) {
-    return null;
+
+// 渲染销售趋势折线图
+function renderSalesTrendChart() {
+  if (!salesTrend.value) return
+  salesTrendInstance?.destroy()
+  salesTrendInstance = null
+
+  const ctx = salesTrend.value.getContext('2d')
+  if (!ctx) return
+
+  const trendData = Array.isArray(rawTrend.value) ? rawTrend.value : []
+  let labels = []
+  let salesData = []
+
+  if (trendData.length > 0) {
+    labels = trendData.map(item => {
+      const parts = String(item.month || '').split('-')
+      if (parts.length === 2) {
+        return `${Number(parts[1])}月`
+      }
+      return item.month || ''
+    })
+    salesData = trendData.map(item =>
+      salesTrendType.value === 'amount'
+        ? toNumber(item.sales_amount ?? item.salesAmount)
+        : toNumber(item.order_count ?? item.orderCount)
+    )
   }
 
-  // 确保canvas已经渲染
-  if (canvas.offsetWidth === 0 || canvas.offsetHeight === 0) {
-    return null;
-  }
-
-  // 设置canvas尺寸
-  canvas.width = canvas.offsetWidth;
-  canvas.height = canvas.offsetHeight;
-
-  const ctx = canvas.getContext('2d');
-  if (!ctx) {
-    console.error('无法获取salesTrend canvas 2D上下文');
-    return null;
-  }
-
-  // 验证上下文是否可用
-  try {
-    ctx.save();
-    ctx.restore();
-  } catch (error) {
-    console.error('salesTrend canvas上下文不可用:', error);
-    return null;
-  }
-  // 初始化时使用空数据，等待数据加载完成后更新
-  const labels = generateMonthLabels(12);
-  const salesData = new Array(12).fill(0);
+  const isAmount = salesTrendType.value === 'amount'
   const config = createLineChartConfig({
-    yAxisTitle: '销售金额(元)' // 使用静态值，后续通过update更新
-  });
-  return createSafeChart(ctx, {
+    yAxisTitle: isAmount ? '销售金额(元)' : '订单数量',
+    tooltipFormatter: context => {
+      return isAmount
+        ? `${context.dataset.label}: ${formatCurrency(context.raw)}`
+        : `${context.dataset.label}: ${formatQuantity(context.raw)} 单`
+    },
+    fill: true
+  })
+
+  salesTrendInstance = new Chart(ctx, {
     type: 'line',
     data: {
-      labels: labels,
+      labels,
       datasets: [
         {
-          label: '销售金额', // 使用静态值，后续通过update更新
+          label: isAmount ? '销售金额' : '订单数量',
           data: salesData,
           borderColor: chartColors.primary[0],
           backgroundColor: chartColors.primary[4],
@@ -427,55 +377,35 @@ function initSalesTrendChart() {
       ]
     },
     options: config
-  });
+  })
 }
-// 初始化客户排名图表
-function initCustomerRankChart() {
-  if (!chartRefs.customerRank?.value) {
-    return null;
-  }
-  const canvas = chartRefs.customerRank.value;
-  if (!canvas) {
-    return null;
-  }
 
-  // 确保canvas已经渲染
-  if (canvas.offsetWidth === 0 || canvas.offsetHeight === 0) {
-    return null;
-  }
+// 渲染客户销售排名柱状图
+function renderCustomerRankChart() {
+  if (!customerRank.value) return
+  customerRankInstance?.destroy()
+  customerRankInstance = null
 
-  // 设置canvas尺寸
-  canvas.width = canvas.offsetWidth;
-  canvas.height = canvas.offsetHeight;
+  const ctx = customerRank.value.getContext('2d')
+  if (!ctx) return
 
-  const ctx = canvas.getContext('2d');
-  if (!ctx) {
-    console.error('无法获取customerRank canvas 2D上下文');
-    return null;
-  }
+  const customers = topCustomers.value
+  const labels = customers.length > 0 ? customers.map(c => c.name || '未知客户') : ['暂无数据']
+  const data = customers.length > 0 ? customers.map(c => toNumber(c.sales)) : [0]
 
-  // 验证上下文是否可用
-  try {
-    ctx.save();
-    ctx.restore();
-  } catch (error) {
-    console.error('customerRank canvas上下文不可用:', error);
-    return null;
-  }
-  // 初始化时使用空数据，等待数据加载完成后更新
-  const labels = ['加载中...'];
-  const salesData = [0];
   const config = createBarChartConfig({
-    yAxisTitle: '销售金额(元)'
-  });
-  return createSafeChart(ctx, {
+    yAxisTitle: '销售金额(元)',
+    tooltipFormatter: context => `${context.label}: ${formatCurrency(context.raw)}`
+  })
+
+  customerRankInstance = new Chart(ctx, {
     type: 'bar',
     data: {
-      labels: labels,
+      labels,
       datasets: [
         {
           label: '销售金额',
-          data: salesData,
+          data,
           backgroundColor: chartColors.primary[0],
           borderColor: chartColors.primary[1],
           borderWidth: 1
@@ -483,225 +413,79 @@ function initCustomerRankChart() {
       ]
     },
     options: config
-  });
+  })
 }
-// 重新创建销售趋势图表
-function recreateSalesTrendChart() {
+
+// 渲染所有图表
+async function renderCharts() {
+  await nextTick()
+  renderSalesTrendChart()
+  renderCustomerRankChart()
+}
+
+// 加载数据
+async function loadData() {
+  loading.value = true
   try {
-    // 销毁现有图表
-    if (chartInstances.salesTrend) {
-      chartInstances.salesTrend.destroy();
-      chartInstances.salesTrend = null;
+    const [statsRes, trendRes, ordersRes] = await Promise.allSettled([
+      salesApi.getSalesStatistics(),
+      salesApi.getSalesTrend(),
+      salesApi.getOrders({
+        page: 1,
+        pageSize: 20,
+        sort: 'created_at',
+        order: 'desc'
+      })
+    ])
+
+    if (statsRes.status === 'fulfilled' && statsRes.value) {
+      rawStats.value = parseDataObject(statsRes.value) || {}
     }
-    // 重新创建图表
-    if (chartRefs.salesTrend?.value) {
-      const canvas = chartRefs.salesTrend.value;
-      if (!canvas) return;
-
-      // 设置canvas尺寸
-      canvas.width = canvas.offsetWidth;
-      canvas.height = canvas.offsetHeight;
-
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        console.error('无法获取salesTrend canvas 2D上下文');
-        return;
-      }
-
-      // 验证上下文是否可用
-      try {
-        ctx.save();
-        ctx.restore();
-      } catch (error) {
-        console.error('salesTrend canvas上下文不可用:', error);
-        return;
-      }
-      const trendData = toRaw(statistics.trend_data) || [];
-      let labels, salesData;
-      if (trendData.length > 0) {
-        labels = trendData.map(item => {
-          const date = new Date(item.month + '-01');
-          return date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'short' });
-        });
-        salesData = trendData.map(item => {
-          const val = salesTrendType.value === 'amount' ? item.sales_amount : item.order_count;
-          return val !== undefined ? val : null;
-        });
-      } else {
-        labels = generateMonthLabels(12);
-        salesData = new Array(12).fill(null);
-      }
-      const config = createLineChartConfig({
-        yAxisTitle: salesTrendType.value === 'amount' ? '销售金额(元)' : '订单数量'
-      });
-      chartInstances.salesTrend = createSafeChart(ctx, {
-        type: 'line',
-        data: {
-          labels: labels,
-          datasets: [
-            {
-              label: salesTrendType.value === 'amount' ? '销售金额' : '订单数量',
-              data: salesData,
-              borderColor: chartColors.primary[0],
-              backgroundColor: chartColors.primary[4],
-              tension: 0.4,
-              fill: true
-            }
-          ]
-        },
-        options: config
-      });
+    if (trendRes.status === 'fulfilled' && trendRes.value) {
+      const trendObj = parseDataObject(trendRes.value) || {}
+      rawTrend.value = Array.isArray(trendObj.trend_data)
+        ? trendObj.trend_data
+        : (Array.isArray(trendObj.trendData) ? trendObj.trendData : (Array.isArray(trendObj) ? trendObj : []))
     }
+    if (ordersRes.status === 'fulfilled' && ordersRes.value) {
+      const orderList = parseListData(ordersRes.value, { enableLog: false })
+      recentOrders.value = orderList.map(order => ({
+        id: order.id,
+        orderNo: order.orderNo || `SO${order.id}`,
+        customerName: order.customerName || '未知客户',
+        amount: toNumber(order.totalAmount),
+        status: order.status || 'pending',
+        orderDate: order.orderDate || order.createdAt || new Date().toISOString(),
+        paymentStatus: order.paymentStatus || getPaymentStatusFromOrderStatus(order.status)
+      }))
+    }
+
+    lastUpdated.value = new Date()
+    await renderCharts()
   } catch (error) {
-    console.error('[销售趋势图表] 重新创建失败:', error);
+    console.error('加载销售数据失败:', error)
+  } finally {
+    loading.value = false
   }
 }
-// 重新创建客户排名图表
-function recreateCustomerRankChart() {
-  try {
-    // 销毁现有图表
-    if (chartInstances.customerRank) {
-      chartInstances.customerRank.destroy();
-      chartInstances.customerRank = null;
-    }
-    // 重新创建图表
-    if (chartRefs.customerRank?.value) {
-      const canvas = chartRefs.customerRank.value;
-      if (!canvas) return;
 
-      // 设置canvas尺寸
-      canvas.width = canvas.offsetWidth;
-      canvas.height = canvas.offsetHeight;
-
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        console.error('无法获取customerRank canvas 2D上下文');
-        return;
-      }
-
-      // 验证上下文是否可用
-      try {
-        ctx.save();
-        ctx.restore();
-      } catch (error) {
-        console.error('customerRank canvas上下文不可用:', error);
-        return;
-      }
-      const topCustomers = toRaw(statistics.top_customers) || [];
-      const labels = topCustomers.length > 0
-        ? topCustomers.map(customer => customer.name || '未知客户')
-        : ['暂无数据'];
-      const salesData = topCustomers.length > 0
-        ? topCustomers.map(customer => customer.sales !== undefined ? customer.sales : null)
-        : [];
-      const config = createBarChartConfig({
-        yAxisTitle: '销售金额(元)'
-      });
-      chartInstances.customerRank = createSafeChart(ctx, {
-        type: 'bar',
-        data: {
-          labels: labels,
-          datasets: [
-            {
-              label: '销售金额',
-              data: salesData,
-              backgroundColor: chartColors.primary[0],
-              borderColor: chartColors.primary[1],
-              borderWidth: 1
-            }
-          ]
-        },
-        options: config
-      });
-    }
-  } catch (error) {
-    console.error('[客户排名图表] 重新创建失败:', error);
-  }
-}
-// 监听销售趋势类型变化
+// 监听销售趋势类型变化（销售额 / 订单量）
 watch(salesTrendType, () => {
-  recreateSalesTrendChart();
-});
-// 监听statistics变化，当数据更新时更新图表
-let customerUpdateTimer = null;
-let trendUpdateTimer = null;
-watch(() => statistics.top_customers, (newCustomers, oldCustomers) => {
-  if (Array.isArray(newCustomers) && newCustomers !== oldCustomers) {
-    // 清除之前的定时器，避免重复更新
-    if (customerUpdateTimer) {
-      clearTimeout(customerUpdateTimer);
-    }
-    customerUpdateTimer = setTimeout(() => {
-      recreateCustomerRankChart();
-      customerUpdateTimer = null;
-    }, 200);
-  }
-}, { deep: false }); // 改为浅监听，避免深度监听导致的性能问题
-watch(() => statistics.trend_data, (newTrendData, oldTrendData) => {
-  if (Array.isArray(newTrendData) && newTrendData !== oldTrendData) {
-    // 清除之前的定时器，避免重复更新
-    if (trendUpdateTimer) {
-      clearTimeout(trendUpdateTimer);
-    }
-    trendUpdateTimer = setTimeout(() => {
-      recreateSalesTrendChart();
-      trendUpdateTimer = null;
-    }, 200);
-  }
-}, { deep: false }); // 改为浅监听，避免深度监听导致的性能问题
-// 生命周期钩子
-onBeforeUnmount(() => {
-  if (customerUpdateTimer) {
-    clearTimeout(customerUpdateTimer);
-    customerUpdateTimer = null;
-  }
-  if (trendUpdateTimer) {
-    clearTimeout(trendUpdateTimer);
-    trendUpdateTimer = null;
-  }
-});
+  renderSalesTrendChart()
+})
 
 onMounted(async () => {
-  try {
-    // 等待DOM完全渲染
-    await nextTick();
+  await loadData()
+})
 
-    // 等待canvas元素完全渲染
-    await new Promise(resolve => setTimeout(resolve, 200));
-
-    // 确保canvas元素存在且已渲染
-    let retryCount = 0;
-    const maxRetries = 5;
-
-    while (retryCount < maxRetries) {
-      const salesTrendCanvas = chartRefs.salesTrend?.value;
-      const customerRankCanvas = chartRefs.customerRank?.value;
-
-      if (salesTrendCanvas && customerRankCanvas &&
-          salesTrendCanvas.offsetWidth > 0 && salesTrendCanvas.offsetHeight > 0 &&
-          customerRankCanvas.offsetWidth > 0 && customerRankCanvas.offsetHeight > 0) {
-        break;
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 100));
-      retryCount++;
-    }
-
-    // 初始化图表
-    await initAllCharts({
-      salesTrend: initSalesTrendChart,
-      customerRank: initCustomerRankChart
-    });
-    // 加载数据 - 数据加载完成后会通过watch自动更新图表
-    await loadData();
-  } catch (error) {
-    handleDashboardError(error, '销售仪表盘初始化失败');
-  }
-});
+onBeforeUnmount(() => {
+  destroyCharts()
+})
 </script>
+
 <style scoped>
 /* 响应式调整 */
-
+
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;

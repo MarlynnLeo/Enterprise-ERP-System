@@ -20,6 +20,9 @@ const DATA_SCOPE = Object.freeze({
 
 const COMMON_PERMISSIONS = Object.freeze([
   'dashboard',
+  // 跨模块只读查找（下拉选项/名录/字典）。列在这里即表示「已登录即可读」，
+  // 授权面与 dashboard 完全一致，但语义显式。详见 authorization/lookupPermissions.js。
+  'lookup:read',
   'system:notifications',
   'system:notifications:view',
   'production:plans:view',
@@ -153,6 +156,8 @@ const FINANCE_APPROVE = [
   'finance:entries:approve',
   'finance:expenses:approve',
   'finance:assets:approve',
+  'finance:inventory:approve',
+  'finance:inventory:reverse',
 ];
 const INVENTORY_APPROVE = [
   'inventory:check:approve',
@@ -180,22 +185,78 @@ const OPERATOR_DENY_APPROVE = [
   'sales:returns:approve',
 ];
 
+const WAREHOUSE_DENY = [
+  ...OPERATOR_DENY_APPROVE,
+  'inventory:outbound:cancel',
+];
+
+const WAREHOUSE_PURCHASE_RECEIPT_PERMS = [
+  'purchase',
+  'purchase:orders',
+  'purchase:orders:view',
+  'purchase:orders:pushdown', // 采购订单到货
+  'purchase:orders:print',
+  'purchase:receipts',
+  'purchase:receipts:view',
+  'purchase:receipts:update', // 采购收货单入库确认
+  'purchase:receipts:print',
+  'purchase:receipts:export',
+  'purchase:returns',
+  'purchase:returns:view',
+  'purchase:returns:print',
+  'purchase:processing-receipts',
+  'purchase:processing-receipts:view',
+  'purchase:processing-receipts:create',
+  'purchase:processing-receipts:edit',
+  'purchase:processing-receipts:export',
+];
+
+const WAREHOUSE_PURCHASE_PATHS = [
+  '/purchase',
+  '/purchase/orders',
+  '/purchase/receipts',
+  '/purchase/returns',
+  '/purchase/processing-receipts',
+];
+
 const inventoryOperator = defineProfile({
   label: '仓储作业',
-  modules: ['仪表盘', '库存', '物料/库位/单位'],
+  modules: ['仪表盘', '库存', '采购到货/入库', '物料/库位/单位'],
   permissionPrefixes: ['inventory'],
-  exactPermissions: [...MATERIAL_VIEW, ...LOCATION_VIEW, ...UNIT_VIEW],
-  denyPermissions: OPERATOR_DENY_APPROVE,
+  exactPermissions: [
+    ...MATERIAL_VIEW,
+    ...LOCATION_VIEW,
+    ...UNIT_VIEW,
+    ...WAREHOUSE_PURCHASE_RECEIPT_PERMS,
+    'production:tasks:view',
+  ],
+  denyPermissions: WAREHOUSE_DENY,
   pathPrefixes: ['/inventory'],
-  exactPaths: ['/basedata', '/basedata/materials', '/basedata/locations', '/basedata/units'],
+  exactPaths: [
+    '/basedata',
+    '/basedata/materials',
+    '/basedata/locations',
+    '/basedata/units',
+    ...WAREHOUSE_PURCHASE_PATHS,
+  ],
   dataScope: DATA_SCOPE.ALL,
 });
 
 const inventoryManager = defineProfile({
   label: '仓储管理',
-  modules: ['仪表盘', '库存', '库存概览', '物料/库位/单位'],
+  modules: ['仪表盘', '库存', '库存概览', '采购到货/入库', '物料/库位/单位'],
   permissionPrefixes: ['inventory'],
-  exactPermissions: [...MATERIAL_VIEW, ...LOCATION_VIEW, ...UNIT_VIEW, ...WORKFLOW_USE, 'dataoverview', 'dataoverview:inventory'],
+  exactPermissions: [
+    ...MATERIAL_VIEW,
+    ...LOCATION_VIEW,
+    ...UNIT_VIEW,
+    ...WORKFLOW_USE,
+    ...WAREHOUSE_PURCHASE_RECEIPT_PERMS,
+    'dataoverview',
+    'dataoverview:inventory',
+    'production:tasks:view',
+  ],
+  denyPermissions: ['inventory:outbound:cancel'],
   pathPrefixes: ['/inventory'],
   exactPaths: [
     '/basedata',
@@ -204,6 +265,7 @@ const inventoryManager = defineProfile({
     '/basedata/units',
     '/dataoverview',
     '/dataoverview/inventory',
+    ...WAREHOUSE_PURCHASE_PATHS,
     ...WORKFLOW_PATHS,
   ],
   // 出入库单会由采购、生产、质量等多部门产生，仓库管理员需要
@@ -213,8 +275,8 @@ const inventoryManager = defineProfile({
 
 const componentWarehouseOperator = defineProfile({
   label: '零部件仓作业',
-  modules: ['仪表盘', '库存入库/出库', '物料/库位/单位'],
-  // 仓库操作员需要同时处理零部件入库和生产发料出库；审批仍由
+  modules: ['仪表盘', '库存入库/出库', '采购到货/入库', '物料/库位/单位'],
+  // 仓库操作员需要同时处理零部件入库、采购收货和生产发料出库；审批仍由
   // OPERATOR_DENY_APPROVE 统一排除，避免把业务操作权限扩大为审批权限。
   permissionPrefixes: ['inventory:inbound', 'inventory:outbound'],
   exactPermissions: [
@@ -222,10 +284,11 @@ const componentWarehouseOperator = defineProfile({
     ...LOCATION_VIEW,
     ...UNIT_VIEW,
     ...STOCK_VIEW,
+    ...WAREHOUSE_PURCHASE_RECEIPT_PERMS,
     'inventory',
     'production:tasks:view',
   ],
-  denyPermissions: OPERATOR_DENY_APPROVE,
+  denyPermissions: WAREHOUSE_DENY,
   pathPrefixes: ['/inventory/inbound', '/inventory/outbound'],
   exactPaths: [
     '/inventory',
@@ -236,26 +299,29 @@ const componentWarehouseOperator = defineProfile({
     '/basedata/materials',
     '/basedata/locations',
     '/basedata/units',
+    ...WAREHOUSE_PURCHASE_PATHS,
   ],
   dataScope: DATA_SCOPE.ALL,
 });
 
 const finishedGoodsOperator = defineProfile({
   label: '成品仓作业',
-  modules: ['仪表盘', '成品入库', '销售出库', '物料/库位/单位'],
-  permissionPrefixes: ['inventory:inbound', 'sales:outbound'],
-  denyPermissions: OPERATOR_DENY_APPROVE,
+  modules: ['仪表盘', '成品入库', '采购到货/入库', '销售出库', '出库管理', '物料/库位/单位'],
+  permissionPrefixes: ['inventory:inbound', 'inventory:outbound', 'sales:outbound'],
+  denyPermissions: WAREHOUSE_DENY,
   exactPermissions: [
     ...MATERIAL_VIEW,
     ...LOCATION_VIEW,
     ...UNIT_VIEW,
     ...STOCK_VIEW,
     ...CUSTOMER_VIEW,
+    ...WAREHOUSE_PURCHASE_RECEIPT_PERMS,
     'inventory',
     'sales',
     'sales:orders:view',
+    'production:tasks:view',
   ],
-  pathPrefixes: ['/inventory/inbound', '/sales/outbound'],
+  pathPrefixes: ['/inventory/inbound', '/inventory/outbound', '/sales/outbound'],
   exactPaths: [
     '/inventory',
     '/inventory/stock',
@@ -265,6 +331,7 @@ const finishedGoodsOperator = defineProfile({
     '/basedata/locations',
     '/basedata/units',
     '/basedata/customers',
+    ...WAREHOUSE_PURCHASE_PATHS,
   ],
   dataScope: DATA_SCOPE.ALL,
 });
@@ -645,6 +712,7 @@ const accountantAssistant = defineProfile({
     'finance:tax:update',
     'finance:assets:view',
     'finance:cost:view',
+    'finance:inventory:view',
     'finance:budget:view',
     ...CUSTOMER_VIEW,
     ...SUPPLIER_VIEW,
@@ -673,6 +741,7 @@ const accountantAssistant = defineProfile({
     '/finance/assets/list',
     '/finance/assets/reports',
     '/finance/cost',
+    '/finance/inventory-posting',
     '/finance/cost/dashboard',
     '/finance/budget',
     '/finance/budget/list',

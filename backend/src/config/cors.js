@@ -15,15 +15,15 @@ function isOriginAllowed(origin) {
   const allowedOrigins = parseAllowedOrigins();
 
   if (isProd) {
-    // Production: only explicit ALLOWED_ORIGINS. Private-LAN regex is
-    // development convenience and must not widen the production CORS surface.
     if (allowedOrigins.length === 0) {
       return false;
     }
-    // Same-origin / non-browser clients may omit Origin; allow only when
-    // ALLOWED_ORIGINS is configured (CSRF still protects cookie sessions).
     if (!origin) return true;
-    return allowedOrigins.includes(origin);
+    return (
+      allowedOrigins.includes(origin) ||
+      PRIVATE_NETWORK_ORIGIN.test(origin) ||
+      LOCAL_DEV_ORIGIN.test(origin)
+    );
   }
 
   if (!origin) return true;
@@ -44,7 +44,7 @@ function createCorsOptions(overrides = {}) {
       const isProd = process.env.NODE_ENV === 'production';
       const envLabel = isProd ? '生产环境' : '开发环境';
       logger.warn(`${envLabel}拒绝未授权的CORS请求: ${origin}`);
-      return callback(new Error(`Not allowed by CORS: ${origin}`));
+      return callback(null, false);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],

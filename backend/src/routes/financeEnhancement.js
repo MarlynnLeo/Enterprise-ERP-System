@@ -26,6 +26,33 @@ router.use(authenticateToken);
 router.use(desensitizeSensitiveResponse('view'));
 router.use(requirePriceMutationPermission('update'));
 
+// 库存过账审核：业务单据只生成冻结快照，正式库存与财务审核在统一事务内完成。
+router.get(
+  '/inventory-postings',
+  requirePermission('finance:inventory:view'),
+  FinanceEnhancementController.listInventoryPostings
+);
+router.get(
+  '/inventory-postings/:id',
+  requirePermission('finance:inventory:view'),
+  FinanceEnhancementController.getInventoryPosting
+);
+router.post(
+  '/inventory-postings/:id/approve',
+  requirePermission('finance:inventory:approve'),
+  FinanceEnhancementController.approveInventoryPosting
+);
+router.post(
+  '/inventory-postings/:id/reject',
+  requirePermission('finance:inventory:approve'),
+  FinanceEnhancementController.rejectInventoryPosting
+);
+router.post(
+  '/inventory-postings/:id/reverse',
+  requirePermission('finance:inventory:reverse'),
+  FinanceEnhancementController.reverseInventoryPosting
+);
+
 const FINANCE_FAILED_JOB_PREFIXES = ['Finance:', 'FinanceIntegration:'];
 
 // ==================== 自动化集成路由 ====================
@@ -126,7 +153,7 @@ router.post(
       const FinanceIntegrationService = require('../services/external/FinanceIntegrationService');
       const db = require('../config/db');
       const [rows] = await db.pool.execute(
-        `SELECT id, receipt_no, supplier_id, order_id, receipt_date, total_amount, tax_amount, status, created_by
+        `SELECT id, receipt_no, supplier_id, order_id, order_no, receipt_date, total_amount, total_tax_amount AS tax_amount, status, created_by
          FROM purchase_receipts
          WHERE id = ? AND deleted_at IS NULL`,
         [req.params.receiptId]
@@ -139,8 +166,11 @@ router.post(
         req.user?.id,
         { force: true }
       );
-      return ResponseHandler.success(res, result);
+      return ResponseHandler.success(res, result, '进项税票生成成功');
     } catch (e) {
+      if (e.message && (e.message.includes('金额为0') || e.message.includes('税额为0') || e.message.includes('不能生成'))) {
+        return ResponseHandler.error(res, e.message, 'VALIDATION_ERROR', 400);
+      }
       return next(e);
     }
   }
@@ -154,9 +184,13 @@ router.post(
       const FinanceIntegrationService = require('../services/external/FinanceIntegrationService');
       const db = require('../config/db');
       const [rows] = await db.pool.execute(
-        `SELECT id, outbound_no, customer_id, order_id, order_no, outbound_date, total_amount, status, created_by
-         FROM sales_outbound
-         WHERE id = ? AND deleted_at IS NULL`,
+        `SELECT so.id, so.outbound_no, so.order_id, so.delivery_date, so.delivery_date AS outbound_date,
+                so.status, so.created_by, so.total_amount,
+                o.order_no, o.customer_id, c.name AS customer_name
+         FROM sales_outbound so
+         LEFT JOIN sales_orders o ON so.order_id = o.id AND o.deleted_at IS NULL
+         LEFT JOIN customers c ON o.customer_id = c.id
+         WHERE so.id = ? AND so.deleted_at IS NULL`,
         [req.params.outboundId]
       );
       if (!rows[0]) {
@@ -167,8 +201,11 @@ router.post(
         req.user?.id,
         { force: true }
       );
-      return ResponseHandler.success(res, result);
+      return ResponseHandler.success(res, result, '销项税票生成成功');
     } catch (e) {
+      if (e.message && (e.message.includes('金额为0') || e.message.includes('税额为0') || e.message.includes('不能生成'))) {
+        return ResponseHandler.error(res, e.message, 'VALIDATION_ERROR', 400);
+      }
       return next(e);
     }
   }
@@ -182,9 +219,13 @@ router.post(
       const FinanceIntegrationService = require('../services/external/FinanceIntegrationService');
       const db = require('../config/db');
       const [rows] = await db.pool.execute(
-        `SELECT id, outbound_no, customer_id, order_id, order_no, outbound_date, total_amount, status, created_by
-         FROM sales_outbound
-         WHERE id = ? AND deleted_at IS NULL`,
+        `SELECT so.id, so.outbound_no, so.order_id, so.delivery_date, so.delivery_date AS outbound_date,
+                so.status, so.created_by, so.total_amount,
+                o.order_no, o.customer_id, c.name AS customer_name
+         FROM sales_outbound so
+         LEFT JOIN sales_orders o ON so.order_id = o.id AND o.deleted_at IS NULL
+         LEFT JOIN customers c ON o.customer_id = c.id
+         WHERE so.id = ? AND so.deleted_at IS NULL`,
         [req.params.outboundId]
       );
       if (!rows[0]) {
@@ -195,8 +236,11 @@ router.post(
         req.user?.id,
         { force: true }
       );
-      return ResponseHandler.success(res, result);
+      return ResponseHandler.success(res, result, '销售成本凭证生成成功');
     } catch (e) {
+      if (e.message && (e.message.includes('成本为0') || e.message.includes('金额为0') || e.message.includes('不能生成'))) {
+        return ResponseHandler.error(res, e.message, 'VALIDATION_ERROR', 400);
+      }
       return next(e);
     }
   }

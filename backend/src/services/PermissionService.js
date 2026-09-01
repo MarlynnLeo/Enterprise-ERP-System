@@ -18,9 +18,17 @@ const { pool } = require('../config/db');
 const cacheService = require('./cache/CacheManager');
 
 /**
- * 权限别名映射表
+ * 权限别名映射表（双向，前缀匹配）
  * 解决数据库中菜单权限标识符与前端路由 meta.permission 不一致的问题
  * 双向映射：拥有左侧权限的用户自动获得右侧权限，反之亦然
+ *
+ * ⚠️ 只有「同一资源 + 同一动作级别」的命名变体才能放进这里。
+ * 双向展开等于把两个权限码合并成一个，因此反向也必须成立：
+ *   ✅ basedata:bom ↔ basedata:boms          （同资源，单复数写法）
+ *   ✅ system:print:add ↔ system:print:create（同动作，新旧命名）
+ *   ❌ finance:ap:update → finance:ap:invoices:delete（改 → 删，动作放大）
+ *   ❌ todo:collaborate → system:users:view      （选人按钮 → 用户名录，跨资源）
+ * 反向不成立的映射请写进 PERMISSION_IMPLICATIONS。
  *
  * 维护说明：新增路由权限标识时，如果与数据库中的 permission 字段不一致，
  * 在此处添加映射即可，无需修改前端代码
@@ -54,12 +62,37 @@ const PERMISSION_ALIASES = {
   'system:print:template:delete': 'system:print:delete',
   'finance:ap:invoices:create': 'finance:ap:create',
   'finance:ap:invoices:update': 'finance:ap:update',
-  'finance:ap:invoices:delete': 'finance:ap:update',
   'finance:payments:create': 'finance:ap:pay',
-  'finance:payments:print': 'finance:ap:view',
-  'finance:payments:void': 'finance:ap:update',
 };
 
+/**
+ * 单向权限蕴含表：持有左侧权限即视为持有右侧权限，反向不成立。
+ *
+ * 用于「细粒度动作码 → 所依赖的粗粒度码」这类不对称关系。
+ * 从这里拿到的码不会再反向展开，因此不会把 view 放大成 delete，
+ * 也不会让一个按钮级权限反推出整个资源的读权限。
+ *
+ * 历史背景：这三条原先写在 PERMISSION_ALIASES 里做双向展开，导致
+ *   finance:ap:update  →（反向）→ finance:ap:invoices:delete / finance:payments:void
+ *   system:users:view  →（反向）→ todo:collaborate
+ *   todo:collaborate   →（正向）→ system:users:view
+ * 即「改」自动获得「删/作废」、「协同选人」自动获得用户名录读权限。
+ */
+const PERMISSION_IMPLICATIONS = {
+  // 发票删除/付款作废各自依赖 AP 修改权，但持有修改权不等于可以删除或作废。
+  'finance:ap:invoices:delete': 'finance:ap:update',
+  'finance:payments:void': 'finance:ap:update',
+  // 打印付款单依赖 AP 查看权；持有查看权不自动获得打印按钮。
+  'finance:payments:print': 'finance:ap:view',
+  // 协同选人需要读取用户名录；持有用户查看权不反向获得协同选人按钮。
+  'todo:collaborate': 'system:users:view',
+};
+
+/**
+ * 精确别名（双向，全等匹配）
+ * 主要解决「粗粒度菜单码 ↔ :view 细粒度码」的历史分裂。
+ * 同样只允许同资源、同动作级别的等价关系，跨资源关系请用 PERMISSION_IMPLICATIONS。
+ */
 const EXACT_PERMISSION_ALIASES = {
   'finance:ap:invoices': 'finance:ap:view',
   'finance:payments': 'finance:ap:view',
@@ -79,16 +112,12 @@ const EXACT_PERMISSION_ALIASES = {
   'system:users': 'system:users:view',
   'system:departments': 'system:departments:view',
   'system:roles': 'system:roles:view',
-  // 协同选人可与用户查看互通
-  'todo:collaborate': 'system:users:view',
 };
 
 /**
- * 展开权限列表，添加所有别名变体
- * @param {Array<string>} permissions - 原始权限列表
- * @returns {Array<string>} 展开后的完整权限列表
+ * 双向别名展开（同资源、同动作级别的命名变体）
  */
-function expandPermissionsWithAliases(permissions) {
+function applyBidirectionalAliases(permissions) {
   const expanded = new Set(permissions);
 
   for (const perm of permissions) {
@@ -108,6 +137,37 @@ function expandPermissionsWithAliases(permissions) {
       if (perm === canonical || perm.startsWith(`${canonical}:`)) {
         expanded.add(perm.replace(canonical, alias));
       }
+    }
+  }
+
+  return expanded;
+}
+
+/**
+ * 展开权限列表，添加所有别名变体
+ *
+ * 两段式：
+ *   1. 双向别名（PERMISSION_ALIASES / EXACT_PERMISSION_ALIASES）——命名变体互通
+ *   2. 单向蕴含（PERMISSION_IMPLICATIONS）——细粒度码补上所依赖的粗粒度码，
+ *      结果不再回到第 1 步，避免反向放大动作或跨资源提权
+ *
+ * @param {Array<string>} permissions - 原始权限列表
+ * @returns {Array<string>} 展开后的完整权限列表
+ */
+function expandPermissionsWithAliases(permissions) {
+  const source = Array.isArray(permissions) ? permissions : [];
+  const expanded = applyBidirectionalAliases(source);
+
+  // 单向蕴含：只从 held → implied，且 implied 再走一次双向别名以覆盖命名变体，
+  // 但不会反向推回 held，因此 finance:ap:update 不会得到 :delete / :void。
+  const implied = new Set();
+  for (const perm of expanded) {
+    const target = PERMISSION_IMPLICATIONS[perm];
+    if (target) implied.add(target);
+  }
+  if (implied.size > 0) {
+    for (const code of applyBidirectionalAliases([...implied])) {
+      expanded.add(code);
     }
   }
 
@@ -155,7 +215,9 @@ class PermissionService {
       if (!forceRefresh) {
         const cachedPermissions = await cacheService.get(cacheKey);
         if (cachedPermissions !== null) {
-          logger.debug(`Permission cache hit: cacheKey=${cacheKey}, permissionCount=${cachedPermissions.length}`);
+          logger.debug(
+            `Permission cache hit: cacheKey=${cacheKey}, permissionCount=${cachedPermissions.length}`
+          );
           return cachedPermissions;
         }
       }
@@ -172,12 +234,16 @@ class PermissionService {
         logger.debug(`Admin wildcard permissions loaded: userId=${userId}`);
       } else {
         permissions = await this.getUserRolePermissions(userId);
-        logger.debug(`User permissions loaded: userId=${userId}, permissionCount=${permissions.length}`);
+        logger.debug(
+          `User permissions loaded: userId=${userId}, permissionCount=${permissions.length}`
+        );
       }
 
       // 缓存结果
       await cacheService.set(cacheKey, permissions, this.CACHE_CONFIG.TTL);
-      logger.debug(`Permission cache stored: cacheKey=${cacheKey}, permissionCount=${permissions.length}`);
+      logger.debug(
+        `Permission cache stored: cacheKey=${cacheKey}, permissionCount=${permissions.length}`
+      );
 
       return permissions;
     } catch (error) {
@@ -189,6 +255,11 @@ class PermissionService {
   /**
    * 检查用户是否为管理员
    * 通过 user_roles + roles.is_super_admin 判断用户是否拥有超级管理员角色
+   *
+   * ⚠️ 只认 roles.is_super_admin 这个受保护标记（见 authorization/superAdmin.js）。
+   * 角色 code/name 是可变元数据，任何持 system:permissions:manage 的用户都能改，
+   * 一旦参与提权判断就等于把提权入口开放给角色管理员，因此绝不能作为兜底条件。
+   *
    * @param {number} userId - 用户ID
    * @returns {Promise<boolean>}
    */
@@ -199,7 +270,7 @@ class PermissionService {
       const [result] = await pool.execute(
         `SELECT COUNT(*) as count FROM user_roles ur
          JOIN roles r ON ur.role_id = r.id
-         WHERE ur.user_id = ? AND r.status = 1 AND (r.is_super_admin = 1 OR LOWER(r.code) IN ('admin', 'super_admin', 'system_admin'))`,
+         WHERE ur.user_id = ? AND r.status = 1 AND r.is_super_admin = 1`,
         [userId]
       );
       return (result?.[0]?.count || 0) > 0;
@@ -215,27 +286,12 @@ class PermissionService {
    * @returns {Promise<Array<string>>}
    */
   static async getAllSystemPermissions() {
-    try {
-      const [rows] = await pool.execute(
-        `SELECT code FROM permissions
-          WHERE status = 1
-          ORDER BY code`
-      );
-      if (rows.length > 0) {
-        return rows.map((p) => p.code).filter(Boolean);
-      }
-    } catch (error) {
-      // 表未迁移时回退 menus（兼容旧库）
-      if (error.code !== 'ER_NO_SUCH_TABLE') throw error;
-      logger.warn('permissions 表不存在，回退 menus 注册表');
-    }
-
-    const [legacy] = await pool.execute(
-      `SELECT DISTINCT permission AS code FROM menus
-        WHERE permission IS NOT NULL AND permission != '' AND status = 1
-        ORDER BY permission`
+    const [rows] = await pool.execute(
+      `SELECT code FROM permissions
+        WHERE status = 1
+        ORDER BY code`
     );
-    return legacy.map((p) => p.code).filter(Boolean);
+    return rows.map((permission) => permission.code).filter(Boolean);
   }
 
   /**
@@ -259,52 +315,16 @@ class PermissionService {
     const roleIds = userRoles.map((role) => role.id);
     const placeholders = roleIds.map(() => '?').join(',');
 
-    let rawPermissions;
-    try {
-      const [permissions] = await pool.execute(
-        `SELECT DISTINCT p.code AS permission
-           FROM permissions p
-           JOIN role_permissions rp ON rp.permission_id = p.id
-          WHERE rp.role_id IN (${placeholders})
-            AND p.status = 1
-          ORDER BY p.code`,
-        roleIds
-      );
-      rawPermissions = permissions.map((p) => p.permission).filter(Boolean);
-
-      // 兼容：role_permissions 尚未回填时回退 role_menus（过渡期）
-      if (rawPermissions.length === 0) {
-        const [legacy] = await pool.execute(
-          `SELECT DISTINCT m.permission
-             FROM menus m
-             JOIN role_menus rm ON m.id = rm.menu_id
-            WHERE rm.role_id IN (${placeholders})
-              AND m.permission IS NOT NULL AND m.permission != ''
-              AND m.status = 1
-            ORDER BY m.permission`,
-          roleIds
-        );
-        rawPermissions = legacy.map((p) => p.permission).filter(Boolean);
-        if (rawPermissions.length > 0) {
-          logger.warn(
-            `User ${userId} role_permissions empty; fallback role_menus (${rawPermissions.length} codes)`
-          );
-        }
-      }
-    } catch (error) {
-      if (error.code !== 'ER_NO_SUCH_TABLE') throw error;
-      const [legacy] = await pool.execute(
-        `SELECT DISTINCT m.permission
-           FROM menus m
-           JOIN role_menus rm ON m.id = rm.menu_id
-          WHERE rm.role_id IN (${placeholders})
-            AND m.permission IS NOT NULL AND m.permission != ''
-            AND m.status = 1
-          ORDER BY m.permission`,
-        roleIds
-      );
-      rawPermissions = legacy.map((p) => p.permission).filter(Boolean);
-    }
+    const [permissions] = await pool.execute(
+      `SELECT DISTINCT p.code AS permission
+         FROM permissions p
+         JOIN role_permissions rp ON rp.permission_id = p.id
+        WHERE rp.role_id IN (${placeholders})
+          AND p.status = 1
+        ORDER BY p.code`,
+      roleIds
+    );
+    const rawPermissions = permissions.map((permission) => permission.permission).filter(Boolean);
 
     return expandPermissionsWithAliases(rawPermissions);
   }

@@ -126,24 +126,32 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
     if (!Array.isArray(items) || items.length === 0) return []
     return items.map(item => {
       const quantity = toNumberOrNull(item.quantity) ?? 0
-      const price = toNumberOrNull(item.price ?? item.unitPrice)
-      const explicitTotal = toNumberOrNull(item.totalPrice ?? item.totalPrice ?? item.amount)
-      const totalPrice = explicitTotal ?? (price === null ? null : quantity * price)
+      const price = toNumberOrNull(item.price ?? item.unitPrice) ?? 0
+      const explicitTotal = toNumberOrNull(item.totalPrice ?? item.total ?? item.amount)
+      const calculatedTotal = (price !== null && quantity !== null) ? (quantity * price) : null
+      const totalPrice = (explicitTotal !== null && explicitTotal > 0) ? explicitTotal : (calculatedTotal ?? explicitTotal ?? 0)
+      const taxRate = toNumberOrNull(item.taxRate) ?? 0
+      const taxAmount = toNumberOrNull(item.taxAmount) ?? (totalPrice * taxRate)
       return {
         materialId: item.materialId || item.id || '',
-        materialCode: item.materialCode || item.material_code || item.code || '',
-        materialName: item.materialName || item.material_name || item.name || '',
-        specification: item.specification || item.specs || item.resolvedSpecification || item.resolved_specification || '',
-        unit: item.unit || item.unitName || item.unit_name || '',
-        quantity, price,
+        materialCode: item.materialCode || item.code || '',
+        materialName: item.materialName || item.name || '',
+        specification: item.specification || item.specs || item.resolvedSpecification || '',
+        unit: item.unit || item.unitName || '',
+        unitName: item.unitName || item.unit || '',
+        quantity,
+        price,
+        unitPrice: price,
         totalPrice,
-        taxRate: toNumberOrNull(item.taxRate) ?? 0,
-        taxAmount: toNumberOrNull(item.taxAmount),
-        receivedQuantity: toNumberOrNull(item.receivedQuantity ?? item.received_quantity) ?? 0,
-        warehousedQuantity: toNumberOrNull(item.warehousedQuantity ?? item.warehoused_quantity) ?? 0,
-        receivedPercentage: toNumberOrNull(item.receivedPercentage ?? item.received_percentage) ?? 0,
-        warehousedPercentage: toNumberOrNull(item.warehousedPercentage ?? item.warehoused_percentage) ?? 0,
-        pendingQuantity: toNumberOrNull(item.pendingQuantity ?? item.pending_quantity) ?? 0
+        amount: totalPrice,
+        total: totalPrice,
+        taxRate,
+        taxAmount,
+        receivedQuantity: toNumberOrNull(item.receivedQuantity) ?? 0,
+        warehousedQuantity: toNumberOrNull(item.warehousedQuantity) ?? 0,
+        receivedPercentage: toNumberOrNull(item.receivedPercentage) ?? 0,
+        warehousedPercentage: toNumberOrNull(item.warehousedPercentage) ?? 0,
+        pendingQuantity: toNumberOrNull(item.pendingQuantity) ?? 0
       }
     })
   }
@@ -157,22 +165,32 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
         const data = parseResponseData(response)
         let items = data.items || data.orderItems || data.materialItems || []
         items = fixItemsStructure(items)
+        const calculatedSubtotal = items.reduce((sum, it) => sum + (Number(it.totalPrice) || 0), 0)
+        const calculatedTaxAmount = items.reduce((sum, it) => sum + (Number(it.taxAmount) || 0), 0)
+        const totalAmount = (data.totalAmount && Number(data.totalAmount) > 0)
+          ? Number(data.totalAmount)
+          : (calculatedSubtotal + calculatedTaxAmount)
+        const subtotal = (data.subtotal && Number(data.subtotal) > 0) ? Number(data.subtotal) : calculatedSubtotal
+        const taxAmount = (data.taxAmount && Number(data.taxAmount) > 0)
+          ? Number(data.taxAmount)
+          : calculatedTaxAmount
+
         Object.assign(viewData, {
           id: data.id,
-          orderNo: data.orderNo || data.orderNumber || data.order_no || data.order_number || '',
-          orderDate: formatDate(data.orderDate || data.order_date || ''),
-          expectedDeliveryDate: formatDate(data.expectedDeliveryDate || data.expected_delivery_date || ''),
-          supplierId: data.supplierId ?? data.supplier_id ?? '',
-          supplierName: data.supplierName || data.supplier_name || '',
-          contactPerson: data.contactPerson || data.contact_person || '',
-          contactPhone: data.contactPhone || data.contact_phone || '',
+          orderNo: data.orderNo || data.orderNumber || '',
+          orderDate: formatDate(data.orderDate || ''),
+          expectedDeliveryDate: formatDate(data.expectedDeliveryDate || ''),
+          supplierId: data.supplierId ?? '',
+          supplierName: data.supplierName || '',
+          contactPerson: data.contactPerson || '',
+          contactPhone: data.contactPhone || '',
           remarks: data.remarks || data.notes || '', status: data.status || '',
-          totalAmount: data.totalAmount ?? data.total_amount ?? null,
-          subtotal: data.subtotal ?? null,
-          taxAmount: data.taxAmount ?? data.tax_amount ?? null,
-          contractCode: data.contractCode || data.contract_code || '',
-          requisitionId: data.requisitionId ?? data.requisition_id ?? null,
-          requisitionNumber: data.requisitionNumber || data.requisition_number || '', items
+          totalAmount,
+          subtotal,
+          taxAmount,
+          contractCode: data.contractCode || '',
+          requisitionId: data.requisitionId ?? null,
+          requisitionNumber: data.requisitionNumber || '', items
         })
         const row = orderList.value.find((item) => String(item.id) === String(id))
         if (row) setCurrentViewOrder(row)
@@ -255,12 +273,16 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
       receiveForm.supplierName = orderData.supplierName
       const items = orderData.items || []
       receiveForm.items = items.map(item => {
-        const pendingQty = parseFloat(item.quantity || 0) - parseFloat(item.receivedQuantity || 0)
+        const totalQty = parseFloat(item.quantity || 0)
+        const receivedQty = parseFloat(item.receivedQuantity || 0)
+        const pendingQty = Math.max(0, parseFloat((totalQty - receivedQty).toFixed(4)))
         return {
           ...item,
-          // 到货数量必须由操作人明确填写，未到货明细默认提交 0。
-          receiveQuantity: 0,
-          pendingQuantity: pendingQty > 0 ? pendingQty : 0
+          unit: item.unit || item.unitName || '-',
+          unitName: item.unitName || item.unit || '-',
+          // 默认带入待收货数量（未收货即采购数量），方便用户一键确认直接到货
+          receiveQuantity: pendingQty,
+          pendingQuantity: pendingQty
         }
       })
       const hasPendingItems = receiveForm.items.some(item => parseFloat(item.pendingQuantity || 0) > 0)
@@ -270,16 +292,23 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
   }
 
   const handleReceiveQuantityChange = (row) => {
-    let qty = parseFloat(row.receiveQuantity); if (isNaN(qty) || qty < 0) qty = 0
-    const maxQty = parseFloat(row.quantity || 0) - parseFloat(row.receivedQuantity || 0)
-    if (qty > maxQty) { qty = maxQty; ElMessage.warning(`到货数量不能超过待收货数量 ${maxQty.toFixed(2)}`) }
-    row.receiveQuantity = qty.toFixed(2)
+    if (row.receiveQuantity === '' || row.receiveQuantity === null || row.receiveQuantity === undefined) {
+      return
+    }
+    let qty = parseFloat(row.receiveQuantity)
+    if (isNaN(qty) || qty < 0) qty = 0
+    const maxQty = parseFloat((parseFloat(row.quantity || 0) - parseFloat(row.receivedQuantity || 0)).toFixed(4))
+    if (qty > maxQty) {
+      qty = maxQty
+      ElMessage.warning(`到货数量不能超过待收货数量 ${maxQty}`)
+    }
+    row.receiveQuantity = qty
   }
 
   const confirmReceive = async () => {
     try {
       const receivingItems = receiveForm.items.filter(item => parseFloat(item.receiveQuantity || 0) > 0)
-      if (receivingItems.length === 0) { ElMessage.warning('请至少选择一个物料并填写到货数量'); return }
+      if (receivingItems.length === 0) { ElMessage.warning('请至少填写一个物料的到货数量'); return }
       receiveDialogLoading.value = true
       const result = unwrapBusinessData(await purchaseApi.receiveOrderWithInspection(receiveForm.orderId, receivingItems))
       const allReceived = receiveForm.items.every(item => { const totalReceived = parseFloat(item.receivedQuantity || 0) + parseFloat(item.receiveQuantity || 0); return totalReceived >= parseFloat(item.quantity || 0) })

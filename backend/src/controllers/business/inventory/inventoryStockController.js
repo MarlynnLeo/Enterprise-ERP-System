@@ -661,38 +661,7 @@ const adjustStock = async (req, res) => {
       connection
     );
 
-    const transactionResult = { insertId: result.transactionId };
-
     await connection.commit();
-
-    // 自动生成财务分录（异步处理，失败进入死信队列补偿）
-    setImmediate(async () => {
-      try {
-        const InventoryCostService = require('../../../services/business/InventoryCostService');
-        const transactionData = {
-          id: transactionResult.insertId,
-          material_id: materialId,
-          location_id: locationId,
-          transaction_type: adjustedTransactionType, // 使用正确的事务类型
-          quantity: changeQuantity, // 使用实际变动量
-          reference_no: adjustmentNo, // 使用生成的调整单号
-          reference_type: 'inventory_adjustment',
-        };
-
-        if (changeQuantity > 0) {
-          await InventoryCostService.generateInboundCostEntry(transactionData);
-        } else {
-          await InventoryCostService.generateOutboundCostEntry(transactionData);
-        }
-      } catch (error) {
-        const DLQService = require('../../../services/business/DLQService');
-        await DLQService.recordSideEffectFailure(
-          'FinanceIntegration:InventoryAdjustmentEntry',
-          { materialId, locationId, adjustmentNo, adjustedTransactionType, changeQuantity },
-          error
-        );
-      }
-    });
 
     ResponseHandler.success(
       res,

@@ -640,22 +640,19 @@ const handleDelete = async (row) => {
     }
   }
 }
-// Helper functions
+import {
+  getNonconformingSeverityText,
+  getNonconformingSeverityColor,
+  getNonconformingStatusText,
+  getNonconformingStatusColor
+} from '@/constants/systemConstants'
+
+// Helper functions (统一调用配置中心)
 const _getSeverityType = (severity) => {
-  const types = {
-    minor: 'info',
-    major: 'warning',
-    critical: 'danger'
-  }
-  return types[severity] || 'info'
+  return getNonconformingSeverityColor(severity)
 }
 const _getSeverityLabel = (severity) => {
-  const labels = {
-    minor: '轻微',
-    major: '严重',
-    critical: '致命'
-  }
-  return labels[severity] || severity
+  return getNonconformingSeverityText(severity)
 }
 const getDispositionLabel = (disposition) => {
   const labels = {
@@ -669,22 +666,10 @@ const getDispositionLabel = (disposition) => {
   return labels[disposition] || disposition
 }
 const getStatusType = (status) => {
-  const types = {
-    pending: 'warning',
-    processing: 'primary',
-    completed: 'success',
-    closed: 'info'
-  }
-  return types[status] || 'info'
+  return getNonconformingStatusColor(status)
 }
 const getStatusLabel = (status) => {
-  const labels = {
-    pending: '待处理',
-    processing: '处理中',
-    completed: '已完成',
-    closed: '已关闭'
-  }
-  return labels[status] || status
+  return getNonconformingStatusText(status)
 }
 const supplierList = ref([])
 const supplierLoading = ref(false)

@@ -31,8 +31,31 @@ const {
 } = require('./outboundBomController');
 const ScopeGuard = require('../../../../authorization/ScopeGuard');
 const { getRequestActorLabel, resolveActorLabel } = require('../../../../utils/userUtils');
+const { PermissionUtils } = require('../../../../utils/authUtils');
+const PermissionService = require('../../../../services/PermissionService');
 
 const MAX_BATCH_OUTBOUND_IDS = 500;
+
+const OUTBOUND_CANCEL_PERMISSION = 'inventory:outbound:cancel';
+
+function isCancelStatus(status) {
+  return status === STATUS.OUTBOUND.CANCELLED || status === 'cancelled';
+}
+
+/**
+ * 取消出库单需要专门的 inventory:outbound:cancel 权限。
+ *
+ * 权限一律取 requirePermission 挂上的 req.userPermissions（内含超管 '*' 通配符）。
+ * 不要读 req.user.permissions / req.user.roles：access token 载荷只有
+ * id/username/tokenVersion（见 config/jwtEnhanced.js），那两个字段永远是 undefined，
+ * 曾导致本检查对所有人恒为拒绝。
+ */
+async function hasOutboundCancelPermission(req) {
+  const permissions = Array.isArray(req.userPermissions)
+    ? req.userPermissions
+    : await PermissionService.getUserPermissions(req.user?.id);
+  return PermissionUtils.hasPermission(permissions, OUTBOUND_CANCEL_PERMISSION);
+}
 
 const updateOutboundStatus = async (req, res) => {
   const connection = await db.pool.getConnection();
@@ -122,6 +145,12 @@ const updateOutboundStatus = async (req, res) => {
         'VALIDATION_ERROR',
         400
       );
+    }
+
+    // 取消出库单需要专门的 inventory:outbound:cancel 权限
+    if (isCancelStatus(newStatus) && !(await hasOutboundCancelPermission(req))) {
+      await connection.rollback();
+      return ResponseHandler.forbidden(res, '无权取消出库单');
     }
 
     // 如果从draft转为confirmed，更新operator为当前用户
@@ -764,23 +793,6 @@ const updateOutboundStatus = async (req, res) => {
         if (outboundData.length > 0 && outboundData[0].status === STATUS.OUTBOUND.COMPLETED) {
           const outbound = outboundData[0];
 
-          // 异步创建成本分录
-          if (
-            businessConfig.performance.asyncCostCalculation &&
-            !isProductionOutboundReference(outbound.reference_type)
-          ) {
-            AsyncTaskService.createCostEntryAsync({
-              transaction_type:
-                outbound.reference_type === 'sales_outbound' ? 'sales_outbound' : 'outbound',
-              reference_no: outbound.outbound_no,
-              reference_type: outbound.reference_type || 'outbound',
-              material_id: null, // 将在服务中处理每个物料
-              quantity: 0,
-              operator: outbound.operator,
-            });
-            logger.debug(`[性能优化] 已提交异步成本核算任务: ${outbound.outbound_no}`);
-          }
-
           // 异步创建追溯记录
           if (businessConfig.performance.asyncTraceability) {
             AsyncTaskService.createTraceabilityAsync('production_outbound', {
@@ -857,6 +869,12 @@ const batchUpdateOutboundStatus = async (req, res) => {
     ];
     if (!validStatuses.includes(newStatus)) {
       return ResponseHandler.error(res, `无效的状态值: ${newStatus}`, 'VALIDATION_ERROR', 400);
+    }
+
+    // 与单据状态口保持一致：批量取消同样需要 inventory:outbound:cancel。
+    // 路由只要求 inventory:outbound:update，若此处不校验，批量口就是单据口的绕过路径。
+    if (isCancelStatus(newStatus) && !(await hasOutboundCancelPermission(req))) {
+      return ResponseHandler.forbidden(res, '无权取消出库单');
     }
 
     await connection.beginTransaction();
@@ -1058,6 +1076,10 @@ const cancelOutboundReissue = async (req, res) => {
   const connection = await db.pool.getConnection();
   try {
     const { id } = req.params;
+    const numericId = Number(id);
+    if (!Number.isInteger(numericId) || numericId <= 0) {
+      return ResponseHandler.error(res, '无效的出库单ID', 'VALIDATION_ERROR', 400);
+    }
     const { force, createReissue = true } = req.body || {};
 
     if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'inventory_outbound', id, '无权撤销该出库单'))) {
@@ -1227,83 +1249,27 @@ const cancelOutboundReissue = async (req, res) => {
       }
     }
 
-    const [alreadyReversed] = await connection.execute(
-      `SELECT COUNT(*) AS count
-       FROM inventory_ledger
-       WHERE reference_no = ? AND transaction_type = 'outbound_cancel' AND quantity > 0`,
-      [outbound_no]
-    );
-
-    if (Number(alreadyReversed[0]?.count || 0) > 0) {
-      await connection.rollback();
-      return ResponseHandler.error(res, '该出库单已有冲销流水，禁止重复撤销', 'VALIDATION_ERROR', 400);
-    }
-
+    const InventoryPostingService = require('../../../../services/InventoryPostingService');
+    const posting = await InventoryPostingService.requireApprovedForTransaction(connection, {
+      reference_no: outbound_no,
+      reference_type: 'outbound',
+    });
     const [ledgerRows] = await connection.execute(
-      `SELECT
-         il.id,
-         il.material_id,
-         COALESCE(il.location_id, m.location_id) AS location_id,
-         COALESCE(il.unit_id, m.unit_id) AS unit_id,
-         il.batch_number,
-         ABS(il.quantity) AS qty,
-         il.reference_no
-       FROM inventory_ledger il
-       LEFT JOIN materials m ON il.material_id = m.id
-       WHERE il.quantity < 0
-         AND (il.reference_no = ? OR il.reference_no LIKE ?)
-       ORDER BY il.id ASC`,
-      [outbound_no, `${outbound_no}-%`]
+      `SELECT id, ABS(signed_quantity) AS qty
+         FROM inventory_posting_lines
+        WHERE posting_document_id = ?
+        ORDER BY line_no`,
+      [posting.id]
     );
-
-    if (ledgerRows.length === 0) {
-      await connection.rollback();
-      return ResponseHandler.error(
-        res,
-        '找不到该出库单的实际出库流水，无法安全撤销重发',
-        'VALIDATION_ERROR',
-        400
-      );
-    }
-
+    await InventoryPostingService.reverse(
+      posting.id,
+      InventoryPostingService.actorFromRequest(req),
+      `撤销出库单 ${outbound_no}`,
+      connection
+    );
     const operator = await getCurrentUserName(req);
-    let reversedLedgerCount = 0;
-    let reversedQuantity = 0;
-
-    for (const ledger of ledgerRows) {
-      const qty = parseFloat(ledger.qty) || 0;
-      if (qty <= 0) continue;
-      if (!ledger.location_id) {
-        await connection.rollback();
-        return ResponseHandler.error(
-          res,
-          `台账 ${ledger.id} 缺少库位，无法安全冲回`,
-          'VALIDATION_ERROR',
-          400
-        );
-      }
-
-      await InventoryService.updateStock(
-        {
-          materialId: ledger.material_id,
-          locationId: ledger.location_id,
-          quantity: qty,
-          transactionType: 'outbound_cancel',
-          referenceNo: outbound_no,
-          referenceType: 'outbound_reversal',
-          operator,
-          remark: `撤销出库单 ${outbound_no}，来源台账 ${ledger.id}`,
-          unitId: ledger.unit_id,
-          batchNumber: ledger.batch_number || `REV-${outbound_no}-${ledger.id}`,
-          // 按原台账行幂等，防止并发重复回冲
-          idempotencyKey: `outbound_cancel:${outbound_no}:ledger:${ledger.id}`,
-        },
-        connection
-      );
-
-      reversedLedgerCount += 1;
-      reversedQuantity += qty;
-    }
+    const reversedLedgerCount = ledgerRows.length;
+    const reversedQuantity = ledgerRows.reduce((sum, row) => sum + Number(row.qty || 0), 0);
 
     const [statusUpdate] = await connection.execute(
       `UPDATE inventory_outbound
@@ -1483,7 +1449,13 @@ const cancelOutboundReissue = async (req, res) => {
   } catch (error) {
     await connection.rollback();
     logger.error('撤销重发失败:', error);
-    return ResponseHandler.error(res, '撤销重发失败', 'SERVER_ERROR', 500, error);
+    return ResponseHandler.error(
+      res,
+      error.message || '撤销重发失败',
+      error.code || 'SERVER_ERROR',
+      error.statusCode || 500,
+      error
+    );
   } finally {
     connection.release();
   }

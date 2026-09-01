@@ -1,10 +1,10 @@
 const DEFAULT_AI_PROVIDER = 'nvidia';
 const DEFAULT_AI_API_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
-const DEFAULT_AI_MODEL = 'moonshotai/kimi-k2.6';
-const DEFAULT_AI_TIMEOUT_MS = 300000;
-const DEFAULT_AI_MAX_TOKENS = 16384;
-const DEFAULT_AI_TEMPERATURE = 1;
-const DEFAULT_AI_TOP_P = 1;
+const DEFAULT_AI_MODEL = 'openai/gpt-oss-120b';
+const DEFAULT_AI_TIMEOUT_MS = 60000;
+const DEFAULT_AI_MAX_TOKENS = 8192;
+const DEFAULT_AI_TEMPERATURE = 0.7;
+const DEFAULT_AI_TOP_P = 0.95;
 const REMOTE_AI_PROVIDERS = new Set(['nvidia', 'openai', 'siliconflow', 'zhipu', 'remote']);
 
 const parsePositiveInt = (value, fallback) => {

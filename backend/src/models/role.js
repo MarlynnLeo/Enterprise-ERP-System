@@ -47,33 +47,15 @@ const getRoleMenus = async (roleId) => {
  * 获取角色的权限码列表（SSOT）
  */
 const getRolePermissionCodes = async (roleId) => {
-  try {
-    const [rows] = await pool.execute(
-      `SELECT p.code
-         FROM permissions p
-         JOIN role_permissions rp ON rp.permission_id = p.id
-        WHERE rp.role_id = ? AND p.status = 1
-        ORDER BY p.code`,
-      [roleId]
-    );
-    return rows.map((r) => r.code);
-  } catch (error) {
-    if (error.code === 'ER_NO_SUCH_TABLE') {
-      // 未迁移时从菜单推导
-      const [legacy] = await pool.execute(
-        `SELECT DISTINCT m.permission AS code
-           FROM menus m
-           JOIN role_menus rm ON rm.menu_id = m.id
-          WHERE rm.role_id = ?
-            AND m.permission IS NOT NULL AND m.permission <> ''
-            AND m.status = 1
-          ORDER BY m.permission`,
-        [roleId]
-      );
-      return legacy.map((r) => r.code);
-    }
-    throw error;
-  }
+  const [rows] = await pool.execute(
+    `SELECT p.code
+       FROM permissions p
+       JOIN role_permissions rp ON rp.permission_id = p.id
+      WHERE rp.role_id = ? AND p.status = 1
+      ORDER BY p.code`,
+    [roleId]
+  );
+  return rows.map((row) => row.code);
 };
 
 /**
@@ -142,9 +124,7 @@ const setRoleMenus = async (roleId, menuIds = []) => {
 
       // 鉴权 SSOT：同步 role_permissions
       const sync = await syncRolePermissionsFromMenus(connection, roleId, scopedMenuIds);
-      logger.info(
-        `[事务] 角色 ${roleId} role_permissions 同步完成: inserted=${sync.inserted}`
-      );
+      logger.info(`[事务] 角色 ${roleId} role_permissions 同步完成: inserted=${sync.inserted}`);
 
       revokedUserIds = await revokeRoleSessionsInTransaction(connection, [roleId]);
 

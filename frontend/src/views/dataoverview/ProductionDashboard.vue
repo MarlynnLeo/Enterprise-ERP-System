@@ -1,8 +1,8 @@
-﻿<!--
+<!--
 /**
  * ProductionDashboard.vue
- * @description 前端界面组件文件
-  * @date 2025-08-27
+ * @description 生产数据概览组件
+ * @date 2026-08-31
  * @version 1.0.0
  */
 -->
@@ -11,8 +11,8 @@
     <PageHeader title="生产数据概览" subtitle="计划、任务与产出关键指标">
       <template #actions>
         <span v-if="lastUpdated" class="last-updated">
-            最后更新: {{ new Date(lastUpdated).toLocaleTimeString() }}
-          </span>
+          最后更新: {{ new Date(lastUpdated).toLocaleTimeString() }}
+        </span>
       </template>
     </PageHeader>
     <!-- 统计卡片 -->
@@ -78,7 +78,7 @@
             </div>
           </template>
           <div class="chart-container">
-            <canvas ref="productionTrend" height="300"></canvas>
+            <canvas ref="productionTrend"></canvas>
           </div>
         </el-card>
       </el-col>
@@ -90,7 +90,7 @@
             </div>
           </template>
           <div class="chart-container">
-            <canvas ref="processCompletion" height="300"></canvas>
+            <canvas ref="processCompletion"></canvas>
           </div>
         </el-card>
       </el-col>
@@ -119,9 +119,7 @@
             class="table-row-click w-full"
             v-loading="loading"
             border
-            :max-height="400"
-          
-      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => router.push(`/production/plan?id=${row.id}`))">
+            @row-click="(row, column, event) => handleTableRowView(row, column, event, () => router.push(`/production/plan?id=${row.id}`))">
             <el-table-column label="计划编号" prop="code" min-width="120" />
             <el-table-column label="产品名称" prop="productName" min-width="120" />
             <el-table-column label="产品编码" prop="productCode" min-width="120" />
@@ -147,7 +145,6 @@
                 {{ scope.row.manager || '-' }}
               </template>
             </el-table-column>
-            
           </el-table>
           <div class="pagination-container" v-if="pendingPlans.length > 0">
             <el-pagination

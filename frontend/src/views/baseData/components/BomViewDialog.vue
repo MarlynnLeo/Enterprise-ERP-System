@@ -2,12 +2,13 @@
   <AppDialog
     title="查看BOM详情"
     mode="view"
-    wide
+    width="1020px"
+    :loading="loading || !bomData"
     :model-value="modelValue"
     :detail-navigation="detailNavigation"
     @update:model-value="val => emit('update:modelValue', val)"
   >
-    <div v-if="bomData">
+    <div v-if="bomData" class="bom-view-content">
         <el-descriptions :column="2" border>
           <el-descriptions-item label="产品名称">{{ bomData.productName }}</el-descriptions-item>
           <el-descriptions-item label="产品编码">{{ bomData.productCode }}</el-descriptions-item>
@@ -41,18 +42,73 @@
         <!-- 使用Tabs展示BOM明细 -->
         <el-tabs v-model="activeTab" class="mt-20">
           <el-tab-pane label="BOM明细" name="details">
-            <el-table :data="displayDetails" border max-height="400" :row-key="getTreeRowKey" default-expand-all :tree-props="{ children: 'children', hasChildren: 'hasChildren' }">
-              <el-table-column label="结构" prop="wbs" width="90"></el-table-column>
-              <el-table-column prop="materialCode" label="物料编码" width="130" show-overflow-tooltip></el-table-column>
-              <el-table-column prop="materialName" label="物料名称" width="150" show-overflow-tooltip></el-table-column>
+            <el-table
+              :data="displayDetails"
+              border
+              max-height="400"
+              :row-key="getTreeRowKey"
+              default-expand-all
+              :indent="0"
+              :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
+            >
+              <el-table-column label="结构" prop="wbs" width="80"></el-table-column>
+              <el-table-column prop="materialCode" label="物料编码" min-width="140" show-overflow-tooltip></el-table-column>
+              <el-table-column label="关键件" width="85" align="center">
+                <template #default="scope">
+                  <el-tag
+                    v-if="scope.row.isCritical || scope.row.is_critical || Number(scope.row.is_critical) === 1"
+                    size="small"
+                    type="danger"
+                    effect="light"
+                  >
+                    ★ 关键件
+                  </el-tag>
+                  <span v-else class="text-muted">-</span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="materialName" label="物料名称" min-width="150" show-overflow-tooltip></el-table-column>
               <el-table-column label="规格型号" min-width="160" show-overflow-tooltip>
                 <template #default="scope">
                   <span>{{ scope.row.specification || scope.row.materialSpecs || scope.row.specs || '-' }}</span>
                 </template>
               </el-table-column>
-              <el-table-column prop="quantity" label="用量" width="70"></el-table-column>
-              <el-table-column prop="unitName" label="单位" width="60"></el-table-column>
+              <el-table-column label="用量" width="80">
+                <template #default="scope">
+                  <span>{{ Number(Number(scope.row.quantity || 0).toFixed(1)) }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="基数(每)" width="85">
+                <template #default="scope">
+                  <span>{{ Number(Number(scope.row.baseQuantity ?? scope.row.base_quantity ?? 1).toFixed(1)) }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="unit" label="单位" width="70"></el-table-column>
+              <el-table-column prop="position" label="位号" min-width="100" show-overflow-tooltip></el-table-column>
+              <el-table-column prop="lossRate" label="损耗率(%)" width="95">
+                <template #default="scope">
+                  <span>{{ Number(Number(scope.row.lossRate || 0).toFixed(1)) }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="remark" label="备注" min-width="120" show-overflow-tooltip></el-table-column>
             </el-table>
+          </el-tab-pane>
+
+          <el-tab-pane label="版本记录" name="history">
+            <el-timeline v-if="bomData.history && bomData.history.length > 0" class="p-20">
+              <el-timeline-item
+                v-for="(item, index) in bomData.history"
+                :key="index"
+                :timestamp="item.date"
+                placement="top"
+              >
+                <el-card shadow="never">
+                  <h4>{{ item.version }} - {{ item.action }}</h4>
+                  <p>操作人: {{ item.operator }}</p>
+                  <p v-if="item.remark">说明: {{ item.remark }}</p>
+                </el-card>
+              </el-timeline-item>
+            </el-timeline>
+            <el-empty v-else description="暂无版本记录"></el-empty>
           </el-tab-pane>
         </el-tabs>
     </div>
@@ -78,8 +134,9 @@ import { buildResourceUrl } from '@/config/app'
 import { commonApi } from '@/api'
 
 const props = defineProps({
-  modelValue: Boolean,
-  bomData: Object,
+  modelValue: { type: Boolean, default: false },
+  bomData: { type: Object, default: null },
+  loading: { type: Boolean, default: false },
   detailNavigation: { type: Object, default: null }
 })
 
@@ -90,12 +147,28 @@ const previewList = ref([])
 
 const getTreeRowKey = (row) => row.treeKey || `${row.bomId || 'bom'}:${row.id}`
 
-// 计算并构建WBS层级
+// 计算并构建WBS层级（按物料编码升序排序）
 const displayDetails = computed(() => {
   if (!props.bomData || !props.bomData.details) return []
 
   // 深拷贝避免直接修改 prop 警告
   const tree = JSON.parse(JSON.stringify(props.bomData.details))
+
+  // 递归按物料编码升序排序
+  const sortTreeNodes = (nodes) => {
+    nodes.sort((a, b) => {
+      const codeA = String(a.materialCode || '').trim()
+      const codeB = String(b.materialCode || '').trim()
+      return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' })
+    })
+    nodes.forEach((node) => {
+      if (node.children && node.children.length > 0) {
+        sortTreeNodes(node.children)
+      }
+    })
+  }
+
+  sortTreeNodes(tree)
 
   const assignWBS = (nodes, prefix = '') => {
     nodes.forEach((node, index) => {
@@ -186,5 +259,16 @@ const downloadAttachment = async (url) => {
   padding: 10px;
   background-color: var(--color-bg-hover);
   border-radius: 4px;
+}
+
+:deep(.el-table .el-table__indent) {
+  display: none !important;
+  width: 0 !important;
+  padding: 0 !important;
+}
+
+:deep(.el-table .el-table__placeholder) {
+  display: inline-block;
+  width: 14px;
 }
 </style>

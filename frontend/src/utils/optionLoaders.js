@@ -164,8 +164,8 @@ export const normalizeMaterialOption = (material = {}) => ({
   specification: material.specification || material.specs || '',
   specs: material.specs || material.specification || '',
   unitId: material.unitId ?? material.unit_id ?? null,
-  unitName: material.unitName || material.unit_name || material.unit || '',
-  materialType: material.materialType || material.material_type || '',
+  unitName: material.unitName || material.unit || '',
+  materialType: material.materialType || '',
 })
 
 /** 供应商下拉：默认启用，分页拉全 */

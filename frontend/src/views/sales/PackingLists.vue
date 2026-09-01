@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * PackingLists.vue
  * @description 装箱单管理前端界面组件文件
@@ -509,7 +509,7 @@ import { formatDate } from '@/utils/helpers/dateUtils'
 import { baseDataApi, salesApi } from '@/api'
 import { parseListData, parsePaginatedData } from '@/utils/responseParser'
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
-import { getCommonStatusText } from '@/constants/systemConstants'
+import { getPackingStatusText, getPackingStatusColor, PACKING_STATUS_OPTIONS } from '@/constants/systemConstants'
 import { SEARCH_CONFIG, mapMaterialData, searchMaterials as performSearchMaterials } from '@/utils/searchConfig'
 import { useAuthStore } from '@/stores/auth'
 import {
@@ -575,14 +575,8 @@ const getColumnWidth = (columnName, defaultWidth) => {
     return defaultWidth
   }
 }
-// 装箱单状态选项
-const packingStatuses = [
-  { label: '草稿', value: 'draft' },
-  { label: '已确认', value: 'confirmed' },
-  { label: '装箱中', value: 'packing' },
-  { label: '已完成', value: 'completed' },
-  { label: '已取消', value: 'cancelled' }
-]
+// 装箱单状态选项（动态绑定配置中心）
+const packingStatuses = PACKING_STATUS_OPTIONS
 // 下拉选项
 const customerOptions = ref([])
 const salesOrderOptions = ref([])
@@ -877,18 +871,6 @@ const updateNumbers = () => {
       detail.itemNo = '';
     }
   }
-};
-// 状态相关函数
-const getPackingStatusText = (status) => getCommonStatusText(status) || "未知";
-const getPackingStatusColor = (status) => {
-  const typeMap = {
-    'draft': 'info',
-    'confirmed': 'warning',
-    'packing': 'primary',
-    'completed': 'success',
-    'cancelled': 'danger'
-  };
-  return typeMap[status] || 'info';
 };
 // 状态判断函数
 const canEditByStatus = (row) => ['draft', 'confirmed'].includes(row.status)

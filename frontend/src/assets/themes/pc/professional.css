@@ -304,20 +304,6 @@
   font-weight: 500 !important;
 }
 
-/* 空状态 */
-[data-theme="professional"] .el-empty__description {
-  color: var(--color-text-secondary) !important;
-}
-
-/* 分割线 */
-[data-theme="professional"] .el-divider {
-  background-color: var(--color-bg-page) !important;
-}
-
-/* 步骤条 */
-[data-theme="professional"] .el-steps {
-  color: var(--color-text-secondary) !important;
-}
 
 [data-theme="professional"] .el-step__title {
   color: var(--color-text-regular) !important;

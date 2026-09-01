@@ -65,6 +65,13 @@ import { API_CONFIG } from '../config/app';
  */
 
 export const financeApi = {
+    inventoryPostings: {
+        list: (params) => api.get('/finance/inventory-postings', { params }),
+        get: (id) => api.get(`/finance/inventory-postings/${id}`),
+        approve: (id) => api.post(`/finance/inventory-postings/${id}/approve`),
+        reject: (id, data) => api.post(`/finance/inventory-postings/${id}/reject`, data),
+        reverse: (id, data) => api.post(`/finance/inventory-postings/${id}/reverse`, data)
+    },
     // ============ 仪表盘 & 统计 ============
     // 现金流统计（收支趋势、按类型汇总）
     getCashFlowStatistics: (params) => api.get('/finance/statistics/cash-flow', { params }),

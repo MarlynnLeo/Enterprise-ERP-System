@@ -316,7 +316,7 @@ export default {
     required: '이 필드는 필수입니다',
     email: '유효한 이메일 주소를 입력하세요',
     phone: '유효한 전화번호를 입력하세요',
-    password: '비밀번호는 최소 6자 이상이어야 합니다',
+    password: '비밀번호는 최소 12자 이상이어야 합니다',
     confirmPassword: '비밀번호가 일치하지 않습니다',
     minLength: '최소 {min}자 이상 입력하세요',
     maxLength: '최대 {max}자까지 입력 가능합니다',

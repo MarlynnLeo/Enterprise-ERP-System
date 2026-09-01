@@ -161,22 +161,33 @@ const salesOutboundItemMap = {
   toApi(row) {
     if (row == null) return null;
     const productId = row.product_id ?? row.productId ?? null;
+    const materialCode = row.material_code ?? row.materialCode ?? row.product_code ?? row.productCode ?? row.code ?? null;
+    const materialName = row.material_name ?? row.materialName ?? row.product_name ?? row.productName ?? row.name ?? null;
+    const specification = row.specification ?? row.specs ?? row.product_specs ?? null;
+    const unitName = row.unit_name ?? row.unitName ?? row.unit ?? null;
     return {
       id: row.id ?? null,
-      outboundId: row.outbound_id ?? null,
+      outboundId: row.outbound_id ?? row.outboundId ?? null,
       productId,
       materialId: productId,
+      productCode: materialCode,
+      materialCode,
+      code: materialCode,
+      productName: materialName,
+      materialName,
+      name: materialName,
+      specification,
+      specs: specification,
+      productSpecs: specification,
       quantity: toNumber(row.quantity, 0),
       unitPrice: toNumber(row.price ?? row.unitPrice ?? row.unit_price, 0),
       amount: toNumber(row.amount, 0),
-      sourceOrderId: row.source_order_id ?? null,
-      sourceOrderNo: row.source_order_no ?? null,
+      sourceOrderId: row.source_order_id ?? row.sourceOrderId ?? null,
+      sourceOrderNo: row.source_order_no ?? row.sourceOrderNo ?? null,
       remarks: row.remarks ?? null,
-      unitId: row.unit_id ?? null,
-      unitName: row.unit_name ?? null,
-      materialName: row.material_name ?? null,
-      materialCode: row.material_code ?? null,
-      specification: row.specification ?? row.specs ?? null,
+      unitId: row.unit_id ?? row.unitId ?? null,
+      unitName,
+      unit: unitName,
       returnedQuantity:
         row.returned_quantity != null ? toNumber(row.returned_quantity, 0) : null,
       returnableQuantity:

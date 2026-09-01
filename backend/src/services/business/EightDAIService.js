@@ -71,75 +71,111 @@ class EightDAIService {
      * @returns {Promise<{content: string, usage: Object}>}
      */
     static async callAI(systemPrompt, userPrompt) {
-        const { model, provider } = getAIConfig();
+        const { model: primaryModel, provider } = getAIConfig();
+        const candidateModels = [primaryModel, 'meta/llama-3.2-11b-vision-instruct'].filter(Boolean);
+        const uniqueModels = [...new Set(candidateModels)];
 
-        for (let attempt = 0; attempt <= RATE_LIMIT.maxRetries; attempt++) {
-            try {
-                await this._throttle();
+        let lastError = null;
 
-                const result = await UnifiedAIClient.createChatCompletion({
-                    serviceName: '8D AI service',
-                    messages: [
-                        { role: 'system', content: systemPrompt },
-                        { role: 'user', content: userPrompt },
-                    ],
-                    temperature: 0.35,
-                    stream: false,
-                    retries: 0,
-                });
-                const { content, usage } = result;
+        for (const currentModel of uniqueModels) {
+            for (let attempt = 0; attempt <= RATE_LIMIT.maxRetries; attempt++) {
+                try {
+                    await this._throttle();
 
-                logger.info(`[8D-AI] 调用成功 | Provider:${provider} | 模型:${model} | Token: 输入${usage.prompt_tokens} 输出${usage.completion_tokens} 总计${usage.total_tokens}`);
-                return { content, usage };
-            } catch (error) {
-                if (error.status === 429) {
-                    if (attempt < RATE_LIMIT.maxRetries) {
+                    const result = await UnifiedAIClient.createChatCompletion({
+                        serviceName: '8D AI service',
+                        model: currentModel,
+                        messages: [
+                            { role: 'system', content: systemPrompt },
+                            { role: 'user', content: userPrompt },
+                        ],
+                        temperature: 0.35,
+                        topP: 0.95,
+                        stream: false,
+                        retries: 0,
+                    });
+                    const { content, usage } = result;
+
+                    logger.info(`[8D-AI] 调用成功 | Provider:${provider} | 模型:${currentModel} | Token: 输入${usage.prompt_tokens} 输出${usage.completion_tokens} 总计${usage.total_tokens}`);
+                    return { content, usage, model: currentModel };
+                } catch (error) {
+                    lastError = error;
+                    if (error.status === 429) {
+                        if (attempt < RATE_LIMIT.maxRetries) {
+                            const delay = Math.min(
+                                RATE_LIMIT.baseDelayMs * Math.pow(2, attempt) + crypto.randomInt(0, 1000),
+                                RATE_LIMIT.maxDelayMs
+                            );
+                            logger.warn(`[8D-AI] 速率限制(429)，模型${currentModel}第${attempt + 1}次重试，等待${Math.round(delay)}ms`);
+                            await this._sleep(delay);
+                            continue;
+                        }
+                    } else if (attempt < RATE_LIMIT.maxRetries && error.status >= 500) {
                         const delay = Math.min(
                             RATE_LIMIT.baseDelayMs * Math.pow(2, attempt) + crypto.randomInt(0, 1000),
                             RATE_LIMIT.maxDelayMs
                         );
-                        logger.warn(`[8D-AI] 速率限制(429)，第${attempt + 1}次重试，等待${Math.round(delay)}ms`);
+                        logger.warn(`[8D-AI] 服务端错误(${error.status})，模型${currentModel}第${attempt + 1}次重试，等待${Math.round(delay)}ms`);
                         await this._sleep(delay);
                         continue;
+                    } else if (attempt < RATE_LIMIT.maxRetries && (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' || error.name === 'AbortError')) {
+                        logger.warn(`[8D-AI] 网络异常或超时，模型${currentModel}第${attempt + 1}次重试...`);
+                        await this._sleep(RATE_LIMIT.baseDelayMs);
+                        continue;
                     }
-                    throw new Error('AI服务繁忙，请稍后再试', { cause: error });
-                }
 
-                // NVIDIA NIM EngineCore 间歇性 500 错误，自动重试
-                if (attempt < RATE_LIMIT.maxRetries && error.status >= 500) {
-                    const delay = Math.min(
-                        RATE_LIMIT.baseDelayMs * Math.pow(2, attempt) + crypto.randomInt(0, 1000),
-                        RATE_LIMIT.maxDelayMs
-                    );
-                    logger.warn(`[8D-AI] 服务端错误(${error.status})，第${attempt + 1}次重试，等待${Math.round(delay)}ms`);
-                    await this._sleep(delay);
-                    continue;
+                    // 如果当前模型失败且有备用模型，跳到下一个备用模型
+                    if (uniqueModels.indexOf(currentModel) < uniqueModels.length - 1) {
+                        logger.warn(`[8D-AI] 模型 ${currentModel} 请求失败 (${error.message})，自动切换至备用模型...`);
+                        break;
+                    }
                 }
-
-                if (attempt < RATE_LIMIT.maxRetries && (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' || error.name === 'AbortError')) {
-                    logger.warn(`[8D-AI] 网络异常或超时，第${attempt + 1}次重试...`);
-                    await this._sleep(RATE_LIMIT.baseDelayMs);
-                    continue;
-                }
-                throw error;
             }
         }
+
+        throw lastError || new Error('AI服务暂不可用，请稍后重试');
     }
 
     /**
-     * 从AI回复中提取JSON
+     * 从AI回复中提取JSON（高容错深度解析）
      */
     static extractJSON(text) {
+        if (!text || typeof text !== 'string') {
+            throw new Error('AI回复内容为空');
+        }
+
+        // 1. 过滤思考标签与多余控制字符
+        let cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+
+        // 2. 提取 Markdown 代码块或大括号包裹的 JSON
+        const jsonMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+        if (jsonMatch) {
+            cleaned = jsonMatch[1].trim();
+        } else {
+            const firstBrace = cleaned.indexOf('{');
+            const lastBrace = cleaned.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+            }
+        }
+
+        // 3. 优先尝试直接解析
         try {
-            return JSON.parse(text);
-        } catch (e) {
-            // 尝试从markdown代码块中提取
-            const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-            if (jsonMatch) return JSON.parse(jsonMatch[1]);
-            // 尝试匹配最外层大括号
-            const braceMatch = text.match(/\{[\s\S]*\}/);
-            if (braceMatch) return JSON.parse(braceMatch[0]);
-            throw new Error('无法从AI回复中提取JSON', { cause: e });
+            return JSON.parse(cleaned);
+        } catch {
+            // 4. 容错修复：移除注释、尾随逗号、不可打印字符
+            try {
+                const repaired = cleaned
+                    .replace(/\/\/[^\n\r]*/g, '')
+                    .replace(/\/\*[\s\S]*?\*\//g, '')
+                    .replace(/,(\s*[}\]])/g, '$1')
+                    .replace(/[^\x20-\x7E\t\r\n\u00A0-\uFFFF]/g, '');
+
+                return JSON.parse(repaired);
+            } catch (e2) {
+                logger.error('[8D-AI] JSON解析及修复均失败. 原始内容:\n', text);
+                throw new Error('无法从AI回复中提取有效JSON结构: ' + e2.message, { cause: e2 });
+            }
         }
     }
 

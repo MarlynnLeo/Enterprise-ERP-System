@@ -277,7 +277,16 @@ class AuthService {
   }
 
   /**
-   * 获取用户角色 ID 列表
+   * 获取用户角色 ID 列表 —— 只认 user_roles，没有兜底。
+   *
+   * 历史实现在 user_roles 为空时会回查 users.role / users.username，
+   * 若命中 'admin' / 'super_admin' 就返回 admin 角色 id。三个问题：
+   *   - users.role 是已废弃列，与 user_roles SSOT 冲突；
+   *   - 用用户名字符串推断权限，等于把 "叫 admin 的账号" 当成特权信号；
+   *   - 与 PermissionService 的判定口径不一致（那边只认 roles.is_super_admin）。
+   * 该兜底只喂给菜单查询（导航可见性），写操作仍走 requirePermission，
+   * 所以影响面是多显示菜单而非可写越权，但口径必须统一，故直接移除。
+   *
    * @param {number} userId
    * @returns {Promise<number[]>}
    */
@@ -286,30 +295,7 @@ class AuthService {
       'SELECT role_id FROM user_roles WHERE user_id = ?',
       [userId]
     );
-    if (userRoles.length > 0) {
-      return userRoles.map((r) => r.role_id);
-    }
-
-    // 兜底：如果 user_roles 为空但用户本身是 admin，尝试查找 admin 角色的 ID
-    const [users] = await pool.execute(
-      'SELECT role, username FROM users WHERE id = ?',
-      [userId]
-    );
-    if (users.length > 0) {
-      const u = users[0];
-      const role = String(u.role || '').toLowerCase();
-      const username = String(u.username || '').toLowerCase();
-      if (role === 'admin' || role === 'super_admin' || username === 'admin') {
-        const [adminRoles] = await pool.execute(
-          "SELECT id FROM roles WHERE LOWER(code) IN ('admin', 'super_admin') AND status = 1 LIMIT 1"
-        );
-        if (adminRoles.length > 0) {
-          return [adminRoles[0].id];
-        }
-      }
-    }
-
-    return [];
+    return userRoles.map((r) => r.role_id);
   }
 
   /**

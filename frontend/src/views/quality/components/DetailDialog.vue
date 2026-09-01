@@ -52,9 +52,11 @@
               <template #default="{ row }">{{ row.standard || row.dimensionInfo || '-' }}</template>
             </el-table-column>
             <el-table-column label="测量值">
-              <el-table-column v-for="n in 6" :key="n" :label="`${n}#`" min-width="55">
+              <el-table-column v-for="n in MAX_INSPECTION_MEASUREMENT_COLUMNS" :key="n" :label="`${n}#`" min-width="55">
                 <template #default="{ row }">
-                  <span :class="row[`measure_${n}`] ? 'text-primary' : 'text-muted'">{{ row[`measure_${n}`] || '-' }}</span>
+                  <span :class="getMeasurement(row, n) !== null && getMeasurement(row, n) !== '' ? 'text-primary' : 'text-muted'">
+                    {{ getMeasurement(row, n) !== null && getMeasurement(row, n) !== '' ? getMeasurement(row, n) : '{无}' }}
+                  </span>
                 </template>
               </el-table-column>
             </el-table-column>
@@ -90,7 +92,13 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { getQualityStatusText, getQualityStatusColor } from '@/constants/systemConstants'
-import { fetchInspectionDetailWithItems, extractMaterialNameSimple, extractMaterialSpecsSimple, extractSupplierNameSimple } from '@/utils/inspectionHelpers'
+import {
+  fetchInspectionDetailWithItems,
+  extractMaterialNameSimple,
+  extractMaterialSpecsSimple,
+  extractSupplierNameSimple,
+  MAX_INSPECTION_MEASUREMENT_COLUMNS
+} from '@/utils/inspectionHelpers'
 const props = defineProps({
   visible: Boolean,
   row: { type: Object, default: null }
@@ -102,6 +110,12 @@ const dialogVisible = computed({
 })
 const loading = ref(false)
 const inspection = ref(null)
+const getMeasurement = (row, index) => {
+  const dynamic = row?.measurements?.find((measurement, measurementIndex) =>
+    Number(measurement?.sample_no ?? measurement?.sampleNo ?? measurementIndex + 1) === index
+  )
+  return dynamic?.measured_value ?? dynamic?.measuredValue ?? dynamic?.value ?? row?.[`measure${index}`] ?? row?.[`measure_${index}`] ?? null
+}
 // 监听弹窗打开时加载数据
 watch(() => props.visible, async (val) => {
   if (val && props.row) {

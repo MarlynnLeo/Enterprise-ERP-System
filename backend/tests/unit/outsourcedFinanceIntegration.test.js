@@ -22,6 +22,9 @@ jest.mock('../../src/services/system/SystemConfigService', () => ({}));
 jest.mock('../../src/services/business/DocumentLinkService', () => ({
   tryAutoLink: jest.fn(async () => {}),
 }));
+jest.mock('../../src/services/InventoryPostingService', () => ({
+  requireApprovedForTransaction: jest.fn(async () => ({ id: 1, finance_status: 'approved' })),
+}));
 jest.mock('../../src/constants/documentLinkTypes', () => ({
   DOCUMENT_LINK_TYPES: {},
 }));

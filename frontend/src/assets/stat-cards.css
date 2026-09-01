@@ -372,21 +372,28 @@
  * 布局：主数字在上 → 标签在下 → 副指标底栏；自动图标在右侧
  * ============================================================ */
 .overview-page .stats-row.el-row,
-.module-page.overview-page > .el-row.stats-row {
-  align-items: stretch;
+.module-page.overview-page > .el-row.stats-row,
+.overview-page .stats-row {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: stretch !important;
   margin-bottom: 16px !important;
 }
 
 .overview-page .stats-row > .el-col {
-  display: flex;
+  display: flex !important;
+  flex-direction: column !important;
   margin-bottom: 0 !important;
 }
 
 .overview-page .stats-row > .el-col > .el-card.stat-card {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
+  width: 100% !important;
+  height: 120px !important;
+  min-height: 120px !important;
+  max-height: 120px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  box-sizing: border-box !important;
 }
 
 .overview-page .el-card.stat-card.primary-card {
@@ -405,21 +412,26 @@
   --stat-card-accent: var(--color-danger);
 }
 
-/* 图标在右：右侧留槽，左侧放数字（与生产计划一致的「数在上、文在下」） */
 .overview-page .el-card.stat-card > .el-card__body {
   position: relative !important;
-  flex: 1;
-  min-height: 96px !important;
-  height: 100%;
-  padding: 16px 72px 14px 16px !important;
+  flex: 1 1 auto !important;
+  height: 120px !important;
+  min-height: 120px !important;
+  max-height: 120px !important;
+  padding: 14px 18px 12px !important;
   display: flex !important;
   flex-direction: column !important;
   align-items: flex-start !important;
-  justify-content: center !important;
+  justify-content: space-between !important;
   text-align: left !important;
-  box-sizing: border-box;
-  overflow: hidden;
-  gap: 0;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+  gap: 0 !important;
+}
+
+/* 兼容带图标的卡片 */
+.overview-page .el-card.stat-card:has(.stat-card-auto-icon, .stat-icon, .icon-container) > .el-card__body {
+  padding-right: 68px !important;
 }
 
 /* 自动图标靠右垂直居中 */
@@ -449,7 +461,7 @@
   min-width: 0;
   padding: 0 !important;
   margin: 0 !important;
-  gap: 4px;
+  gap: 2px;
 }
 
 .overview-page .el-card.stat-card .stat-info,
@@ -458,7 +470,6 @@
 }
 
 .overview-page .el-card.stat-card .stat-title {
-  /* 旧标题并入主 label 语义：隐藏，避免与 stat-label 重复抢版 */
   display: none !important;
 }
 
@@ -466,12 +477,17 @@
   order: 1;
   position: relative;
   z-index: 2;
-  font-size: 24px !important;
+  font-size: 22px !important;
   font-weight: 700 !important;
   line-height: 1.2 !important;
+  height: 28px !important;
+  display: flex !important;
+  align-items: center !important;
   color: var(--color-text-primary) !important;
-  margin: 0 0 4px !important;
-  word-break: break-all;
+  margin: 0 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
   max-width: 100%;
 }
 
@@ -481,45 +497,56 @@
   z-index: 2;
   font-size: 13px !important;
   font-weight: 500 !important;
-  line-height: 1.35 !important;
+  line-height: 1.2 !important;
+  height: 18px !important;
+  display: flex !important;
+  align-items: center !important;
   color: var(--color-text-secondary) !important;
-  margin: 0 !important;
+  margin: 2px 0 0 !important;
+  white-space: nowrap !important;
 }
 
-/* 副指标：主信息下方横排，不再并排占右半边 */
+/* 副指标：主信息下方横排，自动贴底对齐 */
 .overview-page .el-card.stat-card .stat-secondary {
   order: 3;
   position: relative;
   z-index: 2;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 10px;
-  width: 100%;
+  height: 28px !important;
+  width: 100% !important;
   max-width: 100%;
-  margin-top: 10px !important;
-  padding-top: 8px;
+  margin-top: auto !important;
+  padding-top: 6px !important;
   border-top: 1px solid var(--stat-card-border, var(--color-border-lighter));
+  display: flex !important;
+  flex-wrap: nowrap;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 4px 6px;
   text-align: left !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  box-sizing: border-box !important;
 }
 
 .overview-page .el-card.stat-card .stat-secondary-value {
   display: inline !important;
   font-size: 13px !important;
   font-weight: 600 !important;
-  line-height: 1.3 !important;
+  line-height: 1.2 !important;
   color: var(--color-text-primary) !important;
   margin: 0 !important;
-  word-break: break-all;
+  white-space: nowrap !important;
 }
 
 .overview-page .el-card.stat-card .stat-secondary-label {
   display: inline !important;
   font-size: 12px !important;
   font-weight: 400 !important;
-  line-height: 1.3 !important;
+  line-height: 1.2 !important;
   color: var(--color-text-secondary) !important;
   margin: 0 !important;
+  white-space: nowrap !important;
 }
 
 .overview-page .el-card.stat-card .stat-secondary-value::after {
@@ -537,14 +564,139 @@
   white-space: nowrap;
 }
 
+/* ============================================================
+ * 数据概览全站栅格行间距与图表卡片统一基准
+ * ============================================================ */
+.overview-page > .header-card,
+.overview-page > .page-header-card,
+.overview-page .header-card {
+  margin-top: 0 !important;
+  margin-bottom: 16px !important;
+}
+
+.overview-page .stats-row {
+  margin-top: 0 !important;
+  margin-bottom: 16px !important;
+}
+
+.overview-page .charts-row,
+.overview-page .mt-md {
+  margin-top: 0 !important;
+  margin-bottom: 16px !important;
+}
+
+.overview-page .tables-row,
+.overview-page .mt-lg,
+.overview-page .mt-20 {
+  margin-top: 0 !important;
+  margin-bottom: 16px !important;
+}
+
+/* 彻底消除子卡片自身的 margin-bottom / margin-top 干扰 */
+.overview-page .stats-row .el-card,
+.overview-page .stats-row .el-col,
+.overview-page .charts-row .el-card,
+.overview-page .charts-row .el-col,
+.overview-page .mt-md .el-card,
+.overview-page .mt-md .el-col,
+.overview-page .tables-row .el-card,
+.overview-page .mt-lg .el-card,
+.overview-page .mt-20 .el-card {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+/* 图表卡片拉伸与标准头部（无滚动条、防无限拉伸循环） */
+.overview-page .dashboard-card,
+.overview-page .chart-card {
+  width: 100% !important;
+  height: 380px !important;
+  min-height: 380px !important;
+  max-height: 380px !important;
+  box-sizing: border-box !important;
+  border-radius: var(--radius-md, 12px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+.overview-page .dashboard-card > .el-card__header,
+.overview-page .chart-card > .el-card__header {
+  height: 52px !important;
+  min-height: 52px !important;
+  max-height: 52px !important;
+  padding: 0 16px !important;
+  display: flex !important;
+  align-items: center !important;
+  box-sizing: border-box !important;
+  flex-shrink: 0 !important;
+}
+
+.overview-page .dashboard-card > .el-card__body,
+.overview-page .chart-card > .el-card__body {
+  height: 328px !important;
+  min-height: 328px !important;
+  max-height: 328px !important;
+  padding: 14px 16px !important;
+  box-sizing: border-box !important;
+  position: relative !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
 .overview-page .chart-container {
-  width: 100%;
-  height: 300px;
-  position: relative;
+  width: 100% !important;
+  height: 300px !important;
+  min-height: 300px !important;
+  max-height: 300px !important;
+  position: relative !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+  flex-shrink: 0 !important;
+}
+
+.overview-page .chart-container > canvas {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  display: block !important;
+}
+
+/* 表格卡片直接拉伸，不限制固定高度，不产生多余外层滚动条 */
+.overview-page .table-card,
+.overview-page .dashboard-card:has(.el-table),
+.overview-page .dashboard-card:has(.pagination-container),
+.overview-page .mt-lg .el-card,
+.overview-page .mt-20 .el-card,
+.overview-page .tables-row .el-card {
+  height: auto !important;
+  min-height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  display: block !important;
+}
+
+.overview-page .table-card > .el-card__body,
+.overview-page .dashboard-card:has(.el-table) > .el-card__body,
+.overview-page .dashboard-card:has(.pagination-container) > .el-card__body,
+.overview-page .mt-lg .el-card > .el-card__body,
+.overview-page .mt-20 .el-card > .el-card__body,
+.overview-page .tables-row .el-card > .el-card__body {
+  height: auto !important;
+  min-height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  display: block !important;
 }
 
 .overview-page .card-header,
 .overview-page .card-header-with-search {
+  width: 100%;
   display: flex;
   justify-content: space-between;
   align-items: center;

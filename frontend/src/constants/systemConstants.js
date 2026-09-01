@@ -18,6 +18,18 @@ const FALLBACK_DICTIONARY = {
     outbound: { name: '其他出库', color: 'danger' },
     in: { name: '入库', color: 'success' },
     out: { name: '出库', color: 'danger' },
+    production: { name: '生产出库', color: 'primary' },
+    production_outbound: { name: '生产出库', color: 'primary' },
+    bom_issue: { name: '生产领料', color: 'primary' },
+    batch_issue: { name: '批量发料', color: 'primary' },
+    supplement: { name: '补料出库', color: 'warning' },
+    exchange: { name: '换料出库', color: 'warning' },
+    sales: { name: '销售出库', color: 'danger' },
+    sales_outbound: { name: '销售出库', color: 'danger' },
+    sales_exchange_out: { name: '换料出库', color: 'warning' },
+    manual: { name: '手工出库', color: 'info' },
+    manual_out: { name: '手工出库', color: 'info' },
+    manual_in: { name: '手工入库', color: 'info' },
     defective_return: { name: '不良退回', color: 'success' },
     production_return: { name: '生产退料', color: 'success' },
     purchase_return: { name: '采购退货', color: 'warning' },
@@ -179,6 +191,61 @@ const FALLBACK_DICTIONARY = {
     under_repair: { name: '维修', color: 'warning' },
     disposed: { name: '报废', color: 'danger' },
     sold: { name: '已处置', color: 'info' },
+  },
+  contract_status: {
+    draft: { name: '草稿', color: 'info' },
+    pending_approval: { name: '待审批', color: 'warning' },
+    active: { name: '生效', color: 'success' },
+    executing: { name: '执行中', color: 'primary' },
+    completed: { name: '已完成', color: 'success' },
+    terminated: { name: '已终止', color: 'danger' },
+    expired: { name: '已过期', color: 'info' },
+  },
+  contract_type: {
+    purchase: { name: '采购合同', color: 'warning' },
+    sales: { name: '销售合同', color: 'success' },
+    service: { name: '服务合同', color: 'primary' },
+    other: { name: '其他合同', color: 'info' },
+  },
+  packing_status: {
+    draft: { name: '草稿', color: 'info' },
+    confirmed: { name: '已确认', color: 'warning' },
+    packing: { name: '装箱中', color: 'primary' },
+    completed: { name: '已完成', color: 'success' },
+    cancelled: { name: '已取消', color: 'danger' },
+  },
+  ecn_status: {
+    draft: { name: '草稿', color: 'info' },
+    pending: { name: '待审核', color: 'warning' },
+    reviewing: { name: '审核中', color: 'primary' },
+    approved: { name: '已通过', color: 'success' },
+    rejected: { name: '已拒绝', color: 'danger' },
+    executing: { name: '执行中', color: 'primary' },
+    completed: { name: '已完成', color: 'success' },
+    cancelled: { name: '已取消', color: 'info' },
+  },
+  nonconforming_severity: {
+    minor: { name: '轻微缺陷', color: 'info' },
+    major: { name: '严重缺陷', color: 'warning' },
+    critical: { name: '致命缺陷', color: 'danger' },
+  },
+  nonconforming_status: {
+    pending: { name: '待处理', color: 'warning' },
+    processing: { name: '处理中', color: 'primary' },
+    completed: { name: '已完成', color: 'success' },
+    closed: { name: '已关闭', color: 'info' },
+  },
+  performance_period_status: {
+    draft: { name: '草稿', color: 'info' },
+    active: { name: '进行中', color: 'success' },
+    evaluating: { name: '考评中', color: 'warning' },
+    completed: { name: '已完成', color: 'primary' },
+    closed: { name: '已归档', color: 'info' },
+  },
+  performance_eval_status: {
+    pending_self: { name: '待自评', color: 'warning' },
+    pending_manager: { name: '待主管评', color: 'warning' },
+    completed: { name: '已完成', color: 'success' },
   }
 };
 
@@ -262,24 +329,17 @@ export const BUDGET_STATUS = createDictionaryGroup('budget_status');
 export const BUDGET_STATUS_COLORS = createDictionaryColors('budget_status');
 export const PRODUCTION_STATUS = createDictionaryGroup('production_status');
 export const PRODUCTION_STATUS_COLORS = createDictionaryColors('production_status');
-const createStatusKeyMap = (codes) => Object.freeze(
-  Object.fromEntries(codes.map((code) => [
-    code.toUpperCase().replace(/[^A-Z0-9]+/g, '_'),
-    code,
-  ]))
-);
-export const PRODUCTION_STATUS_KEYS = createStatusKeyMap(Object.keys(FALLBACK_DICTIONARY.production_status));
 export const EQUIPMENT_STATUS = createDictionaryGroup('equipment_status');
 export const EQUIPMENT_STATUS_COLORS = createDictionaryColors('equipment_status');
 export const COMMON_STATUS = createDictionaryGroup('common_status');
 export const COMMON_STATUS_COLORS = createDictionaryColors('common_status');
-export const FINANCE_TRANSACTION_TYPES = createDictionaryGroup('finance_transaction_type');
-export const FINANCE_TRANSACTION_COLORS = createDictionaryColors('finance_transaction_type');
+export const FINANCE_TRANSACTION_TYPES = createDictionaryGroup('finance_transaction');
+export const FINANCE_TRANSACTION_COLORS = createDictionaryColors('finance_transaction');
 export const COSTING_METHOD = createDictionaryGroup('costing_method');
 export const GL_TRANSACTION_TYPES = createDictionaryGroup('gl_transaction_type');
 export const GL_TRANSACTION_COLORS = createDictionaryColors('gl_transaction_type');
-export const PRIORITY_LEVELS = createDictionaryGroup('priority_level');
-export const PRIORITY_COLORS = createDictionaryColors('priority_level');
+export const PRIORITY_LEVELS = createDictionaryGroup('priority');
+export const PRIORITY_COLORS = createDictionaryColors('priority');
 export const APPROVAL_STATUS = createDictionaryGroup('approval_status');
 export const APPROVAL_STATUS_COLORS = createDictionaryColors('approval_status');
 export const USER_STATUS = createDictionaryGroup('user_status');
@@ -287,11 +347,30 @@ export const USER_STATUS_COLORS = createDictionaryColors('user_status');
 export const ASSET_STATUS = createDictionaryGroup('asset_status');
 export const ASSET_STATUS_COLORS = createDictionaryColors('asset_status');
 export const ASSET_TYPES = createDictionaryGroup('asset_type');
-
-// =======================
-// OPTIONS 选项数组导出 (供 el-select 使用)
-// =======================
-// 向后兼容，如果需要在 <script setup> 内获得选项数组，建议直接调用 useDictionaryStore().getOptions(groupCode)
+export const ASSET_TYPE_COLORS = createDictionaryColors('asset_type');
+export const CONTRACT_STATUS = createDictionaryGroup('contract_status');
+export const CONTRACT_STATUS_COLORS = createDictionaryColors('contract_status');
+export const CONTRACT_TYPES = createDictionaryGroup('contract_type');
+export const CONTRACT_TYPE_COLORS = createDictionaryColors('contract_type');
+export const PACKING_STATUS = createDictionaryGroup('packing_status');
+export const PACKING_STATUS_COLORS = createDictionaryColors('packing_status');
+export const ECN_STATUS = createDictionaryGroup('ecn_status');
+export const ECN_STATUS_COLORS = createDictionaryColors('ecn_status');
+export const NONCONFORMING_SEVERITY = createDictionaryGroup('nonconforming_severity');
+export const NONCONFORMING_SEVERITY_COLORS = createDictionaryColors('nonconforming_severity');
+export const NONCONFORMING_STATUS = createDictionaryGroup('nonconforming_status');
+export const NONCONFORMING_STATUS_COLORS = createDictionaryColors('nonconforming_status');
+export const PERFORMANCE_PERIOD_STATUS = createDictionaryGroup('performance_period_status');
+export const PERFORMANCE_PERIOD_STATUS_COLORS = createDictionaryColors('performance_period_status');
+export const PERFORMANCE_EVAL_STATUS = createDictionaryGroup('performance_eval_status');
+export const PERFORMANCE_EVAL_STATUS_COLORS = createDictionaryColors('performance_eval_status');
+const createStatusKeyMap = (codes) => Object.freeze(
+  Object.fromEntries(codes.map((code) => [
+    code.toUpperCase().replace(/[^A-Z0-9]+/g, '_'),
+    code,
+  ]))
+);
+export const PRODUCTION_STATUS_KEYS = createStatusKeyMap(Object.keys(FALLBACK_DICTIONARY.production_status));
 
 const createOptions = (groupCode, filterKeys = null) => {
   const state = reactive([]);
@@ -349,6 +428,18 @@ export const PURCHASE_RECEIPT_STATUS_OPTIONS = createOptions('purchase_receipt_s
 export const PURCHASE_RETURN_STATUS_OPTIONS = createOptions('purchase_return_status');
 export const FIRST_ARTICLE_RESULT_OPTIONS = createOptions('first_article_result');
 export const BUDGET_STATUS_OPTIONS = createOptions('budget_status');
+export const SALES_STATUS_OPTIONS = createOptions('sales_status');
+export const SALES_RETURN_STATUS_OPTIONS = createOptions('sales_return_status');
+export const SALES_EXCHANGE_STATUS_OPTIONS = createOptions('sales_exchange_status');
+export const SALES_QUOTATION_STATUS_OPTIONS = createOptions('sales_quotation_status');
+export const PACKING_STATUS_OPTIONS = createOptions('packing_status');
+export const CONTRACT_STATUS_OPTIONS = createOptions('contract_status');
+export const CONTRACT_TYPE_OPTIONS = createOptions('contract_type');
+export const ECN_STATUS_OPTIONS = createOptions('ecn_status');
+export const NONCONFORMING_SEVERITY_OPTIONS = createOptions('nonconforming_severity');
+export const NONCONFORMING_STATUS_OPTIONS = createOptions('nonconforming_status');
+export const PERFORMANCE_PERIOD_STATUS_OPTIONS = createOptions('performance_period_status');
+export const PERFORMANCE_EVAL_STATUS_OPTIONS = createOptions('performance_eval_status');
 export const toStatusOptions = (mapObj) => Object.entries(mapObj).map(([value, label]) => ({value, label}));
 
 // =======================
@@ -608,6 +699,28 @@ export const getUserStatusColor = (code) => getColor('user_status', code);
 export const getAssetStatusText = (code) => getText('asset_status', code);
 export const getAssetStatusColor = (code) => getColor('asset_status', code);
 export const getAssetTypeText = (code) => getText('asset_type', code);
+export const getContractStatusText = (code) => getText('contract_status', code);
+export const getContractStatusColor = (code) => getColor('contract_status', code);
+export const getContractTypeText = (code) => getText('contract_type', code);
+export const getContractTypeColor = (code) => getColor('contract_type', code);
+export const getPackingStatusText = (code) => getText('packing_status', code);
+export const getPackingStatusColor = (code) => getColor('packing_status', code);
+export const getEcnStatusText = (code) => getText('ecn_status', code);
+export const getEcnStatusColor = (code) => getColor('ecn_status', code);
+export const getNonconformingSeverityText = (code) => getText('nonconforming_severity', code);
+export const getNonconformingSeverityColor = (code) => getColor('nonconforming_severity', code);
+export const getNonconformingStatusText = (code) => getText('nonconforming_status', code);
+export const getNonconformingStatusColor = (code) => getColor('nonconforming_status', code);
+export const getPerformancePeriodStatusText = (code) => getText('performance_period_status', code);
+export const getPerformancePeriodStatusColor = (code) => getColor('performance_period_status', code);
+export const getPerformanceEvalStatusText = (code) => getText('performance_eval_status', code);
+export const getPerformanceEvalStatusColor = (code) => getColor('performance_eval_status', code);
+export const getReplacementStatusText = (code) => getText('replacement_status', code);
+export const getReplacementStatusColor = (code) => getColor('replacement_status', code);
+export const getReworkStatusText = (code) => getText('rework_status', code);
+export const getReworkStatusColor = (code) => getColor('rework_status', code);
+export const getScrapStatusText = (code) => getText('scrap_status', code);
+export const getScrapStatusColor = (code) => getColor('scrap_status', code);
 
 // 额外补充特定 API
 export const isValidStatusTransition = (currentStatus, newStatus, transitions = PURCHASE_STATUS_TRANSITIONS) => {
@@ -726,6 +839,38 @@ export default {
   USER_STATUS,
   USER_STATUS_COLORS,
   getUserStatusText,
+  PRODUCTION_STATUS_COLORS,
+  PRODUCTION_STATUS_KEYS,
+  PRODUCTION_PLAN_PUSHABLE_STATUSES,
+  PRODUCTION_PLAN_CANCELABLE_STATUSES,
+  PRODUCTION_PLAN_STATUS_OPTIONS,
+  getProductionStatusText,
+  getProductionStatusColor,
+  EQUIPMENT_STATUS,
+  EQUIPMENT_STATUS_COLORS,
+  getEquipmentStatusText,
+  getEquipmentStatusColor,
+  COMMON_STATUS,
+  COMMON_STATUS_COLORS,
+  getCommonStatusText,
+  getCommonStatusColor,
+  FINANCE_TRANSACTION_TYPES,
+  FINANCE_TRANSACTION_COLORS,
+  COSTING_METHOD,
+  getCostingMethodText,
+  GL_TRANSACTION_TYPES,
+  GL_TRANSACTION_COLORS,
+  getGLTransactionTypeText,
+  getGLTransactionTypeColor,
+  PRIORITY_LEVELS,
+  PRIORITY_COLORS,
+  APPROVAL_STATUS,
+  APPROVAL_STATUS_COLORS,
+  getApprovalStatusText,
+  getApprovalStatusColor,
+  USER_STATUS,
+  USER_STATUS_COLORS,
+  getUserStatusText,
   getUserStatusColor,
   ASSET_STATUS,
   ASSET_STATUS_COLORS,
@@ -733,6 +878,52 @@ export default {
   getAssetStatusColor,
   ASSET_TYPES,
   getAssetTypeText,
+  CONTRACT_STATUS,
+  CONTRACT_STATUS_COLORS,
+  CONTRACT_STATUS_OPTIONS,
+  getContractStatusText,
+  getContractStatusColor,
+  CONTRACT_TYPES,
+  CONTRACT_TYPE_COLORS,
+  CONTRACT_TYPE_OPTIONS,
+  getContractTypeText,
+  getContractTypeColor,
+  PACKING_STATUS,
+  PACKING_STATUS_COLORS,
+  PACKING_STATUS_OPTIONS,
+  getPackingStatusText,
+  getPackingStatusColor,
+  ECN_STATUS,
+  ECN_STATUS_COLORS,
+  ECN_STATUS_OPTIONS,
+  getEcnStatusText,
+  getEcnStatusColor,
+  NONCONFORMING_SEVERITY,
+  NONCONFORMING_SEVERITY_COLORS,
+  NONCONFORMING_SEVERITY_OPTIONS,
+  getNonconformingSeverityText,
+  getNonconformingSeverityColor,
+  NONCONFORMING_STATUS,
+  NONCONFORMING_STATUS_COLORS,
+  NONCONFORMING_STATUS_OPTIONS,
+  getNonconformingStatusText,
+  getNonconformingStatusColor,
+  PERFORMANCE_PERIOD_STATUS,
+  PERFORMANCE_PERIOD_STATUS_COLORS,
+  PERFORMANCE_PERIOD_STATUS_OPTIONS,
+  getPerformancePeriodStatusText,
+  getPerformancePeriodStatusColor,
+  PERFORMANCE_EVAL_STATUS,
+  PERFORMANCE_EVAL_STATUS_COLORS,
+  PERFORMANCE_EVAL_STATUS_OPTIONS,
+  getPerformanceEvalStatusText,
+  getPerformanceEvalStatusColor,
+  getReplacementStatusText,
+  getReplacementStatusColor,
+  getReworkStatusText,
+  getReworkStatusColor,
+  getScrapStatusText,
+  getScrapStatusColor,
 
   INVENTORY_CHECK_STATUS_OPTIONS,
   VALIDATION_RULES, BUSINESS_RULES, INVENTORY_TRANSACTION_GROUPS,

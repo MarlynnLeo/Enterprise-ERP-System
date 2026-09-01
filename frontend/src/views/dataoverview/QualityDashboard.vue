@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * QualityDashboard.vue
  * @description 前端界面组件文件
@@ -71,7 +71,7 @@
             </div>
           </template>
           <div class="chart-container">
-            <canvas ref="passRateChart" height="300"></canvas>
+            <canvas ref="passRateChart"></canvas>
           </div>
         </el-card>
       </el-col>
@@ -84,7 +84,7 @@
             </div>
           </template>
           <div class="chart-container">
-            <canvas ref="defectTypeChart" height="300"></canvas>
+            <canvas ref="defectTypeChart"></canvas>
           </div>
         </el-card>
       </el-col>
@@ -101,7 +101,8 @@
                 v-model="search"
                 placeholder="搜索"
                 class="search-input"
-                :prefix-icon="Search" />
+                :prefix-icon="Search"
+              />
             </div>
           </template>
           <el-table
@@ -109,10 +110,12 @@
             class="table-row-click w-full"
             v-loading="loading"
             border
-            :max-height="400"
             :empty-text="defectItems.length === 0 ? '暂无不合格项目' : '没有匹配的数据'"
-          
-      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewInspection(row))">
+            @row-click="
+              (row, column, event) =>
+                handleTableRowView(row, column, event, () => viewInspection(row))
+            "
+          >
             <el-table-column label="检验单号" prop="inspectionNo" min-width="120" />
             <el-table-column label="检验类型" min-width="100">
               <template #default="scope">
@@ -137,7 +140,6 @@
                 </el-tag>
               </template>
             </el-table-column>
-            
           </el-table>
           <div class="pagination-container" v-if="defectItems.length > 0">
             <el-pagination
@@ -157,10 +159,9 @@
 </template>
 
 <script setup>
-
-import { getQualityInspectionTypeText } from '@/constants/systemConstants'
-import { handleTableRowView } from '@/utils/tableRowView'
-import { formatDate } from '@/utils/helpers/dateUtils'
+import { getQualityInspectionTypeText } from '@/constants/systemConstants';
+import { handleTableRowView } from '@/utils/tableRowView';
+import { formatDate } from '@/utils/helpers/dateUtils';
 
 import { ref, computed, onMounted, onBeforeUnmount, reactive, watch } from 'vue';
 import { useRouter } from 'vue-router';
@@ -188,7 +189,7 @@ const statistics = reactive({
   incoming: { total: 0, passRate: '0%' },
   process: { total: 0, passRate: '0%' },
   final: { total: 0, passRate: '0%' },
-  defects: { total: 0, types: 0 }
+  defects: { total: 0, types: 0 },
 });
 
 // 不良项目数据
@@ -208,11 +209,12 @@ const filteredDefectItems = computed(() => {
 
   if (search.value) {
     const searchValue = search.value.toLowerCase();
-    items = items.filter(item =>
-      (item.inspectionNo && item.inspectionNo.toLowerCase().includes(searchValue)) ||
-      (item.materialName && item.materialName.toLowerCase().includes(searchValue)) ||
-      (item.materialCode && item.materialCode.toLowerCase().includes(searchValue)) ||
-      (item.defectReason && item.defectReason.toLowerCase().includes(searchValue))
+    items = items.filter(
+      (item) =>
+        (item.inspectionNo && item.inspectionNo.toLowerCase().includes(searchValue)) ||
+        (item.materialName && item.materialName.toLowerCase().includes(searchValue)) ||
+        (item.materialCode && item.materialCode.toLowerCase().includes(searchValue)) ||
+        (item.defectReason && item.defectReason.toLowerCase().includes(searchValue))
     );
   }
 
@@ -230,15 +232,17 @@ function handleCurrentChange(page) {
 }
 
 // 获取检验类型文本
-function getInspectionTypeText(type) { return getQualityInspectionTypeText(type) || type; }
+function getInspectionTypeText(type) {
+  return getQualityInspectionTypeText(type) || type;
+}
 
 // 获取检验类型颜色
 function getInspectionTypeColor(type) {
   const colorMap = {
-    'incoming': 'primary',
-    'process': 'success',
-    'final': 'info',
-    'first_article': 'warning'
+    incoming: 'primary',
+    process: 'success',
+    final: 'info',
+    first_article: 'warning',
   };
   return colorMap[type] || 'info';
 }
@@ -246,10 +250,10 @@ function getInspectionTypeColor(type) {
 // 获取处理结果颜色
 function getProcessResultColor(result) {
   const colorMap = {
-    '返工': 'warning',
-    '报废': 'danger',
-    '让步接收': 'info',
-    '特采': 'success'
+    返工: 'warning',
+    报废: 'danger',
+    让步接收: 'info',
+    特采: 'success',
   };
   return colorMap[result] || 'info';
 }
@@ -257,10 +261,10 @@ function getProcessResultColor(result) {
 // 查看检验详情
 function viewInspection(item) {
   const routeMap = {
-    'incoming': '/quality/incoming',
-    'process': '/quality/process',
-    'final': '/quality/final',
-    'first_article': '/quality/first-article'
+    incoming: '/quality/incoming',
+    process: '/quality/process',
+    final: '/quality/final',
+    first_article: '/quality/first-article',
   };
 
   const route = routeMap[item.inspectionType] || '/quality';
@@ -303,33 +307,32 @@ async function loadDashboardData() {
       // 更新统计数据
       statistics.incoming = {
         total: data.incoming?.total || 0,
-        passRate: data.incoming?.passRate || '0%'
+        passRate: data.incoming?.passRate || '0%',
       };
       statistics.process = {
         total: data.process?.total || 0,
-        passRate: data.process?.passRate || '0%'
+        passRate: data.process?.passRate || '0%',
       };
       statistics.final = {
         total: data.final?.total || 0,
-        passRate: data.final?.passRate || '0%'
+        passRate: data.final?.passRate || '0%',
       };
       statistics.defects = {
         total: data.defects?.total || 0,
-        types: data.defects?.types || 0
+        types: data.defects?.types || 0,
       };
     }
 
     // 获取不合格项目列表 - axios拦截器已解包
     const defectData = await qualityApi.getDefectItems({
       page: 1,
-      pageSize: 10
+      pageSize: 10,
     });
 
     // 处理分页数据结构
     if (defectData) {
       defectItems.value = defectData.list || defectData.items || defectData || [];
     }
-
   } catch (error) {
     console.error('获取质量统计数据失败:', error);
     ElMessage.warning('部分质量数据加载失败，请稍后重试');
@@ -360,7 +363,20 @@ async function initPassRateChart() {
       const ctx = passRateChart.value.getContext('2d');
 
       // 使用当前月份作为标签
-      const months = ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'];
+      const months = [
+        '一月',
+        '二月',
+        '三月',
+        '四月',
+        '五月',
+        '六月',
+        '七月',
+        '八月',
+        '九月',
+        '十月',
+        '十一月',
+        '十二月',
+      ];
       const currentMonth = new Date().getMonth();
       const labels = [];
 
@@ -386,40 +402,46 @@ async function initPassRateChart() {
 
           // 处理趋势数据
           const trendMap = {};
-          trends.forEach(trend => {
+          trends.forEach((trend) => {
             if (!trendMap[trend.month]) {
               trendMap[trend.month] = {};
             }
-            const passRate = trend.total > 0 ? (trend.passed / trend.total * 100) : 0;
+            const passRate = trend.total > 0 ? (trend.passed / trend.total) * 100 : 0;
             trendMap[trend.month][trend.inspection_type] = passRate;
           });
 
           // 填充数据数组
           labels.forEach((label, index) => {
-            const monthKey = Object.keys(trendMap).find(key => {
+            const monthKey = Object.keys(trendMap).find((key) => {
               const date = new Date(key + '-01');
               const monthName = months[date.getMonth()];
               return monthName === label;
             });
 
             if (monthKey && trendMap[monthKey]) {
-              incomingData[index] = trendMap[monthKey].incoming !== undefined ? trendMap[monthKey].incoming : null;
-              processData[index] = trendMap[monthKey].process !== undefined ? trendMap[monthKey].process : null;
-              finalData[index] = trendMap[monthKey].final !== undefined ? trendMap[monthKey].final : null;
+              incomingData[index] =
+                trendMap[monthKey].incoming !== undefined ? trendMap[monthKey].incoming : null;
+              processData[index] =
+                trendMap[monthKey].process !== undefined ? trendMap[monthKey].process : null;
+              finalData[index] =
+                trendMap[monthKey].final !== undefined ? trendMap[monthKey].final : null;
             }
           });
         }
-      } catch {
-      }
+      } catch {}
 
       const config = createLineChartConfig({
-        yAxisFormatter: function(value) { return value + '%'; },
-        tooltipFormatter: function(context) {
+        yAxisFormatter: function (value) {
+          return value + '%';
+        },
+        tooltipFormatter: function (context) {
           let label = context.dataset.label || '';
-          if (label) { label += ': '; }
+          if (label) {
+            label += ': ';
+          }
           label += context.raw == null ? '-' : `${Number(context.raw).toFixed(2)}%`;
           return label;
-        }
+        },
       });
       config.scales.y.min = 0;
       config.scales.y.max = 100;
@@ -436,7 +458,7 @@ async function initPassRateChart() {
               backgroundColor: alphaColor('primary', 0.1),
               borderWidth: 2,
               ...config.elements.line,
-              fill: false
+              fill: false,
             },
             {
               label: '过程检验',
@@ -445,7 +467,7 @@ async function initPassRateChart() {
               backgroundColor: alphaColor('success', 0.1),
               borderWidth: 2,
               ...config.elements.line,
-              fill: false
+              fill: false,
             },
             {
               label: '成品检验',
@@ -454,11 +476,11 @@ async function initPassRateChart() {
               backgroundColor: alphaColor('warning', 0.1),
               borderWidth: 2,
               ...config.elements.line,
-              fill: false
-            }
-          ]
+              fill: false,
+            },
+          ],
         },
-        options: config
+        options: config,
       });
     }
   } catch (error) {
@@ -488,12 +510,11 @@ async function initDefectTypeChart() {
         if (Array.isArray(trendsData.defectTypes)) {
           const realDefectTypes = trendsData.defectTypes;
           if (realDefectTypes.length > 0) {
-            defectTypes = realDefectTypes.map(item => item.defectType || '未知');
-            defectCounts = realDefectTypes.map(item => item.count || 0);
+            defectTypes = realDefectTypes.map((item) => item.defectType || '未知');
+            defectCounts = realDefectTypes.map((item) => item.count || 0);
           }
         }
-      } catch {
-      }
+      } catch {}
 
       // 颜色配置重置为新版科幻组合
       const backgroundColors = [
@@ -502,17 +523,17 @@ async function initDefectTypeChart() {
         chartColors.warning[0],
         chartColors.primary[2],
         chartColors.danger[0],
-        chartColors.info[0]
+        chartColors.info[0],
       ];
 
       const config = createPieChartConfig({
-        tooltipFormatter: function(context) {
+        tooltipFormatter: function (context) {
           const label = context.label || '';
           const value = context.raw || 0;
           const total = context.dataset.data.reduce((acc, val) => acc + val, 0);
           const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
           return `${label}: ${value}个 (${percentage}%)`;
-        }
+        },
       });
 
       defectTypeChartInstance = new Chart(ctx, {
@@ -524,11 +545,11 @@ async function initDefectTypeChart() {
               data: defectCounts,
               backgroundColor: backgroundColors,
               borderWidth: config.elements?.arc?.borderWidth || 2,
-              borderColor: config.elements?.arc?.borderColor || getCssTokenValue('surface')
-            }
-          ]
+              borderColor: config.elements?.arc?.borderColor || getCssTokenValue('surface'),
+            },
+          ],
         },
-        options: config
+        options: config,
       });
     }
   } catch (error) {
@@ -550,9 +571,6 @@ watch(timeRange, () => {
 }
 
 /* 响应式调整 */
-
-
-
 
 :deep(.el-table__cell) {
   overflow: hidden;

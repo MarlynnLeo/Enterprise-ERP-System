@@ -87,7 +87,8 @@ module.exports = {
         const details = [];
   
         for (const item of items) {
-          const itemQuantity = parseFloat(item.quantity) || 0;
+          const itemQuantity =
+            (parseFloat(item.quantity) || 0) / (parseFloat(item.base_quantity) || 1);
           const totalItemQty = itemQuantity * quantity;
   
           // 优先使用 bd.has_sub_bom 字段，回退到子查询检测结果
@@ -202,7 +203,7 @@ module.exports = {
               const bomId = bomMaster[0].id;
               // 价格优先级: standard_costs表 > cost_price(采购成本)
               const [items] = await db.pool.execute(
-                `SELECT bd.material_id, bd.quantity,
+                `SELECT bd.material_id, bd.quantity, bd.base_quantity,
                         m.code as material_code, m.name as material_name,
                         COALESCE(
                           (SELECT sc.standard_price FROM standard_costs sc
@@ -229,7 +230,8 @@ module.exports = {
           // 计算直接材料成本
           for (const item of bomItems) {
             const unitPrice = parseFloat(item.unit_price) || 0;
-            const itemQuantity = parseFloat(item.quantity) || 0;
+            const itemQuantity =
+              (parseFloat(item.quantity) || 0) / (parseFloat(item.base_quantity) || 1);
             const itemCost = unitPrice * itemQuantity * quantity;
             materialCost += itemCost;
   

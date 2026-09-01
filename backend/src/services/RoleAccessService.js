@@ -12,7 +12,10 @@ const {
   describeRoleAccess,
   listManagedProfiles,
 } = require('../authorization/roleAccessProfiles');
-const { syncRolePermissionsFromMenus, ensurePermissions } = require('./PermissionRegistry');
+const {
+  syncRolePermissionsFromMenus,
+  supplementalPermissionCodesForRole,
+} = require('./PermissionRegistry');
 const { logger } = require('../utils/logger');
 const { isSuperAdminRole } = require('../authorization/superAdmin');
 
@@ -100,11 +103,12 @@ class RoleAccessService {
   static async applyRole(conn, role, menus = null) {
     await this.forceAllDataScope(conn, role.id);
     if (isSuperAdminRole(role)) {
+      const granted = await this.grantAllAccess(conn, role.id);
       return {
         role: role.code,
         skipped: 'super_admin',
-        permissionsAfter: null,
-        menusAfter: null,
+        permissionsAfter: granted.permissions,
+        menusAfter: granted.menus,
       };
     }
 
@@ -143,7 +147,6 @@ class RoleAccessService {
     }
 
     const sync = await syncRolePermissionsFromMenus(conn, role.id, keepIds);
-    await this.grantExactPermissions(conn, role.id, profile);
     logger.info(
       `[RoleAccess] ${role.code} menus ${Number(beforeMenus[0]?.total || 0)} → ${keepIds.length}, perms inserted=${sync.inserted}`
     );
@@ -173,28 +176,11 @@ class RoleAccessService {
     return summary;
   }
 
-  static async grantExactPermissions(conn, roleId, spec) {
-    const codes = [...new Set(spec?.exactPermissions || [])].filter(Boolean);
-    if (!codes.length) return 0;
-    const codeToId = await ensurePermissions(conn, codes, { source: 'profile' });
-    const permissionIds = [...new Set([...codeToId.values()])];
-    if (!permissionIds.length) return 0;
-    const values = permissionIds.map(() => '(?, ?, NOW())').join(',');
-    const params = [];
-    for (const permissionId of permissionIds) {
-      params.push(roleId, permissionId);
-    }
-    const [result] = await conn.execute(
-      `INSERT IGNORE INTO role_permissions (role_id, permission_id, created_at) VALUES ${values}`,
-      params
-    );
-    return result.affectedRows || 0;
-  }
+  static async grantPermissionCodesWithKnex(knex, roleId, codes = [], source = 'profile') {
+    const uniqueCodes = [...new Set(codes)].filter(Boolean);
+    if (!uniqueCodes.length) return 0;
 
-  static async grantExactPermissionsWithKnex(knex, roleId, spec) {
-    const codes = [...new Set(spec?.exactPermissions || [])].filter(Boolean);
-    if (!codes.length) return 0;
-    for (const code of codes) {
+    for (const code of uniqueCodes) {
       const existing = await knex('permissions').where({ code }).first('id');
       if (!existing) {
         const moduleName = String(code).includes(':') ? String(code).split(':')[0] : code;
@@ -203,35 +189,63 @@ class RoleAccessService {
           name: code,
           module: moduleName,
           status: 1,
-          source: 'profile',
+          source,
           created_at: knex.fn.now(),
           updated_at: knex.fn.now(),
         });
       }
     }
-    const placeholders = codes.map(() => '?').join(',');
+
+    const placeholders = uniqueCodes.map(() => '?').join(',');
     await knex.raw(
       `INSERT IGNORE INTO role_permissions (role_id, permission_id, created_at)
        SELECT ?, p.id, NOW()
          FROM permissions p
         WHERE p.status = 1 AND p.code IN (${placeholders})`,
-      [roleId, ...codes]
+      [roleId, ...uniqueCodes]
     );
-    return codes.length;
+    return uniqueCodes.length;
+  }
+
+  static async grantSupplementalPermissionsWithKnex(knex, role, registeredCodes = []) {
+    const codes = supplementalPermissionCodesForRole(role, registeredCodes);
+    if (!codes.length) return 0;
+    return this.grantPermissionCodesWithKnex(knex, role.id, codes, 'profile');
   }
 
   static async applyAllWithKnex(knex) {
     const roles = await knex('roles').select('id', 'code', 'name', 'is_super_admin');
-    const menus = await knex('menus').select('id', 'path', 'permission', 'type', 'parent_id', 'status');
+    const menus = await knex('menus').select(
+      'id',
+      'path',
+      'permission',
+      'type',
+      'parent_id',
+      'status'
+    );
+    const registeredCodes = (await knex('permissions').where({ status: 1 }).select('code')).map(
+      (permission) => permission.code
+    );
     const summary = [];
+    const superAdminRoleIds = [];
 
     for (const role of roles) {
-      await knex('roles')
-        .where({ id: role.id })
-        .update({ data_scope: ALL_DATA_SCOPE });
-      if (isSuperAdminRole(role)) continue;
+      await knex('roles').where({ id: role.id }).update({ data_scope: ALL_DATA_SCOPE });
+      if (isSuperAdminRole(role)) {
+        await knex('role_menus').where({ role_id: role.id }).del();
+        await knex.raw(
+          `INSERT INTO role_menus (role_id, menu_id)
+           SELECT ?, id FROM menus WHERE status = 1`,
+          [role.id]
+        );
+        superAdminRoleIds.push(role.id);
+        continue;
+      }
       const profile = getProfile(role.code);
-      if (!profile) continue;
+      if (!profile) {
+        await this.grantSupplementalPermissionsWithKnex(knex, role, registeredCodes);
+        continue;
+      }
 
       const keepIds = selectAllowedMenuIds(menus, profile);
       await knex('role_menus').where({ role_id: role.id }).del();
@@ -245,26 +259,25 @@ class RoleAccessService {
         );
       }
       await knex('role_permissions').where({ role_id: role.id }).del();
-      if (keepIds.length) {
-        const placeholders = keepIds.map(() => '?').join(',');
-        await knex.raw(
-          `
-          INSERT IGNORE INTO role_permissions (role_id, permission_id, created_at)
-          SELECT DISTINCT ?, COALESCE(m.permission_id, p.id), NOW()
-            FROM menus m
-            LEFT JOIN permissions p
-              ON p.code COLLATE utf8mb4_unicode_ci = m.permission COLLATE utf8mb4_unicode_ci
-             AND p.status = 1
-           WHERE m.id IN (${placeholders})
-             AND m.permission IS NOT NULL
-             AND m.permission <> ''
-             AND COALESCE(m.permission_id, p.id) IS NOT NULL
-          `,
-          [role.id, ...keepIds]
-        );
-      }
-      await this.grantExactPermissionsWithKnex(knex, role.id, profile);
+      const keepIdSet = new Set(keepIds);
+      const menuCodes = menus
+        .filter((menu) => keepIdSet.has(Number(menu.id)))
+        .map((menu) => menu.permission)
+        .filter(Boolean);
+      await this.grantPermissionCodesWithKnex(knex, role.id, menuCodes, 'menu');
+      await this.grantSupplementalPermissionsWithKnex(knex, role, registeredCodes);
       summary.push({ role: role.code, menusAfter: keepIds.length });
+    }
+
+    // Managed-role synchronization may register previously missing exact permissions.
+    // Refresh super admins last so their persisted permission graph includes those rows too.
+    for (const roleId of superAdminRoleIds) {
+      await knex('role_permissions').where({ role_id: roleId }).del();
+      await knex.raw(
+        `INSERT INTO role_permissions (role_id, permission_id, created_at)
+         SELECT ?, id, NOW() FROM permissions WHERE status = 1`,
+        [roleId]
+      );
     }
     return summary;
   }

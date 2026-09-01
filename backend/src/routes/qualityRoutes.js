@@ -12,6 +12,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/authEnhanced');
 const { requirePermission } = require('../middleware/requirePermission');
+const { FileUploadMiddlewares } = require('../middleware/unifiedFileUpload');
 const {
   desensitizeSensitiveResponse,
   requirePriceMutationPermission,
@@ -120,17 +121,23 @@ router.delete('/inspections/:id', authenticateToken, requirePermission('quality:
 router.get('/reference-data/:type', authenticateToken, requirePermission('quality:inspections:view'), inspectionCtrl.getReferenceData);
 
 /**
- * 检验模板相关路由（未变更）
+ * 检验模板相关路由
  */
-router.get('/templates', authenticateToken, requirePermission('quality:templates:view'), inspectionTemplateController.getTemplates);
-router.get('/templates/reusable-items', authenticateToken, requirePermission('quality:templates:view'), inspectionTemplateController.getReusableItems);
-router.post('/templates/reusable-items', authenticateToken, requirePermission('quality:templates:create'), inspectionTemplateController.createReusableItem);
-router.get('/templates/:id', authenticateToken, requirePermission('quality:templates:view'), inspectionTemplateController.getTemplate);
-router.post('/templates', authenticateToken, requirePermission('quality:templates:create'), inspectionTemplateController.createTemplate);
-router.put('/templates/:id', authenticateToken, requirePermission('quality:templates:update'), inspectionTemplateController.updateTemplate);
-router.delete('/templates/:id', authenticateToken, requirePermission('quality:templates:delete'), inspectionTemplateController.deleteTemplate);
-router.put('/templates/:id/status', authenticateToken, requirePermission('quality:templates:update'), inspectionTemplateController.updateTemplateStatus);
-router.post('/templates/:id/copy', authenticateToken, requirePermission('quality:templates:create'), inspectionTemplateController.copyTemplate);
+router.get('/templates/presets', requirePermission('quality:templates:view'), inspectionTemplateController.getPresetDocxList);
+router.get('/templates/parse-preset', requirePermission('quality:templates:view'), inspectionTemplateController.parsePresetDocx);
+router.post('/templates/parse-preset', requirePermission('quality:templates:view'), inspectionTemplateController.parsePresetDocx);
+router.post('/templates/parse-docx', requirePermission('quality:templates:create'), FileUploadMiddlewares.docxTemplate, inspectionTemplateController.parseDocxTemplate);
+router.post('/templates/import-preset', requirePermission('quality:templates:create'), inspectionTemplateController.importPresetDocx);
+router.post('/templates/import-docx', requirePermission('quality:templates:create'), FileUploadMiddlewares.docxTemplate, inspectionTemplateController.importDocxTemplate);
+router.get('/templates', requirePermission('quality:templates:view'), inspectionTemplateController.getTemplates);
+router.get('/templates/reusable-items', requirePermission('quality:templates:view'), inspectionTemplateController.getReusableItems);
+router.post('/templates/reusable-items', requirePermission('quality:templates:create'), inspectionTemplateController.createReusableItem);
+router.get('/templates/:id', requirePermission('quality:templates:view'), inspectionTemplateController.getTemplate);
+router.post('/templates', requirePermission('quality:templates:create'), inspectionTemplateController.createTemplate);
+router.put('/templates/:id', requirePermission('quality:templates:update'), inspectionTemplateController.updateTemplate);
+router.delete('/templates/:id', requirePermission('quality:templates:delete'), inspectionTemplateController.deleteTemplate);
+router.put('/templates/:id/status', requirePermission('quality:templates:update'), inspectionTemplateController.updateTemplateStatus);
+router.post('/templates/:id/copy', requirePermission('quality:templates:create'), inspectionTemplateController.copyTemplate);
 
 // 获取检验标准
 router.get('/standards/:type/:targetId', authenticateToken, requirePermission('quality:standards:view'), inspectionCtrl.getStandards);

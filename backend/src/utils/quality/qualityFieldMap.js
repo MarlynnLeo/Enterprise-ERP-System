@@ -5,9 +5,20 @@
 
 const { formatDate, toNumber } = require('../fieldMap');
 
+const MAX_QUALITY_MEASUREMENT_SAMPLES = 5;
+
 const qualityInspectionItemMap = {
   toApi(row) {
     if (row == null) return null;
+    const measurements = Array.isArray(row.measurements)
+      ? row.measurements.slice(0, MAX_QUALITY_MEASUREMENT_SAMPLES).map((m, index) => ({
+        sample_no: m.sample_no ?? m.sampleNo ?? index + 1,
+        measured_value: m.measured_value ?? m.measuredValue ?? m.value ?? null,
+        measured_by: m.measured_by ?? m.measuredBy ?? null,
+        is_qualified: m.is_qualified ?? m.isQualified ?? null,
+        measured_at: formatDate(m.measured_at ?? m.measuredAt),
+      }))
+      : [];
     return {
       id: row.id ?? null,
       inspectionId: row.inspection_id ?? null,
@@ -25,6 +36,7 @@ const qualityInspectionItemMap = {
       measure4: row.measure_4 ?? null,
       measure5: row.measure_5 ?? null,
       measure6: row.measure_6 ?? null,
+      measurements,
       method: row.method ?? null,
       result: row.result ?? null,
       isQualified: row.is_qualified != null ? Boolean(row.is_qualified) : null,
@@ -51,6 +63,15 @@ const qualityInspectionItemMap = {
       measure_4: body.measure4 ?? body.measure_4,
       measure_5: body.measure5 ?? body.measure_5,
       measure_6: body.measure6 ?? body.measure_6,
+      measurements: Array.isArray(body.measurements)
+        ? body.measurements.slice(0, MAX_QUALITY_MEASUREMENT_SAMPLES).map((m, index) => ({
+          sample_no: m?.sample_no ?? m?.sampleNo ?? index + 1,
+          measured_value: m?.measured_value ?? m?.measuredValue ?? m?.value ?? m,
+          measured_by: m?.measured_by ?? m?.measuredBy,
+          is_qualified: m?.is_qualified ?? m?.isQualified,
+          measured_at: m?.measured_at ?? m?.measuredAt,
+        }))
+        : undefined,
       method: body.method,
       result: body.result,
       is_qualified: body.isQualified ?? body.is_qualified,
@@ -99,6 +120,10 @@ const qualityInspectionMap = {
       templateId: row.template_id ?? null,
       templateCode: row.template_code ?? null,
       templateName: row.template_name ?? null,
+      aqlStandardId: row.aql_standard_id ?? null,
+      aqlLevel: row.aql_level ?? null,
+      acceptLimit: row.accept_limit ?? null,
+      rejectLimit: row.reject_limit ?? null,
       standardType: row.standard_type ?? null,
       standardNo: row.standard_no ?? null,
       note: row.note ?? null,
@@ -154,6 +179,10 @@ const qualityInspectionMap = {
       task_id: tId != null ? toNumber(tId, tId) : undefined,
       supplier_id: supId != null ? toNumber(supId, supId) : undefined,
       template_id: tmplId,
+      aql_standard_id: body.aqlStandardId ?? body.aql_standard_id,
+      aql_level: body.aqlLevel ?? body.aql_level,
+      accept_limit: body.acceptLimit ?? body.accept_limit,
+      reject_limit: body.rejectLimit ?? body.reject_limit,
       standard_type: body.standardType ?? body.standard_type,
       standard_no: body.standardNo ?? body.standard_no,
       note: body.note ?? body.remarks ?? body.remark,
@@ -178,4 +207,5 @@ const qualityInspectionMap = {
 module.exports = {
   qualityInspectionMap,
   qualityInspectionItemMap,
+  MAX_QUALITY_MEASUREMENT_SAMPLES,
 };

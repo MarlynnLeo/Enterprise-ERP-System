@@ -23,6 +23,7 @@ class UnifiedAIClient {
    */
   static async createChatCompletion({
     serviceName = 'AI service',
+    model,
     messages,
     temperature,
     topP,
@@ -37,7 +38,7 @@ class UnifiedAIClient {
     }
 
     const payload = {
-      model: config.model,
+      model: model || config.model,
       messages,
       max_tokens: maxTokens ?? config.maxTokens,
       temperature: temperature ?? config.temperature,

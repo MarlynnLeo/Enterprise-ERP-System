@@ -1179,14 +1179,26 @@ const updateInboundStatus = async (req, res) => {
         continue;
       }
       logger.error('更新入库单状态失败:', error);
-      return ResponseHandler.error(res, '更新入库单状态失败', 'SERVER_ERROR', 500, error);
+      return ResponseHandler.error(
+        res,
+        error.message || '更新入库单状态失败',
+        error.code || 'SERVER_ERROR',
+        error.statusCode || 500,
+        error
+      );
     } finally {
       connection.release();
     }
   }
 
   logger.error('更新入库单状态失败(重试用尽):', lastError);
-  return ResponseHandler.error(res, '更新入库单状态失败', 'SERVER_ERROR', 500, lastError);
+  return ResponseHandler.error(
+    res,
+    lastError?.message || '更新入库单状态失败',
+    lastError?.code || 'SERVER_ERROR',
+    lastError?.statusCode || 500,
+    lastError
+  );
 };
 
 // 获取物料列表 - 从baseData获取

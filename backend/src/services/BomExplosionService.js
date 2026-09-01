@@ -138,7 +138,10 @@ class BomExplosionService {
           ? `${internalParentPath}/${currentDetail.material_code}`
           : currentDetail.material_code;
 
-        const quantityPer = parseFloat(currentDetail.quantity) * internalParentQty;
+        const unitConsumption =
+          (parseFloat(currentDetail.quantity) || 0) /
+          (parseFloat(currentDetail.base_quantity) || 1);
+        const quantityPer = unitConsumption * internalParentQty;
 
         let qtyFromStock;
         let childNetDemand = quantityPer;

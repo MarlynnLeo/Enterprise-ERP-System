@@ -62,6 +62,7 @@ const InventoryService = require('../../src/services/InventoryService');
 const ScopeGuard = require('../../src/authorization/ScopeGuard');
 const { assertOutboundSourceAccess } = require('../../src/controllers/business/inventory/outbound/outboundHelpers');
 const {
+  updateOutboundStatus,
   batchUpdateOutboundStatus,
   batchDeleteOutbound,
   cancelOutboundReissue,
@@ -181,4 +182,165 @@ describe('outbound status batch/source authorization', () => {
       expect(connection.commit).not.toHaveBeenCalled();
     }
   );
+});
+
+/**
+ * 取消出库单的权限校验回归。
+ *
+ * 修复前的两个缺陷：
+ *   1. 单据状态口读 req.user.permissions / req.user.roles —— access token 载荷里
+ *      从来没有这两个字段，恒为空数组，导致取消对所有人（含超管）恒 403；
+ *   2. 批量状态口把 cancelled 列为合法目标却完全不校验 cancel 权限，
+ *      路由只要求 inventory:outbound:update，因此成了单据口的绕过路径。
+ */
+describe('outbound cancel permission', () => {
+  let connection;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    connection = connectionDouble();
+    db.pool.getConnection.mockResolvedValue(connection);
+    ScopeGuard.denyUnlessAccess.mockResolvedValue(true);
+    ScopeGuard.denyUnlessAllAccess.mockResolvedValue(true);
+    ScopeGuard.assertAccess.mockResolvedValue(true);
+    ScopeGuard.assertAllAccess.mockResolvedValue(true);
+    assertOutboundSourceAccess.mockResolvedValue(true);
+  });
+
+  function cancelRequest(userPermissions) {
+    return {
+      params: { id: '5' },
+      body: { newStatus: 'cancelled' },
+      user: { id: 3, username: 'operator' },
+      userPermissions,
+    };
+  }
+
+  test('持有 inventory:outbound:cancel 时允许取消', async () => {
+    connection.execute
+      // SELECT 出库单
+      .mockResolvedValueOnce([[
+        {
+          id: 5,
+          status: 'confirmed',
+          outbound_no: 'OUT-5',
+          reference_id: null,
+          reference_type: null,
+        },
+      ]])
+      // UPDATE 状态
+      .mockResolvedValueOnce([{ affectedRows: 1 }]);
+    const res = responseDouble();
+
+    await updateOutboundStatus(cancelRequest(['inventory:outbound:cancel']), res);
+
+    expect(res.status).not.toHaveBeenCalledWith(403);
+    const updateCall = connection.execute.mock.calls.find(
+      (call) => typeof call[0] === 'string' && call[0].includes('UPDATE inventory_outbound SET status')
+    );
+    expect(updateCall).toBeTruthy();
+  });
+
+  test('超管通配符 * 视为持有取消权限', async () => {
+    connection.execute
+      .mockResolvedValueOnce([[
+        {
+          id: 5,
+          status: 'confirmed',
+          outbound_no: 'OUT-5',
+          reference_id: null,
+          reference_type: null,
+        },
+      ]])
+      .mockResolvedValueOnce([{ affectedRows: 1 }]);
+    const res = responseDouble();
+
+    await updateOutboundStatus(cancelRequest(['*']), res);
+
+    expect(res.status).not.toHaveBeenCalledWith(403);
+  });
+
+  test('缺少 cancel 权限时单据取消返回403且不写库', async () => {
+    connection.execute.mockResolvedValueOnce([[
+      {
+        id: 5,
+        status: 'confirmed',
+        outbound_no: 'OUT-5',
+        reference_id: null,
+        reference_type: null,
+      },
+    ]]);
+    const res = responseDouble();
+
+    await updateOutboundStatus(cancelRequest(['inventory:outbound:update']), res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(connection.rollback).toHaveBeenCalled();
+    expect(connection.commit).not.toHaveBeenCalled();
+    const updateCall = connection.execute.mock.calls.find(
+      (call) => typeof call[0] === 'string' && call[0].includes('UPDATE inventory_outbound SET status')
+    );
+    expect(updateCall).toBeFalsy();
+  });
+
+  test('批量取消缺少 cancel 权限时返回403且不开事务（防绕过单据口）', async () => {
+    const res = responseDouble();
+
+    await batchUpdateOutboundStatus(
+      {
+        body: { ids: [1, 2], newStatus: 'cancelled' },
+        user: { id: 3 },
+        userPermissions: ['inventory:outbound:update'],
+      },
+      res
+    );
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(connection.beginTransaction).not.toHaveBeenCalled();
+    expect(connection.execute).not.toHaveBeenCalled();
+    expect(connection.commit).not.toHaveBeenCalled();
+  });
+
+  test('批量取消持有 cancel 权限时放行到授权校验', async () => {
+    connection.execute
+      .mockResolvedValueOnce([[
+        { id: 1, outbound_no: 'OUT-1', status: 'confirmed', reference_type: null, reference_id: null },
+        { id: 2, outbound_no: 'OUT-2', status: 'confirmed', reference_type: null, reference_id: null },
+      ]])
+      .mockResolvedValueOnce([{ affectedRows: 2 }]);
+    const res = responseDouble();
+
+    await batchUpdateOutboundStatus(
+      {
+        body: { ids: [1, 2], newStatus: 'cancelled' },
+        user: { id: 3 },
+        userPermissions: ['inventory:outbound:cancel'],
+      },
+      res
+    );
+
+    expect(res.status).not.toHaveBeenCalledWith(403);
+    expect(connection.beginTransaction).toHaveBeenCalled();
+  });
+
+  test('批量非取消状态不受 cancel 权限影响', async () => {
+    connection.execute
+      .mockResolvedValueOnce([[
+        { id: 1, outbound_no: 'OUT-1', status: 'draft', reference_type: null, reference_id: null },
+      ]])
+      .mockResolvedValueOnce([{ affectedRows: 1 }]);
+    const res = responseDouble();
+
+    await batchUpdateOutboundStatus(
+      {
+        body: { ids: [1], newStatus: 'confirmed' },
+        user: { id: 3 },
+        userPermissions: ['inventory:outbound:update'],
+      },
+      res
+    );
+
+    expect(res.status).not.toHaveBeenCalledWith(403);
+    expect(connection.beginTransaction).toHaveBeenCalled();
+  });
 });

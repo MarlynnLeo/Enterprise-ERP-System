@@ -514,6 +514,14 @@ const FileUploadMiddlewares = {
     destination: 'uploads/logos',
     fieldName: 'logo',
   }),
+
+  // 质量检验模板 Word (.docx) 上传（内存存储解析）
+  docxTemplate: createFileUploadMiddleware({
+    allowedTypes: ['DOCUMENT'],
+    maxSize: 10 * 1024 * 1024,
+    storage: STORAGE_STRATEGIES.MEMORY,
+    fieldName: 'file',
+  }),
 };
 
 module.exports = {

@@ -37,7 +37,8 @@ describe('CostAccountingService inventory cost recalculation', () => {
 
   it('treats outbound ledger quantities as absolute deductions and rebuilds stock balances', async () => {
     const connection = {
-      execute: jest.fn()
+      execute: jest
+        .fn()
         .mockResolvedValueOnce([
           [
             {
@@ -68,25 +69,19 @@ describe('CostAccountingService inventory cost recalculation', () => {
 
     expect(result.finalQuantity).toBe(7);
     expect(result.transactionCount).toBe(2);
-    expect(connection.execute).toHaveBeenNthCalledWith(
-      2,
-      'UPDATE inventory_ledger SET unit_cost = ?, total_value = ROUND(ABS(quantity) * ?, 2) WHERE id = ?',
-      [2, 2, 1]
+    const adjustmentCalls = connection.execute.mock.calls.filter(([sql]) =>
+      /INSERT\s+INTO\s+inventory_valuation_adjustments/i.test(sql)
     );
-    expect(connection.execute).toHaveBeenNthCalledWith(
-      3,
-      'UPDATE inventory_ledger SET unit_cost = ?, total_value = ROUND(ABS(quantity) * ?, 2) WHERE id = ?',
-      [2, 2, 2]
-    );
-    expect(InventoryService.rebuildStockBalancesForMaterial).toHaveBeenCalledWith(
-      1001,
-      connection
-    );
+    expect(adjustmentCalls).toHaveLength(1);
+    expect(adjustmentCalls[0][1][0]).toBe(2);
+    expect(adjustmentCalls[0][1][4]).toBe(2);
+    expect(InventoryService.rebuildStockBalancesForMaterial).toHaveBeenCalledWith(1001, connection);
   });
 
   it('normalizes moving_average to weighted_average during inventory cost recalculation', async () => {
     const connection = {
-      execute: jest.fn()
+      execute: jest
+        .fn()
         .mockResolvedValueOnce([
           [
             {
@@ -114,16 +109,12 @@ describe('CostAccountingService inventory cost recalculation', () => {
     );
 
     expect(result.finalQuantity).toBe(4);
-    expect(connection.execute).toHaveBeenNthCalledWith(
-      2,
-      'UPDATE inventory_ledger SET unit_cost = ?, total_value = ROUND(ABS(quantity) * ?, 2) WHERE id = ?',
-      [17.5, 17.5, 1]
+    const adjustmentCalls = connection.execute.mock.calls.filter(([sql]) =>
+      /INSERT\s+INTO\s+inventory_valuation_adjustments/i.test(sql)
     );
-    expect(connection.execute).toHaveBeenNthCalledWith(
-      3,
-      'UPDATE inventory_ledger SET unit_cost = ?, total_value = ROUND(ABS(quantity) * ?, 2) WHERE id = ?',
-      [17.5, 17.5, 2]
-    );
+    expect(adjustmentCalls).toHaveLength(1);
+    expect(adjustmentCalls[0][1][0]).toBe(2);
+    expect(adjustmentCalls[0][1][4]).toBe(17.5);
   });
 
   it('rejects unsupported inventory costing methods instead of zeroing ledger costs', async () => {

@@ -29,8 +29,6 @@
       <el-table-column prop="unitName" label="单位" width="60" show-overflow-tooltip></el-table-column>
       <el-table-column prop="locationName" label="仓库" width="100" show-overflow-tooltip></el-table-column>
       <el-table-column prop="managerName" label="物料负责人" width="100" show-overflow-tooltip></el-table-column>
-
-
       <el-table-column prop="minStock" label="最小库存" width="85" show-overflow-tooltip></el-table-column>
       <el-table-column prop="maxStock" label="最大库存" width="85" show-overflow-tooltip></el-table-column>
       <el-table-column prop="status" label="状态" width="80">

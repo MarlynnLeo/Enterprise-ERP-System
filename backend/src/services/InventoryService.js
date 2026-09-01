@@ -9,6 +9,7 @@ const { logger } = require('../utils/logger');
 const db = require('../config/db');
 const cacheService = require('./cache/CacheManager'); // ✅ 新增：缓存服务
 const Precision = require('../utils/precision');
+const { INTERNAL_POSTING_TOKEN } = require('./inventoryPostingContext');
 
 /**
  * 统一的库存管理服务 - 单表架构版本
@@ -176,8 +177,13 @@ class InventoryService {
                  CASE
                    WHEN COALESCE(quantity, 0) < 0 THEN -ABS(COALESCE(total_value, 0))
                    ELSE ABS(COALESCE(total_value, 0))
-                 END AS signed_total_value
+                 END + COALESCE(va.value_delta, 0) AS signed_total_value
           FROM inventory_ledger
+          LEFT JOIN (
+            SELECT ledger_id, SUM(value_delta) AS value_delta
+              FROM inventory_valuation_adjustments
+             GROUP BY ledger_id
+          ) va ON va.ledger_id = inventory_ledger.id
           WHERE material_id = ?
             AND location_id IS NOT NULL
         ) ledger_source
@@ -468,7 +474,8 @@ class InventoryService {
     locationId,
     connection = null,
     withLock = false,
-    useCache = true
+    useCache = true,
+    includePending = true
   ) {
     const conn = connection || db.pool;
 
@@ -523,6 +530,22 @@ class InventoryService {
           [materialId, locationId]
         );
         quantity = parseFloat(result[0].current_stock);
+      }
+
+      if (includePending) {
+        try {
+          const [pendingRows] = await conn.execute(
+            `SELECT COALESCE(SUM(l.signed_quantity), 0) AS pending_stock
+               FROM inventory_posting_lines l
+               JOIN inventory_posting_documents d ON d.id = l.posting_document_id
+              WHERE l.material_id = ? AND l.location_id = ?
+                AND d.finance_status = 'pending' AND d.posting_kind = 'movement'`,
+            [materialId, locationId]
+          );
+          quantity = Precision.add(quantity, Number(pendingRows[0]?.pending_stock || 0));
+        } catch (error) {
+          if (!/inventory_posting_(lines|documents)/i.test(error.message || '')) throw error;
+        }
       }
 
       // 缓存结果（5分钟过期），仅在非事务模式下缓存
@@ -608,6 +631,42 @@ class InventoryService {
         }
       }
 
+      try {
+        const [pendingRows] = await conn.execute(
+          `SELECT l.material_id, l.location_id, COALESCE(SUM(l.signed_quantity), 0) AS quantity
+             FROM inventory_posting_lines l
+             JOIN inventory_posting_documents d ON d.id = l.posting_document_id
+            WHERE (${conditions}) AND d.finance_status = 'pending' AND d.posting_kind = 'movement'
+            GROUP BY l.material_id, l.location_id`,
+          params
+        );
+        const pendingMap = new Map(
+          pendingRows.map((row) => [
+            `${row.material_id}-${row.location_id}`,
+            Number(row.quantity || 0),
+          ])
+        );
+        results = results.map((row) => ({
+          ...row,
+          quantity: Precision.add(
+            Number(row.quantity || 0),
+            pendingMap.get(`${row.material_id}-${row.location_id}`) || 0
+          ),
+        }));
+        pendingRows.forEach((row) => {
+          const key = `${row.material_id}-${row.location_id}`;
+          if (!results.some((item) => `${item.material_id}-${item.location_id}` === key)) {
+            results.push({
+              material_id: row.material_id,
+              location_id: row.location_id,
+              quantity: row.quantity,
+            });
+          }
+        });
+      } catch (error) {
+        if (!/inventory_posting_(lines|documents)/i.test(error.message || '')) throw error;
+      }
+
       // 补充没有记录的物料-库位组合
       const resultMap = new Map();
       results.forEach((row) => {
@@ -679,12 +738,44 @@ class InventoryService {
       receiptId = null, // 原生批次身份证属性
       receiptNo = null, // 原生批次身份证属性
       idempotencyKey = null,
+      postingDocumentId = null,
+      postingLineId = null,
+      internalPostingToken = null,
+      businessApprovedById = null,
     },
     connection
   ) {
     // 1. 前置验证
     if (!connection) {
       throw new Error('updateStock必须在数据库事务中调用');
+    }
+
+    const isFormalPosting = internalPostingToken === INTERNAL_POSTING_TOKEN;
+    if (internalPostingToken && !isFormalPosting) {
+      throw new Error('非法库存正式过账上下文');
+    }
+    if (isFormalPosting) {
+      if (!postingDocumentId || !postingLineId) {
+        throw new Error('正式过账必须绑定冻结过账单和明细');
+      }
+      const [[postingDocument]] = await connection.execute(
+        `SELECT id, finance_status, locked
+           FROM inventory_posting_documents WHERE id = ? FOR UPDATE`,
+        [postingDocumentId]
+      );
+      if (
+        !postingDocument ||
+        postingDocument.finance_status !== 'approved' ||
+        !Number(postingDocument.locked)
+      ) {
+        throw new Error('库存过账单尚未完成财务审核或未锁定');
+      }
+      const [[postingLine]] = await connection.execute(
+        `SELECT id FROM inventory_posting_lines
+          WHERE id = ? AND posting_document_id = ? FOR UPDATE`,
+        [postingLineId, postingDocumentId]
+      );
+      if (!postingLine) throw new Error('库存冻结明细与过账单不匹配');
     }
 
     if (!materialId || !locationId) {
@@ -735,8 +826,10 @@ class InventoryService {
         connection
       );
       const PeriodValidationService = require('./business/PeriodValidationService');
-      const inventoryCheck =
-        await PeriodValidationService.validateInventoryTransaction(resolvedTransactionDate, connection);
+      const inventoryCheck = await PeriodValidationService.validateInventoryTransaction(
+        resolvedTransactionDate,
+        connection
+      );
       if (!inventoryCheck.allowed) {
         throw new Error(inventoryCheck.message);
       }
@@ -744,7 +837,14 @@ class InventoryService {
       await this._lockStockLocation(materialId, locationId, connection);
 
       // 2. 使用行级锁获取当前库存
-      const beforeQuantity = await this.getCurrentStock(materialId, locationId, connection, true);
+      const beforeQuantity = await this.getCurrentStock(
+        materialId,
+        locationId,
+        connection,
+        true,
+        false,
+        !isFormalPosting
+      );
 
       // 3. 计算变动数量（统一为正数入库，负数出库）
       // 防御性取反：当调用方不慎传了正数的出库类型时，自动修正为负数
@@ -802,13 +902,22 @@ class InventoryService {
         const outboundQuantity = Math.abs(changeQuantity);
         const [batchRecords] = await connection.query(
           `SELECT batch_number, SUM(quantity) as batch_quantity
-           FROM inventory_ledger
-           WHERE material_id = ? AND location_id = ?
-             AND batch_number IS NOT NULL AND batch_number != ''
+           FROM (
+             SELECT batch_number, quantity, created_at
+               FROM inventory_ledger
+              WHERE material_id = ? AND location_id = ?
+             UNION ALL
+             SELECT l.batch_number, l.signed_quantity AS quantity, l.created_at
+               FROM inventory_posting_lines l
+               JOIN inventory_posting_documents d ON d.id = l.posting_document_id
+              WHERE l.material_id = ? AND l.location_id = ?
+                AND d.finance_status = 'pending' AND d.posting_kind = 'movement'
+           ) stock_movements
+           WHERE batch_number IS NOT NULL AND batch_number != ''
            GROUP BY batch_number
            HAVING batch_quantity > 0
            ORDER BY MIN(created_at) ASC`,
-          [materialId, locationId]
+          [materialId, locationId, materialId, locationId]
         );
 
         let remainingQuantity = outboundQuantity;
@@ -856,6 +965,10 @@ class InventoryService {
       // 7. 插入库存台账记录（如果按FIFO拆分，会有多条记录，累积计算 before/after）
       let currentBefore = beforeQuantity;
       let lastLedgerId = null;
+      let stagedPosting = null;
+      const stagedLineIds = [];
+      const stagedLines = [];
+      let totalValue = 0;
 
       for (const batchInfo of finalBatchNumbers) {
         // 还原当前批次的实际变动量（正负号）
@@ -890,6 +1003,58 @@ class InventoryService {
           Precision.mul(actualUnitCost || 0, Math.abs(batchChangeQty)),
           6
         );
+        totalValue = Precision.add(totalValue, currentTotalValue);
+
+        if (!isFormalPosting) {
+          const InventoryPostingService = require('./InventoryPostingService');
+          const stagedResult = await InventoryPostingService.stageMovement(
+            connection,
+            {
+              sourceType: referenceType || transactionType,
+              sourceNo: referenceNo,
+              transactionDate: resolvedTransactionDate,
+              movementDirection: batchChangeQty >= 0 ? 'inbound' : 'outbound',
+              businessApprovedById,
+              businessApprovedBy: operator,
+              operator,
+              remark,
+            },
+            [
+              {
+                materialId,
+                locationId,
+                transactionType,
+                referenceType,
+                referenceNo,
+                signedQuantity: batchChangeQty,
+                unitId,
+                batchNumber: ledgerBatchNumber,
+                unitCost: actualUnitCost,
+                totalValue: currentTotalValue,
+                transactionDate: resolvedTransactionDate,
+                operator,
+                sourceLineKey: `${transactionType}:${referenceType}:${referenceNo}:${materialId}:${locationId}:${ledgerBatchNumber || 'EMPTY'}`,
+              },
+            ]
+          );
+          stagedPosting = stagedResult;
+          stagedLineIds.push(...(stagedResult.lineIds || []));
+          stagedLines.push({
+            materialId,
+            locationId,
+            transactionType,
+            referenceType,
+            referenceNo,
+            quantity: Math.abs(batchChangeQty),
+            signedQuantity: batchChangeQty,
+            unitId,
+            batchNumber: ledgerBatchNumber,
+            unitCost: actualUnitCost,
+            totalValue: currentTotalValue,
+          });
+          currentBefore = currentAfter;
+          continue;
+        }
 
         const [ledgerResult] = await connection.execute(
           `INSERT INTO inventory_ledger (
@@ -899,8 +1064,8 @@ class InventoryService {
             operator, remark, issue_reason, is_excess, bom_required_qty, total_issued_qty,
             transaction_date, created_at,
             unit_cost, total_value, purchase_order_id, purchase_order_no, receipt_id, receipt_no,
-            idempotency_key
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?)`,
+            idempotency_key, posting_document_id, posting_line_id, reversal_of_ledger_id
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             materialId,
             locationId,
@@ -932,6 +1097,9 @@ class InventoryService {
             receiptId,
             receiptNo,
             ledgerIdempotencyKey,
+            postingDocumentId,
+            postingLineId,
+            null,
           ]
         );
         lastLedgerId = ledgerResult.insertId || lastLedgerId;
@@ -955,29 +1123,39 @@ class InventoryService {
       // ✅ 清除库存缓存，确保下次查询获取最新数据
       await this.clearStockCache(materialId, locationId);
 
-      // ✅ 新增：库存变动后检查预警（异步执行，不阻塞主流程）
-      setImmediate(async () => {
-        try {
-          const InventoryAlertService = require('./business/InventoryAlertService');
-          await InventoryAlertService.checkStockAfterChange(materialId, afterQuantity);
-        } catch (alertError) {
-          const DLQService = require('./business/DLQService');
-          await DLQService.recordSideEffectFailure(
-            'InventoryAlert:checkStockAfterChange',
-            { materialId, locationId, afterQuantity },
-            alertError
-          );
-        }
-        // 注意：销售订单状态检查已统一移至 InboundTransactionService._handleSideEffects
-      });
+      // Pending movements are not formal stock yet. Their alert is emitted by
+      // the finance-approved posting flow after the ledger rows are written.
+      if (!stagedPosting) {
+        setImmediate(async () => {
+          try {
+            const InventoryAlertService = require('./business/InventoryAlertService');
+            await InventoryAlertService.checkStockAfterChange(materialId, afterQuantity);
+          } catch (alertError) {
+            const DLQService = require('./business/DLQService');
+            if (typeof DLQService.recordSideEffectFailure === 'function') {
+              await DLQService.recordSideEffectFailure(
+                'InventoryAlert:checkStockAfterChange',
+                { materialId, locationId, afterQuantity },
+                alertError
+              );
+            }
+          }
+          // 注意：销售订单状态检查已统一移至 InboundTransactionService._handleSideEffects
+        });
+      }
 
       return {
         success: true,
+        staged: Boolean(stagedPosting),
         beforeQuantity,
         afterQuantity,
         changeQuantity,
+        totalValue,
         // FIFO 拆分时返回最后一笔台账 id，供调整单等调用方关联财务分录
         transactionId: lastLedgerId,
+        postingDocumentId: stagedPosting?.documentId || postingDocumentId || null,
+        postingLineIds: stagedLineIds,
+        stagedLines,
         duration,
       };
     } catch (error) {
@@ -1034,9 +1212,7 @@ class InventoryService {
       cost = Number(m?.cost_price || 0);
     }
     if (!(Number(cost) > 0)) {
-      throw new Error(
-        `对账调整缺少有效成本: materialId=${materialId}, locationId=${locationId}`
-      );
+      throw new Error(`对账调整缺少有效成本: materialId=${materialId}, locationId=${locationId}`);
     }
 
     const refNo = `ADJ-RECON-${materialId}-${locationId}-${Date.now()}`;
@@ -1131,17 +1307,26 @@ class InventoryService {
       connection
     );
 
-    // 2. 查询刚才 transfer_out 写入的台账，取回被 FIFO 拆分的各批次
-    //    用于向目标库位写入完全对应的批次，保证批次追溯双向一致
-    const [outLedger] = await connection.execute(
-      `SELECT batch_number, ABS(quantity) as qty, unit_cost
-       FROM inventory_ledger
-       WHERE material_id = ? AND location_id = ?
-         AND reference_no = ? AND transaction_type = 'transfer_out'
-         AND batch_number IS NOT NULL AND batch_number != ''
-       ORDER BY id ASC`,
-      [materialId, fromLocationId, referenceNo]
-    );
+    // 业务审核阶段只冻结过账明细，正式台账要等财务审核后写入。
+    // 优先使用 updateStock 返回的 FIFO 明细，正式过账/历史路径再回退查询台账。
+    let outLedger = (sourceResult.stagedLines || [])
+      .filter((line) => line.batchNumber)
+      .map((line) => ({
+        batch_number: line.batchNumber,
+        qty: line.quantity,
+        unit_cost: line.unitCost,
+      }));
+    if (outLedger.length === 0) {
+      [outLedger] = await connection.execute(
+        `SELECT batch_number, ABS(quantity) as qty, unit_cost
+         FROM inventory_ledger
+         WHERE material_id = ? AND location_id = ?
+           AND reference_no = ? AND transaction_type = 'transfer_out'
+           AND batch_number IS NOT NULL AND batch_number != ''
+         ORDER BY id ASC`,
+        [materialId, fromLocationId, referenceNo]
+      );
+    }
 
     if (outLedger.length > 0) {
       // 按 FIFO 批次逐一写入目标库位，完整继承批次信息
@@ -1157,7 +1342,8 @@ class InventoryService {
             operator,
             remark: `${remark} (转入)`,
             unitId,
-            batchNumber: this._normalizeBatchNumber(row.batch_number) || `TR-${referenceNo}-${materialId}`,
+            batchNumber:
+              this._normalizeBatchNumber(row.batch_number) || `TR-${referenceNo}-${materialId}`,
             unitCost: row.unit_cost,
           },
           connection
@@ -1167,7 +1353,8 @@ class InventoryService {
       // 兜底：批次信息查不到（如手动调整的旧数据），整体一笔写入
       // 入库必须有可追溯批次，禁止 null/'' 落入台账
       const transferInBatch =
-        this._normalizeBatchNumber(batchNumber) || `TR-${referenceNo}-${materialId}-${toLocationId}`;
+        this._normalizeBatchNumber(batchNumber) ||
+        `TR-${referenceNo}-${materialId}-${toLocationId}`;
       await this.updateStock(
         {
           materialId,
@@ -1476,7 +1663,14 @@ class InventoryService {
     }
 
     const conn = connection || db.pool;
-    const uniqueIds = [...new Set(materialIds)];
+    const uniqueIds = [
+      ...new Set(
+        materialIds.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0)
+      ),
+    ];
+    if (uniqueIds.length === 0) {
+      return new Map();
+    }
     const placeholders = uniqueIds.map(() => '?').join(',');
 
     const [rows] = await conn.execute(
@@ -1495,14 +1689,16 @@ class InventoryService {
           `物料 ${row.code || row.id} 未配置默认仓库，请在【物料管理】中设置存放仓库后再操作`
         );
       }
-      infoMap.set(row.id, {
+      const data = {
         locationId: row.location_id,
         unitId: row.unit_id || null,
         code: row.code || '',
         name: row.name || '',
         price: parseFloat(row.price) || 0,
         costPrice: parseFloat(row.cost_price) || 0,
-      });
+      };
+      infoMap.set(row.id, data);
+      infoMap.set(String(row.id), data);
     }
 
     // 检查是否所有请求的物料都找到了

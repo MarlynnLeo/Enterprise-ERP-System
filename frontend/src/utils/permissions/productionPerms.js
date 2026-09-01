@@ -94,12 +94,12 @@ export const productionPerms = [
     parentId: 2,
     name: '生产需求',
     path: '/production/mrp',
-    component: 'production/MRPPlanning',
+    component: 'production/MaterialShortage',
     icon: 'icon-data-analysis',
     type: 1,
     permission: 'production:mrp',
     sort: 7,
-    status: 1
+    status: 0 // 停用独立展示，收敛归并至缺料统计
   },
 
   // 生产计划按钮权限

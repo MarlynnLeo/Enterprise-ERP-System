@@ -885,7 +885,7 @@ const aiAnalyze = async (req, res) => {
         return ResponseHandler.success(res, result, 'AI分析完成');
     } catch (error) {
         logger.error('AI分析8D报告失败:', error);
-        const msg = error.message?.includes('API Key') ? error.message : 'AI分析失败，请稍后重试';
+        const msg = error.message || 'AI分析失败，请稍后重试';
         return ResponseHandler.error(res, msg, 'OPERATION_ERROR', 500, error);
     }
 };

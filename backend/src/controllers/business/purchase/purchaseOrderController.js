@@ -26,10 +26,7 @@ const SupplierMetalRangePriceService = require('../../../services/business/Suppl
 const DBManager = require('../../../utils/dbManager');
 const { desensitizeDataForUser } = require('../../../utils/desensitizer');
 const { calculateLines, normalizeTaxRate } = require('../../../utils/money');
-const {
-  resolveUnitPrice,
-  normalizeItemsUnitPrice,
-} = require('../../../utils/unitPriceFields');
+const { resolveUnitPrice, normalizeItemsUnitPrice } = require('../../../utils/unitPriceFields');
 const { parsePagination } = require('../../../utils/safePagination');
 const { financeConfig } = require('../../../config/financeConfig');
 const ScopeGuard = require('../../../authorization/ScopeGuard');
@@ -109,10 +106,37 @@ const getOrders = async (req, res) => {
 
     const queryParams = [];
 
-    // 支持keyword参数同时搜索订单号和合同编码
+    // 支持keyword参数同时搜索物料编码、物料名称、物料规格、订单号、合同编码与供应商
     if (keyword) {
-      query += ' AND (o.order_no LIKE ? OR o.contract_code LIKE ?)';
-      queryParams.push(`%${keyword}%`, `%${keyword}%`);
+      query += ` AND (
+        o.order_no LIKE ?
+        OR o.contract_code LIKE ?
+        OR s.name LIKE ?
+        OR EXISTS (
+          SELECT 1 FROM purchase_order_items poi
+          LEFT JOIN materials m ON poi.material_id = m.id
+          WHERE poi.order_id = o.id
+            AND (
+              m.code LIKE ?
+              OR m.name LIKE ?
+              OR m.specs LIKE ?
+              OR poi.material_code LIKE ?
+              OR poi.material_name LIKE ?
+              OR poi.specification LIKE ?
+            )
+        )
+      )`;
+      queryParams.push(
+        `%${keyword}%`,
+        `%${keyword}%`,
+        `%${keyword}%`,
+        `%${keyword}%`,
+        `%${keyword}%`,
+        `%${keyword}%`,
+        `%${keyword}%`,
+        `%${keyword}%`,
+        `%${keyword}%`
+      );
     } else {
       // 兼容旧的独立参数
       if (orderNo) {
@@ -165,6 +189,8 @@ const getOrders = async (req, res) => {
         const placeholders = orderIds.map(() => '?').join(',');
         const itemsQuery = `
           SELECT poi.*,
+                 COALESCE(u1.name, u2.name) as unit_name,
+                 COALESCE(poi.unit_id, m.unit_id) as effective_unit_id,
                  COALESCE(poi.received_quantity, 0) as received_quantity,
                  COALESCE(poi.warehoused_quantity, 0) as warehoused_quantity,
                  CASE
@@ -176,6 +202,9 @@ const getOrders = async (req, res) => {
                    ELSE 0
                  END as warehoused_percentage
           FROM purchase_order_items poi
+          LEFT JOIN units u1 ON poi.unit_id = u1.id
+          LEFT JOIN materials m ON poi.material_id = m.id
+          LEFT JOIN units u2 ON m.unit_id = u2.id
           WHERE poi.order_id IN (${placeholders})
           ORDER BY poi.id
         `;
@@ -186,9 +215,7 @@ const getOrders = async (req, res) => {
 
     // 整合订单及其物料 → 统一 camel API
     const orders = rows.map((row) => {
-      const orderItems = normalizeItemsUnitPrice(
-        items.filter((item) => item.order_id === row.id)
-      );
+      const orderItems = normalizeItemsUnitPrice(items.filter((item) => item.order_id === row.id));
       const api = purchaseOrderMap.toApi({
         ...row,
         items: orderItems,
@@ -201,9 +228,17 @@ const getOrders = async (req, res) => {
     const totalCount = rows.length > 0 ? parseInt(rows[0].total_count, 10) : 0;
     await desensitizeDataForUser(orders, req.user, 'view', req.userPermissions);
 
-    return ResponseHandler.paginated(res, orders, totalCount, pagination.page, pagination.pageSize, undefined, {
-      items: orders,
-    });
+    return ResponseHandler.paginated(
+      res,
+      orders,
+      totalCount,
+      pagination.page,
+      pagination.pageSize,
+      undefined,
+      {
+        items: orders,
+      }
+    );
   } catch (error) {
     logger.error('获取采购订单列表失败:', error);
     return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
@@ -279,7 +314,8 @@ const createOrder = async (req, res) => {
 
       assertPurchaseItemPrices(items || []);
       const orderAmounts = calculateLines(items || [], {
-        defaultTaxRate: bodyTaxRate !== undefined ? bodyTaxRate : financeConfig.get('tax.defaultVATRate', 0.13),
+        defaultTaxRate:
+          bodyTaxRate !== undefined ? bodyTaxRate : financeConfig.get('tax.defaultVATRate', 0.13),
       });
       const taxRate = normalizeTaxRate(
         bodyTaxRate !== undefined ? bodyTaxRate : orderAmounts.taxRate,
@@ -288,7 +324,11 @@ const createOrder = async (req, res) => {
       const subtotal = orderAmounts.subtotal;
       const taxAmount = orderAmounts.taxAmount;
       const calculatedTotalAmount = orderAmounts.totalAmount;
-      const metalSnapshot = await resolveOrderMetalSnapshot(connection, { ...bodyIn, order_date: orderDate }, orderAmounts.items || items || []);
+      const metalSnapshot = await resolveOrderMetalSnapshot(
+        connection,
+        { ...bodyIn, order_date: orderDate },
+        orderAmounts.items || items || []
+      );
 
       const insertQuery = `
         INSERT INTO purchase_orders (
@@ -310,14 +350,14 @@ const createOrder = async (req, res) => {
         metalSnapshot.metal_price_source,
         metalSnapshot.metal_price_date,
         metalSnapshot.metal_price_scheme_id,
-        (expectedDeliveryDate && expectedDeliveryDate !== '-') ? expectedDeliveryDate : null,
+        expectedDeliveryDate && expectedDeliveryDate !== '-' ? expectedDeliveryDate : null,
         contactPerson,
         contactPhone,
         calculatedTotalAmount,
         taxRate,
         taxAmount,
         subtotal,
-        remarks !== undefined ? remarks : (bodyIn.notes !== undefined ? bodyIn.notes : null),
+        remarks !== undefined ? remarks : bodyIn.notes !== undefined ? bodyIn.notes : null,
         req.body.status || 'draft',
         requisitionId || null,
         requisitionNumber || null,
@@ -339,11 +379,16 @@ const createOrder = async (req, res) => {
     const orderDetails = await getOrderById(createdOrder);
     await desensitizeDataForUser(orderDetails, req.user, 'view', req.userPermissions);
 
-
     ResponseHandler.success(res, orderDetails, '创建成功', 201);
   } catch (error) {
     logger.error('创建采购订单失败:', error);
-    return ResponseHandler.error(res, error.message || '操作失败', 'OPERATION_ERROR', error.statusCode || 500, error);
+    return ResponseHandler.error(
+      res,
+      error.message || '操作失败',
+      'OPERATION_ERROR',
+      error.statusCode || 500,
+      error
+    );
   }
 };
 
@@ -376,14 +421,18 @@ const updateOrder = async (req, res) => {
       const supplierName = await PurchaseOrderService.validateSupplier(connection, supplierId);
       assertPurchaseItemPrices(items || []);
       const orderAmounts = calculateLines(items || [], {
-        defaultTaxRate: bodyTaxRate !== undefined ? bodyTaxRate : financeConfig.get('tax.defaultVATRate', 0.13),
+        defaultTaxRate:
+          bodyTaxRate !== undefined ? bodyTaxRate : financeConfig.get('tax.defaultVATRate', 0.13),
       });
       const taxRate = normalizeTaxRate(
         bodyTaxRate !== undefined ? bodyTaxRate : orderAmounts.taxRate,
         financeConfig.get('tax.defaultVATRate', 0.13)
       );
-      const metalSnapshot = await resolveOrderMetalSnapshot(connection, { ...bodyIn, order_date: orderDate }, orderAmounts.items || items || []);
-
+      const metalSnapshot = await resolveOrderMetalSnapshot(
+        connection,
+        { ...bodyIn, order_date: orderDate },
+        orderAmounts.items || items || []
+      );
 
       // 更新采购订单基本信息
       const updateQuery = `
@@ -405,14 +454,14 @@ const updateOrder = async (req, res) => {
         metalSnapshot.metal_price_source,
         metalSnapshot.metal_price_date,
         metalSnapshot.metal_price_scheme_id,
-        (expectedDeliveryDate && expectedDeliveryDate !== '-') ? expectedDeliveryDate : null,
+        expectedDeliveryDate && expectedDeliveryDate !== '-' ? expectedDeliveryDate : null,
         contactPerson,
         contactPhone,
         orderAmounts.totalAmount,
         taxRate,
         orderAmounts.taxAmount,
         orderAmounts.subtotal,
-        remarks !== undefined ? remarks : (bodyIn.notes !== undefined ? bodyIn.notes : null),
+        remarks !== undefined ? remarks : bodyIn.notes !== undefined ? bodyIn.notes : null,
         requisitionId || null,
         requisitionNumber || null,
         id,
@@ -424,11 +473,13 @@ const updateOrder = async (req, res) => {
       // 插入新的物料项目
       await PurchaseOrderService.insertOrderItems(connection, id, orderAmounts.items);
 
-      const affectedRequisitionIds = [...new Set(
-        [previousRequisitionId, requisitionId]
-          .map((value) => Number(value))
-          .filter((value) => Number.isInteger(value) && value > 0)
-      )];
+      const affectedRequisitionIds = [
+        ...new Set(
+          [previousRequisitionId, requisitionId]
+            .map((value) => Number(value))
+            .filter((value) => Number.isInteger(value) && value > 0)
+        ),
+      ];
       for (const affectedRequisitionId of affectedRequisitionIds) {
         await PurchaseOrderService.syncRequisitionStatusFromOrders(
           connection,
@@ -446,7 +497,13 @@ const updateOrder = async (req, res) => {
     return ResponseHandler.success(res, orderDetails);
   } catch (error) {
     logger.error('更新采购订单失败:', error);
-    return ResponseHandler.error(res, error.message || '操作失败', 'OPERATION_ERROR', error.statusCode || 500, error);
+    return ResponseHandler.error(
+      res,
+      error.message || '操作失败',
+      'OPERATION_ERROR',
+      error.statusCode || 500,
+      error
+    );
   }
 };
 
@@ -489,7 +546,8 @@ const deleteOrder = async (req, res) => {
     return ResponseHandler.success(res, null, '采购订单删除成功');
   } catch (error) {
     logger.error('删除采购订单失败:', error);
-    const statusCode = error.statusCode || (error.message === 'purchase order not found' ? 404 : 500);
+    const statusCode =
+      error.statusCode || (error.message === 'purchase order not found' ? 404 : 500);
     const errorCode = error.code || (statusCode === 404 ? 'NOT_FOUND' : 'OPERATION_ERROR');
     const message = statusCode < 500 ? error.message : '操作失败';
     return ResponseHandler.error(res, message, errorCode, statusCode, error);
@@ -522,9 +580,10 @@ const updateOrderStatus = async (req, res) => {
     }
 
     const updatedOrder = await DBManager.executeTransaction(async (connection) => {
-      const [checkRows] = await connection.query('SELECT id, order_no, order_date, supplier_id, supplier_name, contract_code, expected_delivery_date, contact_person, contact_phone, total_amount, remarks, status, completion_percentage, created_at, updated_at, requisition_id, requisition_number, tax_rate, tax_amount, subtotal, deleted_at FROM purchase_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [
-        id,
-      ]);
+      const [checkRows] = await connection.query(
+        'SELECT id, order_no, order_date, supplier_id, supplier_name, contract_code, expected_delivery_date, contact_person, contact_phone, total_amount, remarks, status, completion_percentage, created_at, updated_at, requisition_id, requisition_number, tax_rate, tax_amount, subtotal, deleted_at FROM purchase_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+        [id]
+      );
 
       if (checkRows.length === 0) {
         throw new Error('purchase order not found');
@@ -545,7 +604,10 @@ const updateOrderStatus = async (req, res) => {
       // 如果状态没有变化，直接返回（允许保持相同状态）
       if (currentStatus === newStatus) {
         if (newStatus === PURCHASE_STATUS.COMPLETED) {
-          const normalizedStatus = await PurchaseOrderStatusService.updateOrderStatus(id, connection);
+          const normalizedStatus = await PurchaseOrderStatusService.updateOrderStatus(
+            id,
+            connection
+          );
           if (normalizedStatus?.status !== PURCHASE_STATUS.COMPLETED) {
             throw new Error(
               `采购订单尚未全部入库，不能设置为已完成。订单数量=${normalizedStatus?.totalQuantity || 0}, 已入库=${normalizedStatus?.totalWarehoused || 0}`
@@ -603,8 +665,12 @@ const updateOrderStatus = async (req, res) => {
           [id]
         );
         const wfResult = await WorkflowService.tryStartWorkflow(
-          'purchase_order', id, currentOrder.order_no,
-          `采购订单 ${currentOrder.order_no} 审批`, userId, connection
+          'purchase_order',
+          id,
+          currentOrder.order_no,
+          `采购订单 ${currentOrder.order_no} 审批`,
+          userId,
+          connection
         );
         if (wfResult.auto_approved) {
           finalStatus = 'approved';
@@ -650,11 +716,19 @@ const updateOrderStatus = async (req, res) => {
       '提交审批前请先设置供应商',
       '无效的状态变更',
     ];
-    const isBusinessError = error.statusCode >= 400 && error.statusCode < 500
-      ? true
-      : businessErrorMessages.some((message) => error.message?.startsWith(message));
-    const statusCode = error.statusCode || (error.message === 'purchase order not found' ? 404 : isBusinessError ? 400 : 500);
-    const errorCode = statusCode === 404 ? 'NOT_FOUND' : statusCode === 400 ? 'VALIDATION_ERROR' : 'OPERATION_ERROR';
+    const isBusinessError =
+      error.statusCode >= 400 && error.statusCode < 500
+        ? true
+        : businessErrorMessages.some((message) => error.message?.startsWith(message));
+    const statusCode =
+      error.statusCode ||
+      (error.message === 'purchase order not found' ? 404 : isBusinessError ? 400 : 500);
+    const errorCode =
+      statusCode === 404
+        ? 'NOT_FOUND'
+        : statusCode === 400
+          ? 'VALIDATION_ERROR'
+          : 'OPERATION_ERROR';
     const message = isBusinessError ? error.message : '操作失败';
     return ResponseHandler.error(res, message, errorCode, statusCode, error);
   }
@@ -675,7 +749,12 @@ const batchUpdateOrderStatus = async (req, res) => {
       return ResponseHandler.error(res, '请选择采购订单', 'VALIDATION_ERROR', 400);
     }
     if (uniqueIds.length > 100) {
-      return ResponseHandler.error(res, 'too many purchase orders in one batch', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(
+        res,
+        'too many purchase orders in one batch',
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     const validStatuses = Object.values(PURCHASE_STATUS);
@@ -701,7 +780,11 @@ const batchUpdateOrderStatus = async (req, res) => {
         }
 
         if (!(await canAccessPurchaseOrder(connection, req, id))) {
-          failures.push({ id, order_no: order.order_no, message: 'No permission to change this purchase order' });
+          failures.push({
+            id,
+            order_no: order.order_no,
+            message: 'No permission to change this purchase order',
+          });
           continue;
         }
 
@@ -785,12 +868,14 @@ const batchUpdateOrderStatus = async (req, res) => {
         }
       }
 
-      const affectedRequisitionIds = [...new Set(
-        successes
-          .map((success) => orderMap.get(Number(success.id))?.requisition_id)
-          .map((value) => Number(value))
-          .filter((value) => Number.isInteger(value) && value > 0)
-      )];
+      const affectedRequisitionIds = [
+        ...new Set(
+          successes
+            .map((success) => orderMap.get(Number(success.id))?.requisition_id)
+            .map((value) => Number(value))
+            .filter((value) => Number.isInteger(value) && value > 0)
+        ),
+      ];
       for (const requisitionId of affectedRequisitionIds) {
         await PurchaseOrderService.syncRequisitionStatusFromOrders(connection, requisitionId);
       }
@@ -806,7 +891,13 @@ const batchUpdateOrderStatus = async (req, res) => {
     });
   } catch (error) {
     logger.error('批量更新采购订单状态失败', error);
-    return ResponseHandler.error(res, 'batch update purchase order status failed', 'OPERATION_ERROR', 500, error);
+    return ResponseHandler.error(
+      res,
+      'batch update purchase order status failed',
+      'OPERATION_ERROR',
+      500,
+      error
+    );
   }
 };
 
@@ -975,7 +1066,8 @@ const getOrderById = async (id) => {
 const getSuppliers = async (req, res) => {
   try {
     const { status, limit } = req.query;
-    let query = 'SELECT id, code, name, contact_person, contact_phone, status FROM suppliers WHERE deleted_at IS NULL';
+    let query =
+      'SELECT id, code, name, contact_person, contact_phone, status FROM suppliers WHERE deleted_at IS NULL';
     const queryParams = [];
 
     if (status !== undefined) {
@@ -1101,9 +1193,17 @@ const getRequisitions = async (req, res) => {
 
     const totalCount = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
 
-    return ResponseHandler.paginated(res, requisitions, totalCount, pagination.page, pagination.pageSize, undefined, {
-      items: requisitions,
-    });
+    return ResponseHandler.paginated(
+      res,
+      requisitions,
+      totalCount,
+      pagination.page,
+      pagination.pageSize,
+      undefined,
+      {
+        items: requisitions,
+      }
+    );
   } catch (error) {
     logger.error('获取采购申请列表失败:', error);
     return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
@@ -1122,7 +1222,11 @@ const getRequisition = async (req, res) => {
       return ResponseHandler.notFound(res, 'purchase requisition not found');
     }
 
-    if (!(await ScopeGuard.assertAccess(pool, req, 'purchase_requisition', id, { accessMode: 'read' }))) {
+    if (
+      !(await ScopeGuard.assertAccess(pool, req, 'purchase_requisition', id, {
+        accessMode: 'read',
+      }))
+    ) {
       return ResponseHandler.forbidden(res, '无权访问该采购申请');
     }
 
@@ -1197,8 +1301,7 @@ const updateOrderItemsReceived = async (req, res) => {
   } catch (error) {
     logger.error('更新采购订单物料收货数量失败:', error);
     const statusCode = error.statusCode || 500;
-    const errorCode =
-      error.code || (statusCode === 400 ? 'VALIDATION_ERROR' : 'OPERATION_ERROR');
+    const errorCode = error.code || (statusCode === 400 ? 'VALIDATION_ERROR' : 'OPERATION_ERROR');
     const message = statusCode < 500 ? error.message : '收货并生成来料检验单失败';
     return ResponseHandler.error(res, message, errorCode, statusCode, error);
   }
@@ -1210,17 +1313,13 @@ const receiveWithIncomingInspection = async (req, res) => {
     const { id } = req.params;
     const { items } = req.body;
 
-    const result = await PurchaseReceiveInspectionService.receiveWithIncomingInspection(
-      id,
-      items
-    );
+    const result = await PurchaseReceiveInspectionService.receiveWithIncomingInspection(id, items);
 
     return ResponseHandler.success(res, result, '收货并生成来料检验单成功');
   } catch (error) {
     logger.error('收货并生成来料检验单失败:', error);
     const statusCode = error.statusCode || 500;
-    const errorCode =
-      error.code || (statusCode === 400 ? 'VALIDATION_ERROR' : 'OPERATION_ERROR');
+    const errorCode = error.code || (statusCode === 400 ? 'VALIDATION_ERROR' : 'OPERATION_ERROR');
     const message = statusCode < 500 ? error.message : '收货并生成来料检验单失败';
     return ResponseHandler.error(res, message, errorCode, statusCode, error);
   }
@@ -1234,9 +1333,7 @@ const resolveOrderMetalSnapshot = async (connection, payload = {}, items = []) =
   // HTTP 入参只认 camel；明细 items 可能已是 FieldMap snake 行
   const explicitMetalPrice = payload.metalPrice ?? payload.metal_price;
   const metalSymbol =
-    payload.metalSymbol ||
-    items.find((item) => item.metal_symbol)?.metal_symbol ||
-    'ALUMINUM';
+    payload.metalSymbol || items.find((item) => item.metal_symbol)?.metal_symbol || 'ALUMINUM';
   const metal =
     explicitMetalPrice !== undefined && explicitMetalPrice !== null && explicitMetalPrice !== ''
       ? {
@@ -1291,15 +1388,24 @@ const getLatestPrice = async (req, res) => {
 const getLatestPrices = async (req, res) => {
   try {
     const { material_ids = [], supplier_id } = mapKeysToSnake(req.body || {});
-    const materialIds = [...new Set((Array.isArray(material_ids) ? material_ids : [])
-      .map((id) => Number(id))
-      .filter(Number.isInteger))];
+    const materialIds = [
+      ...new Set(
+        (Array.isArray(material_ids) ? material_ids : [])
+          .map((id) => Number(id))
+          .filter(Number.isInteger)
+      ),
+    ];
 
     if (materialIds.length === 0) {
       return ResponseHandler.error(res, '缺少有效的物料ID数组', 'VALIDATION_ERROR', 400);
     }
     if (materialIds.length > 100) {
-      return ResponseHandler.error(res, 'batch query cannot exceed 100 materials', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(
+        res,
+        'batch query cannot exceed 100 materials',
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     const prices = await PurchasePriceService.resolvePurchasePrices(

@@ -9,7 +9,6 @@ const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const { logger } = require('../../../utils/logger');
 const { softDelete } = require('../../../utils/softDelete');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
-const DLQService = require('../../../services/business/DLQService');
 const DomainEventService = require('../../../services/business/DomainEventService');
 const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 
@@ -683,7 +682,6 @@ exports.updateSalesReturn = async (req, res) => {
     }
 
     let pendingReturnForFinance = null;
-    const pendingSalesReturnCostTasks = [];
 
      if (status === STATUS.SALES_RETURN.COMPLETED && items && items.length > 0) {
       for (const item of items) {
@@ -761,18 +759,6 @@ exports.updateSalesReturn = async (req, res) => {
             connection
           );
 
-          const unitCost = parseFloat(material.cost_price || 0);
-          if (changeQuantity > 0 && unitCost > 0) {
-            pendingSalesReturnCostTasks.push({
-              material_id: productId,
-              quantity: changeQuantity,
-              unit_cost: unitCost,
-              reference_no: actualReturnNo,
-              reference_type: 'sales_return',
-              transaction_type: 'sales_return',
-            });
-          }
-
           logger.info(`销售退货入库完成（统一服务） 物料${productId}, 数量${changeQuantity}`);
         }
       }
@@ -822,26 +808,6 @@ exports.updateSalesReturn = async (req, res) => {
 
     await connection.commit();
     DomainEventService.dispatchSoon(domainEventId);
-
-    if (pendingSalesReturnCostTasks.length > 0) {
-      setImmediate(async () => {
-        try {
-          const InventoryCostService = require('../../../services/business/InventoryCostService');
-          for (const task of pendingSalesReturnCostTasks) {
-            await InventoryCostService.generateInboundCostEntry(task, {
-              userId: req.user?.username || (req.user?.id ?? null),
-            });
-          }
-          logger.info(`销售退货成本冲回分录生成完成 - 退货单: ${pendingReturnForFinance?.return_no || id}`);
-        } catch (costError) {
-          await DLQService.recordSideEffectFailure(
-            'FinanceIntegration:SalesReturnCostReversal',
-            { returnId: id, tasks: pendingSalesReturnCostTasks },
-            costError
-          );
-        }
-      });
-    }
 
     return ResponseHandler.success(res, {
       message: '销售退货单更新成功',

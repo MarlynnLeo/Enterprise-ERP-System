@@ -52,6 +52,15 @@ export const qualityApi = {
   copyTemplate: (id) => api.post(`/quality/templates/${id}/copy`),
   getReusableItems: (params) => api.get('/quality/templates/reusable-items', { params }),
   createReusableItem: (data) => api.post('/quality/templates/reusable-items', data),
+  getPresetDocxList: () => api.get('/quality/templates/presets'),
+  parsePresetDocx: (params) => api.get('/quality/templates/parse-preset', { params }),
+  parseDocxTemplate: (formData) => api.post('/quality/templates/parse-docx', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  importPresetDocx: (data) => api.post('/quality/templates/import-preset', data),
+  importDocxTemplate: (formData) => api.post('/quality/templates/import-docx', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
 
   getQualityStatistics: (params = {}) => api.get('/quality/statistics', { params }),
   getDefectItems: (params = {}) => api.get('/quality/defect-items', { params }),

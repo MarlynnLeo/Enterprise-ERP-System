@@ -556,26 +556,16 @@ const handleOrderChange = async (orderNo) => {
   }
 }
 
-// 获取状态类型（用于tag颜色）
+import { getQualityStatusText, getQualityStatusColor } from '@/constants/systemConstants'
+
+// 获取状态类型（统一调用配置中心）
 const getStatusType = (status) => {
-  const statusMap = {
-    pending: 'info',
-    passed: 'success',
-    failed: 'danger',
-    rework: 'warning'
-  }
-  return statusMap[status] || 'info'
+  return getQualityStatusColor(status)
 }
 
-// 获取状态文本
+// 获取状态文本（统一调用配置中心）
 const getStatusText = (status) => {
-  const statusMap = {
-    pending: '待检验',
-    passed: '合格',
-    failed: '不合格',
-    rework: '返工'
-  }
-  return statusMap[status] || '未知'
+  return getQualityStatusText(status)
 }
 
 // 搜索

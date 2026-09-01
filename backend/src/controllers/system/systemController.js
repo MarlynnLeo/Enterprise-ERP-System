@@ -88,10 +88,9 @@ async function assertCanManageTargetUser(req, userId) {
 }
 
 async function roleIsSuperAdmin(roleId) {
-  const [[role]] = await pool.execute(
-    'SELECT id, is_super_admin FROM roles WHERE id = ? LIMIT 1',
-    [roleId]
-  );
+  const [[role]] = await pool.execute('SELECT id, is_super_admin FROM roles WHERE id = ? LIMIT 1', [
+    roleId,
+  ]);
   return isSuperAdminRole(role);
 }
 
@@ -101,7 +100,13 @@ function sendBusinessError(res, error, fallbackMessage = '操作失败') {
     return ResponseHandler.error(res, message.replace('NOT_FOUND:', '').trim(), 'NOT_FOUND', 404);
   }
   if (message.startsWith('FORBIDDEN:')) {
-    return ResponseHandler.error(res, message.replace('FORBIDDEN:', '').trim(), 'FORBIDDEN', 403, error);
+    return ResponseHandler.error(
+      res,
+      message.replace('FORBIDDEN:', '').trim(),
+      'FORBIDDEN',
+      403,
+      error
+    );
   }
   if (
     error?.code === 'ER_DUP_ENTRY' ||
@@ -131,7 +136,11 @@ const systemController = {
     try {
       const { page = 1, limit, pageSize, ...filters } = req.query;
       const effectiveLimit = limit || pageSize || 10;
-      const result = await systemModel.getAllUsers(parseInt(page), parseInt(effectiveLimit), mapKeysToSnake(filters));
+      const result = await systemModel.getAllUsers(
+        parseInt(page),
+        parseInt(effectiveLimit),
+        mapKeysToSnake(filters)
+      );
       ResponseHandler.paginated(
         res,
         result.list,
@@ -240,8 +249,12 @@ const systemController = {
           updatedUser.audit.before,
           updatedUser.audit.after
         );
-        if (updatedUser.audit.before.roleIds && updatedUser.audit.after.roleIds &&
-            JSON.stringify(updatedUser.audit.before.roleIds) !== JSON.stringify(updatedUser.audit.after.roleIds)) {
+        if (
+          updatedUser.audit.before.roleIds &&
+          updatedUser.audit.after.roleIds &&
+          JSON.stringify(updatedUser.audit.before.roleIds) !==
+            JSON.stringify(updatedUser.audit.after.roleIds)
+        ) {
           await PermissionChangeService.auditUserRoles(
             req,
             id,
@@ -272,7 +285,7 @@ const systemController = {
 
       await assertCanManageTargetUser(req, id);
 
-      if (await targetUserHasAdminRole(id) && (String(status) === '0' || Number(status) === 0)) {
+      if ((await targetUserHasAdminRole(id)) && (String(status) === '0' || Number(status) === 0)) {
         return ResponseHandler.error(res, '超级管理员账号不允许禁用', 'FORBIDDEN', 403);
       }
 
@@ -430,7 +443,6 @@ const systemController = {
       const { id } = req.params;
       const departmentData = mapKeysToSnake(req.body || {});
 
-
       const result = await systemModel.updateDepartment(id, departmentData);
 
       if (!result) {
@@ -471,7 +483,6 @@ const systemController = {
     try {
       const { id } = req.params;
 
-
       await systemModel.deleteDepartment(id);
 
       ResponseHandler.success(res, null, '删除部门成功');
@@ -480,7 +491,12 @@ const systemController = {
 
       // 捕获并区分底层阻断异常
       if (error.message && error.message.startsWith('BLOCK_DELETE:')) {
-        return ResponseHandler.error(res, error.message.replace('BLOCK_DELETE:', ''), 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(
+          res,
+          error.message.replace('BLOCK_DELETE:', ''),
+          'VALIDATION_ERROR',
+          400
+        );
       }
 
       return sendBusinessError(res, error, '删除部门失败');
@@ -499,7 +515,11 @@ const systemController = {
       delete filters.limit;
       delete filters.pageSize;
 
-      const result = await systemModel.getAllRoles(pagination.page, pagination.pageSize, mapKeysToSnake(filters));
+      const result = await systemModel.getAllRoles(
+        pagination.page,
+        pagination.pageSize,
+        mapKeysToSnake(filters)
+      );
       ResponseHandler.paginated(
         res,
         result.list,
@@ -586,13 +606,9 @@ const systemController = {
       if (before && after) {
         await PermissionChangeService.auditRoleProfile(req, id, before, after);
         if (roleData.menuIds !== undefined) {
-          await PermissionChangeService.auditRoleMenus(
-            req,
-            id,
-            before.menuIds,
-            after.menuIds,
-            { roleName: after.name }
-          );
+          await PermissionChangeService.auditRoleMenus(req, id, before.menuIds, after.menuIds, {
+            roleName: after.name,
+          });
         }
       }
 
@@ -608,7 +624,7 @@ const systemController = {
       const { id } = req.params;
       const { status } = req.body;
 
-      if (await roleIsSuperAdmin(id) && (String(status) === '0' || Number(status) === 0)) {
+      if ((await roleIsSuperAdmin(id)) && (String(status) === '0' || Number(status) === 0)) {
         return ResponseHandler.error(res, '系统内置超级管理员角色不允许禁用', 'FORBIDDEN', 403);
       }
 
@@ -664,7 +680,6 @@ const systemController = {
       if (await roleIsSuperAdmin(id)) {
         return ResponseHandler.error(res, '系统内置超级管理员角色不允许删除', 'FORBIDDEN', 403);
       }
-
 
       await systemModel.deleteRole(id);
 
@@ -722,7 +737,6 @@ const systemController = {
       const { id } = req.params;
       const menuData = mapKeysToSnake(req.body || {});
 
-
       const result = await systemModel.updateMenu(id, menuData);
       if (result) {
         await PermissionService.clearUserPermissionsCache();
@@ -769,7 +783,6 @@ const systemController = {
     try {
       const { id } = req.params;
 
-
       await systemModel.deleteMenu(id);
       await PermissionService.clearUserPermissionsCache();
 
@@ -787,7 +800,7 @@ const systemController = {
 
       // 构建简化的SQL查询
       let query = `
-      SELECT u.id, u.username, u.real_name, u.email, u.phone, u.status,
+      SELECT u.id, u.username, u.real_name,
              u.department_id, d.name as department_name
       FROM users u
       LEFT JOIN departments d ON u.department_id = d.id
@@ -857,14 +870,6 @@ const systemController = {
         '获取权限码列表成功'
       );
     } catch (error) {
-      if (error.code === 'ER_NO_SUCH_TABLE') {
-        const list = await PermissionService.getAllSystemPermissions();
-        return ResponseHandler.success(
-          res,
-          list.map((code) => ({ code })),
-          '获取权限码列表成功（兼容 menus）'
-        );
-      }
       logger.error('获取权限码列表失败:', error);
       return ResponseHandler.error(res, '获取权限码列表失败', 'SERVER_ERROR', 500, error);
     }
@@ -872,7 +877,10 @@ const systemController = {
 
   async getRolesList(req, res) {
     try {
-      const pageSize = Math.min(Math.max(parseInt(req.query.limit || req.query.pageSize, 10) || 100, 1), 100);
+      const pageSize = Math.min(
+        Math.max(parseInt(req.query.limit || req.query.pageSize, 10) || 100, 1),
+        100
+      );
       const result = await systemModel.getAllRoles(1, pageSize, {});
       // ✅ 使用统一的响应格式
       return ResponseHandler.success(res, result.list, '获取角色列表成功');
@@ -884,11 +892,7 @@ const systemController = {
 
   async getRoleAccessProfiles(req, res) {
     try {
-      return ResponseHandler.success(
-        res,
-        RoleAccessService.listProfiles(),
-        '获取岗位权限模板成功'
-      );
+      return ResponseHandler.success(res, RoleAccessService.listProfiles(), '获取岗位权限模板成功');
     } catch (error) {
       logger.error('获取岗位权限模板失败:', error);
       return ResponseHandler.error(res, '获取岗位权限模板失败', 'SERVER_ERROR', 500, error);
@@ -898,7 +902,7 @@ const systemController = {
   async applyRoleAccessProfile(req, res) {
     try {
       const { id } = req.params;
-      if (await roleIsSuperAdmin(id) && !(await isSuperAdminRequest(req))) {
+      if ((await roleIsSuperAdmin(id)) && !(await isSuperAdminRequest(req))) {
         return ResponseHandler.error(res, '禁止越权修改超级管理员角色的权限', 'FORBIDDEN', 403);
       }
 
@@ -983,7 +987,7 @@ const systemController = {
       const { id } = req.params;
       const { menuIds, halfCheckedIds, uncheckedIds } = req.body;
 
-      if (await roleIsSuperAdmin(id) && !(await isSuperAdminRequest(req))) {
+      if ((await roleIsSuperAdmin(id)) && !(await isSuperAdminRequest(req))) {
         return ResponseHandler.error(res, '禁止越权修改超级管理员角色的权限', 'FORBIDDEN', 403);
       }
 
@@ -1004,7 +1008,9 @@ const systemController = {
       try {
         const PermissionService = require('../../services/PermissionService');
         await PermissionService.clearUserPermissionsCache(); // 清除所有用户权限缓存
-        logger.info(`Role permission cache cleared after permission update: roleId=${id}, roleName=${role.name}`);
+        logger.info(
+          `Role permission cache cleared after permission update: roleId=${id}, roleName=${role.name}`
+        );
       } catch (cacheError) {
         logger.error('Permission cache clear failed:', cacheError);
       }
@@ -1134,15 +1140,21 @@ const systemController = {
         const allPermissions = [
           ...new Set(
             menus
-              .map((m) => (m.permission ? normalizePermissionCode(String(m.permission).trim()) : null))
+              .map((m) =>
+                m.permission ? normalizePermissionCode(String(m.permission).trim()) : null
+              )
               .filter(Boolean)
           ),
         ];
         const permPh = allPermissions.map(() => '?').join(',');
-        const [existingMenus] = allPermissions.length > 0
-          ? await connection.execute(`SELECT id, permission FROM menus WHERE permission IN (${permPh})`, allPermissions)
-          : [[]];
-        const existingSet = new Set(existingMenus.map(m => m.permission));
+        const [existingMenus] =
+          allPermissions.length > 0
+            ? await connection.execute(
+                `SELECT id, permission FROM menus WHERE permission IN (${permPh})`,
+                allPermissions
+              )
+            : [[]];
+        const existingSet = new Set(existingMenus.map((m) => m.permission));
         const existingIdByPerm = new Map(existingMenus.map((m) => [m.permission, m.id]));
 
         for (const menu of menus) {
@@ -1153,8 +1165,15 @@ const systemController = {
             ? normalizePermissionCode(String(menu.permission).trim())
             : null;
           const params = [
-            menu.parentId || 0, menu.name, menu.path || '', menu.component || '',
-            menu.icon || '', menu.type || 1, visible, status, menu.sort || 0,
+            menu.parentId || 0,
+            menu.name,
+            menu.path || '',
+            menu.component || '',
+            menu.icon || '',
+            menu.type || 1,
+            visible,
+            status,
+            menu.sort || 0,
           ];
           let menuId = null;
           if (permission && existingSet.has(permission)) {
@@ -1171,8 +1190,16 @@ const systemController = {
               `INSERT INTO menus (parent_id, name, path, component, icon, permission, type, visible, status, sort_order, created_at, updated_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
               [
-                menu.parentId || 0, menu.name, menu.path || '', menu.component || '',
-                menu.icon || '', permission, menu.type || 1, visible, status, menu.sort || 0,
+                menu.parentId || 0,
+                menu.name,
+                menu.path || '',
+                menu.component || '',
+                menu.icon || '',
+                permission,
+                menu.type || 1,
+                visible,
+                status,
+                menu.sort || 0,
               ]
             );
             menuId = ins.insertId;
@@ -1191,7 +1218,9 @@ const systemController = {
         // 更新父子关系 — 批量获取映射后一次性处理
         const [allMenusRows] = await connection.execute('SELECT id, permission FROM menus');
         const permissionToId = {};
-        allMenusRows.forEach((m) => { permissionToId[m.permission] = m.id; });
+        allMenusRows.forEach((m) => {
+          permissionToId[m.permission] = m.id;
+        });
 
         // 构建批量更新数组，避免逐条 UPDATE（消除第二个 N+1）
         const parentUpdates = [];
@@ -1199,16 +1228,19 @@ const systemController = {
           if (menu.parentId && menu.parentId !== 0) {
             const parentMenu = menus.find((m) => m.id === menu.parentId);
             if (parentMenu && permissionToId[parentMenu.permission]) {
-              parentUpdates.push({ permission: menu.permission, parentId: permissionToId[parentMenu.permission] });
+              parentUpdates.push({
+                permission: menu.permission,
+                parentId: permissionToId[parentMenu.permission],
+              });
             }
           }
         }
         if (parentUpdates.length > 0) {
           // 使用 CASE WHEN 批量更新
           const caseWhen = parentUpdates.map(() => 'WHEN permission = ? THEN ?').join(' ');
-          const caseValues = parentUpdates.flatMap(u => [u.permission, u.parentId]);
+          const caseValues = parentUpdates.flatMap((u) => [u.permission, u.parentId]);
           const inPermissions = parentUpdates.map(() => '?').join(',');
-          const inValues = parentUpdates.map(u => u.permission);
+          const inValues = parentUpdates.map((u) => u.permission);
           await connection.execute(
             `UPDATE menus SET parent_id = CASE ${caseWhen} END WHERE permission IN (${inPermissions})`,
             [...caseValues, ...inValues]
@@ -1236,19 +1268,15 @@ const systemController = {
       }
     } catch (error) {
       logger.error('导入菜单数据失败:', error);
-      return ResponseHandler.error(
-        res,
-        '导入菜单数据失败',
-        'SERVER_ERROR',
-        500,
-        error
-      );
+      return ResponseHandler.error(res, '导入菜单数据失败', 'SERVER_ERROR', 500, error);
     }
   },
 
   async getSettings(req, res) {
     try {
-      const [settings] = await pool.execute('SELECT id, `key`, value, description, created_at, updated_at FROM system_settings');
+      const [settings] = await pool.execute(
+        'SELECT id, `key`, value, description, created_at, updated_at FROM system_settings'
+      );
       return ResponseHandler.success(res, settings, '获取系统设置成功');
     } catch (error) {
       logger.error('获取系统设置失败:', error);
@@ -1362,7 +1390,7 @@ const systemController = {
     try {
       const { status = 'pending', page = 1, pageSize = 50 } = req.query;
       const result = await DLQService.listFailedJobs({ status, page, pageSize });
-      
+
       return ResponseHandler.paginated(
         res,
         result.list,
@@ -1454,11 +1482,27 @@ const systemController = {
    */
   async receiveClientError(req, res) {
     try {
-      const { type, message, stack, name, componentName, lifecycleHook, url, source, lineno, colno } = req.body;
+      const {
+        type,
+        message,
+        stack,
+        name,
+        componentName,
+        lifecycleHook,
+        url,
+        source,
+        lineno,
+        colno,
+      } = req.body;
 
       // 基本校验
       if (!type || !message) {
         return ResponseHandler.error(res, '缺少必要参数', 'VALIDATION_ERROR', 400);
+      }
+
+      // 过滤良性前端通知（如 ResizeObserver 循环提示等），避免产生误报告警日志
+      if (/ResizeObserver loop/i.test(String(message))) {
+        return ResponseHandler.success(res, null, 'Benign notification ignored');
       }
 
       // 记录到安全日志

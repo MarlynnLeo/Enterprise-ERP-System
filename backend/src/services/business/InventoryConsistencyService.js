@@ -167,35 +167,21 @@ class InventoryConsistencyService {
   }
 
   /**
-   * 修复after_quantity不一致的记录
-   * @returns {Promise<Object>} 修复结果
+   * Locked ledger rows are immutable. Quantity metadata defects must be
+   * corrected through a reviewed reversal/adjustment, never by UPDATE.
    */
   static async fixQuantityConsistency() {
-    const connection = await db.pool.getConnection();
-    try {
-      await connection.beginTransaction();
-
-      const [result] = await connection.execute(`
-        UPDATE inventory_ledger
-        SET after_quantity = before_quantity + quantity
-        WHERE ABS(after_quantity - (before_quantity + quantity)) > 0.001
-      `);
-
-      await connection.commit();
-
-      logger.info(`修复了 ${result.affectedRows} 条数量不一致的记录`);
-
-      return {
-        success: true,
-        fixedCount: result.affectedRows,
-      };
-    } catch (error) {
-      await connection.rollback();
-      logger.error('修复数量一致性失败:', error);
-      throw error;
-    } finally {
-      connection.release();
-    }
+    const rows = await this.checkQuantityConsistency();
+    return {
+      success: rows.length === 0,
+      fixedCount: 0,
+      requiresReviewedAdjustment: rows.length > 0,
+      records: rows,
+      message:
+        rows.length > 0
+          ? '库存台账数量元数据不可直接修改，请通过财务审核的冲销/调整单修复'
+          : '没有发现数量一致性问题',
+    };
   }
 
   /**

@@ -63,18 +63,17 @@ export default [
         component: () => import('../../views/production/MaterialShortage.vue'),
         meta: {
             requiresAuth: true,
-            permission: 'production:shortage',
-            title: '生产计划缺料统计'
+            permission: ['production:shortage', 'production:mrp'],
+            title: '缺料统计'
         }
     },
     {
         path: 'production/mrp',
         name: 'mrpPlanning',
-        component: () => import('../../views/production/MRPPlanning.vue'),
+        redirect: '/production/material-shortage',
         meta: {
             requiresAuth: true,
-            permission: 'production:mrp',
-            title: '生产需求'
+            permission: ['production:shortage', 'production:mrp']
         }
     },
     {

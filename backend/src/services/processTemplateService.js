@@ -164,28 +164,6 @@ const processTemplateService = {
     },
 
     /**
-     * 根据ID获取工序模板详情
-     */
-    async getById(id) {
-        try {
-            const [templates] = await pool.query('SELECT id, code, name, product_id, description, status, created_at, updated_at, deleted_at FROM process_templates WHERE id = ? AND deleted_at IS NULL', [id]);
-            if (templates.length === 0) return null;
-
-            const template = templates[0];
-            const [details] = await pool.query(
-                'SELECT id, template_id, order_num, name, description, standard_hours, department, remark, created_at, updated_at, instruction_docs FROM process_template_details WHERE template_id = ? ORDER BY order_num',
-                [template.id]
-            );
-            template.details = details;
-
-            return template;
-        } catch (error) {
-            logger.error(`获取工序模板详情失败 (ID: ${id}):`, error);
-            throw error;
-        }
-    },
-
-    /**
      * 创建工序模板（含事务处理）
      */
     async create(data) {
@@ -337,7 +315,36 @@ const processTemplateService = {
             await pool.query('UPDATE process_templates SET status = ? WHERE id = ?', [status, id]);
             return true;
         } catch (error) {
-            logger.error('更新工序模板状态失败:', error);
+            logger.error('获取工序模板列表失败:', error);
+            throw error;
+        }
+    },
+
+    /**
+     * 根据ID获取工序模板详情
+     */
+    async getById(id) {
+        try {
+            const [templates] = await pool.query(
+                `SELECT pt.id, pt.code, pt.name, pt.product_id, pt.description, pt.status, pt.created_at, pt.updated_at, pt.deleted_at,
+                        m.code as product_code, m.name as product_name, m.specs as product_specs
+                 FROM process_templates pt
+                 LEFT JOIN materials m ON pt.product_id = m.id
+                 WHERE pt.id = ? AND pt.deleted_at IS NULL`,
+                [id]
+            );
+            if (templates.length === 0) return null;
+
+            const template = templates[0];
+            const [details] = await pool.query(
+                'SELECT id, template_id, order_num, name, description, standard_hours, department, remark, created_at, updated_at, instruction_docs FROM process_template_details WHERE template_id = ? ORDER BY order_num',
+                [template.id]
+            );
+            template.details = details;
+
+            return template;
+        } catch (error) {
+            logger.error(`获取工序模板详情失败 (ID: ${id}):`, error);
             throw error;
         }
     },

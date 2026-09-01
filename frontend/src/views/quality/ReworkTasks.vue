@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="module-page rework-tasks-container">
     <PageHeader title="返工任务" subtitle="返工任务创建与执行跟踪" />
 
@@ -492,24 +492,16 @@ const submitEdit = async () => {
   }
 }
 
+import { getReworkStatusColor, getReworkStatusText } from '@/constants/systemConstants'
+
+// 状态标签类型（统一调用配置中心）
 const getStatusType = (status) => {
-  const typeMap = {
-    pending: 'warning',
-    in_progress: 'primary',
-    completed: 'success',
-    cancelled: 'info'
-  }
-  return typeMap[status] || 'info'
+  return getReworkStatusColor(status)
 }
 
+// 状态标签文本（统一调用配置中心）
 const getStatusLabel = (status) => {
-  const labelMap = {
-    pending: '待处理',
-    in_progress: '进行中',
-    completed: '已完成',
-    cancelled: '已取消'
-  }
-  return labelMap[status] || status
+  return getReworkStatusText(status)
 }
 
 onMounted(() => {

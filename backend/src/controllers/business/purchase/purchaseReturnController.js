@@ -12,7 +12,6 @@ const { parsePagination } = require('../../../utils/safePagination');
 const db = require('../../../config/db');
 const pool = db.pool; // 正确引用连接池
 const purchaseModel = require('../../../models/purchase');
-const DLQService = require('../../../services/business/DLQService');
 const DomainEventService = require('../../../services/business/DomainEventService');
 const { lineAmount, sumMoney } = require('../../../utils/money');
 const { softDelete } = require('../../../utils/softDelete');
@@ -675,7 +674,6 @@ const updateReturnStatus = async (req, res) => {
     }
 
     // 如果状态变为已完成，则需要更新库存
-    const pendingCostTasks = [];
     if (newStatus === STATUS.PURCHASE_RETURN.COMPLETED) {
       // 获取退货单基本信息,包括关联的入库单ID
       const returnQuery =
@@ -762,14 +760,6 @@ const updateReturnStatus = async (req, res) => {
             },
             connection
           );
-          // 缓存待异步处理的成本核算任务（commit 后统一触发）
-          pendingCostTasks.push({
-            returnNo,
-            materialId: item.material_id,
-            returnQuantity,
-            unitPrice: item.unit_price,
-          });
-
           logger.info(
             `✅ 库存扣减成功（统一服务）: 物料ID=${item.material_id}, 退货数量=${returnQuantity}`
           );
@@ -875,35 +865,6 @@ const updateReturnStatus = async (req, res) => {
 
     // 获取更新后的数据（事务已提交，使用全局pool可以读到最新数据）
     const updatedReturn = await getReturnById(id);
-
-    // 采购退货完成后，异步生成应付红字发票和成本分录（事务已提交）
-    if (newStatus === STATUS.PURCHASE_RETURN.COMPLETED) {
-      // 触发采购退货成本分录（从循环中移出）
-      if (pendingCostTasks.length > 0) {
-        setImmediate(async () => {
-          const AsyncTaskService = require('../../../services/business/AsyncTaskService');
-          for (const task of pendingCostTasks) {
-            try {
-              await AsyncTaskService.createCostEntryAsync({
-                transaction_type: 'purchase_return',
-                reference_no: task.returnNo,
-                reference_type: 'purchase_return',
-                material_id: task.materialId,
-                quantity: task.returnQuantity,
-                unit_cost: task.unitPrice,
-                operator: getRequestActorLabel(req),
-              });
-            } catch (costErr) {
-              await DLQService.recordSideEffectFailure(
-                'CostAccounting:PurchaseReturnEntry',
-                task,
-                costErr
-              );
-            }
-          }
-        });
-      }
-    }
 
     return ResponseHandler.success(res, updatedReturn);
   } catch (error) {

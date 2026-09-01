@@ -170,6 +170,7 @@ import { ElMessage } from 'element-plus'
 import { Refresh, UserFilled, WarningFilled, ZoomIn } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { productionApi } from '@/api/production'
+import { getProductionStatusText } from '@/constants/systemConstants'
 
 const router = useRouter()
 const loading = ref(false)
@@ -194,26 +195,26 @@ const ganttData = ref({
 })
 
 const statusMap = {
-  pending: { text: '待处理', className: 'status-pending' },
-  allocated: { text: '已分配', className: 'status-allocated' },
-  preparing: { text: '配料中', className: 'status-preparing' },
-  material_issuing: { text: '发料中', className: 'status-material_issuing' },
-  material_partial_issued: { text: '部分发料', className: 'status-material_partial_issued' },
-  material_issued: { text: '已发料', className: 'status-material_issued' },
-  in_progress: { text: '生产中', className: 'status-in_progress' },
-  paused: { text: '暂停', className: 'status-paused' },
-  inspection: { text: '待检验', className: 'status-inspection' },
-  warehousing: { text: '入库中', className: 'status-warehousing' },
-  completed: { text: '已完成', className: 'status-completed' }
+  pending: { text: getProductionStatusText('pending'), className: 'status-pending' },
+  allocated: { text: getProductionStatusText('allocated'), className: 'status-allocated' },
+  preparing: { text: getProductionStatusText('preparing'), className: 'status-preparing' },
+  material_issuing: { text: getProductionStatusText('material_issuing'), className: 'status-material_issuing' },
+  material_partial_issued: { text: getProductionStatusText('material_partial_issued'), className: 'status-material_partial_issued' },
+  material_issued: { text: getProductionStatusText('material_issued'), className: 'status-material_issued' },
+  in_progress: { text: getProductionStatusText('in_progress'), className: 'status-in_progress' },
+  paused: { text: getProductionStatusText('paused'), className: 'status-paused' },
+  inspection: { text: getProductionStatusText('inspection'), className: 'status-inspection' },
+  warehousing: { text: getProductionStatusText('warehousing'), className: 'status-warehousing' },
+  completed: { text: getProductionStatusText('completed'), className: 'status-completed' }
 }
 
 const legendStatuses = [
-  { value: 'pending', label: '待处理' },
-  { value: 'allocated', label: '已分配' },
-  { value: 'material_issued', label: '已发料' },
-  { value: 'in_progress', label: '生产中' },
-  { value: 'inspection', label: '待检验' },
-  { value: 'completed', label: '已完成' }
+  { value: 'pending', label: getProductionStatusText('pending') },
+  { value: 'allocated', label: getProductionStatusText('allocated') },
+  { value: 'material_issued', label: getProductionStatusText('material_issued') },
+  { value: 'in_progress', label: getProductionStatusText('in_progress') },
+  { value: 'inspection', label: getProductionStatusText('inspection') },
+  { value: 'completed', label: getProductionStatusText('completed') }
 ]
 
 const meta = computed(() => ganttData.value.meta || {})

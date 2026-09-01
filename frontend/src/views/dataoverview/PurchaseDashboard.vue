@@ -1,9 +1,9 @@
-﻿<!--
+<!--
 /**
  * PurchaseDashboard.vue
- * @description 前端界面组件文件
-  * @date 2025-08-27
- * @version 1.0.0
+ * @description 采购数据概览
+ * @date 2026-08-29
+ * @version 2.0.0
  */
 -->
 <template>
@@ -11,18 +11,19 @@
     <PageHeader title="采购数据概览" subtitle="采购订单、入库与应付关键指标">
       <template #actions>
         <span v-if="lastUpdated" class="last-updated">
-            最后更新: {{ new Date(lastUpdated).toLocaleTimeString() }}
-          </span>
+          最后更新: {{ new Date(lastUpdated).toLocaleTimeString() }}
+        </span>
       </template>
     </PageHeader>
+
     <!-- 统计卡片 -->
     <el-row :gutter="16" class="stats-row">
       <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card primary-card" shadow="hover">
-          <div class="stat-value">{{ statistics.requisitions?.completed || 0 }}</div>
+          <div class="stat-value">{{ statistics.requisitions.completed }}</div>
           <div class="stat-label">采购申请</div>
           <div class="stat-secondary">
-            <span class="stat-secondary-value">{{ statistics.requisitions?.pending || 0 }}</span>
+            <span class="stat-secondary-value">{{ statistics.requisitions.pending }}</span>
             <span class="stat-secondary-label">待审批</span>
           </div>
         </el-card>
@@ -30,10 +31,10 @@
 
       <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card success-card" shadow="hover">
-          <div class="stat-value">{{ statistics.orders?.total || 0 }}</div>
+          <div class="stat-value">{{ statistics.orders.total }}</div>
           <div class="stat-label">采购订单</div>
           <div class="stat-secondary">
-            <span class="stat-secondary-value">{{ statistics.orders?.pending || 0 }}</span>
+            <span class="stat-secondary-value">{{ statistics.orders.pending }}</span>
             <span class="stat-secondary-label">待处理</span>
           </div>
         </el-card>
@@ -41,10 +42,10 @@
 
       <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card info-card" shadow="hover">
-          <div class="stat-value">{{ statistics.receipts?.total || 0 }}</div>
+          <div class="stat-value">{{ statistics.receipts.total }}</div>
           <div class="stat-label">采购收货</div>
           <div class="stat-secondary">
-            <span class="stat-secondary-value">{{ statistics.receipts?.pending || 0 }}</span>
+            <span class="stat-secondary-value">{{ statistics.receipts.pending }}</span>
             <span class="stat-secondary-label">待处理</span>
           </div>
         </el-card>
@@ -52,15 +53,16 @@
 
       <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card warning-card" shadow="hover">
-          <div class="stat-value">{{ statistics.returns?.total || 0 }}</div>
+          <div class="stat-value">{{ statistics.returns.total }}</div>
           <div class="stat-label">采购退货</div>
           <div class="stat-secondary">
-            <span class="stat-secondary-value">{{ statistics.returns?.pending || 0 }}</span>
+            <span class="stat-secondary-value">{{ statistics.returns.pending }}</span>
             <span class="stat-secondary-label">待处理</span>
           </div>
         </el-card>
       </el-col>
     </el-row>
+
     <!-- 图表区域 -->
     <el-row :gutter="16" class="mt-md">
       <el-col :xs="24" :md="12">
@@ -75,10 +77,11 @@
             </div>
           </template>
           <div class="chart-container">
-            <canvas ref="purchaseTrend" height="300"></canvas>
+            <canvas ref="purchaseTrend"></canvas>
           </div>
         </el-card>
       </el-col>
+
       <el-col :xs="24" :md="12">
         <el-card class="dashboard-card" shadow="hover">
           <template #header>
@@ -87,73 +90,78 @@
             </div>
           </template>
           <div class="chart-container">
-            <canvas ref="categoryDistribution" height="300"></canvas>
+            <canvas ref="categoryDistribution"></canvas>
           </div>
         </el-card>
       </el-col>
     </el-row>
-    <!-- 待处理采购事项 -->
+
+    <!-- 最近采购订单 (对齐 /purchase/orders) -->
     <el-row class="mt-lg">
       <el-col :span="24">
         <el-card class="dashboard-card" shadow="hover">
           <template #header>
             <div class="card-header-with-search">
-              <span>待处理采购事项</span>
+              <span>最近采购订单</span>
               <el-input
                 v-model="search"
-                placeholder="搜索"
+                placeholder="搜索订单号 / 供应商 / 状态"
                 class="search-input"
                 :prefix-icon="Search"
-                />
+                clearable
+              />
             </div>
           </template>
+
           <el-table
-            :data="filteredPendingItems"
+            :data="filteredPurchaseOrders"
             class="table-row-click w-full"
             v-loading="loading"
             border
             :max-height="400"
-            :empty-text="pendingItems.length === 0 ? '暂无待处理事项' : '没有匹配的数据'"
-          
-      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewPurchaseItem(row))">
-            <el-table-column label="类型" min-width="100">
+            :empty-text="purchaseOrders.length === 0 ? '暂无采购订单' : '没有匹配的数据'"
+            @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewOrder(row.id))"
+          >
+            <el-table-column prop="orderNo" label="订单编号" min-width="140" show-overflow-tooltip />
+            <el-table-column label="订单日期" min-width="120">
               <template #default="scope">
-                <el-tag :type="getTypeColor(scope.row.type)">{{ getTypeText(scope.row.type) }}</el-tag>
+                {{ formatDate(scope.row.orderDate) }}
               </template>
             </el-table-column>
-            <el-table-column prop="number" label="单号" min-width="150" />
-            <el-table-column label="日期" min-width="120">
+            <el-table-column prop="supplierName" label="供应商" min-width="200" show-overflow-tooltip />
+            <el-table-column label="订单金额" min-width="120">
               <template #default="scope">
-                {{ formatDate(scope.row.date) }}
+                {{ formatCurrency(scope.row.totalAmount) }}
               </template>
             </el-table-column>
             <el-table-column label="状态" min-width="100">
               <template #default="scope">
-                <el-tag :type="getPurchaseStatusColor(scope.row.status)">
-                  {{ getStatusText(scope.row.status, scope.row.type) || '未知状态' }}
+                <el-tag :type="getStatusType(scope.row.status)">
+                  {{ getStatusText(scope.row.status) }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="supplier" label="供应商" min-width="230">
+            <el-table-column prop="requisitionNumber" label="关联申请单" min-width="140" show-overflow-tooltip>
               <template #default="scope">
-                <div>{{ scope.row.supplier || '无' }}</div>
-                <div class="text-muted text-sm" v-if="scope.row.supplierCode">{{ scope.row.supplierCode }}</div>
+                <span v-if="scope.row.requisitionNumber">{{ scope.row.requisitionNumber }}</span>
+                <span v-else-if="scope.row.requisitionId">申请单-{{ scope.row.requisitionId }}</span>
+                <span v-else class="text-muted">-</span>
               </template>
             </el-table-column>
-            <el-table-column prop="amount" label="金额" min-width="120">
+            <el-table-column label="预计到货" min-width="120">
               <template #default="scope">
-                {{ formatMoney(scope.row.amount) }}
+                {{ formatDate(scope.row.expectedDeliveryDate) || '-' }}
               </template>
             </el-table-column>
-            
           </el-table>
-          <div class="pagination-container" v-if="pendingItems.length > 0">
+
+          <div class="pagination-container" v-if="purchaseOrders.length > 0">
             <el-pagination
               v-model:current-page="currentPage"
               v-model:page-size="pageSize"
               :page-sizes="[5, 10, 20, 50]"
               layout="total, sizes, prev, pager, next"
-              :total="pendingItems.length"
+              :total="filteredTotal"
               @size-change="handleSizeChange"
               @current-change="handleCurrentChange"
             />
@@ -163,216 +171,194 @@
     </el-row>
   </div>
 </template>
+
 <script setup>
-import { handleTableRowView } from '@/utils/tableRowView'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { Search } from '@element-plus/icons-vue'
+import Chart from '@/utils/chartCore'
+import { purchaseApi } from '@/api'
+import { formatCurrency, formatQuantity } from '@/utils/dashboardUtils'
 import { formatDate } from '@/utils/helpers/dateUtils'
-import { ref, computed, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router';
-import Chart from '@/utils/chartCore';
-import { Search } from '@element-plus/icons-vue';
-import { purchaseApi } from '@/api';
-import { useDashboard, useCharts } from '@/composables/useDashboard';
-// 权限计算属性
-import { handleDashboardError, getDefaultStatistics, generateMonthLabels } from '@/utils/dashboardUtils'
-import { createLineChartConfig, createPieChartConfig, chartColors } from '@/utils/chartConfig'
-const router = useRouter();
-// 图表引用
-const purchaseTrend = ref(null);
-const categoryDistribution = ref(null);
-const chartRefs = {
-  purchaseTrend,
-  categoryDistribution
-};
-// 图表配置
-const timeRange = ref('6');
-// 使用仪表盘组合式函数
-const {
-  loading,
-  statistics,
-  lastUpdated,
-  loadData
-} = useDashboard('purchase', loadPurchaseData, {
-  autoRefresh: true,
-  immediate: false,
-  refreshInterval: 5 * 60 * 1000 // 5分钟
-});
-// 使用图表管理组合式函数
-const {
-  chartInstances,
-  initAllCharts,
-  updateChart,
-} = useCharts(chartRefs);
-// 待处理采购事项数据
-const pendingItems = ref([]);
-const search = ref('');
-const formatMoney = (value) => {
-  if (value === null || value === undefined || value === '') return '-'
-  const amount = Number(value)
-  if (Number.isNaN(amount)) return '-'
-  return `￥${amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+import { handleTableRowView } from '@/utils/tableRowView'
+import { parseDataObject, parseListData } from '@/utils/responseParser'
+import {
+  getCommonStatusColor,
+  getCommonStatusText,
+  getPurchaseStatusColor,
+  getPurchaseStatusText
+} from '@/constants/systemConstants'
+import {
+  chartColors,
+  createLineChartConfig,
+  createPieChartConfig
+} from '@/utils/chartConfig'
+
+const router = useRouter()
+
+// 状态定义
+const loading = ref(false)
+const lastUpdated = ref(null)
+const timeRange = ref('6') // '6' | '12'
+
+// 原始数据
+const rawStats = ref({})
+const rawTrend = ref([])
+const rawCategories = ref([])
+const purchaseOrders = ref([])
+const search = ref('')
+const currentPage = ref(1)
+const pageSize = ref(10)
+
+// Canvas 引用与图表实例
+const purchaseTrend = ref(null)
+const categoryDistribution = ref(null)
+let purchaseTrendInstance = null
+let categoryInstance = null
+
+const toNumber = value => {
+  const num = Number.parseFloat(value)
+  return Number.isNaN(num) ? 0 : num
 }
-const currentPage = ref(1);
-const pageSize = ref(10);
-// 加载采购数据
-async function loadPurchaseData() {
-  try {
-    const [dashboardStats] = await Promise.allSettled([
-      purchaseApi.getDashboardStatistics ? purchaseApi.getDashboardStatistics() : purchaseApi.getStatistics()
-    ]);
-    // 处理统计数据
-    let stats = getDefaultStatistics('purchase');
-    // 处理仪表盘统计数据 - axios拦截器已解包
-    if (dashboardStats.status === 'fulfilled' && dashboardStats.value) {
-      const data = dashboardStats.value.data || dashboardStats.value;
-      // 提取统计数据（处理嵌套结构）
-      const statsData = data.statistics || data;
-      const requisitions = statsData.requisitions || {};
-      stats = {
-        requisitions: {
-          total: requisitions.total || 0,
-          pending: requisitions.pending || 0,
-          completed: requisitions.completedThisMonth ?? requisitions.completed ?? 0
-        },
-        orders: {
-          total: statsData.orders?.total || 0,
-          pending: statsData.orders?.pending || 0
-        },
-        receipts: {
-          total: statsData.receipts?.total || 0,
-          pending: statsData.receipts?.pending || 0
-        },
-        returns: {
-          total: statsData.returns?.total || 0,
-          pending: statsData.returns?.pending || 0
-        },
-        // 保存趋势和分类数据供图表使用
-        trendData: data.trendData || [],
-        categoryDistribution: data.categoryDistribution || []
-      };
-      pendingItems.value = (data.pendingItems || []).map(item => ({
-          id: item.id,
-          type: item.type,
-          number: item.number,
-          supplier: item.supplier || item.requester || '-',
-          amount: item.amount === null || item.amount === undefined || item.amount === '' ? null : Number(item.amount),
-          date: item.date,
-          status: item.status
-      }));
-    } else {
-      pendingItems.value = [];
+
+// 统计数据计算属性
+const statistics = computed(() => {
+  const data = rawStats.value || {}
+  const statsData = data.statistics || data
+  const requisitions = statsData.requisitions || {}
+  const orders = statsData.orders || {}
+  const receipts = statsData.receipts || {}
+  const returns = statsData.returns || {}
+
+  return {
+    requisitions: {
+      total: toNumber(requisitions.total),
+      pending: toNumber(requisitions.pending),
+      completed: toNumber(requisitions.completedThisMonth ?? requisitions.completed)
+    },
+    orders: {
+      total: toNumber(orders.total),
+      pending: toNumber(orders.pending)
+    },
+    receipts: {
+      total: toNumber(receipts.total),
+      pending: toNumber(receipts.pending)
+    },
+    returns: {
+      total: toNumber(returns.total),
+      pending: toNumber(returns.pending)
     }
-    return stats;
-  } catch (error) {
-    console.error('获取采购数据失败:', error);
-    throw error;
   }
-}
-// 筛选后的待处理事项
-const filteredPendingItems = computed(() => {
-  const startIndex = (currentPage.value - 1) * pageSize.value;
-  const endIndex = startIndex + pageSize.value;
-  // 确保pendingItems是数组
-  let items = Array.isArray(pendingItems.value) ? pendingItems.value : [];
+})
+
+// 筛选采购订单
+const allFilteredOrders = computed(() => {
+  let orders = Array.isArray(purchaseOrders.value) ? purchaseOrders.value : []
   if (search.value) {
-    const searchValue = search.value.toLowerCase();
-    items = items.filter(item =>
-      (item.number && item.number.toLowerCase().includes(searchValue)) ||
-      (item.supplier && item.supplier.toLowerCase().includes(searchValue)) ||
-      (item.status && item.status.toLowerCase().includes(searchValue)) ||
-      (getTypeText(item.type) && getTypeText(item.type).toLowerCase().includes(searchValue))
-    );
+    const q = search.value.trim().toLowerCase()
+    orders = orders.filter(order =>
+      (order.orderNo && order.orderNo.toLowerCase().includes(q)) ||
+      (order.supplierName && order.supplierName.toLowerCase().includes(q)) ||
+      (order.status && order.status.toLowerCase().includes(q)) ||
+      (getStatusText(order.status) && getStatusText(order.status).toLowerCase().includes(q)) ||
+      (order.requisitionNumber && order.requisitionNumber.toLowerCase().includes(q))
+    )
   }
-  return items.slice(startIndex, endIndex);
-});
+  return orders
+})
+
+const filteredTotal = computed(() => allFilteredOrders.value.length)
+
+const filteredPurchaseOrders = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  return allFilteredOrders.value.slice(start, start + pageSize.value)
+})
+
 // 分页处理
 function handleSizeChange(size) {
-  pageSize.value = size;
-  currentPage.value = 1;
+  pageSize.value = size
+  currentPage.value = 1
 }
 function handleCurrentChange(page) {
-  currentPage.value = page;
+  currentPage.value = page
 }
-// 获取类型文本
-function getTypeText(type) {
-  const typeMap = {
-    'requisition': '采购申请',
-    'order': '采购订单',
-    'receipt': '采购收货',
-    'return': '采购退货'
-  };
-  return typeMap[type] || type;
-}
-// 获取类型颜色
-function getTypeColor(type) {
-  const colorMap = {
-    'requisition': 'primary',
-    'order': 'success',
-    'receipt': 'info',
-    'return': 'warning'
-  };
-  return colorMap[type] || 'info';
-}
-// 获取状态颜色
-function _getStatusColor(status) { return getPurchaseStatusColor(status) || getCommonStatusColor(status) || 'info'; }
-import { getPurchaseStatusText, getPurchaseStatusColor, getCommonStatusColor } from '@/constants/systemConstants'
-// 根据类型和状态获取状态文本
-function getStatusText(status, _type) {
-  // 统一使用采购状态映射
-  return getPurchaseStatusText(status)
-}
-// 删除多余的旧代码，现在统一使用systemConstants
-// 查看采购事项详情
-function viewPurchaseItem(item) {
-  const routeMap = {
-    'requisition': '/purchase/requisitions',
-    'order': '/purchase/orders',
-    'receipt': '/purchase/receipts',
-    'return': '/purchase/returns'
-  };
 
-  const route = routeMap[item.type] || '/purchase';
-  router.push({
-    path: route,
-    query: { id: item.id }
-  });
+// 状态解析
+function getStatusType(status) {
+  if (!status) return 'info'
+  return getPurchaseStatusColor(status) || getCommonStatusColor(status) || 'info'
 }
-// 初始化采购趋势图表 - 使用真实数据
-function initPurchaseTrendChart() {
-  if (!chartRefs.purchaseTrend?.value) return null;
-  const ctx = chartRefs.purchaseTrend.value.getContext('2d');
-  // 从统计数据获取趋势数据，如果没有则使用默认月份标签
-  const trendData = statistics.trendData || [];
-  let labels, requisitionData, orderData;
-  if (trendData.length > 0) {
-    labels = trendData.map(item => {
-      const date = new Date(item.month + '-01');
-      return date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'short' });
-    });
-    // 采购数量也可能为0，不再用 || 0，以防真值为0时错误 fallback（虽然0也是0，但严谨起见）
-    requisitionData = trendData.map(item => {
-      const val = item.requisitionCount ?? item.requisition_count;
-      return val !== undefined ? val : null;
-    });
-    orderData = trendData.map(item => {
-      const val = item.orderCount ?? item.order_count;
-      return val !== undefined ? val : null;
-    });
-  } else {
-    labels = generateMonthLabels(parseInt(timeRange.value));
-    requisitionData = new Array(labels.length).fill(null);
-    orderData = new Array(labels.length).fill(null);
+
+function getStatusText(status) {
+  if (!status) return '-'
+  return getPurchaseStatusText(status) || getCommonStatusText(status) || status
+}
+
+// 跳转采购订单详情
+function viewOrder(id) {
+  if (!id) return
+  router.push({
+    path: '/purchase/orders',
+    query: { id }
+  })
+}
+
+// 销毁图表
+function destroyCharts() {
+  purchaseTrendInstance?.destroy()
+  categoryInstance?.destroy()
+  purchaseTrendInstance = null
+  categoryInstance = null
+}
+
+// 渲染月度采购趋势图
+function renderPurchaseTrendChart() {
+  if (!purchaseTrend.value) return
+  purchaseTrendInstance?.destroy()
+  purchaseTrendInstance = null
+
+  const ctx = purchaseTrend.value.getContext('2d')
+  if (!ctx) return
+
+  let trendList = Array.isArray(rawTrend.value) ? rawTrend.value : []
+  const monthsCount = Number(timeRange.value) || 6
+  if (trendList.length > monthsCount) {
+    trendList = trendList.slice(-monthsCount)
   }
+
+  let labels = []
+  let reqData = []
+  let orderData = []
+
+  if (trendList.length > 0) {
+    labels = trendList.map(item => {
+      const parts = String(item.month || '').split('-')
+      if (parts.length === 2) {
+        return `${Number(parts[1])}月`
+      }
+      return item.month || ''
+    })
+    reqData = trendList.map(item => toNumber(item.requisitionCount ?? item.requisitions ?? item.requisition_count))
+    orderData = trendList.map(item => toNumber(item.orderCount ?? item.orders ?? item.order_count))
+  } else {
+    labels = ['暂无数据']
+    reqData = [0]
+    orderData = [0]
+  }
+
   const config = createLineChartConfig({
-    yAxisTitle: '数量'
-  });
-  return new Chart(ctx, {
+    yAxisTitle: '单据数量',
+    tooltipFormatter: context => `${context.dataset.label}: ${formatQuantity(context.raw)} 单`
+  })
+
+  purchaseTrendInstance = new Chart(ctx, {
     type: 'line',
     data: {
-      labels: labels,
+      labels,
       datasets: [
         {
           label: '采购申请',
-          data: requisitionData,
+          data: reqData,
           borderColor: chartColors.primary[0],
           backgroundColor: chartColors.primary[4],
           tension: 0.4,
@@ -389,91 +375,115 @@ function initPurchaseTrendChart() {
       ]
     },
     options: config
-  });
+  })
 }
-// 初始化分类分布图表 - 使用真实数据
-function initCategoryChart() {
-  if (!chartRefs.categoryDistribution?.value) return null;
-  const ctx = chartRefs.categoryDistribution.value.getContext('2d');
-  // 从统计数据获取分类分布
-  const categoryData = statistics.categoryDistribution || [];
-  let labels, purchaseData;
-  if (categoryData.length > 0) {
-    labels = categoryData.map(item => item.categoryName || '未分类');
-    purchaseData = categoryData.map(item => {
-      const val = item.totalAmount ?? item.totalAmount;
-      return val !== undefined ? parseFloat(val) : 0;
-    });
-  } else {
-    labels = ['暂无数据'];
-    purchaseData = [];
-  }
-  const config = createPieChartConfig();
-  return new Chart(ctx, {
+
+// 渲染采购类别分布图
+function renderCategoryChart() {
+  if (!categoryDistribution.value) return
+  categoryInstance?.destroy()
+  categoryInstance = null
+
+  const ctx = categoryDistribution.value.getContext('2d')
+  if (!ctx) return
+
+  const catList = Array.isArray(rawCategories.value) ? rawCategories.value : []
+  const labels = catList.length > 0 ? catList.map(item => item.categoryName || item.name || '未分类') : ['暂无数据']
+  const data = catList.length > 0 ? catList.map(item => toNumber(item.totalAmount ?? item.amount ?? item.value)) : [0]
+
+  const config = createPieChartConfig({
+    tooltipFormatter: context => `${context.label}: ${formatCurrency(context.raw)}`
+  })
+
+  categoryInstance = new Chart(ctx, {
     type: 'doughnut',
     data: {
-      labels: labels,
+      labels,
       datasets: [
         {
-          label: '采购金额分布',
-          data: purchaseData,
-          backgroundColor: chartColors.primary,
+          data,
+          backgroundColor: chartColors.gradient,
           borderWidth: 0
         }
       ]
     },
-    options: config
-  });
+    options: {
+      ...config,
+      cutout: '62%'
+    }
+  })
 }
-// 生命周期钩子
-onMounted(async () => {
+
+// 渲染所有图表
+async function renderCharts() {
+  await nextTick()
+  renderPurchaseTrendChart()
+  renderCategoryChart()
+}
+
+// 加载采购概览与订单数据
+async function loadData() {
+  loading.value = true
   try {
-    // 先加载数据，获取真实数据后再初始化图表
-    await loadData();
-    // 初始化图表，使用已加载的真实数据
-    await initAllCharts({
-      purchaseTrend: initPurchaseTrendChart,
-      categoryDistribution: initCategoryChart
-    });
+    const [statsRes, ordersRes] = await Promise.allSettled([
+      purchaseApi.getDashboardStatistics ? purchaseApi.getDashboardStatistics() : purchaseApi.getStatistics(),
+      purchaseApi.getOrders({
+        page: 1,
+        pageSize: 50,
+        sort: 'created_at',
+        order: 'desc'
+      })
+    ])
+
+    if (statsRes.status === 'fulfilled' && statsRes.value) {
+      const data = parseDataObject(statsRes.value) || {}
+      rawStats.value = data
+      rawTrend.value = Array.isArray(data.trendData) ? data.trendData : []
+      rawCategories.value = Array.isArray(data.categoryDistribution) ? data.categoryDistribution : []
+    }
+
+    if (ordersRes.status === 'fulfilled' && ordersRes.value) {
+      const list = parseListData(ordersRes.value, { enableLog: false })
+      purchaseOrders.value = list.map(order => ({
+        id: order.id,
+        orderNo: order.orderNo || order.orderNumber || `PO${order.id}`,
+        orderDate: order.orderDate || order.createdAt,
+        expectedDeliveryDate: order.expectedDeliveryDate,
+        supplierName: order.supplierName || (order.supplier && order.supplier.name) || order.supplier || '未知供应商',
+        totalAmount: toNumber(order.totalAmount),
+        status: order.status || 'draft',
+        requisitionId: order.requisitionId,
+        requisitionNumber: order.requisitionNumber,
+        contractCode: order.contractCode
+      }))
+    }
+
+    lastUpdated.value = new Date()
+    await renderCharts()
   } catch (error) {
-    handleDashboardError(error, '采购仪表盘初始化失败');
+    console.error('加载采购概览数据失败:', error)
+  } finally {
+    loading.value = false
   }
-});
-// 监听时间范围变化，更新图表
+}
+
+// 监听时间范围切换
 watch(timeRange, () => {
-  if (chartInstances.purchaseTrend) {
-    const trendData = statistics.trendData || [];
-    const labels = trendData.map(item => {
-      const date = new Date(`${item.month}-01`);
-      return date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'short' });
-    });
-    updateChart('purchaseTrend', {
-      labels: labels.length ? labels : generateMonthLabels(parseInt(timeRange.value)),
-      datasets: [
-        {
-          label: '采购申请',
-          data: labels.length ? trendData.map(item => item.requisitionCount ?? item.requisition_count ?? null) : [],
-          borderColor: chartColors.primary[0],
-          backgroundColor: chartColors.primary[4],
-          tension: 0.4,
-          fill: false
-        },
-        {
-          label: '采购订单',
-          data: labels.length ? trendData.map(item => item.orderCount ?? item.order_count ?? null) : [],
-          borderColor: chartColors.success[0],
-          backgroundColor: chartColors.success[4],
-          tension: 0.4,
-          fill: false
-        }
-      ]
-    });
-  }
-});
+  renderPurchaseTrendChart()
+})
+
+onMounted(async () => {
+  await loadData()
+})
+
+onBeforeUnmount(() => {
+  destroyCharts()
+})
 </script>
+
 <style scoped>
 /* 响应式调整 */
-
+
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;

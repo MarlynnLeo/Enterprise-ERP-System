@@ -55,12 +55,12 @@ describe('aiConfig', () => {
       expect.objectContaining({
         provider: 'nvidia',
         apiUrl: 'https://integrate.api.nvidia.com/v1/chat/completions',
-        model: 'moonshotai/kimi-k2.6',
+        model: 'openai/gpt-oss-120b',
         apiKey: 'test-key',
         enabled: true,
         remote: true,
         remoteAllowed: true,
-        maxTokens: 16384,
+        maxTokens: 8192,
       })
     );
   });

@@ -43,12 +43,25 @@ class AsyncTaskService {
         logger.debug(`[异步任务] 开始创建成本分录: ${transactionData.reference_no}`);
 
         const InventoryCostService = require('./InventoryCostService');
+        const InventoryPostingService = require('../InventoryPostingService');
+
+        const postingConnection = await db.pool.getConnection();
+        try {
+          await InventoryPostingService.requireApprovedForTransaction(
+            postingConnection,
+            transactionData
+          );
+        } finally {
+          postingConnection.release();
+        }
 
         // 如果 material_id 为空，需要从出库单/入库单获取物料列表
         if (!transactionData.material_id) {
           // ✅ 放宽出库类型匹配条件：支持 outbound / production_outbound / sales_outbound 等
-          const isOutboundType = transactionData.transaction_type &&
-            (transactionData.transaction_type === 'outbound' || transactionData.transaction_type.endsWith('_outbound'));
+          const isOutboundType =
+            transactionData.transaction_type &&
+            (transactionData.transaction_type === 'outbound' ||
+              transactionData.transaction_type.endsWith('_outbound'));
           const isOutboundRef = transactionData.reference_type === 'outbound';
           if (isOutboundType && isOutboundRef) {
             // 从出库单获取所有物料
@@ -92,9 +105,9 @@ class AsyncTaskService {
             }
             return;
           } else {
-      logger.warn(
-        `[异步任务] 不生成成本分录 - material_id 为空且非出库单: ${transactionData.reference_no}`
-      );
+            logger.warn(
+              `[异步任务] 不生成成本分录 - material_id 为空且非出库单: ${transactionData.reference_no}`
+            );
             return;
           }
         }
@@ -262,7 +275,10 @@ class AsyncTaskService {
             content: notification.content,
             priority: notification.priority,
             sourceType: type,
-            sourceId: Number(data.id || data.inspectionId || data.materialId || data.returnId || data.ncpId) || null,
+            sourceId:
+              Number(
+                data.id || data.inspectionId || data.materialId || data.returnId || data.ncpId
+              ) || null,
           },
           { dedupeByDay: true }
         );

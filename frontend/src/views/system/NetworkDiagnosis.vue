@@ -120,6 +120,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { api } from '../../services/axiosInstance'
 
 const router = useRouter()
 const serverUrl = ref('')
@@ -145,12 +146,6 @@ const recommendations = ref([
 let reportSummaryText = ''
 let requestSequence = 0
 
-const SAFE_FETCH_OPTIONS = Object.freeze({
-  credentials: 'same-origin',
-  cache: 'no-store',
-  redirect: 'error'
-})
-
 const formatBytes = (bytes) => {
   const value = Number(bytes)
   if (!Number.isFinite(value) || value <= 0) return '--'
@@ -170,14 +165,18 @@ const timedRequest = async (path, options = {}) => {
   const timeout = window.setTimeout(() => controller?.abort(), 8000)
   const startedAt = performance.now()
   try {
-    const response = await fetch(path, {
-      ...SAFE_FETCH_OPTIONS,
-      ...options,
-      signal: controller?.signal
+    const response = await api.request({
+      url: path,
+      method: options.method || 'get',
+      timeout: 8000,
+      withCredentials: true,
+      validateStatus: () => true,
+      signal: controller?.signal,
+      responseType: options.read === 'arrayBuffer' ? 'arraybuffer' : 'text',
+      headers: { 'Cache-Control': 'no-cache' }
     })
     let body = null
-    if (options.read === 'text') body = await response.text()
-    if (options.read === 'arrayBuffer') body = await response.arrayBuffer()
+    if (options.read === 'text' || options.read === 'arrayBuffer') body = response.data
     return {
       response,
       status: response.status,
@@ -186,10 +185,11 @@ const timedRequest = async (path, options = {}) => {
       body
     }
   } catch (error) {
+    const response = error?.response || null
     return {
-      response: null,
-      status: 0,
-      ok: false,
+      response,
+      status: response?.status || 0,
+      ok: Boolean(response && response.status >= 200 && response.status < 300),
       duration: Math.round(performance.now() - startedAt),
       error
     }

@@ -1,9 +1,9 @@
-﻿<template>
+<template>
   <div class="module-page base-data-list-page page-container">
     <!-- 页面头部卡片 -->
     <PageHeader title="工程变更管理 (ECN/ECO)" subtitle="管理产品、BOM、工艺的工程变更通知与变更订单">
       <template #actions>
-<el-button type="primary" v-permission="'basedata:ecn:create'" @click="openForm()">新建ECN</el-button>
+        <el-button type="primary" v-permission="'basedata:ecn:create'" @click="openForm()">新建ECN</el-button>
       </template>
     </PageHeader>
 
@@ -20,9 +20,12 @@
       <template #advanced>
         <el-form-item label="状态">
           <el-select v-model="filterStatus" placeholder="全部" clearable @change="fetchList">
-            <el-option label="草稿" value="draft" /><el-option label="待审批" value="pending_approval" />
-            <el-option label="已批准" value="approved" /><el-option label="实施中" value="implementing" />
-            <el-option label="已完成" value="completed" /><el-option label="已拒绝" value="rejected" />
+            <el-option
+              v-for="opt in ECN_STATUS_OPTIONS"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
           </el-select>
         </el-form-item>
       </template>
@@ -44,8 +47,8 @@
       </el-table-column>
       <el-table-column prop="status" label="状态" width="100">
         <template #default="{ row }">
-          <el-tag :type="statusTypeMap[row.status] || 'info'" size="small">
-            {{ statusTextMap[row.status] || row.status }}
+          <el-tag :type="getEcnStatusColor(row.status)" size="small">
+            {{ getEcnStatusText(row.status) }}
           </el-tag>
         </template>
       </el-table-column>
@@ -236,7 +239,7 @@
             </template>
           </el-table-column>
         </el-table>
-        <EmptyState v-else-if="!isEditable" description="暂无变更明细" ::image-size="60" />
+        <EmptyState v-else-if="!isEditable" description="暂无变更明细" :image-size="60" />
       </el-form>
       <template #footer>
         <el-button @click="formVis = false">关闭</el-button>
@@ -267,10 +270,9 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { ecnApi, baseDataApi, bomApi } from '@/api'
 import { searchBomOptions as fetchBomOptions } from '@/utils/optionLoaders'
 import { Promotion, VideoPlay, CircleCheck, RefreshLeft, Delete } from '@element-plus/icons-vue'
+import { getEcnStatusText, getEcnStatusColor, ECN_STATUS_OPTIONS } from '@/constants/systemConstants'
 
-// 状态映射表
-const statusTypeMap = { draft:'info', pending_approval:'warning', approved:'success', implementing:'primary', completed:'success', rejected:'danger', cancelled:'info' }
-const statusTextMap = { draft:'草稿', pending_approval:'待审批', approved:'已批准', implementing:'实施中', completed:'已完成', rejected:'已拒绝', cancelled:'已取消' }
+// 变更类型映射
 const changeTypeMap = { bom_add:'BOM新增物料', bom_remove:'BOM移除物料', bom_modify:'BOM修改', material_modify:'物料属性修改', process_modify:'工艺修改', drawing_modify:'图纸修改' }
 
 const { approvalDialog, openApprovalDialog, handleApproval } = useBusinessApproval({
@@ -410,77 +412,84 @@ const openForm = () => {
 // 查看详情
 const viewDetail = async (row) => {
   try {
-    const res = await ecnApi.getById(row.id)
-    const data = res.data || res
-    if (!data.items) data.items = []
-    formData.value = data
+    const res = await ecnApi.getDetail(row.id)
+    const d = res.data || res
+    formData.value = { ...d, items: d.items || [] }
     formVis.value = true
   } catch { ElMessage.error('获取详情失败') }
 }
 
-// 创建保存
+// 保存新建
 const handleSave = async () => {
-  if (!formData.value.title?.trim()) return ElMessage.warning('请输入标题')
-  if (!formData.value.reason?.trim()) return ElMessage.warning('请输入变更原因')
+  if (!formData.value.title) { ElMessage.warning('请输入标题'); return }
+  if (!formData.value.reason) { ElMessage.warning('请输入变更原因'); return }
   saving.value = true
   try {
     await ecnApi.create(formData.value)
-    ElMessage.success('创建成功'); formVis.value = false; fetchList()
-  } catch (e) { ElMessage.error(e.message || '创建失败') }
+    ElMessage.success('ECN创建成功')
+    formVis.value = false
+    fetchList()
+  } catch { ElMessage.error('创建失败') }
   finally { saving.value = false }
 }
 
-// 编辑保存（草稿状态）
+// 保存修改（草稿编辑）
 const handleUpdate = async () => {
-  if (!formData.value.title?.trim()) return ElMessage.warning('请输入标题')
-  if (!formData.value.reason?.trim()) return ElMessage.warning('请输入变更原因')
+  if (!formData.value.title) { ElMessage.warning('请输入标题'); return }
+  if (!formData.value.reason) { ElMessage.warning('请输入变更原因'); return }
   saving.value = true
   try {
     await ecnApi.update(formData.value.id, formData.value)
-    ElMessage.success('保存成功'); formVis.value = false; fetchList()
-  } catch (e) { ElMessage.error(e.message || '保存失败') }
+    ElMessage.success('保存成功')
+    formVis.value = false
+    fetchList()
+  } catch { ElMessage.error('保存失败') }
   finally { saving.value = false }
 }
 
 // 提交审批
 const submitForApproval = async (row) => {
-  try { await ecnApi.updateStatus(row.id, 'pending_approval'); ElMessage.success('已提交审批'); fetchList() }
-  catch (e) { ElMessage.error(e.message || '提交失败') }
+  try {
+    await ElMessageBox.confirm('确定提交该ECN进行审批？', '提示', { type: 'warning' })
+    await ecnApi.submitApproval(row.id)
+    ElMessage.success('已提交审批')
+    fetchList()
+  } catch {}
 }
 
-// 状态流转（开始实施/完成/退回草稿）
-const handleStatusChange = async (row, targetStatus) => {
-  const actionMap = { implementing: '开始实施', completed: '标记完成', draft: '退回草稿' }
-  const action = actionMap[targetStatus] || targetStatus
+// 状态变更
+const handleStatusChange = async (row, status) => {
+  const statusTexts = { implementing: '开始实施', completed: '标记完成', draft: '退回草稿' }
   try {
-    await ElMessageBox.confirm(`确定要将此ECN「${action}」吗？`, '操作确认', { type: 'warning' })
-    await ecnApi.updateStatus(row.id, targetStatus)
-    ElMessage.success(`已${action}`)
+    await ElMessageBox.confirm(`确定将该ECN${statusTexts[status] || '变更状态'}？`, '提示', { type: 'warning' })
+    await ecnApi.changeStatus(row.id, status)
+    ElMessage.success('操作成功')
     fetchList()
-  } catch (e) {
-    if (e !== 'cancel') ElMessage.error(e.message || '操作失败')
-  }
+  } catch {}
 }
 
 // 删除
 const handleDelete = async (id) => {
-  try { await ecnApi.delete(id); ElMessage.success('已删除'); fetchList() }
-  catch { ElMessage.error('删除失败') }
+  try {
+    await ecnApi.delete(id)
+    ElMessage.success('删除成功')
+    fetchList()
+  } catch { ElMessage.error('删除失败') }
 }
 
 // 变更明细 — 添加行
 const addItem = () => {
   if (!formData.value.items) formData.value.items = []
   formData.value.items.push({
-    change_type: 'bom_modify',
-    bom_id: null,
-    bom_label: '',
-    material_id: null,
-    material_code: '',
-    material_name: '',
-    field_name: '',
-    old_value: '',
-    new_value: '',
+    changeType: 'bom_modify',
+    bomId: null,
+    bomLabel: '',
+    materialId: null,
+    materialCode: '',
+    materialName: '',
+    fieldName: '',
+    oldValue: '',
+    newValue: '',
     remark: ''
   })
 }
@@ -497,3 +506,11 @@ onBeforeUnmount(() => {
 
 onMounted(fetchList)
 </script>
+
+<style scoped>
+.pagination-container {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+</style>

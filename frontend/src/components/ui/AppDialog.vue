@@ -157,7 +157,9 @@ const isDocumentWide = computed(
 
 const resolvedWidth = computed(() => {
   if (resolvedFullscreen.value) return '100%'
-  if (hasExplicitWidth.value) return props.width
+  if (hasExplicitWidth.value) {
+    return typeof props.width === 'number' ? `${props.width}px` : props.width
+  }
   if (props.mode === 'preview') return '90%'
   return 'fit-content'
 })
@@ -242,5 +244,11 @@ const onUpdateVisible = (val) => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.app-dialog-view-body,
+.app-dialog-form-body {
+  min-height: 200px;
+  box-sizing: border-box;
 }
 </style>

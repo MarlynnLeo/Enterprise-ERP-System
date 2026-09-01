@@ -15,23 +15,16 @@ const { getConnection } = require('./salesShared');
 exports.getSalesStatistics = async (req, res) => {
   const connection = await getConnection();
   try {
-    // 获取当前月份的开始和结束日期
-    const now = new Date();
-    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    const currentMonthStartStr = currentMonthStart.toISOString().slice(0, 10);
-    const currentMonthEndStr = currentMonthEnd.toISOString().slice(0, 10);
-
     // 1. 获取销售订单总体统计
     const [orderStats] = await connection.query(`
       SELECT
         COUNT(*) as total_orders,
-        COUNT(CASE WHEN status IN ('${SALES_STATUS_KEYS.DRAFT}', '${SALES_STATUS_KEYS.PENDING}') THEN 1 END) as pending_orders,
-        COUNT(CASE WHEN status = '${SALES_STATUS_KEYS.COMPLETED}' THEN 1 END) as completed_orders,
-        SUM(total_amount) as total_sales_amount,
-        AVG(total_amount) as avg_order_amount
+        COUNT(CASE WHEN status IN ('${SALES_STATUS_KEYS.DRAFT}', '${SALES_STATUS_KEYS.PENDING}', 'confirmed', 'in_production', 'in_procurement') THEN 1 END) as pending_orders,
+        COUNT(CASE WHEN status IN ('${SALES_STATUS_KEYS.COMPLETED}', 'shipped', 'delivered') THEN 1 END) as completed_orders,
+        COALESCE(SUM(total_amount), 0) as total_sales_amount,
+        COALESCE(AVG(total_amount), 0) as avg_order_amount
       FROM sales_orders
-      WHERE deleted_at IS NULL
+      WHERE deleted_at IS NULL AND (status IS NULL OR status != 'cancelled')
     `);
 
     // 2. 获取当月销售统计
@@ -39,12 +32,13 @@ exports.getSalesStatistics = async (req, res) => {
       `
       SELECT
         COUNT(*) as monthly_orders,
-        SUM(total_amount) as monthly_sales,
-        COUNT(CASE WHEN status = '${SALES_STATUS_KEYS.COMPLETED}' THEN 1 END) as monthly_completed
+        COALESCE(SUM(total_amount), 0) as monthly_sales,
+        COUNT(CASE WHEN status IN ('${SALES_STATUS_KEYS.COMPLETED}', 'shipped', 'delivered') THEN 1 END) as monthly_completed
       FROM sales_orders
-      WHERE deleted_at IS NULL AND DATE(created_at) BETWEEN ? AND ?
-    `,
-      [currentMonthStartStr, currentMonthEndStr]
+      WHERE deleted_at IS NULL
+        AND (status IS NULL OR status != 'cancelled')
+        AND DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(NOW(), '%Y-%m')
+    `
     );
 
     // 3. 获取销售退货统计
@@ -79,12 +73,12 @@ exports.getSalesStatistics = async (req, res) => {
     // 5. 获取Top5客户销售排名
     const [topCustomers] = await connection.query(`
       SELECT
-        c.name,
-        SUM(so.total_amount) as sales
+        COALESCE(c.name, CONCAT('客户#', so.customer_id), '未知客户') as name,
+        COALESCE(SUM(so.total_amount), 0) as sales
       FROM sales_orders so
       LEFT JOIN customers c ON so.customer_id = c.id
-      WHERE so.deleted_at IS NULL AND so.status IN ('completed', 'shipped', 'delivered')
-      GROUP BY c.id, c.name
+      WHERE so.deleted_at IS NULL AND (so.status IS NULL OR so.status != 'cancelled')
+      GROUP BY so.customer_id, c.name
       HAVING sales > 0
       ORDER BY sales DESC
       LIMIT 5
@@ -93,13 +87,13 @@ exports.getSalesStatistics = async (req, res) => {
     // 6. 获取Top5产品销售排名（通过订单明细）
     const [topProducts] = await connection.query(`
       SELECT
-        m.name,
-        SUM(soi.quantity * soi.unit_price) as sales
+        COALESCE(m.name, soi.product_code, '未知产品') as name,
+        COALESCE(SUM(COALESCE(soi.amount, soi.quantity * soi.unit_price, 0)), 0) as sales
       FROM sales_order_items soi
       LEFT JOIN materials m ON soi.material_id = m.id
       LEFT JOIN sales_orders so ON soi.order_id = so.id
-      WHERE so.deleted_at IS NULL AND so.status IN ('completed', 'shipped', 'delivered')
-      GROUP BY m.id, m.name
+      WHERE so.deleted_at IS NULL AND (so.status IS NULL OR so.status != 'cancelled')
+      GROUP BY soi.material_id, m.name, soi.product_code
       HAVING sales > 0
       ORDER BY sales DESC
       LIMIT 5
@@ -119,6 +113,7 @@ exports.getSalesStatistics = async (req, res) => {
 
     return ResponseHandler.success(res, {
       // 订单统计
+      total_orders: parseInt(stats.total_orders || 0),
       total_sales: parseFloat(stats.total_sales_amount || 0),
       pending_orders: parseInt(stats.pending_orders || 0),
       completed_orders: parseInt(stats.completed_orders || 0),
@@ -164,11 +159,11 @@ exports.getSalesTrend = async (req, res) => {
       SELECT
         DATE_FORMAT(created_at, '%Y-%m') as month,
         COUNT(*) as order_count,
-        SUM(total_amount) as sales_amount
+        COALESCE(SUM(total_amount), 0) as sales_amount
       FROM sales_orders
       WHERE deleted_at IS NULL
+        AND (status IS NULL OR status != 'cancelled')
         AND created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
-        AND status IN ('completed', 'shipped', 'delivered')
       GROUP BY DATE_FORMAT(created_at, '%Y-%m')
       ORDER BY month ASC
     `);

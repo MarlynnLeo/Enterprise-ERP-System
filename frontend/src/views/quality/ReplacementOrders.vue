@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="module-page replacement-orders-container">
     <PageHeader title="换货单" subtitle="不合格换货业务处理" />
 
@@ -440,26 +440,16 @@ const submitEdit = async () => {
   }
 }
 
-// 状态标签类型
+import { getReplacementStatusColor, getReplacementStatusText } from '@/constants/systemConstants'
+
+// 状态标签类型（统一调用配置中心）
 const getStatusType = (status) => {
-  const typeMap = {
-    pending: 'warning',
-    partial: 'primary',
-    completed: 'success',
-    cancelled: 'info'
-  }
-  return typeMap[status] || 'info'
+  return getReplacementStatusColor(status)
 }
 
-// 状态标签文本
+// 状态标签文本（统一调用配置中心）
 const getStatusLabel = (status) => {
-  const labelMap = {
-    pending: '待收货',
-    partial: '部分收货',
-    completed: '已完成',
-    cancelled: '已取消'
-  }
-  return labelMap[status] || status
+  return getReplacementStatusText(status)
 }
 
 onMounted(() => {

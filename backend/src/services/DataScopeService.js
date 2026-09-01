@@ -4,7 +4,27 @@
  * DATA_SCOPE:
  *   1 ALL | 2 DEPT_AND_CHILDREN | 3 DEPT | 4 SELF | 5 CUSTOM
  *
- * 安全约定：
+ * ⚠️ 当前状态：行级隔离处于「休眠」，本服务实际不产生任何过滤条件。
+ *
+ *   migrations/20260820000003_disable_row_level_data_scopes.js 把所有角色的
+ *   roles.data_scope 固定为 ALL，并清空 role_data_departments / role_data_locations；
+ *   models/system.js::assertRoleIsValid 忽略入参、恒写 data_scope = 1；
+ *   RoleAccessService.forceAllDataScope 在每次 applyRole 时再刷一遍。
+ *   因此 isAllScope() 恒为真，buildOwnerScopeClause 恒返回空 where，
+ *   assertRecordAccess 退化为 assertRecordExists（只判存在与软删）。
+ *
+ *   产品决策是「业务数据授权只保留功能/动作权限」，所以这是预期行为，
+ *   不是缺陷。代码保留是为了随时可重新启用，而不是当前的安全保障：
+ *   排查越权问题时不要把本服务当成生效中的隔离层，
+ *   ScopeGuard 的 sharedRead / financeShared 区分同样因此不产生差异。
+ *
+ *   若要重新启用行级隔离，至少需要：
+ *     1. 去掉 assertRoleIsValid 里 data_scope 的硬编码，让角色管理能存值；
+ *     2. 停用 RoleAccessService.forceAllDataScope 的无条件刷写；
+ *     3. 重新灌入 role_data_departments / role_data_locations；
+ *     4. 复核 resourcePolicies 里各资源的 sharedRead 是否仍符合预期。
+ *
+ * 安全约定（启用后同样适用，且现在也已满足）：
  * - 未解析到 scope 时不得按 ALL 放行
  * - 列表与单记录使用同一套 owner/location 规则
  * - operator 等字符串字段不参与授权

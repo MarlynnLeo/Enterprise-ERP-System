@@ -5,6 +5,7 @@
  */
 
 const { ResponseHandler } = require('../utils/responseHandler');
+const { isReservedRoleCode } = require('../authorization/superAdmin');
 
 /**
  * 验证角色权限更新请求
@@ -80,6 +81,8 @@ function validateRoleInfo(req, res, next) {
     errors.push('角色编码只能包含字母、数字和下划线');
   } else if (code.length > 50) {
     errors.push('角色编码长度不能超过50个字符');
+  } else if (isReservedRoleCode(code)) {
+    errors.push('角色编码为系统保留字，请使用其他编码');
   }
 
   // 3. 验证角色描述（可选）

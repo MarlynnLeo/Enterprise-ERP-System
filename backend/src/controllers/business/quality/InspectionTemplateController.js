@@ -14,6 +14,9 @@ const db = require('../../../models');
 const { Op } = require('sequelize');
 const { generateTemplateCode } = require('../../../utils/codeGenerator');
 const InspectionTemplateResolver = require('../../../services/business/InspectionTemplateResolverService');
+const DocxInspectionTemplateParser = require('../../../services/business/quality/DocxInspectionTemplateParser');
+const fs = require('fs');
+const path = require('path');
 
 class InspectionTemplateController {
   constructor() {
@@ -27,6 +30,11 @@ class InspectionTemplateController {
       'deleteTemplate',
       'getReusableItems',
       'createReusableItem',
+      'getPresetDocxList',
+      'parsePresetDocx',
+      'parseDocxTemplate',
+      'importPresetDocx',
+      'importDocxTemplate',
     ].forEach((method) => {
       this[method] = this[method].bind(this);
     });
@@ -975,6 +983,270 @@ class InspectionTemplateController {
     } catch (error) {
       logger.error('创建检验标准失败:', error);
       ResponseHandler.error(res, '创建检验标准失败', 'SERVER_ERROR', 500, error);
+    }
+  }
+
+  // 获取系统预置检验记录单列表
+  async getPresetDocxList(req, res) {
+    try {
+      const rootDir = path.resolve(__dirname, '../../../../..');
+      const presets = DocxInspectionTemplateParser.getPresetDocxList(rootDir);
+      ResponseHandler.success(res, presets, '获取预置检验文档列表成功');
+    } catch (error) {
+      logger.error('获取预置检验文档失败:', error);
+      ResponseHandler.error(res, '获取预置检验文档失败', 'SERVER_ERROR', 500, error);
+    }
+  }
+
+  // 解析系统预置检验单 Word 文档（供前端预览）
+  async parsePresetDocx(req, res) {
+    try {
+      const fileName = req.query.fileName || req.body.fileName;
+      if (!fileName) {
+        return ResponseHandler.error(res, '未指定预置文件名', 'BAD_REQUEST', 400);
+      }
+
+      const rootDir = path.resolve(__dirname, '../../../../..');
+      const searchPaths = [
+        path.join(rootDir, fileName),
+        path.join(rootDir, 'docs', fileName),
+      ];
+
+      const filePath = searchPaths.find((p) => fs.existsSync(p));
+      if (!filePath) {
+        return ResponseHandler.error(res, `未找到指定的预置文件: ${fileName}`, 'NOT_FOUND', 404);
+      }
+
+      const buffer = fs.readFileSync(filePath);
+      const parsed = DocxInspectionTemplateParser.parseQualityInspectionDocx(buffer, fileName);
+      const matchResult = await DocxInspectionTemplateParser.matchMaterials(parsed, db);
+
+      const responseData = {
+        ...parsed,
+        materialTypes: matchResult.materialIds,
+        materialType: matchResult.materialIds[0] || null,
+        materialDetails: matchResult.matchedMaterials,
+        fileName,
+      };
+
+      ResponseHandler.success(res, responseData, '预置文档解析成功');
+    } catch (error) {
+      logger.error('解析预置文档失败:', error);
+      ResponseHandler.error(res, `解析预置文档失败: ${error.message}`, 'VALIDATION_ERROR', 400, error);
+    }
+  }
+
+  // 解析上传的 Word 检验记录单 (.docx)
+  async parseDocxTemplate(req, res) {
+    try {
+      if (!req.file || !req.file.buffer) {
+        return ResponseHandler.error(res, '请上传 Word (.docx) 文件', 'BAD_REQUEST', 400);
+      }
+
+      const parsed = DocxInspectionTemplateParser.parseQualityInspectionDocx(
+        req.file.buffer,
+        req.file.originalname
+      );
+
+      // 在数据库中自动匹配关联物料
+      const matchResult = await DocxInspectionTemplateParser.matchMaterials(parsed, db);
+
+      const responseData = {
+        ...parsed,
+        materialTypes: matchResult.materialIds,
+        materialType: matchResult.materialIds[0] || null,
+        materialDetails: matchResult.matchedMaterials,
+        fileName: req.file.originalname,
+      };
+
+      ResponseHandler.success(res, responseData, 'Word 检验记录单解析成功');
+    } catch (error) {
+      logger.error('解析 Word 检验记录单失败:', error);
+      ResponseHandler.error(res, `解析失败: ${error.message}`, 'VALIDATION_ERROR', 400, error);
+    }
+  }
+
+  // 内部辅助方法：保存结构化模板数据入库
+  async _saveTemplatePayload(templateData, userId, transaction) {
+    const {
+      template_name,
+      inspection_type = 'incoming',
+      version = '1.0',
+      description = '',
+      is_general = false,
+      is_default = false,
+      priority = 100,
+      is_aql = false,
+      aql_level = null,
+      material_types = [],
+      material_type = null,
+      items = [],
+    } = mapKeysToSnake(templateData || {});
+
+    const normalizedDefinition = InspectionTemplateResolver.normalizeTemplateDefinition({
+      template_name,
+      inspection_type,
+      version,
+      description,
+      is_general,
+      is_default,
+      priority,
+      is_aql,
+      aql_level,
+      material_types,
+      material_type,
+      items,
+    });
+
+    InspectionTemplateResolver.validateTemplateDefinition(
+      { template_name, inspection_type, version, items },
+      normalizedDefinition
+    );
+
+    // 生成模板编号
+    const template_code = await generateTemplateCode('IT', db);
+
+    const template = await db.InspectionTemplate.create(
+      {
+        template_code,
+        template_name: template_name.trim(),
+        inspection_type,
+        material_type: normalizedDefinition.materialType,
+        material_types: normalizedDefinition.materialTypes,
+        version: String(version || '1.0').trim(),
+        description: description ? String(description).trim() : null,
+        is_general: normalizedDefinition.isGeneral,
+        is_default: normalizedDefinition.isDefault,
+        priority: normalizedDefinition.priority,
+        is_aql: normalizedDefinition.isAql,
+        aql_level: normalizedDefinition.aqlLevel,
+        status: 'active', // 导入的模板直接启用
+        created_by: userId || 0,
+      },
+      { transaction }
+    );
+
+    // 关联/创建检验项
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const itemId = await this.resolveTemplateItemId(item, transaction);
+
+      await db.TemplateItemMapping.create(
+        {
+          template_id: template.id,
+          item_id: itemId,
+          sort_order: i,
+        },
+        { transaction }
+      );
+    }
+
+    return template;
+  }
+
+  // 一键导入系统预置检验单 Word 文档
+  async importPresetDocx(req, res) {
+    const t = await db.sequelize.transaction();
+    try {
+      if (!req.user) {
+        await t.rollback();
+        return ResponseHandler.error(res, '用户未认证', 'UNAUTHORIZED', 401);
+      }
+
+      const { fileName, customTemplateData } = req.body || {};
+      if (!fileName && !customTemplateData) {
+        await t.rollback();
+        return ResponseHandler.error(res, '未指定预置文档或模板数据', 'BAD_REQUEST', 400);
+      }
+
+      let templateData = customTemplateData;
+
+      if (!templateData) {
+        const rootDir = path.resolve(__dirname, '../../../../..');
+        const searchPaths = [
+          path.join(rootDir, fileName),
+          path.join(rootDir, 'docs', fileName),
+        ];
+
+        const filePath = searchPaths.find((p) => fs.existsSync(p));
+        if (!filePath) {
+          await t.rollback();
+          return ResponseHandler.error(res, `未找到指定的预置文件: ${fileName}`, 'NOT_FOUND', 404);
+        }
+
+        const buffer = fs.readFileSync(filePath);
+        const parsed = DocxInspectionTemplateParser.parseQualityInspectionDocx(buffer, fileName);
+        const matchResult = await DocxInspectionTemplateParser.matchMaterials(parsed, db);
+
+        templateData = {
+          ...parsed,
+          material_types: matchResult.materialIds,
+          material_type: matchResult.materialIds[0] || null,
+        };
+      }
+
+      const template = await this._saveTemplatePayload(templateData, req.user.id, t);
+      await t.commit();
+
+      ResponseHandler.success(res, template, '检验模板导入创建成功');
+    } catch (error) {
+      await t.rollback();
+      logger.error('导入预置检验模板失败:', error);
+      const statusCode = error.statusCode || 500;
+      const message = statusCode === 400 ? error.message : `导入失败: ${error.message}`;
+      ResponseHandler.error(res, message, 'IMPORT_ERROR', statusCode, error);
+    }
+  }
+
+  // 上传并导入 Word 检验记录单
+  async importDocxTemplate(req, res) {
+    const t = await db.sequelize.transaction();
+    try {
+      if (!req.user) {
+        await t.rollback();
+        return ResponseHandler.error(res, '用户未认证', 'UNAUTHORIZED', 401);
+      }
+
+      let templateData = null;
+      if (req.body?.templateData) {
+        try {
+          templateData = typeof req.body.templateData === 'string'
+            ? JSON.parse(req.body.templateData)
+            : req.body.templateData;
+        } catch (e) {
+          logger.warn('解析传入的 templateData 失败:', e.message);
+        }
+      }
+
+      if (!templateData) {
+        if (!req.file || !req.file.buffer) {
+          await t.rollback();
+          return ResponseHandler.error(res, '请上传 Word (.docx) 文件', 'BAD_REQUEST', 400);
+        }
+
+        const parsed = DocxInspectionTemplateParser.parseQualityInspectionDocx(
+          req.file.buffer,
+          req.file.originalname
+        );
+        const matchResult = await DocxInspectionTemplateParser.matchMaterials(parsed, db);
+
+        templateData = {
+          ...parsed,
+          material_types: matchResult.materialIds,
+          material_type: matchResult.materialIds[0] || null,
+        };
+      }
+
+      const template = await this._saveTemplatePayload(templateData, req.user.id, t);
+      await t.commit();
+
+      ResponseHandler.success(res, template, '检验模板导入创建成功');
+    } catch (error) {
+      await t.rollback();
+      logger.error('导入检验记录单失败:', error);
+      const statusCode = error.statusCode || 500;
+      const message = statusCode === 400 ? error.message : `导入失败: ${error.message}`;
+      ResponseHandler.error(res, message, 'IMPORT_ERROR', statusCode, error);
     }
   }
 }

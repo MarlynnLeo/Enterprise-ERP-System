@@ -28,6 +28,13 @@ async function repairInventoryLedgerCosts() {
     const candidateWhere = `
       WHERE ABS(COALESCE(l.quantity, 0)) > 0.000001
         AND (COALESCE(l.unit_cost, 0) <= 0 OR COALESCE(l.total_value, 0) <= 0)
+        AND NOT EXISTS (
+          SELECT 1
+            FROM inventory_posting_documents locked_doc
+           WHERE locked_doc.id = l.posting_document_id
+             AND locked_doc.locked = 1
+             AND locked_doc.is_legacy = 0
+        )
         AND COALESCE(
           NULLIF(pri.price, 0),
           NULLIF(poi.price, 0),
@@ -41,6 +48,20 @@ async function repairInventoryLedgerCosts() {
       FROM inventory_ledger l
       ${sourceJoins}
       ${candidateWhere}
+    `);
+
+    const [[lockedResidual]] = await connection.query(`
+      SELECT COUNT(*) AS count
+        FROM inventory_ledger l
+       WHERE ABS(COALESCE(l.quantity, 0)) > 0.000001
+         AND (COALESCE(l.unit_cost, 0) <= 0 OR COALESCE(l.total_value, 0) <= 0)
+         AND EXISTS (
+          SELECT 1
+            FROM inventory_posting_documents locked_doc
+           WHERE locked_doc.id = l.posting_document_id
+             AND locked_doc.locked = 1
+             AND locked_doc.is_legacy = 0
+         )
     `);
 
     const [result] = await connection.query(`
@@ -75,7 +96,8 @@ async function repairInventoryLedgerCosts() {
 
     await connection.commit();
     console.log(
-      `inventory ledger costs repaired: ${result.affectedRows}; stock balance materials rebuilt: ${affectedMaterials.length}`
+      `inventory ledger costs repaired: ${result.affectedRows}; stock balance materials rebuilt: ${affectedMaterials.length}; ` +
+      `locked rows skipped (immutable): ${Number(lockedResidual?.count || 0)}`
     );
   } catch (error) {
     await connection.rollback();

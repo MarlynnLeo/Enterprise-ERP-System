@@ -427,6 +427,29 @@ const inspectionController = {
                     [id]
                 );
 
+                if (items.length > 0) {
+                    const itemIds = items.map((item) => item.id);
+                    const placeholders = itemIds.map(() => '?').join(',');
+                    const [measurementRows] = await connection.query(
+                        `SELECT item_id, sample_no, measured_value, measured_by,
+                                is_qualified, measured_at
+                           FROM quality_inspection_measurements
+                          WHERE item_id IN (${placeholders})
+                          ORDER BY item_id, sample_no`,
+                        itemIds
+                    );
+                    const measurementsByItem = new Map();
+                    for (const measurement of measurementRows) {
+                        if (!measurementsByItem.has(measurement.item_id)) {
+                            measurementsByItem.set(measurement.item_id, []);
+                        }
+                        measurementsByItem.get(measurement.item_id).push(measurement);
+                    }
+                    for (const item of items) {
+                        item.measurements = measurementsByItem.get(item.id) || [];
+                    }
+                }
+
                 ResponseHandler.success(res, items, '操作成功');
             } catch (error) {
                 logger.error('查询检验项目失败:', error);

@@ -1,55 +1,68 @@
+<!--
+/**
+ * InventoryDashboard.vue
+ * @description 库存数据概览
+ * @date 2026-08-29
+ * @version 2.0.0
+ */
+-->
 <template>
   <div class="module-page overview-page inventory-dashboard">
-    <PageHeader title="库存数据概览" subtitle="库存总量、出入库与预警">
+    <PageHeader title="库存数据概览" subtitle="库存水位、出入库动态与预警信息">
       <template #actions>
         <span v-if="lastUpdated" class="last-updated">
-            最后更新: {{ lastUpdated.toLocaleTimeString() }}
-          </span>
+          最后更新: {{ new Date(lastUpdated).toLocaleTimeString() }}
+        </span>
       </template>
     </PageHeader>
+
     <!-- 统计卡片 -->
     <el-row :gutter="16" class="stats-row">
       <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card primary-card" shadow="hover">
-          <div class="stat-value">{{ formatQuantity(statistics.totalStock) }}</div>
-          <div class="stat-label">总库存量</div>
+          <div class="stat-value">{{ statistics.totalStock }}</div>
+          <div class="stat-label">总库存种类</div>
           <div class="stat-secondary">
             <span class="stat-secondary-value">{{ formatCurrency(statistics.totalValue) }}</span>
-            <span class="stat-secondary-label">总价值</span>
+            <span class="stat-secondary-label">总货值</span>
           </div>
         </el-card>
       </el-col>
+
       <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card success-card" shadow="hover">
           <div class="stat-value">{{ statistics.inbound.count }}</div>
-          <div class="stat-label">本月入库</div>
+          <div class="stat-label">本月入库单</div>
           <div class="stat-secondary">
             <span class="stat-secondary-value">{{ formatQuantity(statistics.inbound.items) }}</span>
-            <span class="stat-secondary-label">物料数</span>
+            <span class="stat-secondary-label">入库件数</span>
           </div>
         </el-card>
       </el-col>
-      <el-col :xs="24" :sm="12" :md="6" :lg="6">
-        <el-card class="stat-card info-card" shadow="hover">
-          <div class="stat-value">{{ statistics.outbound.count }}</div>
-          <div class="stat-label">本月出库</div>
-          <div class="stat-secondary">
-            <span class="stat-secondary-value">{{ formatQuantity(statistics.outbound.items) }}</span>
-            <span class="stat-secondary-label">物料数</span>
-          </div>
-        </el-card>
-      </el-col>
+
       <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card warning-card" shadow="hover">
+          <div class="stat-value">{{ statistics.outbound.count }}</div>
+          <div class="stat-label">本月出库单</div>
+          <div class="stat-secondary">
+            <span class="stat-secondary-value">{{ formatQuantity(statistics.outbound.items) }}</span>
+            <span class="stat-secondary-label">出库件数</span>
+          </div>
+        </el-card>
+      </el-col>
+
+      <el-col :xs="24" :sm="12" :md="6" :lg="6">
+        <el-card class="stat-card danger-card" shadow="hover">
           <div class="stat-value">{{ statistics.alerts.low }}</div>
           <div class="stat-label">库存预警</div>
           <div class="stat-secondary">
-            <span class="stat-secondary-value">{{ formatQuantity(statistics.alerts.overstock) }}</span>
+            <span class="stat-secondary-value">{{ statistics.alerts.overstock }}</span>
             <span class="stat-secondary-label">超额库存</span>
           </div>
         </el-card>
       </el-col>
     </el-row>
+
     <!-- 图表区域 -->
     <el-row :gutter="16" class="mt-md">
       <el-col :xs="24" :md="12">
@@ -60,7 +73,7 @@
             </div>
           </template>
           <div class="chart-container">
-            <canvas ref="inventoryTrendChart" height="300"></canvas>
+            <canvas ref="inventoryTrendChart"></canvas>
           </div>
         </el-card>
       </el-col>
@@ -69,81 +82,67 @@
         <el-card class="dashboard-card" shadow="hover">
           <template #header>
             <div class="card-header">
-              <span>库存分类占比</span>
+              <span>物料分类分布</span>
             </div>
           </template>
           <div class="chart-container">
-            <canvas v-if="categoryDistribution.length > 0" ref="categoryChart" height="300"></canvas>
-            <EmptyState v-else description="暂无分类数据" />
+            <canvas ref="categoryChart"></canvas>
           </div>
         </el-card>
       </el-col>
     </el-row>
 
-    <el-row class="mt-20">
+    <!-- 库存预警表格 -->
+    <el-row class="mt-lg">
       <el-col :span="24">
         <el-card class="dashboard-card" shadow="hover">
           <template #header>
             <div class="card-header">
-              <span>库存预警概览</span>
-              <el-tag v-if="alertItems.length > 0" type="danger" size="small" effect="plain">
-                {{ alertItems.length }} 项预警
-              </el-tag>
+              <span>实时库存预警清单</span>
             </div>
           </template>
+          <el-table
+            :data="paginatedAlertItems"
+            class="table-row-click w-full alert-table"
+            v-loading="loading"
+            border
+            :max-height="400"
+            :empty-text="alertItems.length === 0 ? '当前无库存预警物料' : '暂无数据'"
+            @row-click="(row, column, event) => handleTableRowView(row, column, event, () => router.push(`/inventory/stock?materialCode=${row.code}`))"
+          >
+            <el-table-column label="物料编码" prop="code" min-width="120" />
+            <el-table-column label="物料名称" prop="name" min-width="160" />
+            <el-table-column label="规格型号" prop="specification" min-width="140" />
+            <el-table-column label="当前库存" min-width="100">
+              <template #default="scope">
+                {{ formatQuantity(scope.row.quantity) }} {{ scope.row.unit || '' }}
+              </template>
+            </el-table-column>
+            <el-table-column label="安全库存" min-width="100">
+              <template #default="scope">
+                {{ formatQuantity(scope.row.safetyStock) }} {{ scope.row.unit || '' }}
+              </template>
+            </el-table-column>
+            <el-table-column label="库位" prop="location" min-width="120" />
+            <el-table-column label="预警状态" min-width="100">
+              <template #default="scope">
+                <el-tag :type="getStatusTagType(scope.row)">
+                  {{ getStatusText(scope.row) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+          </el-table>
 
-          <div class="alert-overview">
-
-            <el-table
-              v-if="alertItems.length > 0"
-              :data="paginatedAlertItems"
-              border
-              :max-height="400"
-              empty-text="暂无预警物料"
-              class="alert-table"
-            >
-              <el-table-column label="物料名称" prop="name" min-width="160">
-                <template #default="scope">
-                  <div class="alert-cell-name">
-                    <strong>{{ scope.row.name || '-' }}</strong>
-                  </div>
-                </template>
-              </el-table-column>
-              <el-table-column label="物料编码" prop="code" min-width="140">
-                <template #default="scope">
-                  {{ scope.row.code || '-' }}
-                </template>
-              </el-table-column>
-              <el-table-column label="存放位置" prop="location" min-width="120">
-                <template #default="scope">
-                  {{ scope.row.location || '-' }}
-                </template>
-              </el-table-column>
-              <el-table-column label="当前库存" min-width="100" align="right">
-                <template #default="scope">
-                  <span :class="{ 'text-danger': isCriticalStock(scope.row), 'text-warning': scope.row.type === 'low' }">
-                    {{ formatQuantity(scope.row.quantity) }}
-                  </span>
-                  <span class="unit-text">{{ scope.row.unit || '' }}</span>
-                </template>
-              </el-table-column>
-              <el-table-column label="预警状态" min-width="100" align="center">
-                <template #default="scope">
-                  <el-tag :type="getStatusTagType(scope.row)" size="small">{{ getStatusText(scope.row) }}</el-tag>
-                </template>
-              </el-table-column>
-            </el-table>
-            <EmptyState v-else description="暂无预警物料" />
-
-            <div class="pagination-container" v-if="alertItems.length > alertPageSize">
-              <el-pagination
-                v-model:current-page="alertCurrentPage"
-                v-model:page-size="alertPageSize"
-                :page-sizes="[5, 10, 20]"
-                layout="total, sizes, prev, pager, next"
-                :total="alertItems.length"
-              />
-            </div>
+          <div class="pagination-container" v-if="alertItems.length > 0">
+            <el-pagination
+              v-model:current-page="alertCurrentPage"
+              v-model:page-size="alertPageSize"
+              :page-sizes="[5, 10, 20, 50]"
+              layout="total, sizes, prev, pager, next"
+              :total="alertItems.length"
+              @size-change="handleAlertSizeChange"
+              @current-change="handleAlertCurrentChange"
+            />
           </div>
         </el-card>
       </el-col>
@@ -153,48 +152,56 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import Chart from '@/utils/chartCore'
 import { inventoryApi } from '@/api'
 import { parseDataObject } from '@/utils/responseParser'
 import { formatCurrency, formatQuantity } from '@/utils/dashboardUtils'
+import { handleTableRowView } from '@/utils/tableRowView'
 import {
   chartColors,
   createLineChartConfig,
   createPieChartConfig
 } from '@/utils/chartConfig'
+import { alphaColor } from '@/utils/designTokens'
+
+const router = useRouter()
 
 const loading = ref(false)
 const lastUpdated = ref(null)
 const dashboardData = ref({})
+
+const alertCurrentPage = ref(1)
+const alertPageSize = ref(10)
+
 const inventoryTrendChart = ref(null)
 const categoryChart = ref(null)
 
 let inventoryTrendInstance = null
 let categoryInstance = null
 
-// 预警列表分页
-const alertCurrentPage = ref(1)
-const alertPageSize = ref(10)
-
-const toNumber = value => Number.parseFloat(value) || 0
+const toNumber = value => {
+  const num = Number.parseFloat(value)
+  return Number.isNaN(num) ? 0 : num
+}
 
 const statistics = computed(() => {
-  const stats = dashboardData.value?.statistics || {}
+  const raw = dashboardData.value?.statistics || {}
   return {
-    totalStock: toNumber(stats.totalStock ?? dashboardData.value?.totalStock),
-    totalValue: toNumber(stats.totalValue ?? dashboardData.value?.totalValue),
+    totalStock: toNumber(raw.totalStock ?? raw.total_stock),
+    totalValue: toNumber(raw.totalValue ?? raw.total_value),
     inbound: {
-      count: toNumber(stats.inbound?.count),
-      items: toNumber(stats.inbound?.items)
+      count: toNumber(raw.inbound?.count ?? raw.inbound_count),
+      items: toNumber(raw.inbound?.items ?? raw.inbound_items)
     },
     outbound: {
-      count: toNumber(stats.outbound?.count),
-      items: toNumber(stats.outbound?.items)
+      count: toNumber(raw.outbound?.count ?? raw.outbound_count),
+      items: toNumber(raw.outbound?.items ?? raw.outbound_items)
     },
     alerts: {
-      low: toNumber(stats.alerts?.low),
-      overstock: toNumber(stats.alerts?.overstock)
+      low: toNumber(raw.alerts?.low ?? raw.low_stock_alerts),
+      overstock: toNumber(raw.alerts?.overstock ?? raw.overstock_alerts)
     }
   }
 })
@@ -227,8 +234,8 @@ const monthlyTrend = computed(() => {
     const row = rows.find(item => item.month === month.key || item.month === month.label) || {}
     return {
       ...month,
-      inbound: toNumber(row.inbound_qty ?? row.inbound ?? row.inboundQuantity),
-      outbound: toNumber(row.outbound_qty ?? row.outbound ?? row.outboundQuantity)
+      inbound: toNumber(row.inboundQty ?? row.inbound ?? row.inboundQuantity),
+      outbound: toNumber(row.outboundQty ?? row.outbound ?? row.outboundQuantity)
     }
   })
 })
@@ -255,7 +262,6 @@ const paginatedAlertItems = computed(() => {
   return alertItems.value.slice(start, start + alertPageSize.value)
 })
 
-
 const isCriticalStock = item => item.type === 'critical' || toNumber(item.quantity) <= 0
 
 const getStatusTagType = item => {
@@ -271,6 +277,15 @@ const getStatusText = item => {
   if (item.type === 'low') return '低库存'
   if (item.type === 'overstock') return '超额库存'
   return '正常'
+}
+
+function handleAlertSizeChange(size) {
+  alertPageSize.value = size
+  alertCurrentPage.value = 1
+}
+
+function handleAlertCurrentChange(page) {
+  alertCurrentPage.value = page
 }
 
 const destroyCharts = () => {
@@ -319,18 +334,29 @@ const renderCharts = async () => {
     })
   }
 
-  if (categoryChart.value && categoryDistribution.value.length > 0) {
+  if (categoryChart.value) {
     const config = createPieChartConfig({
       tooltipFormatter: context => `${context.label}: ${formatQuantity(context.raw)}`
     })
+    const hasCategoryData = categoryDistribution.value.length > 0
+    const labels = hasCategoryData
+      ? categoryDistribution.value.map(item => item.label)
+      : ['暂无数据']
+    const data = hasCategoryData
+      ? categoryDistribution.value.map(item => item.value)
+      : [1]
+    const bgColors = hasCategoryData
+      ? chartColors.gradient
+      : [alphaColor('textPrimary', 0.08)]
+
     categoryInstance = new Chart(categoryChart.value.getContext('2d'), {
       type: 'doughnut',
       data: {
-        labels: categoryDistribution.value.map(item => item.label),
+        labels,
         datasets: [
           {
-            data: categoryDistribution.value.map(item => item.value),
-            backgroundColor: chartColors.gradient
+            data,
+            backgroundColor: bgColors
           }
         ]
       },
@@ -340,8 +366,6 @@ const renderCharts = async () => {
       }
     })
   }
-
-
 }
 
 const loadData = async () => {
@@ -364,43 +388,10 @@ onBeforeUnmount(destroyCharts)
 </script>
 
 <style scoped>
-/* 图表区域 */
-.dashboard-card {
-  height: 100%;
-}
-.chart-container :deep(.el-empty) {
-  height: 100%;
-}
-.alert-overview {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.alert-table {
-  margin-top: 4px;
-}
-.alert-cell-name strong {
-  font-size: 14px;
-  color: var(--el-text-color-primary);
-}
-.unit-text {
-  margin-left: 4px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-.pagination-container {
-  margin-top: 12px;
-  display: flex;
-  justify-content: flex-end;
-}
-.text-danger {
-  color: var(--el-color-danger) !important;
-  font-weight: bold;
-}
-.text-warning {
-  color: var(--el-color-warning) !important;
-  font-weight: bold;
-}
 /* 响应式调整 */
 
+:deep(.el-table__cell) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 </style>

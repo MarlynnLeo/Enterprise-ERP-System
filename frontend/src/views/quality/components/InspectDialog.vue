@@ -36,7 +36,7 @@
               <template #default="scope">{{ formatDimensionTolerance(scope.row) }}</template>
             </el-table-column>
             <!-- 动态测量值列：根据抽样数量自动增减 -->
-            <el-table-column label="测量值" min-width="280">
+            <el-table-column label="测量值" min-width="320">
               <template #default="scope">
                 <div class="measure-grid">
                   <div class="measure-item" v-for="mIdx in currentSampleSize" :key="mIdx - 1">
@@ -160,7 +160,13 @@ import { qualityApi, baseDataApi } from '@/api'
 import { parseListData } from '@/utils/responseParser'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { calculateInspectionStatus, validateInspectionItems } from '@/utils/inspectionHelpers'
+import {
+  calculateInspectionStatus,
+  validateInspectionItems,
+  normalizeInspectionMeasurements,
+  getInspectionMeasurementColumnCount,
+  MAX_INSPECTION_MEASUREMENT_COLUMNS
+} from '@/utils/inspectionHelpers'
 import dayjs from 'dayjs'
 import TemplateSelectDialog from './TemplateSelectDialog.vue'
 import {
@@ -190,13 +196,13 @@ const inspectionNo = computed(() => props.row?.inspectionNo || props.row?.inspec
 const inspectFormRef = ref(null)
 const submitting = ref(false)
 const samplingLoading = ref(false)
-const currentSampleSize = ref(1)
+const currentSampleSize = ref(MAX_INSPECTION_MEASUREMENT_COLUMNS)
 const currentInspectionData = ref(null) // 保存完整检验数据用于后续操作
 
 // 对话框宽度根据测量值数量动态计算
 const inspectDialogWidth = computed(() => {
-  if (currentSampleSize.value <= 3) return '850px'
-  if (currentSampleSize.value <= 6) return '900px'
+  if (currentSampleSize.value <= 3) return '900px'
+  if (currentSampleSize.value <= MAX_INSPECTION_MEASUREMENT_COLUMNS) return '1100px'
   if (currentSampleSize.value <= 10) return '1000px'
   return '1100px'
 })
@@ -215,6 +221,8 @@ const inspectForm = reactive({
   is_aql: false,
   aql_standard_id: null,
   aqlLevel: null,
+  acceptLimit: 0,
+  rejectLimit: 1,
   accept_limit: 0,
   reject_limit: 1
 })
@@ -283,6 +291,9 @@ watch(() => props.visible, async (val) => {
 // 加载检验数据
 const loadInspectionData = async () => {
   try {
+    // 每次打开检验单时先恢复默认的五个测量输入位；已有值再按实际数量收缩。
+    currentSampleSize.value = MAX_INSPECTION_MEASUREMENT_COLUMNS
+    measureInputRefs.value = []
     const response = await qualityApi.getIncomingInspection(props.row.id)
     const respData = response?.data
     const inspectionData = respData?.data || (respData?.id ? respData : null)
@@ -317,15 +328,18 @@ const loadInspectionData = async () => {
     inspectForm.inspectorName = authStore.user?.realName || ''
     inspectForm.inspectionDate = new Date()
     inspectForm.note = inspectionData.note || ''
-    inspectForm.is_aql = !!inspectionData.is_aql
-    inspectForm.aqlLevel = inspectionData.aqlLevel || null
-    inspectForm.aql_standard_id = inspectionData.aql_standard_id || null
-    inspectForm.acceptLimit = inspectionData.acceptLimit || 0
-    inspectForm.rejectLimit = inspectionData.rejectLimit || 1
+    inspectForm.is_aql = inspectionData.isAql ?? !!inspectionData.is_aql
+    inspectForm.aqlLevel = inspectionData.aqlLevel ?? inspectionData.aql_level ?? null
+    inspectForm.aql_standard_id = inspectionData.aqlStandardId ?? inspectionData.aql_standard_id ?? null
+    inspectForm.acceptLimit = inspectionData.acceptLimit ?? inspectionData.accept_limit ?? 0
+    inspectForm.rejectLimit = inspectionData.rejectLimit ?? inspectionData.reject_limit ?? 1
 
     // 设置检验项
     const hasExistingItems = inspectionData.items && inspectionData.items.length > 0
     if (hasExistingItems) {
+      // 已保存的测量值决定当前输入矩阵的列数，避免打开已有记录时退回到 1 列。
+      const existingCount = getExistingMeasurementCount(inspectionData.items)
+      currentSampleSize.value = existingCount > 0 ? existingCount : MAX_INSPECTION_MEASUREMENT_COLUMNS
       inspectForm.items = mapInspectionItems(inspectionData.items)
     } else {
       await fetchInspectionTemplates(inspectionData.materialId)
@@ -338,7 +352,7 @@ const loadInspectionData = async () => {
     }
 
     // 如果 AQL 已启用，自动触发计算
-    if (inspectForm.is_aql && inspectForm.aqlLevel && inspectForm.quantity > 0) {
+    if (inspectForm.is_aql && inspectForm.aqlLevel && inspectForm.quantity > 0 && !hasExistingMeasurements(inspectionData.items)) {
       await handleAqlChange()
     }
 
@@ -431,13 +445,18 @@ const handleAqlChange = async () => {
       const unwrappedData = res.data || res
       const data = unwrappedData.data || unwrappedData
 
-      if (data && data.sampleSize) {
-        inspectForm.aql_standard_id = data.aqlStandardId || data.id || data.aqlStandard?.id
-        inspectForm.acceptLimit = data.acceptLimit
-        inspectForm.rejectLimit = data.rejectLimit
-        currentSampleSize.value = data.sampleSize
-        resizeAllMeasurements(data.sampleSize)
-        ElMessage.success(`匹配到 AQL 抽样: n=${data.sampleSize}, Ac=${data.acceptLimit}, Re=${data.rejectLimit}`)
+      const rawSampleSize = Number(data?.sampleSize ?? data?.sample_size)
+      const sampleSize = Math.min(MAX_INSPECTION_MEASUREMENT_COLUMNS, rawSampleSize)
+      if (data && Number.isFinite(sampleSize) && sampleSize > 0) {
+        const aqlStandardId = data.aqlStandardId ?? data.aql_standard_id ?? data.id ?? data.aqlStandard?.id
+        const acceptLimit = data.acceptLimit ?? data.accept_limit ?? 0
+        const rejectLimit = data.rejectLimit ?? data.reject_limit ?? 1
+        inspectForm.aql_standard_id = aqlStandardId
+        inspectForm.acceptLimit = acceptLimit
+        inspectForm.rejectLimit = rejectLimit
+        currentSampleSize.value = sampleSize
+        resizeAllMeasurements(sampleSize)
+        ElMessage.success(`匹配到 AQL 抽样: n=${rawSampleSize}，录入前${sampleSize}个样本，Ac=${acceptLimit}, Re=${rejectLimit}`)
       }
     } catch (err) {
       console.error('AQL计算失败:', err)
@@ -452,12 +471,13 @@ const handleAqlChange = async () => {
     inspectForm.aql_standard_id = null
     inspectForm.acceptLimit = 0
     inspectForm.rejectLimit = 1
-    currentSampleSize.value = 1
-    resizeAllMeasurements(1)
+    currentSampleSize.value = MAX_INSPECTION_MEASUREMENT_COLUMNS
+    resizeAllMeasurements(MAX_INSPECTION_MEASUREMENT_COLUMNS)
   }
 }
 
 const resizeAllMeasurements = (newSize) => {
+  newSize = Math.min(MAX_INSPECTION_MEASUREMENT_COLUMNS, Math.max(1, Number(newSize) || 1))
   if (!inspectForm.items) return
   inspectForm.items.forEach(item => {
     if (!item.measurements || !Array.isArray(item.measurements)) {
@@ -473,14 +493,13 @@ const resizeAllMeasurements = (newSize) => {
 
 // ===== 测量值相关 =====
 const mapInspectionItems = (items) => {
-  const size = currentSampleSize.value
+  const size = Math.min(
+    MAX_INSPECTION_MEASUREMENT_COLUMNS,
+    Math.max(currentSampleSize.value, getInspectionMeasurementColumnCount(items, MAX_INSPECTION_MEASUREMENT_COLUMNS))
+  )
+  currentSampleSize.value = size
   return items.map(item => {
-    let measurements = []
-    if (item.measurements && Array.isArray(item.measurements)) {
-      measurements = [...item.measurements]
-    } else {
-      for (let i = 1; i <= Math.max(size, 1); i++) measurements.push(item[`measure_${i}`] || '')
-    }
+    const measurements = normalizeInspectionMeasurements(item)
     while (measurements.length < size) measurements.push('')
     if (measurements.length > size) measurements.length = size
 
@@ -496,6 +515,14 @@ const mapInspectionItems = (items) => {
     }
   })
 }
+
+const getExistingMeasurementCount = (items) => {
+  return getInspectionMeasurementColumnCount(items, 0)
+}
+
+const hasExistingMeasurements = (items) => getExistingMeasurementCount(items) > 1 || (items || []).some((item) => {
+  return normalizeInspectionMeasurements(item).some((value) => value !== null && value !== undefined && value !== '')
+})
 
 const setMeasureInputRef = (el, rowIndex, colIndex) => {
   if (!el) return
@@ -552,8 +579,11 @@ const calculateAverageValue = (item) => {
 }
 
 const formatDimensionTolerance = (item) => {
-  if (!item.dimensionValue) return '-'
+  const hasDimensionValue = item.dimensionValue !== null &&
+    item.dimensionValue !== undefined && item.dimensionValue !== ''
+  if (!hasDimensionValue) return item.standard || item.dimensionInfo || '-'
   const dimensionValue = parseFloat(item.dimensionValue)
+  if (Number.isNaN(dimensionValue)) return item.standard || item.dimensionInfo || '-'
   const upper = parseFloat(item.toleranceUpper) || 0
   const lower = Math.abs(parseFloat(item.toleranceLower)) || 0
   if (upper === 0 && lower === 0) return dimensionValue.toFixed(2)
@@ -620,8 +650,11 @@ const submitInspection = async () => {
         const mapped = { ...item }
         if (item.measurements && Array.isArray(item.measurements)) {
           item.measurements.forEach((val, idx) => { mapped[`measure_${idx + 1}`] = val || '' })
+          mapped.measurements = item.measurements.map((value, index) => ({
+            sample_no: index + 1,
+            measured_value: value === '' || value === null || value === undefined ? null : value
+          }))
         }
-        delete mapped.measurements
         delete mapped._averageValue
         return mapped
       }),
@@ -699,7 +732,7 @@ const handlePartialNonconformingOnly = async (inspectionId, unqualifiedQty) => {
 <style scoped>
 .inspection-items { width: 100%; max-width: 100%; overflow: hidden; }
 
-.measure-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+.measure-grid { display: flex; flex-wrap: nowrap; gap: 6px; }
 .measure-item { display: flex; align-items: center; gap: 2px; }
 .measure-grid .el-input { width: 55px; flex: 0 0 auto; }
 

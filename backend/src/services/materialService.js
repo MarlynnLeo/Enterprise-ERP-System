@@ -18,7 +18,9 @@ const materialService = {
     try {
       const validPage = Math.max(1, parseInt(page) || 1);
       const noPagination = pageSize === null || pageSize === undefined;
-      const validPageSize = noPagination ? null : Math.min(Math.max(1, parseInt(pageSize, 10) || 10), 100);
+      const validPageSize = noPagination
+        ? null
+        : Math.min(Math.max(1, parseInt(pageSize, 10) || 10), 100);
       const offset = noPagination ? 0 : (validPage - 1) * validPageSize;
 
       logger.debug('getAllMaterials query parameters', {
@@ -33,7 +35,8 @@ const materialService = {
           m.category_id, m.product_category_id, m.unit_id,
           m.material_source_id, m.inspection_method_id,
           m.supplier_id, m.location_id, m.production_group_id, m.manager_id,
-          m.min_stock, m.max_stock, m.material_type, m.material, m.drawing_no, m.color_code, m.location_detail, m.deleted_at,
+          m.min_stock, m.max_stock, m.material_type, m.material, m.drawing_no, m.color_code, m.location_detail,
+          m.price, m.cost_price, m.tax_rate, m.deleted_at,
           m.created_at, m.updated_at,
           c.name as category_name,
           pc.name as product_category_name,
@@ -77,7 +80,12 @@ const materialService = {
       if (searchKeyword) {
         const searchTerm = searchKeyword.trim();
         if (searchTerm) {
-          const searchConditions = ['m.name LIKE ?', 'm.code LIKE ?', 'm.specs LIKE ?', 'm.drawing_no LIKE ?'];
+          const searchConditions = [
+            'm.name LIKE ?',
+            'm.code LIKE ?',
+            'm.specs LIKE ?',
+            'm.drawing_no LIKE ?',
+          ];
           const keywordParam = `%${searchTerm}%`;
           params.push(keywordParam, keywordParam, keywordParam, keywordParam);
           whereConditions.push(`(${searchConditions.join(' OR ')})`);
@@ -246,7 +254,10 @@ const materialService = {
   async updateMaterial(id, data) {
     try {
       // 检查物料是否存在
-      const [existing] = await pool.query('SELECT id, product_category_id, code, name, category_id, material_source_id, inspection_method_id, supplier_id, production_group_id, manager_id, location_detail, safety_stock, unit_id, location_id, specs, drawing_no, color_code, material, material_type, price, cost_price, min_stock, max_stock, status, remark, created_at, updated_at, location_name, tax_rate, deleted_at FROM materials WHERE id = ? AND deleted_at IS NULL', [id]);
+      const [existing] = await pool.query(
+        'SELECT id, product_category_id, code, name, category_id, material_source_id, inspection_method_id, supplier_id, production_group_id, manager_id, location_detail, safety_stock, unit_id, location_id, specs, drawing_no, color_code, material, material_type, price, cost_price, min_stock, max_stock, status, remark, created_at, updated_at, location_name, tax_rate, deleted_at FROM materials WHERE id = ? AND deleted_at IS NULL',
+        [id]
+      );
       if (!existing || existing.length === 0) {
         throw new Error('物料不存在');
       }
@@ -403,16 +414,16 @@ const materialService = {
       for (let i = 0; i < materials.length; i++) {
         const material = materials[i];
         try {
-
           // 简单验证
           if (!material.code || !material.name) {
             throw new Error('物料编码和名称不能为空');
           }
 
           // 检查是否存在
-          const [existing] = await connection.query('SELECT id FROM materials WHERE code = ? AND deleted_at IS NULL', [
-            material.code,
-          ]);
+          const [existing] = await connection.query(
+            'SELECT id FROM materials WHERE code = ? AND deleted_at IS NULL',
+            [material.code]
+          );
 
           if (existing.length > 0) {
             // 更新
@@ -569,10 +580,10 @@ const materialService = {
 
   async updateStatus(id, status) {
     try {
-      const [result] = await pool.execute('UPDATE materials SET status = ? WHERE id = ? AND deleted_at IS NULL', [
-        status,
-        id,
-      ]);
+      const [result] = await pool.execute(
+        'UPDATE materials SET status = ? WHERE id = ? AND deleted_at IS NULL',
+        [status, id]
+      );
       return result.affectedRows > 0;
     } catch (error) {
       logger.error('updateStatus error:', error);

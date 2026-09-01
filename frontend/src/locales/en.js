@@ -316,7 +316,7 @@ export default {
     required: 'This field is required',
     email: 'Please enter a valid email address',
     phone: 'Please enter a valid phone number',
-    password: 'Password must be at least 6 characters',
+    password: 'Password must be at least 12 characters',
     confirmPassword: 'Passwords do not match',
     minLength: 'Minimum {min} characters required',
     maxLength: 'Maximum {max} characters allowed',

@@ -127,7 +127,8 @@ export default defineConfig(({ mode }) => {
         'echarts/core',
         'echarts/charts',
         'echarts/components',
-        'echarts/renderers'
+        'echarts/renderers',
+        'echarts/features'
       ],
       // Element Plus is consumed through both auto-imported component
       // subpaths and programmatic APIs. Vite 8's incremental optimizer can
@@ -169,9 +170,11 @@ export default defineConfig(({ mode }) => {
     preview: {
       allowedHosts: [env.VITE_PREVIEW_ALLOWED_HOST || 'localhost']
     },
-    // 确保在生产环境中正确设置环境变量
     define: {
-      __DEV__: mode === 'development'
+      __DEV__: mode === 'development',
+      __VUE_I18N_FULL_INSTALL__: true,
+      __VUE_I18N_LEGACY_API__: false,
+      __INTLIFY_PROD_DEVTOOLS__: false
     },
     esbuild: {
       drop: mode === 'production' ? ['console', 'debugger'] : []

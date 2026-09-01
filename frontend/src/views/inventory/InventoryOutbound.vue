@@ -109,10 +109,10 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="类型" min-width="90" show-overflow-tooltip>
+        <el-table-column label="类型" min-width="100" show-overflow-tooltip>
           <template #default="scope">
-            <el-tag size="small" :type="getOutboundTypeTag(scope.row.outboundType)">
-              {{ getOutboundTypeText(scope.row.outboundType) }}
+            <el-tag size="small" :type="getOutboundTypeTag(scope.row)">
+              {{ getOutboundTypeText(scope.row) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -190,7 +190,7 @@
               <el-icon><Finished /></el-icon> 完成
             </el-button>
             <el-button v-if="['draft', 'confirmed'].includes(scope.row.status)" size="small" type="warning"
-              v-permission="'inventory:outbound:update'"
+              v-permission="'inventory:outbound:cancel'"
               @click="handleUpdateStatus(scope.row, 'cancelled')">
               <el-icon><Close /></el-icon> 取消
             </el-button>
@@ -224,7 +224,7 @@
       v-model="dialogVisible"
       :title="dialogType === 'add' ? '新增出库单' : dialogType === 'supplement' ? '补发出库单' : '编辑出库单'"
       mode="form"
-      wide
+      width="1020px"
     >
       <div v-loading="editLoading" class="min-h-form">
       <el-form ref="outboundFormRef" :model="outboundForm" :rules="outboundRules" label-width="120px">
@@ -327,7 +327,7 @@
             </template>
           </el-table-column>
 
-          <el-table-column label="规格" min-width="120" show-overflow-tooltip>
+          <el-table-column label="规格" min-width="160" show-overflow-tooltip>
             <template #default="scope">
               <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
                 {{ scope.row.specification || '无规格' }}
@@ -335,7 +335,7 @@
             </template>
           </el-table-column>
 
-          <el-table-column label="单位" min-width="80" show-overflow-tooltip>
+          <el-table-column label="单位" min-width="70" show-overflow-tooltip>
             <template #default="scope">
               <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
                 {{ formatUnit(scope.row) }}
@@ -360,27 +360,26 @@
             </template>
           </el-table-column>
 
-          <el-table-column label="出库" min-width="120" show-overflow-tooltip>
+          <el-table-column label="出库数量" min-width="70">
             <template #default="scope">
               <div v-if="scope.row.isSubstitute" class="is-substitute-sm">
-                {{ Math.floor(scope.row.quantity || 0) }}
+                {{ scope.row.quantity }}
               </div>
-              <el-input v-else-if="dialogType !== 'view' && !scope.row.isFromPlan"
-                :ref="(el) => setQuantityInputRef(el, scope.row.originalIndex)" v-model="scope.row.quantity" type="text"
-                size="small" @blur="validateOutboundQuantity(scope.row)" @input="validateOutboundQuantity(scope.row)"
-                @keydown.enter="handleQuantityEnter(scope.row.originalIndex)" placeholder="数量" />
-              <el-tooltip v-else-if="scope.row.isFromPlan && !scope.row.isSubstitute"
-                :content="getTooltipContent(scope.row, selectedPlan)"
-                placement="top">
-                <span>{{ Math.floor(scope.row.quantity || 0) }}</span>
-              </el-tooltip>
-              <span v-else-if="!scope.row.isSubstitute">{{ Math.floor(scope.row.quantity || 0) }}</span>
+              <el-input v-else-if="dialogType !== 'view'"
+                :ref="(el) => setQuantityInputRef(el, scope.row.originalIndex)"
+                v-model="outboundForm.items[scope.row.originalIndex].quantity"
+                type="text"
+                size="small"
+                @blur="validateOutboundQuantity(outboundForm.items[scope.row.originalIndex])"
+                @keydown.enter="handleQuantityEnter(scope.row.originalIndex)"
+                placeholder="数量" />
+              <span v-else>{{ scope.row.quantity }}</span>
             </template>
           </el-table-column>
 
           <el-table-column label="操作" min-width="80" fixed="right" v-if="dialogType !== 'view'" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
-              <el-button v-if="!scope.row.isSubstitute && !scope.row.isFromPlan" type="danger" size="small"
+              <el-button v-if="!scope.row.isSubstitute" type="danger" size="small"
                 @click="handleRemoveItem(scope.row.originalIndex)"
                 v-permission="dialogType === 'add' ? 'inventory:outbound:create' : 'inventory:outbound:update'">
                 删除
@@ -402,7 +401,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button v-if="dialogType !== 'view'" type="primary" v-permission="dialogType === 'add' ? 'inventory:outbound:create' : 'inventory:outbound:update'" @click="handleSubmit" :loading="submitting">
+          <el-button v-if="dialogType !== 'view'" type="primary" v-permission="dialogType === 'add' ? 'inventory:outbound:create' : 'inventory:outbound:update'" @click="() => handleSubmit()" :loading="submitting">
             保存
           </el-button>
         </span>
@@ -414,12 +413,17 @@
       v-model="viewDialogVisible"
       title="出库单详情"
       mode="view"
-      content-width="wide"
+      width="1020px"
       :detail-navigation="outboundViewNavigation"
     >
       <div v-loading="viewLoading" class="min-h-form">
       <el-descriptions :column="2" border>
         <el-descriptions-item label="出库单号">{{ currentOutbound.outboundNo }}</el-descriptions-item>
+        <el-descriptions-item label="出库类型">
+          <el-tag size="small" :type="getOutboundTypeTag(currentOutbound)">
+            {{ getOutboundTypeText(currentOutbound) }}
+          </el-tag>
+        </el-descriptions-item>
         <el-descriptions-item label="出库日期">{{ formatDate(currentOutbound.outboundDate) }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="getStatusType(currentOutbound.status)">
@@ -460,14 +464,14 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="规格" min-width="120" show-overflow-tooltip>
+        <el-table-column label="规格" min-width="140" show-overflow-tooltip>
           <template #default="scope">
             <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
               {{ scope.row.specification || '无规格' }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="单位" min-width="80" show-overflow-tooltip>
+        <el-table-column label="单位" min-width="70" show-overflow-tooltip>
           <template #default="scope">
             <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
               {{ formatUnit(scope.row) }}
@@ -805,19 +809,49 @@ export default {
       return getInboundOutboundStatusText(status)
     }
     const outboundTypeAliases = {
-      supplement: 'production_outbound',
-      exchange: 'sales_exchange_out',
-      bom_issue: 'production_outbound',
-      batch_issue: 'production_outbound',
+      supplement: 'supplement',
+      exchange: 'exchange',
+      bom_issue: 'bom_issue',
+      batch_issue: 'batch_issue',
       sales: 'sales_outbound',
+      sales_outbound: 'sales_outbound',
       production: 'production_outbound',
-      manual: 'outbound',
+      production_outbound: 'production_outbound',
+      outsourced: 'outsourced_outbound',
+      outsourced_outbound: 'outsourced_outbound',
+      manual: 'manual',
+      manual_out: 'manual',
       other: 'outbound',
+      outbound: 'outbound'
     }
-    const getOutboundTypeText = (type) =>
-      getInventoryTransactionTypeText(outboundTypeAliases[type] || type) || type || '出库'
-    const getOutboundTypeTag = (type) =>
-      getInventoryTransactionTypeColor(outboundTypeAliases[type] || type) || 'info'
+
+    const resolveOutboundTransactionType = (rowOrType) => {
+      if (!rowOrType) return 'outbound'
+      if (typeof rowOrType === 'object') {
+        const row = rowOrType
+        const type = row.outboundType
+        if (type && type !== 'manual' && type !== 'other') {
+          return outboundTypeAliases[type] || type
+        }
+        if (row.productionTaskId || row.referenceType === 'production_task' || row.productCode || row.productionPlanId) {
+          return 'production_outbound'
+        }
+        if (row.salesOrderId || row.referenceType === 'sales_order' || row.customerId) {
+          return 'sales_outbound'
+        }
+        if (row.referenceType === 'outsourced') {
+          return 'outsourced_outbound'
+        }
+        return outboundTypeAliases[type] || 'outbound'
+      }
+      return outboundTypeAliases[rowOrType] || rowOrType || 'outbound'
+    }
+
+    const getOutboundTypeText = (rowOrType) =>
+      getInventoryTransactionTypeText(resolveOutboundTransactionType(rowOrType)) || '出库'
+
+    const getOutboundTypeTag = (rowOrType) =>
+      getInventoryTransactionTypeColor(resolveOutboundTransactionType(rowOrType)) || 'info'
 
     // 倒计时核心计算（单一职责，消除重复日期计算）
     const _calcCountdown = (outboundDate, status) => {
@@ -1575,6 +1609,7 @@ export default {
 
     // 验证出库数量输入
     const validateOutboundQuantity = (row) => {
+      if (!row) return
       // 确保数量是有效数字
       const quantity = Number(row.quantity)
       if (isNaN(quantity) || quantity < 0) {
@@ -1585,20 +1620,12 @@ export default {
       // 保留两位小数
       row.quantity = Number(quantity.toFixed(2))
 
-      // 补发模式下跳过库存检查
+      // 补发模式下只检查不能超过缺料数量
       if (dialogType.value === 'supplement') {
-        // 补发模式下只检查不能超过缺料数量
         const maxQuantity = row.shortageQuantity ?? 9999
         if (row.quantity > maxQuantity) {
           row.quantity = maxQuantity
           ElMessage.warning(`补发数量不能超过缺料数量 ${maxQuantity}`)
-        }
-      } else {
-        // 非补发模式下检查是否超过库存
-        const maxQuantity = row.stockQuantity ?? 9999
-        if (row.quantity > maxQuantity) {
-          row.quantity = maxQuantity
-          ElMessage.warning(`出库数量不能超过库存数量 ${maxQuantity}`)
         }
       }
     }
@@ -1665,7 +1692,10 @@ export default {
     }
 
     // 提交表单
-    const handleSubmit = async (retryData = null) => {
+    const handleSubmit = async (retryPayload = null) => {
+      const isRetry = retryPayload && typeof retryPayload === 'object' && !('target' in retryPayload) && !('isTrusted' in retryPayload);
+      const retryData = isRetry ? retryPayload : null;
+
       if (!outboundFormRef.value && !retryData) return
 
       try {
@@ -1681,7 +1711,7 @@ export default {
         submitting.value = true
 
         // 格式化表单数据（纯 camel）
-        const dataToSubmit = retryData || {
+        const dataToSubmit = retryData ? { ...retryData } : {
           id: outboundForm.id,
           outboundNo: outboundForm.outboundNo,
           outboundDate: formatDate(outboundForm.outboundDate),
@@ -1691,12 +1721,13 @@ export default {
           productionTaskId: outboundForm.productionTaskId,
           items: (outboundForm.items || []).map((item) => ({
             id: item.id,
-            materialId: item.materialId,
-            quantity: item.quantity,
-            unitId: item.unitId,
+            materialId: item.materialId ? Number(item.materialId) : item.materialId,
+            quantity: parseFloat(item.quantity) || 0,
+            plannedQuantity: item.plannedQuantity !== undefined && item.plannedQuantity !== null ? parseFloat(item.plannedQuantity) : undefined,
+            unitId: item.unitId ? Number(item.unitId) : null,
             batchNo: item.batchNo,
-            locationId: item.locationId,
-            remarks: item.remarks
+            locationId: item.locationId ? Number(item.locationId) : null,
+            remarks: item.remarks || item.remark || ''
           }))
         }
 
@@ -1707,6 +1738,11 @@ export default {
           await inventoryApi.createOutbound(dataToSubmit)
           ElMessage.success('创建出库单成功')
         } else if (dialogType.value === 'supplement') {
+          if (!dataToSubmit.id) {
+            ElMessage.error('缺少出库单ID，无法补发')
+            submitting.value = false
+            return
+          }
           // 补发模式：调用补发API
           const supplementData = {
             outboundId: dataToSubmit.id,
@@ -1721,6 +1757,11 @@ export default {
           await inventoryApi.supplementOutbound(dataToSubmit.id, supplementData)
           ElMessage.success('补发成功')
         } else {
+          if (!dataToSubmit.id) {
+            ElMessage.error('缺少出库单ID，无法更新')
+            submitting.value = false
+            return
+          }
           await inventoryApi.updateOutbound(dataToSubmit)
           ElMessage.success('更新出库单成功')
         }
@@ -2139,7 +2180,11 @@ export default {
     // 工具函数：构建真实出库明细表格数据
     const _buildExpandedItems = (items) => {
       if (!items) return []
-      return items.map((item, index) => ({ ...item, originalIndex: index, isSubstitute: false }))
+      return items.map((item, index) => {
+        item.originalIndex = index
+        item.isSubstitute = false
+        return item
+      })
     }
 
     // 计算属性：编辑对话框的展开表格数据

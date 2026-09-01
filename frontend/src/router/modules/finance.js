@@ -207,6 +207,16 @@ export default {
             }
         },
         {
+            path: 'inventory-posting',
+            name: 'finance-inventory-posting',
+            component: () => import('../../views/finance/inventory/InventoryPostingApproval.vue'),
+            meta: {
+                requiresAuth: true,
+                permission: 'finance:inventory:view',
+                title: '库存过账审核'
+            }
+        },
+        {
             path: 'ap/aging',
             name: 'ap-aging',
             component: () => import('../../views/finance/ap/Aging.vue'),

@@ -10,6 +10,7 @@ const {
   moduleOf,
   normalizePermissionCode,
   ensurePermission,
+  supplementalPermissionCodesForRole,
   syncRolePermissionsFromMenus,
   bindMenuPermission,
   grantMenuPermissionToRoles,
@@ -91,6 +92,9 @@ describe('PermissionRegistry', () => {
     const conn = {
       execute: jest.fn(async (sql, params) => {
         calls.push(sql.replace(/\s+/g, ' ').trim().slice(0, 60));
+        if (sql.includes('SELECT id, code, is_super_admin FROM roles')) {
+          return [[{ id: 3, code: 'custom_role', is_super_admin: 0 }]];
+        }
         if (sql.includes('DELETE FROM role_permissions')) return [{ affectedRows: 2 }];
         if (sql.includes('SELECT id, permission, name FROM menus')) {
           return [[{ id: 1, permission: 'a:view', name: 'A' }]];
@@ -112,11 +116,90 @@ describe('PermissionRegistry', () => {
     expect(menuSelect[0]).toContain('AND status = 1');
   });
 
+  test('自定义角色即使没有菜单也保留 lookup:read 基线权限', async () => {
+    const conn = mockConn([
+      {
+        match: (sql) => sql.includes('SELECT id, code, is_super_admin FROM roles'),
+        result: [[{ id: 8, code: 'custom_role', is_super_admin: 0 }]],
+      },
+      {
+        match: (sql) => sql.includes('SELECT id FROM permissions'),
+        result: [[{ id: 51 }]],
+      },
+      {
+        match: (sql) => sql.includes('INSERT INTO role_permissions'),
+        result: [{ affectedRows: 1 }],
+      },
+    ]);
+
+    const result = await syncRolePermissionsFromMenus(conn, 8, []);
+
+    expect(result.supplemental).toBe(1);
+    expect(conn.execute).toHaveBeenCalledWith('SELECT id FROM permissions WHERE code = ? LIMIT 1', [
+      'lookup:read',
+    ]);
+  });
+
+  test('受管岗位的补充权限统一包含公共权限与模板精确权限', () => {
+    const codes = supplementalPermissionCodesForRole(
+      {
+        code: 'inventory_operator',
+        is_super_admin: 0,
+      },
+      ['inventory:stock:export', 'inventory:outbound:cancel', 'system:print:view']
+    );
+
+    expect(codes).toEqual(
+      expect.arrayContaining([
+        'dashboard',
+        'lookup:read',
+        'basedata:materials:view',
+        'inventory:stock:export',
+      ])
+    );
+    expect(codes).not.toContain('inventory:outbound:cancel');
+    expect(codes).not.toContain('system:print:view');
+  });
+
+  test('受管岗位会补齐注册表中符合权限前缀的无菜单动作码', () => {
+    const codes = supplementalPermissionCodesForRole({ code: 'system_admin', is_super_admin: 0 }, [
+      'system:print:view',
+      'system:print:create',
+      'inventory:stock:view',
+    ]);
+
+    expect(codes).toEqual(expect.arrayContaining(['system:print:view', 'system:print:create']));
+    expect(codes).not.toContain('inventory:stock:view');
+  });
+
+  test('超级管理员同步为全部启用权限', async () => {
+    const conn = mockConn([
+      {
+        match: (sql) => sql.includes('SELECT id, code, is_super_admin FROM roles'),
+        result: [[{ id: 1, code: 'admin', is_super_admin: 1 }]],
+      },
+      {
+        match: (sql) => sql.includes('INSERT INTO role_permissions'),
+        result: [{ affectedRows: 339 }],
+      },
+    ]);
+
+    const result = await syncRolePermissionsFromMenus(conn, 1, []);
+
+    expect(result.inserted).toBe(339);
+    expect(conn.execute).toHaveBeenCalledWith(
+      expect.stringContaining('SELECT ?, id, NOW() FROM permissions WHERE status = 1'),
+      [1]
+    );
+  });
+
   test('禁用菜单不会向角色授予权限', async () => {
     const conn = {
-      execute: jest.fn().mockResolvedValueOnce([
-        [{ id: 9, permission: 'system:users:update', name: '用户编辑', status: 0 }],
-      ]),
+      execute: jest
+        .fn()
+        .mockResolvedValueOnce([
+          [{ id: 9, permission: 'system:users:update', name: '用户编辑', status: 0 }],
+        ]),
     };
 
     await grantMenuPermissionToRoles(conn, 9, [1, 2]);

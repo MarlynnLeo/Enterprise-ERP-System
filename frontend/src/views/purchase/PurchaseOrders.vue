@@ -21,10 +21,10 @@
       @reset="resetSearch"
     >
       <template #basic>
-        <el-form-item label="物料名称">
+        <el-form-item label="物料/订单搜索">
           <el-input
             v-model="searchForm.keyword"
-            placeholder="物料名称"
+            placeholder="输入物料编码/物料名称/订单号"
             clearable
             @clear="handleSearch"
             @keyup.enter="handleSearch"
@@ -212,7 +212,7 @@
                 <el-button
                   size="small"
                   type="success"
-                  v-permission="'purchase:orders:update'"
+                  v-permission="'purchase:orders:submit'"
                   :disabled="loading || !hasPurchaseOrderSupplier(scope.row)"
                   @click="updateStatus(scope.row.id, 'pending')"
                 >
@@ -234,7 +234,7 @@
               v-if="['confirmed', 'approved', 'partial_received'].includes(scope.row.status)"
               size="small"
               type="primary"
-              v-permission="'purchase:orders:update'"
+              v-permission="'purchase:orders:pushdown'"
               @click="openReceiveDialog(scope.row)"
             >
               到货
@@ -543,7 +543,7 @@
       v-model="viewDialogVisible"
       title="采购订单详情"
       mode="view"
-      width="850px"
+      width="1000px"
       :detail-navigation="purchaseOrderViewNavigation"
     >
       <div v-loading="detailLoading" class="order-view">
@@ -563,32 +563,36 @@
         </el-descriptions>
         <el-divider content-position="center">订单明细</el-divider>
         <el-table :data="viewData.items || []" border class="w-full purchase-view-table">
-          <el-table-column type="index" label="序号" width="60"></el-table-column>
-          <el-table-column prop="materialCode" label="物料编码" width="130" show-overflow-tooltip></el-table-column>
-          <el-table-column prop="materialName" label="物料名称" min-width="150" show-overflow-tooltip></el-table-column>
-          <el-table-column prop="specification" label="规格" min-width="150" show-overflow-tooltip></el-table-column>
-          <el-table-column prop="unit" label="单位" width="70"></el-table-column>
-          <el-table-column label="数量" width="90">
+          <el-table-column type="index" label="序号" width="55" align="center"></el-table-column>
+          <el-table-column prop="materialCode" label="物料编码" width="120" show-overflow-tooltip></el-table-column>
+          <el-table-column prop="materialName" label="物料名称" min-width="140" show-overflow-tooltip></el-table-column>
+          <el-table-column prop="specification" label="规格" min-width="140" show-overflow-tooltip></el-table-column>
+          <el-table-column prop="unit" label="单位" width="55" align="center">
+            <template #default="scope">
+              {{ scope.row.unit || scope.row.unitName || scope.row.unit_name || '-' }}
+            </template>
+          </el-table-column>
+          <el-table-column label="数量" width="80" align="right" header-align="right">
             <template #default="scope">
               {{ parseFloat(scope.row.quantity || 0).toFixed(2) }}
             </template>
           </el-table-column>
-          <el-table-column label="单价" width="100">
+          <el-table-column label="单价" width="80" align="right" header-align="right">
             <template #default="scope">
               {{ formatCurrency(scope.row.price) }}
             </template>
           </el-table-column>
-          <el-table-column label="金额" width="120">
+          <el-table-column label="金额" width="95" align="right" header-align="right">
             <template #default="scope">
-              {{ formatCurrency(scope.row.totalPrice) }}
+              {{ formatOrderLineAmount(scope.row) }}
             </template>
           </el-table-column>
-          <el-table-column label="已收货" width="80">
+          <el-table-column label="已收货" width="75" align="right" header-align="right">
             <template #default="scope">
               <el-text type="primary">{{ parseFloat(scope.row.receivedQuantity || 0).toFixed(1) }}</el-text>
             </template>
           </el-table-column>
-          <el-table-column label="已入库" width="80">
+          <el-table-column label="已入库" width="75" align="right" header-align="right">
             <template #default="scope">
               <el-text type="success">{{ parseFloat(scope.row.warehousedQuantity || 0).toFixed(1) }}</el-text>
             </template>
@@ -664,7 +668,7 @@
       v-model="receiveDialogVisible"
       title="确认到货"
       mode="form"
-      width="850px"
+      width="1200px"
       :close-on-click-modal="false"
     >
       <div v-loading="receiveDialogLoading">
@@ -674,7 +678,7 @@
           :closable="false"
           class="mb-20"
         >
-          请选择本次到货的物料并填写到货数量。可以只选择部分物料到货。
+          系统已默认带入采购待收数量，支持直接点击确认全量到货，亦可根据实际情况修改部分到货数量。
         </el-alert>
         <el-table
           ref="receiveTableRef"
@@ -683,38 +687,42 @@
           class="w-full"
           max-height="400px"
         >
-          <el-table-column type="index" label="序号" width="60"></el-table-column>
-          <el-table-column prop="materialCode" label="物料编码" width="120"></el-table-column>
-          <el-table-column prop="materialName" label="物料名称" min-width="120"></el-table-column>
-          <el-table-column prop="specification" label="规格" width="200"></el-table-column>
-          <el-table-column prop="unit" label="单位" width="55"></el-table-column>
-          <el-table-column label="订单" width="70">
+          <el-table-column type="index" label="序号" width="55" align="center"></el-table-column>
+          <el-table-column prop="materialCode" label="物料编码" width="120" show-overflow-tooltip></el-table-column>
+          <el-table-column prop="materialName" label="物料名称" min-width="130" show-overflow-tooltip></el-table-column>
+          <el-table-column prop="specification" label="规格" min-width="130" show-overflow-tooltip></el-table-column>
+          <el-table-column prop="unit" label="单位" width="55" align="center">
+            <template #default="scope">
+              {{ scope.row.unit || scope.row.unitName || scope.row.unit_name || '-' }}
+            </template>
+          </el-table-column>
+          <el-table-column label="采购数" width="75" align="right" header-align="right">
             <template #default="scope">
               {{ parseFloat(scope.row.quantity || 0).toFixed(1) }}
             </template>
           </el-table-column>
-          <el-table-column label="已收货" width="70">
+          <el-table-column label="已收货" width="70" align="right" header-align="right">
             <template #default="scope">
               <el-text type="primary">
                 {{ parseFloat(scope.row.receivedQuantity || 0).toFixed(1) }}
               </el-text>
             </template>
           </el-table-column>
-          <el-table-column label="已检验" width="70">
+          <el-table-column label="已检验" width="70" align="right" header-align="right">
             <template #default="scope">
               <el-text type="warning">
                 {{ parseFloat(scope.row.inspectedQuantity || 0).toFixed(1) }}
               </el-text>
             </template>
           </el-table-column>
-          <el-table-column label="合格" width="70">
+          <el-table-column label="合格" width="65" align="right" header-align="right">
             <template #default="scope">
               <el-text type="success">
                 {{ parseFloat(scope.row.qualifiedQuantity || 0).toFixed(1) }}
               </el-text>
             </template>
           </el-table-column>
-          <el-table-column label="不合格" width="70">
+          <el-table-column label="不合格" width="65" align="right" header-align="right">
             <template #default="scope">
               <el-text
                 v-if="parseFloat(scope.row.unqualifiedQuantity || 0) > 0"
@@ -725,26 +733,27 @@
               <el-text v-else type="info">0.0</el-text>
             </template>
           </el-table-column>
-          <el-table-column label="已入库" width="70">
+          <el-table-column label="已入库" width="70" align="right" header-align="right">
             <template #default="scope">
               <el-text type="success">
                 {{ parseFloat(scope.row.warehousedQuantity || 0).toFixed(1) }}
               </el-text>
             </template>
           </el-table-column>
-          <el-table-column label="待收货" width="70">
+          <el-table-column label="待收货" width="70" align="right" header-align="right">
             <template #default="scope">
               <el-text type="warning">
                 {{ (parseFloat(scope.row.quantity || 0) - parseFloat(scope.row.receivedQuantity || 0)).toFixed(1) }}
               </el-text>
             </template>
           </el-table-column>
-          <el-table-column label="到货" width="90">
+          <el-table-column label="本次到货" width="95" align="center">
             <template #default="scope">
               <el-input
                 v-model="scope.row.receiveQuantity"
                 size="small"
                 :disabled="parseFloat(scope.row.pendingQuantity || 0) <= 0"
+                @input="handleReceiveQuantityChange(scope.row)"
                 @blur="handleReceiveQuantityChange(scope.row)"
                 @keyup.enter="handleReceiveQuantityChange(scope.row)"
               />
@@ -872,9 +881,19 @@ const canDeleteOrder = (row) => DELETABLE_ORDER_STATUSES.includes(row?.status)
 const deleteOrder = _deleteOrder
 const isBlankAmount = (value) => value === null || value === undefined || value === ''
 const formatOrderLineAmount = (row) => {
-  if (!isBlankAmount(row?.total_price)) return formatCurrency(row.totalPrice)
-  if (isBlankAmount(row?.quantity) || isBlankAmount(row?.price)) return '-'
-  return formatCurrency(Number(row.quantity) * Number(row.price))
+  const lineAmount = row?.totalPrice ?? row?.total ?? row?.amount ?? row?.total_price
+  if (!isBlankAmount(lineAmount) && Number(lineAmount) > 0) {
+    return formatCurrency(lineAmount)
+  }
+  const qty = Number(row?.quantity)
+  const prc = Number(row?.price ?? row?.unitPrice)
+  if (!isNaN(qty) && !isNaN(prc) && qty > 0) {
+    return formatCurrency(qty * prc)
+  }
+  if (!isBlankAmount(lineAmount)) {
+    return formatCurrency(lineAmount)
+  }
+  return '-'
 }
 
 // 加载订单列表
@@ -1077,6 +1096,15 @@ onActivated(async () => {
   min-width: 0;
   white-space: normal;
   word-break: break-word;
+}
+.order-view :deep(.el-divider) {
+  margin: 20px 0 16px 0;
+}
+.order-view :deep(.el-divider__text) {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
 }
 :deep(.el-table__cell) {
   overflow: hidden;

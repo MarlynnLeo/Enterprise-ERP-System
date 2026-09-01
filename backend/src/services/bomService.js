@@ -8,12 +8,19 @@ const BOM_TREE_MAX_DEPTH = 20;
 function formatBomDetail(detail = {}) {
   const parentId = Number(detail.parent_id);
   const refBomId = Number(detail.ref_bom_id);
+  const rawBaseQty = Number(detail.base_quantity !== undefined ? detail.base_quantity : detail.baseQuantity);
+  const baseQuantity = Number.isFinite(rawBaseQty) && rawBaseQty > 0 ? rawBaseQty : 1;
+  const isCritical = Number(detail.is_critical || detail.isCritical) === 1 ? 1 : 0;
 
   return {
     id: detail.id,
     bom_id: detail.bom_id,
     material_id: detail.material_id,
     quantity: Number(detail.quantity),
+    base_quantity: baseQuantity,
+    baseQuantity: baseQuantity,
+    is_critical: isCritical,
+    isCritical: Boolean(isCritical),
     unit_id: detail.unit_id,
     remark: detail.remark || '',
     material_code: detail.material_code,
@@ -221,7 +228,7 @@ const bomService = {
           LEFT JOIN materials m ON bd.material_id = m.id
           LEFT JOIN units u ON bd.unit_id = u.id
           WHERE bd.bom_id IN (?)
-          ORDER BY bd.bom_id, bd.level ASC, bd.id ASC
+          ORDER BY bd.bom_id, bd.level ASC, m.code ASC, bd.id ASC
         `,
           [bomIds]
         );
@@ -301,32 +308,42 @@ const bomService = {
         LEFT JOIN materials m ON bd.material_id = m.id
         LEFT JOIN units u ON bd.unit_id = u.id
         WHERE bd.bom_id = ?
-        ORDER BY bd.level ASC, bd.id ASC
+        ORDER BY bd.level ASC, m.code ASC, bd.id ASC
       `,
         [id]
       );
 
-      // 对明细进行层次排序，确保子级紧跟在父级后面
+      // 对明细进行层次排序，确保子级紧跟在父级后面，且同级按物料编码自然升序
       const details = [];
+
+      const compareCode = (a, b) =>
+        String(a.material_code || '').localeCompare(
+          String(b.material_code || ''),
+          undefined,
+          { numeric: true, sensitivity: 'base' }
+        );
 
       // 递归添加明细及其子级
       const addDetailWithChildren = (detail) => {
         details.push(detail);
-        // 查找该明细的所有子级
-        detailRows.forEach((child) => {
-          if (String(child.parent_id) === String(detail.id)) {
-            addDetailWithChildren(child);
-          }
+        // 查找该明细的所有子级，按物料编码升序
+        const children = detailRows
+          .filter((child) => String(child.parent_id) === String(detail.id))
+          .sort(compareCode);
+
+        children.forEach((child) => {
+          addDetailWithChildren(child);
         });
       };
 
-      // 先添加所有一级明细及其子级
-      detailRows.forEach((detail) => {
-        if (Number(detail.level) === 1 || Number(detail.parent_id) === 0) {
-          // 检查是否已经添加过（避免重复）
-          if (!details.find((d) => d.id === detail.id)) {
-            addDetailWithChildren(detail);
-          }
+      // 先添加所有一级明细及其子级，一级明细按物料编码升序
+      const topLevelDetails = detailRows
+        .filter((detail) => Number(detail.level) === 1 || Number(detail.parent_id) === 0)
+        .sort(compareCode);
+
+      topLevelDetails.forEach((detail) => {
+        if (!details.find((d) => d.id === detail.id)) {
+          addDetailWithChildren(detail);
         }
       });
 
@@ -385,7 +402,7 @@ const bomService = {
         LEFT JOIN materials m ON bd.material_id = m.id
         LEFT JOIN units u ON bd.unit_id = u.id
         WHERE bd.bom_id = ?
-        ORDER BY bd.level ASC, bd.id ASC
+        ORDER BY bd.level ASC, m.code ASC, bd.id ASC
       `,
         [bomId]
       );
@@ -508,6 +525,22 @@ const bomService = {
       }
     });
 
+    const sortTree = (nodes) => {
+      nodes.sort((a, b) =>
+        String(a.material_code || '').localeCompare(
+          String(b.material_code || ''),
+          undefined,
+          { numeric: true, sensitivity: 'base' }
+        )
+      );
+      nodes.forEach((n) => {
+        if (n.children && n.children.length > 0) {
+          sortTree(n.children);
+        }
+      });
+    };
+
+    sortTree(tree);
     return tree;
   },
 
@@ -599,9 +632,17 @@ const bomService = {
       );
     }
 
+    const rawBaseQty = Number(detail.base_quantity !== undefined ? detail.base_quantity : detail.baseQuantity);
+    const baseQuantity = Number.isFinite(rawBaseQty) && rawBaseQty > 0 ? rawBaseQty : 1;
+
+    const rawIsCritical = detail.is_critical !== undefined ? detail.is_critical : detail.isCritical;
+    const isCritical = rawIsCritical === true || rawIsCritical === 1 || rawIsCritical === '1' ? 1 : 0;
+
     return {
       material_id: materialId,
       quantity: Number(detail.quantity) || 0,
+      base_quantity: baseQuantity,
+      is_critical: isCritical,
       unit_id: unitId,
       remark: detail.remark || null,
       level: Number(detail.level) || 1,
@@ -682,12 +723,14 @@ const bomService = {
 
       const [detailResult] = await connection.execute(
         `INSERT INTO bom_details
-         (bom_id, material_id, quantity, unit_id, remark, level, parent_id, has_sub_bom, ref_bom_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (bom_id, material_id, quantity, base_quantity, is_critical, unit_id, remark, level, parent_id, has_sub_bom, ref_bom_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           bomId,
           normalizedDetail.material_id,
           normalizedDetail.quantity,
+          normalizedDetail.base_quantity,
+          normalizedDetail.is_critical,
           normalizedDetail.unit_id,
           normalizedDetail.remark,
           normalizedDetail.level,

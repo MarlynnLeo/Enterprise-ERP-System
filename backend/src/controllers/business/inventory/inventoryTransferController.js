@@ -923,70 +923,17 @@ const updateTransferStatus = async (req, res) => {
         currentStatus === STATUS.TRANSFER.COMPLETED &&
         newStatus === STATUS.TRANSFER.REVERSED
       ) {
-        const [already] = await connection.execute(
-          `SELECT COUNT(*) AS count
-           FROM inventory_ledger
-           WHERE reference_no = ?
-             AND transaction_type IN ('transfer_cancel_in', 'transfer_cancel_out')`,
-          [transfer.transfer_no]
+        const InventoryPostingService = require('../../../services/InventoryPostingService');
+        const posting = await InventoryPostingService.requireApprovedForTransaction(connection, {
+          reference_no: transfer.transfer_no,
+          reference_type: 'transfer',
+        });
+        await InventoryPostingService.reverse(
+          posting.id,
+          { label: operatorName },
+          `冲销调拨单 ${transfer.transfer_no}`,
+          connection
         );
-        if (Number(already[0]?.count || 0) > 0) {
-          await connection.rollback();
-          return ResponseHandler.error(
-            res,
-            '该调拨单已有冲销流水，禁止重复冲销',
-            'VALIDATION_ERROR',
-            400
-          );
-        }
-
-        const [ledgerRows] = await connection.execute(
-          `SELECT id, material_id, location_id, unit_id, batch_number, quantity, transaction_type
-           FROM inventory_ledger
-           WHERE reference_no = ?
-             AND transaction_type IN ('transfer_out', 'transfer_in')
-           ORDER BY material_id ASC, location_id ASC, id ASC`,
-          [transfer.transfer_no]
-        );
-
-        if (ledgerRows.length === 0) {
-          await connection.rollback();
-          return ResponseHandler.error(
-            res,
-            '找不到该调拨单台账，无法安全冲销',
-            'VALIDATION_ERROR',
-            400
-          );
-        }
-
-        for (const ledger of ledgerRows) {
-          const qty = parseFloat(ledger.quantity) || 0;
-          if (qty === 0 || !ledger.location_id) continue;
-
-          const reverseQty = -qty;
-          const reverseType =
-            ledger.transaction_type === 'transfer_out'
-              ? 'transfer_cancel_out'
-              : 'transfer_cancel_in';
-
-          await InventoryService.updateStock(
-            {
-              materialId: ledger.material_id,
-              locationId: ledger.location_id,
-              quantity: reverseQty,
-              transactionType: reverseType,
-              referenceNo: transfer.transfer_no,
-              referenceType: 'transfer_reversal',
-              operator: operatorName,
-              remark: `冲销调拨单 ${transfer.transfer_no}，来源台账 ${ledger.id}`,
-              unitId: ledger.unit_id,
-              batchNumber:
-                ledger.batch_number || `REV-TR-${transfer.transfer_no}-${ledger.id}`,
-              idempotencyKey: `transfer_cancel:${transfer.transfer_no}:ledger:${ledger.id}`,
-            },
-            connection
-          );
-        }
       }
 
       const [statusUpdate] = await connection.execute(
@@ -1018,13 +965,25 @@ const updateTransferStatus = async (req, res) => {
         continue;
       }
       logger.error('更新库存调拨单状态失败:', error);
-      return ResponseHandler.error(res, '更新库存调拨单状态失败', 'SERVER_ERROR', 500, error);
+      return ResponseHandler.error(
+        res,
+        error.message || '更新库存调拨单状态失败',
+        error.code || 'SERVER_ERROR',
+        error.statusCode || 500,
+        error
+      );
     } finally {
       connection.release();
     }
   }
 
-  return ResponseHandler.error(res, '更新库存调拨单状态失败', 'SERVER_ERROR', 500, lastError);
+  return ResponseHandler.error(
+    res,
+    lastError?.message || '更新库存调拨单状态失败',
+    lastError?.code || 'SERVER_ERROR',
+    lastError?.statusCode || 500,
+    lastError
+  );
 };
 
 // 获取调拨单统计信息

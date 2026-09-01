@@ -44,7 +44,12 @@ exports.calculateMaterials = async (req, res) => {
       return ResponseHandler.error(res, '未找到有效的BOM', 'NOT_FOUND', 404);
     }
 
-    const materials = await calculateMaterialRequirementsWithStock(productId, bomId, quantity, null);
+    const materials = await calculateMaterialRequirementsWithStock(
+      productId,
+      bomId,
+      quantity,
+      null
+    );
 
     ResponseHandler.success(res, materials);
   } catch (error) {
@@ -83,7 +88,12 @@ exports.calculateMaterialsByBomId = async (req, res) => {
       return ResponseHandler.error(res, '未找到有效的BOM', 'NOT_FOUND', 404);
     }
 
-    const materials = await calculateMaterialRequirementsWithStock(bomCheck[0].product_id, bomId, parseFloat(quantity), null);
+    const materials = await calculateMaterialRequirementsWithStock(
+      bomCheck[0].product_id,
+      bomId,
+      parseFloat(quantity),
+      null
+    );
 
     ResponseHandler.success(res, { materials });
   } catch (error) {
@@ -199,6 +209,7 @@ exports.getMaterialShortageSummary = async (req, res) => {
         u.name as material_unit,
         ppm.required_quantity,
         COALESCE(inv.stock_quantity, 0) as current_stock_quantity,
+        COALESCE(po_pending.pending_receipt_quantity, 0) as pending_receipt_quantity,
         CASE
           WHEN EXISTS (
             SELECT 1
@@ -226,6 +237,16 @@ exports.getMaterialShortageSummary = async (req, res) => {
         WHERE mat.location_id IS NULL OR il.location_id = mat.location_id
         GROUP BY il.material_id
       ) inv ON inv.material_id = ppm.material_id
+      LEFT JOIN (
+        SELECT
+          poi.material_id,
+          SUM(GREATEST(COALESCE(poi.quantity, 0) - COALESCE(poi.received_quantity, 0), 0)) as pending_receipt_quantity
+        FROM purchase_orders po
+        INNER JOIN purchase_order_items poi ON po.id = poi.order_id
+        WHERE po.status IN ('approved', 'partial_received')
+          AND po.deleted_at IS NULL
+        GROUP BY poi.material_id
+      ) po_pending ON po_pending.material_id = ppm.material_id
       ${scopeClause.join || ''}
       WHERE pp.status IN (?)
         AND pp.deleted_at IS NULL
@@ -236,7 +257,11 @@ exports.getMaterialShortageSummary = async (req, res) => {
       ORDER BY m.id ASC, pp.start_date ASC, pp.created_at ASC, pp.id ASC
     `;
 
-    const [rows] = await pool.query(query, [activeStatuses, ...(scopeClause.params || []), ...searchParams]);
+    const [rows] = await pool.query(query, [
+      activeStatuses,
+      ...(scopeClause.params || []),
+      ...searchParams,
+    ]);
     const stockCursor = new Map();
     const calculatedRows = [];
 
@@ -279,6 +304,7 @@ exports.getMaterialShortageSummary = async (req, res) => {
         required_quantity: requiredQuantity,
         stock_quantity: allocatedStock,
         current_stock_quantity: parseFloat(item.current_stock_quantity) || 0,
+        pending_receipt_quantity: parseFloat(item.pending_receipt_quantity) || 0,
         shortage_quantity: shortageQuantity,
 
         purchase_status: item.purchase_status || PURCHASE_PENDING,
@@ -304,13 +330,17 @@ exports.getMaterialShortageSummary = async (req, res) => {
       totalShortage: calculatedRows.reduce((sum, item) => sum + item.shortage_quantity, 0),
     };
 
-    ResponseHandler.success(res, {
-      list: result,
-      total,
-      page,
-      pageSize,
-      statistics,
-    }, '查询成功');
+    ResponseHandler.success(
+      res,
+      {
+        list: result,
+        total,
+        page,
+        pageSize,
+        statistics,
+      },
+      '查询成功'
+    );
   } catch (error) {
     logger.error('获取缺料统计失败:', error);
     handleError(res, error);

@@ -536,98 +536,27 @@ class InboundTransactionService {
       throw new Error('入库单号缺失，无法冲销');
     }
 
-    const [already] = await connection.execute(
-      `SELECT COUNT(*) AS count
-       FROM inventory_ledger
-       WHERE reference_no = ?
-         AND transaction_type = 'inbound_cancel'
-         AND quantity < 0`,
-      [inboundNo]
+    const InventoryPostingService = require('../InventoryPostingService');
+    const posting = await InventoryPostingService.requireApprovedForTransaction(connection, {
+      reference_no: inboundNo,
+      reference_type: 'inbound',
+    });
+    const [rows] = await connection.execute(
+      `SELECT id, ABS(signed_quantity) AS qty
+         FROM inventory_posting_lines
+        WHERE posting_document_id = ?
+        ORDER BY line_no`,
+      [posting.id]
     );
-    if (Number(already[0]?.count || 0) > 0) {
-      throw new Error('该入库单已有冲销流水，禁止重复冲销');
-    }
-
-    const [ledgerRows] = await connection.execute(
-      `SELECT
-         id,
-         material_id,
-         location_id,
-         unit_id,
-         batch_number,
-         ABS(quantity) AS qty
-       FROM inventory_ledger
-       WHERE reference_no = ?
-         AND quantity > 0
-         AND (
-           reference_type IN ('inbound', 'production_inbound', 'purchase_inbound')
-           OR reference_type IS NULL
-           OR reference_type = ''
-         )
-       ORDER BY material_id ASC, location_id ASC, id ASC`,
-      [inboundNo]
+    await InventoryPostingService.reverse(
+      posting.id,
+      { label: await resolveActorLabel(null, operator) },
+      `冲销入库单 ${inboundNo}`,
+      connection
     );
-
-    // 兼容仅写 transaction_type 未写 reference_type 的历史数据
-    let rows = ledgerRows;
-    if (rows.length === 0) {
-      const [fallback] = await connection.execute(
-        `SELECT id, material_id, location_id, unit_id, batch_number, ABS(quantity) AS qty
-         FROM inventory_ledger
-         WHERE reference_no = ? AND quantity > 0
-         ORDER BY material_id ASC, location_id ASC, id ASC`,
-        [inboundNo]
-      );
-      rows = fallback;
-    }
-
-    if (rows.length === 0) {
-      throw new Error('找不到该入库单的正向台账，无法安全冲销');
-    }
-
-    // 先按固定顺序预锁库位，再回冲
-    const lockKeys = new Set();
-    for (const ledger of rows) {
-      if (!ledger.location_id || !ledger.material_id) continue;
-      const key = `${ledger.material_id}:${ledger.location_id}`;
-      if (lockKeys.has(key)) continue;
-      lockKeys.add(key);
-      await InventoryService.getCurrentStock(
-        ledger.material_id,
-        ledger.location_id,
-        connection,
-        true,
-        false
-      );
-    }
-
-    for (const ledger of rows) {
-      const qty = parseFloat(ledger.qty) || 0;
-      if (qty <= 0) continue;
-      if (!ledger.location_id) {
-        throw new Error(`台账 ${ledger.id} 缺少库位，无法冲销`);
-      }
-
-      await InventoryService.updateStock(
-        {
-          materialId: ledger.material_id,
-          locationId: ledger.location_id,
-          quantity: -qty,
-          transactionType: 'inbound_cancel',
-          referenceNo: inboundNo,
-          referenceType: 'inbound_reversal',
-          operator: await resolveActorLabel(null, operator),
-          remark: `冲销入库单 ${inboundNo}，来源台账 ${ledger.id}`,
-          unitId: ledger.unit_id,
-          batchNumber: ledger.batch_number || `REV-IN-${inboundNo}-${ledger.id}`,
-          idempotencyKey: `inbound_cancel:${inboundNo}:ledger:${ledger.id}`,
-        },
-        connection
-      );
-    }
 
     logger.info(
-      `入库单 ${inboundNo} 冲销完成，回冲 ${rows.length} 条台账`
+      `入库单 ${inboundNo} 冲销完成，回冲 ${rows.length} 条冻结明细`
     );
 
     // 生产入库冲销：回退任务状态（completed/warehousing → warehousing 或 inspection）

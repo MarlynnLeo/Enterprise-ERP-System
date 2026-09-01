@@ -229,7 +229,7 @@ const ValidationRules = {
     username: { required: true, length: { min: 2, max: 50 } },
     email: { required: true, email: true },
     phone: { phone: true },
-    password: { required: true, length: { min: 6, max: 100 } },
+    password: { required: true, length: { min: 12, max: 128 } },
   },
 };
 

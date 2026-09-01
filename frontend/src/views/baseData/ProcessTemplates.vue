@@ -1,18 +1,19 @@
-﻿<!--
+<!--
 /**
  * ProcessTemplates.vue
- * @description 前端界面组件文件
-  * @date 2025-08-27
- * @version 1.0.0
+ * @description 工序模板管理组件
+ * @date 2025-08-27
+ * @version 1.1.0
  */
 -->
 <template>
   <div class="module-page base-data-list-page">
     <PageHeader title="工序模板管理" subtitle="管理生产工序模板配置">
       <template #actions>
-<el-button v-if="canCreate" type="primary" :icon="Plus" @click="showCreateDialog">新增工序模板</el-button>
+        <el-button v-if="canCreate" type="primary" :icon="Plus" @click="showCreateDialog">新增工序模板</el-button>
       </template>
     </PageHeader>
+
     <!-- 搜索区域 -->
     <FinanceQueryCard
       :model="searchForm"
@@ -42,39 +43,50 @@
       </template>
       <template #advanced>
         <el-form-item label="工序模板名称">
-          <el-input  v-model="searchForm.name" placeholder="请输入模板名称" clearable />
+          <el-input v-model="searchForm.name" placeholder="请输入模板名称" clearable />
         </el-form-item>
       </template>
       <template #actions>
-          <el-button type="success" @click="handleExport">
-            <el-icon><Download /></el-icon> 导出
-          </el-button>
+        <el-button type="success" @click="handleExport">
+          <el-icon><Download /></el-icon> 导出
+        </el-button>
       </template>
     </FinanceQueryCard>
+
     <!-- 数据表格 -->
     <el-card class="data-card">
       <el-table
         :data="templateList"
         border
-        class="w-full"
+        class="w-full table-row-click"
         v-loading="loading"
+        @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))"
       >
         <template #empty>
           <EmptyState description="暂无工序模板数据" />
         </template>
+
         <!-- 展开详情列 -->
         <el-table-column type="expand" width="50">
           <template #default="props">
             <div class="process-detail p-detail">
               <h4>工序列表</h4>
-              <el-table class="table-row-click" :data="props.row.processes" border
-      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
-                <el-table-column prop="orderNum" label="工序顺序" width="100" />
+              <el-table
+                class="table-row-click"
+                :data="props.row.processes || props.row.details || []"
+                border
+                @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(props.row))"
+              >
+                <el-table-column prop="orderNum" label="工序顺序" width="100" align="center" />
                 <el-table-column prop="name" label="工序名称" width="180" />
-                <el-table-column prop="description" label="工序描述" min-width="200" />
-                <el-table-column prop="standardHours" label="标准工时(小时)" width="140" />
+                <el-table-column prop="description" label="工序描述" min-width="200" show-overflow-tooltip />
+                <el-table-column prop="standardHours" label="标准工时(小时)" width="140" align="center">
+                  <template #default="{ row }">
+                    <el-tag size="small" type="warning">{{ row.standardHours ?? row.standard_hours ?? 0 }} h</el-tag>
+                  </template>
+                </el-table-column>
                 <el-table-column prop="department" label="执行部门" width="120" />
-                <el-table-column prop="remark" label="备注" min-width="150" />
+                <el-table-column prop="remark" label="备注" min-width="150" show-overflow-tooltip />
               </el-table>
             </div>
           </template>
@@ -84,15 +96,15 @@
         <el-table-column prop="name" label="模板名称" width="200" />
         <el-table-column prop="productName" label="关联产品" min-width="180">
           <template #default="scope">
-            {{ scope.row.productCode ? `${scope.row.productCode} - ${scope.row.productName}` : '-' }}
+            {{ scope.row.productCode ? `${scope.row.productCode} - ${scope.row.productName}` : (scope.row.productName || '-') }}
           </template>
         </el-table-column>
-        <el-table-column prop="processCount" label="工序数量" width="100">
+        <el-table-column prop="processCount" label="工序数量" width="100" align="center">
           <template #default="scope">
             {{ scope.row.processes ? scope.row.processes.length : (scope.row.details ? scope.row.details.length : 0) }}
           </template>
         </el-table-column>
-        <el-table-column prop="totalHours" label="总工时(小时)" width="120">
+        <el-table-column prop="totalHours" label="总工时(小时)" width="120" align="center">
           <template #default="scope">
             {{ calculateTotalHours(scope.row.processes || scope.row.details) }}
           </template>
@@ -102,24 +114,39 @@
             {{ formatDateTime(scope.row.createdAt) }}
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column prop="status" label="状态" width="100" align="center">
           <template #default="scope">
             <el-tag :type="Number(scope.row.status) === 1 ? 'success' : 'info'">
               {{ Number(scope.row.status) === 1 ? '启用' : '禁用' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="330" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
-      >
+        <el-table-column
+          label="操作"
+          min-width="260"
+          fixed="right"
+          align="left"
+          header-align="left"
+          class-name="operation-column"
+          header-class-name="operation-column-header"
+        >
           <template #default="scope">
-            
+            <el-button
+              size="small"
+              type="primary"
+              link
+              @click.stop="handleView(scope.row)"
+            >
+              <el-icon><View /></el-icon> 查看
+            </el-button>
+
             <el-popconfirm
               v-if="canUpdate && Number(scope.row.status) !== 1"
               title="确定要启用该工序模板吗？"
               @confirm="handleToggleStatus(scope.row)"
             >
               <template #reference>
-                <el-button size="small" type="success" plain>
+                <el-button size="small" type="success" plain @click.stop>
                   <el-icon><Switch /></el-icon> 启用
                 </el-button>
               </template>
@@ -131,17 +158,19 @@
               confirm-button-type="warning"
             >
               <template #reference>
-                <el-button size="small" type="warning" plain>
+                <el-button size="small" type="warning" plain @click.stop>
                   <el-icon><Switch /></el-icon> 禁用
                 </el-button>
               </template>
             </el-popconfirm>
+
             <template v-if="Number(scope.row.status) === 0">
               <el-button
                 v-if="canUpdate"
                 size="small"
                 type="primary"
-                @click="handleEdit(scope.row)">
+                @click.stop="handleEdit(scope.row)"
+              >
                 <el-icon><Edit /></el-icon> 编辑
               </el-button>
               <el-popconfirm
@@ -151,7 +180,7 @@
                 confirm-button-type="danger"
               >
                 <template #reference>
-                  <el-button size="small" type="danger">
+                  <el-button size="small" type="danger" @click.stop>
                     <el-icon><Delete /></el-icon> 删除
                   </el-button>
                 </template>
@@ -174,27 +203,16 @@
         />
       </div>
     </el-card>
-    <!-- 创建/编辑/查看对话框 -->
+
+    <!-- 创建/编辑表单对话框 -->
     <AppDialog
       v-model="dialogVisible"
-      :mode="dialogType === 'view' ? 'view' : 'form'"
-      :title="dialogType === 'create' ? '新增工序模板' : (dialogType === 'view' ? '查看工序模板' : '编辑工序模板')"
-      width="800px"
+      mode="form"
+      :title="dialogType === 'create' ? '新增工序模板' : '编辑工序模板'"
+      width="850px"
       content-width="wide"
-      :detail-navigation="dialogType === 'view' ? processTemplateViewNavigation : null"
     >
-      <template v-if="dialogType === 'view'">
-        <el-descriptions :column="2" border class="mb-20">
-          <el-descriptions-item label="模板编号">{{ form.code || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="模板名称">{{ form.name }}</el-descriptions-item>
-          <el-descriptions-item label="关联产品">
-            {{ productOptions.find(p => p.id === form.productId) ? `${productOptions.find(p => p.id === form.productId).code || ''} - ${productOptions.find(p => p.id === form.productId).name || '未命名'}` : '-' }}
-          </el-descriptions-item>
-          <el-descriptions-item label="描述" :span="2">{{ form.description || '-' }}</el-descriptions-item>
-        </el-descriptions>
-      </template>
       <el-form
-        v-else
         ref="formRef"
         :model="form"
         :rules="formRules"
@@ -244,120 +262,228 @@
 
       <el-divider>工序列表</el-divider>
 
-        <div class="process-table-container">
-          <div class="process-table-header" v-if="dialogType !== 'view'">
-            <el-button type="primary" size="small" @click="addProcess">
-              <el-icon><Plus /></el-icon> 添加工序
-            </el-button>
-          </div>
-
-          <el-table :data="form.processes" border>
-            <el-table-column label="顺序" width="90">
-              <template #default="{ row }">
-                <span v-if="dialogType === 'view'">{{ row.orderNum }}</span>
-                <el-input
-                  v-else
-                  v-model="row.orderNum"
-                  placeholder="顺序"
-                  size="small"
-                />
-              </template>
-            </el-table-column>
-
-            <el-table-column label="工序名称" width="180">
-              <template #default="{ row }">
-                <span v-if="dialogType === 'view'">{{ row.name }}</span>
-                <el-input v-else v-model="row.name" placeholder="请输入工序名称" />
-              </template>
-            </el-table-column>
-
-            <el-table-column label="工序描述" min-width="200">
-              <template #default="{ row }">
-                <span v-if="dialogType === 'view'">{{ row.description || '-' }}</span>
-                <el-input v-else v-model="row.description" placeholder="请输入工序描述" />
-              </template>
-            </el-table-column>
-
-            <el-table-column label="标准工时(小时)" width="120">
-              <template #default="{ row }">
-                <span v-if="dialogType === 'view'">{{ row.standardHours || '-' }}</span>
-                <el-input
-                  v-else
-                  v-model="row.standardHours"
-                  placeholder="工时"
-                  size="small"
-                />
-              </template>
-            </el-table-column>
-
-            <el-table-column label="执行部门" width="150">
-              <template #default="{ row }">
-                <span v-if="dialogType === 'view'">{{ departmentList.find(d => d.id === row.departmentId)?.name || row.department || '-' }}</span>
-                <el-select v-else v-model="row.department" placeholder="选择部门" filterable>
-                  <el-option
-                    v-for="dept in departmentList"
-                    :key="dept.id"
-                    :label="dept.name"
-                    :value="dept.name"
-                  />
-                </el-select>
-              </template>
-            </el-table-column>
-
-            <el-table-column label="作业指导书" min-width="200">
-              <template #default="{ row }">
-                <div class="flex-row flex-wrap gap-sm">
-                  <el-upload
-                    v-if="dialogType !== 'view'"
-                    :show-file-list="false"
-                    :before-upload="(file) => beforeUploadInstruction(file, row)"
-                    :http-request="(options) => handleUploadInstruction(options, row)"
-                    accept=".doc,.docx,.xls,.xlsx,.ppt,.pptx,.pdf"
-                  >
-                    <el-button size="small" type="success" :icon="Upload">
-                      上传指导书
-                    </el-button>
-                  </el-upload>
-                  <!-- 已上传文件列表 -->
-                  <div v-if="row.instructionDocs && row.instructionDocs.length > 0" class="flex-wrap">
-                    <el-tag
-                      v-for="(doc, index) in row.instructionDocs"
-                      :key="index"
-                      :closable="dialogType !== 'view'"
-                      @close="removeInstructionDoc(row, index)"
-                      @click="viewInstructionDoc(doc)"
-                      class="cursor-pointer"
-                      type="success"
-                    >
-                      {{ doc.name || `文件${index + 1}` }}
-                    </el-tag>
-                  </div>
-                  <span v-else-if="dialogType === 'view'" class="text-muted">暂无指导书</span>
-                </div>
-              </template>
-            </el-table-column>
-            <el-table-column label="备注" min-width="150">
-              <template #default="{ row }">
-                <span v-if="dialogType === 'view'">{{ row.remark || '-' }}</span>
-                <el-input v-else v-model="row.remark" placeholder="请输入备注" />
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" min-width="80" v-if="dialogType !== 'view'" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
-              <template #default="{ $index }">
-                <el-button type="danger" size="small" @click="removeProcess($index)">
-                  <el-icon><Delete /></el-icon>
-                </el-button>
-              </template>
-            </el-table-column>
-          </el-table>
+      <div class="process-table-container">
+        <div class="process-table-header mb-10">
+          <el-button type="primary" size="small" @click="addProcess">
+            <el-icon><Plus /></el-icon> 添加工序
+          </el-button>
         </div>
+
+        <el-table :data="form.processes" border class="w-full">
+          <el-table-column label="顺序" width="90" align="center">
+            <template #default="{ row }">
+              <el-input
+                v-model="row.orderNum"
+                placeholder="顺序"
+                size="small"
+              />
+            </template>
+          </el-table-column>
+
+          <el-table-column label="工序名称" width="160">
+            <template #default="{ row }">
+              <el-input v-model="row.name" placeholder="请输入工序名称" size="small" />
+            </template>
+          </el-table-column>
+
+          <el-table-column label="工序描述" min-width="180">
+            <template #default="{ row }">
+              <el-input v-model="row.description" placeholder="请输入工序描述" size="small" />
+            </template>
+          </el-table-column>
+
+          <el-table-column label="标准工时(小时)" width="130">
+            <template #default="{ row }">
+              <el-input-number
+                v-model="row.standardHours"
+                :min="0"
+                :step="0.5"
+                :precision="2"
+                placeholder="工时"
+                size="small"
+                class="w-full"
+              />
+            </template>
+          </el-table-column>
+
+          <el-table-column label="执行部门" width="140">
+            <template #default="{ row }">
+              <el-select v-model="row.department" placeholder="选择部门" filterable size="small" class="w-full">
+                <el-option
+                  v-for="dept in departmentList"
+                  :key="dept.id"
+                  :label="dept.name"
+                  :value="dept.name"
+                />
+              </el-select>
+            </template>
+          </el-table-column>
+
+          <el-table-column label="作业指导书" min-width="180">
+            <template #default="{ row }">
+              <div class="flex-row flex-wrap gap-sm">
+                <el-upload
+                  :show-file-list="false"
+                  :before-upload="(file) => beforeUploadInstruction(file, row)"
+                  :http-request="(options) => handleUploadInstruction(options, row)"
+                  accept=".doc,.docx,.xls,.xlsx,.ppt,.pptx,.pdf"
+                >
+                  <el-button size="small" type="success" :icon="Upload">
+                    上传
+                  </el-button>
+                </el-upload>
+                <!-- 已上传文件列表 -->
+                <div v-if="row.instructionDocs && row.instructionDocs.length > 0" class="flex-wrap">
+                  <el-tag
+                    v-for="(doc, index) in row.instructionDocs"
+                    :key="index"
+                    closable
+                    @close="removeInstructionDoc(row, index)"
+                    @click="viewInstructionDoc(doc)"
+                    class="cursor-pointer"
+                    type="success"
+                    size="small"
+                  >
+                    {{ doc.name || `文件${index + 1}` }}
+                  </el-tag>
+                </div>
+              </div>
+            </template>
+          </el-table-column>
+
+          <el-table-column label="备注" min-width="120">
+            <template #default="{ row }">
+              <el-input v-model="row.remark" placeholder="请输入备注" size="small" />
+            </template>
+          </el-table-column>
+
+          <el-table-column label="操作" width="70" align="center" header-align="center">
+            <template #default="{ $index }">
+              <el-button type="danger" size="small" link @click="removeProcess($index)">
+                <el-icon><Delete /></el-icon>
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+
       <template #footer>
-        <span>
-          <el-button @click="dialogVisible = false">{{ dialogType === 'view' ? '关闭' : '取消' }}</el-button>
-          <el-button v-if="dialogType !== 'view'" type="primary" @click="submitForm">确定</el-button>
+        <span class="dialog-footer">
+          <el-button @click="dialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitForm">确定</el-button>
         </span>
       </template>
     </AppDialog>
+
+    <!-- 工序模板详情查看对话框 -->
+    <AppDialog
+      v-model="viewDialogVisible"
+      title="工序模板详情"
+      mode="view"
+      width="920px"
+      content-width="wide"
+      :detail-navigation="processTemplateViewNavigation"
+    >
+      <div v-loading="viewDetailLoading">
+        <template v-if="viewData">
+          <!-- 基础信息卡片 -->
+          <el-descriptions :column="2" border class="mb-20">
+            <el-descriptions-item label="模板编号">{{ viewData.code || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="模板名称">{{ viewData.name || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="关联产品">
+              {{ viewData.productCode ? `${viewData.productCode} - ${viewData.productName}` : (viewData.productName || '-') }}
+            </el-descriptions-item>
+            <el-descriptions-item label="产品规格">
+              {{ viewData.productSpecs || viewData.specification || '-' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="状态">
+              <el-tag :type="Number(viewData.status) === 1 ? 'success' : 'info'">
+                {{ Number(viewData.status) === 1 ? '启用' : '禁用' }}
+              </el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="工序数量">
+              <el-tag type="primary" size="small">{{ (viewData.processes || viewData.details || []).length }} 道工序</el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="总标准工时">
+              <el-tag type="warning" size="small">{{ calculateTotalHours(viewData.processes || viewData.details) }} 小时</el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="创建时间">
+              {{ formatDateTime(viewData.createdAt) }}
+            </el-descriptions-item>
+            <el-descriptions-item label="模板描述" :span="2">
+              {{ viewData.description || '无' }}
+            </el-descriptions-item>
+          </el-descriptions>
+
+          <!-- 工序列表标题 -->
+          <div style="display: flex; align-items: center; margin: 20px 0 15px;">
+            <div style="flex: 1; border-top: 1px solid var(--el-border-color-light, #e4e7ed);"></div>
+            <div style="padding: 0 15px; font-weight: 500; color: var(--el-text-color-regular, #606266);">
+              工序明细列表
+            </div>
+            <div style="flex: 1; border-top: 1px solid var(--el-border-color-light, #e4e7ed);"></div>
+          </div>
+
+          <!-- 工序列表只读表格 -->
+          <el-table :data="viewData.processes || viewData.details || []" border class="w-full" max-height="350">
+            <el-table-column prop="orderNum" label="序号" width="70" align="center">
+              <template #default="{ row, $index }">
+                {{ row.orderNum || $index + 1 }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="name" label="工序名称" width="160" show-overflow-tooltip>
+              <template #default="{ row }">
+                <strong>{{ row.name || '-' }}</strong>
+              </template>
+            </el-table-column>
+            <el-table-column prop="standardHours" label="标准工时" width="120" align="center">
+              <template #default="{ row }">
+                <el-tag size="small" type="warning">{{ row.standardHours ?? row.standard_hours ?? 0 }} h</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="department" label="执行部门" width="130" show-overflow-tooltip>
+              <template #default="{ row }">
+                {{ row.department || '-' }}
+              </template>
+            </el-table-column>
+            <el-table-column label="作业指导书" width="160" show-overflow-tooltip>
+              <template #default="{ row }">
+                <div v-if="row.instructionDocs && row.instructionDocs.length > 0" class="flex-wrap">
+                  <el-tag
+                    v-for="(doc, index) in row.instructionDocs"
+                    :key="index"
+                    @click="viewInstructionDoc(doc)"
+                    class="cursor-pointer"
+                    type="success"
+                    size="small"
+                  >
+                    {{ doc.name || `指导书${index + 1}` }}
+                  </el-tag>
+                </div>
+                <span v-else class="text-muted">无</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="description" label="工序描述" min-width="180" show-overflow-tooltip>
+              <template #default="{ row }">
+                {{ row.description || '-' }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="remark" label="备注" min-width="130" show-overflow-tooltip>
+              <template #default="{ row }">
+                {{ row.remark || '-' }}
+              </template>
+            </el-table-column>
+          </el-table>
+        </template>
+        <EmptyState v-else-if="!viewDetailLoading" description="暂无工序模板数据" />
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="viewDialogVisible = false">关闭</el-button>
+        </span>
+      </template>
+    </AppDialog>
+
     <!-- 文件预览对话框 -->
     <ProcessTemplatePreviewDialog
       v-model="previewDialogVisible"
@@ -365,12 +491,13 @@
     />
   </div>
 </template>
+
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
 import { defineAsyncComponent, ref, reactive, onMounted, computed } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import {
-  Plus, Delete, Upload, Edit, Switch
+  Plus, Delete, Upload, Edit, Switch, View, Download
 } from '@element-plus/icons-vue'
 import { baseDataApi } from '@/api/baseData'
 import { loadMaterials, mapMaterialData, searchMaterials } from '@/utils/searchConfig'
@@ -379,14 +506,16 @@ import { loadDepartmentOptions } from '@/utils/optionLoaders'
 import { formatDateTime } from '@/utils/helpers/dateUtils'
 import { useAuthStore } from '@/stores/auth'
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
+
 // 权限store
 const authStore = useAuthStore()
 // 权限计算属性
-const canCreate = computed(() => authStore.hasPermission('basedata:processtemplates:create'));
-const canUpdate = computed(() => authStore.hasPermission('basedata:processtemplates:update'));
-const canDelete = computed(() => authStore.hasPermission('basedata:processtemplates:delete'));
+const canCreate = computed(() => authStore.hasPermission('basedata:processtemplates:create'))
+const canUpdate = computed(() => authStore.hasPermission('basedata:processtemplates:update'))
+const canDelete = computed(() => authStore.hasPermission('basedata:processtemplates:delete'))
 
 const ProcessTemplatePreviewDialog = defineAsyncComponent(() => import('./components/ProcessTemplatePreviewDialog.vue'))
+
 // 数据加载状态
 const loading = ref(false)
 // 分页相关
@@ -403,6 +532,8 @@ const productList = ref([])
 const productOptions = ref([])
 // 工序模板列表
 const templateList = ref([])
+
+// 列表详情上下导航
 const {
   previousItem: previousViewTemplate,
   nextItem: nextViewTemplate,
@@ -410,12 +541,20 @@ const {
   hasNext: hasNextViewTemplate,
   setCurrentItem: setCurrentViewTemplate
 } = useListDetailNavigation(templateList)
+
 // 部门相关
 const departmentList = ref([])
-// 对话框控制
+
+// 创建/编辑对话框控制
 const dialogVisible = ref(false)
 const dialogType = ref('create') // create 或 edit
 const formRef = ref(null)
+
+// 查看详情对话框控制
+const viewDialogVisible = ref(false)
+const viewDetailLoading = ref(false)
+const viewData = ref(null)
+
 // 表单数据
 const form = reactive({
   id: null,
@@ -426,16 +565,21 @@ const form = reactive({
   status: 1,
   processes: []
 })
+
 // 表单验证规则
 const formRules = {
   name: [{ required: true, message: '请输入模板名称', trigger: 'blur' }],
   productId: [{ required: true, message: '请选择关联产品', trigger: 'change' }]
 }
+
+// 指导书预览与上传控制
+const previewDialogVisible = ref(false)
+const currentPreviewDoc = ref(null)
+
 // 获取部门列表
 const fetchDepartmentList = async () => {
   try {
     const deptData = await loadDepartmentOptions()
-    // 过滤出状态为启用的部门
     departmentList.value = deptData.filter(dept => String(dept.status) === '1')
   } catch (error) {
     console.error('获取部门列表失败:', error)
@@ -443,22 +587,19 @@ const fetchDepartmentList = async () => {
     departmentList.value = []
   }
 }
+
 // 初始化
 onMounted(async () => {
   await fetchProductList()
   await fetchTemplateList()
   await fetchDepartmentList()
 })
+
 // 获取产品列表
 const fetchProductList = async () => {
   try {
-    // 获取前20个产品作为初始显示
-    const materials = await loadMaterials(baseDataApi, {
-      pageSize: 20
-    })
-    // 映射产品数据
+    const materials = await loadMaterials(baseDataApi, { pageSize: 20 })
     productList.value = mapMaterialData(materials)
-    // 初始化产品选项
     productOptions.value = productList.value
   } catch (error) {
     console.error('获取产品列表失败:', error)
@@ -467,6 +608,7 @@ const fetchProductList = async () => {
     productOptions.value = []
   }
 }
+
 // 远程搜索产品
 const remoteSearchProduct = async (query) => {
   const keepCurrent = () => {
@@ -482,11 +624,7 @@ const remoteSearchProduct = async (query) => {
     return
   }
   try {
-    // 使用统一的搜索函数进行远程搜索
-    const searchResults = await searchMaterials(baseDataApi, query, {
-      includeAll: true
-    })
-    // 映射搜索结果
+    const searchResults = await searchMaterials(baseDataApi, query, { includeAll: true })
     productOptions.value = mapMaterialData(searchResults)
   } catch (error) {
     console.error('搜索产品失败:', error)
@@ -494,6 +632,7 @@ const remoteSearchProduct = async (query) => {
     productOptions.value = []
   }
 }
+
 // 获取工序模板列表
 const fetchTemplateList = async () => {
   loading.value = true
@@ -503,9 +642,7 @@ const fetchTemplateList = async () => {
       pageSize: pageSize.value,
       ...searchForm
     }
-
     const response = await baseDataApi.getProcessTemplates(params)
-    // 使用统一解析器
     if (response.data) {
       templateList.value = parseListData(response, { enableLog: false })
       total.value = response.data?.total || 0
@@ -517,16 +654,19 @@ const fetchTemplateList = async () => {
     loading.value = false
   }
 }
+
 // 计算总工时
 const calculateTotalHours = (processes) => {
   if (!processes || !processes.length) return 0
-  return processes.reduce((sum, process) => sum + Number(process.standardHours || 0), 0).toFixed(1)
+    return processes.reduce((sum, process) => sum + Number(process.standardHours ?? 0), 0).toFixed(1)
 }
+
 // 搜索
 const handleSearch = async () => {
   currentPage.value = 1
   await fetchTemplateList()
 }
+
 // 重置搜索
 const handleReset = async () => {
   Object.keys(searchForm).forEach(key => {
@@ -535,6 +675,7 @@ const handleReset = async () => {
   currentPage.value = 1
   await fetchTemplateList()
 }
+
 // 导出工序模板
 const handleExport = async () => {
   try {
@@ -552,16 +693,19 @@ const handleExport = async () => {
     ElMessage.error('导出失败')
   }
 }
+
 // 分页大小变化
 const handleSizeChange = async (size) => {
   pageSize.value = size
   await fetchTemplateList()
 }
+
 // 当前页变化
 const handleCurrentChange = async (page) => {
   currentPage.value = page
   await fetchTemplateList()
 }
+
 // 显示创建对话框
 const showCreateDialog = () => {
   dialogType.value = 'create'
@@ -583,6 +727,7 @@ const showCreateDialog = () => {
   }]
   dialogVisible.value = true
 }
+
 // 添加工序
 const addProcess = () => {
   const nextOrder = form.processes.length > 0
@@ -599,10 +744,12 @@ const addProcess = () => {
     instructionDocs: []
   })
 }
+
 // 移除工序
 const removeProcess = (index) => {
   form.processes.splice(index, 1)
 }
+
 // 编辑工序模板
 const handleEdit = async (row) => {
   dialogType.value = 'edit'
@@ -613,7 +760,6 @@ const handleEdit = async (row) => {
   form.description = row.description || ''
   form.status = row.status
 
-  // 如果有关联产品但不在选项列表中，添加到选项列表
   if (row.productId && row.productCode) {
     const existingProduct = productOptions.value.find(p => p.id === row.productId)
     if (!existingProduct) {
@@ -625,13 +771,15 @@ const handleEdit = async (row) => {
     }
   }
 
-  // 支持 processes 或 details 两种字段名
   const sourceProcesses = row.processes || row.details
   form.processes = sourceProcesses && sourceProcesses.length
     ? JSON.parse(JSON.stringify(sourceProcesses)).map((process) => ({
         ...process,
         orderNum: process.orderNum ?? 1,
-        standardHours: process.standardHours ?? 1
+        standardHours: Number(process.standardHours ?? 1),
+        instructionDocs: Array.isArray(process.instructionDocs)
+          ? process.instructionDocs
+          : (Array.isArray(process.instructionDocs) ? process.instructionDocs : [])
       }))
     : [{
         orderNum: 1,
@@ -643,50 +791,43 @@ const handleEdit = async (row) => {
         materials: [],
         instructionDocs: []
       }]
-  // 确保每个工序都有instructionDocs字段
-  form.processes.forEach(process => {
-    if (!process.hasOwnProperty('instructionDocs')) {
-      process.instructionDocs = []
-    }
-    // 确保instructionDocs是数组
-    if (!Array.isArray(process.instructionDocs)) {
-      process.instructionDocs = []
-    }
-  })
+
   dialogVisible.value = true
 }
+
 // 查看工序模板详情
-const handleView = (row) => {
-  dialogType.value = 'view'
-  form.id = row.id
-  form.code = row.code
-  form.name = row.name
-  form.productId = row.productId
-  form.description = row.description || ''
-  form.status = row.status
-
-  // 如果有关联产品但不在选项列表中，添加到选项列表
-  if (row.productId && row.productCode) {
-    const existingProduct = productOptions.value.find(p => p.id === row.productId)
-    if (!existingProduct) {
-      productOptions.value.unshift({
-        id: row.productId,
-        code: row.productCode,
-        name: row.productName || ''
-      })
-    }
-  }
-
-  const sourceProcesses = row.processes || row.details
-  form.processes = sourceProcesses && sourceProcesses.length
-    ? JSON.parse(JSON.stringify(sourceProcesses)).map((process) => ({
-        ...process,
-        orderNum: process.orderNum ?? 1,
-        standardHours: process.standardHours ?? 1
-      }))
-    : []
+const handleView = async (row) => {
+  if (!row) return
   setCurrentViewTemplate(row)
-  dialogVisible.value = true
+  viewData.value = {
+    ...row,
+    processes: row.processes || row.details || []
+  }
+  viewDialogVisible.value = true
+  viewDetailLoading.value = true
+
+  try {
+    const res = await baseDataApi.getProcessTemplate(row.id)
+    if (res?.data) {
+      const detailObj = res.data.data || res.data
+      viewData.value = {
+        ...viewData.value,
+        ...detailObj,
+        processes: (detailObj.details || detailObj.processes || viewData.value.processes || []).map(p => ({
+          ...p,
+          orderNum: p.orderNum,
+          standardHours: p.standardHours,
+          instructionDocs: typeof p.instructionDocs === 'string'
+            ? JSON.parse(p.instructionDocs || '[]')
+            : (p.instructionDocs || [])
+        }))
+      }
+    }
+  } catch (error) {
+    console.warn('获取工序模板详情失败，使用行数据呈现:', error)
+  } finally {
+    viewDetailLoading.value = false
+  }
 }
 
 const handleViewPrevious = () => {
@@ -700,10 +841,11 @@ const handleViewNext = () => {
 const processTemplateViewNavigation = computed(() => ({
   hasPrevious: hasPreviousViewTemplate.value,
   hasNext: hasNextViewTemplate.value,
-  loading: false,
+  loading: viewDetailLoading.value,
   previous: handleViewPrevious,
   next: handleViewNext
 }))
+
 // 切换状态
 const handleToggleStatus = async (row) => {
   const newStatus = String(row.status) === '1' ? 0 : 1
@@ -717,6 +859,7 @@ const handleToggleStatus = async (row) => {
     ElMessage.error(error.response?.data?.message || `${action}工序模板失败`)
   }
 }
+
 // 删除工序模板
 const handleDelete = async (row) => {
   try {
@@ -728,6 +871,7 @@ const handleDelete = async (row) => {
     ElMessage.error('删除失败')
   }
 }
+
 // 提交表单
 const submitForm = async () => {
   if (!formRef.value) return
@@ -735,7 +879,6 @@ const submitForm = async () => {
   try {
     await formRef.value.validate()
 
-    // 校验工序列表
     if (!form.processes.length) {
       ElMessage.warning('请至少添加一个工序')
       return
@@ -746,203 +889,96 @@ const submitForm = async () => {
         ElMessage.warning('工序名称不能为空')
         return
       }
-      if (!process.standardHours) {
+      if (process.standardHours === undefined || process.standardHours === null || process.standardHours === '') {
         ElMessage.warning('标准工时不能为空')
         return
       }
     }
 
-    // 排序工序
-    form.processes.sort((a, b) => Number(a.orderNum || 0) - Number(b.orderNum || 0))
-
-    // 构建发送数据，将processes映射为details（后端期望的字段名）
-    const submitData = {
-      name: form.name,
-      code: form.code,
-      productId: form.productId,
-      description: form.description,
-      status: form.status,
-      details: form.processes.map((p, index) => ({
-        name: p.name,
-        order_num: p.orderNum || (index + 1),
-        description: p.description || '',
-        standard_hours: p.standardHours,
-        department: p.department || '',
-        remark: p.remark || '',
-        materials: p.materials || [],
-        instructionDocs: p.instructionDocs || []
+    const payload = {
+      ...form,
+      details: form.processes.map(p => ({
+        ...p,
+        standard_hours: Number(p.standardHours),
+        instruction_docs: p.instructionDocs || []
       }))
     }
 
-    loading.value = true
     if (dialogType.value === 'create') {
-      await baseDataApi.createProcessTemplate(submitData)
+      await baseDataApi.createProcessTemplate(payload)
       ElMessage.success('工序模板创建成功')
     } else {
-      await baseDataApi.updateProcessTemplate(form.id, submitData)
+      await baseDataApi.updateProcessTemplate(form.id, payload)
       ElMessage.success('工序模板更新成功')
     }
 
     dialogVisible.value = false
     await fetchTemplateList()
   } catch (error) {
-    console.error('保存失败:', error)
-    ElMessage.error('保存失败')
-  } finally {
-    loading.value = false
+    if (error === false) return
+    console.error('保存工序模板失败:', error)
+    ElMessage.error(error.response?.data?.message || '保存工序模板失败')
   }
 }
-// 文件预览相关
-const currentPreviewDoc = ref(null)
-const viewInstructionDoc = (doc) => {
-  const controlledUrl = typeof doc?.url === 'string' && doc.url.startsWith('/uploads/')
-    ? `/api/base-data/download-file?filePath=${encodeURIComponent(doc.url)}`
-    : ''
-  if (controlledUrl) {
-    currentPreviewDoc.value = { ...doc, url: controlledUrl }
-    previewDialogVisible.value = true
-  } else {
-    ElMessage.warning('文件不是受控的本地附件，无法预览')
-  }
-}
-// ==================== 作业指导书上传相关 ====================
-// 上传前验证
-const beforeUploadInstruction = (file, _row) => {
-  const _allowedTypes = [
-    'application/msword', // .doc
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
-    'application/vnd.ms-excel', // .xls
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
-    'application/vnd.ms-powerpoint', // .ppt
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
-    'application/pdf' // .pdf
-  ]
-  const allowedExtensions = ['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.pdf']
-  const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase()
-  if (!allowedExtensions.includes(fileExtension)) {
-    ElMessage.error('只支持上传 Office 文件（Word、Excel、PowerPoint）和 PDF 文件！')
-    return false
-  }
-  const isLt10M = file.size / 1024 / 1024 < 10
-  if (!isLt10M) {
-    ElMessage.error('文件大小不能超过 10MB！')
+
+// 指导书上传与预览
+const beforeUploadInstruction = (file) => {
+  const isLt20M = file.size / 1024 / 1024 < 20
+  if (!isLt20M) {
+    ElMessage.error('上传文件大小不能超过 20MB!')
     return false
   }
   return true
 }
-// 处理文件上传
+
 const handleUploadInstruction = async (options, row) => {
-  const { file } = options
   try {
-    loading.value = true
-    // 创建FormData
     const formData = new FormData()
-    formData.append('file', file)
-    // New templates do not have an object id yet. The backend records an
-    // unbound owner-only upload and atomically binds it during template save.
-    if (form.id) {
-      formData.append('businessType', 'process_template')
-      formData.append('businessId', String(form.id))
-    }
-    // 上传文件 - uploadApi 已配置响应拦截器自动解包
-    const response = await baseDataApi.uploadFile(formData)
-    // response.data 已被拦截器解包为 { fileUrl, filename }
-    if (response.data?.fileUrl) {
-      // 确保instructionDocs是数组
-      if (!row.instructionDocs) {
-        row.instructionDocs = []
-      }
-      // 添加文件信息到数组
+    formData.append('file', options.file)
+    formData.append('type', 'instruction')
+
+    const res = await baseDataApi.uploadFile(formData)
+    if (res?.data?.data) {
+      const fileInfo = res.data.data
+      if (!row.instructionDocs) row.instructionDocs = []
       row.instructionDocs.push({
-        name: file.name,
-        url: response.data.fileUrl,
-        uploadTime: new Date().toISOString()
+        name: fileInfo.name || options.file.name,
+        url: fileInfo.url,
+        size: fileInfo.size || options.file.size,
+        type: fileInfo.type || options.file.type
       })
-      ElMessage.success('作业指导书上传成功')
-    } else {
-      throw new Error('上传失败，未返回有效的文件URL')
+      ElMessage.success('指导书上传成功')
     }
   } catch (error) {
-    console.error('上传失败:', error)
-    ElMessage.error('作业指导书上传失败: ' + (error.message || '未知错误'))
-  } finally {
-    loading.value = false
+    console.error('上传指导书失败:', error)
+    ElMessage.error('上传指导书失败')
   }
 }
-// 文件预览对话框可见性
-const previewDialogVisible = ref(false)
-// 删除作业指导书
+
 const removeInstructionDoc = (row, index) => {
-  ElMessageBox.confirm(
-    '确定要删除该作业指导书吗？',
-    '提示',
-    {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    }
-  ).then(() => {
-    row.instructionDocs.splice(index, 1)
-    ElMessage.success('作业指导书已删除')
-  }).catch(() => {
-    // 用户取消删除
-  })
+  row.instructionDocs.splice(index, 1)
+}
+
+const viewInstructionDoc = (doc) => {
+  if (!doc?.url) {
+    ElMessage.warning('文件路径不存在')
+    return
+  }
+  currentPreviewDoc.value = doc
+  previewDialogVisible.value = true
 }
 </script>
+
 <style scoped>
-.process-table-container {
-  margin-top: 10px;
+.process-detail {
+  padding: 12px 20px;
 }
-.process-table-header {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 10px;
+.process-detail h4 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: var(--el-text-color-primary, #303133);
 }
-.material-selection {
-  padding: 10px 0;
-}
-.search-bar {
-  margin-bottom: var(--spacing-base);
-}
-.material-list {
-  border: 1px solid var(--color-border-base);
-  border-radius: var(--radius-sm);
-}
-.doc-tag {
-  margin: 2px;
-  max-width: 150px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-:deep(.el-table__cell) {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-/* 专业的“查看模式”样式覆盖：剥离输入框外观，直接作为平文本展示 */
-.view-mode :deep(.el-input__wrapper),
-.view-mode :deep(.el-textarea__inner) {
-  box-shadow: none !important;
-  background-color: transparent !important;
-  cursor: default !important;
-  padding: 0 !important;
-}
-.view-mode :deep(.el-input.is-disabled .el-input__inner),
-.view-mode :deep(.el-textarea.is-disabled .el-textarea__inner),
-.view-mode :deep(.el-input__inner),
-.view-mode :deep(.el-textarea__inner) {
-  color: var(--color-text-primary) !important;
-  font-weight: 500;
-  cursor: default !important;
-  -webkit-text-fill-color: var(--color-text-primary) !important;
-}
-.view-mode :deep(.el-input__inner::placeholder),
-.view-mode :deep(.el-textarea__inner::placeholder) {
-  color: transparent !important; /* 隐藏请输入占位符 */
-}
-/* 隐藏下拉框箭头、清除按钮等图标 */
-.view-mode :deep(.el-input__suffix),
-.view-mode :deep(.el-input__prefix) {
-  display: none !important;
+.cursor-pointer {
+  cursor: pointer;
 }
 </style>

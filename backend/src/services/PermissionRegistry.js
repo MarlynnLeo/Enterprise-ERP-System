@@ -11,7 +11,13 @@
  *   写 menus.permission → 必须 ensurePermission + 回填 permission_id
  */
 
-
+const {
+  COMMON_PERMISSIONS,
+  getProfile,
+  permissionAllowed,
+} = require('../authorization/roleAccessProfiles');
+const { LOOKUP_READ_PERMISSION } = require('../authorization/lookupPermissions');
+const { isSuperAdminRole } = require('../authorization/superAdmin');
 const ACTION_SEGMENTS = new Set([
   'view',
   'create',
@@ -62,10 +68,9 @@ async function ensurePermission(conn, code, meta = {}) {
   const normalized = normalizePermissionCode(String(code || '').trim());
   if (!normalized) return null;
 
-  const [existing] = await conn.execute(
-    'SELECT id FROM permissions WHERE code = ? LIMIT 1',
-    [normalized]
-  );
+  const [existing] = await conn.execute('SELECT id FROM permissions WHERE code = ? LIMIT 1', [
+    normalized,
+  ]);
   if (existing.length) return Number(existing[0].id);
 
   const name = meta.name || normalized;
@@ -83,10 +88,9 @@ async function ensurePermission(conn, code, meta = {}) {
   } catch (error) {
     // 并发插入唯一冲突时回查
     if (error.code === 'ER_DUP_ENTRY') {
-      const [again] = await conn.execute(
-        'SELECT id FROM permissions WHERE code = ? LIMIT 1',
-        [normalized]
-      );
+      const [again] = await conn.execute('SELECT id FROM permissions WHERE code = ? LIMIT 1', [
+        normalized,
+      ]);
       if (again.length) return Number(again[0].id);
     }
     throw error;
@@ -108,6 +112,29 @@ async function ensurePermissions(conn, codes = [], meta = {}) {
 }
 
 /**
+ * 菜单之外仍必须保留的角色权限。
+ * 自定义角色只获得全员查找基线；受管岗位还获得公共权限、模板精确权限，
+ * 以及注册表中所有符合岗位前缀规则的动作权限。
+ */
+function supplementalPermissionCodesForRole(role, registeredCodes = []) {
+  if (isSuperAdminRole(role)) return [];
+
+  const profile = getProfile(role?.code);
+  if (!profile) return [LOOKUP_READ_PERMISSION];
+
+  return [
+    ...new Set([...COMMON_PERMISSIONS, ...(profile.exactPermissions || []), ...registeredCodes]),
+  ].filter((code) => permissionAllowed(code, profile));
+}
+
+function filterMenuPermissionCodesForRole(role, codes = []) {
+  const unique = [...new Set(codes.filter(Boolean))];
+  const profile = getProfile(role?.code);
+  if (!profile || isSuperAdminRole(role)) return unique;
+  return unique.filter((code) => permissionAllowed(code, profile));
+}
+
+/**
  * 用菜单上的 permission 码重写角色的 role_permissions
  * @param {*} conn
  * @param {number} roleId
@@ -119,30 +146,62 @@ async function syncRolePermissionsFromMenus(conn, roleId, menuIds = []) {
     throw new Error('invalid roleId');
   }
 
+  const [[role]] = await conn.execute(
+    'SELECT id, code, is_super_admin FROM roles WHERE id = ? LIMIT 1',
+    [rid]
+  );
+  if (!role) throw new Error('role not found');
+
   await conn.execute('DELETE FROM role_permissions WHERE role_id = ?', [rid]);
 
+  if (isSuperAdminRole(role)) {
+    const [result] = await conn.execute(
+      `INSERT INTO role_permissions (role_id, permission_id, created_at)
+       SELECT ?, id, NOW() FROM permissions WHERE status = 1`,
+      [rid]
+    );
+    return { inserted: result.affectedRows || 0, menuPermissions: 0, supplemental: 0 };
+  }
+
   const ids = [
-    ...new Set((Array.isArray(menuIds) ? menuIds : []).map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0)),
+    ...new Set(
+      (Array.isArray(menuIds) ? menuIds : [])
+        .map((id) => Number(id))
+        .filter((id) => Number.isInteger(id) && id > 0)
+    ),
   ];
-  if (!ids.length) return { inserted: 0 };
+  let menus = [];
+  if (ids.length) {
+    const placeholders = ids.map(() => '?').join(',');
+    [menus] = await conn.execute(
+      `SELECT id, permission, name FROM menus
+        WHERE id IN (${placeholders})
+          AND status = 1
+          AND permission IS NOT NULL AND permission <> ''`,
+      ids
+    );
+  }
 
-  const placeholders = ids.map(() => '?').join(',');
-  const [menus] = await conn.execute(
-    `SELECT id, permission, name FROM menus
-      WHERE id IN (${placeholders})
-        AND status = 1
-        AND permission IS NOT NULL AND permission <> ''`,
-    ids
+  const menuCodes = filterMenuPermissionCodesForRole(
+    role,
+    menus.map((menu) => menu.permission)
   );
-
-  const codes = [...new Set(menus.map((m) => m.permission).filter(Boolean))];
-  if (!codes.length) return { inserted: 0 };
-
-  const codeToId = await ensurePermissions(conn, codes, { source: 'menu' });
+  let registeredCodes = [];
+  if (getProfile(role.code)) {
+    const [registeredPermissions] = await conn.execute(
+      'SELECT code FROM permissions WHERE status = 1 ORDER BY code'
+    );
+    registeredCodes = registeredPermissions.map((permission) => permission.code);
+  }
+  const supplementalCodes = supplementalPermissionCodesForRole(role, registeredCodes);
+  const menuCodeToId = await ensurePermissions(conn, menuCodes, { source: 'menu' });
+  const supplementalCodeToId = await ensurePermissions(conn, supplementalCodes, {
+    source: 'profile',
+  });
 
   // 回填 menus.permission_id
   for (const m of menus) {
-    const pid = codeToId.get(m.permission);
+    const pid = menuCodeToId.get(m.permission);
     if (pid) {
       await conn.execute(
         'UPDATE menus SET permission_id = ? WHERE id = ? AND (permission_id IS NULL OR permission_id <> ?)',
@@ -151,8 +210,10 @@ async function syncRolePermissionsFromMenus(conn, roleId, menuIds = []) {
     }
   }
 
-  const permissionIds = [...new Set([...codeToId.values()])];
-  if (!permissionIds.length) return { inserted: 0 };
+  const permissionIds = [...new Set([...menuCodeToId.values(), ...supplementalCodeToId.values()])];
+  if (!permissionIds.length) {
+    return { inserted: 0, menuPermissions: 0, supplemental: 0 };
+  }
 
   const values = permissionIds.map(() => '(?, ?, NOW())').join(',');
   const params = [];
@@ -164,7 +225,11 @@ async function syncRolePermissionsFromMenus(conn, roleId, menuIds = []) {
     params
   );
 
-  return { inserted: ins.affectedRows || permissionIds.length };
+  return {
+    inserted: ins.affectedRows || permissionIds.length,
+    menuPermissions: menuCodeToId.size,
+    supplemental: supplementalCodeToId.size,
+  };
 }
 
 /**
@@ -182,10 +247,11 @@ async function bindMenuPermission(conn, menuId, permissionCode, menuName) {
   });
   if (pid) {
     // 同步纠正 permission 字符串与 permission_id，避免只绑 id 字符串仍是脏码
-    await conn.execute(
-      'UPDATE menus SET permission = ?, permission_id = ? WHERE id = ?',
-      [normalized, pid, menuId]
-    );
+    await conn.execute('UPDATE menus SET permission = ?, permission_id = ? WHERE id = ?', [
+      normalized,
+      pid,
+      menuId,
+    ]);
   }
   return pid;
 }
@@ -258,6 +324,7 @@ module.exports = {
   normalizePermissionCode,
   ensurePermission,
   ensurePermissions,
+  supplementalPermissionCodesForRole,
   syncRolePermissionsFromMenus,
   bindMenuPermission,
   grantMenuPermissionToRoles,

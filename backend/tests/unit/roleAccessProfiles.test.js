@@ -10,17 +10,29 @@ const {
 const RoleAccessService = require('../../src/services/RoleAccessService');
 
 describe('roleAccessProfiles', () => {
-  test('库存操作员不能拿到财务/采购/销售菜单', () => {
+  test('库存操作员只获得采购到货能力，不获得财务、采购建单或销售能力', () => {
     const spec = getProfile('inventory_operator');
-    expect(menuAllowed({ path: '/inventory/stock', permission: 'inventory:stock' }, spec)).toBe(true);
-    expect(menuAllowed({ path: '/basedata/materials', permission: 'basedata:materials' }, spec)).toBe(true);
+    expect(menuAllowed({ path: '/inventory/stock', permission: 'inventory:stock' }, spec)).toBe(
+      true
+    );
+    expect(
+      menuAllowed({ path: '/basedata/materials', permission: 'basedata:materials' }, spec)
+    ).toBe(true);
     expect(menuAllowed({ path: '/basedata/boms', permission: 'basedata:boms' }, spec)).toBe(false);
-    expect(menuAllowed({ path: '/production/plan', permission: 'production:plans' }, spec)).toBe(true);
+    expect(menuAllowed({ path: '/production/plan', permission: 'production:plans' }, spec)).toBe(
+      true
+    );
     expect(permissionAllowed('production:plans:view', spec)).toBe(true);
     expect(permissionAllowed('production:plans:create', spec)).toBe(false);
     expect(permissionAllowed('production:plans:update', spec)).toBe(false);
-    expect(menuAllowed({ path: '/finance/gl/accounts', permission: 'finance:accounts:view' }, spec)).toBe(false);
-    expect(menuAllowed({ path: '/purchase/orders', permission: 'purchase:orders' }, spec)).toBe(false);
+    expect(
+      menuAllowed({ path: '/finance/gl/accounts', permission: 'finance:accounts:view' }, spec)
+    ).toBe(false);
+    expect(menuAllowed({ path: '/purchase/orders', permission: 'purchase:orders' }, spec)).toBe(
+      true
+    );
+    expect(permissionAllowed('purchase:orders:view', spec)).toBe(true);
+    expect(permissionAllowed('purchase:orders:create', spec)).toBe(false);
     expect(menuAllowed({ path: '/sales/orders', permission: 'sales:orders' }, spec)).toBe(false);
     expect(permissionAllowed('inventory:value:view', spec)).toBe(false);
     expect(permissionAllowed('basedata:materials:view', spec)).toBe(true);
@@ -29,8 +41,12 @@ describe('roleAccessProfiles', () => {
   test('/basedata 目录不等于全部基础资料', () => {
     const spec = getProfile('inventory_operator');
     expect(menuAllowed({ path: '/basedata', permission: 'basedata' }, spec)).toBe(true);
-    expect(menuAllowed({ path: '/basedata/customers', permission: 'basedata:customers' }, spec)).toBe(false);
-    expect(menuAllowed({ path: '/basedata/suppliers', permission: 'basedata:suppliers' }, spec)).toBe(false);
+    expect(
+      menuAllowed({ path: '/basedata/customers', permission: 'basedata:customers' }, spec)
+    ).toBe(false);
+    expect(
+      menuAllowed({ path: '/basedata/suppliers', permission: 'basedata:suppliers' }, spec)
+    ).toBe(false);
   });
 
   test('所有岗位模板在已授权功能内统一使用全部数据范围', () => {
@@ -42,10 +58,24 @@ describe('roleAccessProfiles', () => {
 
   test('出纳只保留资金与现金流量', () => {
     const spec = getProfile('cashier');
-    expect(menuAllowed({ path: '/finance/cash/accounts', permission: 'finance:cash:view' }, spec)).toBe(true);
-    expect(menuAllowed({ path: '/finance/reports/standard-cash-flow', permission: 'finance:reports:standard-cash-flow' }, spec)).toBe(true);
-    expect(menuAllowed({ path: '/finance/gl/accounts', permission: 'finance:accounts:view' }, spec)).toBe(false);
-    expect(menuAllowed({ path: '/finance/ap/invoices', permission: 'finance:ap:view' }, spec)).toBe(false);
+    expect(
+      menuAllowed({ path: '/finance/cash/accounts', permission: 'finance:cash:view' }, spec)
+    ).toBe(true);
+    expect(
+      menuAllowed(
+        {
+          path: '/finance/reports/standard-cash-flow',
+          permission: 'finance:reports:standard-cash-flow',
+        },
+        spec
+      )
+    ).toBe(true);
+    expect(
+      menuAllowed({ path: '/finance/gl/accounts', permission: 'finance:accounts:view' }, spec)
+    ).toBe(false);
+    expect(menuAllowed({ path: '/finance/ap/invoices', permission: 'finance:ap:view' }, spec)).toBe(
+      false
+    );
     expect(permissionAllowed('finance:cash:view', spec)).toBe(true);
     expect(permissionAllowed('finance:entries:view', spec)).toBe(false);
   });
@@ -59,14 +89,22 @@ describe('roleAccessProfiles', () => {
     expect(permissionAllowed('finance:closing:execute', assistant)).toBe(false);
     expect(permissionAllowed('finance:settings:update', assistant)).toBe(false);
     expect(permissionAllowed('finance:accounts:create', assistant)).toBe(false);
-    expect(menuAllowed({ path: '/finance/gl/entries', permission: 'finance:entries' }, assistant)).toBe(true);
-    expect(menuAllowed({ path: '/finance/gl/period-closing', permission: 'finance:closing' }, assistant)).toBe(false);
-    expect(menuAllowed({ path: '/finance/settings', permission: 'finance:settings' }, assistant)).toBe(false);
+    expect(
+      menuAllowed({ path: '/finance/gl/entries', permission: 'finance:entries' }, assistant)
+    ).toBe(true);
+    expect(
+      menuAllowed({ path: '/finance/gl/period-closing', permission: 'finance:closing' }, assistant)
+    ).toBe(false);
+    expect(
+      menuAllowed({ path: '/finance/settings', permission: 'finance:settings' }, assistant)
+    ).toBe(false);
 
     const manager = getProfile('finance_manager');
     expect(permissionAllowed('finance:closing:execute', manager)).toBe(true);
     expect(permissionAllowed('finance:settings:update', manager)).toBe(true);
-    expect(menuAllowed({ path: '/finance/gl/period-closing', permission: 'finance:closing' }, manager)).toBe(true);
+    expect(
+      menuAllowed({ path: '/finance/gl/period-closing', permission: 'finance:closing' }, manager)
+    ).toBe(true);
   });
 
   test('采购部门不含生产操作，生产计划员可以排产', () => {
@@ -85,7 +123,12 @@ describe('roleAccessProfiles', () => {
     expect(permissionAllowed('purchase:orders:approve', purchaseManager)).toBe(true);
     expect(permissionAllowed('purchase:requisitions:approve', purchaseManager)).toBe(true);
     expect(permissionAllowed('system:workflow:use', purchaseManager)).toBe(true);
-    expect(menuAllowed({ path: '/workflow/approvals', permission: 'system:workflow:use' }, purchaseManager)).toBe(false);
+    expect(
+      menuAllowed(
+        { path: '/workflow/approvals', permission: 'system:workflow:use' },
+        purchaseManager
+      )
+    ).toBe(false);
     expect(permissionAllowed('system:workflow:use', getProfile('production_operator'))).toBe(false);
     expect(permissionAllowed('sales:orders:approve', getProfile('salesperson'))).toBe(false);
     expect(permissionAllowed('contract:approve', getProfile('sales_manager'))).toBe(true);
@@ -94,8 +137,12 @@ describe('roleAccessProfiles', () => {
     expect(permissionAllowed('finance:cash:approve', getProfile('cashier'))).toBe(false);
     expect(permissionAllowed('finance:expenses:approve', getProfile('finance_manager'))).toBe(true);
     expect(permissionAllowed('finance:assets:approve', getProfile('finance_manager'))).toBe(true);
-    expect(permissionAllowed('inventory:manual:approve', getProfile('inventory_operator'))).toBe(false);
-    expect(permissionAllowed('inventory:manual:approve', getProfile('inventory_manager'))).toBe(true);
+    expect(permissionAllowed('inventory:manual:approve', getProfile('inventory_operator'))).toBe(
+      false
+    );
+    expect(permissionAllowed('inventory:manual:approve', getProfile('inventory_manager'))).toBe(
+      true
+    );
     expect(permissionAllowed('quality:scrap:approve', getProfile('quality_inspector'))).toBe(false);
     expect(permissionAllowed('quality:scrap:approve', getProfile('quality_manager'))).toBe(true);
 
@@ -111,14 +158,33 @@ describe('roleAccessProfiles', () => {
     expect(permissionAllowed('production:exchange:create', operator)).toBe(true);
     expect(permissionAllowed('inventory:outbound:create', operator)).toBe(false);
     expect(permissionAllowed('inventory:inbound:create', operator)).toBe(false);
-    expect(menuAllowed({ path: '/production/plan', permission: 'production:plans' }, operator)).toBe(true);
-    expect(menuAllowed({ path: '/production/task', permission: 'production:tasks' }, operator)).toBe(true);
-    expect(menuAllowed({ path: '/production/process', permission: 'production:process' }, operator)).toBe(true);
-    expect(menuAllowed({ path: '/production/report', permission: 'production:reports' }, operator)).toBe(true);
-    expect(menuAllowed({ path: '/production/anomaly', permission: 'production:anomaly' }, operator)).toBe(true);
-    expect(menuAllowed({ path: '/production/equipment-monitoring', permission: 'production:equipment' }, operator)).toBe(true);
-    expect(menuAllowed({ path: '/production/mrp', permission: 'production:mrp' }, operator)).toBe(false);
-    expect(menuAllowed({ path: '/production/gantt', permission: 'production:gantt' }, operator)).toBe(false);
+    expect(
+      menuAllowed({ path: '/production/plan', permission: 'production:plans' }, operator)
+    ).toBe(true);
+    expect(
+      menuAllowed({ path: '/production/task', permission: 'production:tasks' }, operator)
+    ).toBe(true);
+    expect(
+      menuAllowed({ path: '/production/process', permission: 'production:process' }, operator)
+    ).toBe(true);
+    expect(
+      menuAllowed({ path: '/production/report', permission: 'production:reports' }, operator)
+    ).toBe(true);
+    expect(
+      menuAllowed({ path: '/production/anomaly', permission: 'production:anomaly' }, operator)
+    ).toBe(true);
+    expect(
+      menuAllowed(
+        { path: '/production/equipment-monitoring', permission: 'production:equipment' },
+        operator
+      )
+    ).toBe(true);
+    expect(menuAllowed({ path: '/production/mrp', permission: 'production:mrp' }, operator)).toBe(
+      false
+    );
+    expect(
+      menuAllowed({ path: '/production/gantt', permission: 'production:gantt' }, operator)
+    ).toBe(false);
 
     const planner = getProfile('production_planner');
     expect(permissionAllowed('production:plans:create', planner)).toBe(true);
@@ -126,10 +192,18 @@ describe('roleAccessProfiles', () => {
     expect(permissionAllowed('production:tasks:update', planner)).toBe(true);
     expect(permissionAllowed('production:process:view', planner)).toBe(true);
     expect(permissionAllowed('production:reports:create', planner)).toBe(true);
-    expect(menuAllowed({ path: '/production/plan', permission: 'production:plans' }, planner)).toBe(true);
-    expect(menuAllowed({ path: '/production/task', permission: 'production:tasks' }, planner)).toBe(true);
-    expect(menuAllowed({ path: '/production/process', permission: 'production:process' }, planner)).toBe(true);
-    expect(menuAllowed({ path: '/production/report', permission: 'production:reports' }, planner)).toBe(true);
+    expect(menuAllowed({ path: '/production/plan', permission: 'production:plans' }, planner)).toBe(
+      true
+    );
+    expect(menuAllowed({ path: '/production/task', permission: 'production:tasks' }, planner)).toBe(
+      true
+    );
+    expect(
+      menuAllowed({ path: '/production/process', permission: 'production:process' }, planner)
+    ).toBe(true);
+    expect(
+      menuAllowed({ path: '/production/report', permission: 'production:reports' }, planner)
+    ).toBe(true);
     expect(permissionAllowed('production:equipment:view', planner)).toBe(false);
     expect(permissionAllowed('finance:entries:view', planner)).toBe(false);
 
@@ -140,50 +214,84 @@ describe('roleAccessProfiles', () => {
     expect(permissionAllowed('production:tasks:update', planning)).toBe(true);
     expect(permissionAllowed('purchase:price:view', planning)).toBe(true);
     expect(permissionAllowed('sales:price:view', planning)).toBe(true);
-    expect(menuAllowed({ path: '/purchase/orders', permission: 'purchase:orders' }, planning)).toBe(true);
+    expect(menuAllowed({ path: '/purchase/orders', permission: 'purchase:orders' }, planning)).toBe(
+      true
+    );
     expect(menuAllowed({ path: '/sales/orders', permission: 'sales:orders' }, planning)).toBe(true);
-    expect(menuAllowed({ path: '/production/plan', permission: 'production:plans' }, planning)).toBe(true);
+    expect(
+      menuAllowed({ path: '/production/plan', permission: 'production:plans' }, planning)
+    ).toBe(true);
     expect(permissionAllowed('finance:entries:view', planning)).toBe(false);
     expect(permissionAllowed('inventory:outbound:create', planning)).toBe(false);
   });
 
   test('品质部覆盖质量模块，不含生产/财务', () => {
     const spec = getProfile('100001');
-    expect(menuAllowed({ path: '/quality/incoming', permission: 'quality:incoming' }, spec)).toBe(true);
-    expect(menuAllowed({ path: '/inventory/stock', permission: 'inventory:stock' }, spec)).toBe(true);
-    expect(menuAllowed({ path: '/production/plan', permission: 'production:plans' }, spec)).toBe(true);
-    expect(menuAllowed({ path: '/finance/cash/accounts', permission: 'finance:cash:view' }, spec)).toBe(false);
+    expect(menuAllowed({ path: '/quality/incoming', permission: 'quality:incoming' }, spec)).toBe(
+      true
+    );
+    expect(menuAllowed({ path: '/inventory/stock', permission: 'inventory:stock' }, spec)).toBe(
+      true
+    );
+    expect(menuAllowed({ path: '/production/plan', permission: 'production:plans' }, spec)).toBe(
+      true
+    );
+    expect(
+      menuAllowed({ path: '/finance/cash/accounts', permission: 'finance:cash:view' }, spec)
+    ).toBe(false);
   });
 
   test('三类检验员只保留本岗检验，不互相串岗', () => {
     const incoming = getProfile('incoming_inspector');
-    expect(menuAllowed({ path: '/quality/incoming', permission: 'quality:incoming' }, incoming)).toBe(true);
+    expect(
+      menuAllowed({ path: '/quality/incoming', permission: 'quality:incoming' }, incoming)
+    ).toBe(true);
     expect(permissionAllowed('quality:incoming:create', incoming)).toBe(true);
-    expect(menuAllowed({ path: '/quality/process', permission: 'quality:process' }, incoming)).toBe(false);
-    expect(menuAllowed({ path: '/quality/final', permission: 'quality:final' }, incoming)).toBe(false);
+    expect(menuAllowed({ path: '/quality/process', permission: 'quality:process' }, incoming)).toBe(
+      false
+    );
+    expect(menuAllowed({ path: '/quality/final', permission: 'quality:final' }, incoming)).toBe(
+      false
+    );
     expect(permissionAllowed('quality:8d:create', incoming)).toBe(false);
     expect(permissionAllowed('quality:templates:view', incoming)).toBe(true);
     expect(permissionAllowed('quality:templates:create', incoming)).toBe(false);
     expect(permissionAllowed('quality:incoming:view', incoming)).toBe(true);
     expect(permissionAllowed('purchase:orders:view', incoming)).toBe(true);
     expect(permissionAllowed('purchase:orders:create', incoming)).toBe(false);
-    expect(menuAllowed({ path: '/purchase/orders', permission: 'purchase:orders' }, incoming)).toBe(false);
+    expect(menuAllowed({ path: '/purchase/orders', permission: 'purchase:orders' }, incoming)).toBe(
+      false
+    );
 
     const process = getProfile('process_inspector');
-    expect(menuAllowed({ path: '/quality/process', permission: 'quality:process' }, process)).toBe(true);
-    expect(menuAllowed({ path: '/quality/first-article', permission: 'quality:first-article' }, process)).toBe(true);
-    expect(menuAllowed({ path: '/quality/incoming', permission: 'quality:incoming' }, process)).toBe(false);
-    expect(menuAllowed({ path: '/quality/final', permission: 'quality:final' }, process)).toBe(false);
+    expect(menuAllowed({ path: '/quality/process', permission: 'quality:process' }, process)).toBe(
+      true
+    );
+    expect(
+      menuAllowed({ path: '/quality/first-article', permission: 'quality:first-article' }, process)
+    ).toBe(true);
+    expect(
+      menuAllowed({ path: '/quality/incoming', permission: 'quality:incoming' }, process)
+    ).toBe(false);
+    expect(menuAllowed({ path: '/quality/final', permission: 'quality:final' }, process)).toBe(
+      false
+    );
     expect(permissionAllowed('production:tasks:view', process)).toBe(true);
     expect(permissionAllowed('production:process:view', process)).toBe(true);
     expect(permissionAllowed('production:tasks:create', process)).toBe(false);
-    expect(menuAllowed({ path: '/production/task', permission: 'production:tasks' }, process)).toBe(false);
+    expect(menuAllowed({ path: '/production/task', permission: 'production:tasks' }, process)).toBe(
+      false
+    );
 
     const final = getProfile('final_inspector');
     expect(menuAllowed({ path: '/quality/final', permission: 'quality:final' }, final)).toBe(true);
     expect(permissionAllowed('quality:final:submit', final)).toBe(true);
-    expect(menuAllowed({ path: '/quality/incoming', permission: 'quality:incoming' }, final)).toBe(false);
-    expect(menuAllowed({ path: '/quality/process', permission: 'quality:process' }, final)).toBe(false);
+    expect(menuAllowed({ path: '/quality/incoming', permission: 'quality:incoming' }, final)).toBe(
+      false
+    );
+    expect(menuAllowed({ path: '/quality/process', permission: 'quality:process' }, final)).toBe(
+      false
+    );
     expect(permissionAllowed('production:tasks:view', final)).toBe(true);
     expect(permissionAllowed('inventory:inbound:create', final)).toBe(true);
     expect(permissionAllowed('purchase:orders:view', final)).toBe(true);
@@ -201,28 +309,53 @@ describe('roleAccessProfiles', () => {
     expect(permissionAllowed('sales:outbound:create', component)).toBe(false);
     expect(permissionAllowed('inventory:inbound:approve', component)).toBe(false);
     expect(permissionAllowed('inventory:outbound:approve', component)).toBe(false);
-    expect(menuAllowed({ path: '/inventory/inbound', permission: 'inventory:inbound' }, component)).toBe(true);
-    expect(menuAllowed({ path: '/inventory/outbound', permission: 'inventory:outbound' }, component)).toBe(true);
-    expect(menuAllowed({ path: '/sales/outbound', permission: 'sales:outbound' }, component)).toBe(false);
+    expect(
+      menuAllowed({ path: '/inventory/inbound', permission: 'inventory:inbound' }, component)
+    ).toBe(true);
+    expect(
+      menuAllowed({ path: '/inventory/outbound', permission: 'inventory:outbound' }, component)
+    ).toBe(true);
+    expect(menuAllowed({ path: '/sales/outbound', permission: 'sales:outbound' }, component)).toBe(
+      false
+    );
 
     const finished = getProfile('finished_goods_operator');
     expect(permissionAllowed('inventory:inbound:create', finished)).toBe(true);
+    expect(permissionAllowed('inventory:outbound:create', finished)).toBe(true);
+    expect(permissionAllowed('inventory:outbound:update', finished)).toBe(true);
     expect(permissionAllowed('sales:outbound:create', finished)).toBe(true);
     expect(permissionAllowed('sales:orders:view', finished)).toBe(true);
-    expect(permissionAllowed('inventory:outbound:create', finished)).toBe(false);
     expect(permissionAllowed('inventory:value:view', finished)).toBe(false);
-    expect(menuAllowed({ path: '/inventory/inbound', permission: 'inventory:inbound' }, finished)).toBe(true);
-    expect(menuAllowed({ path: '/sales/outbound', permission: 'sales:outbound' }, finished)).toBe(true);
-    expect(menuAllowed({ path: '/dataoverview/inventory', permission: 'dataoverview:inventory' }, finished)).toBe(false);
+    expect(
+      menuAllowed({ path: '/inventory/inbound', permission: 'inventory:inbound' }, finished)
+    ).toBe(true);
+    expect(
+      menuAllowed({ path: '/inventory/outbound', permission: 'inventory:outbound' }, finished)
+    ).toBe(true);
+    expect(menuAllowed({ path: '/sales/outbound', permission: 'sales:outbound' }, finished)).toBe(
+      true
+    );
+    expect(
+      menuAllowed(
+        { path: '/dataoverview/inventory', permission: 'dataoverview:inventory' },
+        finished
+      )
+    ).toBe(false);
   });
 
   test('普通员工只留仪表盘和通知', () => {
     const spec = getProfile('employee');
     expect(menuAllowed({ path: '/', permission: 'dashboard' }, spec)).toBe(true);
-    expect(menuAllowed({ path: '/system/notifications', permission: 'system:notifications' }, spec)).toBe(true);
-    expect(menuAllowed({ path: '/production/plan', permission: 'production:plans' }, spec)).toBe(true);
+    expect(
+      menuAllowed({ path: '/system/notifications', permission: 'system:notifications' }, spec)
+    ).toBe(true);
+    expect(menuAllowed({ path: '/production/plan', permission: 'production:plans' }, spec)).toBe(
+      true
+    );
     expect(menuAllowed({ path: '/system/users', permission: 'system:users' }, spec)).toBe(false);
-    expect(menuAllowed({ path: '/inventory/stock', permission: 'inventory:stock' }, spec)).toBe(false);
+    expect(menuAllowed({ path: '/inventory/stock', permission: 'inventory:stock' }, spec)).toBe(
+      false
+    );
   });
 
   test('selectAllowedMenuIds 去掉停用菜单', () => {

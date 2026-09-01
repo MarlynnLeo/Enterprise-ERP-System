@@ -189,7 +189,19 @@ router.get(
 );
 
 // BOM管理路由
-router.get('/boms', authenticateToken, requirePermission(['basedata:boms:view', 'inventory:outbound:view', 'inventory:inbound:view']), baseDataController.getAllBoms);
+router.get(
+  '/boms',
+  authenticateToken,
+  // Production task screens consume BOM options as a read-only lookup;
+  // granting task-view access avoids forcing production users into inventory/BOM admin roles.
+  requirePermission([
+    'basedata:boms:view',
+    'inventory:outbound:view',
+    'inventory:inbound:view',
+    'production:tasks:view',
+  ]),
+  baseDataController.getAllBoms
+);
 router.get('/boms/options', authenticateToken, requirePermission('basedata:boms:view'), baseDataController.getBomOptions);
 router.get('/boms/stats', authenticateToken, requirePermission('basedata:boms:view'), baseDataController.getBomStats);
 // 添加BOM导出路由（必须在:id路由之前）

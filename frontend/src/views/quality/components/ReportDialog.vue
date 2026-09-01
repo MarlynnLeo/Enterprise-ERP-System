@@ -16,7 +16,7 @@
     v-model="dialogVisible"
     :title="`检验报告 - ${inspection?.inspectionNo || inspection?.inspectionNo || ''}`"
     mode="form"
-    width="800px"
+    width="1100px"
   >
     <div ref="reportRef" class="inspection-report">
       <div class="report-header">
@@ -46,7 +46,7 @@
         </div>
         <div class="report-info-item">
           <span class="report-info-label">检验数量:</span>
-          <span>{{ Math.floor(inspection?.quantity || inspection?.total_quantity || 0) }} {{ inspection?.unit }}</span>
+          <span>{{ Math.floor(inspection?.quantity || 0) }} {{ inspection?.unit }}</span>
         </div>
         <div class="report-info-item">
           <span class="report-info-label">检验日期:</span>
@@ -76,10 +76,20 @@
               <el-tag size="small" :type="scope.row.isCritical ? 'danger' : 'info'">{{ scope.row.isCritical ? '是' : '否' }}</el-tag>
             </template>
           </el-table-column>
+          <el-table-column label="测量值">
+            <el-table-column v-for="n in MAX_INSPECTION_MEASUREMENT_COLUMNS" :key="n" :label="`${n}#`" min-width="55">
+              <template #default="scope">
+                <span :class="getMeasurement(scope.row, n) !== '{无}' ? 'text-primary' : 'text-muted'">{{ getMeasurement(scope.row, n) }}</span>
+              </template>
+            </el-table-column>
+          </el-table-column>
           <el-table-column prop="actualValue" label="实际值" min-width="120" show-overflow-tooltip />
           <el-table-column prop="result" label="结果" min-width="100" show-overflow-tooltip>
             <template #default="scope">
-              <el-tag :type="scope.row.result === 'passed' ? 'success' : 'danger'">{{ scope.row.result === 'passed' ? '合格' : '不合格' }}</el-tag>
+              <el-tag v-if="getItemResultPresentation(scope.row.result)" :type="getItemResultPresentation(scope.row.result).type">
+                {{ getItemResultPresentation(scope.row.result).text }}
+              </el-tag>
+              <span v-else class="text-muted">-</span>
             </template>
           </el-table-column>
           <el-table-column prop="remarks" label="备注" min-width="150" show-overflow-tooltip />
@@ -119,6 +129,7 @@ import { formatDate } from '@/utils/helpers/dateUtils'
 import { ElMessage } from 'element-plus'
 import { getQualityInspectionTypeText } from '@/constants/systemConstants'
 import printService from '@/services/printService'
+import { normalizeInspectionMeasurements, MAX_INSPECTION_MEASUREMENT_COLUMNS } from '@/utils/inspectionHelpers'
 const props = defineProps({
   visible: Boolean,
   inspection: { type: Object, default: null }
@@ -129,6 +140,10 @@ const dialogVisible = computed({
   set: (val) => emit('update:visible', val)
 })
 const reportRef = ref(null)
+const getMeasurement = (row, index) => {
+  const value = normalizeInspectionMeasurements(row)[index - 1]
+  return value === null || value === undefined || value === '' ? '{无}' : value
+}
 // 辅助函数
 const getStatusText = (status) => {
   const map = { pending: '待检验', inspecting: '检验中', passed: '合格', failed: '不合格', partial: '部分合格', critical: '关键项不合格', review: '待复检' }
@@ -137,6 +152,30 @@ const getStatusText = (status) => {
 const getStatusType = (status) => {
   const map = { pending: 'info', inspecting: 'warning', passed: 'success', failed: 'danger', partial: 'warning', critical: 'danger', review: 'warning' }
   return map[status] || 'info'
+}
+const getItemResultPresentation = (result) => {
+  const normalized = String(result || '').trim().toLowerCase()
+  if (['passed', 'pass', '合格'].includes(normalized)) return { text: '合格', type: 'success' }
+  if (['failed', 'fail', '不合格'].includes(normalized)) return { text: '不合格', type: 'danger' }
+  return null
+}
+
+const getInspectionPrintTemplateType = (inspection) => {
+  const templateCode = String(inspection?.templateCode || '').toUpperCase()
+  const templateName = String(inspection?.templateName || '')
+  const materialName = String(inspection?.materialName || inspection?.itemName || inspection?.productName || '')
+  const source = `${templateCode} ${templateName} ${materialName}`
+  if (source.includes('QRZ-SPRING') || source.includes('弹簧')) return 'spring_inspection'
+  if (
+    source.includes('QRZ-SCREW') ||
+    source.includes('螺钉') ||
+    source.includes('螺母') ||
+    source.includes('螺栓') ||
+    source.includes('紧固件') ||
+    source.toLowerCase().includes('screw') ||
+    source.toLowerCase().includes('bolt')
+  ) return 'screw_inspection'
+  return 'incoming_inspection'
 }
 // 打印报告
 const handlePrint = async () => {
@@ -148,35 +187,57 @@ const handlePrint = async () => {
   const printData = {
     inspection_no: insp.inspectionNo || '',
     material_name: insp.materialName || insp.productName || '',
-    specs: insp.materialSpecs || '',
-    product_code: insp.productCode || '',
+    specs: insp.materialSpecs || insp.itemSpecs || insp.specs || '',
+    product_code: insp.productCode || insp.materialCode || insp.itemCode || '',
     supplier_name: insp.supplierName || '',
     reference_no: insp.purchaseOrderNo || insp.referenceNo || '',
     batch_no: insp.batchNo || '',
-    quantity: insp.totalQuantity || 0,
+    quantity: insp.quantity || insp.totalQuantity || 0,
     unit: insp.unit || '',
     inspection_date: formatDate(insp.inspectionDate || insp.actualDate),
     inspector_name: insp.inspector || insp.inspectorName || '',
     status: insp.status || 'pending',
     status_text: getStatusText(insp.status),
     note: insp.note || '',
-    items: (insp.items || []).map(item => ({
+    items: (insp.items || []).map((item, itemIndex) => ({
       ...item,
-      index: item.index,
+      index: item.index || itemIndex + 1,
       item_code: item.itemCode || item.code || '',
       item_name: item.itemName || item.name || '-',
       specification: item.standard || item.specification || '',
       quantity: item.actualValue || item.quantity || '',
       unit_name: item.unit || '',
       result: getStatusText(item.result),
+      judgment: getStatusText(item.result),
       remark: item.remark || item.remarks || '',
       type_text: getQualityInspectionTypeText(item.type),
-      result_is_passed: item.result === 'passed'
-    }))
+      result_is_passed: item.result === 'passed',
+      ...Object.fromEntries(Array.from({ length: MAX_INSPECTION_MEASUREMENT_COLUMNS }, (_, index) => [
+        `measure_${index + 1}`,
+        getMeasurement(item, index + 1)
+      ]))
+    })),
+    inspection_items: (insp.items || []).map((item, itemIndex) => ({
+      ...item,
+      index: item.index || itemIndex + 1,
+      item_code: item.itemCode || item.code || '',
+      item_name: item.itemName || item.name || '-',
+      standard: item.standard || item.specification || '',
+      result: getStatusText(item.result),
+      judgment: getStatusText(item.result),
+      remark: item.remark || item.remarks || '',
+      ...Object.fromEntries(Array.from({ length: MAX_INSPECTION_MEASUREMENT_COLUMNS }, (_, index) => [
+        `measure_${index + 1}`,
+        getMeasurement(item, index + 1)
+      ]))
+    })),
+    material_code: insp.materialCode || insp.itemCode || insp.productCode || '',
+    material_name: insp.materialName || insp.itemName || insp.productName || ''
   }
 
   try {
-    const html = await printService.generateByDefaultTemplate('quality', 'incoming_inspection', printData)
+    const templateType = getInspectionPrintTemplateType(insp)
+    const html = await printService.generateByDefaultTemplate('quality', templateType, printData)
     printService.previewDocument(html)
   } catch (error) {
     console.error('打印失败:', error)

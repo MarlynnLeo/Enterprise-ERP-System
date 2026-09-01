@@ -63,32 +63,31 @@
 .el-dialog.app-dialog--form:not(.is-fullscreen) .el-dialog__body,
 .el-dialog.app-dialog--view:not(.is-fullscreen) .el-dialog__body {
   flex: 1 1 auto;
-  min-height: 0;
+  min-height: 180px;
   max-height: var(--app-dialog-modal-body-max-height);
   overflow: auto;
+  box-sizing: border-box;
 }
 
 .el-dialog.app-dialog--form-wide:not(.is-fullscreen),
 .el-dialog.app-dialog--document:not(.is-fullscreen) {
-  max-width: min(850px, calc(100vw - 24px));
+  max-width: min(920px, calc(100vw - 24px));
 }
 
 .el-dialog.app-dialog--explicit-width:not(.is-fullscreen) {
   max-width: min(100%, calc(100vw - 24px));
 }
 
-/* 默认查看/表单：按内容宽度撑开；上限与明细宽弹窗一致 */
+/* 默认查看/表单：基准宽度 */
 .el-dialog.app-dialog--adaptive:not(.is-fullscreen) {
-  --el-dialog-width: max-content;
-  width: max-content;
-  min-width: min(560px, calc(100vw - 24px));
+  min-width: min(640px, calc(100vw - 24px));
   max-width: min(92vw, 1280px);
 }
 
 .el-dialog.app-dialog--adaptive:not(.is-fullscreen) .el-dialog__body,
 .el-dialog.app-dialog--adaptive:not(.is-fullscreen) .app-dialog-view-body,
 .el-dialog.app-dialog--adaptive:not(.is-fullscreen) .app-dialog-form-body {
-  width: max-content;
+  width: 100%;
   max-width: 100%;
   box-sizing: border-box;
 }
@@ -118,7 +117,8 @@
 }
 
 .app-dialog-view-body .el-descriptions {
-  --el-descriptions-table-border: 1px solid var(--el-border-color-lighter, var(--color-border-lighter));
+  --el-descriptions-table-border: 1px solid
+    var(--el-border-color-lighter, var(--color-border-lighter));
 }
 
 .app-dialog-view-body .el-descriptions__label,
@@ -184,6 +184,7 @@
 .app-dialog-view-body,
 .app-dialog-form-body {
   width: 100%;
+  min-height: 200px;
   max-width: var(--app-dialog-content-max-width);
   box-sizing: border-box;
 }
@@ -207,4 +208,28 @@
     width: calc(100vw - 24px) !important;
     max-width: calc(100vw - 24px);
   }
+}
+
+/* ---------- 对话框内分节分割线：彻底移除白底框，完美融入弹窗背景 ---------- */
+.el-dialog .el-divider--horizontal,
+.app-dialog .el-divider--horizontal,
+.order-view .el-divider--horizontal,
+.order-details .el-divider--horizontal {
+  background: transparent !important;
+  background-color: transparent !important;
+  margin: 18px 0 14px 0 !important;
+}
+
+.el-dialog .el-divider__text,
+.app-dialog .el-divider__text,
+.order-view .el-divider__text,
+.order-details .el-divider__text {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  color: var(--color-text-primary, var(--el-text-color-primary, #334155)) !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+  padding: 0 12px !important;
 }

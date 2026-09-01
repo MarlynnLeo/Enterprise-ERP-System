@@ -160,6 +160,23 @@ const inventoryOutboundItemMap = {
   },
 };
 
+const resolveOutboundType = (row) => {
+  const type = row.outbound_type ?? row.outboundType;
+  if (type && type !== 'manual' && type !== 'other') {
+    return type;
+  }
+  if (row.production_task_id || row.productionTaskId || row.reference_type === 'production_task' || row.referenceType === 'production_task' || row.production_task_code || row.product_code || row.productCode) {
+    return 'production';
+  }
+  if (row.sales_order_id || row.salesOrderId || row.reference_type === 'sales_order' || row.referenceType === 'sales_order' || row.customer_id || row.customerId) {
+    return 'sales';
+  }
+  if (row.reference_type === 'outsourced' || row.referenceType === 'outsourced') {
+    return 'outsourced';
+  }
+  return type || 'manual';
+};
+
 const inventoryOutboundMap = {
   toApi(row) {
     if (row == null) return null;
@@ -168,7 +185,7 @@ const inventoryOutboundMap = {
       id: row.id,
       outboundNo: row.outbound_no ?? null,
       outboundDate: formatDate(row.outbound_date),
-      outboundType: row.outbound_type ?? null,
+      outboundType: resolveOutboundType(row),
       status: row.status ?? null,
       statusText: row.status_text ?? null,
       locationId: row.location_id ?? null,

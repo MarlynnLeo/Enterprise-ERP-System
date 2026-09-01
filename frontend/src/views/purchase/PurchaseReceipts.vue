@@ -126,7 +126,7 @@
               confirm-button-type="warning"
             >
               <template #reference>
-                <el-button size="small" type="warning" v-permission="'purchase:receipts:update'">取消</el-button>
+                <el-button size="small" type="warning" v-permission="'purchase:receipts:close'">取消</el-button>
               </template>
             </el-popconfirm>
           </template>

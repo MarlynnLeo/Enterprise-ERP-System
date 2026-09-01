@@ -316,7 +316,7 @@ export default {
     required: '此字段为必填项',
     email: '请输入有效的邮箱地址',
     phone: '请输入有效的手机号码',
-    password: '密码长度至少6位',
+    password: '密码长度至少12位',
     confirmPassword: '两次输入的密码不一致',
     minLength: '最少输入{min}个字符',
     maxLength: '最多输入{max}个字符',
