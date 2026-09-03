@@ -161,10 +161,14 @@ function createReleaseArchive(descriptor) {
     '--exclude=backend/logs',
     '--exclude=backend/backups',
     '--exclude=backend/uploads',
+    '--exclude=backend/.env',
+    '--exclude=backend/.env.*',
     '--exclude=frontend/logs',
     '--exclude=mobile/node_modules',
     '--exclude=mobile/dist',
     '--exclude=mobile/logs',
+    '--exclude=mobile/.env',
+    '--exclude=mobile/.env.*',
     ...RELEASE_ROOTS
   ]);
 
@@ -310,9 +314,13 @@ tar \
   --exclude='backend/logs' \
   --exclude='backend/backups' \
   --exclude='backend/uploads' \
+  --exclude='backend/.env' \
+  --exclude='backend/.env.*' \
   --exclude='mobile/node_modules' \
   --exclude='mobile/dist' \
   --exclude='mobile/logs' \
+  --exclude='mobile/.env' \
+  --exclude='mobile/.env.*' \
   -czf "$BACKUP_DIR/source-before-$RELEASE_ID.tar.gz" \
   -C "$TARGET" docker-compose.yml package.json package-lock.json .gitattributes .gitignore .prettierignore .prettierrc eslint.config.mjs README.md backend frontend mobile scripts
 [ ! -f "$TARGET/.deployed-release.json" ] || \
@@ -376,8 +384,8 @@ docker tag "$CANDIDATE_FRONTEND" kacon-erp-frontend:latest
 docker tag "$CANDIDATE_MOBILE" kacon-erp-mobile:latest
 cd "$TARGET"
 docker compose -f "$TARGET/docker-compose.yml" config --quiet
-docker compose -f "$TARGET/docker-compose.yml" run --rm --no-deps --no-build backend npm run migrate
-docker compose -f "$TARGET/docker-compose.yml" up -d --no-build --force-recreate --remove-orphans
+docker compose -f "$TARGET/docker-compose.yml" run --rm --no-deps backend npm run migrate
+docker compose -f "$TARGET/docker-compose.yml" up -d --force-recreate --remove-orphans
 
 health_check() {
   local service="$1" cid health
@@ -420,7 +428,7 @@ if ! health_check backend || ! health_check frontend || ! health_check mobile; t
   [ -z "$OLD_BACKEND_IMAGE" ] || docker tag "$OLD_BACKEND_IMAGE" kacon-erp-backend:latest
   [ -z "$OLD_FRONTEND_IMAGE" ] || docker tag "$OLD_FRONTEND_IMAGE" kacon-erp-frontend:latest
   [ -z "$OLD_MOBILE_IMAGE" ] || docker tag "$OLD_MOBILE_IMAGE" kacon-erp-mobile:latest
-  docker compose -f "$TARGET/docker-compose.yml" up -d --no-build --force-recreate --remove-orphans
+  docker compose -f "$TARGET/docker-compose.yml" up -d --force-recreate --remove-orphans
   exit 3
 fi
 
