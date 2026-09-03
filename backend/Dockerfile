@@ -17,6 +17,7 @@ COPY migrations/ ./migrations/
 COPY seeds/ ./seeds/
 COPY scripts/ ./scripts/
 COPY knexfile.js ./
+COPY assets/ ./assets/
 
 RUN mkdir -p uploads logs backups
 

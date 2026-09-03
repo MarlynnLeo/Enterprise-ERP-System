@@ -18,6 +18,9 @@ const DocxInspectionTemplateParser = require('../../../services/business/quality
 const fs = require('fs');
 const path = require('path');
 
+const PRESET_TEMPLATE_DIR = process.env.QUALITY_TEMPLATE_DIR ||
+  path.resolve(__dirname, '../../../../assets/quality-templates');
+
 class InspectionTemplateController {
   constructor() {
     [
@@ -42,6 +45,18 @@ class InspectionTemplateController {
 
   normalizeBoolean(value) {
     return InspectionTemplateResolver.normalizeBoolean(value);
+  }
+
+  getPresetDocxPath(fileName) {
+    const requestedName = String(fileName || '').trim();
+    const baseName = path.basename(requestedName);
+    if (!baseName || baseName !== requestedName || !baseName.toLowerCase().endsWith('.docx')) {
+      return null;
+    }
+
+    const presets = DocxInspectionTemplateParser.getPresetDocxList(PRESET_TEMPLATE_DIR);
+    const preset = presets.find((item) => item.fileName === baseName);
+    return preset?.fullPath || null;
   }
 
   parseMaterialId(value) {
@@ -91,18 +106,29 @@ class InspectionTemplateController {
     return InspectionTemplateResolver.normalizePriority(value);
   }
 
+  async assertTemplateCodeAvailable(templateCode, excludeId = null, transaction = null) {
+    const where = { template_code: templateCode };
+    if (excludeId) {
+      where.id = { [Op.ne]: excludeId };
+    }
+
+    const existingTemplate = await db.InspectionTemplate.findOne({ where, transaction });
+    if (existingTemplate) {
+      throw InspectionTemplateResolver.createValidationError(`模板编号“${templateCode}”已存在`);
+    }
+  }
+
   normalizeItemValue(value) {
     return value === undefined || value === null || value === '' ? null : String(value);
   }
 
   buildInspectionItemPayload(item = {}) {
     const type = item.type || 'other';
-    const isDimension = type === 'dimension';
 
-    const itemName = String(item.item_name || item.itemName || '').trim();
+    const itemName = String(item.item_name || '').trim();
     const standard = String(item.standard || '').trim();
     const method =
-      String(item.method || item.inspection_method || item.inspectionMethod || '').trim() || null;
+      String(item.method || '').trim() || null;
 
     return {
       item_name: itemName,
@@ -114,9 +140,11 @@ class InspectionTemplateController {
         item.is_critical === 1 ||
         item.is_critical === '1' ||
         item.isCritical === true,
-      dimension_value: isDimension ? (item.dimension_value ?? item.dimensionValue ?? null) : null,
-      tolerance_upper: isDimension ? (item.tolerance_upper ?? item.toleranceUpper ?? null) : null,
-      tolerance_lower: isDimension ? (item.tolerance_lower ?? item.toleranceLower ?? null) : null,
+      // 标准尺寸/公差是可选的数值约束，不只适用于 dimension 类型。
+      // 例如 performance 项“破坏扭矩 ≥1.5N.m”也需要保留这些字段（若有）。
+      dimension_value: item.dimension_value ?? item.dimensionValue ?? null,
+      tolerance_upper: item.tolerance_upper ?? item.toleranceUpper ?? null,
+      tolerance_lower: item.tolerance_lower ?? item.toleranceLower ?? null,
     };
   }
 
@@ -453,6 +481,28 @@ class InspectionTemplateController {
         responseData.items = responseData.InspectionItems;
       }
 
+      // belongsToMany 关联查询没有稳定的默认顺序；模板项目必须按导入/编辑时
+      // 写入的 template_item_mappings.sort_order 返回，否则每次打开可能出现随机顺序。
+      if (Array.isArray(responseData.items) && responseData.items.length > 0) {
+        const [mappingRows] = await db.sequelize.query(
+          `SELECT item_id, sort_order, id
+             FROM template_item_mappings
+            WHERE template_id = ?
+            ORDER BY sort_order ASC, id ASC`,
+          { replacements: [id] }
+        );
+
+        const orderedItems = InspectionTemplateResolver.orderTemplateItems(
+          responseData.items,
+          mappingRows || []
+        );
+
+        if (orderedItems.length === responseData.items.length) {
+          responseData.items = orderedItems;
+          responseData.InspectionItems = orderedItems;
+        }
+      }
+
       // ✅ 优化: 预加载物料信息，避免前端编辑时只显示ID
       const materialIds = new Set();
       if (responseData.material_type) {
@@ -529,13 +579,15 @@ class InspectionTemplateController {
     const t = await db.sequelize.transaction();
 
     try {
+      const body = mapKeysToSnake(req.body || {});
       const {
+        template_code,
         template_name,
         inspection_type,
         version,
         description,
         items,
-      } = mapKeysToSnake(req.body || {});
+      } = body;
 
       // 检查用户认证
       if (!req.user) {
@@ -543,11 +595,10 @@ class InspectionTemplateController {
         return ResponseHandler.error(res, '用户未认证', 'UNAUTHORIZED', 401);
       }
 
-      const normalizedDefinition = InspectionTemplateResolver.normalizeTemplateDefinition(req.body);
-      InspectionTemplateResolver.validateTemplateDefinition(req.body, normalizedDefinition);
-
-      // 生成模板编号 格式：IT+日期+序号
-      const template_code = await generateTemplateCode('IT', db);
+      const normalizedDefinition = InspectionTemplateResolver.normalizeTemplateDefinition(body);
+      InspectionTemplateResolver.validateTemplateDefinition(body, normalizedDefinition);
+      const normalizedTemplateCode = InspectionTemplateResolver.validateTemplateCode(template_code);
+      await this.assertTemplateCodeAvailable(normalizedTemplateCode, null, t);
 
       // 处理物料类型
       const isGeneralTemplate = normalizedDefinition.isGeneral;
@@ -556,7 +607,7 @@ class InspectionTemplateController {
       // 创建模板
       const template = await db.InspectionTemplate.create(
         {
-          template_code,
+          template_code: normalizedTemplateCode,
           template_name,
           inspection_type,
           material_type: normalizedDefinition.materialType,
@@ -615,13 +666,15 @@ class InspectionTemplateController {
 
     try {
       const { id } = req.params;
+      const body = mapKeysToSnake(req.body || {});
       const {
+        template_code,
         template_name,
         inspection_type,
         version,
         description,
         items,
-      } = mapKeysToSnake(req.body || {});
+      } = body;
 
       const existingTemplate = await db.InspectionTemplate.findByPk(id, { transaction: t });
       if (!existingTemplate) {
@@ -629,8 +682,10 @@ class InspectionTemplateController {
         return ResponseHandler.error(res, '模板不存在', 'NOT_FOUND', 404);
       }
 
-      const normalizedDefinition = InspectionTemplateResolver.normalizeTemplateDefinition(req.body);
-      InspectionTemplateResolver.validateTemplateDefinition(req.body, normalizedDefinition);
+      const normalizedDefinition = InspectionTemplateResolver.normalizeTemplateDefinition(body);
+      InspectionTemplateResolver.validateTemplateDefinition(body, normalizedDefinition);
+      const normalizedTemplateCode = InspectionTemplateResolver.validateTemplateCode(template_code);
+      await this.assertTemplateCodeAvailable(normalizedTemplateCode, id, t);
 
       // 处理物料类型
       const isGeneralTemplate = normalizedDefinition.isGeneral;
@@ -645,6 +700,7 @@ class InspectionTemplateController {
 
       await db.InspectionTemplate.update(
         {
+          template_code: normalizedTemplateCode,
           template_name,
           inspection_type,
           material_type: normalizedDefinition.materialType,
@@ -798,13 +854,14 @@ class InspectionTemplateController {
         return ResponseHandler.error(res, '模板不存在', 'NOT_FOUND', 404);
       }
 
-      // 生成新的模板编号
-      const template_code = await generateTemplateCode('IT', db);
+      const { template_code } = mapKeysToSnake(req.body || {});
+      const normalizedTemplateCode = InspectionTemplateResolver.validateTemplateCode(template_code);
+      await this.assertTemplateCodeAvailable(normalizedTemplateCode, null, t);
 
       // 创建新模板
       const newTemplate = await db.InspectionTemplate.create(
         {
-          template_code,
+          template_code: normalizedTemplateCode,
           template_name: `${originalTemplate.template_name} - 副本`,
           inspection_type: originalTemplate.inspection_type,
           material_type: originalTemplate.material_type,
@@ -1019,8 +1076,7 @@ class InspectionTemplateController {
   // 获取系统预置检验记录单列表
   async getPresetDocxList(req, res) {
     try {
-      const rootDir = path.resolve(__dirname, '../../../../..');
-      const presets = DocxInspectionTemplateParser.getPresetDocxList(rootDir);
+      const presets = DocxInspectionTemplateParser.getPresetDocxList(PRESET_TEMPLATE_DIR);
       ResponseHandler.success(res, presets, '获取预置检验文档列表成功');
     } catch (error) {
       logger.error('获取预置检验文档失败:', error);
@@ -1036,13 +1092,7 @@ class InspectionTemplateController {
         return ResponseHandler.error(res, '未指定预置文件名', 'BAD_REQUEST', 400);
       }
 
-      const rootDir = path.resolve(__dirname, '../../../../..');
-      const searchPaths = [
-        path.join(rootDir, fileName),
-        path.join(rootDir, 'docs', fileName),
-      ];
-
-      const filePath = searchPaths.find((p) => fs.existsSync(p));
+      const filePath = this.getPresetDocxPath(fileName);
       if (!filePath) {
         return ResponseHandler.error(res, `未找到指定的预置文件: ${fileName}`, 'NOT_FOUND', 404);
       }
@@ -1099,6 +1149,7 @@ class InspectionTemplateController {
   // 内部辅助方法：保存结构化模板数据入库
   async _saveTemplatePayload(templateData, userId, transaction) {
     const {
+      template_code,
       template_name,
       inspection_type = 'incoming',
       version = '1.0',
@@ -1133,12 +1184,15 @@ class InspectionTemplateController {
       normalizedDefinition
     );
 
-    // 生成模板编号
-    const template_code = await generateTemplateCode('IT', db);
+    const normalizedTemplateCode = InspectionTemplateResolver.validateTemplateCode(template_code, {
+      required: false,
+    });
+    const resolvedTemplateCode = normalizedTemplateCode || (await generateTemplateCode('IT', db));
+    await this.assertTemplateCodeAvailable(resolvedTemplateCode, null, transaction);
 
     const template = await db.InspectionTemplate.create(
       {
-        template_code,
+        template_code: resolvedTemplateCode,
         template_name: template_name.trim(),
         inspection_type,
         material_type: normalizedDefinition.materialType,
@@ -1183,7 +1237,7 @@ class InspectionTemplateController {
         return ResponseHandler.error(res, '用户未认证', 'UNAUTHORIZED', 401);
       }
 
-      const { fileName, customTemplateData } = req.body || {};
+      const { fileName, customTemplateData, templateCode } = req.body || {};
       if (!fileName && !customTemplateData) {
         await t.rollback();
         return ResponseHandler.error(res, '未指定预置文档或模板数据', 'BAD_REQUEST', 400);
@@ -1192,13 +1246,7 @@ class InspectionTemplateController {
       let templateData = customTemplateData;
 
       if (!templateData) {
-        const rootDir = path.resolve(__dirname, '../../../../..');
-        const searchPaths = [
-          path.join(rootDir, fileName),
-          path.join(rootDir, 'docs', fileName),
-        ];
-
-        const filePath = searchPaths.find((p) => fs.existsSync(p));
+        const filePath = this.getPresetDocxPath(fileName);
         if (!filePath) {
           await t.rollback();
           return ResponseHandler.error(res, `未找到指定的预置文件: ${fileName}`, 'NOT_FOUND', 404);
@@ -1210,6 +1258,7 @@ class InspectionTemplateController {
 
         templateData = {
           ...parsed,
+          templateCode,
           material_types: matchResult.materialIds,
           material_type: matchResult.materialIds[0] || null,
         };

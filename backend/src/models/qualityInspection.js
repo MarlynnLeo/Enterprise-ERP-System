@@ -474,9 +474,36 @@ class QualityInspection {
           }
         }
 
+        // 获取关联的检验附件（问题照片、现场取证图片等）
+        const [attachments] = await connection.query(
+          `SELECT id, file_url, metadata, created_at
+             FROM file_access_records
+            WHERE business_type = 'quality_inspection'
+              AND business_id = ?
+              AND deleted_at IS NULL
+            ORDER BY id ASC`,
+          [inspectionId]
+        );
+
         return {
           ...rows[0],
           items,
+          attachments: (attachments || []).map((att) => {
+            let meta;
+            try {
+              meta = typeof att.metadata === 'string' ? JSON.parse(att.metadata || '{}') : (att.metadata || {});
+            } catch {
+              meta = {};
+            }
+            return {
+              id: att.id,
+              url: att.file_url,
+              name: meta.originalName || '现场照片',
+              size: meta.size,
+              type: meta.mimetype || meta.mimeType || null,
+              createdAt: att.created_at,
+            };
+          }),
         };
       } finally {
         connection.release();
@@ -759,10 +786,11 @@ class QualityInspection {
           const remark = item.remarks || item.remark || null;
 
           const itemType = this._normalizeItemType(item.type);
-          const fixedMeasurements = Array.from({ length: 6 }, (_, index) =>
-            itemType === 'dimension'
-              ? (item[`measure_${index + 1}`] ?? item[`measure${index + 1}`] ?? null)
-              : null
+          // 数值录入模式由检验标准决定，不再局限于 dimension 类型。
+          // 前端会把定性项目的固定列置空，因此这里保留所有已提交的数值列。
+          const fixedMeasurements = Array.from(
+            { length: 6 },
+            (_, index) => item[`measure_${index + 1}`] ?? item[`measure${index + 1}`] ?? null
           );
 
           // 这里如果是免检我们自动赋予OK通过结果
@@ -790,9 +818,9 @@ class QualityInspection {
               item.method || item.inspection_method || null,
               itemType,
               isCritical,
-              item.dimension_value || null,
-              item.tolerance_upper || null,
-              item.tolerance_lower || null,
+              item.dimension_value === '' ? null : item.dimension_value ?? null,
+              item.tolerance_upper === '' ? null : item.tolerance_upper ?? null,
+              item.tolerance_lower === '' ? null : item.tolerance_lower ?? null,
               itemResult,
               actualValue,
               remark,
@@ -971,10 +999,10 @@ class QualityInspection {
             const remark = item.remarks || item.remark || null;
 
             const itemType = this._normalizeItemType(item.type);
-            const fixedMeasurements = Array.from({ length: 6 }, (_, index) =>
-              itemType === 'dimension'
-                ? (item[`measure_${index + 1}`] ?? item[`measure${index + 1}`] ?? null)
-                : null
+            // performance / safety 等项目也可能依据标准文本录入数值。
+            const fixedMeasurements = Array.from(
+              { length: 6 },
+              (_, index) => item[`measure_${index + 1}`] ?? item[`measure${index + 1}`] ?? null
             );
 
             const [updatedItemResult] = await connection.execute(
@@ -991,11 +1019,11 @@ class QualityInspection {
                 item.method || item.inspection_method || null,
                 itemType,
                 isCritical,
-                item.dimension_value || null,
-                item.tolerance_upper || null,
-                item.tolerance_lower || null,
+                item.dimension_value === '' ? null : item.dimension_value ?? null,
+                item.tolerance_upper === '' ? null : item.tolerance_upper ?? null,
+                item.tolerance_lower === '' ? null : item.tolerance_lower ?? null,
                 item.result || null,
-                item.actual_value || null,
+                item.actual_value === '' ? null : item.actual_value ?? null,
                 remark,
                 ...fixedMeasurements,
               ]

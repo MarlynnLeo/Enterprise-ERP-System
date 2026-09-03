@@ -63,6 +63,8 @@ _*.cjs
 *.tar.gz
 .playwright-cli/
 /output/
+/.codex_artifacts/
+/outputs/
 **/__pycache__/
 *.pyc
 tmp/

@@ -56,4 +56,33 @@ describe('SalesOutboundReversalService', () => {
     expect(typeof svc.compensateFinance).toBe('function');
     expect(typeof svc.reverseCostEntries).toBe('function');
   });
+
+  test('多订单出库汇总主订单、related_orders 和明细来源订单', async () => {
+    const svc = require('../../src/services/business/SalesOutboundReversalService');
+    const connection = {
+      execute: jest.fn()
+        .mockResolvedValueOnce([[
+          { order_id: null, related_orders: '[11, 12]' },
+        ]])
+        .mockResolvedValueOnce([[
+          { source_order_id: 13 },
+          { source_order_id: 12 },
+        ]]),
+    };
+
+    await expect(svc.resolveRelatedOrderIds(connection, { outboundId: 5 }))
+      .resolves.toEqual([11, 12, 13]);
+  });
+
+  test('共享 AR 的其它完成出库会阻止自动取消，并检查多订单关联字段', async () => {
+    const svc = require('../../src/services/business/SalesOutboundReversalService');
+    const connection = {
+      execute: jest.fn().mockResolvedValueOnce([[{ cnt: '1' }]]),
+    };
+
+    await expect(svc.cancelUnpaidArIfSafe(connection, 12, 5, '财务')).resolves.toBe(0);
+    const sql = String(connection.execute.mock.calls[0][0]);
+    expect(sql).toContain('sobi.source_order_id');
+    expect(sql).toContain('JSON_CONTAINS');
+  });
 });

@@ -169,7 +169,7 @@ const printController = {
 
   async createPrintTemplate(req, res) {
     try {
-      const data = req.body;
+      const data = mapKeysToSnake({ ...(req.body || {}) });
 
       // 添加创建人信息
       data.created_by = await getCurrentUserName(req);
@@ -195,7 +195,7 @@ const printController = {
   async updatePrintTemplate(req, res) {
     try {
       const { id } = req.params;
-      const data = req.body;
+      const data = mapKeysToSnake({ ...(req.body || {}) });
 
       // 添加更新时间
       data.updated_at = new Date();

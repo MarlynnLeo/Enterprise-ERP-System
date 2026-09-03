@@ -62,10 +62,18 @@ async function ensureBindingAccess(req, files) {
   return { ok: true, binding };
 }
 
+const UPLOAD_PERMISSIONS = [
+  'system:files:upload',
+  'quality:inspections:update',
+  'quality:inspections:create',
+  'quality:incoming:update',
+  'quality:incoming:create',
+];
+
 router.post(
   '/file',
   authenticateToken,
-  requirePermission('system:files:upload'),
+  requirePermission(UPLOAD_PERMISSIONS),
   FileUploadMiddlewares.attachmentFile,
   async (req, res) => {
     const uploadedFiles = req.fileInfo ? [req.fileInfo] : [];
@@ -127,7 +135,7 @@ router.post(
 router.post(
   '/files',
   authenticateToken,
-  requirePermission('system:files:upload'),
+  requirePermission(UPLOAD_PERMISSIONS),
   FileUploadMiddlewares.attachmentFiles,
   async (req, res) => {
     const uploadedFiles = Array.isArray(req.filesInfo) ? req.filesInfo : [];

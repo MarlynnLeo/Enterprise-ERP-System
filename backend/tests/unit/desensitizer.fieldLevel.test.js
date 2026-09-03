@@ -59,6 +59,12 @@ describe('desensitizer field-level price', () => {
     expect(row.name).toBe('物料');
   });
 
+  test('warehouse cannot see supplier total spent in purchase statistics', () => {
+    const row = { supplierName: '供应商', totalSpent: 12345.67 };
+    desensitizeData(row, false);
+    expect(row.totalSpent).toBe('***');
+  });
+
   test('boolean true keeps all (backward compatible)', () => {
     const row = { price: 1, costPrice: 2 };
     desensitizeData(row, true);

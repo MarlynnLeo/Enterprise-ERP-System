@@ -35,7 +35,8 @@ export function normalizeParsedInspectionTemplate(data = {}) {
 
   return {
     ...data,
-    materialTypes: data.materialTypes || data.material_types || [],
+    templateCode: String(firstValue(data.templateCode, data.template_code, '')).trim(),
+    materialTypes: firstValue(data.materialTypes, data.material_types, []),
     items: items.map(normalizeImportedInspectionItem),
   }
 }

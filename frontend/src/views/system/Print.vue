@@ -577,8 +577,17 @@ const resetTemplatesQuery = () => {
 
 const openTemplateDialog = (row) => {
   if (row) {
-    // 编辑模式，复制数据
-    Object.assign(currentTemplate, row)
+    // API 返回 camelCase；编辑模型使用 snake_case，统一在边界归一化。
+    Object.assign(currentTemplate, DEFAULT_TEMPLATE, {
+      ...row,
+      template_type: row.template_type ?? row.templateType ?? '',
+      paper_size: row.paper_size ?? row.paperSize ?? 'A4',
+      margin_top: row.margin_top ?? row.marginTop ?? 10,
+      margin_right: row.margin_right ?? row.marginRight ?? 10,
+      margin_bottom: row.margin_bottom ?? row.marginBottom ?? 10,
+      margin_left: row.margin_left ?? row.marginLeft ?? 10,
+      isDefault: row.isDefault ?? row.is_default ?? 0,
+    })
 
     // 确保orientation值正确
     if (!currentTemplate.orientation || !['portrait', 'landscape'].includes(currentTemplate.orientation)) {

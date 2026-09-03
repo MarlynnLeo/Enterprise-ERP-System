@@ -37,5 +37,8 @@
     "url": "https://github.com/MarlynnLeo/Enterprise-ERP-System/issues"
   },
   "homepage": "https://github.com/MarlynnLeo/Enterprise-ERP-System#readme",
-  "description": ""
+  "description": "",
+  "dependencies": {
+    "ssh2": "^1.17.0"
+  }
 }

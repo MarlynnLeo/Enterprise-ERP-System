@@ -129,6 +129,7 @@ class PurchaseOrderStatusService {
                WHERE qi.reference_id = ?
                  AND qi.material_id = ?
                  AND qi.inspection_type = 'incoming'
+                 AND (qi.source_type IS NULL OR qi.source_type = '' OR qi.source_type = 'purchase_order')
                  AND qi.deleted_at IS NULL
                  AND qi.status IN (${inspectionStatusSql})
              ), 0)
@@ -486,6 +487,7 @@ class PurchaseOrderStatusService {
          FROM quality_inspections
          WHERE deleted_at IS NULL
            AND inspection_type = 'incoming'
+           AND (source_type IS NULL OR source_type = '' OR source_type = 'purchase_order')
            AND reference_id = ?
            AND material_id = ?
            AND status IN (?, ?, ?, ?)`,

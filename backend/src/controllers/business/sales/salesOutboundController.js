@@ -19,7 +19,6 @@ const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 
 const { STATUS, getConnection, generateSalesOutboundNo } = require('./salesShared');
-const { getRequestActorLabel } = require('../../../utils/userUtils');
 const { salesOutboundMap, salesOutboundItemMap } = require('../../../utils/sales/salesFieldMap');
 
 const createValidationError = (message) => {
@@ -1425,166 +1424,37 @@ exports.reverseSalesOutbound = async (req, res) => {
     const posting = await InventoryPostingService.requireApprovedForTransaction(connection, {
       reference_no: outboundNo,
     });
-    const [postingLines] = await connection.execute(
-      `SELECT id, ABS(signed_quantity) AS qty
-         FROM inventory_posting_lines
-        WHERE posting_document_id = ?
-        ORDER BY line_no`,
-      [posting.id]
-    );
-    const ledgerRows = postingLines;
-    const reversedQty = postingLines.reduce((sum, row) => sum + Number(row.qty || 0), 0);
-
-    await InventoryPostingService.reverse(posting.id, InventoryPostingService.actorFromRequest(req), `冲销销售出库 ${outboundNo}`, connection);
-
-    const operator = await getCurrentUserName(req);
-
-    const [statusUpdate] = await connection.execute(
-      `UPDATE sales_outbound
-       SET status = 'reversed', updated_at = NOW()
-       WHERE id = ? AND deleted_at IS NULL AND status = 'completed'`,
-      [id]
-    );
-    if (!statusUpdate.affectedRows) {
-      await connection.rollback();
-      return ResponseHandler.error(res, '出库单状态已变更，请刷新后重试', 'VALIDATION_ERROR', 400);
-    }
-
-    // P0：财务补偿闭环（成本 GL / 销项税 / 安全取消未收款 AR）
-    const SalesOutboundReversalService = require('../../../services/business/SalesOutboundReversalService');
-    let financeCompensation = null;
-    try {
-      financeCompensation = await SalesOutboundReversalService.compensateFinance(connection, {
-        outboundNo,
-        outboundId: Number(id),
+    const reversal = await InventoryPostingService.requestReversal(
+      posting.id,
+      InventoryPostingService.actorFromRequest(req),
+      `冲销销售出库 ${outboundNo}`,
+      {
+        sourceType: 'sales_outbound',
+        sourceId: Number(id),
+        sourceNo: outboundNo,
+        referenceType: 'sales_outbound',
+        referenceId: Number(id),
         orderId: outbound.order_id ? Number(outbound.order_id) : null,
-        operator: operator || getRequestActorLabel(req),
-      });
-    } catch (finErr) {
-      await connection.rollback();
-      const status = finErr.statusCode || 400;
-      return ResponseHandler.error(
+        isMultiOrder: outbound.is_multi_order,
+        relatedOrders: outbound.related_orders,
+      },
+      connection
+    );
+    if (reversal?.reversalDocumentId) {
+      await connection.commit();
+      return ResponseHandler.success(
         res,
-        finErr.message || '财务冲销失败，已中止出库冲销',
-        finErr.code || 'FINANCE_REVERSAL_BLOCKED',
-        status
+        {
+          id: Number(id),
+          outboundNo,
+          status: outbound.status,
+          reversalDocumentId: reversal.reversalDocumentId,
+          financeStatus: reversal.financeStatus,
+        },
+        '销售出库反审核申请已提交，待财务审批后正式冲销并完成财务收尾'
       );
     }
 
-    // 冲销后：同步所有关联订单状态 + 重新预留剩余未发数量
-    const relatedOrderIds = new Set();
-    if (outbound.order_id) relatedOrderIds.add(Number(outbound.order_id));
-    if (outbound.related_orders) {
-      try {
-        const parsed =
-          typeof outbound.related_orders === 'string'
-            ? JSON.parse(outbound.related_orders)
-            : outbound.related_orders;
-        if (Array.isArray(parsed)) {
-          parsed.forEach((oid) => {
-            const n = Number(oid);
-            if (Number.isInteger(n) && n > 0) relatedOrderIds.add(n);
-          });
-        }
-      } catch {
-        // ignore
-      }
-    }
-    const [srcOrders] = await connection.execute(
-      `SELECT DISTINCT source_order_id FROM sales_outbound_items
-       WHERE outbound_id = ? AND source_order_id IS NOT NULL`,
-      [id]
-    );
-    srcOrders.forEach((r) => {
-      const n = Number(r.source_order_id);
-      if (Number.isInteger(n) && n > 0) relatedOrderIds.add(n);
-    });
-
-    const orderIdList = [...relatedOrderIds].filter(Boolean);
-    for (const orderId of orderIdList) {
-      try {
-        await SalesOrderStatusService.updateOrderStatus(orderId, connection);
-      } catch (statusErr) {
-        logger.warn(`销售出库冲销后订单 ${orderId} 状态同步失败: ${statusErr.message}`);
-      }
-    }
-
-    // 重新预留：库存已回冲，为仍未发完的订单行建立 active 预留
-    try {
-      const InventoryReservationService = require('../../../services/InventoryReservationService');
-      const userId = req.user?.id || null;
-      for (const orderId of orderIdList) {
-        const [orderRows] = await connection.execute(
-          `SELECT id, order_no, status FROM sales_orders
-           WHERE id = ? AND deleted_at IS NULL FOR UPDATE`,
-          [orderId]
-        );
-        if (!orderRows.length) continue;
-        const order = orderRows[0];
-        if (['cancelled', 'completed'].includes(String(order.status))) continue;
-
-        const [items] = await connection.execute(
-          `SELECT material_id, quantity AS ordered_quantity
-           FROM sales_order_items WHERE order_id = ?`,
-          [orderId]
-        );
-        if (!items.length) continue;
-
-        // 剩余可发 = 订购 − 其它未冲销出库
-        const remainingItems = [];
-        for (const item of items) {
-          const [shipped] = await connection.execute(
-            `SELECT COALESCE(SUM(sobi.quantity), 0) AS shipped_qty
-             FROM sales_outbound_items sobi
-             JOIN sales_outbound sob ON sob.id = sobi.outbound_id
-             WHERE sob.deleted_at IS NULL
-               AND sob.status IN ('processing', 'completed')
-               AND sobi.product_id = ?
-               AND (sob.order_id = ? OR sobi.source_order_id = ?)`,
-            [item.material_id, orderId, orderId]
-          );
-          const ordered = parseFloat(item.ordered_quantity) || 0;
-          const shipQty = parseFloat(shipped[0]?.shipped_qty) || 0;
-          const remain = Math.max(0, ordered - shipQty);
-          if (remain > 0.0001) {
-            remainingItems.push({
-              material_id: item.material_id,
-              quantity: remain,
-              ordered_quantity: remain,
-            });
-          }
-        }
-        if (remainingItems.length) {
-          await InventoryReservationService.reserveInventoryForOrder(
-            orderId,
-            order.order_no,
-            remainingItems,
-            userId,
-            connection
-          );
-          logger.info(
-            `销售出库冲销后订单 ${order.order_no} 已重预留 ${remainingItems.length} 行`
-          );
-        }
-      }
-    } catch (reserveErr) {
-      logger.warn(`销售出库冲销后重预留失败: ${reserveErr.message}`);
-    }
-
-    await connection.commit();
-    return ResponseHandler.success(
-      res,
-      {
-        id: Number(id),
-        outbound_no: outboundNo,
-        status: 'reversed',
-        reversedQuantity: reversedQty,
-        reversedLedgerCount: ledgerRows.length,
-        financeCompensation,
-        relatedOrderIds: orderIdList,
-      },
-      '销售出库冲销成功，库存与财务已回冲'
-    );
   } catch (error) {
     if (connection) {
       try {

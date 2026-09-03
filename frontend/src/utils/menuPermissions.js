@@ -39,6 +39,18 @@ const appendRoutePermissionEntries = (menus) => {
       visible: 0
     },
     {
+      id: 9320,
+      parentPermission: 'finance',
+      name: '库存过账审核',
+      path: '/finance/inventory-posting',
+      component: 'finance/inventory/InventoryPostingApproval',
+      icon: 'icon-check',
+      type: 1,
+      permission: 'finance:inventory:view',
+      sort: 18,
+      status: 1
+    },
+    {
       id: 9302,
       parentId: 740,
       name: 'Edit Budget',
@@ -189,24 +201,29 @@ const appendRoutePermissionEntries = (menus) => {
   let nextId = 9400;
 
   routeMenus.forEach((entry) => {
+    const resolvedParentId = entry.parentPermission
+      ? nextMenus.find((menu) => menu.permission === entry.parentPermission)?.id || entry.parentId || 0
+      : entry.parentId ?? 0;
+    const normalizedEntry = { ...entry, parentId: resolvedParentId };
+    delete normalizedEntry.parentPermission;
     const existing = entry.path
       ? nextMenus.find((menu) => menu.path === entry.path)
       : nextMenus.find((menu) => menu.permission === entry.permission);
 
     if (existing) {
-      Object.assign(existing, entry, { id: existing.id });
+      Object.assign(existing, normalizedEntry, { id: existing.id });
       return;
     }
 
     const id = entry.id && !usedIds.has(entry.id) ? entry.id : nextId++;
     usedIds.add(id);
     nextMenus.push({
-      name: entry.name || entry.permission,
-      icon: entry.icon || '',
-      type: entry.type ?? 1,
-      sort: entry.sort ?? 99,
-      status: entry.status ?? 1,
-      ...entry,
+      name: normalizedEntry.name || normalizedEntry.permission,
+      icon: normalizedEntry.icon || '',
+      type: normalizedEntry.type ?? 1,
+      sort: normalizedEntry.sort ?? 99,
+      status: normalizedEntry.status ?? 1,
+      ...normalizedEntry,
       id
     });
   });
@@ -272,6 +289,7 @@ const appendActionPermissionEntries = (menus) => {
     { parentPermission: 'contract:view', permissions: ['contract:create', 'contract:edit', 'contract:delete'] },
     { parentPermission: 'finance:accounts:view', permissions: ['finance:accounts:create', 'finance:accounts:update'] },
     { parentPermission: 'finance:entries:view', permissions: ['finance:entries:create', 'finance:entries:update', 'finance:entries:delete', 'finance:entries:approve'] },
+    { parentPermission: 'finance:inventory:view', permissions: ['finance:inventory:approve', 'finance:inventory:reverse'] },
     { parentPermission: 'finance:periods:view', permissions: ['finance:periods:create', 'finance:periods:update'] },
     { parentPermission: 'finance:closing:view', permissions: ['finance:closing:execute'] },
     { parentPermission: 'finance:ar:view', permissions: ['finance:ar:create', 'finance:ar:update', 'finance:ar:receive'] },

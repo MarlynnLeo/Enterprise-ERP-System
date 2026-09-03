@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/validate-menu-implementation.mjs",
     "build": "node --max-old-space-size=4096 node_modules/vite/bin/vite.js build",
     "build:legacy": "vite build --mode legacy",
     "lint": "eslint .",
@@ -49,6 +50,8 @@
     "vitest": "^3.2.7"
   },
   "overrides": {
+    "browserslist": "4.28.8",
+    "postcss-selector-parser": "7.1.5",
     "socket.io-parser": "4.2.7",
     "brace-expansion@1.1.16": "1.1.18",
     "brace-expansion@2.1.2": "2.1.4",

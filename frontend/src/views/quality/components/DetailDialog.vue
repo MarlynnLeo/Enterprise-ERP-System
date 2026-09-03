@@ -81,6 +81,10 @@
             <el-table-column prop="remarks" label="备注" min-width="100" show-overflow-tooltip />
           </el-table>
         </template>
+        <template v-if="inspection.attachments && inspection.attachments.length > 0">
+          <el-divider content-position="center">附件</el-divider>
+          <AttachmentUpload :model-value="inspection.attachments" readonly />
+        </template>
       </template>
       <EmptyState v-else-if="!loading" description="暂无数据" />
     </div>
@@ -101,6 +105,7 @@ import {
   MAX_INSPECTION_MEASUREMENT_COLUMNS
 } from '@/utils/inspectionHelpers'
 import { formatInspectionMeasurement } from '@/utils/inspectionMeasurement'
+import AttachmentUpload from '@/components/AttachmentUpload.vue'
 const props = defineProps({
   visible: Boolean,
   row: { type: Object, default: null }

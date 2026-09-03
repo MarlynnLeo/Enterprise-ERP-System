@@ -44,6 +44,9 @@ const SKIP_SANITIZE_FIELDS = [
   'model',
   'standard',
   'standard_value',
+  // AQL 级别可以是 "GB/T 2828.1 II" 这类标准标识，斜杠不应被转义为 HTML 实体
+  'aqlLevel',
+  'aql_level',
   'drawing_no',
   'color_code',
   'material', // 物料材料/材质字段
@@ -410,6 +413,9 @@ const detectSQLInjection = (req, res, next) => {
     'name',
     'standard',
     'standard_value',
+    // 检验模板的 AQL 级别允许标准标识（如 GB/T 2828.1 II）；仍保留高危 SQL 检测
+    'aqlLevel',
+    'aql_level',
     'issue_reason',
     'reason_name',
     'reasonName',

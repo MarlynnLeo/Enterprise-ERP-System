@@ -41,6 +41,13 @@ export const qualityApi = {
     return api.put(`/quality/inspections/${id}`, { status: 'passed', ...data })
   },
 
+  // 上传检验问题照片或附件
+  uploadInspectionPhoto(formData) {
+    return api.post('/upload/file', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+
   // 过程检验
   getProcessInspections(params) {
     return api.get('/quality/inspections/process', { params })

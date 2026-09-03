@@ -34,7 +34,7 @@
             <el-table-column prop="itemName" label="项目" width="120" show-overflow-tooltip />
             <el-table-column prop="standard" label="检验要求/标准" min-width="180" show-overflow-tooltip />
             <el-table-column prop="method" label="检测方法" width="130" show-overflow-tooltip />
-            <!-- 尺寸项录入数值，外观/功能等非尺寸项选择√或× -->
+            <!-- 标准中有数值约束的项目录入实测数值，其余项目选择 √ / × -->
             <el-table-column label="测量值">
               <el-table-column
                 v-for="mIdx in currentSampleSize"
@@ -45,14 +45,15 @@
               >
                 <template #default="scope">
                   <el-input
-                    v-if="isDimensionInspectionItem(scope.row)"
+                    v-if="isNumericInspectionItem(scope.row)"
                     :ref="el => setMeasureInputRef(el, scope.$index, mIdx - 1)"
                     v-model="scope.row.measurements[mIdx - 1]"
                     class="measurement-control"
                     size="small"
-                    placeholder=""
+                    :placeholder="numericMeasurementPlaceholder(scope.row)"
+                    inputmode="decimal"
                     @input="calculateAverageValue(scope.row)"
-                    @blur="formatMeasureByIndex(scope.row, mIdx - 1); checkDimensionTolerance(scope.row)"
+                    @blur="formatMeasureByIndex(scope.row, mIdx - 1); checkNumericStandard(scope.row)"
                     @keydown.enter="handleMeasureEnter(scope.$index, mIdx - 1, $event)"
                   />
                   <el-select
@@ -159,6 +160,16 @@
       <el-form-item label="备注" prop="note">
         <el-input v-model="inspectForm.note" type="textarea" placeholder="请输入备注信息" :rows="3" />
       </el-form-item>
+
+      <el-form-item label="问题照片/附件">
+        <AttachmentUpload
+          v-model="inspectForm.attachments"
+          business-type="quality_inspection"
+          :business-id="inspectForm.id"
+          :max-files="20"
+          :max-size-m-b="15"
+        />
+      </el-form-item>
     </el-form>
 
     <template #footer>
@@ -182,6 +193,7 @@
 import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { qualityApi, baseDataApi } from '@/api'
+import AttachmentUpload from '@/components/AttachmentUpload.vue'
 import { parseListData } from '@/utils/responseParser'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
@@ -202,7 +214,9 @@ import {
 } from '@/utils/inspectionTemplateResolver'
 import {
   QUALITATIVE_MEASUREMENT_OPTIONS,
-  isDimensionInspectionItem,
+  isNumericInspectionItem,
+  parseInspectionStandard,
+  evaluateInspectionMeasurements,
   normalizeQualitativeMeasurementValue,
   summarizeQualitativeMeasurements
 } from '@/utils/inspectionMeasurement'
@@ -247,6 +261,7 @@ const inspectForm = reactive({
   inspectionDate: new Date(),
   items: [],
   note: '',
+  attachments: [],
   is_aql: false,
   aql_standard_id: null,
   aqlLevel: null,
@@ -357,6 +372,7 @@ const loadInspectionData = async () => {
     inspectForm.inspectorName = authStore.user?.realName || ''
     inspectForm.inspectionDate = new Date()
     inspectForm.note = inspectionData.note || ''
+    inspectForm.attachments = Array.isArray(inspectionData.attachments) ? inspectionData.attachments : []
     inspectForm.is_aql = inspectionData.isAql ?? !!inspectionData.is_aql
     inspectForm.aqlLevel = inspectionData.aqlLevel ?? inspectionData.aql_level ?? null
     inspectForm.aql_standard_id = inspectionData.aqlStandardId ?? inspectionData.aql_standard_id ?? null
@@ -521,37 +537,88 @@ const resizeAllMeasurements = (newSize) => {
 }
 
 // ===== 测量值相关 =====
+const numericMeasurementPlaceholder = (item) => {
+  const rule = parseInspectionStandard(item)
+  if (!rule || rule.mode !== 'numeric') return ''
+  if (rule.operator === 'gte') return `≥${rule.nominal}`
+  if (rule.operator === 'gt') return `>${rule.nominal}`
+  if (rule.operator === 'lte') return `≤${rule.nominal}`
+  if (rule.operator === 'lt') return `<${rule.nominal}`
+  if (rule.operator === 'range' || rule.operator === 'tolerance') {
+    return `${rule.lowerBound}~${rule.upperBound}`
+  }
+  if (rule.operator === 'eq') return `=${rule.nominal}`
+  return '实测值'
+}
+
+const getItemField = (item, ...names) => {
+  for (const name of names) {
+    if (item?.[name] !== undefined && item?.[name] !== null && item?.[name] !== '') {
+      return item[name]
+    }
+  }
+  return null
+}
+
 const mapInspectionItems = (items) => {
   const size = Math.min(
     MAX_INSPECTION_MEASUREMENT_COLUMNS,
     Math.max(currentSampleSize.value, getInspectionMeasurementColumnCount(items, MAX_INSPECTION_MEASUREMENT_COLUMNS))
   )
   currentSampleSize.value = size
-  return items.map(item => {
+  return (items || []).map(item => {
     const normalizedItem = {
       ...item,
-      type: item.type || item.itemType || item.item_type || 'other'
+      type: getItemField(item, 'type', 'itemType', 'item_type') || 'other',
+      itemName: getItemField(item, 'itemName', 'item_name', 'name') || '',
+      standard: item.standard || item.criteria || item.requirement || '',
+      method: getItemField(item, 'method', 'inspectionMethod', 'inspection_method') || '',
+      dimensionValue: getItemField(item, 'dimensionValue', 'dimension_value'),
+      toleranceUpper: getItemField(item, 'toleranceUpper', 'tolerance_upper'),
+      toleranceLower: getItemField(item, 'toleranceLower', 'tolerance_lower'),
+      actualValue: getItemField(item, 'actualValue', 'actual_value'),
+      remarks: getItemField(item, 'remarks', 'remark', 'comment') || ''
     }
+    const numeric = isNumericInspectionItem(normalizedItem)
     const measurements = normalizeInspectionMeasurements(item)
-      .map((value) => isDimensionInspectionItem(normalizedItem)
+      .map((value) => numeric
         ? value
         : normalizeQualitativeMeasurementValue(value))
     while (measurements.length < size) measurements.push('')
     if (measurements.length > size) measurements.length = size
 
-    return {
+    const mapped = {
       ...normalizedItem,
-      itemName: item.itemName || item.item_name || item.name || '',
-      standard: item.standard || item.criteria || '',
-      method: item.method || item.inspectionMethod || item.inspection_method || '',
       measurements,
-      dimension_value: item.dimensionValue || null,
-      tolerance_upper: item.toleranceUpper || null,
-      tolerance_lower: item.toleranceLower || null,
-      actual_value: item.actualValue || '',
+      dimension_value: normalizedItem.dimensionValue,
+      tolerance_upper: normalizedItem.toleranceUpper,
+      tolerance_lower: normalizedItem.toleranceLower,
+      actual_value: normalizedItem.actualValue ?? '',
       result: item.result || '',
-      remarks: item.remarks || ''
+      isQualified: item.isQualified ?? item.is_qualified ?? null,
+      is_qualified: item.isQualified ?? item.is_qualified ?? null
     }
+
+    // 兼容旧记录：只有 actual_value、没有测量子表时，将单个数值放回第一个输入框。
+    if (numeric && measurements.every((value) => value === '') &&
+        mapped.actual_value !== '' && mapped.actual_value !== '-') {
+      const actualText = String(mapped.actual_value).trim()
+      if (/^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$/.test(actualText)) {
+        mapped.measurements[0] = actualText
+      }
+    }
+
+    if (numeric && measurements.some((value) => value !== '')) {
+      const evaluation = evaluateInspectionMeasurements(mapped, measurements)
+      if (evaluation.result || !mapped.result) mapped.result = evaluation.result
+    } else if (!numeric && measurements.some((value) => value !== '')) {
+      const summary = summarizeQualitativeMeasurements(measurements)
+      mapped.actualValue = summary.text
+      mapped.actual_value = summary.text
+      mapped.result = summary.result
+    }
+
+    return mapped
   })
 }
 
@@ -593,60 +660,83 @@ const handleMeasureEnter = (rowIndex, colIndex, event) => {
 }
 
 const formatMeasureByIndex = (item, index) => {
-  if (!isDimensionInspectionItem(item)) return
+  if (!isNumericInspectionItem(item)) return
   const value = item.measurements[index]
   if (value === null || value === undefined || value === '') return
-  const num = parseFloat(value)
-  if (!isNaN(num)) item.measurements[index] = num.toFixed(2)
+  item.measurements[index] = String(value).trim()
 }
 
 const calculateAverageValue = (item) => {
-  if (!isDimensionInspectionItem(item)) {
+  if (!isNumericInspectionItem(item)) {
     handleQualitativeMeasurementChange(item)
     return
   }
   if (!item.measurements) return
-  const measures = item.measurements.filter(v => v !== null && v !== undefined && v !== '' && !isNaN(parseFloat(v))).map(v => parseFloat(v))
-  if (measures.length === 0) { item.actualValue = ''; item.actual_value = ''; return }
 
-  const sum = measures.reduce((acc, val) => acc + val, 0)
-  const avg = sum / measures.length
-  if (measures.length >= 2) {
-    item.actualValue = `${Math.min(...measures).toFixed(2)}-${Math.max(...measures).toFixed(2)}`
-  } else {
-    item.actualValue = avg.toFixed(2)
+  const entered = item.measurements.filter((value) => value !== null && value !== undefined && value !== '')
+  if (entered.length === 0) {
+    item.actualValue = ''
+    item.actual_value = ''
+    item.result = ''
+    item.isQualified = null
+    item.is_qualified = null
+    return
   }
-  // 同步 snake_case 字段，validateInspectionItems 读取 actual_value
-  item.actual_value = item.actualValue
-  item._averageValue = avg
-  checkDimensionTolerance(item, false)
+
+  const numericValues = entered
+    .map((value) => Number(String(value).trim()))
+    .filter((value) => Number.isFinite(value))
+  if (numericValues.length === entered.length) {
+    const formatValue = (value) => String(Number(value.toFixed(3)))
+    item.actualValue = numericValues.length > 1
+      ? `${formatValue(Math.min(...numericValues))}-${formatValue(Math.max(...numericValues))}`
+      : String(entered[0]).trim()
+    item.actual_value = item.actualValue
+  } else {
+    item.actualValue = entered.map((value) => String(value).trim()).join(' / ')
+    item.actual_value = item.actualValue
+  }
+
+  item._averageValue = numericValues.length > 0
+    ? numericValues.reduce((sum, value) => sum + value, 0) / numericValues.length
+    : null
+  checkNumericStandard(item)
 }
 
-const checkDimensionTolerance = (item) => {
-  if (!isDimensionInspectionItem(item)) return
-  if (!item.dimensionValue) return
-  const dimensionValue = parseFloat(item.dimensionValue)
-  const toleranceUpper = parseFloat(item.toleranceUpper) || 0
-  const toleranceLower = parseFloat(item.toleranceLower) || 0
-  if (isNaN(dimensionValue)) return
+const checkNumericStandard = (item) => {
+  if (!isNumericInspectionItem(item)) return
+  const values = item.measurements || []
+  const entered = values.filter((value) => value !== null && value !== undefined && String(value).trim() !== '')
+  if (entered.length === 0) {
+    item.result = ''
+    item.isQualified = null
+    item.is_qualified = null
+    return
+  }
 
-  const maxAllowed = dimensionValue + toleranceUpper
-  const minAllowed = dimensionValue - Math.abs(toleranceLower)
-  const measurements = item.measurements || []
-  const measures = measurements.filter(v => v !== null && v !== undefined && v !== '' && !isNaN(parseFloat(v))).map(v => parseFloat(v))
-  if (measures.length === 0) return
+  const evaluation = evaluateInspectionMeasurements(item, entered)
+  if (evaluation.evaluations.some((entry) => entry.value === null)) {
+    item.result = ''
+    item.isQualified = null
+    item.is_qualified = null
+    return
+  }
 
-  const outOfRangeMeasures = measures.filter(m => m < minAllowed || m > maxAllowed)
-  const defectCount = outOfRangeMeasures.length
+  // 没有边界的旧尺寸项允许录入数值，但仍由检验员在“结果”列确认。
+  if (evaluation.evaluations.some((entry) => entry.qualified === null)) return
 
+  const failedCount = evaluation.evaluations.filter((entry) => entry.qualified === false).length
+  let result = evaluation.result
   if (inspectForm.is_aql && inspectForm.aql_standard_id) {
     const ac = parseInt(inspectForm.acceptLimit) || 0
     const re = parseInt(inspectForm.rejectLimit) || 1
-    if (defectCount >= re) item.result = 'failed'
-    else if (defectCount <= ac) item.result = 'passed'
-  } else {
-    item.result = defectCount > 0 ? 'failed' : 'passed'
+    if (failedCount >= re) result = 'failed'
+    else if (failedCount <= ac) result = 'passed'
+    else result = ''
   }
+  item.result = result
+  item.isQualified = result === 'passed' ? true : result === 'failed' ? false : null
+  item.is_qualified = item.isQualified
 }
 
 const handleQualitativeMeasurementChange = (item) => {
@@ -654,6 +744,8 @@ const handleQualitativeMeasurementChange = (item) => {
   item.actualValue = summary.text
   item.actual_value = summary.text
   item.result = summary.result
+  item.isQualified = summary.result === 'passed' ? true : summary.result === 'failed' ? false : null
+  item.is_qualified = item.isQualified
 }
 
 // ===== 数量计算 =====
@@ -678,8 +770,18 @@ const submitInspection = async () => {
   try {
     await inspectFormRef.value.validate()
 
-    const validation = validateInspectionItems(inspectForm.items)
-    if (!validation.valid) { ElMessage.warning(validation.message); submitting.value = false; return }
+    // 提交前再计算一次，确保最后一个输入框失焦前的值也参与判定。
+    inspectForm.items.forEach((item) => {
+      if (isNumericInspectionItem(item)) checkNumericStandard(item)
+      else handleQualitativeMeasurementChange(item)
+    })
+
+    const finalValidation = validateInspectionItems(inspectForm.items)
+    if (!finalValidation.valid) {
+      ElMessage.warning(finalValidation.message)
+      submitting.value = false
+      return
+    }
 
     const status = calculateInspectionStatus(inspectForm.items)
 
@@ -689,9 +791,9 @@ const submitInspection = async () => {
       items: inspectForm.items.map(item => {
         const mapped = { ...item }
         if (item.measurements && Array.isArray(item.measurements)) {
-          const isDimension = isDimensionInspectionItem(item)
+          const isNumeric = isNumericInspectionItem(item)
           item.measurements.forEach((val, idx) => {
-            mapped[`measure_${idx + 1}`] = isDimension && val !== '' && val !== null && val !== undefined
+            mapped[`measure_${idx + 1}`] = isNumeric && val !== '' && val !== null && val !== undefined
               ? val
               : null
           })
@@ -710,6 +812,7 @@ const submitInspection = async () => {
       template_id: inspectionTemplateId.value || currentInspectionData.value?.templateId || null,
       actual_date: dayjs(inspectForm.inspectionDate).format('YYYY-MM-DD'),
       note: inspectForm.note,
+      attachments: inspectForm.attachments.map((attachment) => attachment.url || attachment.fileUrl).filter(Boolean),
       status,
       is_aql: inspectForm.is_aql,
       aql_standard_id: inspectForm.aql_standard_id,
@@ -720,16 +823,20 @@ const submitInspection = async () => {
 
     const response = await qualityApi.updateIncomingInspection(submitData.id, submitData)
     const resultData = response?.data || {}
+    const isOutsourcedReceipt = currentInspectionData.value?.sourceType === 'outsourced_receipt'
 
     ElMessage.success('检验提交成功')
 
     // 根据结果处理
     const receiptAutoCreated = resultData.receipt_auto_created === true
     if (status === 'passed') {
-      if (receiptAutoCreated) ElMessage.success('系统已自动创建采购入库单')
+      if (isOutsourcedReceipt) ElMessage.success('委外来料检验已完成，请返回委外入库单确认入库（仅合格数量入库）')
+      else if (receiptAutoCreated) ElMessage.success('系统已自动创建采购入库单')
       else ElMessage.warning('检验已提交，但后端未返回入库单创建结果，请刷新后确认')
     } else if (status === 'partial') {
-      if (receiptAutoCreated) {
+      if (isOutsourcedReceipt) {
+        ElMessage.success('委外来料检验已完成，合格数量可在委外入库单确认入库；不合格数量已进入质量闭环')
+      } else if (receiptAutoCreated) {
         ElMessage.success('系统已自动创建采购入库单（仅合格部分）')
       } else {
         ElMessage.warning('检验已提交，但后端未返回入库单创建结果，请刷新后确认')

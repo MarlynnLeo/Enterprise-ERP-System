@@ -286,6 +286,10 @@
           </el-timeline>
           <EmptyState v-else description="暂无打卡记录" />
         </div>
+        <div v-if="viewData.attachments && viewData.attachments.length > 0" class="attachments-section" style="margin-top: 24px;">
+          <h3>附件</h3>
+          <AttachmentUpload :model-value="viewData.attachments" readonly />
+        </div>
       </div>
     </AppDialog>
 
@@ -310,6 +314,7 @@ import printService from '@/services/printService'
 import { parseResponseData } from '@/utils/responseParser'
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 import FinanceQueryCard from '@/components/common/FinanceQueryCard.vue'
+import AttachmentUpload from '@/components/AttachmentUpload.vue'
 
 // 异步加载规则和打卡弹窗组件
 const RulesDialog = defineAsyncComponent(() => import('./components/ProcessInspectionRulesDialog.vue'))
@@ -664,6 +669,9 @@ const handleView = async (row) => {
   viewLoading.value = true
 
   try {
+    const detailRes = await qualityApi.getProcessInspection(row.id)
+    const detail = parseResponseData(detailRes, null)
+    if (detail && typeof detail === 'object') viewData.value = { ...viewData.value, ...detail }
     const res = await qualityApi.getProcessInspectionPunchList({
       inspection_id: row.id,
       page: 1,

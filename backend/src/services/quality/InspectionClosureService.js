@@ -119,7 +119,13 @@ class InspectionClosureService {
       );
     }
 
-    if (inspection.inspection_type === 'incoming') {
+    // 委外入库到货生成的 incoming 检验只负责放行委外入库单，
+    // 不得回写采购订单或自动创建采购入库单。
+    const isOutsourcedIncoming =
+      inspection.inspection_type === 'incoming' &&
+      inspection.source_type === 'outsourced_receipt';
+
+    if (inspection.inspection_type === 'incoming' && !isOutsourcedIncoming) {
       await PurchaseOrderStatusService.handleInspectionComplete(
         {
           inspection_id: inspection.id,
@@ -141,6 +147,7 @@ class InspectionClosureService {
 
     if (
       inspection.inspection_type === 'incoming' &&
+      !isOutsourcedIncoming &&
       RECEIPT_STATUSES.has(inspection.status) &&
       qualifiedQuantity > 0
     ) {

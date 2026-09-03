@@ -347,15 +347,13 @@
    ============================== */
   .kacon-header {
     background: var(--bg-secondary);
-    min-height: calc(48px + var(--safe-area-top, 0px));
-    padding: var(--safe-area-top, 0px) 12px 0;
-    margin: 0;
-    border-radius: 0;
+    margin: calc(var(--safe-area-top, 0px) + 8px) 12px 10px;
+    padding: 10px 14px;
+    border-radius: 16px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    border: 0;
-    border-bottom: 1px solid var(--van-border-color, var(--surface-border));
+    border: 1px solid var(--surface-border, var(--border-subtle));
     box-shadow: none;
     flex-shrink: 0;
   }
@@ -525,7 +523,7 @@
   .dashboard-card {
     background: var(--bg-secondary);
     padding: 14px;
-    border-radius: 12px;
+    border-radius: 16px;
     box-shadow: none;
     position: relative;
     overflow: hidden;

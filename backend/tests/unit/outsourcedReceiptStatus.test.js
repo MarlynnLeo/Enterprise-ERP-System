@@ -24,7 +24,9 @@ jest.mock('../../src/services/external/FinanceIntegrationService', () => ({
   generateOutsourcedReceiptEntry: jest.fn(),
 }));
 jest.mock('../../src/services/business/DocumentLinkService', () => ({}));
-jest.mock('../../src/services/finance/VoucherReversalService', () => ({}));
+jest.mock('../../src/services/finance/VoucherReversalService', () => ({
+  reverseBusinessVouchers: jest.fn(),
+}));
 jest.mock('../../src/utils/logger', () => ({
   logger: {
     info: jest.fn(),
@@ -36,6 +38,8 @@ jest.mock('../../src/utils/logger', () => ({
 
 const InventoryService = require('../../src/services/InventoryService');
 const FinanceIntegrationService = require('../../src/services/external/FinanceIntegrationService');
+const VoucherReversalService = require('../../src/services/finance/VoucherReversalService');
+const InventoryPostingReversalClosureService = require('../../src/services/business/InventoryPostingReversalClosureService');
 const {
   createReceipt,
   updateReceiptStatus,
@@ -70,6 +74,7 @@ describe('outsourced receipt status side effects', () => {
       materialCostByItemId: new Map([[51, { unitCost: 20 }]]),
     });
     FinanceIntegrationService.generateOutsourcedReceiptEntry.mockResolvedValue({ success: true });
+    VoucherReversalService.reverseBusinessVouchers.mockResolvedValue([]);
   });
 
   test('confirmation posts stock and finance but does not complete the processing order', async () => {
@@ -188,5 +193,46 @@ describe('outsourced receipt status side effects', () => {
     )).toBe(false);
     expect(mockConnection.commit).toHaveBeenCalledTimes(1);
     expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  test('reversal approval cancels the receipt, reverses its voucher, and reopens a completed processing order', async () => {
+    mockConnection.execute
+      .mockResolvedValueOnce([[receipt('completed')]])
+      .mockResolvedValueOnce([{ affectedRows: 1 }])
+      .mockResolvedValueOnce([[{ id: 12, status: 'completed' }]])
+      .mockResolvedValueOnce([[{ incomplete_count: '1' }]])
+      .mockResolvedValueOnce([{ affectedRows: 1 }]);
+
+    const result = await InventoryPostingReversalClosureService.close(mockConnection, {
+      original: {
+        source_type: 'outsourced_processing_receipt',
+        source_id: 5,
+        source_no: 'WWRK260825005',
+      },
+      reversal: { id: 8 },
+      context: {
+        sourceType: 'outsourced_processing_receipt',
+        sourceId: 5,
+        sourceNo: 'WWRK260825005',
+      },
+      actor: { id: 99, label: '财务' },
+    });
+
+    expect(result.businessClosed).toBe(true);
+    expect(VoucherReversalService.reverseBusinessVouchers).toHaveBeenCalledWith(
+      mockConnection,
+      expect.objectContaining({
+        sourceType: 'outsourced_receipt',
+        sourceId: 5,
+        documentNumber: 'WWRK260825005',
+        documentType: 'outsourced_receipt',
+      })
+    );
+    expect(mockConnection.execute.mock.calls.some(([sql]) =>
+      String(sql).includes('UPDATE outsourced_processing_receipts')
+    )).toBe(true);
+    expect(mockConnection.execute.mock.calls.some(([sql]) =>
+      String(sql).includes("SET status = 'in_progress'")
+    )).toBe(true);
   });
 });

@@ -299,7 +299,7 @@ describe('roleAccessProfiles', () => {
     expect(permissionAllowed('finance:entries:view', final)).toBe(false);
   });
 
-  test('零部件仓可做库存入库/出库，成品仓做入库和销售出库', () => {
+  test('零部件仓可做库存入库/出库和委外发料，成品仓做入库和销售出库', () => {
     const component = getProfile('component_warehouse_operator');
     expect(permissionAllowed('inventory:outbound:create', component)).toBe(true);
     expect(permissionAllowed('inventory:inbound:create', component)).toBe(true);
@@ -309,11 +309,19 @@ describe('roleAccessProfiles', () => {
     expect(permissionAllowed('sales:outbound:create', component)).toBe(false);
     expect(permissionAllowed('inventory:inbound:approve', component)).toBe(false);
     expect(permissionAllowed('inventory:outbound:approve', component)).toBe(false);
+    expect(permissionAllowed('purchase:processing', component)).toBe(true);
+    expect(permissionAllowed('purchase:processing:view', component)).toBe(true);
+    expect(permissionAllowed('purchase:processing:update', component)).toBe(true);
+    expect(permissionAllowed('purchase:processing:create', component)).toBe(false);
+    expect(permissionAllowed('purchase:processing:delete', component)).toBe(false);
     expect(
       menuAllowed({ path: '/inventory/inbound', permission: 'inventory:inbound' }, component)
     ).toBe(true);
     expect(
       menuAllowed({ path: '/inventory/outbound', permission: 'inventory:outbound' }, component)
+    ).toBe(true);
+    expect(
+      menuAllowed({ path: '/purchase/processing', permission: 'purchase:processing' }, component)
     ).toBe(true);
     expect(menuAllowed({ path: '/sales/outbound', permission: 'sales:outbound' }, component)).toBe(
       false
@@ -335,12 +343,28 @@ describe('roleAccessProfiles', () => {
     expect(menuAllowed({ path: '/sales/outbound', permission: 'sales:outbound' }, finished)).toBe(
       true
     );
+    expect(permissionAllowed('purchase:processing:update', finished)).toBe(false);
+    expect(
+      menuAllowed({ path: '/purchase/processing', permission: 'purchase:processing' }, finished)
+    ).toBe(false);
     expect(
       menuAllowed(
         { path: '/dataoverview/inventory', permission: 'dataoverview:inventory' },
         finished
       )
     ).toBe(false);
+  });
+
+  test('仓储管理角色可以执行委外发料，但不能新建或删除委外加工单', () => {
+    const manager = getProfile('inventory_manager');
+    expect(permissionAllowed('purchase:processing', manager)).toBe(true);
+    expect(permissionAllowed('purchase:processing:view', manager)).toBe(true);
+    expect(permissionAllowed('purchase:processing:update', manager)).toBe(true);
+    expect(permissionAllowed('purchase:processing:create', manager)).toBe(false);
+    expect(permissionAllowed('purchase:processing:delete', manager)).toBe(false);
+    expect(
+      menuAllowed({ path: '/purchase/processing', permission: 'purchase:processing' }, manager)
+    ).toBe(true);
   });
 
   test('普通员工只留仪表盘和通知', () => {

@@ -192,7 +192,10 @@ const OUTSOURCED_PROCESSING_TRANSITIONS = {
 
 // 委外入库单：确认入库时过账库存，完成后为终态。
 const OUTSOURCED_RECEIPT_TRANSITIONS = {
-  pending: ['confirmed', 'cancelled'],
+  // 委外成品先登记到货并生成来料检验单，再允许库存过账。
+  // pending -> confirmed 保留为历史单据兼容路径（旧数据没有到货记录）。
+  pending: ['arrived', 'confirmed', 'cancelled'],
+  arrived: ['confirmed', 'cancelled'],
   // 确认入库后库存和凭证已经过账，不能再通过状态接口取消而留下未冲销副作用。
   confirmed: ['completed'],
   completed: [],

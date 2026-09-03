@@ -33,8 +33,17 @@
       <div class="list-header">
         <span>已上传附件 ({{ attachments.length }})</span>
       </div>
-      <div v-for="(file, index) in attachments" :key="index" class="attachment-item">
-        <el-icon class="file-icon"><Document /></el-icon>
+      <div v-for="(file, index) in attachments" :key="file.id || file.url || index" class="attachment-item">
+        <el-image
+          v-if="isImage(file)"
+          class="image-thumb"
+          :src="resourceUrl(file.url)"
+          :preview-src-list="imagePreviewUrls"
+          :initial-index="imagePreviewIndex(file)"
+          fit="cover"
+          preview-teleported
+        />
+        <el-icon v-else class="file-icon"><Document /></el-icon>
         <div class="file-info">
           <span class="filename" :title="file.name">{{ file.name }}</span>
           <span class="filesize">{{ formatFileSize(file.size) }}</span>
@@ -55,7 +64,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Upload, Document, Delete, Download } from '@element-plus/icons-vue';
 import { commonApi } from '@/api';
@@ -77,13 +86,37 @@ const props = defineProps({
   readonly: {
     type: Boolean,
     default: false
+  },
+  businessType: {
+    type: String,
+    default: ''
+  },
+  businessId: {
+    type: [String, Number],
+    default: null
+  },
+  isPublic: {
+    type: Boolean,
+    default: true
   }
 });
 
 const emit = defineEmits(['update:modelValue']);
 
+const normalizeAttachment = (file) => {
+  if (typeof file === 'string') return { url: file, name: file.split('/').pop() || '附件' };
+  return {
+    ...file,
+    url: file?.url || file?.fileUrl || file?.file_url || file?.path || file?.filePath || '',
+    name: file?.name || file?.filename || file?.originalName || '附件'
+  };
+};
 const fileList = ref([]);
-const attachments = ref([...props.modelValue]);
+const attachments = ref((props.modelValue || []).map(normalizeAttachment));
+const resourceUrl = (url) => buildResourceUrl(url);
+const isImage = (file) => /^image\//i.test(file?.type || '') || /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(file?.url || file?.name || '');
+const imagePreviewUrls = computed(() => attachments.value.filter(isImage).map(file => resourceUrl(file.url)).filter(Boolean));
+const imagePreviewIndex = (file) => Math.max(0, imagePreviewUrls.value.indexOf(resourceUrl(file.url)));
 
 const beforeUpload = (file) => {
   const isLtMaxSize = file.size / 1024 / 1024 < props.maxSizeMB;
@@ -120,6 +153,11 @@ const beforeUpload = (file) => {
 const uploadAttachment = async ({ file, onSuccess, onError }) => {
   const formData = new FormData();
   formData.append('file', file);
+  if (props.businessType && props.businessId !== null && props.businessId !== undefined) {
+    formData.append('businessType', props.businessType);
+    formData.append('businessId', String(props.businessId));
+    formData.append('isPublic', String(props.isPublic));
+  }
 
   try {
     const response = await commonApi.uploadFile(formData);
@@ -153,7 +191,7 @@ const handleError = (error) => {
 };
 
 const handleRemove = (file) => {
-  const index = attachments.value.findIndex(item => item.name === file.name);
+  const index = attachments.value.findIndex(item => item.name === file.name && item.url === (file.url || file.response?.url));
   if (index > -1) {
     attachments.value.splice(index, 1);
     emit('update:modelValue', attachments.value);
@@ -168,7 +206,7 @@ const removeFile = (index) => {
 
 const downloadFile = (file) => {
   const link = document.createElement('a');
-  link.href = buildResourceUrl(file.url);
+  link.href = resourceUrl(file.url);
   link.download = file.name;
   link.target = '_blank';
   document.body.appendChild(link);
@@ -177,6 +215,8 @@ const downloadFile = (file) => {
 };
 
 const formatFileSize = (bytes) => {
+  if (!Number.isFinite(Number(bytes)) || Number(bytes) < 0) return '-';
+  bytes = Number(bytes);
   if (bytes === 0) return '0 B';
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB'];
@@ -185,7 +225,7 @@ const formatFileSize = (bytes) => {
 };
 
 watch(() => props.modelValue, (newVal) => {
-  attachments.value = [...newVal];
+  attachments.value = (newVal || []).map(normalizeAttachment);
 }, { deep: true });
 </script>
 
@@ -230,6 +270,16 @@ watch(() => props.modelValue, (newVal) => {
   color: var(--color-primary);
   margin-right: 12px;
   flex-shrink: 0;
+}
+
+.image-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  margin-right: 12px;
+  flex-shrink: 0;
+  cursor: zoom-in;
+  border: 1px solid var(--color-border-lighter);
 }
 
 .file-info {

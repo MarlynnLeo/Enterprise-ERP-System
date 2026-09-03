@@ -108,6 +108,33 @@ describe('inventory ledger architecture', () => {
     expect(orderStatusService).toContain('SELECT GREATEST(');
   });
 
+  it('does not replay a cancelled outsourced receipt finance event', () => {
+    const backendRoot = path.resolve(__dirname, '../..');
+    const subscriber = fs.readFileSync(
+      path.join(backendRoot, 'src/events/subscribers/FinanceSubscriber.js'),
+      'utf8'
+    );
+    const financeIntegration = fs.readFileSync(
+      path.join(backendRoot, 'src/services/external/FinanceIntegrationService.js'),
+      'utf8'
+    );
+
+    expect(subscriber).toContain("status <> 'cancelled'");
+    expect(financeIntegration).toContain('委外入库单已取消，跳过生成凭证');
+  });
+
+  it('does not replay sales outbound finance events after reversal', () => {
+    const backendRoot = path.resolve(__dirname, '../..');
+    const subscriber = fs.readFileSync(
+      path.join(backendRoot, 'src/events/subscribers/FinanceSubscriber.js'),
+      'utf8'
+    );
+
+    expect(subscriber).toContain("status NOT IN ('reversed', 'cancelled')");
+    expect(subscriber).toContain('跳过已反审核/取消的销售出库财务事件');
+    expect(subscriber).toContain('Always reload the row');
+  });
+
   it('keeps production cost periods stable when records are edited later', () => {
     const backendRoot = path.resolve(__dirname, '../..');
     const costClosing = fs.readFileSync(

@@ -26,8 +26,8 @@
       <el-form-item label="检验项目" prop="items">
         <div class="inspection-items">
           <el-table :data="reviewForm.items" border>
-            <el-table-column prop="itemName" label="检验项目" width="130" show-overflow-tooltip />
-            <el-table-column prop="standard" label="检验标准" width="150" show-overflow-tooltip />
+            <el-table-column prop="itemName" label="项目" width="130" show-overflow-tooltip />
+            <el-table-column prop="standard" label="检验要求/标准" width="150" show-overflow-tooltip />
             <el-table-column prop="dimensionInfo" label="标准尺寸±公差" width="150" show-overflow-tooltip>
               <template #default="scope">{{ formatDimensionTolerance(scope.row) }}</template>
             </el-table-column>
@@ -41,13 +41,28 @@
             <el-table-column prop="actualValue" label="实际值" width="120">
               <template #default="scope">
                 <el-input
+                  v-if="isNumericInspectionItem(scope.row)"
                   :ref="el => setReviewActualValueRef(el, scope.$index)"
                   v-model="scope.row.actualValue"
-                  placeholder="请输入实际值"
-                  @input="checkDimensionTolerance(scope.row, false)"
-                  @blur="checkDimensionTolerance(scope.row, true)"
+                  :placeholder="numericReviewPlaceholder(scope.row)"
+                  inputmode="decimal"
+                  @input="checkNumericStandard(scope.row, false)"
+                  @blur="checkNumericStandard(scope.row, true)"
                   @keyup.enter="focusNextReviewActualValue(scope.$index)"
                 />
+                <el-select
+                  v-else
+                  v-model="scope.row.actualValue"
+                  placeholder="选择"
+                  class="qualitative-review-choice"
+                  :class="{
+                    'measurement-choice--passed': scope.row.actualValue === '√',
+                    'measurement-choice--failed': scope.row.actualValue === '×'
+                  }"
+                  @change="handleQualitativeChange(scope.row)"
+                >
+                  <el-option v-for="option in QUALITATIVE_MEASUREMENT_OPTIONS" :key="option.value" :label="option.label" :value="option.value" />
+                </el-select>
               </template>
             </el-table-column>
             <el-table-column prop="result" label="复检结果" width="110">
@@ -112,6 +127,16 @@
         </el-select>
       </el-form-item>
 
+      <el-form-item label="问题照片/附件">
+        <AttachmentUpload
+          v-model="reviewForm.attachments"
+          business-type="quality_inspection"
+          :business-id="props.row?.id"
+          :max-files="20"
+          :max-size-m-b="15"
+        />
+      </el-form-item>
+
       <el-form-item label="备注" prop="note">
         <el-input v-model="reviewForm.note" type="textarea" placeholder="请输入备注信息" :rows="3" />
       </el-form-item>
@@ -130,9 +155,17 @@
 import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { qualityApi } from '@/api'
+import AttachmentUpload from '@/components/AttachmentUpload.vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { calculateInspectionStatus, validateInspectionItems } from '@/utils/inspectionHelpers'
+import {
+  QUALITATIVE_MEASUREMENT_OPTIONS,
+  isNumericInspectionItem,
+  parseInspectionStandard,
+  compareInspectionMeasurement,
+  normalizeQualitativeMeasurementValue
+} from '@/utils/inspectionMeasurement'
 import dayjs from 'dayjs'
 
 const props = defineProps({
@@ -163,8 +196,16 @@ const reviewForm = reactive({
   inspectorName: '',
   inspectionDate: new Date(),
   reviewReason: '',
-  note: ''
+  note: '',
+  attachments: []
 })
+
+const readItemField = (item, ...names) => {
+  for (const name of names) {
+    if (item?.[name] !== undefined && item?.[name] !== null && item?.[name] !== '') return item[name]
+  }
+  return null
+}
 
 // 表单验证规则
 const reviewRules = {
@@ -208,14 +249,22 @@ watch(() => props.visible, async (val) => {
         reviewForm.inspectionDate = new Date()
         reviewForm.reviewReason = ''
         reviewForm.note = inspectionData.note || ''
+        reviewForm.attachments = Array.isArray(inspectionData.attachments) ? inspectionData.attachments : []
 
         if (inspectionData.items && inspectionData.items.length > 0) {
           reviewForm.items = inspectionData.items.map(item => ({
             ...item,
+            itemName: readItemField(item, 'itemName', 'item_name', 'name') || '',
+            standard: item.standard || item.criteria || '',
+            type: readItemField(item, 'type', 'itemType', 'item_type') || 'other',
+            dimensionValue: item.dimensionValue ?? item.dimension_value ?? null,
+            toleranceUpper: item.toleranceUpper ?? item.tolerance_upper ?? null,
+            toleranceLower: item.toleranceLower ?? item.tolerance_lower ?? null,
             original_result: item.result,
+            actualValue: '',
             actual_value: '',
             result: '',
-            remarks: item.remarks || ''
+            remarks: readItemField(item, 'remarks', 'remark') || ''
           }))
         } else {
           ElMessage.warning('没有找到检验项记录，无法进行复检')
@@ -238,7 +287,7 @@ watch(() => props.visible, async (val) => {
 
 // 辅助函数
 const formatDimensionTolerance = (item) => {
-  if (!item.dimensionValue) return '-'
+  if (item.dimensionValue === null || item.dimensionValue === undefined || item.dimensionValue === '') return '-'
   const dimensionValue = parseFloat(item.dimensionValue)
   const upper = parseFloat(item.toleranceUpper) || 0
   const lower = Math.abs(parseFloat(item.toleranceLower)) || 0
@@ -246,23 +295,36 @@ const formatDimensionTolerance = (item) => {
   return `${dimensionValue.toFixed(2)} (+${upper.toFixed(2)}/-${lower.toFixed(2)})`
 }
 
-const checkDimensionTolerance = (item) => {
-  if (!item.dimensionValue) return
-  const dimensionValue = parseFloat(item.dimensionValue)
-  const toleranceUpper = parseFloat(item.toleranceUpper) || 0
-  const toleranceLower = parseFloat(item.toleranceLower) || 0
-  if (isNaN(dimensionValue)) return
+const numericReviewPlaceholder = (item) => {
+  const rule = parseInspectionStandard(item)
+  if (rule.operator === 'gte') return `≥${rule.nominal}`
+  if (rule.operator === 'gt') return `>${rule.nominal}`
+  if (rule.operator === 'lte') return `≤${rule.nominal}`
+  if (rule.operator === 'lt') return `<${rule.nominal}`
+  if (rule.operator === 'range' || rule.operator === 'tolerance') return `${rule.lowerBound}~${rule.upperBound}`
+  if (rule.operator === 'eq') return `=${rule.nominal}`
+  return '请输入实际值'
+}
 
-  const maxAllowed = dimensionValue + toleranceUpper
-  const minAllowed = dimensionValue - Math.abs(toleranceLower)
-  const actualValue = parseFloat(item.actualValue)
-  if (isNaN(actualValue)) return
-
-  if (actualValue < minAllowed || actualValue > maxAllowed) {
-    item.result = 'failed'
-  } else {
+const checkNumericStandard = (item, showMessage = false) => {
+  if (!isNumericInspectionItem(item)) return
+  const evaluation = compareInspectionMeasurement(item, item.actualValue)
+  item.actual_value = item.actualValue ?? ''
+  if (evaluation.qualified === true) {
     item.result = 'passed'
+    if (showMessage) ElMessage.success('复检数值符合检验标准')
+  } else if (evaluation.qualified === false) {
+    item.result = 'failed'
+    if (showMessage) ElMessage.warning('复检数值不符合检验标准')
+  } else if (String(item.actualValue ?? '').trim() === '') {
+    item.result = ''
   }
+}
+
+const handleQualitativeChange = (item) => {
+  item.actualValue = normalizeQualitativeMeasurementValue(item.actualValue)
+  item.actual_value = item.actualValue
+  item.result = item.actualValue === '√' ? 'passed' : item.actualValue === '×' ? 'failed' : ''
 }
 
 const setReviewActualValueRef = (el, index) => {
@@ -302,6 +364,11 @@ const handleSubmit = async () => {
   try {
     await reviewFormRef.value.validate()
 
+    reviewForm.items.forEach((item) => {
+      if (isNumericInspectionItem(item)) checkNumericStandard(item, false)
+      else handleQualitativeChange(item)
+    })
+
     const validation = validateInspectionItems(reviewForm.items)
     if (!validation.valid) {
       ElMessage.warning(validation.message)
@@ -324,7 +391,10 @@ const handleSubmit = async () => {
       status: status,
       is_review: true,
       review_date: dayjs(reviewForm.inspectionDate).format('YYYY-MM-DD'),
-      review_reason: reviewForm.reviewReason
+      review_reason: reviewForm.reviewReason,
+      attachments: reviewForm.attachments
+        .map((attachment) => attachment.url || attachment.fileUrl)
+        .filter(Boolean)
     }
 
     const response = await qualityApi.updateIncomingInspection(submitData.id, submitData)

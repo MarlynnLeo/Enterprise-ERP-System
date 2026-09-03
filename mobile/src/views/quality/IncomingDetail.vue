@@ -59,14 +59,30 @@
           >
             <div class="item-header">
               <span class="item-name">{{ item.itemName }}</span>
+              <span class="item-method" v-if="item.method || item.inspectionMethod">{{ item.method || item.inspectionMethod }}</span>
               <span class="item-critical" v-if="item.isCritical">关键</span>
             </div>
             <div class="item-standard" v-if="item.standard">
               标准：{{ item.standard }}
             </div>
-            <!-- 尺寸公差显示 -->
-            <div class="item-dimension" v-if="item.dimensionValue">
-              尺寸：{{ formatDimension(item) }}
+            <!-- 公差标准显示（若有结构化尺寸数据） -->
+            <div class="item-dimension" v-if="formatTolerance(item)">
+              公差：{{ formatTolerance(item) }}
+            </div>
+            <!-- 实测数值手动录入（由通用 inspectionMeasurement 引擎解析为数值型项目时自动启用） -->
+            <div class="item-actual-row" v-if="isInspecting && item.isNumeric">
+              <Field
+                v-model="item.actualValue"
+                label="实测值"
+                :placeholder="item.placeholder"
+                size="small"
+                clearable
+                class="actual-field"
+                @input="onActualValueChange(item)"
+              />
+            </div>
+            <div class="item-actual-text" v-else-if="item.actualValue">
+              实测值：{{ item.actualValue }}
             </div>
             <!-- 结果判定（检验中可操作） -->
             <div class="item-actions" v-if="isInspecting">
@@ -143,6 +159,70 @@
         />
       </CellGroup>
 
+      <!-- 问题照片留证（拍照上传 / 手机相册） -->
+      <CellGroup inset title="问题照片留证">
+        <div class="photo-card-body">
+          <div class="photo-hint" v-if="isInspecting">
+            如物料存在外观缺陷、尺寸超差或包装破损，请拍照或从相册选择照片留证
+          </div>
+
+          <!-- 照片网格列表 -->
+          <div class="photo-grid">
+            <div
+              v-for="(photo, pIdx) in photoList"
+              :key="pIdx"
+              class="photo-item"
+              @click="previewPhoto(pIdx)"
+            >
+              <img :src="photo.url" class="photo-img" alt="现场照片" />
+              <div
+                v-if="isInspecting"
+                class="photo-delete"
+                @click.stop="removePhoto(pIdx)"
+              >
+                ✕
+              </div>
+            </div>
+
+            <!-- 拍照上传按钮（无 emoji） -->
+            <div class="upload-trigger-btn camera-btn" v-if="isInspecting" @click="triggerCamera">
+              <CameraIcon class="trigger-svg-icon" />
+              <div class="trigger-text">拍照上传</div>
+            </div>
+
+            <!-- 手机相册按钮（无 emoji） -->
+            <div class="upload-trigger-btn album-btn" v-if="isInspecting" @click="triggerAlbum">
+              <PhotoIcon class="trigger-svg-icon" />
+              <div class="trigger-text">手机相册</div>
+            </div>
+          </div>
+
+          <div v-if="hasInspected && photoList.length === 0" class="photo-empty-text">
+            未上传问题照片
+          </div>
+        </div>
+
+        <!-- 隐形拍照 input (capture=environment) -->
+        <input
+          ref="cameraInputRef"
+          type="file"
+          accept="image/*"
+          capture="environment"
+          style="display: none"
+          @change="handlePhotoChange($event)"
+        />
+
+        <!-- 隐形相册多选 input -->
+        <input
+          ref="albumInputRef"
+          type="file"
+          accept="image/*"
+          multiple
+          style="display: none"
+          @change="handlePhotoChange($event)"
+        />
+      </CellGroup>
+
       <!-- 备注 -->
       <CellGroup v-if="isInspecting" inset title="备注">
         <Field
@@ -188,15 +268,125 @@
     Button as VanButton,
     Loading,
     showToast,
-    showConfirmDialog
+    showLoadingToast,
+    closeToast,
+    showConfirmDialog,
+    showImagePreview
   } from 'vant'
+  import { CameraIcon, PhotoIcon } from '@heroicons/vue/24/outline'
   import { qualityApi } from '@/api'
   import { extractApiData, extractApiList } from '@/utils/apiHelper'
+  import { useAuthStore } from '@/stores/auth'
+  import {
+    isNumericInspectionItem,
+    parseInspectionStandard,
+    compareInspectionMeasurement
+  } from '@/utils/inspectionMeasurement'
 
   const route = useRoute()
+  const authStore = useAuthStore()
   const inspection = ref(null)
   const actionLoading = ref(false)
   const inspectItems = ref([])
+  const photoList = ref([])
+  const cameraInputRef = ref(null)
+  const albumInputRef = ref(null)
+
+  // 自动获取当前登录用户的姓名（参考网页版）
+  const getCurrentUserDisplayName = () => {
+    const currentUser = authStore.user || {}
+    return (
+      currentUser.realName ||
+      currentUser.name ||
+      currentUser.username ||
+      ''
+    )
+  }
+
+  // 拍照与相册触发
+  const triggerCamera = () => {
+    cameraInputRef.value?.click()
+  }
+
+  const triggerAlbum = () => {
+    albumInputRef.value?.click()
+  }
+
+  // 照片上传处理
+  const handlePhotoChange = async (event) => {
+    const files = Array.from(event.target.files || [])
+    if (files.length === 0) return
+
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) {
+        showToast('请选择图片文件')
+        event.target.value = ''
+        return
+      }
+      if (file.size > 15 * 1024 * 1024) {
+        showToast('单张图片大小不能超过 15MB')
+        event.target.value = ''
+        return
+      }
+    }
+
+    try {
+      showLoadingToast({
+        message: '正在上传照片...',
+        forbidClick: true,
+        duration: 0
+      })
+
+      const inspectionId = inspection.value?.id || route.params.id
+
+      for (const file of files) {
+        const formData = new FormData()
+        formData.append('file', file)
+        formData.append('businessType', 'quality_inspection')
+        formData.append('businessId', inspectionId)
+        formData.append('isPublic', 'true')
+
+        const res = await qualityApi.uploadInspectionPhoto(formData)
+        const fileData = extractApiData(res, null) || res.data || res
+        const uploadedUrl = fileData?.url || fileData?.fileUrl
+        if (uploadedUrl) {
+          photoList.value.push({
+            url: uploadedUrl,
+            name: file.name,
+            size: file.size
+          })
+        }
+      }
+
+      closeToast()
+      showToast('照片上传成功')
+    } catch (err) {
+      closeToast()
+      console.error('照片上传失败:', err)
+      const msg = err.response?.data?.message || err.message || '照片上传失败'
+      showToast(msg)
+    } finally {
+      event.target.value = ''
+    }
+  }
+
+  // 移除照片
+  const removePhoto = (index) => {
+    photoList.value.splice(index, 1)
+    showToast('已移除该照片')
+  }
+
+  // 全屏高清双指缩放预览照片
+  const previewPhoto = (startIndex) => {
+    const urls = photoList.value.map(p => p.url)
+    if (urls.length > 0) {
+      showImagePreview({
+        images: urls,
+        startPosition: startIndex,
+        closeable: true
+      })
+    }
+  }
 
   // 检验表单
   const inspectForm = reactive({
@@ -212,6 +402,67 @@
     const s = inspection.value?.status
     return ['passed', 'failed', 'completed', 'partial'].includes(s)
   })
+
+  // 格式化公差
+  const formatTolerance = (item) => {
+    if (item.dimensionValue !== null && item.dimensionValue !== undefined && item.dimensionValue !== '') {
+      const dv = parseFloat(item.dimensionValue)
+      const upper = parseFloat(item.toleranceUpper) || 0
+      const lower = Math.abs(parseFloat(item.toleranceLower)) || 0
+      if (upper === 0 && lower === 0) return `${dv.toFixed(2)}`
+      return `${dv.toFixed(2)} (+${upper.toFixed(2)}/-${lower.toFixed(2)})`
+    }
+    return ''
+  }
+
+  // 规范化单条检验项（统一底层规则，与 PC 端保持一致）
+  const normalizeInspectionItem = (item) => {
+    const isNumeric = isNumericInspectionItem(item)
+    const actualVal = item.actualValue || item.measure1 || ''
+
+    const readField = (...names) => {
+      for (const name of names) {
+        if (item?.[name] !== undefined && item?.[name] !== null && item?.[name] !== '') return item[name]
+      }
+      return null
+    }
+
+    let result = item.result || ''
+    // 若已有实测值且尚未判定，自动通过通用引擎计算公差结果
+    if (isNumeric && actualVal && !result) {
+      const evaluation = compareInspectionMeasurement(item, actualVal)
+      if (evaluation.result) result = evaluation.result
+    }
+
+    // 动态生成友好的输入引导
+    const rule = parseInspectionStandard(item)
+    let placeholder = '手动输入实测数值'
+    if (rule.mode === 'numeric') {
+      if (rule.operator === 'gte') placeholder = `实测值（要求 ≥${rule.nominal}）`
+      else if (rule.operator === 'gt') placeholder = `实测值（要求 >${rule.nominal}）`
+      else if (rule.operator === 'lte') placeholder = `实测值（要求 ≤${rule.nominal}）`
+      else if (rule.operator === 'lt') placeholder = `实测值（要求 <${rule.nominal}）`
+      else if (rule.operator === 'range' || rule.operator === 'tolerance') placeholder = `实测值（范围 ${rule.lowerBound}~${rule.upperBound}）`
+      else if (rule.operator === 'eq') placeholder = `实测值（要求 =${rule.nominal}）`
+    }
+
+    return {
+      id: item.id || undefined,
+      itemName: readField('itemName', 'item_name') || '',
+      standard: item.standard || item.criteria || item.requirement || '',
+      method: readField('method', 'inspectionMethod', 'inspection_method') || '',
+      type: readField('type', 'itemType', 'item_type') || 'other',
+      isCritical: !!(item.isCritical ?? item.is_critical),
+      dimensionValue: item.dimensionValue ?? item.dimension_value ?? null,
+      toleranceUpper: item.toleranceUpper ?? item.tolerance_upper ?? null,
+      toleranceLower: item.toleranceLower ?? item.tolerance_lower ?? null,
+      actualValue: actualVal,
+      result: result,
+      remarks: item.remarks || item.remark || '',
+      isNumeric,
+      placeholder
+    }
+  }
 
   // 计算合格率
   const computedPassRate = computed(() => {
@@ -231,6 +482,19 @@
       inspectForm.unqualifiedQuantity = '0'
     } else {
       inspectForm.unqualifiedQuantity = String(totalQty - qualifiedQty)
+    }
+  }
+
+  // 实测数值输入时，通过通用引擎实时评估公差
+  const onActualValueChange = (item) => {
+    if (!item.isNumeric) return
+    if (!item.actualValue && item.actualValue !== 0) {
+      item.result = ''
+      return
+    }
+    const evalResult = compareInspectionMeasurement(item, item.actualValue)
+    if (evalResult.result) {
+      item.result = evalResult.result
     }
   }
 
@@ -271,25 +535,15 @@
     return Math.round(((item.qualifiedQuantity || 0) / total) * 100)
   }
 
-  // 格式化尺寸±公差
-  const formatDimension = (item) => {
-    const dv = parseFloat(item.dimensionValue)
-    const upper = parseFloat(item.toleranceUpper) || 0
-    const lower = Math.abs(parseFloat(item.toleranceLower)) || 0
-    if (upper === 0 && lower === 0) return dv.toFixed(2)
-    return `${dv.toFixed(2)} (+${upper.toFixed(2)}/-${lower.toFixed(2)})`
-  }
-
   // 加载详情
   const loadDetail = async () => {
     try {
-      // 从通用API获取检验详情
       const response = await qualityApi.getIncomingInspection(route.params.id)
       const data = extractApiData(response, null)
       if (data && data.id) {
         inspection.value = data
 
-        // 尝试加载检验项目（从详情或独立接口）
+        // 加载检验项目（从详情或独立项目接口）
         let itemsList = data.items || []
         if (itemsList.length === 0) {
           try {
@@ -300,21 +554,55 @@
           }
         }
 
+        // 若单据尚无检验项目，按物料自动匹配启用模板（与 PC 端逻辑完全对齐）
+        if (itemsList.length === 0) {
+          const materialId = data.materialId
+          if (materialId) {
+            try {
+              const res = await qualityApi.getInspectionTemplates({
+                material_type: materialId,
+                inspection_type: 'incoming',
+                status: 'active',
+                include_general: true,
+                pageSize: 10
+              })
+              const tmplList = extractApiList(res)
+              if (tmplList.length > 0) {
+                const targetTmpl = tmplList[0]
+                const detailRes = await qualityApi.getInspectionTemplate(targetTmpl.id)
+                const tmplData = extractApiData(detailRes, null) || detailRes.data || detailRes
+                itemsList = tmplData.items || tmplData.InspectionItems || []
+                data.templateId = targetTmpl.id
+              }
+            } catch (err) {
+              console.warn('自动匹配模板失败:', err)
+            }
+          }
+        }
+
         if (itemsList.length > 0) {
-          inspectItems.value = itemsList.map(item => ({
-            ...item,
-            result: item.result || '',
-            remarks: item.remarks || ''
-          }))
+          inspectItems.value = itemsList.map(normalizeInspectionItem)
         } else if (data.status === 'in_progress' || data.status === 'pending') {
           inspectItems.value = []
           showToast('当前检验单未配置检验项目')
         }
 
-        // 初始化表单
+        // 初始化照片列表
+        if (Array.isArray(data.attachments)) {
+          photoList.value = data.attachments.map(att => ({
+            id: att.id,
+            url: att.url || att.fileUrl,
+            name: att.name || '现场照片',
+            size: att.size
+          }))
+        } else {
+          photoList.value = []
+        }
+
+        // 初始化表单（参考网页版：若无历史检验员姓名则自动获取当前登录用户的姓名）
         inspectForm.qualifiedQuantity = String(data.qualifiedQuantity || data.quantity || '')
         inspectForm.unqualifiedQuantity = String(data.unqualifiedQuantity || '0')
-        inspectForm.inspectorName = data.inspectorName || ''
+        inspectForm.inspectorName = data.inspectorName || getCurrentUserDisplayName()
         inspectForm.note = data.note || data.remark || ''
         return
       }
@@ -327,8 +615,10 @@
       try {
         inspection.value = JSON.parse(route.query.data)
         inspectItems.value = []
+        photoList.value = []
         inspectForm.qualifiedQuantity = String(inspection.value.quantity || '')
         inspectForm.unqualifiedQuantity = '0'
+        inspectForm.inspectorName = inspection.value.inspectorName || getCurrentUserDisplayName()
       } catch {
         showToast('数据加载失败')
       }
@@ -340,9 +630,11 @@
         const items = data.items || data.list || data.inspections || []
         if (items.length > 0) {
           inspection.value = items[0]
-          inspectItems.value = Array.isArray(items[0].items) ? items[0].items : []
+          inspectItems.value = Array.isArray(items[0].items) ? items[0].items.map(normalizeInspectionItem) : []
+          photoList.value = Array.isArray(items[0].attachments) ? items[0].attachments : []
           inspectForm.qualifiedQuantity = String(items[0].quantity || '')
           inspectForm.unqualifiedQuantity = '0'
+          inspectForm.inspectorName = items[0].inspectorName || getCurrentUserDisplayName()
         } else {
           showToast('未找到检验记录')
         }
@@ -365,6 +657,9 @@
       // 初始化合格数量为到货数量
       inspectForm.qualifiedQuantity = String(inspection.value.quantity || '')
       inspectForm.unqualifiedQuantity = '0'
+      if (!inspectForm.inspectorName) {
+        inspectForm.inspectorName = getCurrentUserDisplayName()
+      }
     } catch (error) {
       console.error('开始检验失败:', error)
       const msg = error.response?.data?.message || '操作失败'
@@ -413,26 +708,32 @@
     try {
       await showConfirmDialog({
         title: '确认提交',
-        message: `合格 ${qualifiedQty}，不合格 ${unqualifiedQty}\n检验结论：${status === 'passed' ? '合格' : '不合格'}\n\n确定提交吗？`
+        message: `合格 ${qualifiedQty}，不合格 ${unqualifiedQty}\n照片留存：${photoList.value.length} 张\n检验结论：${status === 'passed' ? '合格' : '不合格'}\n\n确定提交吗？`
       })
 
       actionLoading.value = true
 
       const submitData = {
+        templateId: inspection.value?.templateId || null,
         qualifiedQuantity: qualifiedQty,
         unqualifiedQuantity: unqualifiedQty,
         status,
         inspectorName: inspectForm.inspectorName,
         actualDate: new Date().toISOString().split('T')[0],
         note: inspectForm.note,
+        attachments: photoList.value.map(p => p.url),
         items: inspectItems.value.map(item => ({
+          id: item.id || undefined,
           itemName: item.itemName,
           standard: item.standard,
+          method: item.method || '',
           type: item.type,
-          isCritical: item.isCritical,
+          isCritical: item.isCritical ? 1 : 0,
           result: item.result,
-          remarks: item.remarks,
+          remarks: item.remarks || '',
           actualValue: item.actualValue || '',
+          actual_value: item.actualValue || '',
+          measure1: item.actualValue || '',
           dimensionValue: item.dimensionValue || null,
           toleranceUpper: item.toleranceUpper || null,
           toleranceLower: item.toleranceLower || null
@@ -675,11 +976,164 @@
     padding: 60px 0;
   }
 
+  .item-method {
+    font-size: 0.6875rem;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border: 1px solid var(--surface-border, var(--border-subtle));
+    font-weight: 500;
+  }
+
+  .item-actual-row {
+    margin-bottom: 8px;
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+    padding: 2px 8px;
+  }
+
+  .actual-field {
+    padding: 4px 0;
+    background: transparent;
+    :deep(.van-field__label) {
+      width: 56px;
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+      font-weight: 600;
+    }
+    :deep(.van-field__control) {
+      font-size: 0.8125rem;
+      font-weight: 600;
+    }
+  }
+
+  .item-actual-text {
+    font-size: 0.75rem;
+    color: var(--color-primary);
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+
   :deep(.pass-text) {
     color: var(--color-success) !important;
   }
 
   :deep(.fail-text) {
     color: var(--color-error) !important;
+  }
+
+  /* 问题照片留证区域 */
+  .photo-card-body {
+    padding: 12px 16px;
+  }
+
+  .photo-hint {
+    font-size: 0.75rem;
+    color: var(--text-tertiary, #94a3b8);
+    margin-bottom: 12px;
+    line-height: 1.4;
+  }
+
+  .photo-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .photo-item {
+    position: relative;
+    width: 76px;
+    height: 76px;
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--bg-tertiary, #f1f5f9);
+    border: 1px solid var(--surface-border, #e2e8f0);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+
+    .photo-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .photo-delete {
+      position: absolute;
+      top: 3px;
+      right: 3px;
+      width: 20px;
+      height: 20px;
+      background: rgba(0, 0, 0, 0.65);
+      color: #ffffff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      cursor: pointer;
+      z-index: 2;
+    }
+  }
+
+  .upload-trigger-btn {
+    width: 76px;
+    height: 76px;
+    border: 1.5px dashed var(--border-subtle, #cbd5e1);
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    background: var(--bg-secondary, #f8fafc);
+    transition: all 0.2s;
+
+    &:active {
+      transform: scale(0.96);
+      opacity: 0.85;
+    }
+
+    .trigger-svg-icon {
+      width: 22px;
+      height: 22px;
+      margin-bottom: 4px;
+    }
+
+    .trigger-text {
+      font-size: 0.6875rem;
+      color: var(--text-secondary, #64748b);
+      font-weight: 600;
+    }
+
+    &.camera-btn {
+      border-color: rgba(59, 130, 246, 0.6);
+      background: rgba(59, 130, 246, 0.06);
+
+      .trigger-svg-icon {
+        color: #2563eb;
+      }
+      .trigger-text {
+        color: #2563eb;
+      }
+    }
+
+    &.album-btn {
+      border-color: rgba(16, 185, 129, 0.6);
+      background: rgba(16, 185, 129, 0.06);
+
+      .trigger-svg-icon {
+        color: #059669;
+      }
+      .trigger-text {
+        color: #059669;
+      }
+    }
+  }
+
+  .photo-empty-text {
+    font-size: 0.8125rem;
+    color: var(--text-tertiary, #94a3b8);
+    padding: 4px 0;
   }
 </style>

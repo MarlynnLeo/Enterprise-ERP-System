@@ -219,15 +219,26 @@ const WAREHOUSE_PURCHASE_PATHS = [
   '/purchase/processing-receipts',
 ];
 
+// 委外发料由零部件仓执行：只开放查看委外加工单和发料出库动作，
+// 不授予委外建单、删除或导出权限。仓储管理角色保留同样的操作能力。
+const WAREHOUSE_OUTSOURCED_ISSUE_PERMS = [
+  'purchase:processing',
+  'purchase:processing:view',
+  'purchase:processing:update',
+];
+
+const WAREHOUSE_OUTSOURCED_ISSUE_PATHS = ['/purchase/processing'];
+
 const inventoryOperator = defineProfile({
   label: '仓储作业',
-  modules: ['仪表盘', '库存', '采购到货/入库', '物料/库位/单位'],
+  modules: ['仪表盘', '库存', '采购到货/入库', '委外发料', '物料/库位/单位'],
   permissionPrefixes: ['inventory'],
   exactPermissions: [
     ...MATERIAL_VIEW,
     ...LOCATION_VIEW,
     ...UNIT_VIEW,
     ...WAREHOUSE_PURCHASE_RECEIPT_PERMS,
+    ...WAREHOUSE_OUTSOURCED_ISSUE_PERMS,
     'production:tasks:view',
   ],
   denyPermissions: WAREHOUSE_DENY,
@@ -238,13 +249,14 @@ const inventoryOperator = defineProfile({
     '/basedata/locations',
     '/basedata/units',
     ...WAREHOUSE_PURCHASE_PATHS,
+    ...WAREHOUSE_OUTSOURCED_ISSUE_PATHS,
   ],
   dataScope: DATA_SCOPE.ALL,
 });
 
 const inventoryManager = defineProfile({
   label: '仓储管理',
-  modules: ['仪表盘', '库存', '库存概览', '采购到货/入库', '物料/库位/单位'],
+  modules: ['仪表盘', '库存', '库存概览', '采购到货/入库', '委外发料', '物料/库位/单位'],
   permissionPrefixes: ['inventory'],
   exactPermissions: [
     ...MATERIAL_VIEW,
@@ -252,6 +264,7 @@ const inventoryManager = defineProfile({
     ...UNIT_VIEW,
     ...WORKFLOW_USE,
     ...WAREHOUSE_PURCHASE_RECEIPT_PERMS,
+    ...WAREHOUSE_OUTSOURCED_ISSUE_PERMS,
     'dataoverview',
     'dataoverview:inventory',
     'production:tasks:view',
@@ -266,6 +279,7 @@ const inventoryManager = defineProfile({
     '/dataoverview',
     '/dataoverview/inventory',
     ...WAREHOUSE_PURCHASE_PATHS,
+    ...WAREHOUSE_OUTSOURCED_ISSUE_PATHS,
     ...WORKFLOW_PATHS,
   ],
   // 出入库单会由采购、生产、质量等多部门产生，仓库管理员需要
@@ -275,7 +289,7 @@ const inventoryManager = defineProfile({
 
 const componentWarehouseOperator = defineProfile({
   label: '零部件仓作业',
-  modules: ['仪表盘', '库存入库/出库', '采购到货/入库', '物料/库位/单位'],
+  modules: ['仪表盘', '库存入库/出库', '采购到货/入库', '委外发料', '物料/库位/单位'],
   // 仓库操作员需要同时处理零部件入库、采购收货和生产发料出库；审批仍由
   // OPERATOR_DENY_APPROVE 统一排除，避免把业务操作权限扩大为审批权限。
   permissionPrefixes: ['inventory:inbound', 'inventory:outbound'],
@@ -285,6 +299,7 @@ const componentWarehouseOperator = defineProfile({
     ...UNIT_VIEW,
     ...STOCK_VIEW,
     ...WAREHOUSE_PURCHASE_RECEIPT_PERMS,
+    ...WAREHOUSE_OUTSOURCED_ISSUE_PERMS,
     'inventory',
     'production:tasks:view',
   ],
@@ -300,6 +315,7 @@ const componentWarehouseOperator = defineProfile({
     '/basedata/locations',
     '/basedata/units',
     ...WAREHOUSE_PURCHASE_PATHS,
+    ...WAREHOUSE_OUTSOURCED_ISSUE_PATHS,
   ],
   dataScope: DATA_SCOPE.ALL,
 });

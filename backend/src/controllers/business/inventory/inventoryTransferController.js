@@ -928,11 +928,28 @@ const updateTransferStatus = async (req, res) => {
           reference_no: transfer.transfer_no,
           reference_type: 'transfer',
         });
-        await InventoryPostingService.reverse(
+        const reversal = await InventoryPostingService.requestReversal(
           posting.id,
-          { label: operatorName },
+          InventoryPostingService.actorFromRequest(req),
           `冲销调拨单 ${transfer.transfer_no}`,
+          {
+            sourceType: 'transfer',
+            sourceId: id,
+            sourceNo: transfer.transfer_no,
+            referenceType: 'transfer',
+          },
           connection
+        );
+        await connection.commit();
+        return ResponseHandler.success(
+          res,
+          {
+            id,
+            status: currentStatus,
+            reversalDocumentId: reversal.reversalDocumentId,
+            financeStatus: reversal.financeStatus,
+          },
+          '调拨反审核申请已提交，待财务审批后正式冲销'
         );
       }
 

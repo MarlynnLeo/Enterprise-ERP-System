@@ -125,6 +125,7 @@ const FALLBACK_DICTIONARY = {
   },
   outsourced_status: {
     pending: { name: '待出库', color: 'warning' },
+    arrived: { name: '待检验', color: 'warning' },
     confirmed: { name: '加工中', color: 'primary' },
     in_progress: { name: '加工中', color: 'primary' },
     completed: { name: '已完成', color: 'success' },

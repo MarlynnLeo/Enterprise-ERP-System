@@ -12,6 +12,60 @@ const { mapKeysToSnake } = require('../../../utils/fieldMap');
 
 const materialService = require('../../../services/materialService');
 
+const MATERIAL_SOURCE_LABELS = Object.freeze({
+  internal: '自产',
+  external: '外购',
+  outsourced: '外协',
+});
+
+/**
+ * 导出接口同时兼容旧版 { filters: {...} } 和当前前端直接提交筛选对象的格式。
+ * 内部服务层统一接收 snake_case 字段。
+ */
+const getMaterialExportFilters = (body = {}) => {
+  const payload = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
+  const source =
+    payload.filters && typeof payload.filters === 'object' && !Array.isArray(payload.filters)
+      ? payload.filters
+      : payload;
+  return mapKeysToSnake(source);
+};
+
+/**
+ * 将物料查询结果映射为导出行。
+ * getAllMaterials 的内部结果使用 DB snake_case 字段（规格字段为 specs），
+ * 同时保留 specification 等历史别名以兼容其他调用方。
+ */
+const buildMaterialExportRows = (items = []) =>
+  items.map((item = {}) => {
+    const sourceType =
+      item.material_source_type ?? item.materialSourceType ?? item.source_type ?? item.sourceType;
+    return {
+      code: item.code || '',
+      name: item.name || '',
+      specs: item.specs ?? item.specification ?? '',
+      category_name: item.category_name ?? item.categoryName ?? '',
+      unit_name: item.unit_name ?? item.unitName ?? item.unit ?? '',
+      source_type:
+        item.material_source_name ??
+        item.materialSourceName ??
+        MATERIAL_SOURCE_LABELS[sourceType] ??
+        sourceType ??
+        '',
+      safety_stock: item.safety_stock ?? item.safetyStock ?? 0,
+      min_stock: item.min_stock ?? item.minStock ?? 0,
+      max_stock: item.max_stock ?? item.maxStock ?? 0,
+      stock_quantity:
+        item.stock_quantity ??
+        item.stockQuantity ??
+        item.current_stock ??
+        item.currentStock ??
+        0,
+      status_text: Number(item.status) === 1 ? '启用' : '停用',
+      remark: item.remark ?? item.remarks ?? '',
+    };
+  });
+
 const materialController = {
 
   async getAllMaterials(req, res) {
@@ -768,7 +822,7 @@ const materialController = {
 
   async exportMaterials(req, res) {
     try {
-      const { filters = {} } = req.body || {};
+      const filters = getMaterialExportFilters(req.body);
 
       // 获取所有物料数据（不分页）
       const result = await materialService.getAllMaterials(1, null, filters);
@@ -783,33 +837,19 @@ const materialController = {
       const columns = [
         { header: '物料编码', key: 'code', width: 20 },
         { header: '物料名称', key: 'name', width: 25 },
-        { header: '规格型号', key: 'specification', width: 20 },
+        { header: '规格型号', key: 'specs', width: 20 },
         { header: '分类', key: 'category_name', width: 15 },
-        { header: '单位', key: 'unit', width: 10 },
+        { header: '单位', key: 'unit_name', width: 10 },
         { header: '物料来源', key: 'source_type', width: 15 },
         { header: '安全库存', key: 'safety_stock', width: 12 },
         { header: '最小库存', key: 'min_stock', width: 12 },
         { header: '最大库存', key: 'max_stock', width: 12 },
-        { header: '当前库存', key: 'current_stock', width: 12 },
+        { header: '当前库存', key: 'stock_quantity', width: 12 },
         { header: '状态', key: 'status_text', width: 10 },
-        { header: '备注', key: 'remarks', width: 30 },
+        { header: '备注', key: 'remark', width: 30 },
       ];
 
-      // 处理数据
-      const exportData = result.data.map((item) => ({
-        code: item.code,
-        name: item.name,
-        specification: item.specification || '',
-        category_name: item.category_name || '',
-        unit: item.unit,
-        source_type: item.source_type === 'internal' ? '自产' : '外购',
-        safety_stock: item.safety_stock || 0,
-        min_stock: item.min_stock || 0,
-        max_stock: item.max_stock || 0,
-        current_stock: item.current_stock || 0,
-        status_text: item.status === 1 ? '启用' : '停用',
-        remarks: item.remarks || '',
-      }));
+      const exportData = buildMaterialExportRows(result.data);
 
       const workbook = ExcelHelper.exportData(exportData, columns, '物料列表');
 
@@ -990,3 +1030,5 @@ const materialController = {
 };
 
 module.exports = materialController;
+module.exports.getMaterialExportFilters = getMaterialExportFilters;
+module.exports.buildMaterialExportRows = buildMaterialExportRows;

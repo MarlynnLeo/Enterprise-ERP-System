@@ -230,7 +230,7 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
     const localMatches = suppliers.value.filter(s =>
       String(s.name || '').toLowerCase().includes(q) ||
       String(s.code || '').toLowerCase().includes(q) ||
-      String(s.contactPerson || s.contact_person || '').toLowerCase().includes(q)
+       String(s.contactPerson || '').toLowerCase().includes(q)
     )
     if (localMatches.length > 0) {
       filteredSuppliers.value = localMatches

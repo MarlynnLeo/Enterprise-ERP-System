@@ -2949,6 +2949,9 @@ class FinanceIntegrationService {
     externalConnection = null,
     options = {}
   ) {
+    if (String(receipt?.status || '').trim() === 'cancelled') {
+      return { success: true, skipped: true, message: '委外入库单已取消，跳过生成凭证' };
+    }
     if (options.deferUntilInventoryApproval === true) {
       return { success: true, deferred: true, message: '库存过账待财务审核后生成委外入库凭证' };
     }

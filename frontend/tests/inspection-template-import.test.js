@@ -7,6 +7,7 @@ import {
 describe('inspection template import normalization', () => {
   it('keeps project and detection method from camel-case API responses', () => {
     const template = normalizeParsedInspectionTemplate({
+      templateCode: 'IT-SCREW-001',
       materialTypes: [1001],
       items: [
         {
@@ -25,6 +26,7 @@ describe('inspection template import normalization', () => {
       inspectionMethod: '目测',
       inspection_method: '目测',
     })
+    expect(template.templateCode).toBe('IT-SCREW-001')
   })
 
   it('supports legacy snake-case responses and dimension fields', () => {
@@ -45,5 +47,11 @@ describe('inspection template import normalization', () => {
       toleranceUpper: 0.1,
       toleranceLower: -0.1,
     })
+  })
+
+  it('normalizes a legacy template code for manual editing', () => {
+    expect(normalizeParsedInspectionTemplate({ template_code: ' IT-SPRING-001 ' }).templateCode).toBe(
+      'IT-SPRING-001'
+    )
   })
 })

@@ -123,9 +123,9 @@ describe('ReceiptDialog processing product mapping', () => {
         productName: '底座（钻孔）',
         specification: '钻孔',
         expectedQuantity: 1,
-        actualQuantity: 1,
+        actualQuantity: 0,
         unitPrice: 20,
-        totalPrice: 20
+        totalPrice: 0
       })
     ])
   })

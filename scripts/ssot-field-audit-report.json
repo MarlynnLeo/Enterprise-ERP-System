@@ -1,25 +1,37 @@
 {
-  "frontFieldCount": 4,
-  "frontSampleTotal": 6,
-  "backendSuspects": 151,
+  "frontFieldCount": 13,
+  "frontSampleTotal": 30,
+  "backendSuspects": 228,
   "backendNoMapFiles": [
+    "backend/src/controllers/auth/authController.js",
     "backend/src/controllers/business/anomalyReportController.js",
+    "backend/src/controllers/business/assets/assetsController.js",
     "backend/src/controllers/business/contractController.js",
     "backend/src/controllers/business/employeeSkillController.js",
+    "backend/src/controllers/business/enhancedModulesController.js",
     "backend/src/controllers/business/finance/apController.js",
     "backend/src/controllers/business/finance/arController.js",
     "backend/src/controllers/business/finance/cash/bankAccountController.js",
     "backend/src/controllers/business/finance/cash/bankTransactionController.js",
+    "backend/src/controllers/business/finance/cash/reconciliationController.js",
+    "backend/src/controllers/business/finance/costCalculationController.js",
+    "backend/src/controllers/business/finance/costCenterController.js",
     "backend/src/controllers/business/finance/costSettingsController.js",
+    "backend/src/controllers/business/finance/costVarianceController.js",
+    "backend/src/controllers/business/finance/expenseController.js",
     "backend/src/controllers/business/finance/financeEnhancementController.js",
     "backend/src/controllers/business/finance/overdueController.js",
     "backend/src/controllers/business/finance/profitabilityController.js",
     "backend/src/controllers/business/finance/standardCostVersionController.js",
+    "backend/src/controllers/business/hr/hrController.js",
+    "backend/src/controllers/business/inventory/inventoryBatchController.js",
     "backend/src/controllers/business/inventory/inventoryConsistencyController.js",
     "backend/src/controllers/business/inventory/inventoryLedgerController.js",
     "backend/src/controllers/business/inventory/inventoryManualController.js",
+    "backend/src/controllers/business/inventory/inventoryStockController.js",
     "backend/src/controllers/business/inventory/outbound/outboundHelpers.js",
     "backend/src/controllers/business/production/assemblyExecutionController.js",
+    "backend/src/controllers/business/production/equipmentController.js",
     "backend/src/controllers/business/production/equipmentMonitoringController.js",
     "backend/src/controllers/business/production/materialController.js",
     "backend/src/controllers/business/production/processController.js",
@@ -28,29 +40,64 @@
     "backend/src/controllers/business/production/reportController.js",
     "backend/src/controllers/business/production/workStationController.js",
     "backend/src/controllers/business/productionAssistController.js",
+    "backend/src/controllers/business/quality/aqlController.js",
+    "backend/src/controllers/business/quality/eightDReportController.js",
+    "backend/src/controllers/business/quality/firstArticleController.js",
+    "backend/src/controllers/business/quality/gaugeController.js",
     "backend/src/controllers/business/quality/InspectionTemplateController.js",
+    "backend/src/controllers/business/quality/nonconformingProductController.js",
+    "backend/src/controllers/business/quality/processInspectionController.js",
+    "backend/src/controllers/business/quality/qualityStandardController.js",
+    "backend/src/controllers/business/quality/qualityStatisticsController.js",
+    "backend/src/controllers/business/quality/replacementOrderController.js",
+    "backend/src/controllers/business/quality/reworkTaskController.js",
+    "backend/src/controllers/business/quality/scrapRecordController.js",
+    "backend/src/controllers/business/quality/spcController.js",
+    "backend/src/controllers/business/quality/supplierQualityController.js",
     "backend/src/controllers/business/sales/deliveryStatsController.js",
     "backend/src/controllers/business/sales/salesCustomerController.js",
     "backend/src/controllers/business/sales/salesPackingController.js",
     "backend/src/controllers/business/sales/salesQuotationController.js",
     "backend/src/controllers/business/traceability/batchTraceabilityController.js",
+    "backend/src/controllers/business/workflowController.js",
+    "backend/src/controllers/common/basedata/bomController.js",
+    "backend/src/controllers/common/basedata/materialController.js",
+    "backend/src/controllers/common/basedata/processController.js",
     "backend/src/controllers/common/commonController.js",
     "backend/src/controllers/common/printController.js",
     "backend/src/controllers/common/productCategoryController.js",
-    "backend/src/controllers/common/todoController.js",
-    "backend/src/controllers/outsourced/processingController.js"
+    "backend/src/controllers/outsourced/processingController.js",
+    "backend/src/controllers/system/notificationController.js",
+    "backend/src/controllers/system/notificationRuleController.js",
+    "backend/src/controllers/system/systemController.js"
   ],
   "topBackendFiles": [
     {
       "f": "backend/src/controllers/business/finance/financeEnhancementController.js",
-      "n": 16
+      "n": 17
+    },
+    {
+      "f": "backend/src/controllers/business/workflowController.js",
+      "n": 11
+    },
+    {
+      "f": "backend/src/controllers/system/systemController.js",
+      "n": 10
     },
     {
       "f": "backend/src/controllers/business/assets/assetsController.js",
       "n": 7
     },
     {
+      "f": "backend/src/controllers/business/enhancedModulesController.js",
+      "n": 7
+    },
+    {
       "f": "backend/src/controllers/business/production/assemblyExecutionController.js",
+      "n": 7
+    },
+    {
+      "f": "backend/src/controllers/outsourced/processingController.js",
       "n": 7
     },
     {
@@ -66,7 +113,7 @@
       "n": 6
     },
     {
-      "f": "backend/src/controllers/business/enhancedModulesController.js",
+      "f": "backend/src/controllers/business/production/equipmentController.js",
       "n": 6
     },
     {
@@ -82,7 +129,19 @@
       "n": 5
     },
     {
+      "f": "backend/src/controllers/business/hr/hrController.js",
+      "n": 5
+    },
+    {
+      "f": "backend/src/controllers/business/quality/qualityStatisticsController.js",
+      "n": 5
+    },
+    {
       "f": "backend/src/controllers/business/finance/cash/bankTransactionController.js",
+      "n": 4
+    },
+    {
+      "f": "backend/src/controllers/business/finance/expenseController.js",
       "n": 4
     },
     {
@@ -94,7 +153,11 @@
       "n": 4
     },
     {
-      "f": "backend/src/controllers/business/production/equipmentController.js",
+      "f": "backend/src/controllers/business/quality/processInspectionController.js",
+      "n": 4
+    },
+    {
+      "f": "backend/src/controllers/business/quality/reworkTaskController.js",
       "n": 4
     },
     {
@@ -102,7 +165,15 @@
       "n": 4
     },
     {
+      "f": "backend/src/controllers/business/finance/costCalculationController.js",
+      "n": 3
+    },
+    {
       "f": "backend/src/controllers/business/inventory/inventoryBatchController.js",
+      "n": 3
+    },
+    {
+      "f": "backend/src/controllers/business/inventory/inventoryStockController.js",
       "n": 3
     },
     {
@@ -110,7 +181,11 @@
       "n": 3
     },
     {
-      "f": "backend/src/controllers/business/purchase/purchaseOrderController.js",
+      "f": "backend/src/controllers/business/quality/firstArticleController.js",
+      "n": 3
+    },
+    {
+      "f": "backend/src/controllers/business/quality/gaugeController.js",
       "n": 3
     },
     {
@@ -118,11 +193,19 @@
       "n": 3
     },
     {
-      "f": "backend/src/controllers/outsourced/processingController.js",
+      "f": "backend/src/controllers/business/quality/replacementOrderController.js",
       "n": 3
     },
     {
-      "f": "backend/src/controllers/system/systemController.js",
+      "f": "backend/src/controllers/business/quality/scrapRecordController.js",
+      "n": 3
+    },
+    {
+      "f": "backend/src/controllers/business/quality/supplierQualityController.js",
+      "n": 3
+    },
+    {
+      "f": "backend/src/controllers/system/notificationController.js",
       "n": 3
     },
     {
@@ -148,73 +231,36 @@
     {
       "f": "backend/src/controllers/business/sales/salesCustomerController.js",
       "n": 2
-    },
-    {
-      "f": "backend/src/controllers/common/productCategoryController.js",
-      "n": 2
-    },
-    {
-      "f": "backend/src/controllers/auth/authController.js",
-      "n": 1
-    },
-    {
-      "f": "backend/src/controllers/business/finance/cash/bankAccountController.js",
-      "n": 1
-    },
-    {
-      "f": "backend/src/controllers/business/finance/costSettingsController.js",
-      "n": 1
-    },
-    {
-      "f": "backend/src/controllers/business/inventory/inventoryConsistencyController.js",
-      "n": 1
-    },
-    {
-      "f": "backend/src/controllers/business/inventory/inventoryManualController.js",
-      "n": 1
-    },
-    {
-      "f": "backend/src/controllers/business/inventory/inventoryStockController.js",
-      "n": 1
-    },
-    {
-      "f": "backend/src/controllers/business/inventory/outbound/outboundHelpers.js",
-      "n": 1
-    },
-    {
-      "f": "backend/src/controllers/business/production/equipmentMonitoringController.js",
-      "n": 1
-    },
-    {
-      "f": "backend/src/controllers/business/production/materialController.js",
-      "n": 1
-    },
-    {
-      "f": "backend/src/controllers/business/production/processController.js",
-      "n": 1
-    },
-    {
-      "f": "backend/src/controllers/business/production/reportController.js",
-      "n": 1
-    },
-    {
-      "f": "backend/src/controllers/business/productionAssistController.js",
-      "n": 1
     }
   ],
   "topFrontFields": [
     {
-      "field": "product_id",
+      "field": "unit_name",
       "samples": [
         {
-          "file": "frontend/src/api/baseData.js",
-          "line": 103,
-          "snippet": "if (requestParams.productId && !requestParams.product_id) {"
+          "file": "frontend/src/views/baseData/components/BomFormDialog.vue",
+          "line": 458,
+          "snippet": "unitName: d.unitName ?? d.unit_name ?? '',"
         },
         {
-          "file": "frontend/src/api/baseData.js",
-          "line": 104,
-          "snippet": "requestParams.product_id = requestParams.productId;"
+          "file": "frontend/src/views/baseData/components/BomViewDialog.vue",
+          "line": 87,
+          "snippet": "<span>{{ scope.row.unitName || scope.row.unit || scope.row.unit_name || '-' }}</span>"
+        },
+        {
+          "file": "frontend/src/views/production/ProductionPlan.vue",
+          "line": 1880,
+          "snippet": "<template #default=\"{ row }\">{{ row.unitName || row.unit || row.unit_name || '-' }}</template>"
+        },
+        {
+          "file": "frontend/src/views/purchase/PurchaseOrders.vue",
+          "line": 572,
+          "snippet": "{{ scope.row.unit || scope.row.unitName || scope.row.unit_name || '-' }}"
+        },
+        {
+          "file": "frontend/src/views/purchase/PurchaseOrders.vue",
+          "line": 696,
+          "snippet": "{{ scope.row.unit || scope.row.unitName || scope.row.unit_name || '-' }}"
         }
       ]
     },
@@ -222,14 +268,139 @@
       "field": "material_id",
       "samples": [
         {
-          "file": "frontend/src/api/production.js",
-          "line": 9,
-          "snippet": "const materialId = material.materialId ?? material.material_id ?? material.id"
+          "file": "frontend/src/views/baseData/components/BomFormDialog.vue",
+          "line": 453,
+          "snippet": "materialId: d.materialId ?? d.material_id ?? null,"
         },
         {
-          "file": "frontend/src/api/production.js",
-          "line": 38,
-          "snippet": "material_id: material.material_id ?? materialId,"
+          "file": "frontend/src/views/purchase/composables/usePurchaseOrderActions.js",
+          "line": 335,
+          "snippet": "return { materialId: item.materialId ?? item.material_id, receiveQuantity: pendingQty }"
+        },
+        {
+          "file": "mobile/src/views/quality/IncomingDetail.vue",
+          "line": 553,
+          "snippet": "const materialId = data.materialId || data.material_id"
+        }
+      ]
+    },
+    {
+      "field": "product_id",
+      "samples": [
+        {
+          "file": "frontend/src/api/baseData.js",
+          "line": 106,
+          "snippet": "if (requestParams.product_id != null && requestParams.productId == null) {"
+        },
+        {
+          "file": "frontend/src/api/baseData.js",
+          "line": 107,
+          "snippet": "requestParams.productId = requestParams.product_id;"
+        },
+        {
+          "file": "frontend/src/api/baseData.js",
+          "line": 109,
+          "snippet": "delete requestParams.product_id;"
+        }
+      ]
+    },
+    {
+      "field": "real_name",
+      "samples": [
+        {
+          "file": "mobile/src/views/quality/IncomingDetail.vue",
+          "line": 300,
+          "snippet": "currentUser.real_name ||"
+        },
+        {
+          "file": "mobile/src/stores/auth.js",
+          "line": 54,
+          "snippet": "if (normalized.realName == null && normalized.real_name != null) {"
+        },
+        {
+          "file": "mobile/src/stores/auth.js",
+          "line": 55,
+          "snippet": "normalized.realName = normalized.real_name"
+        }
+      ]
+    },
+    {
+      "field": "unit_id",
+      "samples": [
+        {
+          "file": "frontend/src/views/baseData/components/BomFormDialog.vue",
+          "line": 457,
+          "snippet": "unitId: d.unitId ?? d.unit_id ?? null,"
+        },
+        {
+          "file": "frontend/src/views/baseData/components/BomFormDialog.vue",
+          "line": 884,
+          "snippet": "target.unitId = detail.unitId ?? detail.unit_id ?? null"
+        }
+      ]
+    },
+    {
+      "field": "parent_id",
+      "samples": [
+        {
+          "file": "frontend/src/views/baseData/components/BomFormDialog.vue",
+          "line": 463,
+          "snippet": "parentId: d.parentId ?? d.parent_id ?? 0,"
+        },
+        {
+          "file": "frontend/src/views/baseData/components/BomFormDialog.vue",
+          "line": 621,
+          "snippet": "const getParentId = (item) => item?.parentId ?? item?.parent_id ?? 0"
+        }
+      ]
+    },
+    {
+      "field": "department_name",
+      "samples": [
+        {
+          "file": "mobile/src/stores/auth.js",
+          "line": 66,
+          "snippet": "if (normalized.departmentName == null && normalized.department_name != null) {"
+        },
+        {
+          "file": "mobile/src/stores/auth.js",
+          "line": 67,
+          "snippet": "normalized.departmentName = normalized.department_name"
+        }
+      ]
+    },
+    {
+      "field": "created_at",
+      "samples": [
+        {
+          "file": "mobile/src/stores/auth.js",
+          "line": 69,
+          "snippet": "if (normalized.createdAt == null && normalized.created_at != null) {"
+        },
+        {
+          "file": "mobile/src/stores/auth.js",
+          "line": 70,
+          "snippet": "normalized.createdAt = normalized.created_at"
+        }
+      ]
+    },
+    {
+      "field": "material_code",
+      "samples": [
+        {
+          "file": "frontend/src/views/baseData/components/BomFormDialog.vue",
+          "line": 454,
+          "snippet": "materialCode: d.materialCode ?? d.material_code ?? '',"
+        }
+      ]
+    },
+    {
+      "field": "material_name",
+      "samples": [
+        {
+          "file": "frontend/src/views/baseData/components/BomFormDialog.vue",
+          "line": 455,
+          "snippet": "materialName: d.materialName ?? d.material_name ?? '',"
         }
       ]
     },
@@ -244,12 +415,22 @@
       ]
     },
     {
-      "field": "available_quantity",
+      "field": "order_id",
       "samples": [
         {
-          "file": "frontend/src/api/production.js",
-          "line": 17,
-          "snippet": "material.availableQuantity ?? material.available_quantity ?? stockQuantity"
+          "file": "frontend/src/api/purchase.js",
+          "line": 338,
+          "snippet": "delete receiptData.order_id;"
+        }
+      ]
+    },
+    {
+      "field": "warehouse_id",
+      "samples": [
+        {
+          "file": "frontend/src/api/purchase.js",
+          "line": 340,
+          "snippet": "delete receiptData.warehouse_id;"
         }
       ]
     }

@@ -14,6 +14,12 @@ const {
 
 const DEFAULT_RULE_TIMEOUT_MS = Number(process.env.DATA_CONSISTENCY_RULE_TIMEOUT_MS || 30000);
 
+// Inventory finance posting became the required movement path in migration
+// 20260831000001. Pre-cutover A3/import rows intentionally have no posting
+// document and should not be reported as current-chain defects.
+const INVENTORY_POSTING_CUTOVER_AT =
+  process.env.INVENTORY_POSTING_CUTOVER_AT || '2026-08-31 00:00:00';
+
 const sqlLiteral = (value) => `'${String(value).replace(/'/g, "''")}'`;
 const sqlList = (values) => values.map(sqlLiteral).join(', ');
 
@@ -109,22 +115,30 @@ const consistencyRules = [
     id: 'inventory.completed_inbound_has_ledger',
     severity: 'critical',
     closure: 'inventoryControl',
-    description: 'Completed inbound documents must have inventory ledger entries.',
+    description: 'Post-cutover completed inbound documents must have ledger entries or a staged finance posting.',
     sql: `
       SELECT i.id, i.inbound_no
       FROM inventory_inbound i
       LEFT JOIN inventory_ledger l
-        ON l.reference_no = i.inbound_no AND l.reference_type IN ('inbound', 'purchase_receipt', 'purchase_inbound')
-      WHERE i.status = 'completed' AND COALESCE(i.is_deleted, 0) = 0
+        ON l.reference_no COLLATE utf8mb4_unicode_ci = i.inbound_no COLLATE utf8mb4_unicode_ci
+       AND l.reference_type IN ('inbound', 'purchase_receipt', 'purchase_inbound')
+      LEFT JOIN inventory_posting_documents pd
+        ON pd.source_no COLLATE utf8mb4_unicode_ci = i.inbound_no COLLATE utf8mb4_unicode_ci
+       AND pd.posting_kind = 'movement'
+      LEFT JOIN inventory_posting_lines pl ON pl.posting_document_id = pd.id
+      WHERE i.status = 'completed'
+        AND COALESCE(i.is_deleted, 0) = 0
+        AND i.created_at >= ${sqlLiteral(INVENTORY_POSTING_CUTOVER_AT)}
       GROUP BY i.id, i.inbound_no
       HAVING COUNT(l.id) = 0
+         AND COUNT(CASE WHEN pd.finance_status IN ('pending', 'approved') THEN pl.id END) = 0
     `,
   },
   {
     id: 'inventory.completed_outbound_has_ledger',
     severity: 'critical',
     closure: 'inventoryControl',
-    description: 'Completed outbound documents with actual issue qty must have inventory ledger entries.',
+    description: 'Post-cutover completed outbound documents with actual issue qty must have ledger entries or a staged finance posting.',
     sql: `
       SELECT o.id, o.outbound_no
       FROM inventory_outbound o
@@ -135,11 +149,19 @@ const consistencyRules = [
          GROUP BY outbound_id
       ) oi ON oi.outbound_id = o.id
       LEFT JOIN inventory_ledger l
-        ON l.reference_no = o.outbound_no AND l.reference_type IN ('outbound', 'sales_outbound', 'production_issue')
-      WHERE o.status IN ('completed', 'partial_completed') AND o.deleted_at IS NULL
+        ON l.reference_no COLLATE utf8mb4_unicode_ci = o.outbound_no COLLATE utf8mb4_unicode_ci
+       AND l.reference_type IN ('outbound', 'sales_outbound', 'production_issue')
+      LEFT JOIN inventory_posting_documents pd
+        ON pd.source_no COLLATE utf8mb4_unicode_ci = o.outbound_no COLLATE utf8mb4_unicode_ci
+       AND pd.posting_kind = 'movement'
+      LEFT JOIN inventory_posting_lines pl ON pl.posting_document_id = pd.id
+      WHERE o.status IN ('completed', 'partial_completed')
+        AND o.deleted_at IS NULL
+        AND o.created_at >= ${sqlLiteral(INVENTORY_POSTING_CUTOVER_AT)}
         AND COALESCE(oi.issued_qty, 0) > 0.000001
       GROUP BY o.id, o.outbound_no
       HAVING COUNT(l.id) = 0
+         AND COUNT(CASE WHEN pd.finance_status IN ('pending', 'approved') THEN pl.id END) = 0
     `,
   },
   {
@@ -163,6 +185,7 @@ const consistencyRules = [
       SELECT l.id, l.transaction_no, l.reference_no, l.material_id, l.quantity, l.unit_cost, l.total_value
       FROM inventory_ledger l
       WHERE COALESCE(l.quantity, 0) < -0.000001
+        AND l.created_at >= ${sqlLiteral(INVENTORY_POSTING_CUTOVER_AT)}
         AND (COALESCE(l.unit_cost, 0) <= 0 OR COALESCE(l.total_value, 0) <= 0)
     `,
   },
@@ -187,6 +210,7 @@ const consistencyRules = [
              ) AS source_unit_cost
         FROM inventory_ledger l
        WHERE l.quantity < -0.000001
+         AND l.created_at >= ${sqlLiteral(INVENTORY_POSTING_CUTOVER_AT)}
          AND l.batch_number IS NOT NULL
          AND l.batch_number <> ''
          AND EXISTS (
@@ -342,7 +366,7 @@ const consistencyRules = [
     id: 'purchase.order_received_quantity_matches_receipts',
     severity: 'high',
     closure: 'procureToPay',
-    description: 'Purchase order received quantities must match confirmed and completed receipts.',
+    description: 'Purchase order received quantities must match confirmed and completed receipts when receipt evidence exists.',
     sql: `
       SELECT poi.id AS order_item_id, po.order_no, poi.material_id,
              poi.received_quantity,
@@ -375,6 +399,11 @@ const consistencyRules = [
       ) inspections ON inspections.order_id = poi.order_id
                    AND inspections.material_id = poi.material_id
       WHERE po.deleted_at IS NULL
+        AND po.created_at >= ${sqlLiteral(INVENTORY_POSTING_CUTOVER_AT)}
+        AND (
+          COALESCE(receipts.received_quantity, 0) > 0.000001
+          OR COALESCE(inspections.inspected_quantity, 0) > 0.000001
+        )
         AND ABS(
           COALESCE(poi.received_quantity, 0)
           - GREATEST(
@@ -459,6 +488,7 @@ const consistencyRules = [
       SELECT t.id AS task_id, t.code, t.status
       FROM production_tasks t
       WHERE t.deleted_at IS NULL
+        AND t.created_at >= ${sqlLiteral(INVENTORY_POSTING_CUTOVER_AT)}
         AND t.status IN ('material_issued', 'in_progress', 'inspection', 'warehousing', 'completed')
         AND NOT EXISTS (
           SELECT 1

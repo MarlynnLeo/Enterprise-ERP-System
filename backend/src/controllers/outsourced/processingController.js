@@ -6,6 +6,7 @@
  */
 
 const { ResponseHandler } = require('../../utils/responseHandler');
+const crypto = require('crypto');
 const { mapKeysToSnake } = require('../../utils/fieldMap');
 const { logger } = require('../../utils/logger');
 
@@ -14,13 +15,14 @@ const purchaseModel = require('../../models/purchase');
 const { CodeGenerators } = require('../../utils/codeGenerator');
 const FinanceIntegrationService = require('../../services/external/FinanceIntegrationService');
 const DocumentLinkService = require('../../services/business/DocumentLinkService');
-const VoucherReversalService = require('../../services/finance/VoucherReversalService');
 const { DOCUMENT_LINK_TYPES: DocType } = require('../../constants/documentLinkTypes');
 const InventoryService = require('../../services/InventoryService');
+const QualityInspection = require('../../models/qualityInspection');
+const InspectionClosureService = require('../../services/quality/InspectionClosureService');
 const { safeString, safeNumber } = require('../../utils/typeHelper');
 const { roundMoney } = require('../../utils/money');
 const { parsePagination, appendPaginationSQL } = require('../../utils/safePagination');
-const { getRequestActorLabel } = require('../../utils/userUtils');
+const { getRequestActorLabel, firstValidUserId } = require('../../utils/userUtils');
 const {
   OUTSOURCED_PROCESSING_TRANSITIONS,
   OUTSOURCED_RECEIPT_TRANSITIONS,
@@ -79,6 +81,7 @@ const getProcessingValidationError = ({
 const validationError = (message) => {
   const error = new Error(message);
   error.code = 'VALIDATION_ERROR';
+  error.statusCode = 400;
   return error;
 };
 
@@ -190,6 +193,7 @@ const STATUS = {
   },
   RECEIPT: {
     PENDING: 'pending',
+    ARRIVED: 'arrived',
     CONFIRMED: 'confirmed',
     COMPLETED: 'completed',
     CANCELLED: 'cancelled',
@@ -298,7 +302,26 @@ const getOutsourcedMaterialOptions = async (req, res) => {
 
 const classifyStatusUpdateError = (error, fallbackMessage) => {
   const message = String(error?.message || fallbackMessage);
-  const insufficientStock = /库存不足|FIFO批次库存不足/.test(message);
+  const explicitStatusCode = Number(error?.statusCode);
+  const explicitErrorCode = String(error?.code || '');
+
+  // 业务校验错误（包括到货/检验前置条件）必须按 4xx 返回，
+  // 否则前端会把“尚未完成检验”等可操作提示误显示成服务器故障。
+  if (
+    (Number.isInteger(explicitStatusCode) && explicitStatusCode >= 400 && explicitStatusCode < 500) ||
+    explicitErrorCode === 'VALIDATION_ERROR'
+  ) {
+    return {
+      message,
+      errorCode: explicitErrorCode || 'VALIDATION_ERROR',
+      statusCode: Number.isInteger(explicitStatusCode) ? explicitStatusCode : 400,
+    };
+  }
+
+  // InventoryService marks shortages explicitly; keep the message fallback for
+  // legacy/wrapped errors so stock issues are never exposed as a generic 500.
+  const insufficientStock =
+    explicitErrorCode === 'INSUFFICIENT_STOCK' || /库存不足|FIFO批次库存不足/.test(message);
   const businessFailure =
     insufficientStock ||
     /缺少有效成本|找不到外委发料台账|未找到单据|无法安全回退|分录生成失败|数量必须大于0|没有明细|没有有效物料|不存在|不能|未配置默认仓库|仓库不存在|仓库ID/.test(
@@ -493,7 +516,13 @@ const normalizeReceiptItems = (items) =>
     unit_price: safeNumber(item.unit_price || 0),
   }));
 
-const validateReceiptItems = async (connection, processingId, items, excludedReceiptId = null) => {
+const validateReceiptItems = async (
+  connection,
+  processingId,
+  items,
+  excludedReceiptId = null,
+  { allowZeroQuantities = false } = {}
+) => {
   const normalizedItems = normalizeReceiptItems(items);
   if (normalizedItems.length === 0) {
     throw new Error('委外入库单必须包含至少一项成品');
@@ -538,7 +567,7 @@ const validateReceiptItems = async (connection, processingId, items, excludedRec
     if (!product) {
       throw new Error(`成品 ${item.product_code || item.product_id} 不属于当前委外加工单`);
     }
-    if (!(item.actual_quantity > 0)) {
+    if (!allowZeroQuantities && !(item.actual_quantity > 0)) {
       throw new Error(`成品 ${product.product_name || product.product_code} 实收数量必须大于0`);
     }
 
@@ -725,7 +754,7 @@ const getOutsourcedReceiptProcessingOptions = async (req, res) => {
         SELECT 1
           FROM outsourced_processing_receipts pending_receipt
          WHERE pending_receipt.processing_id = op.id
-           AND pending_receipt.status = 'pending'
+           AND (pending_receipt.status = 'pending' OR pending_receipt.status = 'arrived')
       )`,
       `EXISTS (
         SELECT 1
@@ -789,7 +818,7 @@ const getOutsourcedReceiptProcessingDetail = async (req, res) => {
             SELECT 1
               FROM outsourced_processing_receipts pending_receipt
              WHERE pending_receipt.processing_id = outsourced_processings.id
-               AND pending_receipt.status = 'pending'
+             AND (pending_receipt.status = 'pending' OR pending_receipt.status = 'arrived')
           )`,
       [processingId]
     );
@@ -1364,7 +1393,6 @@ const updateProcessingStatus = async (req, res) => {
           for (const prod of products) {
             const qty = safeNumber(prod.quantity || 0);
             const uPrice = safeNumber(prod.unit_price || 0);
-            const tPrice = safeNumber(prod.total_price, qty * uPrice);
             await connection.execute(
               `INSERT INTO outsourced_processing_receipt_items (
                 receipt_id, product_id, product_code, product_name,
@@ -1380,9 +1408,10 @@ const updateProcessingStatus = async (req, res) => {
                 safeString(prod.unit),
                 safeNumber(prod.unit_id),
                 qty,
-                qty,
+                // 发料后只建立“待到货”单据，实际到货数量由到货动作登记。
+                0,
                 uPrice,
-                tPrice,
+                0,
               ]
             );
           }
@@ -1412,22 +1441,31 @@ const updateProcessingStatus = async (req, res) => {
           reference_no: processingNo,
           reference_type: 'outsourced_processing_material',
         });
-        const reversal = await InventoryPostingService.reverse(
+        const reversal = await InventoryPostingService.requestReversal(
           posting.id,
-          { label: getRequestActorLabel(req) },
+          InventoryPostingService.actorFromRequest(req),
           `取消委外加工单 ${processingNo}`,
+          {
+            sourceType: 'outsourced_processing_material',
+            sourceId: Number(id),
+            sourceNo: processingNo,
+            referenceType: 'outsourced_processing_material',
+            referenceId: Number(id),
+          },
           connection
         );
-        logger.info(`委外加工单 ${processingNo} 取消，已生成库存冲销单 ${reversal.reversalDocumentId}`);
-        const reversedVouchers = await VoucherReversalService.reverseBusinessVouchers(connection, {
-          sourceType: DocType.OUTSOURCED_PROCESSING,
-          sourceId: Number(id),
-          documentNumber: processingNo,
-          documentType: 'outsourced_issue',
-          voidedBy: req.user?.userId || req.user?.id || null,
-          reason: `取消委外加工单 ${processingNo}`,
-        });
-        warnings.push(`已回退库存并冲销 ${reversedVouchers.length} 张外委发料凭证`);
+        await connection.commit();
+        return ResponseHandler.success(
+          res,
+          {
+            id: Number(id),
+            status: currentStatus,
+            reversalDocumentId: reversal.reversalDocumentId,
+            financeStatus: reversal.financeStatus,
+            warnings,
+          },
+          '委外加工取消申请已提交，待财务审批后冲销发料并完成业务收尾'
+        );
       }
     }
 
@@ -1476,7 +1514,14 @@ const getReceipts = async (req, res) => {
     const actualPageSize = pagination.pageSize;
 
     let query = `
-      SELECT id, receipt_no, processing_id, processing_no, supplier_id, supplier_name, warehouse_id, warehouse_name, receipt_date, operator, remarks, status, created_at, updated_at, location_id FROM outsourced_processing_receipts
+      SELECT id, receipt_no, processing_id, processing_no, supplier_id, supplier_name, warehouse_id, warehouse_name, receipt_date, operator, remarks, status, created_at, updated_at, location_id,
+             CASE WHEN EXISTS (
+               SELECT 1 FROM outsourced_processing_receipt_items opri_status
+                WHERE opri_status.receipt_id = outsourced_processing_receipts.id
+                  AND COALESCE(opri_status.actual_quantity, 0) + 0.000001 <
+                      COALESCE(opri_status.expected_quantity, 0)
+             ) THEN 1 ELSE 0 END AS arrival_required
+        FROM outsourced_processing_receipts
       WHERE 1=1
     `;
 
@@ -1592,6 +1637,415 @@ const getReceipt = async (req, res) => {
 };
 
 /**
+ * 委外入库到货：登记本次到货数量，并为每个到货成品自动生成来料检验单。
+ *
+ * 该动作只更新到货累计数量和检验单，不做库存过账；库存过账仍由“确认入库”完成，
+ * 从而保证委外加工返回成品与采购到货使用相同的“到货 → IQC → 入库”节奏。
+ */
+const receiveReceiptWithInspection = async (req, res) => {
+  const connection = await db.pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const receiptId = safeNumber(req.params.id);
+    if (!Number.isInteger(receiptId) || receiptId <= 0) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '委外入库单ID无效', 'VALIDATION_ERROR', 400);
+    }
+
+    const body = mapKeysToSnake(req.body || {});
+    const sourceItems = Array.isArray(body.items) ? body.items : [];
+    const requestedByProductId = new Map();
+    const requestedMetaByProductId = new Map();
+    for (const item of sourceItems) {
+      const productId = safeNumber(item.product_id);
+      const quantity = Number(
+        item.receive_quantity ?? item.receiveQuantity ?? item.quantity ?? 0
+      );
+      if (
+        !Number.isInteger(productId) ||
+        productId <= 0 ||
+        !Number.isFinite(quantity) ||
+        !(quantity > 0)
+      ) {
+        continue;
+      }
+      requestedByProductId.set(
+        productId,
+        (requestedByProductId.get(productId) || 0) + quantity
+      );
+      requestedMetaByProductId.set(productId, item);
+    }
+
+    if (requestedByProductId.size === 0) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '请至少填写一个成品的到货数量', 'VALIDATION_ERROR', 400);
+    }
+
+    const [receiptRows] = await connection.execute(
+      `SELECT id, receipt_no, processing_id, processing_no, supplier_id, supplier_name,
+              warehouse_id, warehouse_name, receipt_date, operator, remarks, status,
+              arrival_idempotency_key,
+              created_at, updated_at, location_id
+         FROM outsourced_processing_receipts
+        WHERE id = ?
+        FOR UPDATE`,
+      [receiptId]
+    );
+    if (receiptRows.length === 0) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '委外入库单不存在', 'NOT_FOUND', 404);
+    }
+
+    const receipt = receiptRows[0];
+    if (![STATUS.RECEIPT.PENDING, STATUS.RECEIPT.ARRIVED].includes(receipt.status)) {
+      await connection.rollback();
+      return ResponseHandler.error(
+        res,
+        `当前状态为 ${receipt.status}，不能登记到货`,
+        'VALIDATION_ERROR',
+        400
+      );
+    }
+
+    const [processingRows] = await connection.execute(
+      `SELECT id, processing_no, supplier_id, supplier_name, status
+         FROM outsourced_processings
+        WHERE id = ?
+        FOR UPDATE`,
+      [receipt.processing_id]
+    );
+    if (processingRows.length === 0) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '关联委外加工单不存在', 'NOT_FOUND', 404);
+    }
+    if (![STATUS.PROCESSING.CONFIRMED, STATUS.PROCESSING.IN_PROGRESS].includes(processingRows[0].status)) {
+      await connection.rollback();
+      return ResponseHandler.error(
+        res,
+        `委外加工单状态为 ${processingRows[0].status}，不能登记到货`,
+        'VALIDATION_ERROR',
+        400
+      );
+    }
+
+    const [receiptItems] = await connection.execute(
+      `SELECT id, receipt_id, product_id, product_code, product_name, specification,
+              unit, unit_id, expected_quantity, actual_quantity, unit_price, total_price
+         FROM outsourced_processing_receipt_items
+        WHERE receipt_id = ?
+        ORDER BY id
+        FOR UPDATE`,
+      [receiptId]
+    );
+    if (receiptItems.length === 0) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '委外入库单没有明细，不能登记到货', 'VALIDATION_ERROR', 400);
+    }
+
+    const requestedIdempotencyKey = String(
+      req.headers['x-idempotency-key'] || req.headers['idempotency-key'] || body.idempotency_key || ''
+    ).trim();
+    const fingerprint = crypto
+      .createHash('sha256')
+      .update(JSON.stringify({
+        receiptId,
+        items: sourceItems,
+        currentQuantities: receiptItems.map((item) => [item.id, item.actual_quantity]),
+      }))
+      .digest('hex');
+    const idempotencyKey = requestedIdempotencyKey || `outsourced_arrival:${receiptId}:${fingerprint}`;
+
+    if (receipt.arrival_idempotency_key === idempotencyKey) {
+      const [existingInspections] = await connection.execute(
+        `SELECT id, inspection_no, batch_no, status, quantity, material_id AS product_id,
+                product_name, is_exempt
+           FROM quality_inspections
+          WHERE source_type = 'outsourced_receipt' AND reference_id = ?
+          ORDER BY id DESC`,
+        [receiptId]
+      );
+      await connection.rollback();
+      return ResponseHandler.success(
+        res,
+        {
+          receiptId,
+          receiptNo: receipt.receipt_no,
+          successCount: existingInspections.length,
+          failedCount: 0,
+          inspections: existingInspections,
+          receiptStatus: receipt.status,
+          idempotentReplay: true,
+        },
+        '委外入库到货请求已处理，返回原结果'
+      );
+    }
+
+    await connection.execute(
+      `UPDATE outsourced_processing_receipts
+          SET arrival_idempotency_key = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?`,
+      [idempotencyKey, receiptId]
+    );
+
+    const itemByProductId = new Map();
+    for (const item of receiptItems) {
+      const productId = Number(item.product_id);
+      if (!itemByProductId.has(productId)) itemByProductId.set(productId, item);
+    }
+
+    for (const [productId, quantity] of requestedByProductId.entries()) {
+      const item = itemByProductId.get(productId);
+      if (!item) {
+        await connection.rollback();
+        return ResponseHandler.error(
+          res,
+          `成品 ${productId} 不属于该委外入库单`,
+          'VALIDATION_ERROR',
+          400
+        );
+      }
+      const expectedQuantity = Number(item.expected_quantity || 0);
+      const arrivedQuantity = Number(item.actual_quantity || 0);
+      const remainingQuantity = Math.max(expectedQuantity - arrivedQuantity, 0);
+      if (quantity > remainingQuantity + 0.000001) {
+        await connection.rollback();
+        return ResponseHandler.error(
+          res,
+          `成品 ${item.product_name || item.product_code} 本次到货数量 ${quantity} 超过待到货数量 ${remainingQuantity}`,
+          'VALIDATION_ERROR',
+          400
+        );
+      }
+    }
+
+    const inspectorId = firstValidUserId(req.user?.userId, req.user?.id);
+    if (!inspectorId) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '当前登录用户无有效ID，无法生成来料检验单', 'VALIDATION_ERROR', 400);
+    }
+    const inspectorName = getRequestActorLabel(req) || String(inspectorId);
+    const inspections = [];
+    let sequence = 0;
+
+    for (const [productId, quantity] of requestedByProductId.entries()) {
+      const item = itemByProductId.get(productId);
+      const nextActualQuantity = Number((Number(item.actual_quantity || 0) + quantity).toFixed(6));
+      const unitPrice = Number(item.unit_price || 0);
+      const batchSuffix = `${String(Date.now()).slice(-8)}${String(sequence + 1).padStart(2, '0')}`;
+      const batchNo = `OSP-${receipt.receipt_no}-${item.id}-${batchSuffix}`.slice(0, 50);
+      const meta = requestedMetaByProductId.get(productId) || {};
+
+      await connection.execute(
+        `UPDATE outsourced_processing_receipt_items
+            SET actual_quantity = ?,
+                total_price = ?,
+                updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?`,
+        [nextActualQuantity, Number((nextActualQuantity * unitPrice).toFixed(2)), item.id]
+      );
+
+      const inspection = await QualityInspection.createInspection(
+        {
+          inspection_type: 'incoming',
+          source_type: 'outsourced_receipt',
+          reference_id: receipt.id,
+          reference_no: receipt.receipt_no,
+          material_id: productId,
+          product_id: productId,
+          material_code: item.product_code,
+          material_name: item.product_name,
+          product_code: item.product_code,
+          product_name: item.product_name,
+          supplier_id: receipt.supplier_id,
+          supplier_name: receipt.supplier_name,
+          batch_no: meta.batch_no || meta.batchNo || batchNo,
+          quantity,
+          unit: item.unit || '个',
+          unit_id: item.unit_id || null,
+          planned_date: new Date().toISOString().slice(0, 10),
+          actual_date: null,
+          status: 'pending',
+          inspector_id: inspectorId,
+          inspector_name: inspectorName,
+          template_id: meta.template_id || meta.templateId || null,
+          note: `委外入库到货自动生成来料检验单 - 委外入库单: ${receipt.receipt_no}`,
+        },
+        connection
+      );
+
+      // 免检物料沿用采购到货的自动放行逻辑，但只更新委外入库闭环，
+      // 不创建采购入库单（InspectionClosureService 会依据 source_type 区分来源）。
+      if (inspection.is_exempt) {
+        const closureResult = await InspectionClosureService.closeIfTerminal(
+          inspection,
+          {
+            id: inspection.id,
+            status: 'passed',
+            qualified_quantity: quantity,
+            unqualified_quantity: 0,
+          },
+          connection
+        );
+        Object.assign(inspection, closureResult);
+      }
+
+      inspections.push({
+        id: inspection.id,
+        inspection_no: inspection.inspection_no,
+        receipt_item_id: item.id,
+        product_id: productId,
+        product_name: item.product_name,
+        quantity,
+        batch_no: inspection.batch_no,
+        status: inspection.status,
+        is_exempt: Boolean(inspection.is_exempt),
+      });
+      sequence += 1;
+    }
+
+    await connection.execute(
+      `UPDATE outsourced_processing_receipts
+          SET status = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?`,
+      [STATUS.RECEIPT.ARRIVED, receiptId]
+    );
+
+    await connection.commit();
+    return ResponseHandler.success(
+      res,
+      {
+        receiptId,
+        receiptNo: receipt.receipt_no,
+        successCount: inspections.length,
+        failedCount: 0,
+        inspections,
+        receiptStatus: STATUS.RECEIPT.ARRIVED,
+      },
+      '委外入库到货成功，已生成来料检验单'
+    );
+  } catch (error) {
+    await connection.rollback();
+    logger.error('委外入库到货并生成来料检验失败:', error);
+    const statusCode = error.statusCode || (error.code === 'VALIDATION_ERROR' ? 400 : 500);
+    const errorCode = error.code || (statusCode === 400 ? 'VALIDATION_ERROR' : 'SERVER_ERROR');
+    // 4xx 业务错误（包括不存在、状态不允许、数量超限）直接返回可操作提示；
+    // 仅 5xx 才隐藏底层异常，和采购到货接口保持一致。
+    const message = statusCode < 500 ? error.message : '委外入库到货失败';
+    ResponseHandler.error(res, message, errorCode, statusCode, error);
+  } finally {
+    connection.release();
+  }
+};
+
+const INCOMING_TERMINAL_STATUSES = new Set(['passed', 'failed', 'partial', 'completed']);
+
+const resolveInspectionQualifiedQuantity = (inspection) => {
+  const rawExplicit = inspection?.qualified_quantity;
+  // MySQL NULL 经过 Number(null) 会变成 0，不能把“未填合格数”误判为
+  // 已明确判定为 0；对历史 passed/completed 检验单应回退到检验数量。
+  if (rawExplicit !== null && rawExplicit !== undefined && rawExplicit !== '') {
+    const explicit = Number(rawExplicit);
+    if (Number.isFinite(explicit)) return Math.max(explicit, 0);
+  }
+  if (['passed', 'completed'].includes(String(inspection.status))) {
+    return Math.max(Number(inspection.quantity || 0), 0);
+  }
+  return 0;
+};
+
+/**
+ * Resolve the quantities that are allowed to be posted into stock.
+ * New arrival documents must have complete incoming inspections; legacy pending
+ * documents with an already-filled actual_quantity keep the historical direct
+ * confirmation path for backward compatibility.
+ */
+const resolveReceiptItemsForPosting = async (
+  connection,
+  receipt,
+  receiptItems,
+  currentStatus
+) => {
+  const requiresInspection =
+    currentStatus === STATUS.RECEIPT.ARRIVED ||
+    // 只要仍有未到货数量，就不能沿用历史“直接入库”兼容路径。
+    // 这样可避免手工单据填写部分实收数量后绕过到货/IQC。
+    receiptItems.some(
+      (item) =>
+        Number(item.actual_quantity || 0) + 0.000001 <
+        Number(item.expected_quantity || 0)
+    );
+
+  if (!requiresInspection) return receiptItems;
+
+  const [inspectionRows] = await connection.execute(
+    `SELECT id, inspection_no, source_type, reference_id, reference_no,
+            material_id, product_id, batch_no, quantity, qualified_quantity,
+            unqualified_quantity, status
+       FROM quality_inspections
+      WHERE inspection_type = 'incoming'
+        AND source_type = 'outsourced_receipt'
+        AND reference_id = ?
+        AND reference_no = ?
+        AND deleted_at IS NULL
+      ORDER BY id ASC
+      FOR UPDATE`,
+    [receipt.id, receipt.receipt_no]
+  );
+
+  if (inspectionRows.length === 0) {
+    throw validationError('请先执行到货并生成来料检验单，完成检验后才能确认入库');
+  }
+
+  const unfinished = inspectionRows.filter(
+    (inspection) => !INCOMING_TERMINAL_STATUSES.has(String(inspection.status))
+  );
+  if (unfinished.length > 0) {
+    throw validationError(
+      `存在 ${unfinished.length} 张未完成的来料检验单，请完成检验后再确认入库`
+    );
+  }
+
+  const inspectedByProduct = new Map();
+  const qualifiedByProduct = new Map();
+  for (const inspection of inspectionRows) {
+    const productId = Number(inspection.material_id || inspection.product_id || 0);
+    if (!productId) continue;
+    const quantity = Math.max(Number(inspection.quantity || 0), 0);
+    inspectedByProduct.set(productId, (inspectedByProduct.get(productId) || 0) + quantity);
+    qualifiedByProduct.set(
+      productId,
+      (qualifiedByProduct.get(productId) || 0) + resolveInspectionQualifiedQuantity(inspection)
+    );
+  }
+
+  const itemsForPosting = [];
+  for (const item of receiptItems) {
+    const productId = Number(item.product_id);
+    const arrivedQuantity = Math.max(Number(item.actual_quantity || 0), 0);
+    const inspectedQuantity = inspectedByProduct.get(productId) || 0;
+    if (Math.abs(inspectedQuantity - arrivedQuantity) > 0.0001) {
+      throw validationError(
+        `成品 ${item.product_name || item.product_code} 的检验数量 ${inspectedQuantity} 与到货数量 ${arrivedQuantity} 不一致`
+      );
+    }
+    const qualifiedQuantity = Math.min(
+      Math.max(qualifiedByProduct.get(productId) || 0, 0),
+      arrivedQuantity
+    );
+    if (qualifiedQuantity > 0) {
+      itemsForPosting.push({ ...item, actual_quantity: qualifiedQuantity });
+    }
+  }
+
+  if (itemsForPosting.length === 0) {
+    throw validationError('来料检验没有合格数量，不能确认入库');
+  }
+
+  return itemsForPosting;
+};
+
+/**
  * 创建委外入库单
  */
 const createReceipt = async (req, res) => {
@@ -1628,7 +2082,7 @@ const createReceipt = async (req, res) => {
     const [pendingReceiptRows] = await connection.execute(
       `SELECT id, receipt_no
          FROM outsourced_processing_receipts
-        WHERE processing_id = ? AND status = 'pending'
+        WHERE processing_id = ? AND (status = 'pending' OR status = 'arrived')
         LIMIT 1
         FOR UPDATE`,
       [processing_id]
@@ -1645,7 +2099,21 @@ const createReceipt = async (req, res) => {
 
     let normalizedItems;
     try {
-      normalizedItems = await validateReceiptItems(connection, processing_id, items);
+      // 新建委外入库单只登记应收数量；实际到货必须通过到货动作登记，
+      // 由到货动作自动生成来料检验单，避免手工建单绕过 IQC。
+      normalizedItems = await validateReceiptItems(
+        connection,
+        processing_id,
+        items,
+        null,
+        { allowZeroQuantities: true }
+      );
+      if (!normalizedItems.some((item) => Number(item.expected_quantity || 0) > 0)) {
+        throw validationError('委外入库单至少需要一项应收数量大于0的成品');
+      }
+      if (normalizedItems.some((item) => Number(item.actual_quantity || 0) > 0.000001)) {
+        throw validationError('新建委外入库单不能直接填写实收数量，请保存后使用“到货”操作');
+      }
     } catch (validationError) {
       await connection.rollback();
       return ResponseHandler.error(
@@ -1791,7 +2259,7 @@ const updateReceipt = async (req, res) => {
 
     // 检查入库单是否存在且状态为待确认
     const [existingReceipt] = await connection.execute(
-      'SELECT status, processing_id FROM outsourced_processing_receipts WHERE id = ?',
+      'SELECT status, processing_id FROM outsourced_processing_receipts WHERE id = ? FOR UPDATE',
       [id]
     );
 
@@ -1805,13 +2273,40 @@ const updateReceipt = async (req, res) => {
       return ResponseHandler.error(res, '只能修改待确认状态的入库单', 'VALIDATION_ERROR', 400);
     }
 
+    // 自动生成的委外入库单在到货前实收数量为 0。禁止通过“编辑”
+    // 直接填入实收数量绕过“到货 → IQC → 入库”流程；已有历史实收单据
+    // 仍保留原有编辑/直入兼容路径。
+    const [existingItems] = await connection.execute(
+      `SELECT product_id, expected_quantity, actual_quantity
+         FROM outsourced_processing_receipt_items
+        WHERE receipt_id = ?
+        FOR UPDATE`,
+      [id]
+    );
+    const isPendingArrivalReceipt =
+      existingItems.length > 0 &&
+      existingItems.every((item) => Number(item.actual_quantity || 0) <= 0.000001);
+    if (isPendingArrivalReceipt) {
+      const requestedItems = normalizeReceiptItems(items);
+      if (requestedItems.some((item) => Number(item.actual_quantity || 0) > 0.000001)) {
+        await connection.rollback();
+        return ResponseHandler.error(
+          res,
+          '该委外入库单尚未到货，请使用“到货”操作，系统会自动生成来料检验单',
+          'VALIDATION_ERROR',
+          400
+        );
+      }
+    }
+
     let normalizedItems;
     try {
       normalizedItems = await validateReceiptItems(
         connection,
         existingReceipt[0].processing_id,
         items,
-        id
+        id,
+        { allowZeroQuantities: true }
       );
     } catch (validationError) {
       await connection.rollback();
@@ -1980,14 +2475,18 @@ const updateReceiptStatus = async (req, res) => {
           400
         );
       }
+      // 只有新到货单（arrived，或历史 pending 但尚未登记实收数量）需要
+      // 校验来料检验结果；旧的已填实收数量 pending 单据保留兼容直入路径。
+      existingReceipt[0].itemsForPosting = await resolveReceiptItemsForPosting(
+        connection,
+        existingReceipt[0],
+        receiptItems,
+        currentStatus
+      );
       existingReceipt[0].warehouseContext = await getMaterialWarehouseContext(
         connection,
-        receiptItems.map((item) => item.product_id)
+        existingReceipt[0].itemsForPosting.map((item) => item.product_id)
       );
-
-      // Keep the validated items for the posting phase below. This avoids
-      // resolving a different set of rows after the status update.
-      existingReceipt[0].itemsForPosting = receiptItems;
     }
 
     // 更新入库单状态
@@ -2128,6 +2627,7 @@ module.exports = {
   updateProcessingStatus,
   getReceipts,
   getReceipt,
+  receiveReceiptWithInspection,
   createReceipt,
   updateReceipt,
   updateReceiptStatus,
@@ -2140,4 +2640,5 @@ module.exports = {
   validateProcessingReferences,
   getIncompleteReceiptProductCount,
   getMaterialWarehouseContext,
+  resolveReceiptItemsForPosting,
 };

@@ -454,6 +454,15 @@
             </el-form-item>
           </el-col>
         </el-row>
+        <el-form-item label="问题照片/附件">
+          <AttachmentUpload
+            v-model="inspectForm.attachments"
+            business-type="quality_inspection"
+            :business-id="inspectForm.id"
+            :max-files="20"
+            :max-size-m-b="15"
+          />
+        </el-form-item>
       </el-form>
 
       <template #footer>
@@ -520,6 +529,10 @@
             </el-table-column>
             <el-table-column prop="remarks" label="备注" min-width="140" />
           </el-table>
+        </div>
+        <div v-if="currentInspection.attachments && currentInspection.attachments.length > 0" class="row-mt-20">
+          <h4>附件</h4>
+          <AttachmentUpload :model-value="currentInspection.attachments" readonly />
         </div>
       </template>
       <template v-else>
@@ -589,8 +602,8 @@
           <h3>检验项目：</h3>
           <el-table :data="currentInspection.items" border class="w-full">
             <el-table-column type="index" width="50" label="序号" />
-            <el-table-column prop="itemName" label="检验项目" width="150" />
-            <el-table-column prop="standard" label="检验标准" min-width="180" />
+            <el-table-column prop="itemName" label="项目" width="150" />
+            <el-table-column prop="standard" label="检验要求/标准" min-width="180" />
             <el-table-column prop="type" label="检验类型" width="100">
               <template #default="scope">
                 {{ getTypeText(scope.row.type) }}
@@ -740,6 +753,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Select, StarFilled } from '@element-plus/icons-vue'
 import 'dayjs'
 import { qualityApi, productionApi, purchaseApi } from '@/api'
+import AttachmentUpload from '@/components/AttachmentUpload.vue'
 import printService from '@/services/printService'
 import { useAuthStore } from '@/stores/auth'
 import { tokenManager } from '@/utils/unifiedStorage'
@@ -1318,6 +1332,7 @@ const inspectForm = reactive({
   inspectorName: '',
   inspectionDate: new Date(),
   note: '',
+  attachments: [],
   // 产品相关字段
   productId: '',
   productName: '',
@@ -1465,6 +1480,7 @@ const handleInspect = async (row) => {
 
     inspectForm.inspectionDate = new Date();
     inspectForm.note = inspection.note || '';
+    inspectForm.attachments = Array.isArray(inspection.attachments) ? inspection.attachments : [];
 
     inspectDialogVisible.value = true;
   } catch (error) {
@@ -1521,6 +1537,9 @@ const submitInspection = async () => {
       templateId: currentInspectionTemplateId.value || null,
       actualDate: formatDate(inspectForm.inspectionDate),
       note: inspectForm.note,
+      attachments: inspectForm.attachments
+        .map((attachment) => attachment.url || attachment.fileUrl)
+        .filter(Boolean),
       status: status,
       quantity: inspectForm.quantity,
       qualifiedQuantity: inspectForm.qualifiedQuantity || 0,

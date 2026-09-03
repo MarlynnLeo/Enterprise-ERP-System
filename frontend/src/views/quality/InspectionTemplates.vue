@@ -238,11 +238,24 @@
         width="1050px"
       >
         <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
+          <el-form-item label="模板编号" prop="templateCode">
+            <el-input
+              v-model="form.templateCode"
+              placeholder="请输入模板编号"
+              maxlength="50"
+              show-word-limit
+            />
+          </el-form-item>
+
           <!-- 第一行：检验类型、模板名称、通用模板 -->
           <el-row :gutter="16">
-            <el-col :span="6">
+            <el-col :span="8">
               <el-form-item label="检验类型" prop="inspectionType">
-                <el-select v-model="form.inspectionType" placeholder="请选择检验类型" class="w-full">
+                <el-select
+                  v-model="form.inspectionType"
+                  placeholder="请选择检验类型"
+                  class="w-full inspection-type-select"
+                >
                   <el-option label="来料检验" value="incoming" />
                   <el-option label="过程检验" value="process" />
                   <el-option label="成品检验" value="final" />
@@ -250,12 +263,12 @@
                 </el-select>
               </el-form-item>
             </el-col>
-            <el-col :span="11">
+            <el-col :span="10">
               <el-form-item label="模板名称" prop="templateName">
                 <el-input v-model="form.templateName" placeholder="请输入模板名称" />
               </el-form-item>
             </el-col>
-            <el-col :span="7">
+            <el-col :span="6">
               <el-form-item label="通用模板">
                 <div style="display: flex; align-items: center; gap: 12px; height: 32px">
                   <el-checkbox v-model="form.isGeneral" @change="handleGeneralChange"
@@ -432,40 +445,34 @@
                     <el-table-column prop="dimensionValue" label="标准尺寸" width="80">
                       <template #default="scope">
                         <el-input
-                          v-if="scope.row.type === 'dimension'"
                           v-model.number="scope.row.dimensionValue"
-                          placeholder="尺寸值"
+                          placeholder="可选"
                           size="small"
                           type="number"
                           :step="0.001"
                         />
-                        <span v-else class="text-muted">尺寸</span>
                       </template>
                     </el-table-column>
                     <el-table-column prop="toleranceUpper" label="上公差(+)" width="80">
                       <template #default="scope">
                         <el-input
-                          v-if="scope.row.type === 'dimension'"
                           v-model.number="scope.row.toleranceUpper"
-                          placeholder="+0.000"
+                          placeholder="可选"
                           size="small"
                           type="number"
                           :step="0.001"
                         />
-                        <span v-else class="text-muted">尺寸</span>
                       </template>
                     </el-table-column>
                     <el-table-column prop="toleranceLower" label="下公差(-)" width="80">
                       <template #default="scope">
                         <el-input
-                          v-if="scope.row.type === 'dimension'"
                           v-model.number="scope.row.toleranceLower"
-                          placeholder="-0.000"
+                          placeholder="可选"
                           size="small"
                           type="number"
                           :step="0.001"
                         />
-                        <span v-else class="text-muted">尺寸</span>
                       </template>
                     </el-table-column>
                     <el-table-column
@@ -519,7 +526,7 @@
       >
         <el-descriptions :column="2" border>
           <el-descriptions-item label="模板编号">{{
-            currentTemplate?.template_code
+            currentTemplate?.templateCode || currentTemplate?.template_code || '-'
           }}</el-descriptions-item>
           <el-descriptions-item label="模板名称">{{
             currentTemplate?.templateName
@@ -666,7 +673,7 @@
             <el-table-column prop="method" label="检测方法" min-width="130" />
             <el-table-column prop="dimensionValue" label="标准尺寸" width="90">
               <template #default="scope">
-                {{ scope.row.dimensionValue || '-' }}
+                {{ scope.row.dimensionValue ?? scope.row.dimension_value ?? '-' }}
               </template>
             </el-table-column>
             <el-table-column prop="tolerance" label="公差" width="100">
@@ -712,33 +719,31 @@
             <el-input v-model="newStandardForm.method" placeholder="请输入检测方法" />
           </el-form-item>
 
-          <!-- 尺寸字段仍由内部类型保留，用于旧模板的公差判定 -->
-          <template v-if="newStandardForm.type === 'dimension'">
-            <el-form-item label="标准尺寸">
-              <el-input
-                v-model.number="newStandardForm.dimension_value"
-                placeholder="请输入标准尺寸值"
-                type="number"
-                :step="0.001"
-              />
-            </el-form-item>
-            <el-form-item label="上公差(+)">
-              <el-input
-                v-model.number="newStandardForm.tolerance_upper"
-                placeholder="例如: 0.5"
-                type="number"
-                :step="0.001"
-              />
-            </el-form-item>
-            <el-form-item label="下公差(-)">
-              <el-input
-                v-model.number="newStandardForm.tolerance_lower"
-                placeholder="例如: -0.5"
-                type="number"
-                :step="0.001"
-              />
-            </el-form-item>
-          </template>
+          <!-- 所有类型都可维护可选的标准尺寸和公差。 -->
+          <el-form-item label="标准尺寸">
+            <el-input
+              v-model.number="newStandardForm.dimension_value"
+              placeholder="可选"
+              type="number"
+              :step="0.001"
+            />
+          </el-form-item>
+          <el-form-item label="上公差(+)">
+            <el-input
+              v-model.number="newStandardForm.tolerance_upper"
+              placeholder="可选，例如 0.5"
+              type="number"
+              :step="0.001"
+            />
+          </el-form-item>
+          <el-form-item label="下公差(-)">
+            <el-input
+              v-model.number="newStandardForm.tolerance_lower"
+              placeholder="可选，例如 -0.5"
+              type="number"
+              :step="0.001"
+            />
+          </el-form-item>
         </el-form>
         <template #footer>
           <el-button @click="addStandardDialogVisible = false">取消</el-button>
@@ -773,7 +778,6 @@
               class="mb-base"
             />
             <el-upload
-              drag
               action=""
               :auto-upload="false"
               :file-list="uploadFileList"
@@ -782,14 +786,9 @@
               accept=".docx"
               class="docx-uploader"
             >
-              <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
-              <div class="el-upload__text">
-                将 Word 检验记录单 (.docx) 拖到此处，或 <em>点击上传解析</em>
-              </div>
+              <el-button type="primary" :icon="Upload">选择 Word 文件并解析</el-button>
               <template #tip>
-                <div class="el-upload__tip text-center">
-                  支持格式：.docx | 表格中需包含零件名称/规格/物料编码、抽样方案及检验项目明细
-                </div>
+                <span class="el-upload__tip">仅支持 .docx 格式</span>
               </template>
             </el-upload>
           </el-tab-pane>
@@ -860,15 +859,27 @@
           </div>
 
           <el-form label-width="110px" class="mt-base">
+            <el-form-item label="模板编号" required>
+              <el-input
+                v-model="parsedTemplateData.templateCode"
+                placeholder="请输入模板编号"
+                maxlength="50"
+                show-word-limit
+              />
+            </el-form-item>
+
             <el-row :gutter="16">
               <el-col :span="12">
                 <el-form-item label="模板名称" required>
                   <el-input v-model="parsedTemplateData.templateName" placeholder="模板名称" />
                 </el-form-item>
               </el-col>
-              <el-col :span="6">
+              <el-col :span="8">
                 <el-form-item label="检验类型" required>
-                  <el-select v-model="parsedTemplateData.inspectionType" class="w-full">
+                  <el-select
+                    v-model="parsedTemplateData.inspectionType"
+                    class="w-full inspection-type-select"
+                  >
                     <el-option label="来料检验" value="incoming" />
                     <el-option label="过程检验" value="process" />
                     <el-option label="成品检验" value="final" />
@@ -876,7 +887,7 @@
                   </el-select>
                 </el-form-item>
               </el-col>
-              <el-col :span="6">
+              <el-col :span="4">
                 <el-form-item label="版本号">
                   <el-input v-model="parsedTemplateData.version" placeholder="1.0" />
                 </el-form-item>
@@ -962,37 +973,15 @@
                 <el-input v-model="scope.row.method" size="small" />
               </template>
             </el-table-column>
-            <el-table-column label="公差尺寸 (如适用)" min-width="180">
+            <el-table-column label="标准尺寸/公差" min-width="220">
               <template #default="scope">
-                <div v-if="scope.row.type === 'dimension'" class="flex items-center gap-xs">
-                  <el-input-number
-                    v-model="scope.row.dimensionValue"
-                    placeholder="基准"
-                    :step="0.01"
-                    size="small"
-                    :controls="false"
-                    style="width: 70px"
-                  />
+                <div class="flex items-center gap-xs">
+                  <el-input-number v-model="scope.row.dimensionValue" placeholder="基准" :step="0.01" size="small" :controls="false" style="width: 75px" />
                   <span class="text-xs">+</span>
-                  <el-input-number
-                    v-model="scope.row.toleranceUpper"
-                    placeholder="上差"
-                    :step="0.01"
-                    size="small"
-                    :controls="false"
-                    style="width: 55px"
-                  />
+                  <el-input-number v-model="scope.row.toleranceUpper" placeholder="上差" :step="0.01" size="small" :controls="false" style="width: 60px" />
                   <span class="text-xs">-</span>
-                  <el-input-number
-                    v-model="scope.row.toleranceLower"
-                    placeholder="下差"
-                    :step="0.01"
-                    size="small"
-                    :controls="false"
-                    style="width: 55px"
-                  />
+                  <el-input-number v-model="scope.row.toleranceLower" placeholder="下差" :step="0.01" size="small" :controls="false" style="width: 60px" />
                 </div>
-                <span v-else class="text-muted">-</span>
               </template>
             </el-table-column>
             <el-table-column label="操作" width="70" align="center">
@@ -1042,7 +1031,6 @@ import {
   Plus,
   Check,
   Upload,
-  UploadFilled,
   Document,
   CircleCheckFilled,
   View,
@@ -1107,6 +1095,7 @@ const formRef = ref(null);
 // 表单数据
 const form = reactive({
   id: null,
+  templateCode: '',
   templateName: '',
   inspectionType: '',
   materialTypes: [],
@@ -1126,6 +1115,10 @@ const form = reactive({
 const aqlLevelOptions = ref([]);
 // 表单验证规则
 const rules = {
+  templateCode: [
+    { required: true, message: '请输入模板编号', trigger: 'blur' },
+    { max: 50, message: '模板编号不能超过50个字符', trigger: 'blur' },
+  ],
   templateName: [{ required: true, message: '请输入模板名称', trigger: 'blur' }],
   inspectionType: [{ required: true, message: '请选择检验类型', trigger: 'change' }],
   materialTypes: [
@@ -1153,19 +1146,7 @@ const rules = {
         } else if (value.some((item) => !item.itemName || !item.standard || !item.method)) {
           callback(new Error('请完整填写项目、检验要求/标准和检测方法'));
         } else {
-          // 检查尺寸类型的检验项是否填写了标准尺寸
-          const dimensionItems = value.filter((item) => item.type === 'dimension');
-          const invalidDimensionItems = dimensionItems.filter(
-            (item) =>
-              item.dimensionValue === undefined ||
-              item.dimensionValue === null ||
-              item.dimensionValue === ''
-          );
-          if (invalidDimensionItems.length > 0) {
-            callback(new Error('尺寸类型的检验项必须填写标准尺寸值'));
-          } else {
-            callback();
-          }
+          callback();
         }
       },
       trigger: 'change',
@@ -1523,31 +1504,6 @@ const handleMaterialChange = (values) => {
     form.materialName = '';
   }
 };
-// 移除已选物料
-const removeMaterial = (materialId) => {
-  const index = form.materialTypes.indexOf(materialId);
-  if (index > -1) {
-    form.materialTypes.splice(index, 1);
-    // 触发 handleMaterialChange 以更新兼容字段
-    handleMaterialChange(form.materialTypes);
-  }
-};
-// 获取物料显示文本（编码）
-const getMaterialDisplayText = (materialId) => {
-  // 优先从 materialsMap 获取
-  if (materialsMap.value[materialId]) {
-    return materialsMap.value[materialId].code;
-  }
-
-  // 其次从 materialsList 获取
-  const material = materialsList.value.find((item) => item.value === materialId);
-  if (material) {
-    return material.code || material.label;
-  }
-
-  // 都没找到，返回 ID
-  return materialId;
-};
 // 检验类型文本和前缀已从 @/constants/inspection 导入
 // 获取状态类型
 const getStatusType = (status) => {
@@ -1616,6 +1572,7 @@ const handleCurrentChange = (val) => {
 // 重置表单
 const resetForm = () => {
   form.id = null;
+  form.templateCode = '';
   form.templateName = '';
   form.inspectionType = '';
   form.materialTypes = [];
@@ -1652,6 +1609,7 @@ const handleEdit = async (row) => {
     if (templateData) {
       // 将模板数据填充到表单
       form.id = templateData.id;
+      form.templateCode = templateData.templateCode || '';
       form.templateName = templateData.templateName;
       form.inspectionType = templateData.inspectionType;
       // 使用工具函数判断是否为通用模板
@@ -1767,8 +1725,8 @@ const handleView = async (row) => {
         ...templateData,
         items: rawItems.map((item) => ({
           ...item,
-          itemName: item.itemName || item.item_name || '',
-          item_name: item.itemName || item.item_name || '',
+          itemName: item.itemName || '',
+          item_name: item.itemName || '',
           standard: item.standard || '',
           method: item.method || item.inspection_method || item.inspectionMethod || '目测',
           inspection_method:
@@ -1841,6 +1799,7 @@ const submitForm = async () => {
         const isGeneralValue = normalizeBoolean(form.isGeneral);
 
         const formData = {
+          templateCode: form.templateCode.trim(),
           templateName: form.templateName,
           inspectionType: form.inspectionType,
           isGeneral: isGeneralValue, // 明确使用布尔值true/false
@@ -1863,12 +1822,11 @@ const submitForm = async () => {
               reuseItemId: item.reuseItemId,
             };
 
-            // 只有尺寸类型才传递尺寸相关字段
-            if (item.type === 'dimension') {
-              itemData.dimensionValue = item.dimensionValue ?? null;
-              itemData.toleranceUpper = item.toleranceUpper ?? null;
-              itemData.toleranceLower = item.toleranceLower ?? null;
-            }
+            // 所有检验类型都保留标准尺寸和公差字段；数值标准可能出现在
+            // performance / safety 等类型中，来料检验会据此自动比较。
+            itemData.dimensionValue = item.dimensionValue ?? null;
+            itemData.toleranceUpper = item.toleranceUpper ?? null;
+            itemData.toleranceLower = item.toleranceLower ?? null;
 
             return itemData;
           }),
@@ -1930,7 +1888,24 @@ const handleDropdownCommand = async (command, row) => {
         ElMessage.error('操作失败');
       }
     } else if (command === 'copy') {
-      const response = await qualityApi.copyTemplate(row.id);
+      const { value: templateCode } = await ElMessageBox.prompt(
+        '请输入复制后新模板的模板编号',
+        '复制检验模板',
+        {
+          confirmButtonText: '确认复制',
+          cancelButtonText: '取消',
+          inputPlaceholder: '请输入模板编号',
+          inputValidator: (value) => {
+            const code = String(value || '').trim();
+            if (!code) return '请输入模板编号';
+            if (code.length > 50) return '模板编号不能超过50个字符';
+            return true;
+          },
+        }
+      );
+      const response = await qualityApi.copyTemplate(row.id, {
+        templateCode: templateCode.trim(),
+      });
       // 后端可能返回 data: null，检查字段是否存在即可
       if (response.data !== undefined) {
         ElMessage.success('模板复制成功');
@@ -1957,6 +1932,7 @@ const handleDropdownCommand = async (command, row) => {
         .catch(() => {});
     }
   } catch (error) {
+    if (error === 'cancel' || error === 'close') return;
     ElMessage.error(`操作失败: ${getApiErrorMessage(error)}`);
   }
 };
@@ -2054,14 +2030,6 @@ const saveNewStandard = async () => {
     return;
   }
 
-  // 如果检验类型是尺寸，验证尺寸相关字段
-  if (newStandardForm.type === 'dimension') {
-    if (!newStandardForm.dimension_value && newStandardForm.dimension_value !== 0) {
-      ElMessage.warning('尺寸类型检验项必须填写标准尺寸值');
-      return;
-    }
-  }
-
   savingStandard.value = true;
   try {
     // 准备提交数据
@@ -2073,12 +2041,10 @@ const saveNewStandard = async () => {
       is_critical: newStandardForm.is_critical,
     };
 
-    // 只有尺寸类型才传递尺寸相关字段
-    if (newStandardForm.type === 'dimension') {
-      submitData.dimension_value = newStandardForm.dimension_value;
-      submitData.tolerance_upper = newStandardForm.tolerance_upper;
-      submitData.tolerance_lower = newStandardForm.tolerance_lower;
-    }
+    // 数值标准不局限于 dimension 类型，所有类型都保留可选尺寸/公差字段。
+    submitData.dimension_value = newStandardForm.dimension_value;
+    submitData.tolerance_upper = newStandardForm.tolerance_upper;
+    submitData.tolerance_lower = newStandardForm.tolerance_lower;
 
     // 直接创建新的检验项目
     const response = await qualityApi.createReusableItem(submitData);
@@ -2250,20 +2216,31 @@ const handleParsePreset = async (preset) => {
 
 const handleDirectImportPreset = async (preset) => {
   try {
-    await ElMessageBox.confirm(
-      `确认直接将「${preset.fileName}」导入并创建为检验模板吗？`,
-      '导入确认',
+    const { value: templateCode } = await ElMessageBox.prompt(
+      `请输入「${preset.fileName}」导入后的模板编号`,
+      '填写模板编号',
       {
-        type: 'info',
+        confirmButtonText: '确认导入',
+        cancelButtonText: '取消',
+        inputPlaceholder: '请输入模板编号',
+        inputValidator: (value) => {
+          const code = String(value || '').trim();
+          if (!code) return '请输入模板编号';
+          if (code.length > 50) return '模板编号不能超过50个字符';
+          return true;
+        },
       }
     );
     importSubmitting.value = true;
-    await qualityApi.importPresetDocx({ fileName: preset.fileName });
+    await qualityApi.importPresetDocx({
+      fileName: preset.fileName,
+      templateCode: templateCode.trim(),
+    });
     ElMessage.success('检验模板导入创建成功');
     importDialogVisible.value = false;
     await fetchData();
   } catch (err) {
-    if (err !== 'cancel') {
+    if (err !== 'cancel' && err !== 'close') {
       handleApiError(err, '一键导入预置文档失败');
     }
   } finally {
@@ -2271,15 +2248,12 @@ const handleDirectImportPreset = async (preset) => {
   }
 };
 
-const removeParsedMaterial = (matId) => {
-  if (!parsedTemplateData.value?.materialTypes) return;
-  parsedTemplateData.value.materialTypes = parsedTemplateData.value.materialTypes.filter(
-    (id) => id !== matId
-  );
-};
-
 const handleConfirmImport = async () => {
   if (!parsedTemplateData.value) return;
+  if (!parsedTemplateData.value.templateCode?.trim()) {
+    ElMessage.warning('请输入模板编号');
+    return;
+  }
   if (!parsedTemplateData.value.templateName?.trim()) {
     ElMessage.warning('请输入模板名称');
     return;
@@ -2389,10 +2363,19 @@ const handleConfirmImport = async () => {
 }
 
 /* 导入对话框样式 */
-.docx-uploader :deep(.el-upload-dragger) {
-  padding: 24px 20px;
-  background-color: var(--color-bg-secondary, var(--color-bg-base));
-  border-radius: 8px;
+.inspection-type-select {
+  min-width: 180px;
+}
+.docx-uploader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.docx-uploader :deep(.el-upload) {
+  display: inline-flex;
+}
+.docx-uploader :deep(.el-upload__tip) {
+  margin-top: 0;
 }
 .preset-cards-grid {
   display: grid;

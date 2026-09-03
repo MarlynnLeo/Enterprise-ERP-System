@@ -859,7 +859,7 @@ const approveManualTransaction = async (req, res) => {
         }
 
         // 插入库存流水（出库时启用库存校验，不允许负库存）
-        await _insertInventoryLedgerLocal(connection, {
+          await _insertInventoryLedgerLocal(connection, {
           material_id,
           location_id,
           transaction_type:
@@ -872,16 +872,21 @@ const approveManualTransaction = async (req, res) => {
           operator: operator || approver,
           remark,
           transaction_date,
-          unit_cost: transaction_type === 'in' ? Number(item.unit_cost) : null,
-          checkStockSufficiency: transaction_type === 'out',
-          allowNegativeStock: false,
-        });
+            unit_cost: transaction_type === 'in' ? Number(item.unit_cost) : null,
+            checkStockSufficiency: transaction_type === 'out',
+            allowNegativeStock: false,
+            businessApprovedById: approverId,
+            businessApprovedBy: approver,
+            idempotencyKey: `manual_approve:${transaction_no}:item:${item.id}`,
+          });
       }
     }
 
     await connection.commit();
 
-    const message = action === 'approve' ? '审批通过，库存已更新' : '已拒绝该单据';
+    const message = action === 'approve'
+      ? '业务审批通过，已提交财务过账审核；财务审核通过后正式入账。'
+      : '已拒绝该单据';
 
     ResponseHandler.success(
       res,
@@ -1099,56 +1104,9 @@ const deleteManualTransaction = async (req, res) => {
       );
     }
 
-    // 检查审批状态
-    if (approvalStatus === STATUS.APPROVAL.APPROVED) {
-      // 已审批通过的单据，需要回滚库存
-      logger.info(`删除已审批单据 ${transaction_no}，将回滚库存`);
-
-      // 批量预取物料信息（消除循环内 N+1 查询）
-      const deleteMaterialIds = records.map(r => r.material_id);
-      const deleteMaterialInfoMap = await InventoryService.getBatchMaterialInfo(deleteMaterialIds, connection);
-
-      const rollbackOperator = await getCurrentUserName(req);
-      for (const data of records) {
-        // 从批量预取结果获取物料信息
-        const matInfo = deleteMaterialInfoMap.get(data.material_id);
-        const unit_id = matInfo ? matInfo.unitId : null;
-
-        // 回滚库存
-        const quantityChange =
-          data.transaction_type === 'in' ? -parseFloat(data.quantity) : parseFloat(data.quantity);
-
-        // 回滚入库（出库方向）：从原始台账溯源批次号，供 FIFO 自动拆批
-        // 回滚出库（入库方向）：需要生成回滚批次号
-        let rollbackBatchNumber = null;
-        if (quantityChange > 0) {
-          // 入库方向（回滚出库），需要批次号
-          rollbackBatchNumber = `ROLLBACK-${data.transaction_no}-${data.material_id}`;
-        }
-        // quantityChange < 0（回滚入库 = 出库方向），不传批次号由 FIFO 自动分配
-
-        await _insertInventoryLedgerLocal(connection, {
-          material_id: data.material_id,
-          location_id: data.location_id,
-          transaction_type: data.transaction_type === 'in' ? 'manual_in' : 'manual_out',
-          quantity: quantityChange,
-          unit_id,
-          batch_number: rollbackBatchNumber,
-          reference_no: data.transaction_no,
-          reference_type: 'manual_transaction',
-          operator: rollbackOperator,
-          remark: '删除已审批单据-回滚库存',
-          transaction_date: data.transaction_date,
-        });
-      }
-    } else if (approvalStatus === STATUS.APPROVAL.REJECTED) {
-      // 已拒绝的单据不允许删除
-      await connection.rollback();
-      return ResponseHandler.error(res, '已拒绝的单据无需删除', 'VALIDATION_ERROR', 400);
-    } else {
-      // pending 状态，直接删除，不需要回滚库存
-      logger.info(`删除待审批单据 ${transaction_no}，无需回滚库存`);
-    }
+    // 只有 pending 单据可以删除。approved 单据必须通过反审核申请，
+    // rejected 单据保留审计记录，不能让删除接口绕过审批链。
+    logger.info(`删除待审批单据 ${transaction_no}，无需回滚库存`);
 
     // 删除所有明细记录
     await connection.execute('DELETE FROM manual_transactions WHERE transaction_no = ?', [

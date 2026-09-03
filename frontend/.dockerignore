@@ -6,6 +6,9 @@ npm-debug.log
 .env.local
 .env.development
 dist
+coverage
+.playwright-cli
+logs
 .git
 .gitignore
 .eslintrc*

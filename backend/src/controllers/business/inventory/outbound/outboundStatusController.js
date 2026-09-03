@@ -5,15 +5,12 @@
 
 const { ResponseHandler } = require('../../../../utils/responseHandler');
 const { logger } = require('../../../../utils/logger');
-const { CodeGenerators } = require('../../../../utils/codeGenerator');
 const db = require('../../../../config/db');
 const { softDeleteBatch } = require('../../../../utils/softDelete');
 const InventoryService = require('../../../../services/InventoryService');
 const AsyncTaskService = require('../../../../services/business/AsyncTaskService');
 const businessConfig = require('../../../../config/businessConfig');
-const { getCurrentUserName } = require('../../../../utils/userHelper');
 const { INVENTORY_OUTBOUND_TRANSITIONS } = require('../../../../constants/statusRegistry');
-const { currentDateString } = require('../../../../utils/dateUtils');
 const { checkAndUpdateTaskStatus, _syncProductionStatus } = require('../inventoryConsistencyController');
 
 const {
@@ -30,7 +27,7 @@ const {
   parseSourceTaskIds,
 } = require('./outboundBomController');
 const ScopeGuard = require('../../../../authorization/ScopeGuard');
-const { getRequestActorLabel, resolveActorLabel } = require('../../../../utils/userUtils');
+const { getRequestActorLabel } = require('../../../../utils/userUtils');
 const { PermissionUtils } = require('../../../../utils/authUtils');
 const PermissionService = require('../../../../services/PermissionService');
 
@@ -1254,198 +1251,42 @@ const cancelOutboundReissue = async (req, res) => {
       reference_no: outbound_no,
       reference_type: 'outbound',
     });
-    const [ledgerRows] = await connection.execute(
-      `SELECT id, ABS(signed_quantity) AS qty
-         FROM inventory_posting_lines
-        WHERE posting_document_id = ?
-        ORDER BY line_no`,
-      [posting.id]
-    );
-    await InventoryPostingService.reverse(
+    const requestActor = InventoryPostingService.actorFromRequest(req);
+    const reversal = await InventoryPostingService.requestReversal(
       posting.id,
-      InventoryPostingService.actorFromRequest(req),
+      requestActor,
       `撤销出库单 ${outbound_no}`,
+      {
+        force: force === true,
+        createReissue: createReissue !== false,
+        sourceType: 'outbound',
+        sourceId: numericId,
+        sourceNo: outbound_no,
+        referenceType: reference_type,
+        referenceId: reference_id,
+        productionTaskId: outbound.production_task_id,
+        sourceTaskIds: batchTaskIds,
+        isBatchOutbound: outbound.is_batch_outbound,
+        outboundType: outbound.outbound_type,
+      },
       connection
     );
-    const operator = await getCurrentUserName(req);
-    const reversedLedgerCount = ledgerRows.length;
-    const reversedQuantity = ledgerRows.reduce((sum, row) => sum + Number(row.qty || 0), 0);
-
-    const [statusUpdate] = await connection.execute(
-      `UPDATE inventory_outbound
-       SET status = ?, remark = CONCAT(COALESCE(remark, ''), ?), updated_at = NOW()
-       WHERE id = ? AND deleted_at IS NULL
-         AND status IN (?, ?)`,
-      [
-        STATUS.OUTBOUND.REVERSED,
-        ` [已由 ${operator} 撤销]`,
-        id,
-        STATUS.OUTBOUND.COMPLETED,
-        STATUS.OUTBOUND.PARTIAL_COMPLETED,
-      ]
-    );
-    if (!statusUpdate.affectedRows) {
-      await connection.rollback();
-      return ResponseHandler.error(
+    if (reversal?.reversalDocumentId) {
+      await connection.commit();
+      return ResponseHandler.success(
         res,
-        '出库单状态已变更，无法撤销（可能已被并发处理）',
-        'VALIDATION_ERROR',
-        400
+        {
+          id: numericId,
+          outboundNo: outbound_no,
+          status,
+          reversalDocumentId: reversal.reversalDocumentId,
+          financeStatus: reversal.financeStatus,
+          createReissue: createReissue !== false,
+        },
+        '出库反审核申请已提交，待财务审批后冲销库存并完成业务收尾'
       );
     }
 
-    const affectedTaskIds =
-      reference_type === 'production_task' && reference_id
-        ? [reference_id]
-        : batchTaskIds;
-    await cleanupOutboundSideEffects(connection, id, outbound_no, affectedTaskIds);
-
-    let reissueOutbound = null;
-    const isBatchReissue =
-      reference_type === 'batch_production_tasks' && batchTaskIds.length > 0;
-    const canCreateReissue =
-      createReissue !== false &&
-      ((reference_id &&
-        (reference_type === 'production_task' || reference_type === 'production_plan')) ||
-        isBatchReissue);
-
-    if (canCreateReissue) {
-      const newOutboundNo = await CodeGenerators.generateInventoryOutboundCode(connection);
-      const productionTaskId =
-        reference_type === 'production_task'
-          ? reference_id
-          : outbound.production_task_id || null;
-
-      let insertResult;
-      let bomResult;
-
-      const reissueCreatedBy = req.user?.id || req.user?.userId || outbound.created_by || null;
-      if (isBatchReissue) {
-        [insertResult] = await connection.execute(
-          `INSERT INTO inventory_outbound
-            (outbound_no, outbound_date, status, outbound_type, operator, remark,
-             reference_type, source_task_ids, is_batch_outbound, created_by, created_at, updated_at)
-           VALUES (?, CURDATE(), ?, ?, ?, ?, ?, ?, 1, ?, NOW(), NOW())`,
-          [
-            newOutboundNo,
-            STATUS.OUTBOUND.DRAFT,
-            outbound.outbound_type || 'batch_issue',
-            operator,
-            `由已撤销的批量出库单 ${outbound_no} 按统一净需求重新生成，请在完成前核实明细。`,
-            'batch_production_tasks',
-            JSON.stringify(batchTaskIds),
-            reissueCreatedBy,
-          ]
-        );
-
-        bomResult = await fetchBatchBomItemsForOutbound(
-          connection,
-          insertResult.insertId,
-          batchTaskIds
-        );
-      } else {
-        [insertResult] = await connection.execute(
-          `INSERT INTO inventory_outbound
-            (outbound_no, outbound_date, status, outbound_type, operator, remark,
-             reference_id, reference_type, production_task_id, created_by, created_at, updated_at)
-           VALUES (?, CURDATE(), ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-          [
-            newOutboundNo,
-            STATUS.OUTBOUND.DRAFT,
-            outbound.outbound_type || 'bom_issue',
-            operator,
-            `由已撤销的出库单 ${outbound_no} 按统一净需求重新生成，请在完成前核实明细。`,
-            reference_id,
-            reference_type,
-            productionTaskId,
-            reissueCreatedBy,
-          ]
-        );
-
-        bomResult = await fetchBomItemsForOutbound(
-          connection,
-          insertResult.insertId,
-          reference_type,
-          reference_id
-        );
-      }
-
-      if (!bomResult.success) {
-        await connection.rollback();
-        return ResponseHandler.error(
-          res,
-          `已准备冲销，但无法按统一净需求生成新出库单: ${bomResult.error}`,
-          'VALIDATION_ERROR',
-          400
-        );
-      }
-
-      reissueOutbound = {
-        id: insertResult.insertId,
-        outbound_no: newOutboundNo,
-        itemCount: bomResult.itemCount,
-      };
-    }
-
-    if (affectedTaskIds.length > 0) {
-      const placeholders = affectedTaskIds.map(() => '?').join(',');
-      // 撤销发料后回退到配料中（状态机允许 material_issued → preparing）
-      const { promoteTaskStatus } = require('../../../../services/business/TaskLifecycleService');
-      for (const tid of affectedTaskIds) {
-        await promoteTaskStatus(connection, tid, STATUS.PRODUCTION_TASK.PREPARING, {
-          onlyFrom: [
-            STATUS.PRODUCTION_TASK.MATERIAL_ISSUED,
-            STATUS.PRODUCTION_TASK.MATERIAL_PARTIAL_ISSUED,
-          ],
-        });
-      }
-
-      await connection.execute(
-        `UPDATE production_plans pp
-         JOIN production_tasks pt ON pt.plan_id = pp.id AND pt.deleted_at IS NULL
-         SET pp.status = ?, pp.updated_at = NOW()
-         WHERE pt.id IN (${placeholders})
-           AND pp.deleted_at IS NULL
-           AND pp.status = ?`,
-        [
-          STATUS.PRODUCTION_PLAN.PREPARING,
-          ...affectedTaskIds,
-          STATUS.PRODUCTION_PLAN.MATERIAL_ISSUED,
-        ]
-      );
-    }
-
-    if (reference_id && reference_type === 'production_plan') {
-      const [planCheck] = await connection.execute(
-        'SELECT status FROM production_plans WHERE id = ? AND deleted_at IS NULL',
-        [reference_id]
-      );
-      if (planCheck[0]?.status === STATUS.PRODUCTION_PLAN.MATERIAL_ISSUED) {
-        await connection.execute('UPDATE production_plans SET status = ? WHERE id = ? AND deleted_at IS NULL', [
-          STATUS.PRODUCTION_PLAN.PREPARING,
-          reference_id,
-        ]);
-      }
-    }
-
-    await connection.commit();
-
-    const financeReversal = await reversePostedGLEntriesForOutbound(outbound_no, operator);
-
-    return ResponseHandler.success(
-      res,
-      {
-        id,
-        outbound_no,
-        reversedLedgerCount,
-        reversedQuantity,
-        reissueOutbound,
-        financeReversal,
-      },
-      reissueOutbound
-        ? '撤销重发成功，已按统一净需求生成新的草稿出库单'
-        : '撤销成功，库存已冲回'
-    );
   } catch (error) {
     await connection.rollback();
     logger.error('撤销重发失败:', error);
@@ -1461,88 +1302,9 @@ const cancelOutboundReissue = async (req, res) => {
   }
 };
 
-const cleanupOutboundSideEffects = async (connection, outboundId, outboundNo, taskIds) => {
-  await connection.execute(
-    `UPDATE material_shortage_records
-     SET status = 'cancelled',
-         remaining_quantity = 0,
-         remark = CONCAT(COALESCE(remark, ''), ?),
-         updated_at = NOW(),
-         completed_at = COALESCE(completed_at, NOW())
-     WHERE outbound_id = ?
-       AND status IN ('pending', 'partial_supplied')`,
-    [`\nCancelled by outbound reversal ${outboundNo}`, outboundId]
-  );
-
-  if (!Array.isArray(taskIds) || taskIds.length === 0) return;
-
-  const placeholders = taskIds.map(() => '?').join(',');
-  await connection.execute(
-    `DELETE FROM production_processes
-     WHERE task_id IN (${placeholders})
-       AND status = 'pending'
-       AND COALESCE(progress, 0) = 0
-       AND (
-         remarks LIKE '%自动创建%'
-         OR remarks LIKE '%出库单%'
-         OR description LIKE '%默认生产过程%'
-       )`,
-    taskIds
-  );
-};
-
-const reversePostedGLEntriesForOutbound = async (outboundNo, operator) => {
-  try {
-    const [entries] = await db.pool.execute(
-      `SELECT id
-       FROM gl_entries
-       WHERE document_number = ?
-         AND is_posted = 1
-         AND COALESCE(is_reversed, 0) = 0
-         AND NOT EXISTS (
-           SELECT 1 FROM gl_entries reversal
-           WHERE reversal.reversal_entry_id = gl_entries.id
-         )
-       ORDER BY id ASC`,
-      [outboundNo]
-    );
-
-    if (entries.length === 0) {
-      return { reversedCount: 0, errors: [] };
-    }
-
-    const financeModel = require('../../../models/finance');
-    const errors = [];
-    let reversedCount = 0;
-    const today = currentDateString();
-
-    for (const entry of entries) {
-      try {
-        await financeModel.reverseEntry(entry.id, {
-          entry_date: today,
-          posting_date: today,
-          description: `Outbound reversal ${outboundNo}`,
-          created_by: await resolveActorLabel(null, operator),
-        });
-        reversedCount += 1;
-      } catch (error) {
-        errors.push({ entryId: entry.id, message: error.message });
-        logger.error(`出库单 ${outboundNo} 自动冲销会计分录失败:`, error);
-      }
-    }
-
-    return { reversedCount, errors };
-  } catch (error) {
-    logger.error(`查询出库单 ${outboundNo} 会计分录失败:`, error);
-    return { reversedCount: 0, errors: [{ message: error.message }] };
-  }
-};
-
 module.exports = {
   updateOutboundStatus,
   batchUpdateOutboundStatus,
   batchDeleteOutbound,
   cancelOutboundReissue,
-  cleanupOutboundSideEffects,
-  reversePostedGLEntriesForOutbound,
 };

@@ -1147,11 +1147,35 @@ const updateInboundStatus = async (req, res) => {
       }
 
       if (newStatus === STATUS.INBOUND.REVERSED) {
-        await InboundTransactionService.reverseInbound(
-          connection,
-          id,
-          inboundData[0].operator || getRequestActorLabel(req),
-          inboundData[0]
+        const InventoryPostingService = require('../../../services/InventoryPostingService');
+        const posting = await InventoryPostingService.requireApprovedForTransaction(connection, {
+          reference_no: inboundData[0].inbound_no,
+          reference_type: 'inbound',
+        });
+        const reversal = await InventoryPostingService.requestReversal(
+          posting.id,
+          InventoryPostingService.actorFromRequest(req),
+          `冲销入库单 ${inboundData[0].inbound_no}`,
+          {
+            sourceType: 'inbound',
+            sourceId: Number(id),
+            sourceNo: inboundData[0].inbound_no,
+            referenceType: inboundData[0].reference_type,
+            referenceId: inboundData[0].reference_id,
+            productionTaskId: inboundData[0].reference_id,
+          },
+          connection
+        );
+        await connection.commit();
+        return ResponseHandler.success(
+          res,
+          {
+            id: Number(id),
+            status: currentStatus,
+            reversalDocumentId: reversal.reversalDocumentId,
+            financeStatus: reversal.financeStatus,
+          },
+          '入库反审核申请已提交，待财务审批后正式冲销'
         );
       }
 

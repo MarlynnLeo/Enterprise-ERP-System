@@ -2,19 +2,31 @@
 set -euo pipefail
 
 PROJECT_DIR="${PROJECT_DIR:-/opt/1panel/docker/compose/KACON-ERP}"
-SERVER_IP="${SERVER_IP:-192.168.1.251}"
 PUBLIC_URL="${PUBLIC_URL:-https://erp.kacon.ai}"
-OLD_COMPOSE="${OLD_COMPOSE:-/opt/erp-deploy/docker-compose.yml}"
+
+CANONICAL_PROJECT_DIR="/opt/1panel/docker/compose/KACON-ERP"
+if [[ "$(readlink -f "$PROJECT_DIR")" != "$CANONICAL_PROJECT_DIR" ]]; then
+  echo "Refusing deployment outside canonical project directory: $CANONICAL_PROJECT_DIR" >&2
+  exit 2
+fi
 
 cd "$PROJECT_DIR"
+export COMPOSE_FILE="$CANONICAL_PROJECT_DIR/docker-compose.yml"
+unset COMPOSE_PATH_SEPARATOR
 
-old_compose_value() {
-  local key="$1"
-  if [[ ! -f "$OLD_COMPOSE" ]]; then
-    return 0
+verify_frontend_menu_source() {
+  local sidebar="$PROJECT_DIR/frontend/src/components/layout/SidebarMenu.vue"
+  local layout="$PROJECT_DIR/frontend/src/views/Layout.vue"
+  test -f "$sidebar"
+  test -f "$layout"
+  grep -q 'app-menu-list' "$sidebar"
+  if grep -Eq '<el-(menu|sub-menu|menu-item)([[:space:]>]|-)|default-openeds|collapse-transition' "$sidebar" "$layout"; then
+    echo "Refusing deployment: legacy Element Plus menu implementation detected" >&2
+    exit 20
   fi
-  sed -n "s/^[[:space:]]*- ${key}=//p" "$OLD_COMPOSE" | head -n 1
 }
+
+verify_frontend_menu_source
 
 if [[ ! -f .env ]]; then
   : "${DB_HOST:?DB_HOST must be provided for first deployment}"
@@ -38,8 +50,8 @@ if [[ ! -f .env ]]; then
   csrf_secret="$(openssl rand -hex 48)"
   redis_password="$(openssl rand -hex 32)"
   backup_encryption_key="$(openssl rand -hex 32)"
-  zhipu_key="$(old_compose_value ZHIPU_API_KEY)"
-  siliconflow_key="$(old_compose_value SILICONFLOW_API_KEY)"
+  zhipu_key="${ZHIPU_API_KEY:-}"
+  siliconflow_key="${SILICONFLOW_API_KEY:-}"
 
   umask 077
   {
@@ -76,14 +88,12 @@ normalize_env_cookie_policy() {
   if grep -q '^COOKIE_SECURE=' .env; then
     sed -i 's/^COOKIE_SECURE=.*/COOKIE_SECURE=auto/' .env
   else
-    printf 'COOKIE_SECURE=auto
-' >> .env
+    printf 'COOKIE_SECURE=auto\n' >> .env
   fi
   if grep -q '^COOKIE_SAME_SITE=' .env; then
     sed -i 's/^COOKIE_SAME_SITE=.*/COOKIE_SAME_SITE=lax/' .env
   else
-    printf 'COOKIE_SAME_SITE=lax
-' >> .env
+    printf 'COOKIE_SAME_SITE=lax\n' >> .env
   fi
 }
 

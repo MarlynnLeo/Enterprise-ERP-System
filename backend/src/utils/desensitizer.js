@@ -43,6 +43,8 @@ const SENSITIVE_FIELDS = [
   'average_cost',
   'averageCost',
   'amount',
+  'total_spent',
+  'totalSpent',
   'total_price',
   'totalPrice',
   'subtotal',

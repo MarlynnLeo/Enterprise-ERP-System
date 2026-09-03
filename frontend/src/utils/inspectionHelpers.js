@@ -370,8 +370,16 @@ export function calculateInspectionStatus(items) {
     return 'pending'
   }
 
-  const criticalItemFailed = items.some(item => item.is_critical && item.result === 'failed')
-  const anyFailed = items.some(item => item.result === 'failed')
+  const criticalItemFailed = items.some(item => {
+    const isCritical = item.isCritical ?? item.is_critical
+    const result = String(item.result ?? '').trim().toLowerCase()
+    const critical = isCritical === true || isCritical === 1 || isCritical === '1'
+    return critical && ['failed', 'fail', '不合格'].includes(result)
+  })
+  const anyFailed = items.some(item => {
+    const result = String(item.result ?? '').trim().toLowerCase()
+    return ['failed', 'fail', '不合格'].includes(result)
+  })
 
   if (criticalItemFailed) {
     return 'failed'
@@ -394,7 +402,14 @@ export function validateInspectionItems(items) {
     }
   }
 
-  const unfilledItems = items.filter(item => !item.actual_value || !item.result)
+  const unfilledItems = items.filter(item => {
+    const actualValue = item.actual_value ?? item.actualValue
+    const result = String(item.result ?? '').trim().toLowerCase()
+    const hasActualValue = actualValue !== null && actualValue !== undefined &&
+      String(actualValue).trim() !== '' && String(actualValue).trim() !== '-'
+    const hasResult = ['passed', 'pass', 'ok', 'qualified', '合格', 'failed', 'fail', 'ng', '不合格'].includes(result)
+    return !hasActualValue || !hasResult
+  })
 
   if (unfilledItems.length === items.length) {
     return {

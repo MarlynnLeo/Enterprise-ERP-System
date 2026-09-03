@@ -527,8 +527,9 @@ class InboundTransactionService {
   }
 
   /**
-   * 冲销已完成入库：按原正向台账逐行回冲（幂等）
-   * 锁序固定 material_id, location_id, ledger.id，降低与并发库存事务死锁概率
+   * Compatibility wrapper for callers that used to reverse immediately.
+   * The actual ledger reversal and production-task closure happen only after
+   * the finance approval of the generated reversal posting.
    */
   static async reverseInbound(connection, inboundId, operator, inboundData) {
     const inboundNo = inboundData.inbound_no;
@@ -541,93 +542,20 @@ class InboundTransactionService {
       reference_no: inboundNo,
       reference_type: 'inbound',
     });
-    const [rows] = await connection.execute(
-      `SELECT id, ABS(signed_quantity) AS qty
-         FROM inventory_posting_lines
-        WHERE posting_document_id = ?
-        ORDER BY line_no`,
-      [posting.id]
-    );
-    await InventoryPostingService.reverse(
+    return InventoryPostingService.requestReversal(
       posting.id,
       { label: await resolveActorLabel(null, operator) },
       `冲销入库单 ${inboundNo}`,
+      {
+        sourceType: 'inbound',
+        sourceId: inboundId,
+        sourceNo: inboundNo,
+        referenceType: inboundData.reference_type,
+        referenceId: inboundData.reference_id,
+        productionTaskId: inboundData.reference_id,
+      },
       connection
     );
-
-    logger.info(
-      `入库单 ${inboundNo} 冲销完成，回冲 ${rows.length} 条冻结明细`
-    );
-
-    // 生产入库冲销：回退任务状态（completed/warehousing → warehousing 或 inspection）
-    if (inboundData.inbound_type === 'production') {
-      try {
-        let taskId =
-          inboundData.reference_type === 'production_task' ||
-          inboundData.reference_type === 'production'
-            ? Number(inboundData.reference_id)
-            : null;
-        if (!taskId && inboundData.inspection_id) {
-          const [insp] = await connection.execute(
-            `SELECT reference_id FROM quality_inspections
-             WHERE id = ? AND inspection_type = 'final' AND deleted_at IS NULL LIMIT 1`,
-            [inboundData.inspection_id]
-          );
-          taskId = Number(insp[0]?.reference_id) || null;
-        }
-        if (taskId) {
-          const [taskRows] = await connection.execute(
-            `SELECT id, plan_id, status, code FROM production_tasks
-             WHERE id = ? AND deleted_at IS NULL FOR UPDATE`,
-            [taskId]
-          );
-          if (taskRows.length) {
-            const t = taskRows[0];
-            // 统计冲销后剩余已入库量
-            const [remain] = await connection.execute(
-              `SELECT COALESCE(SUM(ii.quantity), 0) AS total_qty
-               FROM inventory_inbound_items ii
-               JOIN inventory_inbound ib ON ib.id = ii.inbound_id
-               WHERE ib.inbound_type = 'production'
-                 AND COALESCE(ib.is_deleted, 0) = 0
-                 AND ib.status IN ('confirmed', 'completed')
-                 AND ib.inbound_no <> ?
-                 AND (
-                   ib.reference_id = ?
-                   OR ib.inspection_id IN (
-                     SELECT id FROM quality_inspections
-                     WHERE reference_id = ? AND inspection_type = 'final' AND deleted_at IS NULL
-                   )
-                 )`,
-              [inboundNo, taskId, taskId]
-            );
-            const remainQty = parseFloat(remain[0]?.total_qty) || 0;
-            const newStatus = remainQty > 0.0001 ? 'warehousing' : 'inspection';
-            if (t.status === 'completed' || t.status === 'warehousing') {
-              await connection.execute(
-                `UPDATE production_tasks
-                 SET status = ?,
-                     completed_at = NULL,
-                     updated_at = NOW()
-                 WHERE id = ? AND deleted_at IS NULL`,
-                [newStatus, taskId]
-              );
-              if (t.plan_id) {
-                const { syncPlanStatus } = require('./TaskLifecycleService');
-                await syncPlanStatus(t.plan_id, connection);
-              }
-              logger.info(
-                `生产入库冲销后任务 ${t.code || taskId} 状态回退为 ${newStatus}（剩余入库 ${remainQty}）`
-              );
-            }
-          }
-        }
-      } catch (demoteErr) {
-        logger.warn(`生产入库冲销后任务回退失败: ${demoteErr.message}`);
-      }
-    }
-
-    return { reversedCount: rows.length };
   }
 
   /**

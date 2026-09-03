@@ -21,6 +21,23 @@ class InspectionTemplateResolverService {
     return Math.min(priority, 999);
   }
 
+  static normalizeTemplateCode(value) {
+    return String(value ?? '').trim();
+  }
+
+  static validateTemplateCode(value, { required = true } = {}) {
+    const templateCode = this.normalizeTemplateCode(value);
+
+    if (required && !templateCode) {
+      throw this.createValidationError('模板编号不能为空');
+    }
+    if (templateCode.length > 50) {
+      throw this.createValidationError('模板编号不能超过50个字符');
+    }
+
+    return templateCode;
+  }
+
   static normalizeMaterialIds(value) {
     let rawValue = value;
     if (typeof rawValue === 'string' && rawValue.trim().startsWith('[')) {
@@ -258,6 +275,23 @@ class InspectionTemplateResolverService {
       tolerance_lower: item.tolerance_lower,
       toleranceLower: item.tolerance_lower,
     }));
+  }
+
+  /**
+   * 按模板-项目关联表保存的顺序重排 Sequelize 关联结果。
+   * belongsToMany 查询本身不保证关联项目顺序。
+   */
+  static orderTemplateItems(items = [], mappingRows = []) {
+    if (!Array.isArray(items) || !Array.isArray(mappingRows)) return [];
+
+    const itemById = new Map(items.map((item) => [String(item.id), item]));
+    return [...mappingRows]
+      .sort((left, right) => {
+        const orderDiff = Number(left.sort_order ?? 0) - Number(right.sort_order ?? 0);
+        return orderDiff || Number(left.id ?? 0) - Number(right.id ?? 0);
+      })
+      .map((mapping) => itemById.get(String(mapping.item_id)))
+      .filter(Boolean);
   }
 }
 

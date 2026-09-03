@@ -98,6 +98,45 @@ describe('inputValidation middleware', () => {
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ errorCode: 'SUSPICIOUS_INPUT' }));
   });
 
+  test('allows standard identifiers in AQL levels, including legacy escaped values', () => {
+    for (const aqlLevel of ['GB/T 2828.1 II', 'GB&#x2F;T 2828.1 II']) {
+      const req = createRequest('/api/quality/templates/76', { aqlLevel });
+      const res = createResponse();
+      const next = jest.fn();
+
+      detectSQLInjection(req, res, next);
+
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(res.status).not.toHaveBeenCalled();
+    }
+  });
+
+  test('preserves AQL standard identifiers during sanitization', () => {
+    const req = createRequest('/api/quality/templates/76', {
+      aqlLevel: 'GB/T 2828.1 II',
+    });
+    const next = jest.fn();
+
+    validateAndSanitizeInput(req, {}, next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(req.body.aqlLevel).toBe('GB/T 2828.1 II');
+  });
+
+  test('still blocks high-risk SQL patterns in AQL levels', () => {
+    const req = createRequest('/api/quality/templates/76', {
+      aqlLevel: '1; DROP TABLE users',
+    });
+    const res = createResponse();
+    const next = jest.fn();
+
+    detectSQLInjection(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ errorCode: 'SUSPICIOUS_INPUT' }));
+  });
+
   test('allows browser diagnostics on the client error reporting route', () => {
     const req = createRequest('/api/system/client-errors', {
       type: 'vue_error',

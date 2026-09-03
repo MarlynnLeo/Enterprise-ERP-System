@@ -541,8 +541,7 @@ onMounted(async () => {
     loadReturns(),
     loadSuppliers(),
     loadCompletedReceipts(),
-    loadWarehouses(),
-    loadReturnStats()
+    loadWarehouses()
   ]);
 });
 // 方法：加载退货单列表

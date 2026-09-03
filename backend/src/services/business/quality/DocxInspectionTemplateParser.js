@@ -438,7 +438,7 @@ class DocxInspectionTemplateParser {
    * @param {string} rootDir - 根目录路径
    * @returns {Array<Object>} 预置文档列表
    */
-  static getPresetDocxList(rootDir = 'f:/ERP') {
+  static getPresetDocxList(rootDir = path.resolve(__dirname, '../../../../assets/quality-templates')) {
     const presetFiles = [];
     const searchDirs = [rootDir, path.join(rootDir, 'docs')];
 

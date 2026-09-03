@@ -6,6 +6,7 @@
 import { ref, reactive, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { purchaseApi } from '@/api'
+import { normalizePurchaseReceivingItems } from '@/utils/purchaseReceiving'
 import printService from '@/services/printService'
 import {
   PURCHASE_STATUS_ACTION_TEXT,
@@ -307,7 +308,7 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
 
   const confirmReceive = async () => {
     try {
-      const receivingItems = receiveForm.items.filter(item => parseFloat(item.receiveQuantity || 0) > 0)
+      const receivingItems = normalizePurchaseReceivingItems(receiveForm.items)
       if (receivingItems.length === 0) { ElMessage.warning('请至少填写一个物料的到货数量'); return }
       receiveDialogLoading.value = true
       const result = unwrapBusinessData(await purchaseApi.receiveOrderWithInspection(receiveForm.orderId, receivingItems))
@@ -329,7 +330,10 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
       if (pendingItems.length === 0) { ElMessage.info('该订单所有物料已全部收货完成'); return }
       const totalPendingQty = pendingItems.reduce((sum, item) => sum + (parseFloat(item.quantity) - parseFloat(item.receivedQuantity || 0)), 0)
       await ElMessageBox.confirm(`确定要收货剩余的 ${totalPendingQty.toFixed(2)} 个物料吗？收货后将自动生成检验单并更新收货状态。`, '确认收货', { confirmButtonText: '确定收货', cancelButtonText: '取消', type: 'info' })
-      const receivingItems = pendingItems.map(item => { const pendingQty = parseFloat(item.quantity) - parseFloat(item.receivedQuantity || 0); return { ...item, receive_quantity: pendingQty, quantity: pendingQty, received_quantity: pendingQty, warehoused_quantity: pendingQty } })
+      const receivingItems = normalizePurchaseReceivingItems(pendingItems.map(item => {
+        const pendingQty = parseFloat(item.quantity) - parseFloat(item.receivedQuantity || 0)
+        return { materialId: item.materialId ?? item.material_id, receiveQuantity: pendingQty }
+      }))
       const result = unwrapBusinessData(await purchaseApi.receiveOrderWithInspection(order.id, receivingItems))
       ElMessage.success(`收货成功！已为 ${result.successCount || 0} 个物料生成检验单，订单状态已更新为已收货`)
       if (loadOrdersCallback) await loadOrdersCallback()

@@ -53,7 +53,7 @@ router.get('/orders', authenticateToken, requirePermission('purchase:orders:view
 router.get('/orders/latest-price', authenticateToken, requirePermission(PRICE_VIEW_PERMISSIONS), purchaseOrderController.getLatestPrice);
 router.post('/orders/latest-prices', authenticateToken, requirePermission(PRICE_VIEW_PERMISSIONS), purchaseOrderController.getLatestPrices);
 router.put('/orders/batch-status', authenticateToken, requirePermission('purchase:orders:update'), purchaseOrderController.batchUpdateOrderStatus);
-router.get('/orders/statistics', authenticateToken, requirePermission('purchase:reports:view'), purchaseOrderController.getStatistics);
+router.get('/orders/statistics', authenticateToken, requirePermission(['purchase:orders:view', 'purchase:reports:view']), purchaseOrderController.getStatistics);
 router.get('/orders/:id', authenticateToken, requirePermission('purchase:orders:view'), purchaseOrderController.getOrder);
 router.post('/orders', authenticateToken, requirePermission('purchase:orders:create'), requirePriceMutationPermission('update'), purchaseOrderController.createOrder);
 router.put('/orders/:id', authenticateToken, requirePermission('purchase:orders:update'), requirePriceMutationPermission('update'), purchaseOrderController.updateOrder);
@@ -71,7 +71,7 @@ router.post(
   requirePermission(['purchase:orders:pushdown', 'purchase:orders:update']),
   purchaseOrderController.receiveWithIncomingInspection
 );
-router.get('/orders-statistics', authenticateToken, requirePermission('purchase:reports:view'), purchaseOrderController.getStatistics);
+router.get('/orders-statistics', authenticateToken, requirePermission(['purchase:orders:view', 'purchase:reports:view']), purchaseOrderController.getStatistics);
 
 // 采购综合统计数据（用于数据概览）
 router.get(
@@ -106,7 +106,7 @@ router.put(
   requirePermission('purchase:receipts:update'),
   purchaseReceiptController.updateReceiptStatus
 );
-router.get('/receipts-statistics', authenticateToken, requirePermission('purchase:reports:view'), purchaseReceiptController.getReceiptStats);
+router.get('/receipts-statistics', authenticateToken, requirePermission(['purchase:receipts:view', 'purchase:reports:view']), purchaseReceiptController.getReceiptStats);
 
 // 采购退货路由
 router.get('/returns', authenticateToken, requirePermission('purchase:returns:view'), purchaseReturnController.getReturns);
@@ -115,7 +115,7 @@ router.post('/returns', authenticateToken, requirePermission('purchase:returns:c
 router.put('/returns/:id', authenticateToken, requirePermission('purchase:returns:update'), requirePriceMutationPermission('update'), purchaseReturnController.updateReturn);
 router.delete('/returns/:id', authenticateToken, requirePermission('purchase:returns:delete'), purchaseReturnController.deleteReturn);
 router.put('/returns/:id/status', authenticateToken, requirePermission('purchase:returns:update'), purchaseReturnController.updateReturnStatus);
-router.get('/returns-statistics', authenticateToken, requirePermission('purchase:reports:view'), purchaseReturnController.getReturnStats);
+router.get('/returns-statistics', authenticateToken, requirePermission(['purchase:returns:view', 'purchase:reports:view']), purchaseReturnController.getReturnStats);
 
 // 采购统计数据
 router.get('/statistics', authenticateToken, requirePermission('purchase:reports:view'), purchaseOrderController.getStatistics);
@@ -237,6 +237,19 @@ router.put(
   authenticateToken,
   requirePermission('purchase:processing-receipts:edit'),
   outsourcedProcessingController.updateReceiptStatus
+);
+router.post(
+  '/outsourced-receipts/:id/receive-with-inspection',
+  authenticateToken,
+  requirePermission('purchase:processing-receipts:edit'),
+  outsourcedProcessingController.receiveReceiptWithInspection
+);
+// 兼容前端/第三方集成使用“到货”语义的别名。
+router.post(
+  '/outsourced-receipts/:id/arrive',
+  authenticateToken,
+  requirePermission('purchase:processing-receipts:edit'),
+  outsourcedProcessingController.receiveReceiptWithInspection
 );
 
 module.exports = router;

@@ -15,6 +15,24 @@ const {
   taxRelatedDocumentTypeMatchList,
 } = require('../../constants/financeConstants');
 
+function parseRelatedOrderIds(value) {
+  if (value === null || value === undefined || value === '') return [];
+  if (Array.isArray(value)) return value;
+  if (Buffer.isBuffer(value)) value = value.toString('utf8');
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      return value
+        .split(',')
+        .map((item) => Number(item.trim()))
+        .filter((id) => Number.isInteger(id) && id > 0);
+    }
+  }
+  return [];
+}
+
 class SalesOutboundReversalService {
   /**
    * @param {object} connection - 事务连接
@@ -69,14 +87,21 @@ class SalesOutboundReversalService {
     }
 
     // 3) AR：仅在本订单无其它已完成出库、且未收款时取消
-    if (orderId) {
+    const relatedOrderIds = await this.resolveRelatedOrderIds(connection, {
+      orderId,
+      outboundId,
+      orderIds: options.orderIds || options.relatedOrderIds,
+    });
+    if (relatedOrderIds.length > 0) {
       try {
-        summary.arInvoicesCancelled = await this.cancelUnpaidArIfSafe(
-          connection,
-          orderId,
-          outboundId,
-          operator
-        );
+        for (const relatedOrderId of relatedOrderIds) {
+          summary.arInvoicesCancelled += await this.cancelUnpaidArIfSafe(
+            connection,
+            relatedOrderId,
+            outboundId,
+            operator
+          );
+        }
       } catch (e) {
         // AR 已收款时拒绝整个冲销（调用方在同一事务中 rollback）
         if (e.code === 'AR_HAS_PAYMENT' || e.code === 'OTHER_OUTBOUND_EXISTS') {
@@ -88,6 +113,44 @@ class SalesOutboundReversalService {
     }
 
     return summary;
+  }
+
+  static async resolveRelatedOrderIds(connection, { orderId = null, outboundId = null, orderIds = [] } = {}) {
+    const ids = new Set();
+    const addId = (value) => {
+      const id = Number(value);
+      if (Number.isInteger(id) && id > 0) ids.add(id);
+    };
+
+    addId(orderId);
+    for (const value of Array.isArray(orderIds) ? orderIds : []) addId(value);
+
+    if (!outboundId) return [...ids];
+
+    const [outbounds] = await connection.execute(
+      `SELECT order_id, related_orders
+         FROM sales_outbound
+        WHERE id = ? AND deleted_at IS NULL
+        LIMIT 1
+        FOR UPDATE`,
+      [outboundId]
+    );
+    const outbound = outbounds[0];
+    if (!outbound) return [...ids];
+    addId(outbound.order_id);
+
+    const related = parseRelatedOrderIds(outbound.related_orders);
+    related.forEach(addId);
+
+    const [sourceOrders] = await connection.execute(
+      `SELECT DISTINCT source_order_id
+         FROM sales_outbound_items
+        WHERE outbound_id = ? AND source_order_id IS NOT NULL`,
+      [outboundId]
+    );
+    sourceOrders.forEach((row) => addId(row.source_order_id));
+
+    return [...ids];
   }
 
   static async reverseCostEntries(connection, outboundNo, operator) {
@@ -215,12 +278,24 @@ class SalesOutboundReversalService {
     // 其它未冲销的已完成出库仍在 → 不取消 AR（多出库共享一张 AR）
     const [otherOut] = await connection.execute(
       `SELECT COUNT(*) AS cnt
-       FROM sales_outbound
-       WHERE order_id = ?
-         AND id <> ?
-         AND deleted_at IS NULL
-         AND status = 'completed'`,
-      [orderId, outboundId]
+       FROM sales_outbound sob
+       WHERE sob.id <> ?
+         AND sob.deleted_at IS NULL
+         AND sob.status = 'completed'
+         AND (
+           sob.order_id = ?
+           OR EXISTS (
+             SELECT 1
+               FROM sales_outbound_items sobi
+              WHERE sobi.outbound_id = sob.id
+                AND sobi.source_order_id = ?
+           )
+           OR (
+             JSON_VALID(sob.related_orders)
+             AND JSON_CONTAINS(sob.related_orders, JSON_ARRAY(?))
+           )
+         )`,
+      [outboundId || 0, orderId, orderId, orderId]
     );
     if (Number(otherOut[0]?.cnt || 0) > 0) {
       const err = new Error('该订单仍有其它已完成出库单，保留应收发票，请用退货/红冲处理');

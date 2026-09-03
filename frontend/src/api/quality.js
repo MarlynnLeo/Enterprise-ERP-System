@@ -1,6 +1,9 @@
 import { api } from '../services/axiosInstance';
 
 export const qualityApi = {
+  uploadInspectionPhoto: (formData) => api.post('/upload/file', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
   getIncomingInspections: (params) => api.get('/quality/inspections/incoming', { params }),
   getIncomingInspectionStats: () => api.get('/quality/inspections/incoming/stats'),
   getIncomingInspection: (id, params) => api.get(`/quality/inspections/${id}`, { params }),
@@ -49,7 +52,7 @@ export const qualityApi = {
   updateTemplate: (id, data) => api.put(`/quality/templates/${id}`, data),
   deleteInspectionTemplate: (id) => api.delete(`/quality/templates/${id}`),
   updateTemplateStatus: (id, status) => api.put(`/quality/templates/${id}/status`, { status }),
-  copyTemplate: (id) => api.post(`/quality/templates/${id}/copy`),
+  copyTemplate: (id, data) => api.post(`/quality/templates/${id}/copy`, data),
   getReusableItems: (params) => api.get('/quality/templates/reusable-items', { params }),
   createReusableItem: (data) => api.post('/quality/templates/reusable-items', data),
   getPresetDocxList: () => api.get('/quality/templates/presets'),

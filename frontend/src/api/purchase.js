@@ -1,7 +1,15 @@
 import { api, fastApi } from '../services/axiosInstance';
 import { baseDataApi } from './baseData';
+import { normalizePurchaseReceivingItems } from '../utils/purchaseReceiving';
+
+export { normalizePurchaseReceivingItems } from '../utils/purchaseReceiving';
 
 const DEFAULT_REQUISITION_LABEL = '关联申请';
+
+const createIdempotencyKey = (prefix) => {
+    const uuid = globalThis.crypto?.randomUUID?.();
+    return `${prefix}:${uuid || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
+};
 
 const normalizePurchaseOrder = (order = {}) => {
     if (!order || typeof order !== 'object') return order;
@@ -160,8 +168,12 @@ export const purchaseApi = {
         orderIds,
         newStatus: status
     }),
-    updateOrderItemsReceived: (id, items) => api.put(`/purchase/orders/${id}/items-received`, { items }),
-    receiveOrderWithInspection: (id, items) => api.post(`/purchase/orders/${id}/receive-with-inspection`, { items }),
+    updateOrderItemsReceived: (id, items) => api.put(`/purchase/orders/${id}/items-received`, {
+        items: normalizePurchaseReceivingItems(items),
+    }),
+    receiveOrderWithInspection: (id, items) => api.post(`/purchase/orders/${id}/receive-with-inspection`, {
+        items: normalizePurchaseReceivingItems(items),
+    }),
     getOrderStats: () => api.get('/purchase/orders/statistics'),
 
     // 采购订单关联申请单
@@ -190,7 +202,13 @@ export const purchaseApi = {
         getDetail: (id) => api.get(`/purchase/outsourced-receipts/${id}`),
         create: (data) => api.post('/purchase/outsourced-receipts', data),
         update: (id, data) => api.put(`/purchase/outsourced-receipts/${id}`, data),
-        updateStatus: (id, status) => api.put(`/purchase/outsourced-receipts/${id}/status`, { status })
+        updateStatus: (id, status) => api.put(`/purchase/outsourced-receipts/${id}/status`, { status }),
+        receiveWithInspection: (id, items) => api.post(
+            `/purchase/outsourced-receipts/${id}/receive-with-inspection`,
+            { items },
+            { headers: { 'X-Idempotency-Key': createIdempotencyKey(`outsourced-arrival:${id}`) } }
+        ),
+        arrive: (id, items) => api.post(`/purchase/outsourced-receipts/${id}/arrive`, { items })
     },
     createReceipt: async (data) => {
         try {

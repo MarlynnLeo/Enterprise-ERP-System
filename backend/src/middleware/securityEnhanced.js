@@ -101,6 +101,9 @@ const sqlInjectionDetection = (req, res, next) => {
       'remarks',
       'description',
       'name',
+      // AQL 级别可包含 GB/T 2828.1 II 等标准标识；保留高危 SQL 组合检测
+      'aqlLevel',
+      'aql_level',
       'reason_name',
       'reasonName',
       'issue_reason',

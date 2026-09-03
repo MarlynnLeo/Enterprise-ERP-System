@@ -22,6 +22,12 @@ const getPrintTokens = () => ({
   headerBg: getCssTokenValue('page')
 })
 
+const getTemplateField = (template, snakeKey, camelKey, fallback = undefined) => {
+  if (template?.[snakeKey] !== undefined && template?.[snakeKey] !== null) return template[snakeKey]
+  if (template?.[camelKey] !== undefined && template?.[camelKey] !== null) return template[camelKey]
+  return fallback
+}
+
 /**
  * 解码 HTML 实体（如果模板内容被转义了）
  * @param {string} text - 可能包含 HTML 实体的文本
@@ -276,14 +282,16 @@ const printService = {
 
       // 构建打印样式
       const printTokens = getPrintTokens()
-      const mt = template.margin_top || 10
-      const mr = template.margin_right || 10
-      const mb = template.margin_bottom || 10
-      const ml = template.margin_left || 10
+      const mt = getTemplateField(template, 'margin_top', 'marginTop', 10) || 10
+      const mr = getTemplateField(template, 'margin_right', 'marginRight', 10) || 10
+      const mb = getTemplateField(template, 'margin_bottom', 'marginBottom', 10) || 10
+      const ml = getTemplateField(template, 'margin_left', 'marginLeft', 10) || 10
+      const paperSize = getTemplateField(template, 'paper_size', 'paperSize', 'A4') || 'A4'
+      const orientation = getTemplateField(template, 'orientation', 'orientation', 'portrait') || 'portrait'
       const style = `
         <style>
           @page {
-            size: ${template.paper_size || 'A4'} ${template.orientation || 'portrait'};
+            size: ${paperSize} ${orientation};
             margin: 0;
           }
           body {
@@ -351,14 +359,16 @@ const printService = {
 
       // 构建打印样式
       const printTokens = getPrintTokens()
-      const mt = template.margin_top || 10
-      const mr = template.margin_right || 10
-      const mb = template.margin_bottom || 10
-      const ml = template.margin_left || 10
+       const mt = getTemplateField(template, 'margin_top', 'marginTop', 10) || 10
+       const mr = getTemplateField(template, 'margin_right', 'marginRight', 10) || 10
+       const mb = getTemplateField(template, 'margin_bottom', 'marginBottom', 10) || 10
+       const ml = getTemplateField(template, 'margin_left', 'marginLeft', 10) || 10
+       const paperSize = getTemplateField(template, 'paper_size', 'paperSize', 'A4') || 'A4'
+       const orientation = getTemplateField(template, 'orientation', 'orientation', 'portrait') || 'portrait'
       const style = `
         <style>
           @page {
-            size: ${template.paper_size || 'A4'} ${template.orientation || 'portrait'};
+            size: ${paperSize} ${orientation};
             margin: 0;
           }
           body {

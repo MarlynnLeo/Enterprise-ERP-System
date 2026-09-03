@@ -5,6 +5,7 @@ const db = require('../config/db');
 const Precision = require('../utils/precision');
 const { INTERNAL_POSTING_TOKEN } = require('./inventoryPostingContext');
 const { getRequestActorLabel } = require('../utils/userUtils');
+const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
 
 const STATUS = Object.freeze({
   PENDING: 'pending',
@@ -183,6 +184,7 @@ class InventoryPostingService {
         transactionDate: line.transactionDate,
         operator: line.operator,
         sourceLineKey: line.sourceLineKey || null,
+        reversalOfLedgerId: line.reversalOfLedgerId || null,
       };
       const snapshotHash = hashSnapshot(payload);
       const sourceLineKey =
@@ -258,9 +260,10 @@ class InventoryPostingService {
   }
 
   static async list(query = {}, connection = db.pool) {
-    const page = Math.max(1, Number.parseInt(query.page, 10) || 1);
-    const pageSize = Math.min(100, Math.max(1, Number.parseInt(query.pageSize, 10) || 20));
-    const offset = (page - 1) * pageSize;
+    const pagination = parsePagination(query.page, query.pageSize, {
+      defaultPageSize: 20,
+      maxPageSize: 100,
+    });
     const where = [];
     const params = [];
     if (query.financeStatus) {
@@ -280,16 +283,22 @@ class InventoryPostingService {
       `SELECT COUNT(*) AS total FROM inventory_posting_documents d ${whereSql}`,
       params
     );
-    const [rows] = await connection.execute(
+    const listSql = appendPaginationSQL(
       `SELECT d.*,
               (SELECT COUNT(*) FROM inventory_posting_lines l WHERE l.posting_document_id = d.id) AS line_count
          FROM inventory_posting_documents d
         ${whereSql}
-        ORDER BY d.created_at DESC, d.id DESC
-        LIMIT ? OFFSET ?`,
-      [...params, pageSize, offset]
+        ORDER BY d.created_at DESC, d.id DESC`,
+      pagination.limit,
+      pagination.offset
     );
-    return { list: rows, total: Number(count?.total || 0), page, pageSize };
+    const [rows] = await connection.execute(listSql, params);
+    return {
+      list: rows,
+      total: Number(count?.total || 0),
+      page: pagination.page,
+      pageSize: pagination.pageSize,
+    };
   }
 
   static async get(id, connection = db.pool) {
@@ -394,7 +403,10 @@ class InventoryPostingService {
    * All inventory reversal entry points use this helper so they cannot
    * bypass the finance gate by writing directly to inventory_ledger.
    */
-  static async reverseBySource(connection, { sourceNo, sourceType = '', actor, remark = '' } = {}) {
+  static async reverseBySource(
+    connection,
+    { sourceNo, sourceType = '', actor, remark = '', context = {} } = {}
+  ) {
     const normalizedSourceNo = String(sourceNo || '').trim();
     if (!normalizedSourceNo) throw serviceError('库存冲销缺少来源单号');
     const posting = await this.findApprovedForTransaction(connection, {
@@ -420,7 +432,7 @@ class InventoryPostingService {
       );
       throw error;
     }
-    return this.reverse(posting.id, actor, remark, connection);
+    return this.requestReversal(posting.id, actor, remark, context, connection);
   }
 
   static _assertActorCanApprove(document, actor) {
@@ -436,10 +448,45 @@ class InventoryPostingService {
     return normalizedActor;
   }
 
+  static _assertReversalActorCanApprove(reversal, original, actor) {
+    const normalizedActor = actorFrom(actor);
+    const forbiddenIds = [
+      reversal.business_approved_by_id,
+      original.business_approved_by_id,
+      original.finance_approved_by,
+    ]
+      .map((value) => Number(value))
+      .filter((value) => Number.isInteger(value) && value > 0);
+    const forbiddenLabels = [
+      reversal.business_approved_by,
+      original.business_approved_by,
+      original.finance_approved_label,
+    ]
+      .map((value) => String(value || '').trim())
+      .filter(Boolean);
+
+    if (
+      (normalizedActor.id && forbiddenIds.includes(normalizedActor.id)) ||
+      forbiddenLabels.includes(normalizedActor.label.trim())
+    ) {
+      throw serviceError('反审核申请人与原业务审核人/原财务审核人必须分离', 403, 'SEPARATION_OF_DUTIES');
+    }
+    return normalizedActor;
+  }
+
   static async _postLines(connection, document, lines, actor) {
     const InventoryService = require('./InventoryService');
     const results = [];
     for (const line of lines) {
+      let payload;
+      try {
+        payload =
+          typeof line.payload_json === 'string'
+            ? JSON.parse(line.payload_json)
+            : line.payload_json || {};
+      } catch {
+        throw serviceError(`过账明细 ${line.id} 的快照格式无效`, 409, 'SNAPSHOT_INVALID');
+      }
       const quantity = Number(line.signed_quantity);
       const result = await InventoryService.updateStock(
         {
@@ -457,6 +504,7 @@ class InventoryPostingService {
           idempotencyKey: `posting-line:${line.id}`,
           postingDocumentId: document.id,
           postingLineId: line.id,
+          reversalOfLedgerId: payload.reversalOfLedgerId || null,
           internalPostingToken: INTERNAL_POSTING_TOKEN,
           allowNegativeStock: false,
         },
@@ -491,7 +539,49 @@ class InventoryPostingService {
           'INVALID_STATUS'
         );
       }
-      this._assertActorCanApprove(document, normalizedActor);
+      let original = null;
+      let reversalContext = {};
+      if (document.posting_kind === POSTING_KIND.REVERSAL) {
+        if (!document.original_posting_document_id) {
+          throw serviceError('冲销过账单缺少原始过账单', 409, 'ORIGINAL_POSTING_REQUIRED');
+        }
+        const [[originalDocument]] = await conn.execute(
+          'SELECT * FROM inventory_posting_documents WHERE id = ? FOR UPDATE',
+          [document.original_posting_document_id]
+        );
+        if (!originalDocument) {
+          throw serviceError('原始库存过账单不存在', 409, 'ORIGINAL_POSTING_NOT_FOUND');
+        }
+        if (
+          originalDocument.finance_status !== STATUS.APPROVED ||
+          !Number(originalDocument.locked)
+        ) {
+          throw serviceError('原始库存过账单未处于可冲销状态', 409, 'ORIGINAL_POSTING_INVALID');
+        }
+        original = originalDocument;
+        this._assertReversalActorCanApprove(document, originalDocument, normalizedActor);
+        const [requestEvents] = await conn.execute(
+          `SELECT event_data
+             FROM inventory_posting_events
+            WHERE posting_document_id = ?
+              AND event_type = 'reversal_requested'
+            ORDER BY id DESC
+            LIMIT 1`,
+          [id]
+        );
+        if (requestEvents[0]?.event_data) {
+          try {
+            reversalContext =
+              typeof requestEvents[0].event_data === 'string'
+                ? JSON.parse(requestEvents[0].event_data)
+                : requestEvents[0].event_data;
+          } catch {
+            reversalContext = {};
+          }
+        }
+      } else {
+        this._assertActorCanApprove(document, normalizedActor);
+      }
       const [lines] = await conn.execute(
         'SELECT * FROM inventory_posting_lines WHERE posting_document_id = ? ORDER BY line_no FOR UPDATE',
         [id]
@@ -512,32 +602,120 @@ class InventoryPostingService {
         lines,
         normalizedActor
       );
-      await conn.execute(
-        `INSERT INTO inventory_posting_events
-           (posting_document_id, event_type, from_status, to_status, actor_id, actor_label, remark)
-         VALUES (?, 'finance_approved', ?, ?, ?, ?, '财务审核通过并正式过账')`,
-        [id, STATUS.PENDING, STATUS.APPROVED, normalizedActor.id, normalizedActor.label]
-      );
-      const DomainEventService = require('./business/DomainEventService');
-      const approvalEventId = await DomainEventService.enqueue(
-        'INVENTORY_POSTING_APPROVED',
-        {
-          postingDocumentId: id,
-          postingNo: document.posting_no,
-          sourceType: document.source_type,
-          sourceId: document.source_id,
-          sourceNo: document.source_no,
-        },
-        {
-          connection: conn,
-          aggregateType: 'inventory_posting_document',
-          aggregateId: id,
-          dedupKey: `INVENTORY_POSTING_APPROVED:${id}`,
+      let approvalEventId = null;
+      let DomainEventService = null;
+      let closureResult = null;
+      if (document.posting_kind === POSTING_KIND.REVERSAL) {
+        const [originalUpdate] = await conn.execute(
+          `UPDATE inventory_posting_documents
+              SET finance_status = ?, reversed_by = ?, reversed_label = ?, reversed_at = NOW(), updated_at = NOW()
+            WHERE id = ? AND finance_status = ? AND locked = 1`,
+          [
+            STATUS.REVERSED,
+            normalizedActor.id,
+            normalizedActor.label,
+            original.id,
+            STATUS.APPROVED,
+          ]
+        );
+        if (!originalUpdate.affectedRows) {
+          throw serviceError('原始库存过账单已被处理，无法完成反审核', 409, 'CONCURRENT_UPDATE');
         }
-      );
+
+        const InventoryPostingReversalClosureService = require('./business/InventoryPostingReversalClosureService');
+        closureResult = await InventoryPostingReversalClosureService.close(conn, {
+          original: { ...original, finance_status: STATUS.REVERSED },
+          reversal: { ...document, finance_status: STATUS.APPROVED },
+          context: reversalContext,
+          actor: normalizedActor,
+        });
+
+        await conn.execute(
+          `INSERT INTO inventory_posting_events
+             (posting_document_id, event_type, from_status, to_status, actor_id, actor_label, remark, event_data)
+           VALUES (?, 'finance_approved', ?, ?, ?, ?, ?, ?)`,
+          [
+            id,
+            STATUS.PENDING,
+            STATUS.APPROVED,
+            normalizedActor.id,
+            normalizedActor.label,
+            document.remark || '财务审核冲销申请并正式冲销库存',
+            JSON.stringify({
+              postingKind: POSTING_KIND.REVERSAL,
+              originalPostingDocumentId: original.id,
+              sourceType: original.source_type,
+              sourceId: reversalContext.sourceId || original.source_id || null,
+              sourceNo: original.source_no,
+            }),
+          ]
+        );
+        await conn.execute(
+          `INSERT INTO inventory_posting_events
+             (posting_document_id, event_type, from_status, to_status, actor_id, actor_label, remark, event_data)
+           VALUES (?, 'finance_reversed', ?, ?, ?, ?, ?, ?)`,
+          [
+            original.id,
+            STATUS.APPROVED,
+            STATUS.REVERSED,
+            normalizedActor.id,
+            normalizedActor.label,
+            document.remark || '财务审核通过，原库存过账已冲销',
+            JSON.stringify({ reversalDocumentId: id }),
+          ]
+        );
+      } else {
+        await conn.execute(
+          `INSERT INTO inventory_posting_events
+             (posting_document_id, event_type, from_status, to_status, actor_id, actor_label, remark, event_data)
+           VALUES (?, 'finance_approved', ?, ?, ?, ?, ?, ?)`,
+          [
+            id,
+            STATUS.PENDING,
+            STATUS.APPROVED,
+            normalizedActor.id,
+            normalizedActor.label,
+            '财务审核通过并正式过账',
+            JSON.stringify({
+              postingKind: POSTING_KIND.MOVEMENT,
+              originalPostingDocumentId: null,
+              sourceType: document.source_type,
+              sourceId: document.source_id,
+              sourceNo: document.source_no,
+            }),
+          ]
+        );
+        DomainEventService = require('./business/DomainEventService');
+        approvalEventId = await DomainEventService.enqueue(
+          'INVENTORY_POSTING_APPROVED',
+          {
+            postingDocumentId: id,
+            postingNo: document.posting_no,
+            postingKind: POSTING_KIND.MOVEMENT,
+            originalPostingDocumentId: null,
+            sourceType: document.source_type,
+            sourceId: document.source_id,
+            sourceNo: document.source_no,
+          },
+          {
+            connection: conn,
+            aggregateType: 'inventory_posting_document',
+            aggregateId: id,
+            dedupKey: `INVENTORY_POSTING_APPROVED:${id}`,
+          }
+        );
+      }
       if (ownsConnection) await conn.commit();
-      if (approvalEventId) DomainEventService.dispatchSoon(approvalEventId);
-      return { documentId: id, financeStatus: STATUS.APPROVED, postedLines: results.length };
+      if (approvalEventId && DomainEventService) DomainEventService.dispatchSoon(approvalEventId);
+      return {
+        documentId: id,
+        financeStatus: STATUS.APPROVED,
+        postedLines: results.length,
+        postingKind: document.posting_kind,
+        originalDocumentId: original?.id || null,
+        originalFinanceStatus: original ? STATUS.REVERSED : null,
+        closure: closureResult,
+      };
     } catch (error) {
       if (ownsConnection) await conn.rollback();
       throw error;
@@ -597,10 +775,26 @@ class InventoryPostingService {
     }
   }
 
-  static async reverse(id, actor, remark = '', connection) {
+  static _buildReversalSourceNo(sourceNo, originalId) {
+    const suffix = `-REV-${originalId}`;
+    const base = String(sourceNo || '').trim();
+    return `${base.slice(0, Math.max(1, 100 - suffix.length))}${suffix}`;
+  }
+
+  /**
+   * Create a pending reversal request. This method must never write inventory_ledger
+   * or change the original business/posting status.
+   */
+  static async requestReversal(id, actor, remark = '', context = {}, connection) {
+    // Backward-compatible call shape: requestReversal(id, actor, remark, connection).
+    if (context && typeof context.execute === 'function' && !connection) {
+      connection = context;
+      context = {};
+    }
     const ownsConnection = !connection;
     const conn = connection || (await db.getConnection());
     const normalizedActor = actorFrom(actor);
+    const requestContext = context && typeof context === 'object' ? context : {};
     try {
       if (ownsConnection) await conn.beginTransaction();
       const [[original]] = await conn.execute(
@@ -608,18 +802,32 @@ class InventoryPostingService {
         [id]
       );
       if (!original) throw serviceError('库存过账单不存在', 404, 'NOT_FOUND');
+      if (original.posting_kind !== POSTING_KIND.MOVEMENT) {
+        throw serviceError('只能对正式库存过账单发起反审核申请', 409, 'INVALID_POSTING_KIND');
+      }
+      if (original.finance_status === STATUS.REVERSED) {
+        throw serviceError('该库存过账单已经反审核', 409, 'ALREADY_REVERSED');
+      }
       if (original.finance_status !== STATUS.APPROVED || !Number(original.locked)) {
-        throw serviceError('只有已财务审核并正式过账的单据才能反审核', 409, 'INVALID_STATUS');
+        throw serviceError('只有已财务审核并正式过账的单据才能申请反审核', 409, 'INVALID_STATUS');
       }
       this._assertActorCanApprove(original, normalizedActor);
+
       const [[existing]] = await conn.execute(
-        `SELECT id FROM inventory_posting_documents
-          WHERE original_posting_document_id = ? AND posting_kind = ?
-            AND finance_status <> ? LIMIT 1 FOR UPDATE`,
+        `SELECT id, posting_no, finance_status
+           FROM inventory_posting_documents
+          WHERE original_posting_document_id = ?
+            AND posting_kind = ?
+            AND finance_status <> ?
+          ORDER BY id DESC
+          LIMIT 1
+          FOR UPDATE`,
         [id, POSTING_KIND.REVERSAL, STATUS.REJECTED]
       );
-      if (existing)
-        throw serviceError('该单据已存在有效冲销单，禁止重复反审核', 409, 'ALREADY_REVERSED');
+      if (existing) {
+        throw serviceError('该单据已有待处理或已完成的反审核申请，禁止重复申请', 409, 'ALREADY_REVERSED');
+      }
+
       const [sourceLines] = await conn.execute(
         `SELECT pl.*, il.id AS ledger_id
            FROM inventory_posting_lines pl
@@ -629,21 +837,23 @@ class InventoryPostingService {
           FOR UPDATE`,
         [id]
       );
-      if (!sourceLines.length)
-        throw serviceError('找不到原过账台账，无法反审核', 409, 'LEDGER_NOT_FOUND');
+      if (!sourceLines.length) {
+        throw serviceError('找不到原过账台账，无法申请反审核', 409, 'LEDGER_NOT_FOUND');
+      }
 
+      const reversalSourceNo = this._buildReversalSourceNo(original.source_no, id);
       const reversal = await this._getOrCreateDocument(conn, {
         sourceType: original.source_type,
-        sourceId: original.source_id,
-        sourceNo: `${original.source_no}-REV-${id}`,
+        sourceId: original.source_id || requestContext.sourceId || null,
+        sourceNo: reversalSourceNo,
         postingKind: POSTING_KIND.REVERSAL,
         originalPostingDocumentId: id,
         movementDirection: 'reversal',
         transactionDate: new Date().toISOString().slice(0, 10),
         financeStatus: STATUS.PENDING,
-        businessApprovedById: original.business_approved_by_id,
-        businessApprovedBy: original.business_approved_by || 'system',
-        operator: original.business_approved_by || normalizedActor.label,
+        businessApprovedById: normalizedActor.id,
+        businessApprovedBy: normalizedActor.label,
+        operator: normalizedActor.label,
         remark: remark || `反审核 ${original.posting_no}`,
       });
       const reversalLines = sourceLines.map((line) => ({
@@ -659,6 +869,7 @@ class InventoryPostingService {
         totalValue: line.total_value == null ? null : -Number(line.total_value),
         transactionDate: new Date().toISOString().slice(0, 10),
         operator: normalizedActor.label,
+        reversalOfLedgerId: line.ledger_id,
         sourceLineKey: `reversal-of:${line.id}`,
       }));
       await this.stageMovement(
@@ -680,72 +891,49 @@ class InventoryPostingService {
         },
         reversalLines
       );
-      const [[lockedReversal]] = await conn.execute(
-        'SELECT * FROM inventory_posting_documents WHERE id = ? FOR UPDATE',
-        [reversal.id]
-      );
-      const [lockedLines] = await conn.execute(
-        'SELECT * FROM inventory_posting_lines WHERE posting_document_id = ? ORDER BY line_no FOR UPDATE',
-        [reversal.id]
-      );
-      await conn.execute(
-        `UPDATE inventory_posting_documents
-            SET finance_status = ?, locked = 1, finance_approved_by = ?, finance_approved_label = ?, finance_approved_at = NOW(), updated_at = NOW()
-          WHERE id = ? AND finance_status = ?`,
-        [STATUS.APPROVED, normalizedActor.id, normalizedActor.label, reversal.id, STATUS.PENDING]
-      );
-      await this._postLines(
-        conn,
-        { ...lockedReversal, finance_status: STATUS.APPROVED },
-        lockedLines,
-        normalizedActor
-      );
-      await conn.execute(
-        `UPDATE inventory_posting_documents
-            SET finance_status = ?, reversed_by = ?, reversed_label = ?, reversed_at = NOW(), updated_at = NOW()
-          WHERE id = ? AND finance_status = ?`,
-        [STATUS.REVERSED, normalizedActor.id, normalizedActor.label, id, STATUS.APPROVED]
-      );
+
       await conn.execute(
         `INSERT INTO inventory_posting_events
            (posting_document_id, event_type, from_status, to_status, actor_id, actor_label, remark, event_data)
-         VALUES (?, 'finance_reversed', ?, ?, ?, ?, ?, JSON_OBJECT('reversalDocumentId', ?))`,
+         VALUES (?, 'reversal_requested', NULL, ?, ?, ?, ?, ?)` ,
         [
-          id,
-          STATUS.APPROVED,
-          STATUS.REVERSED,
+          reversal.id,
+          STATUS.PENDING,
           normalizedActor.id,
           normalizedActor.label,
           remark || null,
-          reversal.id,
+          JSON.stringify({
+            ...requestContext,
+            postingKind: POSTING_KIND.REVERSAL,
+            originalPostingDocumentId: id,
+            sourceType: original.source_type,
+            sourceId: requestContext.sourceId || original.source_id || null,
+            sourceNo: original.source_no,
+            requestedById: normalizedActor.id,
+            requestedBy: normalizedActor.label,
+          }),
         ]
       );
-      const DomainEventService = require('./business/DomainEventService');
-      const reversalEventId = await DomainEventService.enqueue(
-        'INVENTORY_POSTING_APPROVED',
-        {
-          postingDocumentId: reversal.id,
-          postingNo: reversal.posting_no,
-          sourceType: reversal.source_type,
-          sourceId: reversal.source_id,
-          sourceNo: reversal.source_no,
-        },
-        {
-          connection: conn,
-          aggregateType: 'inventory_posting_document',
-          aggregateId: reversal.id,
-          dedupKey: `INVENTORY_POSTING_APPROVED:${reversal.id}`,
-        }
-      );
+
       if (ownsConnection) await conn.commit();
-      if (reversalEventId) DomainEventService.dispatchSoon(reversalEventId);
-      return { documentId: id, reversalDocumentId: reversal.id, financeStatus: STATUS.REVERSED };
+      return {
+        documentId: id,
+        reversalDocumentId: reversal.id,
+        reversalPostingNo: reversal.posting_no,
+        financeStatus: STATUS.PENDING,
+        originalFinanceStatus: original.finance_status,
+      };
     } catch (error) {
       if (ownsConnection) await conn.rollback();
       throw error;
     } finally {
       if (ownsConnection) conn.release();
     }
+  }
+
+  // Keep the public legacy method, but make it an approval-gated request.
+  static async reverse(id, actor, remark = '', connection) {
+    return this.requestReversal(id, actor, remark, {}, connection);
   }
 
   static actorFromRequest(req) {

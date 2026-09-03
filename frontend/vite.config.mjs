@@ -64,6 +64,27 @@ const stripHeavyEntryPreloads = () => ({
   }
 })
 
+const releaseVersion = (buildId) => ({
+  name: 'release-version',
+  transformIndexHtml: {
+    order: 'pre',
+    handler() {
+      return [{
+        tag: 'meta',
+        attrs: { name: 'app-build-id', content: buildId },
+        injectTo: 'head'
+      }]
+    }
+  },
+  generateBundle() {
+    this.emitFile({
+      type: 'asset',
+      fileName: 'version.json',
+      source: JSON.stringify({ buildId })
+    })
+  }
+})
+
 const isHeavyDeferredChunk = (dependency) =>
   /(?:excel|office|pdf|echarts)/i.test(dependency)
 
@@ -92,6 +113,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const apiTarget = env.VITE_API_TARGET || 'http://localhost:8080'
   const enableLegacy = mode === 'legacy' || env.VITE_LEGACY_BUILD === 'true'
+  const buildId = process.env.APP_BUILD_ID || env.APP_BUILD_ID || new Date().toISOString()
 
   return {
     plugins: [
@@ -100,6 +122,7 @@ export default defineConfig(({ mode }) => {
       Components({
         resolvers: [resolveElementPlusComponent]
       }),
+      releaseVersion(buildId),
       stripHeavyEntryPreloads(),
       enableLegacy && legacy({
         targets: ['defaults', 'Chrome >= 49', 'Edge >= 16', 'Firefox >= 52', 'Safari >= 10'],
@@ -172,6 +195,7 @@ export default defineConfig(({ mode }) => {
     },
     define: {
       __DEV__: mode === 'development',
+      'import.meta.env.VITE_APP_BUILD_ID': JSON.stringify(buildId),
       __VUE_I18N_FULL_INSTALL__: true,
       __VUE_I18N_LEGACY_API__: false,
       __INTLIFY_PROD_DEVTOOLS__: false

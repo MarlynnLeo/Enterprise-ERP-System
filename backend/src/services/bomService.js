@@ -16,6 +16,7 @@ function formatBomDetail(detail = {}) {
     id: detail.id,
     bom_id: detail.bom_id,
     material_id: detail.material_id,
+    position: detail.position || '',
     quantity: Number(detail.quantity),
     base_quantity: baseQuantity,
     baseQuantity: baseQuantity,
@@ -640,6 +641,7 @@ const bomService = {
 
     return {
       material_id: materialId,
+      position: String(detail.position ?? '').trim() || null,
       quantity: Number(detail.quantity) || 0,
       base_quantity: baseQuantity,
       is_critical: isCritical,
@@ -723,11 +725,12 @@ const bomService = {
 
       const [detailResult] = await connection.execute(
         `INSERT INTO bom_details
-         (bom_id, material_id, quantity, base_quantity, is_critical, unit_id, remark, level, parent_id, has_sub_bom, ref_bom_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (bom_id, material_id, position, quantity, base_quantity, is_critical, unit_id, remark, level, parent_id, has_sub_bom, ref_bom_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           bomId,
           normalizedDetail.material_id,
+          normalizedDetail.position,
           normalizedDetail.quantity,
           normalizedDetail.base_quantity,
           normalizedDetail.is_critical,

@@ -155,6 +155,9 @@ const getItemResultPresentation = (result) => {
 }
 
 const getInspectionPrintTemplateType = (inspection) => {
+  if (inspection?.printTemplateType || inspection?.templateType) {
+    return inspection.printTemplateType || inspection.templateType
+  }
   const templateCode = String(inspection?.templateCode || '').toUpperCase()
   const templateName = String(inspection?.templateName || '')
   const materialName = String(inspection?.materialName || inspection?.itemName || inspection?.productName || '')
@@ -211,16 +214,16 @@ const handlePrint = async () => {
       item_code: item.itemCode || item.code || '',
       item_name: item.itemName || item.name || '-',
       specification: item.standard || item.specification || '',
-      method: item.method || item.inspectionMethod || item.inspection_method || '',
-      inspection_method: item.method || item.inspectionMethod || item.inspection_method || '',
+       method: item.method || '',
+       inspection_method: item.method || '',
       quantity: item.actualValue || item.quantity || '',
       unit_name: item.unit || '',
       result: getStatusText(item.result),
       judgment: getStatusText(item.result),
       remark: item.remark || item.remarks || '',
       type_text: getQualityInspectionTypeText(item.type),
-      result_is_passed: item.result === 'passed',
-      result_is_failed: item.result === 'failed',
+       result_is_passed: getItemResultPresentation(item.result)?.type === 'success',
+       result_is_failed: getItemResultPresentation(item.result)?.type === 'danger',
       ...Object.fromEntries(Array.from({ length: MAX_INSPECTION_MEASUREMENT_COLUMNS }, (_, index) => [
         `measure_${index + 1}`,
         getMeasurement(item, index + 1)
@@ -232,13 +235,13 @@ const handlePrint = async () => {
       item_code: item.itemCode || item.code || '',
       item_name: item.itemName || item.name || '-',
       standard: item.standard || item.specification || '',
-      method: item.method || item.inspectionMethod || item.inspection_method || '',
-      inspection_method: item.method || item.inspectionMethod || item.inspection_method || '',
+       method: item.method || '',
+       inspection_method: item.method || '',
       result: getStatusText(item.result),
       judgment: getStatusText(item.result),
       remark: item.remark || item.remarks || '',
-      result_is_passed: item.result === 'passed',
-      result_is_failed: item.result === 'failed',
+       result_is_passed: getItemResultPresentation(item.result)?.type === 'success',
+       result_is_failed: getItemResultPresentation(item.result)?.type === 'danger',
       ...Object.fromEntries(Array.from({ length: MAX_INSPECTION_MEASUREMENT_COLUMNS }, (_, index) => [
         `measure_${index + 1}`,
         getMeasurement(item, index + 1)

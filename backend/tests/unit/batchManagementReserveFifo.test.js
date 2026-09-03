@@ -278,6 +278,15 @@ describe('InventoryService batch number normalize on ledger write', () => {
     );
 
     expect(result.success).toBe(true);
+    const fifoQuery = connection.query.mock.calls[0]?.[0] || '';
+    // inventory_ledger and inventory_posting_lines may use different MySQL
+    // collations for batch_number; normalize both UNION branches explicitly.
+    expect(fifoQuery).toMatch(
+      /CONVERT\(batch_number USING utf8mb4\) COLLATE utf8mb4_unicode_ci/i
+    );
+    expect(fifoQuery).toMatch(
+      /CONVERT\(l\.batch_number USING utf8mb4\) COLLATE utf8mb4_unicode_ci/i
+    );
     const insertCall = connection.execute.mock.calls.find(
       ([sql]) => typeof sql === 'string' && /INSERT\s+INTO\s+inventory_posting_lines/i.test(sql)
     );

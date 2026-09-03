@@ -263,5 +263,12 @@
   "20260901000006_backfill_quality_inspection_methods.js": "1bd6c2cdc6c304d886253d7582a9eecc2c0e2a86d475c968aeaad985ea708ab9",
   "20260901000007_restore_qrzk_detection_methods.js": "90b2c834463a288db8b81f6c0f794aad0380fc5e7028d4e0ad3874c5d4a46a09",
   "20260901000008_support_six_quality_measurements.js": "0eaf542e99c18b48072ca4c057e5a22e30648e96c3c4062bc7d041f96d9239d1",
-  "20260901000009_align_qrzk_paper_layout.js": "d55f130022d2bd10ff7ea108525a9b218d4242a82cab0110f0360d9b2ad865c4"
+  "20260901000009_align_qrzk_paper_layout.js": "d55f130022d2bd10ff7ea108525a9b218d4242a82cab0110f0360d9b2ad865c4",
+  "20260902000001_add_outsourced_arrival_inspection_flow.js": "38991f989eca7eae8b56d6e70b5ffc138c6979f48dce44ec355d5ebfbd364444",
+  "20260902000002_add_outsourced_arrival_idempotency.js": "bff5209804906c8aa4ba4f7eaeff2282a0186c04b2d3ccb380a32f42afd8bbe6",
+  "20260902000003_bind_admin_super_admin_role.js": "adb97f4e0f28c1aed7d78daa71ee95ae744546845bd58dcf80811c493fdc78b3",
+  "20260903000001_grant_warehouse_outsourced_issue_access.js": "30d35962d02f3dac6528b2c8e971b73ce63ae795ba60a12406809032f0442df4",
+  "20260903000002_rename_outsourced_arrived_status_label.js": "5c62b9c714aeb69c582b4965942de7203a1885d1dad0b404ada61889d12f5d6a",
+  "20260903000003_repair_notification_rule_recipients.js": "0ece19fe8df34936743930ec6dac6296dabb5b6c076a9f5211654fdfa46ea986",
+  "20260903000004_add_bom_detail_position.js": "9d4679aaebfae3081c3edee649e90698e21e0c2676c953b1027e6a2931f2744e"
 }

@@ -71,6 +71,10 @@
         <div class="stat-label">待确认</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
+        <div class="stat-value">{{ receiptStats.arrivedCount || 0 }}</div>
+        <div class="stat-label">待检验</div>
+      </el-card>
+      <el-card class="stat-card" shadow="hover">
         <div class="stat-value">{{ receiptStats.confirmedCount || 0 }}</div>
         <div class="stat-label">已确认</div>
       </el-card>
@@ -105,7 +109,7 @@
         <el-table-column label="操作" min-width="220" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button
-              v-if="scope.row.status === 'pending'"
+              v-if="scope.row.status === 'pending' && !scope.row.arrivalRequired"
               size="small"
               type="primary"
               @click.stop="handleEditReceipt(scope.row)"
@@ -114,13 +118,25 @@
               编辑
             </el-button>
             <el-button
-              v-if="scope.row.status === 'pending'"
+              v-if="
+                ['pending', 'arrived'].includes(scope.row.status) &&
+                scope.row.arrivalRequired
+              "
+              size="small"
+              type="success"
+              v-permission="'purchase:processing-receipts:edit'"
+              @click.stop="handleArrive(scope.row)"
+            >
+              {{ scope.row.status === 'arrived' ? '继续到货' : '到货' }}
+            </el-button>
+            <el-button
+              v-if="scope.row.status === 'pending' && !scope.row.arrivalRequired"
               size="small"
               type="success"
               v-permission="'purchase:processing-receipts:edit'"
               @click.stop="updateReceiptStatus(scope.row, 'confirmed')"
             >
-              确认入库
+              直接入库
             </el-button>
             <el-button
               v-if="scope.row.status === 'pending'"
@@ -132,6 +148,15 @@
               取消
             </el-button>
             <el-button
+              v-if="scope.row.status === 'arrived'"
+              size="small"
+              type="success"
+              v-permission="'purchase:processing-receipts:edit'"
+              @click.stop="updateReceiptStatus(scope.row, 'confirmed')"
+            >
+              确认入库
+            </el-button>
+            <el-button
               v-if="scope.row.status === 'confirmed'"
               size="small"
               type="success"
@@ -141,7 +166,7 @@
               完成入库
             </el-button>
             <el-button
-              v-if="['confirmed', 'completed', 'cancelled'].includes(scope.row.status)"
+              v-if="['arrived', 'confirmed', 'completed', 'cancelled'].includes(scope.row.status)"
               size="small"
               type="info"
               @click.stop="handleViewReceipt(scope.row)"
@@ -178,6 +203,77 @@
       :receipt-id="selectedReceiptId"
       @success="fetchReceiptList"
     />
+
+    <!-- 到货并自动生成来料检验单 -->
+    <AppDialog
+      v-model="arrivalDialogVisible"
+      title="确认到货"
+      mode="form"
+      width="1200px"
+      :close-on-click-modal="false"
+    >
+      <div v-loading="arrivalDialogLoading">
+        <el-alert
+          title="提示"
+          type="info"
+          :closable="false"
+          class="mb-20"
+        >系统会按本次到货数量自动生成来料检验单；检验完成并合格后，才可以确认入库。</el-alert>
+        <el-descriptions :column="3" border class="mb-20">
+          <el-descriptions-item label="入库单号">{{ arrivalForm.receiptNo || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="加工单号">{{ arrivalForm.processingNo || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="加工厂">{{ arrivalForm.supplierName || '-' }}</el-descriptions-item>
+        </el-descriptions>
+        <el-table :data="arrivalForm.items" border class="w-full" max-height="420px">
+          <el-table-column type="index" label="序号" width="55" align="center" />
+          <el-table-column prop="productCode" label="成品编码" width="130" show-overflow-tooltip />
+          <el-table-column prop="productName" label="成品名称" min-width="150" show-overflow-tooltip />
+          <el-table-column prop="specification" label="规格" min-width="130" show-overflow-tooltip />
+          <el-table-column prop="unit" label="单位" width="60" align="center" />
+          <el-table-column label="应到货" width="85" align="right">
+            <template #default="{ row }">{{ formatQuantity(row.expectedQuantity) }}</template>
+          </el-table-column>
+          <el-table-column label="已到货" width="85" align="right">
+            <template #default="{ row }">{{ formatQuantity(row.arrivedQuantity) }}</template>
+          </el-table-column>
+          <el-table-column label="待到货" width="85" align="right">
+            <template #default="{ row }">{{ formatQuantity(row.pendingQuantity) }}</template>
+          </el-table-column>
+          <el-table-column label="本次到货" width="125" align="center">
+            <template #default="{ row }">
+              <el-input-number
+                v-model="row.receiveQuantity"
+                :min="0"
+                :max="row.pendingQuantity"
+                :precision="2"
+                :step="1"
+                controls-position="right"
+                size="small"
+                class="w-full"
+                :disabled="row.pendingQuantity <= 0"
+                @change="handleArrivalQuantityChange(row)"
+              />
+            </template>
+          </el-table-column>
+        </el-table>
+        <div class="mt-20 text-right">
+          <el-text type="primary" size="large">
+            本次到货总数量：{{ formatQuantity(totalArrivalQuantity()) }}
+          </el-text>
+        </div>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="arrivalDialogVisible = false">取消</el-button>
+          <el-button
+            type="primary"
+            :loading="arrivalDialogLoading"
+            v-permission="'purchase:processing-receipts:edit'"
+            @click="confirmArrival"
+          >确认到货</el-button>
+        </span>
+      </template>
+    </AppDialog>
   </div>
 </template>
 
@@ -235,6 +331,7 @@ const pagination = reactive({
 const receiptStats = reactive({
   total: 0,
   pendingCount: 0,
+  arrivedCount: 0,
   confirmedCount: 0,
   cancelledCount: 0
 });
@@ -244,6 +341,17 @@ const receiptDialogVisible = ref(false);
 const receiptDialogMode = ref('view');
 const selectedReceiptId = ref(null);
 const selectedProcessingId = ref(null);
+
+// 到货对话框
+const arrivalDialogVisible = ref(false);
+const arrivalDialogLoading = ref(false);
+const arrivalForm = reactive({
+  receiptId: null,
+  receiptNo: '',
+  processingNo: '',
+  supplierName: '',
+  items: []
+});
 
 // 新建入库单
 const handleCreateReceipt = () => {
@@ -273,7 +381,13 @@ const fetchReceiptList = async () => {
     const response = await purchaseApi.outsourcedReceipts.getList(params);
 
     // 拦截器已解包，response.data 就是业务数据
-    receiptList.value = response.data?.list || response.data || [];
+    const rawList = response.data?.list || response.data || [];
+    receiptList.value = (Array.isArray(rawList) ? rawList : []).map((item) => ({
+      ...item,
+      // 后端 CASE 字段在不同驱动/旧接口中可能是 0/1、字符串或布尔值；
+      // 不能直接 Boolean('0')，否则待到货按钮会被错误显示。
+      arrivalRequired: ['1', 1, true].includes(item.arrivalRequired ?? item.arrival_required)
+    }));
 
     // 确保分页总数正确设置为数字类型
     if (response.data?.total !== undefined) {
@@ -298,6 +412,7 @@ const fetchReceiptList = async () => {
 const updateStats = () => {
   receiptStats.total = pagination.total;
   receiptStats.pendingCount = receiptList.value.filter(item => item.status === 'pending').length;
+  receiptStats.arrivedCount = receiptList.value.filter(item => item.status === 'arrived').length;
   receiptStats.confirmedCount = receiptList.value.filter(item => item.status === 'confirmed').length;
   receiptStats.cancelledCount = receiptList.value.filter(item => item.status === 'cancelled').length;
 };
@@ -346,6 +461,88 @@ const handleEditReceipt = (row) => {
   selectedProcessingId.value = row.processingId;
   receiptDialogMode.value = 'edit';
   receiptDialogVisible.value = true;
+};
+
+const formatQuantity = (value) => Number(value || 0).toFixed(2);
+
+const totalArrivalQuantity = () => arrivalForm.items.reduce(
+  (sum, item) => sum + Number(item.receiveQuantity || 0),
+  0
+);
+
+const handleArrivalQuantityChange = (row) => {
+  let quantity = Number(row.receiveQuantity || 0);
+  if (!Number.isFinite(quantity) || quantity < 0) quantity = 0;
+  if (quantity > Number(row.pendingQuantity || 0)) {
+    quantity = Number(row.pendingQuantity || 0);
+    ElMessage.warning(`到货数量不能超过待到货数量 ${formatQuantity(row.pendingQuantity)}`);
+  }
+  row.receiveQuantity = Number(quantity.toFixed(4));
+};
+
+const handleArrive = async (row) => {
+  arrivalDialogVisible.value = true;
+  arrivalDialogLoading.value = true;
+  try {
+    const response = await purchaseApi.outsourcedReceipts.getDetail(row.id);
+    const data = response.data || response;
+    arrivalForm.receiptId = data.id || row.id;
+    arrivalForm.receiptNo = data.receiptNo || row.receiptNo || '';
+    arrivalForm.processingNo = data.processingNo || row.processingNo || '';
+    arrivalForm.supplierName = data.supplierName || row.supplierName || '';
+    arrivalForm.items = (data.items || []).map((item) => {
+      const expectedQuantity = Number(item.expectedQuantity || 0);
+      const arrivedQuantity = Number(item.actualQuantity || 0);
+      const pendingQuantity = Math.max(expectedQuantity - arrivedQuantity, 0);
+      return {
+        ...item,
+        expectedQuantity,
+        arrivedQuantity,
+        pendingQuantity,
+        receiveQuantity: Number(pendingQuantity.toFixed(4))
+      };
+    });
+    if (!arrivalForm.items.some((item) => item.pendingQuantity > 0)) {
+      ElMessage.info('该入库单所有成品已全部到货');
+      arrivalDialogVisible.value = false;
+    }
+  } catch (error) {
+    console.error('打开到货对话框失败:', error);
+    ElMessage.error(`打开到货对话框失败: ${error.response?.data?.message || error.message || '未知错误'}`);
+    arrivalDialogVisible.value = false;
+  } finally {
+    arrivalDialogLoading.value = false;
+  }
+};
+
+const confirmArrival = async () => {
+  const items = arrivalForm.items
+    .filter((item) => Number(item.receiveQuantity || 0) > 0)
+    .map((item) => ({
+      productId: item.productId,
+      receiveQuantity: Number(item.receiveQuantity || 0)
+    }));
+  if (items.length === 0) {
+    ElMessage.warning('请至少填写一个成品的到货数量');
+    return;
+  }
+
+  arrivalDialogLoading.value = true;
+  try {
+    const response = await purchaseApi.outsourcedReceipts.receiveWithInspection(
+      arrivalForm.receiptId,
+      items
+    );
+    const result = response.data || response || {};
+    ElMessage.success(`到货成功，已生成 ${result.successCount || 0} 张来料检验单`);
+    arrivalDialogVisible.value = false;
+    await fetchReceiptList();
+  } catch (error) {
+    console.error('确认到货失败:', error);
+    ElMessage.error(`到货失败: ${error.response?.data?.message || error.message || '未知错误'}`);
+  } finally {
+    arrivalDialogLoading.value = false;
+  }
 };
 
 // 更新入库单状态

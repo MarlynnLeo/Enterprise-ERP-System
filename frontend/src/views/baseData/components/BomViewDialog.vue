@@ -61,7 +61,7 @@
                     type="danger"
                     effect="light"
                   >
-                    ★ 关键件
+                    ★
                   </el-tag>
                   <span v-else class="text-muted">-</span>
                 </template>
@@ -72,23 +72,22 @@
                   <span>{{ scope.row.specification || scope.row.materialSpecs || scope.row.specs || '-' }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="用量" width="80">
+              <el-table-column label="用量" width="70">
                 <template #default="scope">
                   <span>{{ Number(Number(scope.row.quantity || 0).toFixed(1)) }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="基数(每)" width="85">
+              <el-table-column label="基数" width="70">
                 <template #default="scope">
                   <span>{{ Number(Number(scope.row.baseQuantity ?? scope.row.base_quantity ?? 1).toFixed(1)) }}</span>
                 </template>
               </el-table-column>
-              <el-table-column prop="unit" label="单位" width="70"></el-table-column>
-              <el-table-column prop="position" label="位号" min-width="100" show-overflow-tooltip></el-table-column>
-              <el-table-column prop="lossRate" label="损耗率(%)" width="95">
+              <el-table-column prop="unitName" label="单位" width="70" show-overflow-tooltip>
                 <template #default="scope">
-                  <span>{{ Number(Number(scope.row.lossRate || 0).toFixed(1)) }}</span>
+                  <span>{{ scope.row.unitName || scope.row.unit || scope.row.unit_name || '-' }}</span>
                 </template>
               </el-table-column>
+              <el-table-column prop="position" label="位号" min-width="100" show-overflow-tooltip></el-table-column>
               <el-table-column prop="remark" label="备注" min-width="120" show-overflow-tooltip></el-table-column>
             </el-table>
           </el-tab-pane>

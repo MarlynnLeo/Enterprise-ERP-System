@@ -169,7 +169,12 @@
               <div>{{ scope.row.materialSpecs || '-' }}</div>
             </template>
           </el-table-column>
-          <el-table-column label="用量" width="85">
+          <el-table-column label="位号" width="100" show-overflow-tooltip>
+            <template #default="scope">
+              <el-input v-model="scope.row.position" placeholder="如 E2-02-02" clearable />
+            </template>
+          </el-table-column>
+          <el-table-column label="用量" width="70">
             <template #default="scope">
               <el-input-number
                 v-model="scope.row.quantity"
@@ -182,10 +187,10 @@
               />
             </template>
           </el-table-column>
-          <el-table-column width="95">
+          <el-table-column label="基数" width="70">
             <template #header>
               <div class="flex items-center gap-4">
-                <span>每(基数)</span>
+                <span>基数</span>
                 <el-tooltip content="每多少个成品消耗该用量。如普通物料填1；40个装一箱的外箱填40" placement="top">
                   <el-icon class="cursor-pointer text-muted"><InfoFilled /></el-icon>
                 </el-tooltip>
@@ -203,7 +208,7 @@
               />
             </template>
           </el-table-column>
-          <el-table-column label="单位" width="60">
+          <el-table-column label="单位" width="70">
             <template #default="scope">
               <span>{{ scope.row.unitName || '-' }}</span>
             </template>
@@ -454,6 +459,7 @@ const initForm = (data) => {
       materialCode: d.materialCode ?? d.material_code ?? '',
       materialName: d.materialName ?? d.material_name ?? '',
       materialSpecs: d.materialSpecs ?? d.material_specs ?? d.specs ?? d.specification ?? '',
+      position: d.position ?? '',
       unitId: d.unitId ?? d.unit_id ?? null,
       unitName: d.unitName ?? d.unit_name ?? '',
       quantity: d.quantity != null ? d.quantity : 1,
@@ -662,6 +668,7 @@ const addDetail = () => {
     materialCode: '',
     materialName: '',
     materialSpecs: '',
+    position: '',
     unitId: null,
     unitName: '',
     quantity: 1,
@@ -693,6 +700,7 @@ const addSubDetailForRow = (row) => {
     materialCode: '',
     materialName: '',
     materialSpecs: '',
+    position: '',
     unitId: null,
     unitName: '',
     quantity: 1,
@@ -982,6 +990,7 @@ const submitForm = async () => {
             level: d.level || 1,
             material_id: Number(d.materialId),
             material_code: d.materialCode,
+            position: d.position || null,
             quantity: Number(d.quantity) || 0,
             base_quantity: Number(d.baseQuantity) > 0 ? Number(d.baseQuantity) : 1,
             baseQuantity: Number(d.baseQuantity) > 0 ? Number(d.baseQuantity) : 1,

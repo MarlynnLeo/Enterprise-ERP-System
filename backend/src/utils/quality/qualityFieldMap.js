@@ -5,7 +5,9 @@
 
 const { formatDate, toNumber } = require('../fieldMap');
 
-const MAX_QUALITY_MEASUREMENT_SAMPLES = 5;
+// The quality UI, fixed columns, and measurement child table all support six samples.
+// Keep this boundary constant aligned with the public inspection contract.
+const MAX_QUALITY_MEASUREMENT_SAMPLES = 6;
 
 const qualityInspectionItemMap = {
   toApi(row) {
@@ -89,6 +91,7 @@ const qualityInspectionMap = {
       id: row.id,
       inspectionNo: row.inspection_no ?? null,
       inspectionType: row.inspection_type ?? null,
+      sourceType: row.source_type ?? null,
       status: row.status ?? null,
       batchNo: row.batch_no ?? null,
       quantity: row.quantity != null ? toNumber(row.quantity, 0) : null,
@@ -127,6 +130,16 @@ const qualityInspectionMap = {
       standardType: row.standard_type ?? null,
       standardNo: row.standard_no ?? null,
       note: row.note ?? null,
+      attachments: Array.isArray(row.attachments)
+        ? row.attachments.map((attachment) => ({
+          id: attachment.id ?? null,
+          url: attachment.url ?? attachment.fileUrl ?? attachment.file_url ?? null,
+          name: attachment.name ?? attachment.filename ?? attachment.originalName ?? '附件',
+          size: attachment.size ?? null,
+          type: attachment.type ?? attachment.mimetype ?? attachment.mimeType ?? null,
+          createdAt: formatDate(attachment.created_at ?? attachment.createdAt),
+        }))
+        : [],
       punchCount: row.punch_count != null ? toNumber(row.punch_count, 0) : null,
       taskStatus: row.task_status ?? null,
       isFirstArticle: row.is_first_article != null ? Boolean(row.is_first_article) : null,
@@ -157,6 +170,7 @@ const qualityInspectionMap = {
       id: body.id,
       inspection_no: body.inspectionNo ?? body.inspection_no,
       inspection_type: body.inspectionType ?? body.inspection_type,
+      source_type: body.sourceType ?? body.source_type,
       status: body.status,
       batch_no: body.batchNo ?? body.batch_no,
       quantity: qty != null ? toNumber(qty, 0) : undefined,

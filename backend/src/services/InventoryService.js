@@ -728,6 +728,7 @@ class InventoryService {
       is_excess = 0,
       bom_required_qty = null,
       total_issued_qty = null,
+      sourceId = null,
       allowNegativeStock = false,
       /** 仅 adjustment/reconciliation/correction 允许空批次对账调整 */
       allowEmptyBatch = false,
@@ -740,8 +741,10 @@ class InventoryService {
       idempotencyKey = null,
       postingDocumentId = null,
       postingLineId = null,
+      reversalOfLedgerId = null,
       internalPostingToken = null,
       businessApprovedById = null,
+      businessApprovedBy = null,
     },
     connection
   ) {
@@ -882,9 +885,12 @@ class InventoryService {
         !allowNegativeStock &&
         !['adjustment', 'correction', 'outbound_cancel'].includes(transactionType)
       ) {
-        throw new Error(
+        const shortageError = new Error(
           `库存不足: 当前库存 ${beforeQuantity}, 需要 ${Math.abs(changeQuantity)}, 差额 ${Math.abs(afterQuantity)}`
         );
+        shortageError.code = 'INSUFFICIENT_STOCK';
+        shortageError.statusCode = 400;
+        throw shortageError;
       }
       // 如果允许负库存并且真实发生负库存，打印警告
       if (afterQuantity < 0 && allowNegativeStock && changeQuantity < 0) {
@@ -901,13 +907,20 @@ class InventoryService {
       if (changeQuantity < 0 && !normalizedBatchInput) {
         const outboundQuantity = Math.abs(changeQuantity);
         const [batchRecords] = await connection.query(
+          // Legacy ledger rows and posting snapshots can have different
+          // batch_number collations; normalize before UNION to keep FIFO
+          // allocation working across migrated production schemas.
           `SELECT batch_number, SUM(quantity) as batch_quantity
            FROM (
-             SELECT batch_number, quantity, created_at
+             SELECT CONVERT(batch_number USING utf8mb4) COLLATE utf8mb4_unicode_ci AS batch_number,
+                    quantity,
+                    created_at
                FROM inventory_ledger
               WHERE material_id = ? AND location_id = ?
              UNION ALL
-             SELECT l.batch_number, l.signed_quantity AS quantity, l.created_at
+             SELECT CONVERT(l.batch_number USING utf8mb4) COLLATE utf8mb4_unicode_ci AS batch_number,
+                    l.signed_quantity AS quantity,
+                    l.created_at
                FROM inventory_posting_lines l
                JOIN inventory_posting_documents d ON d.id = l.posting_document_id
               WHERE l.material_id = ? AND l.location_id = ?
@@ -946,9 +959,12 @@ class InventoryService {
         }
 
         if (remainingQuantity > 0) {
-          throw new Error(
+          const fifoShortageError = new Error(
             `FIFO批次库存不足: materialId=${materialId}, locationId=${locationId}, referenceNo=${referenceNo}, missing=${remainingQuantity}`
           );
+          fifoShortageError.code = 'INSUFFICIENT_STOCK';
+          fifoShortageError.statusCode = 400;
+          throw fifoShortageError;
         }
       } else {
         // 入库或出库明确指定批次（已归一化）
@@ -1011,11 +1027,12 @@ class InventoryService {
             connection,
             {
               sourceType: referenceType || transactionType,
+              sourceId,
               sourceNo: referenceNo,
               transactionDate: resolvedTransactionDate,
               movementDirection: batchChangeQty >= 0 ? 'inbound' : 'outbound',
               businessApprovedById,
-              businessApprovedBy: operator,
+              businessApprovedBy: businessApprovedBy || operator,
               operator,
               remark,
             },
@@ -1033,6 +1050,7 @@ class InventoryService {
                 totalValue: currentTotalValue,
                 transactionDate: resolvedTransactionDate,
                 operator,
+                reversalOfLedgerId,
                 sourceLineKey: `${transactionType}:${referenceType}:${referenceNo}:${materialId}:${locationId}:${ledgerBatchNumber || 'EMPTY'}`,
               },
             ]
@@ -1099,7 +1117,7 @@ class InventoryService {
             ledgerIdempotencyKey,
             postingDocumentId,
             postingLineId,
-            null,
+            reversalOfLedgerId,
           ]
         );
         lastLedgerId = ledgerResult.insertId || lastLedgerId;

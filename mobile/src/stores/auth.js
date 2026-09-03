@@ -338,6 +338,7 @@ export const useAuthStore = defineStore('auth', () => {
     permissionsLoading.value = true
 
     // 创建共享 Promise，带 10 秒超时保护
+    let timer = null
     _permissionsPromise = Promise.race([
       (async () => {
         try {
@@ -368,17 +369,25 @@ export const useAuthStore = defineStore('auth', () => {
           safeSaveJSON(STORAGE_KEYS.PERMISSIONS, null, sessionStorage)
           throw error
         } finally {
+          if (timer) {
+            clearTimeout(timer)
+            timer = null
+          }
           permissionsLoading.value = false
           _permissionsPromise = null
         }
       })(),
       new Promise((_, reject) => {
-        setTimeout(() => {
+        timer = setTimeout(() => {
           console.warn('[auth] 等待权限加载超时，放弃等待')
           reject(new Error('权限加载超时'))
         }, 10000)
       })
     ]).catch((error) => {
+      if (timer) {
+        clearTimeout(timer)
+        timer = null
+      }
       permissionsLoading.value = false
       _permissionsPromise = null
       // 超时情况下返回 false 而非抛出错误，与原行为一致

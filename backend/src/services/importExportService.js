@@ -244,10 +244,10 @@ class ImportExportService {
       { header: '版本号', key: 'version', width: 12 },
       { header: '物料编码*', key: 'material_code', width: 20 },
       { header: '用量*', key: 'quantity', width: 12 },
-      { header: '基数/每(成品数)', key: 'base_quantity', width: 16 },
+      { header: '基数', key: 'base_quantity', width: 12 },
       { header: '是否关键件(是/否)', key: 'is_critical', width: 16 },
       { header: '单位', key: 'unit', width: 10 },
-      { header: '损耗率(%)', key: 'loss_rate', width: 12 },
+      { header: '位号', key: 'position', width: 14 },
       { header: '备注', key: 'remarks', width: 30 },
     ];
 
@@ -261,7 +261,7 @@ class ImportExportService {
         base_quantity: 1,
         is_critical: '是',
         unit: '张',
-        loss_rate: 5,
+        position: 'E2-02-02',
         remarks: '核心材料：每1个成品消耗2张',
       },
       {
@@ -273,7 +273,7 @@ class ImportExportService {
         base_quantity: 40,
         is_critical: '否',
         unit: '个',
-        loss_rate: 0,
+        position: '',
         remarks: '包装材料：每40个成品消耗1个箱子',
       },
     ];
@@ -312,7 +312,7 @@ class ImportExportService {
         };
       }
 
-      const rawBase = Number(row['基数/每(成品数)'] || row['基数'] || row['base_quantity']);
+      const rawBase = Number(row['基数'] || row['基数/每(成品数)'] || row['base_quantity']);
       const baseQuantity = Number.isFinite(rawBase) && rawBase > 0 ? rawBase : 1;
 
       const rawCritical = String(row['是否关键件(是/否)'] || row['是否关键件'] || row['is_critical'] || '').trim();
@@ -324,7 +324,7 @@ class ImportExportService {
         base_quantity: baseQuantity,
         is_critical: isCritical,
         unit: row['单位'] || '',
-        loss_rate: row['损耗率(%)'] || 0,
+        position: row['位号'] || row['position'] || '',
         remarks: row['备注'] || '',
       });
 
@@ -412,10 +412,10 @@ class ImportExportService {
       { header: '物料编码', key: 'material_code', width: 20 },
       { header: '物料名称', key: 'material_name', width: 25 },
       { header: '用量', key: 'quantity', width: 12 },
-      { header: '基数/每(成品数)', key: 'base_quantity', width: 16 },
+      { header: '基数', key: 'base_quantity', width: 12 },
       { header: '是否关键件', key: 'is_critical', width: 12 },
       { header: '单位', key: 'unit', width: 10 },
-      { header: '损耗率(%)', key: 'loss_rate', width: 12 },
+      { header: '位号', key: 'position', width: 14 },
       { header: '备注', key: 'remarks', width: 30 },
     ];
 
@@ -437,7 +437,7 @@ class ImportExportService {
             base_quantity: detail.base_quantity || detail.baseQuantity || 1,
             is_critical: isCritical,
             unit: detail.unit || detail.unit_name || '',
-            loss_rate: detail.loss_rate || 0,
+            position: detail.position || '',
             remarks: detail.remarks || detail.remark || '',
           });
         }

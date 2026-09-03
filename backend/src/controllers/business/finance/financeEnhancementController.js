@@ -115,7 +115,7 @@ class FinanceEnhancementController {
     try {
       const actor = InventoryPostingService.actorFromRequest(req);
       const result = await InventoryPostingService.reverse(req.params.id, actor, req.body?.remark || '');
-      return ResponseHandler.success(res, result, '库存过账已反审核并生成冲销流水');
+      return ResponseHandler.success(res, result, '反审核申请已提交，待财务审批后正式冲销库存');
     } catch (error) {
       return respondServiceError(res, error, '库存过账反审核失败');
     }

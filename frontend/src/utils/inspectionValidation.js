@@ -102,21 +102,6 @@ export const validateItemsCompleteness = (items) => {
     }
   }
 
-  // 检查尺寸类型的检验项是否填写了标准尺寸
-  const dimensionItems = items.filter(item => item.type === 'dimension')
-  const invalidDimensionItems = dimensionItems.filter(item =>
-    item.dimension_value === undefined ||
-    item.dimension_value === null ||
-    item.dimension_value === ''
-  )
-
-  if (invalidDimensionItems.length > 0) {
-    return {
-      valid: false,
-      message: '尺寸类型的检验项必须填写标准尺寸值'
-    }
-  }
-
   return { valid: true }
 }
 
@@ -174,4 +159,3 @@ export const isGeneralTemplate = (template) => {
 
   return false
 }
-

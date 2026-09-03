@@ -155,7 +155,7 @@ module.exports = {
            FROM users u
            JOIN user_roles ur ON ur.user_id = u.id
            JOIN roles r ON r.id = ur.role_id AND r.status = 1
-           WHERE (r.is_super_admin = 1 OR r.code = 'admin') AND u.status = 1
+           WHERE r.is_super_admin = 1 AND u.status = 1
            ORDER BY u.id LIMIT 3`
         );
         if (adminUsers.length > 0) {

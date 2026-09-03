@@ -1,19 +1,240 @@
 {
   "summary": {
-    "dualCase": 0,
-    "frontendSnakeProp": 0,
+    "dualCase": 36,
+    "frontendSnakeProp": 19,
     "rawResJson": 21,
     "redundantMapKeysToCamelFiles": 0,
     "redundantMapKeysToCamelHits": 0,
     "bodySnakeWithoutMap": 0,
     "printSnakeKeys": 18
   },
-  "dualCase": [],
-  "frontendSnakeProp": [],
+  "dualCase": [
+    {
+      "file": "frontend/src/constants/systemConstants.js",
+      "line": 287,
+      "match": "t.tagType || t.tag_type"
+    },
+    {
+      "file": "frontend/src/views/inventory/InventoryReport.vue",
+      "line": 80,
+      "match": "location.name || location.warehouse_name"
+    },
+    {
+      "file": "frontend/src/views/production/ProductionPlan.vue",
+      "line": 1880,
+      "match": "row.unit || row.unit_name"
+    },
+    {
+      "file": "frontend/src/views/quality/components/InspectDialog.vue",
+      "line": 572,
+      "match": "item.itemType || item.item_type"
+    },
+    {
+      "file": "frontend/src/views/quality/components/InspectDialog.vue",
+      "line": 573,
+      "match": "item.itemName || item.item_name"
+    },
+    {
+      "file": "frontend/src/views/quality/components/InspectDialog.vue",
+      "line": 575,
+      "match": "item.inspectionMethod || item.inspection_method"
+    },
+    {
+      "file": "frontend/src/views/quality/components/InspectDialog.vue",
+      "line": 815,
+      "match": "attachment.fileUrl || attachment.file_url"
+    },
+    {
+      "file": "frontend/src/views/quality/components/ReviewDialog.vue",
+      "line": 250,
+      "match": "item.itemName || item.item_name"
+    },
+    {
+      "file": "frontend/src/views/quality/components/ReviewDialog.vue",
+      "line": 252,
+      "match": "item.itemType || item.item_type"
+    },
+    {
+      "file": "frontend/src/views/quality/components/ReviewDialog.vue",
+      "line": 389,
+      "match": "attachment.fileUrl || attachment.file_url"
+    },
+    {
+      "file": "frontend/src/views/quality/FinalInspection.vue",
+      "line": 1541,
+      "match": "attachment.fileUrl || attachment.file_url"
+    },
+    {
+      "file": "frontend/src/views/quality/InspectionTemplates.vue",
+      "line": 1749,
+      "match": "item.method || item.inspection_method"
+    },
+    {
+      "file": "frontend/src/views/quality/InspectionTemplates.vue",
+      "line": 1751,
+      "match": "item.method || item.inspection_method"
+    },
+    {
+      "file": "frontend/src/views/sales/SalesOutbound.vue",
+      "line": 291,
+      "match": "row.unit || row.unit_name"
+    },
+    {
+      "file": "frontend/src/views/sales/SalesOutbound.vue",
+      "line": 475,
+      "match": "row.unit || row.unit_name"
+    },
+    {
+      "file": "frontend/src/views/sales/SalesOutbound.vue",
+      "line": 613,
+      "match": "row.unit || row.unit_name"
+    },
+    {
+      "file": "mobile/src/views/Profile.vue",
+      "line": 171,
+      "match": "u.roleName || u.role_names"
+    },
+    {
+      "file": "mobile/src/views/quality/IncomingDetail.vue",
+      "line": 299,
+      "match": "currentUser.realName ||\r\n      currentUser.real_name"
+    },
+    {
+      "file": "mobile/src/views/quality/IncomingDetail.vue",
+      "line": 422,
+      "match": "item.actualValue || item.actual_value"
+    },
+    {
+      "file": "mobile/src/views/quality/IncomingDetail.vue",
+      "line": 422,
+      "match": "item.measure_1 || item.measure1"
+    },
+    {
+      "file": "...",
+      "line": 0,
+      "snippet": "+16 more"
+    }
+  ],
+  "frontendSnakeProp": [
+    {
+      "file": "frontend/src/views/baseData/components/BomFormDialog.vue",
+      "line": 453,
+      "field": "material_id",
+      "snippet": "materialId: d.materialId ?? d.material_id ?? null,"
+    },
+    {
+      "file": "frontend/src/views/baseData/components/BomFormDialog.vue",
+      "line": 454,
+      "field": "material_code",
+      "snippet": "materialCode: d.materialCode ?? d.material_code ?? '',"
+    },
+    {
+      "file": "frontend/src/views/baseData/components/BomFormDialog.vue",
+      "line": 455,
+      "field": "material_name",
+      "snippet": "materialName: d.materialName ?? d.material_name ?? '',"
+    },
+    {
+      "file": "frontend/src/views/baseData/components/BomFormDialog.vue",
+      "line": 457,
+      "field": "unit_id",
+      "snippet": "unitId: d.unitId ?? d.unit_id ?? null,"
+    },
+    {
+      "file": "frontend/src/views/baseData/components/BomFormDialog.vue",
+      "line": 458,
+      "field": "unit_name",
+      "snippet": "unitName: d.unitName ?? d.unit_name ?? '',"
+    },
+    {
+      "file": "frontend/src/views/baseData/components/BomFormDialog.vue",
+      "line": 463,
+      "field": "parent_id",
+      "snippet": "parentId: d.parentId ?? d.parent_id ?? 0,"
+    },
+    {
+      "file": "frontend/src/views/baseData/components/BomFormDialog.vue",
+      "line": 621,
+      "field": "parent_id",
+      "snippet": "const getParentId = (item) => item?.parentId ?? item?.parent_id ?? 0"
+    },
+    {
+      "file": "frontend/src/views/baseData/components/BomFormDialog.vue",
+      "line": 884,
+      "field": "unit_id",
+      "snippet": "target.unitId = detail.unitId ?? detail.unit_id ?? null"
+    },
+    {
+      "file": "frontend/src/views/baseData/components/BomViewDialog.vue",
+      "line": 87,
+      "field": "unit_name",
+      "snippet": "<span>{{ scope.row.unitName || scope.row.unit || scope.row.unit_name || '-' }}</span>"
+    },
+    {
+      "file": "frontend/src/views/production/ProductionPlan.vue",
+      "line": 1880,
+      "field": "unit_name",
+      "snippet": "<template #default=\"{ row }\">{{ row.unitName || row.unit || row.unit_name || '-' }}</template>"
+    },
+    {
+      "file": "frontend/src/views/purchase/composables/usePurchaseOrderActions.js",
+      "line": 335,
+      "field": "material_id",
+      "snippet": "return { materialId: item.materialId ?? item.material_id, receiveQuantity: pendingQty }"
+    },
+    {
+      "file": "frontend/src/views/purchase/PurchaseOrders.vue",
+      "line": 572,
+      "field": "unit_name",
+      "snippet": "{{ scope.row.unit || scope.row.unitName || scope.row.unit_name || '-' }}"
+    },
+    {
+      "file": "frontend/src/views/purchase/PurchaseOrders.vue",
+      "line": 696,
+      "field": "unit_name",
+      "snippet": "{{ scope.row.unit || scope.row.unitName || scope.row.unit_name || '-' }}"
+    },
+    {
+      "file": "frontend/src/views/sales/SalesOutbound.vue",
+      "line": 291,
+      "field": "unit_name",
+      "snippet": "<span>{{ row.unitName || row.unit || row.unit_name || '-' }}</span>"
+    },
+    {
+      "file": "frontend/src/views/sales/SalesOutbound.vue",
+      "line": 475,
+      "field": "unit_name",
+      "snippet": "<span>{{ row.unitName || row.unit || row.unit_name || '-' }}</span>"
+    },
+    {
+      "file": "frontend/src/views/sales/SalesOutbound.vue",
+      "line": 613,
+      "field": "unit_name",
+      "snippet": "<span>{{ row.unitName || row.unit || row.unit_name || '-' }}</span>"
+    },
+    {
+      "file": "mobile/src/views/Profile.vue",
+      "line": 171,
+      "field": "role_name",
+      "snippet": "return u.roleNames || u.roleName || u.role_names || u.role_name || '—'"
+    },
+    {
+      "file": "mobile/src/views/quality/IncomingDetail.vue",
+      "line": 300,
+      "field": "real_name",
+      "snippet": "currentUser.real_name ||"
+    },
+    {
+      "file": "mobile/src/views/quality/IncomingDetail.vue",
+      "line": 553,
+      "field": "material_id",
+      "snippet": "const materialId = data.materialId || data.material_id"
+    }
+  ],
   "rawResJson": [
     {
       "file": "backend/src/controllers/business/finance/cash/bankTransactionController.js",
-      "line": 454,
+      "line": 455,
       "snippet": "res.send(buffer);"
     },
     {
@@ -23,53 +244,53 @@
     },
     {
       "file": "backend/src/controllers/business/hr/hrController.js",
-      "line": 699,
+      "line": 726,
       "snippet": "return res.send(buffer);"
     },
     {
       "file": "backend/src/controllers/business/inventory/inventoryLedgerController.js",
-      "line": 1002,
+      "line": 1021,
       "snippet": "res.send(buf);"
     },
     {
       "file": "backend/src/controllers/business/inventory/inventoryLedgerController.js",
-      "line": 1186,
+      "line": 1207,
       "snippet": "res.send(buf);"
     },
     {
       "file": "backend/src/controllers/business/inventory/inventoryStockController.js",
-      "line": 821,
+      "line": 775,
       "snippet": "return res.json(records);"
     },
     {
       "file": "backend/src/controllers/business/inventory/inventoryStockController.js",
-      "line": 1148,
+      "line": 1080,
       "snippet": "res.send(excelBuffer);"
     },
     {
       "file": "backend/src/controllers/business/inventory/inventoryStockController.js",
-      "line": 1718,
+      "line": 1636,
       "snippet": "res.send(excelBuffer);"
     },
     {
       "file": "backend/src/controllers/business/inventory/outbound/outboundCrudController.js",
-      "line": 360,
+      "line": 381,
       "snippet": "return res.send(buffer);"
     },
     {
       "file": "backend/src/controllers/business/sales/salesOrderController.js",
-      "line": 1408,
+      "line": 1618,
       "snippet": "res.send(excelBuffer);"
     },
     {
       "file": "backend/src/controllers/business/sales/salesOrderController.js",
-      "line": 1938,
+      "line": 2148,
       "snippet": "res.send(excelBuffer);"
     },
     {
       "file": "backend/src/controllers/common/userActivityController.js",
-      "line": 446,
-      "snippet": "res.send('\\ufeff' + csvContent); // BOM for UTF-8"
+      "line": 591,
+      "snippet": "res.send(\"﻿\" + csvContent); // BOM for UTF-8"
     },
     {
       "file": "backend/src/routes/health.js",
@@ -151,62 +372,62 @@
     },
     {
       "file": "frontend/src/views/finance/ap/Invoices.vue",
-      "line": 1166,
+      "line": 857,
       "snippet": "material_code: item.materialCode || '',"
     },
     {
       "file": "frontend/src/views/finance/ap/Invoices.vue",
-      "line": 1184,
+      "line": 875,
       "snippet": "order_no: invoiceDetail.value.orderNumber || invoiceDetail.value.relatedOrderNo || '',"
     },
     {
       "file": "frontend/src/views/finance/ar/Invoices.vue",
-      "line": 874,
+      "line": 865,
       "snippet": "order_no: '',"
     },
     {
       "file": "frontend/src/views/inventory/InventoryStock.vue",
-      "line": 831,
+      "line": 849,
       "snippet": "material_code: row.materialCode || '',"
     },
     {
       "file": "frontend/src/views/inventory/InventoryTransfer.vue",
-      "line": 1035,
+      "line": 1062,
       "snippet": "material_code: item.materialCode || '-',"
     },
     {
       "file": "frontend/src/views/inventory/InventoryTransfer.vue",
-      "line": 1155,
+      "line": 1182,
       "snippet": "material_code: item.materialCode || '-',"
     },
     {
       "file": "frontend/src/views/purchase/composables/usePurchaseOrderActions.js",
-      "line": 282,
-      "snippet": "...companyInfo, order_number: viewData.orderNumber || viewData.orderNo || '', order_no: viewData.ord"
+      "line": 354,
+      "snippet": "...companyInfo, order_number: viewData.orderNo || '', order_no: viewData.orderNo || '',"
     },
     {
       "file": "frontend/src/views/purchase/PurchaseReceipts.vue",
-      "line": 1631,
+      "line": 1656,
       "snippet": "material_code: item.materialCode || '',"
     },
     {
       "file": "frontend/src/views/purchase/PurchaseRequisitions.vue",
-      "line": 1300,
+      "line": 1219,
       "snippet": "material_code: item.materialCode || '',"
     },
     {
       "file": "frontend/src/views/purchase/PurchaseReturns.vue",
-      "line": 1003,
+      "line": 1034,
       "snippet": "material_code: item.materialCode || '',"
     },
     {
       "file": "frontend/src/views/sales/SalesOrders.vue",
-      "line": 879,
+      "line": 831,
       "snippet": "order_no: order.orderNo || '',"
     },
     {
       "file": "frontend/src/views/sales/SalesReturns.vue",
-      "line": 762,
+      "line": 787,
       "snippet": "order_no: ret.orderNo || '',"
     }
   ],

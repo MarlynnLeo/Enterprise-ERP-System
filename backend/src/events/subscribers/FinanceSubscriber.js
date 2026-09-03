@@ -295,7 +295,7 @@ class FinanceSubscriber {
              FROM sales_outbound sob
              LEFT JOIN sales_orders ord ON sob.order_id = ord.id
              LEFT JOIN customers c ON ord.customer_id = c.id
-             WHERE sob.id = ?`,
+             WHERE sob.id = ? AND sob.deleted_at IS NULL`,
       [outboundId]
     );
     if (rows.length === 0) {
@@ -306,9 +306,19 @@ class FinanceSubscriber {
 
   async replaySalesOutboundCompleted(payload) {
     const outboundId = payload.outboundData?.id || payload.outboundId;
-    const outboundData = payload.outboundData?.id
-      ? payload.outboundData
-      : await this.fetchSalesOutbound(outboundId);
+    // Always reload the row.  A queued completion event may contain the old
+    // completed snapshot even after an approved reversal has set the source
+    // document to reversed/cancelled.
+    const outboundData = outboundId
+      ? await this.fetchSalesOutbound(outboundId)
+      : payload.outboundData;
+    if (!outboundData) return;
+    if (['reversed', 'cancelled'].includes(String(outboundData.status || '').toLowerCase())) {
+      logger.info(
+        `[FinanceSubscriber] 跳过已反审核/取消的销售出库财务事件: outboundNo=${outboundData.outbound_no}`
+      );
+      return;
+    }
     const salesOrderId = payload.salesOrder?.id || payload.salesOrderId || outboundData.order_id;
     const salesOrders = payload.salesOrder
       ? [payload.salesOrder]
@@ -395,8 +405,20 @@ class FinanceSubscriber {
       ? await InventoryPostingService.get(payload.postingDocumentId)
       : null;
 
+    // Reversal postings are completed, together with their business-side
+    // closure, inside InventoryPostingService.approve(). They must never be
+    // replayed through the normal movement integration handlers below.
+    if (posting?.posting_kind === 'reversal' || payload?.postingKind === 'reversal') {
+      return;
+    }
+
     const [salesOutbound] = await db.pool.execute(
-      'SELECT id FROM sales_outbound WHERE outbound_no = ? AND deleted_at IS NULL LIMIT 1',
+      `SELECT id
+         FROM sales_outbound
+        WHERE outbound_no = ?
+          AND deleted_at IS NULL
+          AND status NOT IN ('reversed', 'cancelled')
+        LIMIT 1`,
       [sourceNo]
     );
     if (salesOutbound[0]) {
@@ -477,7 +499,11 @@ class FinanceSubscriber {
     }
 
     const [outsourcedReceipts] = await db.pool.execute(
-      'SELECT id, receipt_no, processing_id, created_by, operator FROM outsourced_processing_receipts WHERE receipt_no = ? LIMIT 1',
+      `SELECT id, receipt_no, processing_id, created_by, operator, status
+         FROM outsourced_processing_receipts
+        WHERE receipt_no = ?
+          AND status <> 'cancelled'
+        LIMIT 1`,
       [sourceNo]
     );
     if (outsourcedReceipts[0]) {
@@ -664,15 +690,44 @@ class FinanceSubscriber {
    * 包含幂等性校验，防止重复事件触发导致重复生成
    */
   async handleSalesOutboundCompleted(payload) {
-    const { salesOrder, outboundData, currentUserId } = payload;
+    const { salesOrder, currentUserId } = payload;
+    let outboundData = payload.outboundData;
+    let currentOutboundData = outboundData;
+    const outboundId = currentOutboundData?.id;
+
+    // Direct event delivery can also race with reversal.  Re-read the
+    // authoritative status before creating any AR, cost, or tax records.
+    if (outboundId) {
+      try {
+        currentOutboundData = await this.fetchSalesOutbound(outboundId);
+      } catch (error) {
+        logger.error(
+          `[FinanceSubscriber] 无法确认销售出库状态，停止财务事件: outboundId=${outboundId}`,
+          error
+        );
+        await DLQService.recordSideEffectFailure(
+          'Finance:SalesOutboundCompleted',
+          { outboundId, outboundData, salesOrderId: salesOrder?.id, currentUserId },
+          error
+        );
+        return;
+      }
+      if (['reversed', 'cancelled'].includes(String(currentOutboundData.status || '').toLowerCase())) {
+        logger.info(
+          `[FinanceSubscriber] 跳过已反审核/取消的销售出库财务事件: outboundNo=${currentOutboundData.outbound_no}`
+        );
+        return;
+      }
+    }
+
     let salesOrders =
       Array.isArray(payload.salesOrders) && payload.salesOrders.length > 0
         ? payload.salesOrders
         : salesOrder
           ? [salesOrder]
           : [];
+    outboundData = currentOutboundData;
     const outboundNo = outboundData?.outbound_no;
-    const outboundId = outboundData?.id;
 
     // 多订单/缺载荷时补齐关联销售订单（专业闭环：合并出库也必须能开 AR）
     if ((!salesOrders || salesOrders.length === 0) && outboundId) {

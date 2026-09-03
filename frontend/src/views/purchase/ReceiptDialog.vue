@@ -178,6 +178,7 @@
                 controls-position="right"
                 size="small"
                 class="w-full"
+                :disabled="mode === 'create'"
                 @change="calculateRowTotal(scope.row)"
               />
               <span v-else>{{ scope.row.actualQuantity }}</span>
@@ -381,9 +382,10 @@ const normalizeProcessingProduct = (product) => {
     unit: product.unit || '',
     unitId: ensureValidId(product.unitId),
     expectedQuantity,
-    actualQuantity: expectedQuantity,
+    // 新建单只登记应收数量；实际到货通过列表中的“到货”动作登记并触发 IQC。
+    actualQuantity: 0,
     unitPrice,
-    totalPrice: toFiniteNumber(product.totalPrice, expectedQuantity * unitPrice)
+    totalPrice: 0
   };
 };
 

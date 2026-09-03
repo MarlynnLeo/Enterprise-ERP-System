@@ -67,6 +67,10 @@ const _insertInventoryLedgerLocal = async (
     unit_cost = null,
     idempotency_key = null,
     idempotencyKey = null,
+    business_approved_by_id = null,
+    businessApprovedById = null,
+    business_approved_by = null,
+    businessApprovedBy = null,
   }
 ) => {
   try {
@@ -91,6 +95,8 @@ const _insertInventoryLedgerLocal = async (
       allowNegativeStock,
       transactionDate: transactionDate || transaction_date,
       unitCost: unit_cost,
+      businessApprovedById: businessApprovedById || business_approved_by_id,
+      businessApprovedBy: businessApprovedBy || business_approved_by || operator,
       idempotencyKey:
         idempotencyKey ||
         idempotency_key ||
