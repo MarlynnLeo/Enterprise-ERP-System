@@ -153,6 +153,27 @@
   --z-index-modal: 1050;
   --z-index-popover: 1060;
   --z-index-tooltip: 1070;
+
+  /* 外壳 Header & Control Tokens */
+  --shell-header-bg: #FFFFFF;
+  --shell-accent: #FF6B6B;
+  --shell-control-hover-bg: #FFF0F0;
+  --shell-control-border: #FED7D7;
+  --shell-radius-md: 6px;
+
+  /* 表格与弹窗语义 Tokens */
+  --erp-table-fixed-header-bg: #FFF5F5;
+  --theme-dialog-radius: 6px;
+  --theme-dialog-footer-bg: #FFF5F5;
+
+  /* 特征卡片 Feature Card Tokens */
+  --theme-feature-card-bg: linear-gradient(145deg, #FFFFFF 0%, #FFF5F5 100%);
+  --theme-feature-card-color: #212529;
+  --theme-feature-card-border: #FED7D7;
+  --theme-feature-card-shadow: 0 2px 8px rgba(255, 107, 107, 0.12);
+  --theme-feature-card-hover-shadow: 0 4px 16px rgba(255, 107, 107, 0.2);
+  --theme-feature-card-decor: radial-gradient(circle at 100% 0%, rgba(255, 107, 107, 0.1) 0%, transparent 70%);
+  --color-border: var(--color-border-base);
 }
 
 /* ========== 活力主题全局样式覆盖 ========== */
@@ -193,8 +214,8 @@
 [data-theme="vibrant"] .header, [data-theme="vibrant"] .el-header {
   background: var(--color-bg-base) !important;
   border: 1px solid var(--color-primary) !important;
-  border-radius: var(--shell-radius-lg, var(--radius-lg, 16px)) !important;
-  box-shadow: 0 8px 24px var(--color-bg-overlay) !important;
+  border-radius: var(--radius-md, 6px) !important;
+  box-shadow: var(--shadow-sm) !important;
   color: var(--color-text-primary) !important;
 }
 

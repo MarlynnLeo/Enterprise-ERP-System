@@ -836,7 +836,7 @@
                   </div>
                 </div>
               </el-card>
-              <el-empty
+              <EmptyState
                 v-if="presetDocxList.length === 0 && !loadingPresets"
                 description="未在系统目录检测到预置 .docx 检验单文档"
                 :image-size="80"

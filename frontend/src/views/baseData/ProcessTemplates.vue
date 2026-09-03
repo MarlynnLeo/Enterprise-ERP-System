@@ -417,11 +417,11 @@
 
           <!-- 工序列表标题 -->
           <div style="display: flex; align-items: center; margin: 20px 0 15px;">
-            <div style="flex: 1; border-top: 1px solid var(--el-border-color-light, #e4e7ed);"></div>
-            <div style="padding: 0 15px; font-weight: 500; color: var(--el-text-color-regular, #606266);">
+            <div style="flex: 1; border-top: 1px solid var(--color-border-light, var(--el-border-color-light));"></div>
+            <div style="padding: 0 15px; font-weight: 500; color: var(--color-text-regular, var(--el-text-color-regular));">
               工序明细列表
             </div>
-            <div style="flex: 1; border-top: 1px solid var(--el-border-color-light, #e4e7ed);"></div>
+            <div style="flex: 1; border-top: 1px solid var(--color-border-light, var(--el-border-color-light));"></div>
           </div>
 
           <!-- 工序列表只读表格 -->
@@ -976,7 +976,7 @@ const viewInstructionDoc = (doc) => {
 .process-detail h4 {
   margin: 0 0 10px 0;
   font-size: 14px;
-  color: var(--el-text-color-primary, #303133);
+  color: var(--color-text-primary, var(--el-text-color-primary));
 }
 .cursor-pointer {
   cursor: pointer;

@@ -107,7 +107,7 @@
                 </el-card>
               </el-timeline-item>
             </el-timeline>
-            <el-empty v-else description="暂无版本记录"></el-empty>
+            <EmptyState v-else description="暂无版本记录" />
           </el-tab-pane>
         </el-tabs>
     </div>

@@ -146,6 +146,27 @@
   --z-index-modal: 1050;
   --z-index-popover: 1060;
   --z-index-tooltip: 1070;
+
+  /* 外壳 Header & Control Tokens */
+  --shell-header-bg: #FFFFFF;
+  --shell-accent: #51CF66;
+  --shell-control-hover-bg: #E8F8EC;
+  --shell-control-border: #C3FAE8;
+  --shell-radius-md: 6px;
+
+  /* 表格与弹窗语义 Tokens */
+  --erp-table-fixed-header-bg: #E8F8EC;
+  --theme-dialog-radius: 6px;
+  --theme-dialog-footer-bg: #F5FDF7;
+
+  /* 特征卡片 Feature Card Tokens */
+  --theme-feature-card-bg: linear-gradient(145deg, #FFFFFF 0%, #F0FFF4 100%);
+  --theme-feature-card-color: #1F6F32;
+  --theme-feature-card-border: #C3FAE8;
+  --theme-feature-card-shadow: 0 1px 3px rgba(81, 207, 102, 0.12);
+  --theme-feature-card-hover-shadow: 0 4px 14px rgba(81, 207, 102, 0.2);
+  --theme-feature-card-decor: radial-gradient(circle at 100% 0%, rgba(81, 207, 102, 0.1) 0%, transparent 70%);
+  --color-border: var(--color-border-base);
 }
 
 /* ========== 自然主题全局样式覆盖 ========== */
@@ -186,8 +207,8 @@
 [data-theme="nature"] .el-header {
   background: linear-gradient(90deg, var(--color-bg-base) 0%, var(--color-bg-hover) 100%) !important;
   border: 1px solid var(--color-primary-light-3) !important;
-  border-radius: var(--shell-radius-lg, var(--radius-lg, 16px)) !important;
-  box-shadow: 0 8px 24px var(--color-bg-overlay) !important;
+  border-radius: var(--radius-md, 6px) !important;
+  box-shadow: var(--shadow-sm) !important;
   color: var(--color-text-primary) !important;
 }
 
@@ -202,10 +223,6 @@
 }
 
 /* 表格/输入：共享壳 + 自然表头渐变与略大圆角 */
-:root[data-theme="nature"] {
-  --radius-md: 10px;
-  --radius-lg: 10px;
-}
 
 [data-theme="nature"] .el-table {
   border: 2px solid var(--color-border-dark) !important;

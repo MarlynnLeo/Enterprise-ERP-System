@@ -144,6 +144,18 @@
   --z-index-modal: 1050;
   --z-index-popover: 1060;
   --z-index-tooltip: 1070;
+
+  /* 外壳与特征卡片扩展 Tokens */
+  --shell-header-bg: #FFFFFF;
+  --erp-table-fixed-header-bg: #F8FAFC;
+  --theme-dialog-footer-bg: #F8FAFC;
+  --theme-feature-card-bg: linear-gradient(145deg, #FFFFFF 0%, #F0FDF4 100%);
+  --theme-feature-card-color: #111827;
+  --theme-feature-card-border: #E5E7EB;
+  --theme-feature-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --theme-feature-card-hover-shadow: 0 4px 14px rgba(21, 128, 61, 0.15);
+  --theme-feature-card-decor: radial-gradient(circle at 100% 0%, rgba(21, 128, 61, 0.08) 0%, transparent 70%);
+  --color-border: var(--color-border-base);
 }
 
 
@@ -237,8 +249,8 @@
   backdrop-filter: var(--kacon-glass-filter) !important;
   -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
   border: 1px solid color-mix(in srgb, var(--color-border-base) 70%, transparent) !important;
-  border-radius: var(--shell-radius-lg, var(--radius-lg, 16px)) !important;
-  box-shadow: var(--shell-shadow, 0 8px 28px color-mix(in srgb, var(--ds-black, #000) 8%, transparent)) !important;
+  border-radius: var(--radius-md, 8px) !important;
+  box-shadow: var(--shadow-sm) !important;
 }
 
 /* ========== 5. 主内容区（品牌微调） ========== */

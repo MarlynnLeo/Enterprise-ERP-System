@@ -62,7 +62,7 @@ report.architecture = {
   hasElPrimary: /--el-color-primary\s*:\s*var\(--color-primary\)/.test(compat),
   hasShellSidebarBg: compat.includes('--shell-sidebar-bg'),
   componentsHasTable: components.includes('[data-theme] .el-table'),
-  componentsHasMenuActive: components.includes('.sidebar .el-menu-item.is-active'),
+  componentsHasMenuActive: components.includes('.sidebar .app-menu-link.is-active'),
   componentsHasButtonPrimary: components.includes('.el-button--primary'),
 }
 

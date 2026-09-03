@@ -84,14 +84,14 @@ const submit = async () => {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: var(--el-bg-color-page, #f5f7fa);
+  background: var(--color-bg-page, var(--el-bg-color-page));
 }
 .force-card {
   width: 100%;
   max-width: 460px;
   padding: 32px 28px;
   border-radius: 16px;
-  background: var(--el-bg-color, #fff);
+  background: var(--color-bg-base, var(--el-bg-color));
   box-shadow: 0 12px 40px rgb(0 0 0 / 8%);
 }
 .force-card h2 {

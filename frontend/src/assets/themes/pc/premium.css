@@ -114,6 +114,16 @@
   --z-index-popover: 1060;
   --z-index-tooltip: 1070;
 
+  /* 弹窗与特征卡片语义 Tokens */
+  --theme-dialog-footer-bg: #121214;
+  --theme-feature-card-bg: linear-gradient(145deg, #09090b 0%, #121214 100%);
+  --theme-feature-card-color: #fafafa;
+  --theme-feature-card-border: #27272a;
+  --theme-feature-card-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+  --theme-feature-card-hover-shadow: 0 6px 20px rgba(255, 255, 255, 0.08);
+  --theme-feature-card-decor: radial-gradient(circle at 100% 0%, rgba(255, 255, 255, 0.06) 0%, transparent 70%);
+  --color-border: var(--color-border-base);
+
   /* 侧栏 shell（杂志风：浅字 + 高亮激活） */
   --shell-sidebar-bg: #09090b;
   --shell-border: rgba(255, 255, 255, 0.08);
@@ -205,8 +215,8 @@
 [data-theme="premium"] .el-header {
   background: rgba(5, 5, 5, 0.96) !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  border-radius: var(--shell-radius-lg, var(--radius-lg, 16px)) !important;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35) !important;
+  border-radius: var(--radius-md, 8px) !important;
+  box-shadow: var(--shadow-sm) !important;
 }
 
 [data-theme="premium"] .breadcrumb,

@@ -31,7 +31,7 @@
       />
     </div>
 
-    <el-empty
+    <EmptyState
       v-if="filteredActivities.length === 0"
       description="暂无真实业务操作记录"
       :image-size="96"

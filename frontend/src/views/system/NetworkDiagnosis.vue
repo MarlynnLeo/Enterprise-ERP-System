@@ -236,10 +236,10 @@ function detectClient() {
 
 const scoreDisplay = computed(() => score.value === null ? '--' : score.value)
 const scoreColor = computed(() => {
-  if (score.value === null) return '#38bdf8'
-  if (score.value >= 90) return '#10b981'
-  if (score.value >= 70) return '#f59e0b'
-  return '#ef4444'
+  if (score.value === null) return 'var(--color-primary)'
+  if (score.value >= 90) return 'var(--color-success)'
+  if (score.value >= 70) return 'var(--color-warning)'
+  return 'var(--color-danger)'
 })
 
 const scoreTitle = computed(() => {
@@ -545,8 +545,8 @@ function goToLogin() {
 <style scoped>
 .diagnosis-page {
   min-height: 100vh;
-  background: radial-gradient(circle at top right, #1e1b4b, #0f172a 60%);
-  color: #f8fafc;
+  background: var(--color-bg-page);
+  color: var(--color-text-primary);
   padding: 32px 16px;
   display: flex;
   justify-content: center;
@@ -565,25 +565,23 @@ function goToLogin() {
 .gradient-title {
   font-size: 26px;
   font-weight: 700;
-  background: linear-gradient(135deg, #38bdf8, #818cf8);
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light-3, var(--color-primary)));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   margin-bottom: 8px;
 }
 
 .subtitle {
-  color: #94a3b8;
+  color: var(--color-text-secondary);
   font-size: 14px;
 }
 
 .card {
-  background: rgba(30, 41, 59, 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-base);
+  border-radius: var(--radius-lg, 12px);
   padding: 24px;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-card, 0 4px 16px rgba(0, 0, 0, 0.06));
 }
 
 .control-panel {
@@ -605,33 +603,34 @@ function goToLogin() {
 
 .server-input-group label {
   font-size: 13px;
-  color: #94a3b8;
+  color: var(--color-text-secondary);
   white-space: nowrap;
 }
 
 .server-input :deep(.el-input__wrapper) {
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--color-bg-hover, var(--color-bg-page));
+  border: 1px solid var(--color-border-base);
   box-shadow: none;
 }
 
 .server-input :deep(input) {
-  color: #f8fafc;
+  color: var(--color-text-primary);
 }
 
 .start-btn {
-  background: linear-gradient(135deg, #38bdf8, #6366f1) !important;
+  background: var(--color-primary) !important;
   border: none !important;
   font-weight: 600;
-  box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);
+  box-shadow: var(--shadow-glow-primary, 0 4px 12px rgba(0, 0, 0, 0.1));
 }
 
 .score-banner {
   display: flex;
   align-items: center;
   padding: 20px;
-  border-radius: 12px;
-  background: rgba(15, 23, 42, 0.4);
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-bg-hover, var(--color-bg-page));
+  border: 1px solid var(--color-border-light, var(--color-border-base));
   margin-bottom: 24px;
 }
 
@@ -643,16 +642,17 @@ function goToLogin() {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  border: 4px solid #38bdf8;
+  border: 4px solid var(--color-primary);
   font-size: 26px;
   font-weight: 700;
   margin-right: 20px;
   flex-shrink: 0;
+  background: var(--color-bg-base);
 }
 
 .score-label {
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--color-text-secondary);
   font-weight: 400;
 }
 
@@ -667,22 +667,22 @@ function goToLogin() {
 
 .score-desc {
   font-size: 13px;
-  color: #94a3b8;
+  color: var(--color-text-secondary);
   line-height: 1.5;
 }
 
 .progress-bar-wrap {
   width: 100%;
-  height: 4px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 2px;
+  height: 6px;
+  background: var(--color-border-light, var(--color-border-base));
+  border-radius: 3px;
   overflow: hidden;
   margin-top: 10px;
 }
 
 .progress-bar-inner {
   height: 100%;
-  background: linear-gradient(90deg, #38bdf8, #6366f1);
+  background: linear-gradient(90deg, var(--color-primary), var(--color-success));
   transition: width 0.3s ease;
 }
 
@@ -694,9 +694,9 @@ function goToLogin() {
 }
 
 .test-item {
-  background: rgba(15, 23, 42, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  background: var(--color-bg-hover, var(--color-bg-page));
+  border: 1px solid var(--color-border-base);
+  border-radius: var(--radius-md, 8px);
   padding: 16px;
 }
 
@@ -710,7 +710,7 @@ function goToLogin() {
 .test-item-title {
   font-size: 14px;
   font-weight: 600;
-  color: #f8fafc;
+  color: var(--color-text-primary);
 }
 
 .test-item-metrics {
@@ -723,29 +723,33 @@ function goToLogin() {
 .metric-row {
   display: flex;
   justify-content: space-between;
-  color: #94a3b8;
+  color: var(--color-text-secondary);
 }
 
 .metric-row .val {
-  color: #f8fafc;
+  color: var(--color-text-primary);
   font-weight: 600;
   font-family: monospace;
 }
 
-.text-success { color: #10b981 !important; }
-.text-warning { color: #f59e0b !important; }
+.text-success { color: var(--color-success) !important; }
+.text-warning { color: var(--color-warning) !important; }
 
 .recommendation-panel {
-  background: rgba(15, 23, 42, 0.5);
-  border-radius: 12px;
+  background: var(--color-bg-hover, var(--color-bg-page));
+  border-radius: var(--radius-md, 8px);
   padding: 16px 20px;
-  border-left: 4px solid #38bdf8;
+  border-left: 4px solid var(--color-primary);
+  border-top: 1px solid var(--color-border-light, var(--color-border-base));
+  border-right: 1px solid var(--color-border-light, var(--color-border-base));
+  border-bottom: 1px solid var(--color-border-light, var(--color-border-base));
 }
 
 .panel-title {
   font-size: 15px;
   margin-bottom: 10px;
-  color: #38bdf8;
+  color: var(--color-primary);
+  font-weight: 600;
 }
 
 .recommendation-list {
@@ -754,7 +758,7 @@ function goToLogin() {
   flex-direction: column;
   gap: 8px;
   font-size: 13px;
-  color: #f8fafc;
+  color: var(--color-text-primary);
   line-height: 1.6;
 }
 
@@ -764,15 +768,15 @@ function goToLogin() {
 }
 
 .recommendation-list li::before {
-  content: "•";
+  content: '•';
   position: absolute;
   left: 4px;
   font-size: 16px;
 }
 
-.recommendation-list li.ok::before { color: #10b981; }
-.recommendation-list li.warn::before { color: #f59e0b; }
-.recommendation-list li.error::before { color: #ef4444; }
+.recommendation-list li.ok::before { color: var(--color-success); }
+.recommendation-list li.warn::before { color: var(--color-warning); }
+.recommendation-list li.error::before { color: var(--color-danger); }
 
 .footer-actions {
   display: flex;

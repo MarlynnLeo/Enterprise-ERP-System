@@ -1126,9 +1126,6 @@ const handleUnlink = async (row) => {
   background: var(--color-warning);
 }
 
-.data-card {
-  background: var(--color-bg-base);
-}
 
 .amount-highlight {
   font-weight: 600;

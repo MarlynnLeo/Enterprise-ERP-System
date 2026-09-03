@@ -146,6 +146,25 @@
   --z-index-modal: 1050;
   --z-index-popover: 1060;
   --z-index-tooltip: 1070;
+
+  /* 外壳 Header & Control Tokens */
+  --shell-accent: #60A5FA;
+  --shell-control-hover-bg: #262B36;
+  --shell-control-border: #363C4E;
+  --shell-radius-md: 4px;
+
+  /* 表格与弹窗语义 Tokens */
+  --theme-dialog-radius: 4px;
+  --theme-dialog-footer-bg: #181B22;
+
+  /* 特征卡片 Feature Card Tokens */
+  --theme-feature-card-bg: linear-gradient(145deg, #1A1A1A 0%, #202020 100%);
+  --theme-feature-card-color: #E5EAF3;
+  --theme-feature-card-border: #4C4D4F;
+  --theme-feature-card-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+  --theme-feature-card-hover-shadow: 0 4px 18px rgba(96, 165, 250, 0.25);
+  --theme-feature-card-decor: radial-gradient(circle at 100% 0%, rgba(96, 165, 250, 0.12) 0%, transparent 70%);
+  --color-border: var(--color-border-base);
 }
 
 /* ========== 深色主题全局样式覆盖 ========== */
@@ -181,8 +200,8 @@
 [data-theme="dark"] .el-header {
   background: var(--color-bg-page) !important;
   border: 1px solid var(--color-border-extra-light) !important;
-  border-radius: var(--shell-radius-lg, var(--radius-lg, 16px)) !important;
-  box-shadow: 0 8px 28px color-mix(in srgb, var(--ds-black) 30%, transparent) !important;
+  border-radius: var(--radius-md, 4px) !important;
+  box-shadow: var(--shadow-sm) !important;
 }
 
 /*

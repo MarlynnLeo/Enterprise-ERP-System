@@ -63,6 +63,10 @@ describe('BomViewDialog referenced BOM tree', () => {
       global: {
         stubs: {
           AppDialog: AppDialogStub,
+          EmptyState: true,
+          'el-card': true,
+          'el-timeline': true,
+          'el-timeline-item': true,
           'el-descriptions': true,
           'el-descriptions-item': true,
           'el-tabs': PassthroughStub,

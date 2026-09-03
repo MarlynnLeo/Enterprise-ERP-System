@@ -400,9 +400,6 @@ onMounted(async () => {
   color: var(--color-text-secondary);
 }
 
-.data-card {
-  border-radius: 8px;
-}
 
 .report-header {
   text-align: center;

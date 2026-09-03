@@ -157,6 +157,27 @@
   --z-index-modal: 1050;
   --z-index-popover: 1060;
   --z-index-tooltip: 1070;
+
+  /* 外壳 Header & Control Tokens */
+  --shell-header-bg: #0F1419;
+  --shell-accent: #00C3FF;
+  --shell-control-hover-bg: #1A2530;
+  --shell-control-border: #2A3A4A;
+  --shell-radius-md: 4px;
+
+  /* 表格与弹窗语义 Tokens */
+  --erp-table-fixed-header-bg: #151B22;
+  --theme-dialog-radius: 4px;
+  --theme-dialog-footer-bg: #141A22;
+
+  /* 特征卡片 Feature Card Tokens */
+  --theme-feature-card-bg: linear-gradient(145deg, #0F1419 0%, #151B22 100%);
+  --theme-feature-card-color: #E8F4F8;
+  --theme-feature-card-border: #2A3A4A;
+  --theme-feature-card-shadow: 0 2px 12px rgba(0, 195, 255, 0.2);
+  --theme-feature-card-hover-shadow: 0 4px 20px rgba(0, 195, 255, 0.4);
+  --theme-feature-card-decor: radial-gradient(circle at 100% 0%, rgba(0, 195, 255, 0.15) 0%, transparent 70%);
+  --color-border: var(--color-border-base);
 }
 
 /* ========== 科技主题全局样式覆盖 ========== */
@@ -218,8 +239,8 @@
 [data-theme="tech"] .el-header {
   background: linear-gradient(90deg, var(--color-bg-light) 0%, var(--color-bg-hover) 50%, var(--color-bg-light) 100%) !important;
   border: 1px solid color-mix(in srgb, var(--color-primary) 30%, transparent) !important;
-  border-radius: var(--shell-radius-lg, var(--radius-lg, 16px)) !important;
-  box-shadow: 0 8px 24px color-mix(in srgb, var(--color-bg-overlay) 22%, transparent) !important;
+  border-radius: var(--radius-md, 4px) !important;
+  box-shadow: var(--shadow-sm) !important;
 }
 
 /* 表格/输入：密度 → theme-components；科技感仅表头主色 + 输入发光 */

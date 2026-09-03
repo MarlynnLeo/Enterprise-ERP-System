@@ -163,7 +163,29 @@
   --z-index-modal: 1050;
   --z-index-popover: 1060;
   --z-index-tooltip: 1070;
+
+  /* 外壳 Header & Control Tokens */
+  --shell-header-bg: #FFFFFF;
+  --shell-accent: #409EFF;
+  --shell-control-hover-bg: #F5F7FA;
+  --shell-control-border: #DCDFE6;
+  --shell-radius-md: 8px;
+
+  /* 表格与弹窗语义 Tokens */
+  --erp-table-fixed-header-bg: #F5F7FA;
+  --theme-dialog-radius: 8px;
+  --theme-dialog-footer-bg: #F8FAFC;
+
+  /* 特征卡片 Feature Card Tokens */
+  --theme-feature-card-bg: linear-gradient(145deg, #FFFFFF 0%, #F4F7FB 100%);
+  --theme-feature-card-color: #303133;
+  --theme-feature-card-border: #DCDFE6;
+  --theme-feature-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --theme-feature-card-hover-shadow: 0 4px 12px rgba(64, 158, 255, 0.15);
+  --theme-feature-card-decor: radial-gradient(circle at 100% 0%, rgba(64, 158, 255, 0.08) 0%, transparent 70%);
+  --color-border: var(--color-border-base);
 }
+
 
 /* ==================== Element Plus 组件样式优化 ==================== */
 /* 表格/输入/分页/菜单 → theme-components；default 仅保留差异化与语义色 */
