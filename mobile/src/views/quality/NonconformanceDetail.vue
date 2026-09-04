@@ -42,21 +42,32 @@
       </div>
     </div>
 
-    <div v-else class="loading-container">
-      <Loading size="24px">加载中...</Loading>
+    <div v-else-if="loading" class="loading-container">
+      <Loading size="24px" vertical>加载中...</Loading>
+    </div>
+
+    <div v-else class="error-container">
+      <Empty :description="errorMessage || '不合格品记录不存在或已被删除'" />
+      <div class="error-actions">
+        <Button type="primary" size="small" :loading="loading" @click="loadDetail">重试</Button>
+        <Button type="default" size="small" @click="goBack">返回列表</Button>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
   import { ref, computed, onMounted } from 'vue'
-  import { useRoute } from 'vue-router'
-  import { NavBar, CellGroup, Cell, Button, Loading, showToast, showConfirmDialog } from 'vant'
+  import { useRoute, useRouter } from 'vue-router'
+  import { NavBar, CellGroup, Cell, Button, Loading, Empty, showToast, showConfirmDialog } from 'vant'
   import { qualityApi } from '@/api'
   import { extractApiData } from '@/utils/apiHelper'
 
   const route = useRoute()
+  const router = useRouter()
   const record = ref(null)
+  const loading = ref(true)
+  const errorMessage = ref('')
 
   const statusMap = {
     pending: { text: '待处理', class: 'pending' },
@@ -80,13 +91,29 @@
   }
 
   const loadDetail = async () => {
+    loading.value = true
+    errorMessage.value = ''
     try {
       const res = await qualityApi.getNonconformanceRecord(route.params.id)
       record.value = extractApiData(res, null)
-    } catch {
-      showToast('加载详情失败')
+      if (!record.value) {
+        errorMessage.value = '不合格品记录不存在或已被删除'
+      }
+    } catch (error) {
+      console.error('加载不合格品详情失败:', error)
+      record.value = null
+      errorMessage.value = error?.response?.status === 403
+        ? '没有权限查看此不合格品记录'
+        : error?.response?.status === 404
+          ? '不合格品记录不存在或已被删除'
+          : '加载失败，请重试'
+      showToast(errorMessage.value)
+    } finally {
+      loading.value = false
     }
   }
+
+  const goBack = () => router.back()
 
   // 开始处理 (pending → processing)
   const handleStartProcess = async () => {
@@ -180,5 +207,17 @@
     display: flex;
     justify-content: center;
     padding: 60px 0;
+  }
+
+  .error-container {
+    padding: 48px 16px;
+    text-align: center;
+  }
+
+  .error-actions {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 16px;
   }
 </style>

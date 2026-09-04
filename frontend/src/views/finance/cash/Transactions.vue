@@ -496,7 +496,8 @@ import { formatLocalDate } from '@/utils/format';
 import { parsePaginatedData, parseListData, parseDataObject } from '@/utils/responseParser';
 import { ref, reactive, onMounted, watch, computed } from 'vue';
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { Plus, UploadFilled, Edit, Promotion, Check, Delete } from '@element-plus/icons-vue'
 import { financeApi } from '@/api/finance';
 import { useAuthStore } from '@/stores/auth';

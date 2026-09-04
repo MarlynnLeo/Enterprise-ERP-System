@@ -11,9 +11,11 @@ const crypto = require('crypto');
 const { logger } = require('../utils/logger');
 const { ResponseHandler } = require('../utils/responseHandler');
 const {
+  buildAuthCookieOptions,
+  CSRF_COOKIE_NAMES,
   clearCsrfCookies,
+  getCsrfSessionCookieName,
   getCookieSameSite,
-  getCsrfCookieName,
   shouldUseSecureCookies,
 } = require('../utils/cookieSecurity');
 const { isOriginAllowed } = require('../config/cors');
@@ -33,21 +35,53 @@ if (!isProduction && !isTest && !process.env.CSRF_SECRET) {
 const getCsrfSecret = () => process.env.CSRF_SECRET || developmentCsrfSecret;
 
 const getSessionIdentifier = (req) => {
-  const access =
-    req.cookies?.accessToken || req.cookies?.token || req.signedCookies?.accessToken || '';
-  if (access && typeof access === 'string') {
-    return `sess:${access.slice(0, 48)}`;
+  const sessionCookieName = getCsrfSessionCookieName(req);
+  const sessionId = req.cookies?.[sessionCookieName];
+  if (typeof sessionId === 'string' && /^[a-f0-9]{64}$/i.test(sessionId)) {
+    return `csrf:${sessionId}`;
   }
-  const uid = req.user?.id;
-  if (uid) return `uid:${uid}`;
+
+  // Keep compatibility with requests issued before the session cookie was
+  // introduced.  The browser obtains a fresh token/cookie pair on the first
+  // rejected write, so this fallback does not weaken the steady-state path.
   return `ip:${req.ip || 'anonymous'}`;
+};
+
+const CSRF_SESSION_MAX_AGE = 86400000;
+
+/**
+ * Establish a stable, protocol-specific browser identifier before csrf-csrf
+ * signs or validates a token.  Access/refresh JWTs rotate during normal use;
+ * using them as the CSRF session identifier made otherwise valid tokens fail
+ * after login, refresh, or a second tab resumed an old page.
+ */
+const ensureCsrfSessionCookie = (req, res) => {
+  const cookieName = getCsrfSessionCookieName(req);
+  const existing = req.cookies?.[cookieName];
+  if (typeof existing === 'string' && /^[a-f0-9]{64}$/i.test(existing)) {
+    return existing;
+  }
+
+  const sessionId = crypto.randomBytes(32).toString('hex');
+  if (res && typeof res.cookie === 'function') {
+    res.cookie(
+      cookieName,
+      sessionId,
+      buildAuthCookieOptions(req, { maxAge: CSRF_SESSION_MAX_AGE })
+    );
+  }
+  req.cookies = { ...(req.cookies || {}), [cookieName]: sessionId };
+  return sessionId;
 };
 
 const createCsrfVariant = (secure) =>
   doubleCsrf({
     getSecret: getCsrfSecret,
     getSessionIdentifier,
-    cookieName: secure ? getCsrfCookieName({ secure: true, protocol: 'https' }) : getCsrfCookieName({ protocol: 'http' }),
+    // Select the variant explicitly.  Calling getCsrfCookieName with a
+    // synthetic request would still honor COOKIE_SECURE and could make both
+    // variants use the insecure name in development.
+    cookieName: secure ? CSRF_COOKIE_NAMES.secure : CSRF_COOKIE_NAMES.insecure,
     cookieOptions: {
       httpOnly: true,
       secure,
@@ -90,15 +124,21 @@ function isTrustedAuthRequest(req) {
   return contentType.includes('application/json');
 }
 
-const generateCsrfToken = (req, res) => getCsrfVariant(req).generateCsrfToken(req, res);
+const generateCsrfToken = (req, res) => {
+  ensureCsrfSessionCookie(req, res);
+  return getCsrfVariant(req).generateCsrfToken(req, res);
+};
 
-const doubleCsrfProtection = (req, res, next) =>
-  getCsrfVariant(req).doubleCsrfProtection(req, res, next);
+const doubleCsrfProtection = (req, res, next) => {
+  ensureCsrfSessionCookie(req, res);
+  return getCsrfVariant(req).doubleCsrfProtection(req, res, next);
+};
 
 /**
  * CSRF Token获取端点
  */
 const getCsrfToken = (req, res) => {
+  ensureCsrfSessionCookie(req, res);
   // Ensure only the cookie variant for the current transport remains.
   clearCsrfCookies(res);
   const csrfToken = generateCsrfToken(req, res);
@@ -206,4 +246,6 @@ module.exports = {
   csrfErrorHandler,
   generateCsrfToken, // 导出 token 生成函数
   isTrustedAuthRequest,
+  ensureCsrfSessionCookie,
+  getSessionIdentifier,
 };

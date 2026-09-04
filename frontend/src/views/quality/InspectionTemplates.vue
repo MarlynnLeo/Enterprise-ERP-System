@@ -302,37 +302,43 @@
             </el-col>
             <el-col :span="11">
               <el-form-item label="适用物料" prop="materialTypes">
-                <el-select
+                <div
                   v-if="!form.isGeneral"
-                  v-model="form.materialTypes"
-                  placeholder="输入物料编码或名称搜索..."
-                  filterable
-                  remote
-                  multiple
-                  collapse-tags
-                  collapse-tags-tooltip
-                  :max-collapse-tags="2"
-                  :reserve-keyword="true"
-                  :remote-method="debouncedSearchMaterials"
-                  :loading="loadingMaterials"
-                  @change="handleMaterialChange"
-                  @focus="handleMaterialSelectFocus"
-                  class="w-full"
-                  popper-class="material-select-popper"
+                  class="material-picker-trigger"
+                  title="双击打开物料选择弹窗"
+                  @dblclick.stop="openMaterialPicker('form')"
                 >
-                  <el-option
-                    v-for="item in materialsList"
-                    :key="item.value"
-                    :label="item.code"
-                    :value="item.value"
+                  <el-select
+                    v-model="form.materialTypes"
+                    placeholder="双击弹窗选择或输入搜索"
+                    filterable
+                    remote
+                    multiple
+                    collapse-tags
+                    collapse-tags-tooltip
+                    :max-collapse-tags="2"
+                    :reserve-keyword="true"
+                    :remote-method="debouncedSearchMaterials"
+                    :loading="loadingMaterials"
+                    @change="handleMaterialChange"
+                    @focus="handleMaterialSelectFocus"
+                    class="w-full"
+                    popper-class="material-select-popper"
                   >
-                    <span>{{ item.code }}</span>
-                    <span
-                      style="margin-left: 8px; color: var(--color-text-muted); font-size: 12px"
-                      >{{ item.name }}</span
+                    <el-option
+                      v-for="item in materialsList"
+                      :key="item.value"
+                      :label="item.code"
+                      :value="item.value"
                     >
-                  </el-option>
-                </el-select>
+                      <span>{{ item.code }}</span>
+                      <span
+                        style="margin-left: 8px; color: var(--color-text-muted); font-size: 12px"
+                        >{{ item.name }}</span
+                      >
+                    </el-option>
+                  </el-select>
+                </div>
                 <el-input v-else value="通用模板（适用于全部物料）" disabled />
               </el-form-item>
             </el-col>
@@ -706,6 +712,121 @@
           </el-table>
         </div>
       </AppDialog>
+      <!-- 选择物料对话框：与 BOM 新增页的物料编码使用同一套双击选择方案 -->
+      <AppDialog
+        v-model="materialPickerVisible"
+        title="选择物料"
+        mode="form"
+        width="880px"
+        @opened="onMaterialPickerOpened"
+      >
+        <div class="material-picker-content">
+          <div class="flex items-center justify-between gap-12 mb-12">
+            <div class="flex items-center gap-8 flex-1">
+              <el-input
+                ref="pickerInputRef"
+                v-model="pickerSearchKeyword"
+                placeholder="请输入物料编码或品名定位相关物料"
+                clearable
+                style="max-width: 320px"
+                @keyup.enter="handlePickerSearch"
+                @clear="handlePickerSearch"
+              >
+                <template #prefix>
+                  <el-icon><Search /></el-icon>
+                </template>
+              </el-input>
+              <el-button
+                type="primary"
+                :icon="Search"
+                :loading="pickerLoading"
+                @click="handlePickerSearch"
+              >
+                定位 / 查询
+              </el-button>
+              <el-button @click="handlePickerReset">重置</el-button>
+            </div>
+            <div class="text-xs text-danger flex items-center gap-4">
+              <span>注：勾选后可多选；已添加物料会自动勾选，双击行可快速选择</span>
+            </div>
+          </div>
+
+          <el-table
+            ref="pickerTableRef"
+            :data="pickerTableData"
+            row-key="id"
+            border
+            stripe
+            height="380"
+            highlight-current-row
+            v-loading="pickerLoading"
+            empty-text="暂无匹配物料"
+            @selection-change="handlePickerSelectionChange"
+            @current-change="handlePickerCurrentRowChange"
+            @row-dblclick="handlePickerConfirmRow"
+          >
+            <el-table-column
+              type="selection"
+              width="52"
+              align="center"
+              reserve-selection
+              :selectable="isPickerRowSelectable"
+            />
+            <el-table-column prop="code" label="编码" width="170" show-overflow-tooltip>
+              <template #default="{ row }">
+                <span class="font-weight-700 text-primary">{{ row.code }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="name" label="品名" min-width="180" show-overflow-tooltip />
+            <el-table-column prop="specs" label="规格" min-width="180" show-overflow-tooltip>
+              <template #default="{ row }">
+                <span>{{ row.specs || row.specification || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              prop="unitName"
+              label="单位"
+              width="70"
+              align="center"
+              show-overflow-tooltip
+            >
+              <template #default="{ row }">
+                <span>{{ row.unitName || row.unit || '-' }}</span>
+              </template>
+            </el-table-column>
+          </el-table>
+
+          <div class="flex items-center justify-between mt-12">
+            <div class="text-xs text-muted">
+              共 {{ pickerTotal }} 条相关物料（按编码顺序排列），已选 {{ pickerSelectedIds.length }} 条
+            </div>
+            <el-pagination
+              v-model:current-page="pickerPage"
+              v-model:page-size="pickerPageSize"
+              :page-sizes="[20, 50, 100, 200]"
+              :total="pickerTotal"
+              size="small"
+              background
+              layout="total, sizes, prev, pager, next"
+              @size-change="fetchPickerMaterials"
+              @current-change="fetchPickerMaterials"
+            />
+          </div>
+        </div>
+
+        <template #footer>
+          <div class="flex justify-end gap-10">
+            <el-button @click="materialPickerVisible = false">取消</el-button>
+            <el-button
+              type="primary"
+              :disabled="pickerSelectedIds.length === 0"
+              @click="handlePickerConfirmSelected"
+            >
+              确认选择（{{ pickerSelectedIds.length }}）
+            </el-button>
+          </div>
+        </template>
+      </AppDialog>
       <!-- 添加检验标准对话框 -->
       <AppDialog v-model="addStandardDialogVisible" title="添加检验标准" mode="form" width="500px">
         <el-form :model="newStandardForm" label-width="100px">
@@ -897,34 +1018,41 @@
             <el-row :gutter="16">
               <el-col :span="16">
                 <el-form-item label="适用物料">
-                  <el-select
-                    v-model="parsedTemplateData.materialTypes"
-                    placeholder="搜索并选择关联物料..."
-                    filterable
-                    remote
-                    multiple
-                    collapse-tags
-                    collapse-tags-tooltip
-                    :max-collapse-tags="2"
-                    :reserve-keyword="true"
-                    :remote-method="debouncedSearchMaterials"
-                    :loading="loadingMaterials"
-                    @focus="handleMaterialSelectFocus"
-                    class="w-full"
+                  <div
+                    class="material-picker-trigger"
+                    title="双击打开物料选择弹窗"
+                    @dblclick.stop="openMaterialPicker('parsed')"
                   >
-                    <el-option
-                      v-for="item in materialsList"
-                      :key="item.value"
-                      :label="item.code"
-                      :value="item.value"
+                    <el-select
+                      v-model="parsedTemplateData.materialTypes"
+                      placeholder="双击弹窗选择或输入搜索"
+                      filterable
+                      remote
+                      multiple
+                      collapse-tags
+                      collapse-tags-tooltip
+                      :max-collapse-tags="2"
+                      :reserve-keyword="true"
+                      :remote-method="debouncedSearchMaterials"
+                      :loading="loadingMaterials"
+                      @change="handleParsedMaterialChange"
+                      @focus="handleMaterialSelectFocus"
+                      class="w-full"
                     >
-                      <span>{{ item.code }}</span>
-                      <span
-                        style="margin-left: 8px; color: var(--color-text-muted); font-size: 12px"
-                        >{{ item.name }}</span
+                      <el-option
+                        v-for="item in materialsList"
+                        :key="item.value"
+                        :label="item.code"
+                        :value="item.value"
                       >
-                    </el-option>
-                  </el-select>
+                        <span>{{ item.code }}</span>
+                        <span
+                          style="margin-left: 8px; color: var(--color-text-muted); font-size: 12px"
+                          >{{ item.name }}</span
+                        >
+                      </el-option>
+                    </el-select>
+                  </div>
                 </el-form-item>
               </el-col>
               <el-col :span="8">
@@ -1022,7 +1150,7 @@
 </template>
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView';
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, reactive, onMounted, computed, nextTick } from 'vue';
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
 import AQLStandards from './AQLStandards.vue';
 import {
@@ -1035,7 +1163,8 @@ import {
   CircleCheckFilled,
   View,
 } from '@element-plus/icons-vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { formatDateTime } from '@/utils/helpers/dateUtils';
 import { baseDataApi, qualityApi } from '@/api';
 import { useAuthStore } from '@/stores/auth';
@@ -1057,6 +1186,7 @@ import {
   normalizeImportedInspectionItem,
   normalizeParsedInspectionTemplate,
 } from '@/utils/inspectionTemplateImport';
+import { parsePaginatedData } from '@/utils/responseParser';
 // 权限store
 const authStore = useAuthStore();
 // 视图切换
@@ -1082,6 +1212,23 @@ const total = ref(0);
 const materialsList = ref([]);
 const loadingMaterials = ref(false);
 const materialsMap = ref({}); // 新增：材料ID到代码的映射
+// 物料选择弹窗（与 BOM 新增页的双击选择方案保持一致）
+const materialPickerVisible = ref(false);
+const pickerTarget = ref('form');
+const pickerSearchKeyword = ref('');
+const pickerTableData = ref([]);
+const pickerLoading = ref(false);
+const pickerTotal = ref(0);
+const pickerPage = ref(1);
+const pickerPageSize = ref(50);
+const pickerSelectedRow = ref(null);
+// 弹窗内的勾选状态：保留已关联物料，并支持跨页累计本次勾选。
+const pickerSelectedIds = ref([]);
+const pickerExistingIds = ref(new Set());
+const pickerSelectionMap = ref({});
+const pickerSyncingSelection = ref(false);
+const pickerInputRef = ref(null);
+const pickerTableRef = ref(null);
 // 用户映射
 const userMap = ref({});
 const userDataRequested = ref(false);
@@ -1415,6 +1562,297 @@ const fetchMaterialsList = async (query = '') => {
   debouncedSearchMaterials(query);
 };
 // ====== 物料搜索相关 (结束) ======
+
+// ====== 物料弹窗选择（与 BOM 新增页保持一致） ======
+const normalizePickerMaterial = (material = {}) => ({
+  ...material,
+  id: material.id ?? material.materialId,
+  code: material.code || material.materialCode || '',
+  name: material.name || material.materialName || '',
+  specs:
+    material.specs ||
+    material.specification ||
+    material.materialSpecs ||
+    '',
+  unitName: material.unitName || material.unit || '',
+});
+
+const materialIdKey = (id) => {
+  if (id === null || id === undefined || id === '') return '';
+  return String(id);
+};
+
+const dedupeMaterialIds = (values) => {
+  const seen = new Set();
+  return parseMaterialTypes(values).filter((id) => {
+    const key = materialIdKey(id);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+const rememberPickerMaterial = (material) => {
+  const normalized = normalizePickerMaterial(material);
+  if (materialIdKey(normalized.id) === '') return;
+
+  materialsMap.value[normalized.id] = {
+    name: normalized.name,
+    code: normalized.code,
+    specs: normalized.specs,
+  };
+
+  const exists = materialsList.value.some(
+    (item) => String(item.value) === String(normalized.id)
+  );
+  if (!exists) {
+    materialsList.value.push({
+      value: normalized.id,
+      label: normalized.code,
+      name: normalized.name,
+      code: normalized.code,
+      specs: normalized.specs,
+    });
+  }
+};
+
+const getPickerTarget = () =>
+  pickerTarget.value === 'parsed' ? parsedTemplateData.value : form;
+
+// 兼容历史模板只保存单个 materialType 的情况。
+const getTargetMaterialIds = (target) => {
+  const materialTypes = dedupeMaterialIds(target?.materialTypes);
+  return materialTypes.length > 0
+    ? materialTypes
+    : dedupeMaterialIds(target?.materialType);
+};
+
+// 已添加的物料只读勾选，避免在弹窗内误改；如需移除可在输入框中删除标签。
+const isPickerRowSelectable = (row) =>
+  !pickerExistingIds.value.has(materialIdKey(row?.id));
+
+// 双击“适用物料”输入区域打开物料分页选择器。
+const openMaterialPicker = (target = 'form') => {
+  if (target === 'form' && form.isGeneral) return;
+  if (target === 'parsed' && !parsedTemplateData.value) return;
+
+  pickerTarget.value = target;
+  pickerSearchKeyword.value = '';
+  pickerPage.value = 1;
+  pickerSelectedRow.value = null;
+  const currentTarget = getPickerTarget();
+  const existingIds = getTargetMaterialIds(currentTarget);
+  pickerExistingIds.value = new Set(existingIds.map(materialIdKey));
+  pickerSelectedIds.value = existingIds;
+  pickerSelectionMap.value = {};
+  materialPickerVisible.value = true;
+  fetchPickerMaterials();
+};
+
+const onMaterialPickerOpened = () => {
+  nextTick(() => pickerInputRef.value?.focus?.());
+};
+
+const syncPickerTableSelection = async () => {
+  await nextTick();
+  const table = pickerTableRef.value;
+  if (!table) return;
+
+  pickerSyncingSelection.value = true;
+  try {
+    table.clearSelection?.();
+    const selectedKeys = new Set(pickerSelectedIds.value.map(materialIdKey));
+    const nextMap = { ...pickerSelectionMap.value };
+
+    pickerTableData.value.forEach((row) => {
+      const key = materialIdKey(row?.id);
+      if (!key) return;
+      if (selectedKeys.has(key)) {
+        // toggleRowSelection 默认忽略 selectable，能够把历史已选物料显示为勾选状态。
+        table.toggleRowSelection?.(row, true);
+        nextMap[key] = row;
+      } else if (!pickerExistingIds.value.has(key)) {
+        delete nextMap[key];
+      }
+    });
+
+    pickerSelectionMap.value = nextMap;
+  } finally {
+    pickerSyncingSelection.value = false;
+  }
+};
+
+const fetchPickerMaterials = async () => {
+  pickerLoading.value = true;
+  try {
+    const response = await baseDataApi.getMaterials({
+      keyword: pickerSearchKeyword.value?.trim() || undefined,
+      page: pickerPage.value,
+      pageSize: pickerPageSize.value,
+      status: 1,
+    });
+    const { list, total: listTotal } = parsePaginatedData(response);
+    pickerTableData.value = Array.isArray(list) ? list.map(normalizePickerMaterial) : [];
+    pickerTotal.value = Number(listTotal) || 0;
+
+    // 缓存当前页的已勾选行，翻页后仍可一次性确认全部选择。
+    const selectedKeys = new Set(pickerSelectedIds.value.map(materialIdKey));
+    const nextMap = { ...pickerSelectionMap.value };
+    pickerTableData.value.forEach((row) => {
+      const key = materialIdKey(row?.id);
+      if (key && selectedKeys.has(key)) nextMap[key] = row;
+    });
+    pickerSelectionMap.value = nextMap;
+
+    // 与 BOM 弹窗一致：精确匹配优先，否则默认高亮第一条。
+    if (pickerTableData.value.length > 0) {
+      const keyword = pickerSearchKeyword.value?.trim();
+      const exactMatch = keyword
+        ? pickerTableData.value.find((material) => material.code === keyword)
+        : null;
+      const target = exactMatch || pickerTableData.value[0];
+      pickerSelectedRow.value = target;
+      await nextTick();
+      pickerTableRef.value?.setCurrentRow?.(target);
+    } else {
+      pickerSelectedRow.value = null;
+    }
+    await syncPickerTableSelection();
+  } catch (error) {
+    console.error('获取物料列表失败:', error);
+    pickerTableData.value = [];
+    pickerTotal.value = 0;
+    pickerSelectedRow.value = null;
+  } finally {
+    pickerLoading.value = false;
+  }
+};
+
+const handlePickerSearch = () => {
+  pickerPage.value = 1;
+  fetchPickerMaterials();
+};
+
+const handlePickerReset = () => {
+  pickerSearchKeyword.value = '';
+  pickerPage.value = 1;
+  fetchPickerMaterials();
+};
+
+const handlePickerSelectionChange = (selection = []) => {
+  if (pickerSyncingSelection.value) return;
+
+  const selectedKeys = new Set(
+    selection.map((row) => materialIdKey(row?.id)).filter(Boolean)
+  );
+  const nextIds = dedupeMaterialIds(pickerSelectedIds.value);
+  const nextMap = { ...pickerSelectionMap.value };
+
+  // 只更新当前页，避免翻页或搜索时丢掉其他页已经勾选的物料。
+  pickerTableData.value.forEach((row) => {
+    const key = materialIdKey(row?.id);
+    if (!key) return;
+
+    if (selectedKeys.has(key)) {
+      if (!nextIds.some((id) => materialIdKey(id) === key)) {
+        nextIds.push(row.id);
+      }
+      nextMap[key] = row;
+    } else if (!pickerExistingIds.value.has(key)) {
+      const index = nextIds.findIndex((id) => materialIdKey(id) === key);
+      if (index >= 0) nextIds.splice(index, 1);
+      delete nextMap[key];
+    }
+  });
+
+  pickerSelectedIds.value = nextIds;
+  pickerSelectionMap.value = nextMap;
+};
+
+const handlePickerCurrentRowChange = (row) => {
+  pickerSelectedRow.value = row || null;
+};
+
+const handlePickerConfirmRow = (row) => {
+  const target = getPickerTarget();
+  if (!row || !target) return;
+
+  const material = normalizePickerMaterial(row);
+  const selectedIds = getTargetMaterialIds(target);
+  const alreadySelected = selectedIds.some(
+    (id) => String(id) === String(material.id)
+  );
+
+  if (alreadySelected) {
+    materialPickerVisible.value = false;
+    ElMessage.warning(`物料 ${material.code} 已在适用物料列表中`);
+    return;
+  }
+
+  target.materialTypes = [...selectedIds, material.id];
+  target.materialType = target.materialTypes[0] || null;
+  rememberPickerMaterial(material);
+
+  if (pickerTarget.value === 'form') {
+    handleMaterialChange(target.materialTypes);
+    formRef.value?.validateField?.('materialTypes', () => {});
+  } else {
+    target.materialName = material.name || '';
+  }
+
+  materialPickerVisible.value = false;
+  ElMessage.success(`已选择物料: ${material.code} (${material.name})`);
+};
+
+const handlePickerConfirmSelected = () => {
+  const target = getPickerTarget();
+  if (!target) return;
+
+  const selectedIds = dedupeMaterialIds(pickerSelectedIds.value);
+  if (selectedIds.length === 0) {
+    ElMessage.warning('请至少勾选一个物料');
+    return;
+  }
+
+  const currentIds = getTargetMaterialIds(target);
+  const currentKeys = new Set(currentIds.map(materialIdKey));
+  const newIds = selectedIds.filter((id) => !currentKeys.has(materialIdKey(id)));
+
+  if (newIds.length === 0) {
+    // 即使本次没有新增，也把历史重复/旧单值整理成唯一的数组格式。
+    target.materialTypes = currentIds;
+    target.materialType = currentIds[0] || null;
+    materialPickerVisible.value = false;
+    ElMessage.info('没有新增物料，已保留原有选择');
+    return;
+  }
+
+  target.materialTypes = [...currentIds, ...newIds];
+  target.materialType = target.materialTypes[0] || null;
+
+  const selectedRows = newIds
+    .map((id) => {
+      const key = materialIdKey(id);
+      return (
+        pickerSelectionMap.value[key] ||
+        pickerTableData.value.find((row) => materialIdKey(row?.id) === key)
+      );
+    })
+    .filter(Boolean);
+  selectedRows.forEach(rememberPickerMaterial);
+
+  if (pickerTarget.value === 'form') {
+    handleMaterialChange(target.materialTypes);
+    formRef.value?.validateField?.('materialTypes', () => {});
+  } else if (selectedRows[0]) {
+    target.materialName = selectedRows[0].name || target.materialName || '';
+  }
+
+  materialPickerVisible.value = false;
+  ElMessage.success(`已新增 ${newIds.length} 个适用物料`);
+};
+// ====== 物料弹窗选择（结束） ======
+
 // 根据ID获取物料编码（纯同步版本，用于表格显示与映射查找）
 const getMaterialCodeById = (id) => {
   if (!id) return '';
@@ -1424,7 +1862,9 @@ const getMaterialCodeById = (id) => {
     return material.code || material.name || '';
   }
   // 2. 从列表中查找
-  const materialInList = materialsList.value.find((item) => item.value === id || item.id === id);
+  const materialInList = materialsList.value.find(
+    (item) => String(item.value ?? item.id) === String(id)
+  );
   if (materialInList) {
     return materialInList.code || materialInList.name || '';
   }
@@ -1496,13 +1936,32 @@ const handleMaterialChange = (values) => {
 
   // 获取第一个物料的名称（兼容旧代码）
   if (values.length > 0) {
-    const firstMaterial = materialsList.value.find((item) => item.value === values[0]);
+    const firstMaterial = materialsList.value.find(
+      (item) => String(item.value) === String(values[0])
+    );
     if (firstMaterial) {
       form.materialName = firstMaterial.name;
     }
   } else {
     form.materialName = '';
   }
+};
+
+// 导入预览区的多选物料同步兼容字段。
+const handleParsedMaterialChange = (values) => {
+  const target = parsedTemplateData.value;
+  if (!target) return;
+
+  const normalizedValues = Array.isArray(values)
+    ? values.filter(Boolean)
+    : [values].filter(Boolean);
+  target.materialTypes = normalizedValues;
+  target.materialType = normalizedValues[0] || null;
+
+  const firstMaterial = materialsList.value.find(
+    (item) => String(item.value) === String(normalizedValues[0])
+  );
+  target.materialName = firstMaterial?.name || '';
 };
 // 检验类型文本和前缀已从 @/constants/inspection 导入
 // 获取状态类型
@@ -2360,6 +2819,15 @@ const handleConfirmImport = async () => {
 /* 物料选择器样式 */
 .material-select-container {
   width: 100%;
+}
+
+.material-picker-trigger {
+  width: 100%;
+  cursor: pointer;
+}
+
+.material-picker-trigger :deep(.el-select__wrapper) {
+  cursor: pointer;
 }
 
 /* 导入对话框样式 */

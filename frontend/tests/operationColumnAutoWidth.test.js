@@ -37,10 +37,14 @@ describe('operationColumnAutoWidth', () => {
     if (originalScrollWidth) Object.defineProperty(HTMLElement.prototype, 'scrollWidth', originalScrollWidth)
   })
 
-  test('ignores its own measurement probe mutations', async () => {
+  test('performs one explicit measurement without installing global observers', async () => {
     document.body.innerHTML = tableMarkup
     vi.stubGlobal('requestAnimationFrame', (callback) => setTimeout(callback, 0))
     vi.stubGlobal('cancelAnimationFrame', (id) => clearTimeout(id))
+    const mutationObserver = vi.fn()
+    const resizeObserver = vi.fn()
+    vi.stubGlobal('MutationObserver', mutationObserver)
+    vi.stubGlobal('ResizeObserver', resizeObserver)
 
     originalAppendChild = Node.prototype.appendChild
     appendCount = 0
@@ -65,5 +69,7 @@ describe('operationColumnAutoWidth', () => {
 
     expect(appendCount).toBe(1)
     expect(document.querySelector('[data-erp-operation-measure-probe]')).toBeNull()
+    expect(mutationObserver).not.toHaveBeenCalled()
+    expect(resizeObserver).not.toHaveBeenCalled()
   })
 })

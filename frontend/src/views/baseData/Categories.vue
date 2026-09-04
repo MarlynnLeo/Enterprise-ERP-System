@@ -311,7 +311,7 @@
 import { handleTableRowView } from '@/utils/tableRowView'
 import { parseListData } from '@/utils/responseParser';
 import { ref, reactive, onMounted, computed } from 'vue';
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { baseDataApi } from '@/api/baseData';
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
 import { Plus, Edit, Delete, Download, Upload, Switch } from '@element-plus/icons-vue';

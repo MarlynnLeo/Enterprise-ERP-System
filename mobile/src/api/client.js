@@ -30,6 +30,11 @@ const unsafeMethods = new Set(['post', 'put', 'patch', 'delete'])
 let csrfToken = ''
 let csrfTokenPromise = null
 
+export const resetCsrfToken = () => {
+  csrfToken = ''
+  csrfTokenPromise = null
+}
+
 const clearLegacyTokenStorage = () => {
   sessionStorage.removeItem('token')
   localStorage.removeItem('refreshToken')
@@ -44,6 +49,7 @@ const clearClientAuthState = () => {
   localStorage.removeItem('refreshToken')
   sessionStorage.removeItem('user_permissions')
   localStorage.removeItem('user_permissions')
+  resetCsrfToken()
   if (typeof window !== 'undefined') {
     delete window.__mobileThemeLoaded
     delete window.__mobileThemeLoadedFor
@@ -63,15 +69,24 @@ const redirectToLogin = () => {
   window.location.replace(getLoginUrlWithRedirect())
 }
 
+const resolveCsrfTokenUrl = () => {
+  const base = String(api.defaults.baseURL || '/api').replace(/\/+$/, '')
+  if (!base || base === '/') return '/api/csrf-token'
+  return base.endsWith('/api') ? `${base}/csrf-token` : `${base}/csrf-token`
+}
+
 const fetchCsrfToken = async () => {
   if (csrfToken) return csrfToken
   if (!csrfTokenPromise) {
-    csrfTokenPromise = axios.get('/csrf-token', {
-      baseURL: api.defaults.baseURL,
+    csrfTokenPromise = axios.get(resolveCsrfTokenUrl(), {
       timeout: API_CONFIG.timeout,
       withCredentials: true
     }).then((response) => {
-      const token = response.data?.csrfToken || response.data?.token || ''
+      const body = response.data || {}
+      const token = body.csrfToken || body.token || body.data?.csrfToken || body.data?.token || ''
+      if (!token) {
+        throw new Error('CSRF 响应中未包含令牌')
+      }
       csrfToken = token
       return token
     }).finally(() => {
@@ -183,8 +198,7 @@ api.interceptors.response.use(
           await api.post('/auth/refresh')
           // Refresh may rotate CSRF cookie; drop cached token so the retry
           // and subsequent unsafe requests pick up a fresh value.
-          csrfToken = ''
-          csrfTokenPromise = null
+          resetCsrfToken()
           // 响应拦截器已经解包，直接使用 data
           processQueue(null)
           return api(originalRequest)
@@ -235,12 +249,13 @@ api.interceptors.response.use(
         const csrfErrorCode = error.response.data?.errorCode || error.response.data?.code
         if (csrfErrorCode === 'INVALID_CSRF_TOKEN' && !originalRequest._csrfRetry) {
           // CSRF token 失效，清除缓存后重新获取并重试一次
-          csrfToken = ''
+          resetCsrfToken()
           originalRequest._csrfRetry = true
           try {
             const newCsrf = await fetchCsrfToken()
             if (newCsrf) {
               originalRequest.headers = originalRequest.headers || {}
+              delete originalRequest.headers['x-csrf-token']
               originalRequest.headers['X-CSRF-Token'] = newCsrf
               return api(originalRequest)
             }

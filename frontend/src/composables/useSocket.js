@@ -8,7 +8,7 @@
 
 import { ref, onUnmounted } from 'vue'
 import { io } from 'socket.io-client'
-import { ElNotification } from 'element-plus'
+import { ElNotification } from 'element-plus/es/components/notification/index'
 
 // 全局单例（多个组件共享同一个连接）
 let socketInstance = null

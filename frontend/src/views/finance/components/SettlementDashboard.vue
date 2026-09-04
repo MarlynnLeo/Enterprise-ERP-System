@@ -136,7 +136,7 @@
 <script setup>
 import { computed, reactive, ref, watch, onMounted } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { formatCurrency } from '@/utils/format'
 import { financeApi } from '@/api/finance'
 

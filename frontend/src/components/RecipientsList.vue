@@ -67,7 +67,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
 import technicalCommunicationApi from '@/api/technicalCommunication';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index';
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { parseDataObject } from '@/utils/responseParser'
 

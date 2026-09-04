@@ -495,7 +495,7 @@
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
 import { defineAsyncComponent, ref, reactive, onMounted, computed } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import {
   Plus, Delete, Upload, Edit, Switch, View, Download
 } from '@element-plus/icons-vue'

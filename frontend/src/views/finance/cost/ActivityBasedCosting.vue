@@ -131,7 +131,8 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Plus } from '@element-plus/icons-vue'
 import { financeApi } from '@/api'
 import { formatCurrency } from '@/utils/helpers/formatters'

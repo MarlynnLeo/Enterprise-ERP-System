@@ -58,7 +58,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { qualityApi } from '@/api/quality'
 import { productionApi } from '@/api/production'
 import { FIRST_ARTICLE_CONFIG } from '@/constants/systemConstants'

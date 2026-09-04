@@ -389,7 +389,8 @@ import { formatCurrency, formatLocalDate } from '@/utils/format'
 
 import { ref, reactive, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { Check } from '@element-plus/icons-vue'
 
 import { financeApi } from '@/api/finance';

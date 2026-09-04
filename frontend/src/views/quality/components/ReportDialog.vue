@@ -119,7 +119,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { formatDate } from '@/utils/helpers/dateUtils'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { getQualityInspectionTypeText } from '@/constants/systemConstants'
 import printService from '@/services/printService'
 import { normalizeInspectionMeasurements, MAX_INSPECTION_MEASUREMENT_COLUMNS } from '@/utils/inspectionHelpers'

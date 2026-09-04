@@ -3,7 +3,7 @@
  * @description 汇率与图表数据的组合式函数（从 Dashboard.vue 抽取）
  */
 import { ref, computed } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { exchangeRateApi } from '../../../api/enhanced'
 import { alphaColor, getCssTokenValue } from '../../../utils/designTokens'
 

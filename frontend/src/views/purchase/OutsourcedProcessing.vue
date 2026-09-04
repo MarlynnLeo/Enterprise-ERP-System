@@ -588,7 +588,8 @@ import { handleTableRowView } from '@/utils/tableRowView';
 import { formatLocalDate } from '@/utils/format';
 import { formatDate } from '@/utils/helpers/dateUtils';
 import { ref, reactive, onMounted, onUnmounted, computed } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { purchaseApi } from '@/api';
 import {
   loadOutsourcedMaterialOptions,

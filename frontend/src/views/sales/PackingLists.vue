@@ -503,7 +503,8 @@ import { formatLocalDate } from '@/utils/format';
 //
 import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
 import { InfoFilled } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import dayjs from 'dayjs'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { baseDataApi, salesApi } from '@/api'

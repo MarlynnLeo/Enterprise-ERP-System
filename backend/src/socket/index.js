@@ -10,6 +10,7 @@ const { createCorsOptions } = require('../config/cors');
 const { verifyAccessToken } = require('../config/jwtEnhanced');
 const PermissionService = require('../services/PermissionService');
 const { PermissionUtils } = require('../utils/authUtils');
+const { normalizeAvatarUrl } = require('../utils/avatarUrl');
 
 let io = null;
 // userId -> Set<socketId> 的映射，支持多端登录
@@ -296,7 +297,7 @@ function initSocket(httpServer) {
           conversation_id: conversationId,
           sender_id: userId,
           sender_name: sender.real_name || sender.username,
-          sender_avatar: sender.avatar,
+          sender_avatar: normalizeAvatarUrl(sender.avatar),
           content,
           type,
           created_at: new Date().toISOString(),

@@ -217,7 +217,8 @@
 import { parsePaginatedData, parseListData } from '@/utils/responseParser';
 
 import { ref, reactive, computed, onMounted } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { Plus } from '@element-plus/icons-vue';
 import { financeApi } from '@/api';
 import { useAuthStore } from '@/stores/auth'

@@ -375,7 +375,8 @@ import { formatCurrency, formatLocalDate } from '@/utils/format'
 
 import { ref, reactive, onMounted, watch, computed } from 'vue';
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { UploadFilled, Plus, Edit, Promotion, Check, Delete } from '@element-plus/icons-vue'
 import { financeApi } from '@/api/finance';
 import printService from '@/services/printService'

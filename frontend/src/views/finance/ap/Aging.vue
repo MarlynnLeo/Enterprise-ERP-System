@@ -140,7 +140,7 @@ import { formatAmount, formatLocalDate } from '@/utils/format';
 import { formatDate } from '@/utils/helpers/dateUtils'
 // 版本标识 - 账龄分析 v2.0 - 与AR统一布局
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index';
 import { financeApi } from '@/api';
 import { parseListData } from '@/utils/responseParser';
 import printService from '@/services/printService';

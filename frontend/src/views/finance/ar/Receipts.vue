@@ -340,8 +340,8 @@ import PrintDialog from '@/components/common/PrintDialog.vue';
 
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ElMessage } from 'element-plus';
-import { Plus } from '@element-plus/icons-vue';
+import { ElMessage } from 'element-plus/es/components/message/index';
+import { InfoFilled, Plus } from '@element-plus/icons-vue';
 import { financeApi } from '@/api/finance';
 import { parsePaginatedData, parseListData } from '@/utils/responseParser';
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation';

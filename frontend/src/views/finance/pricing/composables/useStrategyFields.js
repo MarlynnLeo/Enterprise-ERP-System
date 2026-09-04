@@ -3,7 +3,8 @@
  * 包含策略字段的CRUD操作
  */
 import { ref, reactive, nextTick } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { financeApi } from '@/api/finance';
 
 export function useStrategyFields() {

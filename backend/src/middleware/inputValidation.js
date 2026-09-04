@@ -7,6 +7,7 @@
 const validator = require('validator');
 const { logger } = require('../utils/logger');
 const { ResponseHandler } = require('../utils/responseHandler');
+const { SQL_FIELD_MODES, containsSQLInjection, getSQLFieldMode } = require('./inputSecurityPolicy');
 
 const sendInputError = (res, message, errorCode, statusCode = 400, details = null) => {
   const error = details ? { details } : null;
@@ -23,8 +24,16 @@ const sanitizeHTML = (input) => {
     return input;
   }
 
-  // 转义HTML特殊字符
-  return validator.escape(input);
+  // “/”在文本节点中无需转义。validator.escape() 会把它编码为
+  // &#x2F;，导致 GB/T、目测/通止规等正常业务值在后续编辑时漂移。
+  return validator.escape(input).replace(/&#x2F;/gi, '/');
+};
+
+const LEGACY_SLASH_ENTITY_PATTERN = /&#(?:x0*2f|0*47);/gi;
+
+const normalizeLegacySlashEntities = (input) => {
+  if (typeof input !== 'string') return input;
+  return input.replace(LEGACY_SLASH_ENTITY_PATTERN, '/');
 };
 
 // 不需要 HTML 转义的字段（文件路径、URL、规格型号等）
@@ -70,7 +79,10 @@ const ROUTE_SANITIZE_FIELD_BYPASSES = [
   },
 ];
 
-const pathLeaf = (path) => String(path || '').split('.').pop();
+const pathLeaf = (path) =>
+  String(path || '')
+    .split('.')
+    .pop();
 
 /**
  * 检查字段是否应该跳过 HTML 转义
@@ -116,11 +128,12 @@ const sanitizeObject = (obj, depth = 0, maxDepth = 10, currentKey = '', requestP
   }
 
   if (typeof obj === 'string') {
+    const normalizedValue = normalizeLegacySlashEntities(obj);
     // 跳过文件路径等特殊字段
-    if (shouldSkipSanitize(currentKey, obj, requestPath)) {
-      return obj;
+    if (shouldSkipSanitize(currentKey, normalizedValue, requestPath)) {
+      return normalizedValue;
     }
-    return sanitizeHTML(obj);
+    return sanitizeHTML(normalizedValue);
   }
 
   if (Array.isArray(obj)) {
@@ -308,13 +321,11 @@ const validateRange = (fieldName, options = {}) => {
     }
 
     if (num < min || num > max) {
-      return sendInputError(
-        res,
-        `${fieldName} 必须在 ${min} 到 ${max} 之间`,
-        'OUT_OF_RANGE',
-        400,
-        { min, max, actual: num }
-      );
+      return sendInputError(res, `${fieldName} 必须在 ${min} 到 ${max} 之间`, 'OUT_OF_RANGE', 400, {
+        min,
+        max,
+        actual: num,
+      });
     }
 
     next();
@@ -343,172 +354,10 @@ const validateDate = (fieldName) => {
 };
 
 /**
- * 防止SQL注入 - 检测危险字符
- * @param {*} input - 输入
- * @param {boolean} relaxed - 宽松模式：仅检测高危SQL关键字，跳过分号/引号/注释检测
- * @returns {boolean} 是否包含危险字符
- */
-const containsSQLInjection = (input, relaxed = false) => {
-  if (typeof input !== 'string') {
-    return false;
-  }
-
-  // 高危 SQL 注入模式（所有模式下都检测）
-  const highRiskPatterns = [
-    /(\b(DROP|ALTER|EXEC|EXECUTE)\b)/i,
-    /(UNION\s+SELECT)/i,
-    /(OR\s+1\s*=\s*1)/i,
-    /(AND\s+1\s*=\s*1)/i,
-  ];
-
-  // 标准模式额外检测的模式（业务文本字段在宽松模式下跳过）
-  const standardPatterns = [
-    /(\b(SELECT|INSERT|UPDATE|DELETE|CREATE)\b)/i,
-    /('|;|--)/, // 单引号、分号、双横线注释
-    /(\/\*|\*\/)/, // SQL块注释标记
-  ];
-
-  if (highRiskPatterns.some((pattern) => pattern.test(input))) {
-    return true;
-  }
-
-  // 宽松模式下跳过标准模式的检测（业务文本字段中分号、引号是常见字符）
-  if (relaxed) {
-    return false;
-  }
-
-  return standardPatterns.some((pattern) => pattern.test(input));
-};
-
-/**
  * SQL注入检测中间件
  */
 const detectSQLInjection = (req, res, next) => {
-  const pathLeaf = (path) => String(path || '').split('.').pop();
-  const isPathField = (path, fields) => {
-    const leaf = pathLeaf(path);
-    if (fields.includes(leaf)) return true;
-    // 当叶子是纯数字（数组索引）时，取上一级字段名匹配
-    // 例如 d4_contributing_factors.3 → 取 d4_contributing_factors
-    if (/^\d+$/.test(leaf)) {
-      const segments = String(path || '').split('.');
-      if (segments.length >= 2) {
-        return fields.includes(segments[segments.length - 2]);
-      }
-    }
-    return false;
-  };
-  const isBusinessNameField = (path) => {
-    const leaf = pathLeaf(path);
-    return (
-      leaf.endsWith('_name') ||
-      leaf.endsWith('Name') ||
-      ['name', 'reason_name', 'reasonName', 'display_name', 'displayName', 'label', 'title'].includes(leaf)
-    );
-  };
-  const relaxedTextFields = [
-    'remark',
-    'remarks',
-    'description',
-    'name',
-    'standard',
-    'standard_value',
-    // 检验模板的 AQL 级别允许标准标识（如 GB/T 2828.1 II）；仍保留高危 SQL 检测
-    'aqlLevel',
-    'aql_level',
-    'issue_reason',
-    'reason_name',
-    'reasonName',
-    'reason',
-    // 8D报告 — AI生成的专业质量管理文本，含引号/括号/斜杠(如 GB/T 2828.1)
-    'd2_problem_description',
-    'd3_containment_actions',
-    'd4_root_cause',
-    'd4_contributing_factors',
-    'd5_corrective_actions',
-    'd6_verification_method',
-    'd6_implementation_results',
-    'd7_preventive_actions',
-    'd7_standardization',
-    'd8_summary',
-    'd8_lessons_learned',
-  ];
-  // 跳过富文本内容字段的检查（HTML内容可能包含类似SQL的模式）
-  const shouldSkipPath = (path) => {
-    if (req.path === '/api/system/client-errors') {
-      return isPathField(path, [
-        'type',
-        'message',
-        'stack',
-        'name',
-        'componentName',
-        'lifecycleHook',
-        'url',
-        'source',
-        'userAgent',
-      ]);
-    }
-    // 打印模板API的HTML内容字段
-    if (req.path.startsWith('/api/print/')) {
-      if (
-        path === 'content' ||
-        path === 'header_html' ||
-        path === 'footer_html' ||
-        path === 'body_html'
-      ) {
-        return true;
-      }
-    }
-    // 技术交流API的富文本内容字段
-    if (req.path.startsWith('/api/system/technical-communications')) {
-      if (path === 'content' || path === 'solution' || path === 'description') {
-        return true;
-      }
-    }
-    // 附件/文件路径字段 - 这些字段包含合法的文件路径，不应该被SQL注入检测拦截
-    const attachmentFields = [
-      'attachment',
-      'file_path',
-      'fileUrl',
-      'filePath',
-      'url',
-      'instructionDocs',
-    ];
-    if (
-      attachmentFields.some(
-        (field) => path.endsWith(field) || path.includes('.attachment') || path.includes('.url')
-      )
-    ) {
-      return true;
-    }
-    // 物料规格/技术字段 — 完全跳过SQL注入检测
-    // 这些字段包含合法的特殊字符（如 400*600*120mm、K22/25、base64图片数据）
-    const technicalFields = [
-      'specs',
-      'specification',
-      'model',
-      'drawing_no',
-      'color_code',
-      'material',
-      'material_type',
-      'location_detail',
-      'location',
-      'avatar',
-      'bio',
-      'rule_value',
-      'split_details',
-    ];
-    if (isPathField(path, technicalFields)) {
-      return true;
-    }
-
-    // 业务文本字段 — 仅跳过分号和单引号检测（这些字段最常触发误报）
-    // 但仍然保留对 DROP/UNION SELECT/OR 1=1 等高危模式的检测
-    if (isPathField(path, relaxedTextFields)) {
-      return false; // 不跳过，让 checkInput 继续执行，但会使用宽松模式
-    }
-    return false;
-  };
+  const requestPath = req.path || req.originalUrl || '';
 
   const checkInput = (obj, path = '') => {
     for (const key in obj) {
@@ -516,21 +365,18 @@ const detectSQLInjection = (req, res, next) => {
         const value = obj[key];
         const currentPath = path ? `${path}.${key}` : key;
 
-        // 跳过特定路径
-        if (shouldSkipPath(currentPath)) {
+        const fieldMode = getSQLFieldMode(requestPath, currentPath);
+        if (fieldMode === SQL_FIELD_MODES.SKIP) {
           continue;
         }
 
-        // 根据字段类型选择检测模式：业务文本字段使用宽松模式
-        const isRelaxed = isPathField(currentPath, relaxedTextFields) || isBusinessNameField(currentPath);
-
-        if (typeof value === 'string' && containsSQLInjection(value, isRelaxed)) {
+        if (typeof value === 'string' && containsSQLInjection(value, fieldMode)) {
           logger.warn('检测到可疑的SQL注入尝试', {
             path: currentPath,
             value: value.substring(0, 100), // 只记录前100个字符
             ip: req.ip,
             user: req.user?.id,
-            mode: isRelaxed ? 'relaxed' : 'strict',
+            mode: fieldMode,
           });
 
           return sendInputError(res, '检测到非法输入', 'SUSPICIOUS_INPUT', 403);

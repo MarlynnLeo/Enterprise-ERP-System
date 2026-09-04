@@ -145,7 +145,7 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { Refresh, Money, Goods, TrendCharts, DataAnalysis } from '@element-plus/icons-vue'
 import { financeApi } from '@/api'
 import { echarts } from '@/utils/echartsCore'

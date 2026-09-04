@@ -333,8 +333,8 @@ import PrintDialog from '@/components/common/PrintDialog.vue';
 import { parsePaginatedData, parseListData } from '@/utils/responseParser';
 import { ref, reactive, onMounted, computed } from 'vue';
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
-import { ElMessage } from 'element-plus';
-import { Plus } from '@element-plus/icons-vue';
+import { ElMessage } from 'element-plus/es/components/message/index';
+import { InfoFilled, Plus } from '@element-plus/icons-vue';
 import { financeApi } from '@/api/finance';
 import { useAuthStore } from '@/stores/auth'
 // 权限store

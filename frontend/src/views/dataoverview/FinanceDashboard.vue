@@ -175,7 +175,7 @@ import { formatLocalDate } from '@/utils/format';
 import { ref, onMounted, watch, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import Chart from '@/utils/chartCore';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index';
 import { financeApi } from '@/api';
 // 权限计算属性
 import { ArrowDown, ArrowUp, InfoFilled } from '@element-plus/icons-vue';

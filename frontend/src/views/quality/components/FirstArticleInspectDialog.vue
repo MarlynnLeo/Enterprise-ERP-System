@@ -108,7 +108,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { Plus, Delete, InfoFilled } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { qualityApi } from '@/api/quality'
 
 import { useAuthStore } from '@/stores/auth'

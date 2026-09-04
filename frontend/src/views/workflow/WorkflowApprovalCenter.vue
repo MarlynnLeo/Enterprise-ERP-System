@@ -114,7 +114,7 @@
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { Check, Close } from '@element-plus/icons-vue'
 import { workflowApi } from '@/api/workflow'
 

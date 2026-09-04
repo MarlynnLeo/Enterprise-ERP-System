@@ -455,7 +455,8 @@ import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted, onActivated, nextTick, computed } from 'vue';
 import { useRoute } from 'vue-router';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { purchaseApi, baseDataApi } from '@/api';
 import BusinessApprovalDialog from '@/components/workflow/BusinessApprovalDialog.vue';
 import { useBusinessApproval } from '@/composables/useBusinessApproval';

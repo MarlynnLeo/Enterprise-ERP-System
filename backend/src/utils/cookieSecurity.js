@@ -6,6 +6,13 @@ const CSRF_COOKIE_NAMES = Object.freeze({
   secure: '__Host-psifi.x-csrf-token',
   insecure: 'psifi.x-csrf-token',
 });
+// CSRF tokens are signed against this stable browser-session identifier,
+// rather than a rotating access token.  Keep secure and insecure variants
+// separate so an HTTPS entry point never downgrades a cookie to HTTP.
+const CSRF_SESSION_COOKIE_NAMES = Object.freeze({
+  secure: '__Host-erp-csrf-session',
+  insecure: 'erp-csrf-session',
+});
 
 const getCookieSecureMode = () => {
   const configured = String(process.env.COOKIE_SECURE || '')
@@ -113,19 +120,42 @@ const clearCsrfCookies = (res) => {
   });
 };
 
+const clearCsrfSessionCookies = (res) => {
+  clearCookieVariants(res, CSRF_SESSION_COOKIE_NAMES.insecure, {
+    httpOnly: true,
+    path: '/',
+    sameSite: getCookieSameSite(),
+  });
+  // __Host- cookies require Secure + Path=/ and no Domain attribute.
+  clearCookieVariants(res, CSRF_SESSION_COOKIE_NAMES.secure, {
+    httpOnly: true,
+    path: '/',
+    sameSite: getCookieSameSite(),
+    secure: true,
+  });
+};
+
 const getCsrfCookieName = (req) =>
   shouldUseSecureCookies(req) ? CSRF_COOKIE_NAMES.secure : CSRF_COOKIE_NAMES.insecure;
+
+const getCsrfSessionCookieName = (req) =>
+  shouldUseSecureCookies(req)
+    ? CSRF_SESSION_COOKIE_NAMES.secure
+    : CSRF_SESSION_COOKIE_NAMES.insecure;
 
 module.exports = {
   AUTH_COOKIE_NAMES,
   CSRF_COOKIE_NAMES,
+  CSRF_SESSION_COOKIE_NAMES,
   getCookieSecureMode,
   getCookieSameSite,
   getCsrfCookieName,
+  getCsrfSessionCookieName,
   isHttpsRequest,
   shouldUseSecureCookies,
   buildAuthCookieOptions,
   clearCookieVariants,
   clearAuthCookies,
   clearCsrfCookies,
+  clearCsrfSessionCookies,
 };

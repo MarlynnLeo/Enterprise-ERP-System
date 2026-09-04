@@ -447,7 +447,8 @@
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, onMounted, computed, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Download, Plus } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { parseListData, parseResponseData } from '@/utils/responseParser'

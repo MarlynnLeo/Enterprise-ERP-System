@@ -246,7 +246,7 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index';
 import { Download } from '@element-plus/icons-vue';
 import { baseDataApi, financeApi } from '@/api';
 import { buildApiUrl } from '@/config/app';

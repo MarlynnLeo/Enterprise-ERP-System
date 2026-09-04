@@ -74,7 +74,7 @@
 
 <script setup>
 import { ref, reactive, watch, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { supplierApi } from '@/api/supplier'
 
 const props = defineProps({

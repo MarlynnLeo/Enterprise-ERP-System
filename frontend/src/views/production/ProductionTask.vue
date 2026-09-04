@@ -751,7 +751,8 @@
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { baseDataApi, financeApi, inventoryApi, productionApi, systemApi } from '@/api'
 import dayjs from 'dayjs'
 import { Plus, Clock, SetUp, WarningFilled } from '@element-plus/icons-vue'

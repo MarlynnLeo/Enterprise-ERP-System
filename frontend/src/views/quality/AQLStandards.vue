@@ -184,7 +184,8 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { formatDate } from '@/utils/helpers/dateUtils'
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { Plus, Edit, Delete } from '@element-plus/icons-vue';
 import { qualityApi } from '@/api/quality';
 import { parsePaginatedData } from '@/utils/responseParser';

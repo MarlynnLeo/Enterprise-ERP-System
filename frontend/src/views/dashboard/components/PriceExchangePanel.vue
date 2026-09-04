@@ -27,18 +27,17 @@
         >
           汇率
         </div>
-        <el-tooltip content="手动刷新数据" placement="top">
-          <el-button
-            link
-            size="small"
-            class="price-refresh-button"
-            :loading="exchangeRateLoading || metalPricesLoading"
-            aria-label="刷新金属与汇率数据"
-            @click="$emit('refresh')"
-          >
-            <el-icon><Refresh /></el-icon>
-          </el-button>
-        </el-tooltip>
+        <el-button
+          link
+          size="small"
+          class="price-refresh-button"
+          :loading="exchangeRateLoading || metalPricesLoading"
+          title="手动刷新数据"
+          aria-label="刷新金属与汇率数据"
+          @click="$emit('refresh')"
+        >
+          <el-icon><Refresh /></el-icon>
+        </el-button>
       </div>
     </div>
     <div class="chart-body price-panel-body">

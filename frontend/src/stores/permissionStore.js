@@ -6,7 +6,7 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { prepareMenuTree } from '../utils/menuNavigation'
+import { prepareMenuTree } from '../utils/menuTree'
 
 export const usePermissionStore = defineStore('permission', () => {
   // ==================== 状态定义 ====================

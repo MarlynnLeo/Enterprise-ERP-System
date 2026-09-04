@@ -119,7 +119,7 @@
 
 <script setup>
 import { onMounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { Download } from '@element-plus/icons-vue'
 import { financeApi } from '@/api'
 import { formatCurrency, formatLocalDate } from '@/utils/format'

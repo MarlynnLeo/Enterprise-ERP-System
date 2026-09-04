@@ -44,7 +44,7 @@
         <el-table-column prop="productName" label="产品名称" width="260"></el-table-column>
         <el-table-column prop="quantity" label="生产数量" width="110"></el-table-column>
         <el-table-column label="材料成本" width="130">
-          <template #default>
+          <template #default="scope">
             {{ formatCurrency(scope.row.materialCost) }}
           </template>
         </el-table-column>
@@ -202,7 +202,7 @@
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, onMounted } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index';
 import { Check, Minus } from '@element-plus/icons-vue';
 import { financeApi } from '@/api';
 import { getCostingMethodText, getGLTransactionTypeText, getGLTransactionTypeColor } from '@/constants/systemConstants';

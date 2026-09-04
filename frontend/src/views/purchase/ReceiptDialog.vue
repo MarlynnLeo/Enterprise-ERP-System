@@ -218,7 +218,7 @@
 import { formatLocalDate } from '@/utils/format';
 
 import { ref, computed, reactive, watch } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index';
 import { purchaseApi } from '@/api/purchase';
 import { ensureValidId } from '@/utils/helpers/dataUtils'
 import {

@@ -136,7 +136,8 @@
 </template>
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { Plus, OfficeBuilding, Edit, DataAnalysis, Delete } from '@element-plus/icons-vue';
 import { financeApi } from '@/api';
 import { formatCurrency } from '@/utils/helpers/formatters';

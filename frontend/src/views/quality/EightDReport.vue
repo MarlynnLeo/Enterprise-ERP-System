@@ -664,7 +664,8 @@
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Plus, MagicStick, Download, List } from '@element-plus/icons-vue'
 import { eightDReportApi } from '@/api/quality'
 import nonconformingProductApi from '@/api/nonconformingProductApi'
@@ -1076,7 +1077,6 @@ const _handleRemoveFile = (file, targetArray) => {
   if (index !== -1) targetArray.splice(index, 1)
 }
 const _getFullUrl = (url) => {
-  if (url && url.startsWith('http')) return url;
   if (!url) return '';
   return buildResourceUrl(url);
 }

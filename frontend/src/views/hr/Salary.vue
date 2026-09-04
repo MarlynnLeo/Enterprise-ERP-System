@@ -67,7 +67,8 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { hrApi } from '@/api/hr'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Refresh, Download, Check } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { parseResponseData } from '@/utils/responseParser'

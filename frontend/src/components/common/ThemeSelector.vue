@@ -1,5 +1,10 @@
 <template>
-  <el-dropdown @command="handleThemeChange" trigger="click" placement="bottom-end">
+  <el-dropdown
+    @command="handleThemeChange"
+    trigger="click"
+    placement="bottom-end"
+    :persistent="false"
+  >
     <button class="theme-selector" type="button" :aria-label="currentPresetAriaLabel">
       <el-icon :size="20">
         <component :is="themeIcon" />
@@ -59,7 +64,7 @@ import {
   Sunny,
   SuitcaseLine
 } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { prefetchThemeCss } from '@/utils/themeLoader'
 
 const themeStore = useThemeStore()

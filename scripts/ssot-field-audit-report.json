@@ -1,6 +1,6 @@
 {
-  "frontFieldCount": 13,
-  "frontSampleTotal": 30,
+  "frontFieldCount": 15,
+  "frontSampleTotal": 42,
   "backendSuspects": 228,
   "backendNoMapFiles": [
     "backend/src/controllers/auth/authController.js",
@@ -239,7 +239,7 @@
       "samples": [
         {
           "file": "frontend/src/views/baseData/components/BomFormDialog.vue",
-          "line": 458,
+          "line": 465,
           "snippet": "unitName: d.unitName ?? d.unit_name ?? '',"
         },
         {
@@ -265,22 +265,132 @@
       ]
     },
     {
+      "field": "real_name",
+      "samples": [
+        {
+          "file": "frontend/src/views/purchase/composables/usePurchaseOrderActions.js",
+          "line": 266,
+          "snippet": "realName: data.realName ?? data.real_name ?? data.user_real_name ?? '',"
+        },
+        {
+          "file": "frontend/src/api/purchase.js",
+          "line": 90,
+          "snippet": "realName: source.realName ?? source.real_name ?? source.user_real_name ?? '',"
+        },
+        {
+          "file": "mobile/src/stores/auth.js",
+          "line": 54,
+          "snippet": "if (normalized.realName == null && normalized.real_name != null) {"
+        },
+        {
+          "file": "mobile/src/stores/auth.js",
+          "line": 55,
+          "snippet": "normalized.realName = normalized.real_name"
+        }
+      ]
+    },
+    {
+      "field": "created_at",
+      "samples": [
+        {
+          "file": "frontend/src/views/purchase/composables/usePurchaseOrderActions.js",
+          "line": 267,
+          "snippet": "createdAt: data.createdAt ?? data.created_at ?? '',"
+        },
+        {
+          "file": "frontend/src/api/purchase.js",
+          "line": 95,
+          "snippet": "createdAt: source.createdAt ?? source.created_at ?? '',"
+        },
+        {
+          "file": "mobile/src/stores/auth.js",
+          "line": 69,
+          "snippet": "if (normalized.createdAt == null && normalized.created_at != null) {"
+        },
+        {
+          "file": "mobile/src/stores/auth.js",
+          "line": 70,
+          "snippet": "normalized.createdAt = normalized.created_at"
+        }
+      ]
+    },
+    {
       "field": "material_id",
       "samples": [
         {
           "file": "frontend/src/views/baseData/components/BomFormDialog.vue",
-          "line": 453,
+          "line": 459,
           "snippet": "materialId: d.materialId ?? d.material_id ?? null,"
         },
         {
           "file": "frontend/src/views/purchase/composables/usePurchaseOrderActions.js",
-          "line": 335,
+          "line": 383,
           "snippet": "return { materialId: item.materialId ?? item.material_id, receiveQuantity: pendingQty }"
         },
         {
-          "file": "mobile/src/views/quality/IncomingDetail.vue",
-          "line": 553,
-          "snippet": "const materialId = data.materialId || data.material_id"
+          "file": "frontend/src/api/purchase.js",
+          "line": 54,
+          "snippet": "materialId: item.materialId ?? item.material_id ?? null,"
+        }
+      ]
+    },
+    {
+      "field": "material_code",
+      "samples": [
+        {
+          "file": "frontend/src/views/baseData/components/BomFormDialog.vue",
+          "line": 460,
+          "snippet": "materialCode: d.materialCode ?? d.material_code ?? '',"
+        },
+        {
+          "file": "frontend/src/views/quality/InspectionTemplates.vue",
+          "line": 1556,
+          "snippet": "code: material.code || material.materialCode || material.material_code || '',"
+        },
+        {
+          "file": "frontend/src/api/purchase.js",
+          "line": 55,
+          "snippet": "materialCode: item.materialCode ?? item.material_code ?? item.code ?? '',"
+        }
+      ]
+    },
+    {
+      "field": "material_name",
+      "samples": [
+        {
+          "file": "frontend/src/views/baseData/components/BomFormDialog.vue",
+          "line": 461,
+          "snippet": "materialName: d.materialName ?? d.material_name ?? '',"
+        },
+        {
+          "file": "frontend/src/views/quality/InspectionTemplates.vue",
+          "line": 1557,
+          "snippet": "name: material.name || material.materialName || material.material_name || '',"
+        },
+        {
+          "file": "frontend/src/api/purchase.js",
+          "line": 56,
+          "snippet": "materialName: item.materialName ?? item.material_name ?? item.name ?? '',"
+        }
+      ]
+    },
+    {
+      "field": "unit_id",
+      "samples": [
+        {
+          "file": "frontend/src/views/baseData/components/BomFormDialog.vue",
+          "line": 464,
+          "snippet": "unitId: d.unitId ?? d.unit_id ?? null,"
+        },
+        {
+          "file": "frontend/src/views/baseData/components/BomFormDialog.vue",
+          "line": 893,
+          "snippet": "target.unitId = detail.unitId ?? detail.unit_id ?? null"
+        },
+        {
+          "file": "frontend/src/api/purchase.js",
+          "line": 59,
+          "snippet": "unitId: item.unitId ?? item.unit_id ?? null,"
         }
       ]
     },
@@ -305,52 +415,47 @@
       ]
     },
     {
-      "field": "real_name",
-      "samples": [
-        {
-          "file": "mobile/src/views/quality/IncomingDetail.vue",
-          "line": 300,
-          "snippet": "currentUser.real_name ||"
-        },
-        {
-          "file": "mobile/src/stores/auth.js",
-          "line": 54,
-          "snippet": "if (normalized.realName == null && normalized.real_name != null) {"
-        },
-        {
-          "file": "mobile/src/stores/auth.js",
-          "line": 55,
-          "snippet": "normalized.realName = normalized.real_name"
-        }
-      ]
-    },
-    {
-      "field": "unit_id",
-      "samples": [
-        {
-          "file": "frontend/src/views/baseData/components/BomFormDialog.vue",
-          "line": 457,
-          "snippet": "unitId: d.unitId ?? d.unit_id ?? null,"
-        },
-        {
-          "file": "frontend/src/views/baseData/components/BomFormDialog.vue",
-          "line": 884,
-          "snippet": "target.unitId = detail.unitId ?? detail.unit_id ?? null"
-        }
-      ]
-    },
-    {
       "field": "parent_id",
       "samples": [
         {
           "file": "frontend/src/views/baseData/components/BomFormDialog.vue",
-          "line": 463,
+          "line": 470,
           "snippet": "parentId: d.parentId ?? d.parent_id ?? 0,"
         },
         {
           "file": "frontend/src/views/baseData/components/BomFormDialog.vue",
-          "line": 621,
+          "line": 628,
           "snippet": "const getParentId = (item) => item?.parentId ?? item?.parent_id ?? 0"
+        }
+      ]
+    },
+    {
+      "field": "updated_at",
+      "samples": [
+        {
+          "file": "frontend/src/views/purchase/composables/usePurchaseOrderActions.js",
+          "line": 268,
+          "snippet": "updatedAt: data.updatedAt ?? data.updated_at ?? '',"
+        },
+        {
+          "file": "frontend/src/api/purchase.js",
+          "line": 96,
+          "snippet": "updatedAt: source.updatedAt ?? source.updated_at ?? '',"
+        }
+      ]
+    },
+    {
+      "field": "requisition_no",
+      "samples": [
+        {
+          "file": "frontend/src/api/purchase.js",
+          "line": 82,
+          "snippet": "source.requisition_no ??"
+        },
+        {
+          "file": "frontend/src/api/purchase.js",
+          "line": 87,
+          "snippet": "requisitionNo: source.requisitionNo ?? source.requisition_no ?? requisitionNumber,"
         }
       ]
     },
@@ -370,41 +475,6 @@
       ]
     },
     {
-      "field": "created_at",
-      "samples": [
-        {
-          "file": "mobile/src/stores/auth.js",
-          "line": 69,
-          "snippet": "if (normalized.createdAt == null && normalized.created_at != null) {"
-        },
-        {
-          "file": "mobile/src/stores/auth.js",
-          "line": 70,
-          "snippet": "normalized.createdAt = normalized.created_at"
-        }
-      ]
-    },
-    {
-      "field": "material_code",
-      "samples": [
-        {
-          "file": "frontend/src/views/baseData/components/BomFormDialog.vue",
-          "line": 454,
-          "snippet": "materialCode: d.materialCode ?? d.material_code ?? '',"
-        }
-      ]
-    },
-    {
-      "field": "material_name",
-      "samples": [
-        {
-          "file": "frontend/src/views/baseData/components/BomFormDialog.vue",
-          "line": 455,
-          "snippet": "materialName: d.materialName ?? d.material_name ?? '',"
-        }
-      ]
-    },
-    {
       "field": "supplier_name",
       "samples": [
         {
@@ -419,7 +489,7 @@
       "samples": [
         {
           "file": "frontend/src/api/purchase.js",
-          "line": 338,
+          "line": 420,
           "snippet": "delete receiptData.order_id;"
         }
       ]
@@ -429,7 +499,7 @@
       "samples": [
         {
           "file": "frontend/src/api/purchase.js",
-          "line": 340,
+          "line": 422,
           "snippet": "delete receiptData.warehouse_id;"
         }
       ]

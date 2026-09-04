@@ -3,7 +3,7 @@
  * @description 库存检查公共组合式函数
  * 从 useOrderForm.js 和 useOrderActions.js 中抽取的重复逻辑
  */
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { inventoryApi } from '@/api'
 
 /**

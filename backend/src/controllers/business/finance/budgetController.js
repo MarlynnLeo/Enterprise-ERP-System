@@ -36,6 +36,17 @@ function sendBudgetBusinessError(res, error, fallback) {
   return ResponseHandler.error(res, fallback, 'SERVER_ERROR', 500, error);
 }
 
+function isBudgetNotFoundError(error) {
+  return error?.code === 'BUDGET_NOT_FOUND' || /预算不存在/.test(String(error?.message || ''));
+}
+
+function sendBudgetLookupError(res, error, fallback) {
+  if (isBudgetNotFoundError(error)) {
+    return ResponseHandler.notFound(res, '预算不存在');
+  }
+  return ResponseHandler.error(res, fallback, 'SERVER_ERROR', 500, error);
+}
+
 const budgetController = {
   /**
    * 创建预算
@@ -380,7 +391,7 @@ const budgetController = {
       return ResponseHandler.success(res, analysis);
     } catch (error) {
       logger.error('获取预算执行率分析失败:', error);
-      return ResponseHandler.error(res, '获取预算执行率分析失败', 'SERVER_ERROR', 500, error);
+      return sendBudgetLookupError(res, error, '获取预算执行率分析失败');
     }
   },
 
@@ -405,7 +416,7 @@ const budgetController = {
       return ResponseHandler.success(res, analysis);
     } catch (error) {
       logger.error('获取预算差异分析失败:', error);
-      return ResponseHandler.error(res, '获取预算差异分析失败', 'SERVER_ERROR', 500, error);
+      return sendBudgetLookupError(res, error, '获取预算差异分析失败');
     }
   },
 
@@ -480,7 +491,7 @@ const budgetController = {
       return ResponseHandler.success(res, analysis);
     } catch (error) {
       logger.error('获取实时预算分析失败:', error);
-      return ResponseHandler.error(res, '获取实时预算分析失败', 'SERVER_ERROR', 500, error);
+      return sendBudgetLookupError(res, error, '获取实时预算分析失败');
     }
   },
 

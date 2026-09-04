@@ -104,8 +104,8 @@ const handleChange = (file) => {
 const beforeUpload = (_file) => {
   return false // 阻止自动上传
 }
-const handleError = () => {
-  emit('avatar-error')
+const handleError = (failedAvatar) => {
+  emit('avatar-error', failedAvatar)
 }
 </script>
 <style scoped>

@@ -3,7 +3,7 @@
  * @description 销售订单导入导出逻辑的组合式函数（从 SalesOrders.vue 抽取）
  */
 import { ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { salesApi } from '@/api'
 import dayjs from 'dayjs'
 

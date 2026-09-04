@@ -172,7 +172,7 @@
 <script setup>
 import { useDictionaryStore } from '@/stores/dictionary'
 import { ref, reactive, computed, onMounted } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index';
 import { useRouter, useRoute } from 'vue-router';
 import { financeApi } from '@/api/finance';
 import { formatAmount } from '@/utils/format'

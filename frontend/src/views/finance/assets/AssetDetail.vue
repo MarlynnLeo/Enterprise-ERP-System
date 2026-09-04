@@ -161,7 +161,7 @@
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index';
 import { Back, Right } from '@element-plus/icons-vue';
 import { financeApi } from '@/api/finance';
 import { formatDate, formatDateTime, formatCurrency } from '@/utils/helpers/formatters';

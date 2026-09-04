@@ -243,7 +243,8 @@
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, onMounted } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { Plus, Check, Close, Edit, Key, Unlock } from '@element-plus/icons-vue';
 import { systemApi } from '@/api';
 import { getUserStatusText, getUserStatusColor } from '@/constants/systemConstants';

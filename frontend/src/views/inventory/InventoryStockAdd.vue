@@ -137,7 +137,7 @@
 <script setup>
 import { debounce } from '@/utils/commonHelpers'
 import { ref, reactive } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { InfoFilled } from '@element-plus/icons-vue'
 import { inventoryApi, baseDataApi } from '@/api'
 import { SEARCH_CONFIG, searchMaterials as performSearchMaterials, mapMaterialData } from '@/utils/searchConfig'

@@ -290,7 +290,7 @@
 </template>
 <script setup>
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import {
   DataBoard, Clock, Loading, Document, List, Setting, CircleCheck,
   TrendCharts, Right, Tickets, Rank

@@ -43,6 +43,9 @@ const getDetails = async (req, res) => {
     return ResponseHandler.success(res, result);
   } catch (error) {
     logger.error('Failed to get NCP details:', error);
+    if (error?.code === 'NCP_NOT_FOUND' || error?.message === 'NCP not found') {
+      return ResponseHandler.notFound(res, 'NCP not found');
+    }
     return ResponseHandler.error(res, 'Failed to get NCP details', 'OPERATION_ERROR', 500, error);
   }
 };

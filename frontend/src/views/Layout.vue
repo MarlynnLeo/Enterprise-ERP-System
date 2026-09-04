@@ -49,19 +49,18 @@
       <!-- 头部导航 -->
       <el-header class="header app-header">
         <div class="header-left">
-          <el-tooltip content="展开/收起侧边栏" placement="bottom" :show-after="500">
-            <button
-              type="button"
-              class="icon-button toggle-sidebar"
-              aria-label="展开或收起侧边栏"
-              :aria-expanded="!sidebarCollapsed"
-              @click="toggleSidebar"
-            >
-              <el-icon>
-                <icon-menu />
-              </el-icon>
-            </button>
-          </el-tooltip>
+          <button
+            type="button"
+            class="icon-button toggle-sidebar"
+            title="展开/收起侧边栏"
+            aria-label="展开或收起侧边栏"
+            :aria-expanded="!sidebarCollapsed"
+            @click="toggleSidebar"
+          >
+            <el-icon>
+              <icon-menu />
+            </el-icon>
+          </button>
           <breadcrumb />
         </div>
         <div class="header-right">
@@ -72,12 +71,10 @@
             <ThemeSelector />
           </div>
           <!-- 通知中心 -->
-          <el-tooltip content="通知中心" placement="bottom" :show-after="500">
-            <div class="icon-button-wrapper" aria-label="通知中心" role="button" tabindex="0">
-              <NotificationCenter />
-            </div>
-          </el-tooltip>
-          <el-dropdown trigger="click">
+          <div class="icon-button-wrapper" aria-label="通知中心" title="通知中心" role="button" tabindex="0">
+            <NotificationCenter />
+          </div>
+          <el-dropdown trigger="click" :persistent="false">
             <div class="user-info">
               <DecorativeAvatarFrame
                 :frame="activeAvatarFrame"
@@ -100,7 +97,7 @@
                   {{ $t('common.avatarEffect') }}
                 </el-dropdown-item>
                 <el-dropdown-item>
-                  <el-dropdown placement="left-start" trigger="hover">
+                  <el-dropdown placement="left-start" trigger="hover" :persistent="false">
                     <span class="language-trigger">
                       <el-icon><icon-globe /></el-icon>
                       {{ $t('language.title') }}
@@ -148,7 +145,8 @@ import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../stores/auth'
 import { useLanguageStore } from '../stores/language'
-import { ElMessageBox, ElMessage } from 'element-plus'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import Breadcrumb from '../components/layout/Breadcrumb.vue'
 import ThemeSelector from '../components/common/ThemeSelector.vue'
 import NotificationCenter from '../components/NotificationCenter.vue'
@@ -157,7 +155,7 @@ import SidebarMenu from '../components/layout/SidebarMenu.vue'
 import DecorativeAvatarFrame from './auth/components/DecorativeAvatarFrame.vue'
 import { usePermissionStore } from '../stores/permissionStore'
 import { userApi } from '../api/user'
-import { resolveMenuNavigationState } from '../utils/menuNavigation'
+import { resolveMenuNavigationState } from '../utils/menuTree'
 import { DEFAULT_AVATAR_FRAME, getAvatarFrameConfig } from '../utils/avatarFrames'
 import './layout.css'
 // 图标组件
@@ -242,8 +240,8 @@ const activeAvatarFrame = computed(() => {
   return getAvatarFrameConfig(authStore.user?.avatarFrame, DEFAULT_AVATAR_FRAME)
 })
 // 处理头像加载失败
-const handleAvatarError = () => {
-  // 头像加载失败，使用默认显示
+const handleAvatarError = (failedAvatar) => {
+  authStore.clearInvalidAvatar(failedAvatar)
 }
 const clearSidebarToggleSchedule = () => {
   if (sidebarResizeTimer) {

@@ -1,10 +1,14 @@
 <template>
   <div class="menu-search">
-    <el-tooltip content="搜索菜单 (Ctrl+K)" placement="bottom" :show-after="500">
-      <button class="search-trigger" type="button" aria-label="搜索菜单" @click="openSearch">
-        <el-icon><Search /></el-icon>
-      </button>
-    </el-tooltip>
+    <button
+      class="search-trigger"
+      type="button"
+      title="搜索菜单 (Ctrl+K)"
+      aria-label="搜索菜单"
+      @click="openSearch"
+    >
+      <el-icon><Search /></el-icon>
+    </button>
 
     <AppDialog
       v-model="visible"
@@ -89,7 +93,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { usePermissionStore } from '../../stores/permissionStore'
-import { buildMenuSearchOptions } from '../../utils/menuNavigation'
+import { buildMenuSearchOptions } from '../../utils/menuSearch'
 import {
   Search, Menu, ArrowRight, Right
 } from '@element-plus/icons-vue'

@@ -225,7 +225,7 @@
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { Edit, Delete } from '@element-plus/icons-vue'
 import { contractApi } from '@/api/contract'
 import BusinessApprovalDialog from '@/components/workflow/BusinessApprovalDialog.vue'

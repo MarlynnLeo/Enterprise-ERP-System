@@ -291,7 +291,8 @@ import { echarts } from '@/utils/echartsCore';
 import { financeApi } from '@/api/finance';
 import { parseListData } from '@/utils/responseParser';
 import { CircleCheck, Setting } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { formatCurrency } from '@/utils/helpers/formatters';
 import { alphaColor } from '@/utils/designTokens';
 // 状态定义

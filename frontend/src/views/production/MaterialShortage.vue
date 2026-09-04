@@ -8,7 +8,7 @@
 -->
 <script setup>
 import { ref, onMounted, reactive } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { getProductionStatusText, getProductionStatusColor } from '@/constants/systemConstants'
 import { productionApi, purchaseApi } from '@/api'
 import { formatQuantity } from '@/utils/helpers/quantity'

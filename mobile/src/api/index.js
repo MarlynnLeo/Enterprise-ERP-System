@@ -7,6 +7,7 @@
 
 // Axios 实例（默认导出）
 export { default } from './client'
+export { resetCsrfToken } from './client'
 
 // 业务 API 模块
 export { inventoryApi } from './modules/inventory'

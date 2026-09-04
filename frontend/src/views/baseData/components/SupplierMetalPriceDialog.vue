@@ -51,7 +51,7 @@
 
 <script setup>
 import { computed, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { supplierApi } from '@/api/supplier'
 import { parseResponseData } from '@/utils/responseParser'
 

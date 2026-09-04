@@ -90,7 +90,7 @@
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted, computed, onBeforeUnmount } from 'vue'
 import { Refresh, Download } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { echarts } from '@/utils/echartsCore'
 import { financeApi } from '@/api/finance'
 import { parseDataObject } from '@/utils/responseParser'

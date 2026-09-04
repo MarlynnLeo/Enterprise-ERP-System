@@ -28,7 +28,7 @@
           <span v-if="notificationCount" class="header-badge"></span>
         </button>
         <div class="header-avatar" @click="navigateTo('/profile')">
-          <img v-if="userAvatar" :src="userAvatar" alt="头像" class="avatar-img" />
+          <img v-if="userAvatar" :src="userAvatar" alt="头像" class="avatar-img" @error="handleAvatarError" />
           <UserIcon v-else class="hi-avatar" />
         </div>
       </div>
@@ -170,6 +170,7 @@
 
   // 用户头像
   const userAvatar = computed(() => authStore.user?.avatar || '')
+  const handleAvatarError = () => authStore.clearInvalidAvatar(userAvatar.value)
 
   // 看板统计
   const dashboardStats = ref([

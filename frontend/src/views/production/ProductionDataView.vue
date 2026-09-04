@@ -163,7 +163,7 @@ import {
   Refresh, Clock, Finished,
   Document, SetUp, Histogram, TrendCharts
 } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { echarts } from '@/utils/echartsCore'
 import { productionApi } from '@/api/production'
 import dayjs from 'dayjs'

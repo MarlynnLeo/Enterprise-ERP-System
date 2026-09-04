@@ -373,8 +373,11 @@ const setupInterceptors = (apiInstance) => {
             const requestUrl = String(originalRequest.url || '');
             const csrfErrorCode = error.response?.data?.errorCode || error.response?.data?.code;
             if (error.response?.status === 403 && csrfErrorCode === 'INVALID_CSRF_TOKEN' && !originalRequest._csrfRetry) {
-                csrfToken = '';
+                resetCsrfToken();
                 originalRequest._csrfRetry = true;
+                originalRequest.headers = originalRequest.headers || {};
+                delete originalRequest.headers['X-CSRF-Token'];
+                delete originalRequest.headers['x-csrf-token'];
                 return apiInstance(originalRequest);
             }
             // 如果是401错误且不是登录/刷新接口且未重试过

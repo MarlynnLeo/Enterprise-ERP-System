@@ -5,7 +5,8 @@ import { formatLocalDate } from '@/utils/format'
  * 包含：确认、取消、发货、锁定、解锁、查看详情
  */
 import { computed, ref, unref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { salesApi } from '@/api'
 import { checkInventory } from '@/composables/useInventoryCheck'
 import { clearAllRequestCaches } from '@/utils/requestOptimizer'

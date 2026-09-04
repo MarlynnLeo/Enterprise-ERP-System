@@ -4,7 +4,7 @@
  */
 import { ref, computed } from 'vue'
 import { metalPricesApi } from '@/api'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 // 单位转换系数
 const TROY_OUNCE_GRAMS = 31.1034768
 

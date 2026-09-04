@@ -3,6 +3,10 @@ const { logger } = require('../../utils/logger');
 const NonconformingProductService = require('../business/NonconformingProductService');
 const PurchaseOrderStatusService = require('../business/PurchaseOrderStatusService');
 const PurchaseReceiptService = require('./PurchaseReceiptService');
+const {
+  isOutsourcedIncomingInspection,
+  resolveInspectionSourceType,
+} = require('../../utils/quality/inspectionSource');
 
 const STATUS = businessConfig.status.inspection;
 
@@ -109,6 +113,14 @@ class InspectionClosureService {
     inspection.unqualified_quantity = unqualifiedQuantity;
     inspection.quantity = inspectionQuantity;
 
+    // 新记录直接读取 source_type；对旧记录按委外入库单号/ID识别并回填，
+    // 防止历史 NULL 来源再次误走采购订单闭环。
+    inspection.source_type = await resolveInspectionSourceType(
+      connection,
+      inspection,
+      { persist: true }
+    );
+
     if (inspection.id) {
       await connection.query(
         `UPDATE quality_inspections
@@ -121,9 +133,7 @@ class InspectionClosureService {
 
     // 委外入库到货生成的 incoming 检验只负责放行委外入库单，
     // 不得回写采购订单或自动创建采购入库单。
-    const isOutsourcedIncoming =
-      inspection.inspection_type === 'incoming' &&
-      inspection.source_type === 'outsourced_receipt';
+    const isOutsourcedIncoming = isOutsourcedIncomingInspection(inspection);
 
     if (inspection.inspection_type === 'incoming' && !isOutsourcedIncoming) {
       await PurchaseOrderStatusService.handleInspectionComplete(

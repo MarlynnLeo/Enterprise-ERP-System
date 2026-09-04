@@ -3,7 +3,7 @@
  * @description 统一处理API错误和异常
  */
 
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 
 /**
  * 解析错误信息

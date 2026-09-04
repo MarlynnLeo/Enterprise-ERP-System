@@ -167,7 +167,7 @@
           business-type="quality_inspection"
           :business-id="inspectForm.id"
           :max-files="20"
-          :max-size-m-b="15"
+          :max-size-m-b="ATTACHMENT_MAX_SIZE_MB"
         />
       </el-form-item>
     </el-form>
@@ -191,9 +191,11 @@
 
 <script setup>
 import { ref, reactive, computed, watch, nextTick } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { qualityApi, baseDataApi } from '@/api'
 import AttachmentUpload from '@/components/AttachmentUpload.vue'
+import { ATTACHMENT_MAX_SIZE_MB } from '@/constants/attachmentUpload'
 import { parseListData } from '@/utils/responseParser'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'

@@ -162,7 +162,8 @@
 import { handleTableRowView } from '@/utils/tableRowView'
 import { useDictionaryStore } from '@/stores/dictionary'
 import { ref, reactive, onMounted } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { useRouter } from 'vue-router';
 import { financeApi } from '@/api/finance';
 import {

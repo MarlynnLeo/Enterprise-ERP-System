@@ -14,7 +14,7 @@
       <!-- 头像编辑 -->
       <div class="avatar-section">
         <div class="avatar-container" @click="handleAvatarClick">
-          <img v-if="form.avatar" :src="form.avatar" alt="用户头像" class="avatar-img" />
+          <img v-if="form.avatar" :src="form.avatar" alt="用户头像" class="avatar-img" @error="handleAvatarError" />
           <Icon v-else name="user-o" size="40" color="var(--text-tertiary)" />
           <div class="avatar-overlay">
             <Icon name="camera-o" size="20" color="#fff" />
@@ -124,6 +124,11 @@
   // 头像点击
   const handleAvatarClick = () => {
     fileInput.value.click()
+  }
+
+  const handleAvatarError = () => {
+    form.avatar = ''
+    authStore.clearInvalidAvatar()
   }
 
   // 文件选择

@@ -433,7 +433,7 @@
 <script setup>
 import { parsePaginatedData } from '@/utils/responseParser';
 import { ref, reactive, onMounted, watch, computed } from 'vue'
-import { ElMessage } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index';
 import { Plus, ArrowDown } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
 import { baseDataApi } from '@/api/baseData';

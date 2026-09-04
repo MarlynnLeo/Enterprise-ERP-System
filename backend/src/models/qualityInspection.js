@@ -13,6 +13,11 @@ const businessConfig = require('../config/businessConfig');
 const CodeGeneratorService = require('../services/business/CodeGeneratorService');
 const InspectionTemplateResolver = require('../services/business/InspectionTemplateResolverService');
 const { firstValidUserId } = require('../utils/userUtils');
+const {
+  normalizeInspectionSourceType,
+  isOutsourcedIncomingInspection,
+  resolveInspectionSourceType,
+} = require('../utils/quality/inspectionSource');
 
 // 从统一配置获取状态常量
 const STATUS = {
@@ -37,6 +42,8 @@ const VALID_ITEM_TYPES = new Set([
 const READONLY_INSPECTION_UPDATE_FIELDS = new Set([
   'id',
   'items',
+  'attachments',
+  'source_type',
   'created_at',
   'updated_at',
   'deleted_at',
@@ -108,6 +115,14 @@ class QualityInspection {
     return VALID_ITEM_TYPES.has(type) ? type : 'other';
   }
 
+  static _normalizeSourceType(inspectionType, sourceType) {
+    return normalizeInspectionSourceType(inspectionType, sourceType);
+  }
+
+  static _isOutsourcedIncoming(inspection) {
+    return isOutsourcedIncomingInspection(inspection);
+  }
+
   static _normalizeItemResult(result) {
     const normalized = String(result || '').trim().toLowerCase();
     if (PASS_ITEM_RESULTS.has(normalized)) return 'passed';
@@ -166,6 +181,69 @@ class QualityInspection {
       [inspectionId]
     );
     return items || [];
+  }
+
+  /**
+   * Reconcile explicitly submitted quality attachments in the same transaction
+   * as the inspection update.  Files are soft-deleted from the access registry
+   * rather than removed from disk so audit/retention jobs can handle lifecycle
+   * cleanup without leaving a dangling business reference.
+   */
+  static async _reconcileInspectionAttachments(connection, inspectionId, attachments) {
+    if (!Array.isArray(attachments)) return;
+
+    const FileAccessService = require('../services/FileAccessService');
+    const requestedUrls = [];
+    for (const attachment of attachments) {
+      const rawUrl =
+        typeof attachment === 'string'
+          ? attachment
+          : attachment?.url ??
+            attachment?.fileUrl ??
+            attachment?.file_url ??
+            attachment?.path ??
+            attachment?.filePath;
+      if (rawUrl === undefined || rawUrl === null || String(rawUrl).trim() === '') continue;
+
+      const normalizedUrl = FileAccessService.normalizeUploadUrl(rawUrl);
+      if (!normalizedUrl) {
+        throw this._createValidationError('检验附件地址无效');
+      }
+      if (!requestedUrls.includes(normalizedUrl)) requestedUrls.push(normalizedUrl);
+    }
+
+    const [currentRecords] = await connection.execute(
+      `SELECT id, file_url
+         FROM file_access_records
+        WHERE business_type = 'quality_inspection'
+          AND business_id = ?
+          AND deleted_at IS NULL
+        FOR UPDATE`,
+      [inspectionId]
+    );
+
+    const currentUrls = new Set((currentRecords || []).map((record) => record.file_url));
+    const unknownUrls = requestedUrls.filter((url) => !currentUrls.has(url));
+    if (unknownUrls.length > 0) {
+      throw this._createValidationError('检验附件未通过当前检验单授权校验');
+    }
+
+    const staleIds = (currentRecords || [])
+      .filter((record) => !requestedUrls.includes(record.file_url))
+      .map((record) => record.id)
+      .filter((recordId) => Number.isInteger(Number(recordId)) && Number(recordId) > 0);
+    if (staleIds.length === 0) return;
+
+    const placeholders = staleIds.map(() => '?').join(',');
+    await connection.execute(
+      `UPDATE file_access_records
+          SET deleted_at = NOW(), updated_at = NOW()
+        WHERE id IN (${placeholders})
+          AND business_type = 'quality_inspection'
+          AND business_id = ?
+          AND deleted_at IS NULL`,
+      [...staleIds, inspectionId]
+    );
   }
 
   static _buildInspectionUpdate(data, currentInspection) {
@@ -545,6 +623,13 @@ class QualityInspection {
         await connection.beginTransaction();
       }
 
+      // 来料检验必须明确区分采购订单与委外入库单；旧调用方未传来源时
+      // 兼容性默认为采购订单，但显式委外来源必须原样持久化。
+      inspection.source_type = this._normalizeSourceType(
+        inspection.inspection_type,
+        inspection.source_type
+      );
+
       // 生成检验单号
       let inspectionNo;
       if (inspection.inspection_no) {
@@ -559,28 +644,38 @@ class QualityInspection {
         throw new Error('批次号不能为空，请从业务来源传入可追溯的批次号');
       }
 
-      // ✅ 如果是来料检验,且reference_id为空但reference_no存在,自动查找采购订单ID
+      // 如果来料检验的 reference_id 为空但 reference_no 存在，按来源单据补齐 ID。
       if (
         inspection.inspection_type === 'incoming' &&
         !inspection.reference_id &&
         inspection.reference_no
       ) {
+        const isOutsourcedIncoming = this._isOutsourcedIncoming(inspection);
+        const sourceTable = isOutsourcedIncoming
+          ? 'outsourced_processing_receipts'
+          : 'purchase_orders';
+        const sourceNumberColumn = isOutsourcedIncoming ? 'receipt_no' : 'order_no';
         const [orderRows] = await connection.query(
-          'SELECT id FROM purchase_orders WHERE order_no = ?',
+          `SELECT id FROM ${sourceTable} WHERE ${sourceNumberColumn} = ? LIMIT 1`,
           [inspection.reference_no]
         );
         if (orderRows && orderRows.length > 0) {
           inspection.reference_id = orderRows[0].id;
           logger.info(
-            `Purchase order reference resolved automatically: purchaseOrderId=${inspection.reference_id}, orderNo=${inspection.reference_no}`
+            `Inspection source reference resolved automatically: sourceType=${inspection.source_type}, sourceId=${inspection.reference_id}, sourceNo=${inspection.reference_no}`
           );
         } else {
-          throw new Error(`来料检验单缺少有效采购订单引用: ${inspection.reference_no}`);
+          const sourceLabel = isOutsourcedIncoming ? '委外入库单' : '采购订单';
+          throw new Error(`来料检验单缺少有效${sourceLabel}引用: ${inspection.reference_no}`);
         }
       }
 
       if (inspection.inspection_type === 'incoming' && !inspection.reference_id) {
-        throw new Error('来料检验单必须关联采购订单，不能创建无来源的来料检验单');
+        throw new Error(
+          this._isOutsourcedIncoming(inspection)
+            ? '委外来料检验单必须关联委外入库单，不能创建无来源的来料检验单'
+            : '来料检验单必须关联采购订单，不能创建无来源的来料检验单'
+        );
       }
 
       // 如果product_id存在但product_code或product_name为空，从materials表查询
@@ -654,7 +749,9 @@ class QualityInspection {
       let inspectorId = firstValidUserId(inspection.inspector_id);
       if (!inspectorId) {
         const sourceTable = inspection.inspection_type === 'incoming'
-          ? 'purchase_orders'
+          ? this._isOutsourcedIncoming(inspection)
+            ? null
+            : 'purchase_orders'
           : inspection.task_id || inspection.reference_id
             ? 'production_tasks'
             : null;
@@ -678,17 +775,21 @@ class QualityInspection {
       const [result] = await connection.query(
         `
           INSERT INTO quality_inspections(
-          inspection_no, inspection_type, reference_id, reference_no,
+          inspection_no, inspection_type, source_type, reference_id, reference_no,
           material_id, supplier_id, product_id, product_name, product_code, process_id, process_name, task_id,
           batch_no, quantity, unit, unit_id, standard_type, standard_no,
           planned_date, actual_date, note, inspector_id, inspector_name, status,
           is_first_article, first_article_qty, is_full_inspection, first_article_result, production_can_continue,
           is_aql, aql_level
-        ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES(
+          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        )
           `,
         [
           inspectionNo,
           inspection.inspection_type,
+          inspection.source_type,
           inspection.reference_id,
           inspection.reference_no,
           inspection.material_id || null,
@@ -859,6 +960,7 @@ class QualityInspection {
 
       if (
         inspection.inspection_type === 'incoming' &&
+        !this._isOutsourcedIncoming(inspection) &&
         ['passed', 'partial', 'completed'].includes(String(inspection.status || ''))
       ) {
         const ProductionInboundService = require('../services/business/ProductionInboundService');
@@ -930,7 +1032,7 @@ class QualityInspection {
       try {
         // 获取当前检验单的信息
         const [currentInspection] = await connection.query(
-          'SELECT id, inspection_no, inspection_type, reference_id, reference_no, material_id, supplier_id, product_id, product_name, product_code, process_id, process_name, batch_no, quantity, qualified_quantity, unqualified_quantity, unit, unit_id, status, planned_date, actual_date, inspector_id, inspector_name, punch_time, standard_type, standard_no, template_id, note, created_at, updated_at, traceability_id, traceability_batch, chain_id, chain_step_id, is_first_article, first_article_qty, is_full_inspection, first_article_result, production_can_continue, task_id, is_aql, aql_standard_id, aql_level, accept_limit, reject_limit, deleted_at FROM quality_inspections WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+          'SELECT id, inspection_no, inspection_type, source_type, reference_id, reference_no, material_id, supplier_id, product_id, product_name, product_code, process_id, process_name, batch_no, quantity, qualified_quantity, unqualified_quantity, unit, unit_id, status, planned_date, actual_date, inspector_id, inspector_name, punch_time, standard_type, standard_no, template_id, note, created_at, updated_at, traceability_id, traceability_batch, chain_id, chain_step_id, is_first_article, first_article_qty, is_full_inspection, first_article_result, production_can_continue, task_id, is_aql, aql_standard_id, aql_level, accept_limit, reject_limit, deleted_at FROM quality_inspections WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
           [id]
         );
 
@@ -939,6 +1041,14 @@ class QualityInspection {
         }
 
         const inspection = currentInspection[0];
+
+        // 修复历史记录中 source_type 为空的情况；若 reference_no 对应委外
+        // 入库单则立即回写委外来源，否则按采购来源兼容旧数据。
+        inspection.source_type = await resolveInspectionSourceType(
+          connection,
+          inspection,
+          { persist: true }
+        );
 
         const effectiveStatus = Object.prototype.hasOwnProperty.call(data, 'status')
           ? data.status
@@ -975,6 +1085,10 @@ class QualityInspection {
              WHERE id = ? AND deleted_at IS NULL`,
             updateValues
           );
+        }
+
+        if (Object.prototype.hasOwnProperty.call(data, 'attachments')) {
+          await this._reconcileInspectionAttachments(connection, id, data.attachments);
         }
 
         // 如果有检验项，更新检验项
@@ -1057,7 +1171,11 @@ class QualityInspection {
         }
 
         // 来料检验合格：自动生成零部件仓入库草稿，由仓库管理员确认
-        if (inspection.inspection_type === 'incoming' && data.status) {
+        if (
+          inspection.inspection_type === 'incoming' &&
+          !this._isOutsourcedIncoming(inspection) &&
+          data.status
+        ) {
           const incomingQty = Number(
             data.qualified_quantity ?? inspection.qualified_quantity ?? inspection.quantity ?? 0
           );
@@ -1281,6 +1399,17 @@ class QualityInspection {
         if (inspections[0].status !== 'pending') {
           throw new Error('只有待检验状态的检验单才能删除');
         }
+
+        // 附件授权记录与检验单生命周期保持一致。物理文件不在这里删除，
+        // 由留存/清理任务按审计策略处理，避免删除业务单据后留下可见附件。
+        await connection.execute(
+          `UPDATE file_access_records
+              SET deleted_at = NOW(), updated_at = NOW()
+            WHERE business_type = 'quality_inspection'
+              AND business_id = ?
+              AND deleted_at IS NULL`,
+          [id]
+        );
 
         // 删除检验项
         await connection.execute('DELETE FROM quality_inspection_items WHERE inspection_id = ?', [

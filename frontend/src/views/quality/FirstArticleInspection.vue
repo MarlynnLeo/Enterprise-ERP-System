@@ -123,7 +123,7 @@
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, computed, onMounted, defineAsyncComponent } from 'vue'
 import { Plus, Setting } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { qualityApi } from '@/api/quality'
 import dayjs from 'dayjs'
 import { formatDate } from '@/utils/helpers/dateUtils'

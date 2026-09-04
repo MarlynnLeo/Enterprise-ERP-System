@@ -630,7 +630,7 @@
 import { formatLocalDate } from '@/utils/format';
 import { computed, ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index';
 import { Edit, Delete } from '@element-plus/icons-vue';
 import { baseDataApi, financeApi } from '@/api';
 import { useAuthStore } from '@/stores/auth';

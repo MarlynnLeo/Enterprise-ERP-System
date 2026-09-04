@@ -533,7 +533,8 @@ import { parsePaginatedData, parseListData, parseDataObject } from '@/utils/resp
 
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { Plus, ArrowDown } from '@element-plus/icons-vue';
 import { financeApi } from '@/api';
 import { formatDate, formatCurrency } from '@/utils/helpers/formatters';

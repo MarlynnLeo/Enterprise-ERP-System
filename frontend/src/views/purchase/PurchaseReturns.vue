@@ -394,7 +394,7 @@ import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
 import { parseListData, parsePaginatedData } from '@/utils/responseParser';
 import { ref, reactive, computed, onMounted } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index';
 import { Plus, Edit, Delete, Check, Close, Finished } from '@element-plus/icons-vue';
 
 import { useAuthStore } from '@/stores/auth';

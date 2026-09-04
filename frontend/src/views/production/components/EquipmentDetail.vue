@@ -189,7 +189,8 @@ import {
   getCommonStatusColor,
 } from '@/constants/systemConstants'
 import { ref, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Refresh } from '@element-plus/icons-vue'
 import { equipmentMonitoringAPI } from '@/api/modules/business/equipmentMonitoring'
 import { formatDateTime } from '@/utils/helpers/dateUtils'

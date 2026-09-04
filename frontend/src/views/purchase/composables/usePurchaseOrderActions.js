@@ -4,7 +4,8 @@
  * 包含：状态更新、到货、收货、详情查看、打印、删除、批量操作
  */
 import { ref, reactive, computed } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { purchaseApi } from '@/api'
 import { normalizePurchaseReceivingItems } from '@/utils/purchaseReceiving'
 import printService from '@/services/printService'
@@ -77,9 +78,38 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
   // 申请单详情
   const requisitionViewDialog = reactive({ visible: false, loading: false })
   const requisitionViewData = reactive({
-    id: null, requisition_number: '', request_date: '', requester: '', real_name: '',
-    status: '', remarks: '', created_at: '', updated_at: '', materials: []
+    id: null,
+    requisitionNo: '',
+    requisitionNumber: '',
+    requestDate: '',
+    requester: '',
+    realName: '',
+    department: '',
+    status: '',
+    remarks: '',
+    createdAt: '',
+    updatedAt: '',
+    materials: [],
+    items: []
   })
+
+  const resetRequisitionViewData = () => {
+    Object.assign(requisitionViewData, {
+      id: null,
+      requisitionNo: '',
+      requisitionNumber: '',
+      requestDate: '',
+      requester: '',
+      realName: '',
+      department: '',
+      status: '',
+      remarks: '',
+      createdAt: '',
+      updatedAt: '',
+      materials: [],
+      items: []
+    })
+  }
 
   // 批量操作
   const orderTableRef = ref(null)
@@ -219,8 +249,21 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
   const viewRequisition = async (requisitionId) => {
     try {
       requisitionViewDialog.loading = true; requisitionViewDialog.visible = true
+      resetRequisitionViewData()
       const response = await purchaseApi.getOrderRequisition(requisitionId)
-      Object.assign(requisitionViewData, response.data)
+      const data = parseResponseData(response, {}) || {}
+      const materials = Array.isArray(data.materials) ? data.materials : []
+      Object.assign(requisitionViewData, {
+        ...data,
+        requisitionNo: data.requisitionNo ?? '',
+        requisitionNumber: data.requisitionNumber ?? data.requisitionNo ?? '',
+        requestDate: data.requestDate ?? '',
+        realName: data.realName ?? '',
+        createdAt: data.createdAt ?? '',
+        updatedAt: data.updatedAt ?? '',
+        materials,
+        items: materials
+      })
     } catch (error) { console.error('获取采购申请详情失败:', error); ElMessage.error('获取采购申请详情失败') }
     finally { requisitionViewDialog.loading = false }
   }

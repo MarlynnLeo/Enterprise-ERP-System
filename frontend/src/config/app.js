@@ -5,6 +5,7 @@ const parsePositiveInt = (value, fallback) => {
 
 const trimTrailingSlash = (value) => String(value || '').trim().replace(/\/+$/, '')
 const hasProtocol = (value) => /^[a-z][a-z\d+\-.]*:/i.test(String(value || ''))
+const allowedResourceProtocols = new Set(['http:', 'https:'])
 const rawBaseURL = trimTrailingSlash(
   import.meta.env.VITE_APP_API_BASE_URL ||
   import.meta.env.VITE_API_URL ||
@@ -20,6 +21,41 @@ const resolveApiBaseURL = (baseURL) => {
 const joinUrl = (baseURL, path) => {
   const normalizedPath = path === '/' ? '' : path
   return `${trimTrailingSlash(baseURL)}${normalizedPath}`
+}
+
+const getRuntimeOrigin = () => {
+  if (typeof window === 'undefined') return ''
+  return window.location?.origin || ''
+}
+
+const getAllowedResourceOrigins = () => {
+  const origins = new Set()
+  const runtimeOrigin = getRuntimeOrigin()
+
+  if (runtimeOrigin) {
+    origins.add(runtimeOrigin)
+  }
+
+  if (API_CONFIG.baseURL && hasProtocol(API_CONFIG.baseURL)) {
+    try {
+      origins.add(new URL(API_CONFIG.baseURL).origin)
+    } catch {
+      // Malformed API origins fail on requests; never broaden resource access.
+    }
+  }
+
+  return origins
+}
+
+const isAllowedAbsoluteResourceUrl = (rawUrl) => {
+  try {
+    const parsed = new URL(rawUrl)
+    if (!allowedResourceProtocols.has(parsed.protocol)) return false
+
+    return getAllowedResourceOrigins().has(parsed.origin)
+  } catch {
+    return false
+  }
 }
 
 export const API_CONFIG = {
@@ -58,7 +94,13 @@ export const buildApiUrl = (path = '') => {
 
 export const buildResourceUrl = (path = '') => {
   const rawPath = String(path || '').trim()
-  if (!rawPath || hasProtocol(rawPath)) return rawPath
+  if (!rawPath) return rawPath
+
+  if (rawPath.startsWith('//')) return ''
+
+  if (hasProtocol(rawPath)) {
+    return isAllowedAbsoluteResourceUrl(rawPath) ? rawPath : ''
+  }
 
   const normalizedPath = rawPath.startsWith('/') ? rawPath : `/${rawPath}`
   const baseURL = API_CONFIG.baseURL
@@ -66,5 +108,30 @@ export const buildResourceUrl = (path = '') => {
   if (!baseURL) return normalizedPath
 
   const resourceBaseURL = baseURL.endsWith('/api') ? baseURL.slice(0, -4) || '/' : baseURL
-  return `${trimTrailingSlash(resourceBaseURL)}${normalizedPath}`
+  return joinUrl(resourceBaseURL, normalizedPath)
+}
+
+/**
+ * Resolve a download target without accidentally prefixing a static upload
+ * path with the API base (`/api/uploads/...`). API endpoint URLs are left
+ * untouched; only controlled upload resources are moved to the resource
+ * origin.
+ */
+export const buildDownloadUrl = (path = '') => {
+  const rawPath = String(path || '').trim()
+  if (!rawPath) return rawPath
+
+  if (hasProtocol(rawPath)) {
+    // Absolute download targets must use the same-origin resource policy as
+    // image previews; this also rejects javascript:, data:, blob:, and
+    // untrusted CDN URLs before Axios can issue a request.
+    return buildResourceUrl(rawPath)
+  }
+
+  const normalizedPath = rawPath.startsWith('/') ? rawPath : `/${rawPath}`
+  if (normalizedPath === '/uploads' || normalizedPath.startsWith('/uploads/')) {
+    return buildResourceUrl(rawPath)
+  }
+
+  return rawPath
 }

@@ -16,7 +16,7 @@
           <div class="user-card-top">
             <div class="avatar-section" @click="handleUploadAvatar">
               <div class="avatar-ring">
-                <img v-if="userInfo.avatar" :src="userInfo.avatar" alt="用户头像" class="avatar-img" />
+                <img v-if="userInfo.avatar" :src="userInfo.avatar" alt="用户头像" class="avatar-img" @error="handleAvatarError" />
                 <div v-else class="avatar-fallback">
                   <SvgIcon name="user" size="1.25rem" />
                 </div>
@@ -170,6 +170,7 @@ const userRole = computed(() => {
   const u = userInfo.value || {}
   return u.roleNames || u.roleName || u.role_names || u.role_name || '—'
 })
+const handleAvatarError = () => authStore.clearInvalidAvatar(userInfo.value.avatar)
 
 // 格式化日期
 const formatDate = (dateString) => {

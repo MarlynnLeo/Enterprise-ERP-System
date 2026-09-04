@@ -116,7 +116,8 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { qualityApi } from '@/api/quality'
 import { materialApi } from '@/api/material'
 import { searchMaterials, mapMaterialData, SEARCH_CONFIG } from '@/utils/searchConfig'

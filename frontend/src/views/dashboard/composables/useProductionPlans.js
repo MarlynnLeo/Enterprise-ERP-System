@@ -7,7 +7,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../../stores/auth'
 import { productionApi, baseDataApi } from '@/api'
 import { parseListData } from '@/utils/responseParser'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 
 const BATCH_MATERIAL_QUERY_LIMIT = 100
 const chunkArray = (items, size) => {
@@ -25,18 +25,6 @@ export function useProductionPlans() {
   // 预警列表数据（生产计划）
   const warningList = ref([])
 
-  const WARNING_TAG_MAP = {
-    'draft': 'info',
-    'preparing': 'warning',
-    'material_issuing': 'warning',
-    'material_issued': 'primary',
-    'in_progress': 'primary',
-    'inspection': 'warning',
-    'warehousing': 'success',
-    'completed': 'success',
-    'cancelled': 'danger'
-  }
-
   const PLAN_STATUS_TEXT_MAP = {
     draft: '未开始',
     allocated: '分配中',
@@ -50,7 +38,6 @@ export function useProductionPlans() {
     cancelled: '已取消'
   }
 
-  const getWarningTagType = (status) => WARNING_TAG_MAP[status] || 'info'
   const getStatusText = (status) => PLAN_STATUS_TEXT_MAP[status] || status
   const canViewProductionPlans = computed(() => (
     authStore.hasPermission('production:plans:view')
@@ -140,7 +127,8 @@ export function useProductionPlans() {
 
         return plans.length
       } else {
-        // 如果没有数据
+        // 清空上一次刷新留下的旧数据，避免空响应时继续展示过期计划。
+        warningList.value = []
         return 0
       }
     } catch (error) {
@@ -165,8 +153,6 @@ export function useProductionPlans() {
   return {
     warningList,
     canViewProductionPlans,
-    getWarningTagType,
-    getStatusText,
     loadProductionPlans,
     viewProductionPlan
   }

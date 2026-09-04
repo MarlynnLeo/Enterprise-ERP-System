@@ -1,5 +1,5 @@
 import { api } from '../services/axiosInstance';
-import { API_CONFIG } from '@/config/app';
+import { API_CONFIG, buildDownloadUrl } from '@/config/app';
 
 export const commonApi = {
     // 获取枚举/字典数据
@@ -9,7 +9,20 @@ export const commonApi = {
         headers: { 'Content-Type': 'multipart/form-data' },
         timeout: API_CONFIG.uploadTimeoutMs
     }),
-    downloadResource: (url) => api.get(url, { responseType: 'blob' })
+    downloadResource: (url) => {
+        const resolvedUrl = buildDownloadUrl(url);
+        if (!resolvedUrl) {
+            return Promise.reject(new Error('附件地址不可用'));
+        }
+        const requestConfig = { responseType: 'blob' };
+        // Axios would combine a relative static path with the API base and
+        // request `/api/uploads/...`. An empty baseURL deliberately targets
+        // the Vite/reverse-proxy `/uploads` route instead.
+        if (/^\/uploads(?:\/|$)/i.test(resolvedUrl)) {
+            requestConfig.baseURL = '';
+        }
+        return api.get(resolvedUrl, requestConfig);
+    }
 };
 
 // 金属价格 API

@@ -209,6 +209,17 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  // 清理当前会话中的失效头像引用，避免页面反复请求已不存在的本地文件。
+  // 仅更新本地缓存；服务端资料接口会在下一次读取时再次校验文件是否存在。
+  const clearInvalidAvatar = (failedAvatar = null) => {
+    if (!user.value?.avatar) return false
+    if (failedAvatar && user.value.avatar !== failedAvatar) return false
+
+    user.value = { ...user.value, avatar: null }
+    tokenManager.setUser(user.value)
+    return true
+  }
+
   // 获取用户信息（同时作为 Cookie 会话探测，并发请求共享同一 Promise）
   let _userProfilePromise = null
   let _lastProfileFetchTime = 0
@@ -391,6 +402,7 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     clearClientSession,
     updateUser,
+    clearInvalidAvatar,
     fetchUserProfile,
     fetchUserPermissions,
     refreshPermissions,

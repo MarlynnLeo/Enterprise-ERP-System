@@ -12,6 +12,7 @@ const { getOnlineUsers } = require('../socket/index');
 const { logger } = require('../utils/logger');
 const { ResponseHandler } = require('../utils/responseHandler');
 const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
+const { normalizeAvatarUrl } = require('../utils/avatarUrl');
 
 
 router.use(authenticateToken);
@@ -81,6 +82,9 @@ router.get('/conversations', async (req, res) => {
       }
       for (const conv of rows) {
         conv.members = memberMap.get(conv.id) || [];
+        conv.members.forEach((member) => {
+          member.avatar = normalizeAvatarUrl(member.avatar);
+        });
         if (conv.type === 'private') {
           const other = conv.members.find(m => m.id !== userId);
           if (other) {
@@ -245,6 +249,9 @@ router.get('/conversations/:id/messages', async (req, res) => {
       ORDER BY m.created_at DESC
     `, pagination.limit, pagination.offset);
     const [messages] = await pool.query(messageSql, [conversationId]);
+    messages.forEach((message) => {
+      message.sender_avatar = normalizeAvatarUrl(message.sender_avatar);
+    });
 
     const [countRows] = await pool.query(
       'SELECT COUNT(*) AS total FROM chat_messages WHERE conversation_id = ? AND deleted_at IS NULL',
@@ -289,6 +296,9 @@ router.get('/contacts', requirePermission(CHAT_SEND_PERMISSIONS), async (req, re
     query += ' ORDER BY real_name ASC LIMIT 50';
 
     const [users] = await pool.query(query, params);
+    users.forEach((user) => {
+      user.avatar = normalizeAvatarUrl(user.avatar);
+    });
     const onlineUserIds = getOnlineUsers();
     users.forEach(u => { u.online = onlineUserIds.includes(u.id); });
 

@@ -102,7 +102,7 @@
 
 <script setup>
 import { computed, ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { Download, Delete } from '@element-plus/icons-vue'
 import { documentApi } from '@/api/enhanced'
 import { commonApi } from '@/api/common'

@@ -156,7 +156,7 @@
 
 <script setup>
 import { ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { Switch, ArrowLeft } from '@element-plus/icons-vue'
 import { bomApi } from '@/api'
 import { parseResponseData } from '@/utils/responseParser'

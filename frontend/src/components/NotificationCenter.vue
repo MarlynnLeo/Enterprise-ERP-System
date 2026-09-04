@@ -11,6 +11,7 @@
     placement="bottom-end"
     :width="400"
     trigger="click"
+    :persistent="false"
     :hide-after="0"
     :popper-options="{
       modifiers: [
@@ -150,7 +151,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import {
   Bell,
   Close
@@ -158,6 +159,7 @@ import {
 import notificationApi from '@/api/notification'
 import { parseResponseData } from '@/utils/responseParser'
 import { useSocket } from '@/composables/useSocket'
+import { cancelIdleTask, runWhenIdle } from '@/utils/performanceMode'
 import {
   getNotificationIcon,
   getNotificationColor,
@@ -174,10 +176,13 @@ const notifications = ref([])
 const unreadCount = ref(0)
 const loading = ref(false)
 let pollingTimer = null
+let idleInitializationHandle = null
+let initialized = false
 
 
 // 方法
 const handlePopoverShow = () => {
+  ensureInitialized()
   loadNotifications()
 }
 
@@ -186,6 +191,7 @@ const handlePopoverHide = () => {
 }
 
 const handleTabChange = () => {
+  ensureInitialized()
   loadNotifications()
 }
 
@@ -315,6 +321,7 @@ const stopPolling = () => {
 // 页面重新可见时立即刷新一次未读数
 const handleVisibilityChange = () => {
   if (!document.hidden) {
+    ensureInitialized()
     loadUnreadCount()
   }
 }
@@ -330,14 +337,26 @@ const { connect: connectSocket } = useSocket({
   },
 })
 
-// 生命周期
-onMounted(() => {
+// 通知铃铛不是首屏关键内容。先完成布局和菜单交互，再在浏览器空闲时
+// 建立 Socket/轮询；用户主动打开弹层时仍会立即初始化，行为不变。
+const ensureInitialized = () => {
+  if (initialized) return
+  initialized = true
   connectSocket()
   startPolling()
+}
+
+// 生命周期
+onMounted(() => {
   document.addEventListener('visibilitychange', handleVisibilityChange)
+  idleInitializationHandle = runWhenIdle(ensureInitialized, 2000)
 })
 
 onUnmounted(() => {
+  if (idleInitializationHandle !== null) {
+    cancelIdleTask(idleInitializationHandle)
+    idleInitializationHandle = null
+  }
   stopPolling()
   document.removeEventListener('visibilitychange', handleVisibilityChange)
 })

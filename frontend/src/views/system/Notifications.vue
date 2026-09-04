@@ -225,7 +225,8 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Bell, Message, InfoFilled, Document, Check, Warning, Link } from '@element-plus/icons-vue'
 import notificationApi from '@/api/notification'
 import { parseResponseData } from '@/utils/responseParser'

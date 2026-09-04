@@ -58,7 +58,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { Setting } from '@element-plus/icons-vue'
 import { alertApi } from '@/api/enhanced'
 

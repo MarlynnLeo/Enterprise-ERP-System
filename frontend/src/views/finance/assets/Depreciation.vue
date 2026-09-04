@@ -232,8 +232,9 @@
 import { parseListData, parseResponseData } from '@/utils/responseParser';
 import { formatCurrency, formatLocalMonth } from '@/utils/format'
 import { ref, reactive, computed, onMounted } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
-import { Coin } from '@element-plus/icons-vue';
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index';
+import { Coin, Loading } from '@element-plus/icons-vue';
 import { financeApi } from '@/api/finance';
 import { buildApiUrl } from '@/config/app';
 import { loadDepartmentOptions as loadCachedDepartmentOptions } from '@/utils/optionLoaders';

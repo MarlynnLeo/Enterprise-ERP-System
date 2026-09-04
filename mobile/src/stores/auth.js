@@ -8,6 +8,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import api from '../api'
+import { resetCsrfToken } from '../api/client'
 import { buildResourceUrl } from '@/config/app'
 
 // 存储键名
@@ -165,7 +166,7 @@ export const useAuthStore = defineStore('auth', () => {
   /**
    * 清除认证信息
    */
-  const clearAuthData = () => {
+const clearAuthData = () => {
     token.value = ''
     user.value = null
     profileLoaded.value = false
@@ -190,6 +191,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
 
     setAuthHeader()
+    resetCsrfToken()
   }
 
   // ==================== 公共方法 ====================
@@ -204,6 +206,9 @@ export const useAuthStore = defineStore('auth', () => {
       // Remove any previous principal before starting a new login.
       clearAuthData()
       const response = await api.post('/auth/login', credentials)
+      // Login rotates the auth cookies; discard any token that may have been
+      // cached by a previous account/tab before the first protected write.
+      resetCsrfToken()
 
       // 响应拦截器已经解包了 ResponseHandler 格式
       // response.data 就是 { token, accessToken, refreshToken, user }
@@ -292,6 +297,23 @@ export const useAuthStore = defineStore('auth', () => {
       localStorage.removeItem(STORAGE_KEYS.PERMISSIONS)
       return false
     }
+  }
+
+  // Prevent a stale cached/local avatar from being requested on every view.
+  // The server also normalizes profile responses; this handler covers other
+  // user lists and older sessions that may still contain a removed file.
+  const clearInvalidAvatar = (failedAvatar = null) => {
+    if (!user.value?.avatar) return false
+    if (failedAvatar && user.value.avatar !== failedAvatar) return false
+
+    user.value = { ...user.value, avatar: null }
+    safeSaveJSON(STORAGE_KEYS.USER, user.value, sessionStorage)
+    safeSaveJSON(
+      STORAGE_KEYS.USER,
+      { id: user.value?.id, username: user.value?.username },
+      localStorage
+    )
+    return true
   }
 
   /**
@@ -512,6 +534,7 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     logout,
     fetchUserProfile,
+    clearInvalidAvatar,
     updateProfile,
     fetchUserPermissions,
     refreshPermissions,

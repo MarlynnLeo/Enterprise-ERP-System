@@ -282,7 +282,7 @@ import { useRoute } from 'vue-router';
 import { handleTableRowView } from '@/utils/tableRowView'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { ref, reactive, onMounted } from 'vue';
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { Plus } from '@element-plus/icons-vue'
 import { purchaseApi } from '@/api/purchase';
 

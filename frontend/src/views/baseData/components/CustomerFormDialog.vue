@@ -90,7 +90,7 @@
 
 <script setup>
 import { ref, reactive, computed, watch, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { baseDataApi } from '@/api/baseData'
 import { parsePaginatedData } from '@/utils/responseParser'
 

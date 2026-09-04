@@ -156,7 +156,7 @@
         </el-table-column>
         <el-table-column prop="requisitionNumber" label="关联申请单" width="150" show-overflow-tooltip>
           <template #default="scope">
-            <!-- 简化条件判断逻辑，直接检查requisition_id和requisition_number -->
+            <!-- 采购 API 边界已统一为 camelCase，这里只处理展示兜底。 -->
             <el-link
               v-if="scope.row.requisitionId"
               type="primary"
@@ -914,14 +914,11 @@ async function loadOrders() {
       const orderItems = parseListData(res, { enableLog: false })
       const formattedOrders = orderItems.map(order => {
         const requisitionId = order.requisitionId
-        let requisitionNumber = order.requisitionNumber
-        if (requisitionId && (!requisitionNumber || requisitionNumber === '' || requisitionNumber === '关联申请'))
-          requisitionNumber = `申请单-${requisitionId}`
+        const requisitionNumber = order.requisitionNumber ||
+          (requisitionId ? `申请单-${requisitionId}` : '')
         return {
           ...order,
-          order_date: formatDate(order.orderDate),
-          expected_delivery_date: formatDate(order.expectedDeliveryDate),
-          requisition_id: requisitionId, requisition_number: requisitionNumber
+          requisitionNumber
         }
       })
       orderList.value = formattedOrders

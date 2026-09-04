@@ -73,6 +73,13 @@ const commonController = {
       }
       if (
         binding.bound &&
+        !FileAccessService.canViewBusinessType(binding.businessType, req.userPermissions)
+      ) {
+        FileAccessService.removeLocalFile(fileUrl);
+        return ResponseHandler.forbidden(res, '无权使用该业务类型的文件上传功能');
+      }
+      if (
+        binding.bound &&
         !(await FileAccessService.assertBusinessObjectAccess(
           req,
           binding.businessType,

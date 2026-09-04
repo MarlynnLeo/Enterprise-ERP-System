@@ -8,47 +8,11 @@ const path = require('path');
 const fs = require('fs').promises;
 const crypto = require('crypto');
 const { ErrorFactory } = require('./unifiedErrorHandler');
-
-// 文件类型配置
-const FILE_TYPES = {
-  IMAGE: {
-    extensions: ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'],
-    mimeTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/bmp', 'image/webp'],
-    maxSize: 5 * 1024 * 1024, // 5MB
-  },
-  DOCUMENT: {
-    extensions: ['.pdf', '.doc', '.docx', '.ppt', '.pptx', '.txt'],
-    mimeTypes: [
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.ms-powerpoint',
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      'text/plain',
-    ],
-    maxSize: 10 * 1024 * 1024, // 10MB
-  },
-  AVATAR: {
-    extensions: ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
-    mimeTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
-    maxSize: 2 * 1024 * 1024, // 2MB
-  },
-  EXCEL: {
-    extensions: ['.xlsx', '.xls', '.csv'],
-    mimeTypes: [
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'application/vnd.ms-excel',
-      'text/csv',
-      'application/octet-stream',
-    ],
-    maxSize: 10 * 1024 * 1024, // 10MB
-  },
-  ARCHIVE: {
-    extensions: ['.zip', '.rar', '.7z'],
-    mimeTypes: ['application/zip', 'application/x-rar-compressed', 'application/x-7z-compressed'],
-    maxSize: 50 * 1024 * 1024, // 50MB
-  },
-};
+const {
+  FILE_TYPES,
+  ATTACHMENT_MAX_SIZE,
+  EXCEL_EXTENSIONS,
+} = require('../config/fileUploadPolicy');
 
 // 存储策略
 const STORAGE_STRATEGIES = {
@@ -121,6 +85,9 @@ const MAGIC_SIGNATURES = {
     [0x50, 0x4b, 0x03, 0x04],
     [0x50, 0x4b, 0x05, 0x06],
   ],
+  'application/x-rar-compressed': [[0x52, 0x61, 0x72, 0x21, 0x1a, 0x07]],
+  'application/vnd.rar': [[0x52, 0x61, 0x72, 0x21, 0x1a, 0x07]],
+  'application/x-7z-compressed': [[0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c]],
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': [
     [0x50, 0x4b, 0x03, 0x04],
   ],
@@ -200,6 +167,13 @@ class FileValidator {
       errors.push('不支持的文件格式');
     }
 
+    // Some clients report legacy Excel files as octet-stream.  Never allow
+    // that generic MIME to broaden the contract to arbitrary extensions; the
+    // async post-upload validator performs the signature/text check.
+    if (file.mimetype === 'application/octet-stream' && !EXCEL_EXTENSIONS.includes(ext)) {
+      errors.push('application/octet-stream 仅允许 Excel/CSV 扩展名');
+    }
+
     if (this.hasUnsafeCharacters(file.originalname)) {
       errors.push('文件名包含不安全的字符');
     }
@@ -213,6 +187,56 @@ class FileValidator {
   /** 落盘后校验 magic bytes；失败应删除文件 */
   static async validateMagicAfterUpload(file) {
     if (!file) return { isValid: true, errors: [] };
+
+    if (file.mimetype === 'application/octet-stream') {
+      const ext = path.extname(file.originalname || '').toLowerCase();
+      if (!EXCEL_EXTENSIONS.includes(ext)) {
+        return {
+          isValid: false,
+          errors: ['application/octet-stream 仅允许 .xls、.xlsx 或 .csv 文件'],
+        };
+      }
+
+      try {
+        const head = await this.readFileHead(file, 4096);
+        if (!head || head.length === 0) {
+          return { isValid: false, errors: ['无法读取 Excel/CSV 文件内容'] };
+        }
+
+        if (ext === '.xls') {
+          const valid = MAGIC_SIGNATURES['application/vnd.ms-excel'].some((sig) =>
+            sig.every((byte, index) => head[index] === byte)
+          );
+          return valid
+            ? { isValid: true, errors: [] }
+            : { isValid: false, errors: ['文件内容与 .xls 扩展名不符'] };
+        }
+
+        if (ext === '.xlsx') {
+          const valid = [
+            [0x50, 0x4b, 0x03, 0x04],
+            [0x50, 0x4b, 0x05, 0x06],
+          ].some((sig) => sig.every((byte, index) => head[index] === byte));
+          return valid
+            ? { isValid: true, errors: [] }
+            : { isValid: false, errors: ['文件内容与 .xlsx 扩展名不符'] };
+        }
+
+        // CSV has no fixed magic bytes.  Reject binary payloads and invalid
+        // UTF-8 while accepting comma/semicolon/tab-delimited or plain text.
+        if (head.includes(0)) {
+          return { isValid: false, errors: ['CSV 文件不能包含二进制内容'] };
+        }
+        const text = head.toString('utf8');
+        if (text.includes('\uFFFD')) {
+          return { isValid: false, errors: ['CSV 文件编码无效'] };
+        }
+        return { isValid: true, errors: [] };
+      } catch {
+        return { isValid: false, errors: ['无法读取文件内容进行安全校验'] };
+      }
+    }
+
     const sig = MAGIC_SIGNATURES[file.mimetype];
     if (sig === null || sig === undefined) {
       // 未知 MIME：若是图片/pdf 扩展仍强制读头
@@ -480,7 +504,7 @@ const FileUploadMiddlewares = {
   // 通用附件单文件上传
   attachmentFile: createFileUploadMiddleware({
     allowedTypes: ['IMAGE', 'DOCUMENT', 'EXCEL', 'ARCHIVE'],
-    maxSize: 10 * 1024 * 1024,
+    maxSize: ATTACHMENT_MAX_SIZE,
     storage: STORAGE_STRATEGIES.DISK,
     destination: 'uploads/attachments',
     fieldName: 'file',
@@ -489,7 +513,7 @@ const FileUploadMiddlewares = {
   // 通用附件多文件上传
   attachmentFiles: createFileUploadMiddleware({
     allowedTypes: ['IMAGE', 'DOCUMENT', 'EXCEL', 'ARCHIVE'],
-    maxSize: 10 * 1024 * 1024,
+    maxSize: ATTACHMENT_MAX_SIZE,
     storage: STORAGE_STRATEGIES.DISK,
     destination: 'uploads/attachments',
     fieldName: 'files',
@@ -525,6 +549,7 @@ const FileUploadMiddlewares = {
 };
 
 module.exports = {
+  ATTACHMENT_MAX_SIZE,
   FILE_TYPES,
   STORAGE_STRATEGIES,
   FileUploadConfig,

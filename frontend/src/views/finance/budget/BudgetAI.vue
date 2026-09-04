@@ -492,9 +492,12 @@ import { ref, onMounted, onBeforeUnmount, nextTick, h } from 'vue'
 import { useRouter } from 'vue-router'
 import { financeApi } from '@/api/finance'
 import { API_CONFIG } from '@/config/app'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import {
   MagicStick,
+  Cpu,
+  InfoFilled,
   Warning,
   Promotion,
   TrendCharts,
@@ -502,7 +505,8 @@ import {
   List,
   Memo,
   Stamp,
-  View
+  View,
+  Refresh
 } from '@element-plus/icons-vue'
 import { echarts } from '@/utils/echartsCore'
 import { alphaColor, getCssTokenValue } from '@/utils/designTokens'

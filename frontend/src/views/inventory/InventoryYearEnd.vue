@@ -244,7 +244,8 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import dayjs from 'dayjs'
 import { inventoryApi } from '@/api/inventory'
 import { formatCurrency, formatNumber } from '@/utils/format'

@@ -345,12 +345,14 @@
 <script setup>
 import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { Plus, Delete, InfoFilled, Search } from '@element-plus/icons-vue'
-import { ElMessage, ElImageViewer } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElImageViewer } from 'element-plus/es/components/image-viewer/index'
 import { materialApi } from '@/api/material'
 import { bomApi } from '@/api/bom'
 import { commonApi } from '@/api/common'
 import { parseListData, parsePaginatedData, parseResponseData } from '@/utils/responseParser'
 import { buildResourceUrl } from '@/config/app'
+import { isPreviewableAttachmentImage } from '@/utils/attachmentPreview'
 const props = defineProps({
   modelValue: Boolean,
   editData: {
@@ -551,9 +553,7 @@ const handleAttachmentRemove = (_file, _uploadFiles) => {
   fileList.value = []
 }
 const isImage = (url) => {
-  if (!url) return false
-  const lowerUrl = url.toLowerCase()
-  return lowerUrl.endsWith('.jpg') || lowerUrl.endsWith('.jpeg') || lowerUrl.endsWith('.png') || lowerUrl.endsWith('.gif') || lowerUrl.endsWith('.webp')
+  return isPreviewableAttachmentImage({ url })
 }
 const isPdf = (url) => {
   if (!url) return false
@@ -562,8 +562,8 @@ const isPdf = (url) => {
 
 const buildAttachmentUrl = (url) => {
   if (!url) return ''
-  if (/^https?:\/\//i.test(url)) return url
   const fullUrl = buildResourceUrl(url)
+  if (!fullUrl) return ''
   return /^https?:\/\//i.test(fullUrl) ? fullUrl : `${window.location.origin}${fullUrl}`
 }
 
@@ -574,7 +574,7 @@ const handlePreview = async (file) => {
     // 根本解决：不使用 window.open 直接打开 Blob URL 导致下载变为 uid.htm
     // 如果是未上传的本地文件，直接用原生方式读取供预览
     const url = URL.createObjectURL(file.raw)
-    if (isImage(file.name) || file.raw.type.startsWith('image/')) {
+    if (isPreviewableAttachmentImage({ name: file.name, type: file.raw.type })) {
       previewList.value = [url]
       showImageViewer.value = true
     } else {
@@ -586,6 +586,10 @@ const handlePreview = async (file) => {
 
   // 已有文件
   const url = buildAttachmentUrl(file.url)
+  if (!url) {
+    ElMessage.warning('附件地址不可用')
+    return
+  }
   const fileName = file.name || file.url.split('/').pop() || 'attachment'
   if (isImage(fileName)) {
     previewList.value = [url]

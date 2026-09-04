@@ -3,7 +3,7 @@
  * 包含列表、搜索、定价表单等功能
  */
 import { ref, reactive } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index';
 import dayjs from 'dayjs';
 import { financeApi } from '@/api/finance';
 

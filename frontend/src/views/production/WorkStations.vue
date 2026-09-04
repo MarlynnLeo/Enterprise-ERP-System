@@ -151,7 +151,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { Plus, Edit, Delete } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { workStationApi } from '../../api/assembly'
 
 const typeMap = { assembly: '装配', test: '测试', pack: '包装', other: '其他' }

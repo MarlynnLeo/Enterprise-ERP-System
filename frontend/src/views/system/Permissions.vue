@@ -591,7 +591,9 @@
 <script setup>
 import { ref, reactive, onMounted, nextTick, computed, h, watch } from 'vue';
 import { handleTableRowView } from '@/utils/tableRowView';
-import { ElMessage, ElMessageBox, ElLoading } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
+import { ElLoading } from 'element-plus/es/components/loading/index';
 import {
   Check,
   Close,

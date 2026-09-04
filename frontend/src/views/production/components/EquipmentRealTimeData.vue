@@ -90,7 +90,7 @@
 <script setup>
 
 import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { Refresh, Timer } from '@element-plus/icons-vue'
 import { equipmentMonitoringAPI } from '@/api/modules/business/equipmentMonitoring'
 import { formatTime } from '@/utils/helpers/dateUtils'

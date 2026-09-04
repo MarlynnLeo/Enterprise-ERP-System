@@ -19,8 +19,8 @@
       <div class="info-section">
         <div class="section-header">
           <h3>基本信息</h3>
-          <span :class="['status-tag', customer.status]">
-            {{ customer.status === 'active' ? '启用' : '停用' }}
+          <span :class="['status-tag', isActiveStatus(customer.status) ? 'active' : 'inactive']">
+            {{ isActiveStatus(customer.status) ? '启用' : '停用' }}
           </span>
         </div>
 
@@ -33,15 +33,15 @@
             <span class="label">客户编号</span>
             <span class="value">#{{ customer.id }}</span>
           </div>
-          <div class="info-item" v-if="customer.contact_person">
+          <div class="info-item" v-if="customer.contactPerson">
             <span class="label">联系人</span>
-            <span class="value">{{ customer.contact_person }}</span>
+            <span class="value">{{ customer.contactPerson }}</span>
           </div>
-          <div class="info-item" v-if="customer.contact_phone">
+          <div class="info-item" v-if="customer.contactPhone || customer.phone">
             <span class="label">联系电话</span>
             <span class="value">
-              <a :href="`tel:${customer.contact_phone}`" class="phone-link">
-                {{ customer.contact_phone }}
+              <a :href="`tel:${customer.contactPhone || customer.phone}`" class="phone-link">
+                {{ customer.contactPhone || customer.phone }}
               </a>
             </span>
           </div>
@@ -53,9 +53,9 @@
             <span class="label">地址</span>
             <span class="value">{{ customer.address }}</span>
           </div>
-          <div class="info-item" v-if="customer.credit_limit">
+          <div class="info-item" v-if="customer.creditLimit">
             <span class="label">信用额度</span>
-            <span class="value">¥{{ formatAmount(customer.credit_limit) }}</span>
+            <span class="value">¥{{ formatAmount(customer.creditLimit) }}</span>
           </div>
           <div class="info-item" v-if="customer.remark">
             <span class="label">备注</span>
@@ -116,6 +116,8 @@
 
   const customer = ref(null)
   const loading = ref(true)
+
+  const isActiveStatus = (status) => status === 1 || status === '1' || status === 'active'
 
   // 获取客户详情
   const fetchCustomerDetail = async () => {

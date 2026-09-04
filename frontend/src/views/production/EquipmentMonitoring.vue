@@ -225,7 +225,8 @@ import { handleTableRowView } from '@/utils/tableRowView'
 import { parsePaginatedData, parseResponseData } from '@/utils/responseParser';
 
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import {
   Monitor, Warning, Bell, Tools, Refresh, ArrowDown
 } from '@element-plus/icons-vue'

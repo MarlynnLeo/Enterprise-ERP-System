@@ -169,7 +169,7 @@ import { useRouter } from 'vue-router';
 import { getProductionStatusColor } from '@/constants/systemConstants'
 import { formatDate as formatDateUtil } from '@/utils/helpers/formatters';
 import Chart from '@/utils/chartCore';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index';
 import { Search } from '@element-plus/icons-vue';
 import { productionApi } from '@/api';
 import { useDashboard, useCharts } from '@/composables/useDashboard';

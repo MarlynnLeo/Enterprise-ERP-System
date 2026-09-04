@@ -86,7 +86,7 @@
 
 <script setup>
 import { onMounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { CircleCheck, Download, Plus, Refresh } from '@element-plus/icons-vue'
 import { systemApi } from '@/api'
 

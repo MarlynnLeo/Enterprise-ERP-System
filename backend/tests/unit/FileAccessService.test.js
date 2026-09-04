@@ -73,6 +73,109 @@ describe('FileAccessService', () => {
       valid: true,
       bound: true,
     });
+    expect(FileAccessService.validateBusinessBinding('technical_communication', 1)).toMatchObject({
+      valid: true,
+      bound: true,
+      businessType: 'technical_communication',
+    });
+  });
+
+  test('技术通讯附件沿用作者/抄送/管理权限，不把私有文件公开', async () => {
+    const req = {
+      user: { id: 7 },
+      userPermissions: ['system:tech-comm'],
+    };
+
+    // 作者可读写自己的通讯。
+    pool.execute.mockResolvedValueOnce([[{
+      id: 10,
+      author_id: 7,
+      status: 'draft',
+      visibility: 'private',
+    }]]);
+    await expect(
+      FileAccessService.assertBusinessObjectAccess(req, 'technical_communication', 10, 'write')
+    ).resolves.toBe(true);
+
+    // 非作者、非抄送人不能读取私有通讯附件。
+    pool.execute.mockResolvedValueOnce([[{
+      id: 10,
+      author_id: 8,
+      status: 'published',
+      visibility: 'private',
+    }]]);
+    pool.execute.mockResolvedValueOnce([[]]);
+    await expect(
+      FileAccessService.assertBusinessObjectAccess(req, 'technical_communication', 10, 'read')
+    ).resolves.toBe(false);
+
+    // 部门/用户抄送命中后可读取。
+    pool.execute.mockResolvedValueOnce([[{
+      id: 10,
+      author_id: 8,
+      status: 'published',
+      visibility: 'private',
+    }]]);
+    pool.execute.mockResolvedValueOnce([[{ 1: 1 }]]);
+    await expect(
+      FileAccessService.assertBusinessObjectAccess(req, 'technical_communication', 10, 'read')
+    ).resolves.toBe(true);
+
+    // 管理权限可读取/维护任意私有通讯。
+    pool.execute.mockResolvedValueOnce([[{
+      id: 10,
+      author_id: 8,
+      status: 'draft',
+      visibility: 'private',
+    }]]);
+    await expect(
+      FileAccessService.assertBusinessObjectAccess(
+        { user: { id: 7 }, userPermissions: ['system:tech-comm:manage'] },
+        'technical_communication',
+        10,
+        'write'
+      )
+    ).resolves.toBe(true);
+  });
+
+  test('技术通讯附件绑定只允许自己的临时上传，且支持显式登记历史文件', async () => {
+    const connection = createConnection();
+    connection.execute.mockResolvedValueOnce([[{
+      id: 1,
+      business_type: null,
+      business_id: null,
+      uploaded_by: 7,
+      deleted_at: null,
+    }]]).mockResolvedValueOnce([{ affectedRows: 1 }]);
+
+    await expect(
+      FileAccessService.bindOrRegisterUploadInTransaction(connection, {
+        userId: 7,
+        fileUrl: '/uploads/attachments/temporary.pdf',
+        businessType: 'technical_communication',
+        businessId: 10,
+        metadata: { originalName: 'temporary.pdf' },
+        source: 'technical_communication',
+      })
+    ).resolves.toBe('/uploads/attachments/temporary.pdf');
+    expect(connection.execute.mock.calls[1][0]).toContain('SET business_type');
+
+    const conflictConnection = createConnection();
+    conflictConnection.execute.mockResolvedValueOnce([[{
+      id: 2,
+      business_type: 'quality_inspection',
+      business_id: 99,
+      uploaded_by: 7,
+      deleted_at: null,
+    }]]);
+    await expect(
+      FileAccessService.bindOrRegisterUploadInTransaction(conflictConnection, {
+        userId: 7,
+        fileUrl: '/uploads/attachments/conflict.pdf',
+        businessType: 'technical_communication',
+        businessId: 10,
+      })
+    ).rejects.toMatchObject({ code: 'FILE_ACCESS_BINDING_CONFLICT' });
   });
 
   test('public 标记不能绕过未知绑定或已删除业务对象', async () => {

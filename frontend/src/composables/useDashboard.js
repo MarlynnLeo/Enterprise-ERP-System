@@ -3,7 +3,7 @@
  */
 
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index';
 import {
   handleDashboardError,
   getDefaultStatistics,

@@ -610,7 +610,8 @@
 
 <script setup>
 import { ref, reactive, computed, watch, nextTick } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import AppDialog from '@/components/ui/AppDialog.vue'
 import { financeApi, salesApi, purchaseApi } from '@/api'
 import { formatCurrency, formatLocalDate } from '@/utils/format'

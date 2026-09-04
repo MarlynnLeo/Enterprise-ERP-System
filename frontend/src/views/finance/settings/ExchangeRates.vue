@@ -66,7 +66,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { Delete } from '@element-plus/icons-vue'
 import { exchangeRateApi } from '@/api/enhanced'
 

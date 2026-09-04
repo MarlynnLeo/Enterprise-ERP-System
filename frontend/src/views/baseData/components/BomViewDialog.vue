@@ -128,8 +128,10 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { View, Download } from '@element-plus/icons-vue'
-import { ElImageViewer, ElMessage } from 'element-plus'
+import { ElImageViewer } from 'element-plus/es/components/image-viewer/index'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { buildResourceUrl } from '@/config/app'
+import { isPreviewableAttachmentImage } from '@/utils/attachmentPreview'
 import { commonApi } from '@/api'
 
 const props = defineProps({
@@ -194,9 +196,7 @@ const isApproved = (data) => {
 
 // 附件辅助函数
 const isImage = (url) => {
-  if (!url) return false
-  const lowerUrl = url.toLowerCase()
-  return lowerUrl.endsWith('.jpg') || lowerUrl.endsWith('.jpeg') || lowerUrl.endsWith('.png') || lowerUrl.endsWith('.gif') || lowerUrl.endsWith('.webp')
+  return isPreviewableAttachmentImage({ url })
 }
 
 const isPdf = (url) => {
@@ -206,8 +206,8 @@ const isPdf = (url) => {
 
 const buildAttachmentUrl = (url) => {
   if (!url) return ''
-  if (/^https?:\/\//i.test(url)) return url
   const fullUrl = buildResourceUrl(url)
+  if (!fullUrl) return ''
   return /^https?:\/\//i.test(fullUrl) ? fullUrl : `${window.location.origin}${fullUrl}`
 }
 
@@ -216,6 +216,10 @@ const previewAttachment = (url) => {
   if (!url) return
 
   const fullUrl = buildAttachmentUrl(url)
+  if (!fullUrl) {
+    ElMessage.warning('附件地址不可用')
+    return
+  }
 
   if (isImage(url)) {
     previewList.value = [fullUrl]
@@ -232,6 +236,10 @@ const downloadAttachment = async (url) => {
   if (!url) return
 
   const fullUrl = buildAttachmentUrl(url)
+  if (!fullUrl) {
+    ElMessage.warning('附件地址不可用')
+    return
+  }
 
   // 根本解决：采用二进制下载文件，防止跨域、路由Fallback或强制变成_uid_xxxx.htm
   try {

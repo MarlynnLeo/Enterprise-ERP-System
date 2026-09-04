@@ -219,7 +219,8 @@
 <script setup>
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted, computed } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { Plus, MoreFilled, Select, CopyDocument, Files, Position, Download, Upload, Switch } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
 import { materialApi, bomApi } from '@/api';

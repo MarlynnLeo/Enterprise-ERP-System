@@ -126,7 +126,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { showToast, showConfirmDialog, Button } from 'vant'
+import { showToast, showConfirmDialog, Button, NavBar } from 'vant'
 import { purchaseApi } from '@/api'
 import { extractApiData } from '@/utils/apiHelper'
 import Icon from '@/components/icons/index.vue'

@@ -9,17 +9,16 @@
       </div>
       <div class="ranking-actions">
         <span v-if="date" class="ranking-date">{{ date }}</span>
-        <el-tooltip content="刷新排行榜" placement="top">
-          <el-button
-            class="refresh-button"
-            text
-            :loading="loading"
-            aria-label="刷新排行榜"
-            @click="emit('refresh')"
-          >
-            <el-icon><Refresh /></el-icon>
-          </el-button>
-        </el-tooltip>
+        <el-button
+          class="refresh-button"
+          text
+          :loading="loading"
+          title="刷新排行榜"
+          aria-label="刷新排行榜"
+          @click="emit('refresh')"
+        >
+          <el-icon><Refresh /></el-icon>
+        </el-button>
       </div>
     </header>
 

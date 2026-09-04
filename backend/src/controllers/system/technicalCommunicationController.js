@@ -10,6 +10,7 @@ const { appendPaginationSQL } = require('../../utils/safePagination');
 const { mapKeysToSnake } = require('../../utils/fieldMap');
 const NotificationService = require('../../services/NotificationService');
 const { NOTIFICATION_PERMISSIONS } = require('../../constants/notification');
+const FileAccessService = require('../../services/FileAccessService');
 
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 100;
@@ -36,6 +37,87 @@ function normalizeIdList(value) {
   }
 
   return [...new Set(value.map((id) => Number(id)).filter(Number.isInteger))];
+}
+
+function createValidationError(message, code = 'VALIDATION_ERROR') {
+  const error = new Error(message);
+  error.code = code;
+  error.statusCode = 400;
+  return error;
+}
+
+function parseAttachmentInput(value, { optional = false } = {}) {
+  if (value === undefined && optional) return undefined;
+  if (value === undefined || value === null || value === '') return [];
+
+  let source = value;
+  if (typeof source === 'string') {
+    try {
+      source = JSON.parse(source);
+    } catch {
+      throw createValidationError('附件数据格式无效');
+    }
+  }
+  if (!Array.isArray(source)) {
+    throw createValidationError('附件必须是数组');
+  }
+
+  const result = [];
+  const seen = new Set();
+  for (const attachment of source) {
+    const rawUrl =
+      typeof attachment === 'string'
+        ? attachment
+        : attachment?.url ??
+          attachment?.fileUrl ??
+          attachment?.file_url ??
+          attachment?.path ??
+          attachment?.filePath;
+    if (rawUrl === undefined || rawUrl === null || String(rawUrl).trim() === '') continue;
+
+    const url = FileAccessService.normalizeUploadUrl(rawUrl);
+    if (!url) throw createValidationError('附件地址无效', 'INVALID_FILE_REFERENCE');
+    if (seen.has(url)) continue;
+    seen.add(url);
+
+    const name = String(
+      attachment?.name ||
+        attachment?.filename ||
+        attachment?.originalName ||
+        attachment?.originalname ||
+        url.split('/').pop() ||
+        '附件'
+    ).slice(0, 255);
+    const rawSize = attachment?.size ?? attachment?.fileSize ?? attachment?.file_size;
+    const size = Number.isFinite(Number(rawSize)) && Number(rawSize) >= 0
+      ? Number(rawSize)
+      : null;
+    const type = String(
+      attachment?.type ||
+        attachment?.mimetype ||
+        attachment?.mimeType ||
+        attachment?.fileType ||
+        attachment?.file_type ||
+        ''
+    ).slice(0, 100);
+
+    result.push({ url, name, size, type });
+  }
+  return result;
+}
+
+function parseStoredAttachments(value) {
+  try {
+    return parseAttachmentInput(value) || [];
+  } catch {
+    // A malformed historical JSON value must not make a communication
+    // unreadable; the next successful edit will replace it with canonical data.
+    return [];
+  }
+}
+
+function attachmentUrlSet(attachments) {
+  return new Set((attachments || []).map((attachment) => attachment.url).filter(Boolean));
 }
 
 class TechnicalCommunicationController {
@@ -81,36 +163,14 @@ class TechnicalCommunicationController {
     };
   }
 
-  async canAccessCommunication(communication, req) {
-    if (this.canManagePrivate(req)) {
-      return true;
-    }
-
-    const userId = req.user.id;
-    if (communication.author_id === userId) {
-      return true;
-    }
-    if (communication.status !== 'published') {
-      return false;
-    }
-    if (communication.visibility !== 'private') {
-      return true;
-    }
-
-    const [recipients] = await db.pool.query(
-      `SELECT 1
-       FROM technical_communication_recipients r
-       WHERE r.communication_id = ? AND r.user_id = ?
-       UNION
-       SELECT 1
-       FROM technical_communication_department_recipients dr
-       JOIN users u ON u.department_id = dr.department_id
-       WHERE dr.communication_id = ? AND u.id = ?
-       LIMIT 1`,
-      [communication.id, userId, communication.id, userId]
+  async canAccessCommunication(communication, req, accessMode = 'read') {
+    if (!communication?.id) return false;
+    return FileAccessService.assertBusinessObjectAccess(
+      req,
+      'technical_communication',
+      communication.id,
+      accessMode
     );
-
-    return recipients.length > 0;
   }
 
   async loadAccessibleCommunication(req, res, id) {
@@ -125,21 +185,23 @@ class TechnicalCommunicationController {
     }
 
     const communication = communications[0];
-    if (!(await this.canAccessCommunication(communication, req))) {
+    if (!(await this.canAccessCommunication(communication, req, 'read'))) {
       ResponseHandler.error(res, '无权访问此私有通讯', 'FORBIDDEN', 403);
       return null;
     }
 
+    communication.attachments = parseStoredAttachments(communication.attachments);
+
     return communication;
   }
 
-  async refreshRecipientCount(communicationId) {
-    const [rows] = await db.pool.query(
+  async refreshRecipientCount(communicationId, executor = db.pool) {
+    const [rows] = await executor.query(
       'SELECT COUNT(DISTINCT user_id) AS total FROM technical_communication_recipients WHERE communication_id = ?',
       [communicationId]
     );
 
-    await db.pool.query(
+    await executor.query(
       'UPDATE technical_communications SET recipient_count = ? WHERE id = ?',
       [rows[0]?.total || 0, communicationId]
     );
@@ -303,6 +365,8 @@ class TechnicalCommunicationController {
    * 创建即时通讯
    */
   async createCommunication(req, res) {
+    let connection;
+    let transactionStarted = false;
     try {
       const body = mapKeysToSnake(req.body || {});
       const title = body.title;
@@ -312,7 +376,9 @@ class TechnicalCommunicationController {
       const content = body.content;
       const status = body.status || 'draft';
       const isPinned = body.is_pinned ?? 0;
-      const attachments = body.attachments ?? req.body?.attachments;
+      const attachments = parseAttachmentInput(
+        body.attachments ?? req.body?.attachments
+      );
       const visibility = body.visibility || 'private';
       const recipients = normalizeIdList(req.body.recipients);
       const departmentRecipients = normalizeIdList(req.body.departmentRecipients);
@@ -331,11 +397,22 @@ class TechnicalCommunicationController {
       if (visibility === 'public' && !this.canBroadcast(req)) {
         return ResponseHandler.error(res, '缺少发布全员通讯权限', 'FORBIDDEN', 403);
       }
+      if (
+        visibility === 'private' &&
+        recipients.length === 0 &&
+        departmentRecipients.length === 0
+      ) {
+        return ResponseHandler.error(res, '私有通讯至少需要一个用户或部门抄送', 'VALIDATION_ERROR', 400);
+      }
 
       const userId = req.user.id;
       const userName = req.user.realName || req.user.real_name || req.user.username;
 
-      const [result] = await db.pool.query(
+      connection = await db.pool.getConnection();
+      await connection.beginTransaction();
+      transactionStarted = true;
+
+      const [result] = await connection.query(
         `INSERT INTO technical_communications
          (title, category, tags, summary, content, author_id, author_name, status,
           published_at, is_pinned, attachments, visibility, recipient_count)
@@ -351,7 +428,7 @@ class TechnicalCommunicationController {
           status,
           status === 'published' ? new Date() : null,
           isPinned,
-          attachments ? JSON.stringify(attachments) : null,
+          attachments.length > 0 ? JSON.stringify(attachments) : null,
           visibility,
           recipients.length,
         ]
@@ -361,15 +438,31 @@ class TechnicalCommunicationController {
 
       // 添加抄送人员
       if (recipients && recipients.length > 0) {
-        await this.addRecipients(communicationId, recipients);
+        await this.addRecipients(communicationId, recipients, connection);
       }
 
       // 添加部门抄送
       if (departmentRecipients && departmentRecipients.length > 0) {
-        await this.addDepartmentRecipients(communicationId, departmentRecipients);
+        await this.addDepartmentRecipients(communicationId, departmentRecipients, connection);
       }
 
-      await this.refreshRecipientCount(communicationId);
+      await this.refreshRecipientCount(communicationId, connection);
+
+      // Uploads are initially unbound temporary records.  Claim them in the
+      // same transaction as the communication so recipients can download them
+      // immediately and a failed create cannot leave an orphaned reference.
+      if (attachments.length > 0) {
+        await FileAccessService.reconcileBusinessAttachmentsInTransaction(connection, {
+          userId,
+          businessType: 'technical_communication',
+          businessId: communicationId,
+          attachments,
+          source: 'technical_communication',
+        });
+      }
+
+      await connection.commit();
+      transactionStarted = false;
 
       // 如果是发布状态，发送通知
       if (status === 'published') {
@@ -378,8 +471,21 @@ class TechnicalCommunicationController {
 
       ResponseHandler.success(res, { id: communicationId }, '创建成功');
     } catch (error) {
+      if (transactionStarted && connection) {
+        await connection.rollback().catch(() => {});
+      }
       logger.error('创建即时通讯失败:', error);
-      ResponseHandler.error(res, '创建失败');
+      const statusCode = error.statusCode || (error.code === 'FORBIDDEN' ? 403 : 500);
+      const errorCode = error.code || (statusCode === 400 ? 'VALIDATION_ERROR' : 'SERVER_ERROR');
+      ResponseHandler.error(
+        res,
+        statusCode === 400 || statusCode === 403 ? error.message : '创建失败',
+        errorCode,
+        statusCode,
+        error
+      );
+    } finally {
+      if (connection) connection.release();
     }
   }
 
@@ -387,6 +493,8 @@ class TechnicalCommunicationController {
    * 更新即时通讯
    */
   async updateCommunication(req, res) {
+    let connection;
+    let transactionStarted = false;
     try {
       const { id } = req.params;
       const body = mapKeysToSnake(req.body || {});
@@ -397,7 +505,9 @@ class TechnicalCommunicationController {
       const content = body.content;
       const status = body.status;
       const isPinned = body.is_pinned;
-      const attachments = body.attachments !== undefined ? (req.body?.attachments ?? body.attachments) : undefined;
+      const attachments = body.attachments !== undefined
+        ? parseAttachmentInput(req.body?.attachments ?? body.attachments)
+        : undefined;
       const visibility = body.visibility;
       const recipientsProvided = Object.prototype.hasOwnProperty.call(req.body || {}, 'recipients');
       const departmentRecipientsProvided = Object.prototype.hasOwnProperty.call(
@@ -407,21 +517,41 @@ class TechnicalCommunicationController {
       const recipients = normalizeIdList(req.body?.recipients);
       const departmentRecipients = normalizeIdList(req.body?.departmentRecipients);
 
-      // 先获取原有状态
-      const [oldData] = await db.pool.query(
-        'SELECT status, title, summary, category, visibility FROM technical_communications WHERE id = ?',
+      connection = await db.pool.getConnection();
+      await connection.beginTransaction();
+      transactionStarted = true;
+
+      // 锁定原记录，避免同时编辑造成附件/抄送集合相互覆盖。
+      const [oldData] = await connection.query(
+        `SELECT id, status, title, summary, category, visibility, author_id, attachments
+           FROM technical_communications
+          WHERE id = ?
+          LIMIT 1
+          FOR UPDATE`,
         [id]
       );
 
       if (oldData.length === 0) {
+        await connection.rollback();
+        transactionStarted = false;
         return ResponseHandler.error(res, '即时通讯不存在', 'NOT_FOUND', 404);
       }
 
+      if (!(await this.canAccessCommunication(oldData[0], req, 'write'))) {
+        await connection.rollback();
+        transactionStarted = false;
+        return ResponseHandler.forbidden(res, '无权编辑此即时通讯');
+      }
+
       if (status !== undefined && !ALLOWED_STATUSES.has(status)) {
+        await connection.rollback();
+        transactionStarted = false;
         return ResponseHandler.error(res, '无效的通讯状态', 'VALIDATION_ERROR', 400);
       }
 
       if (visibility !== undefined && !ALLOWED_VISIBILITIES.has(visibility)) {
+        await connection.rollback();
+        transactionStarted = false;
         return ResponseHandler.error(res, '无效的可见范围', 'VALIDATION_ERROR', 400);
       }
 
@@ -461,7 +591,7 @@ class TechnicalCommunicationController {
       }
       if (attachments !== undefined) {
         updateFields.push('attachments = ?');
-        params.push(JSON.stringify(attachments));
+        params.push(attachments.length > 0 ? JSON.stringify(attachments) : null);
       }
       if (visibility !== undefined) {
         updateFields.push('visibility = ?');
@@ -469,9 +599,11 @@ class TechnicalCommunicationController {
       }
 
       // 更新抄送人数
-      const finalVisibility = visibility || oldData[0].visibility || 'private';
-      const finalStatus = status || oldData[0].status;
+      const finalVisibility = visibility !== undefined ? visibility : (oldData[0].visibility || 'private');
+      const finalStatus = status !== undefined ? status : oldData[0].status;
       if (finalVisibility === 'public' && visibility === 'public' && !this.canBroadcast(req)) {
+        await connection.rollback();
+        transactionStarted = false;
         return ResponseHandler.error(res, '缺少发布全员通讯权限', 'FORBIDDEN', 403);
       }
       const shouldPublish =
@@ -479,52 +611,79 @@ class TechnicalCommunicationController {
         (oldData[0].status !== 'published' ||
           (oldData[0].visibility === 'private' && finalVisibility === 'public'));
       if (shouldPublish && finalVisibility === 'public' && !this.canBroadcast(req)) {
+        await connection.rollback();
+        transactionStarted = false;
         return ResponseHandler.error(res, '缺少发布全员通讯权限', 'FORBIDDEN', 403);
       }
       const shouldUpdateRecipients =
         finalVisibility === 'private' && (recipientsProvided || departmentRecipientsProvided);
+      if (
+        finalVisibility === 'private' &&
+        shouldUpdateRecipients &&
+        recipients.length === 0 &&
+        departmentRecipients.length === 0
+      ) {
+        await connection.rollback();
+        transactionStarted = false;
+        return ResponseHandler.error(res, '私有通讯至少需要一个用户或部门抄送', 'VALIDATION_ERROR', 400);
+      }
       if (shouldUpdateRecipients) {
         updateFields.push('recipient_count = ?');
         params.push(recipients.length);
       }
 
       if (updateFields.length === 0 && !shouldUpdateRecipients) {
+        await connection.rollback();
+        transactionStarted = false;
         return ResponseHandler.error(res, '没有可更新的字段', 'VALIDATION_ERROR', 400);
       }
 
-      params.push(id);
-
       if (updateFields.length > 0) {
-        await db.pool.query(
+        await connection.query(
           `UPDATE technical_communications SET ${updateFields.join(', ')} WHERE id = ?`,
-          params
+          [...params, id]
         );
+      }
+
+      if (attachments !== undefined) {
+        const oldAttachments = parseStoredAttachments(oldData[0].attachments);
+        await FileAccessService.reconcileBusinessAttachmentsInTransaction(connection, {
+          userId: req.user.id,
+          businessType: 'technical_communication',
+          businessId: id,
+          attachments,
+          legacyUrls: attachmentUrlSet(oldAttachments),
+          source: 'technical_communication',
+        });
       }
 
       // 更新抄送人员（先删除旧的，再添加新的）
       if (shouldUpdateRecipients) {
         // 删除旧的抄送记录
-        await db.pool.query(
+        await connection.query(
           'DELETE FROM technical_communication_recipients WHERE communication_id = ?',
           [id]
         );
-        await db.pool.query(
+        await connection.query(
           'DELETE FROM technical_communication_department_recipients WHERE communication_id = ?',
           [id]
         );
 
         // 添加新的抄送人员
         if (recipients && recipients.length > 0) {
-          await this.addRecipients(id, recipients);
+          await this.addRecipients(id, recipients, connection);
         }
 
         // 添加新的部门抄送
         if (departmentRecipients && departmentRecipients.length > 0) {
-          await this.addDepartmentRecipients(id, departmentRecipients);
+          await this.addDepartmentRecipients(id, departmentRecipients, connection);
         }
 
-        await this.refreshRecipientCount(id);
+        await this.refreshRecipientCount(id, connection);
       }
+
+      await connection.commit();
+      transactionStarted = false;
 
       // 如果从非发布状态改为发布状态，发送通知
       if (shouldPublish) {
@@ -539,8 +698,21 @@ class TechnicalCommunicationController {
 
       ResponseHandler.success(res, null, '更新成功');
     } catch (error) {
+      if (transactionStarted && connection) {
+        await connection.rollback().catch(() => {});
+      }
       logger.error('更新即时通讯失败:', error);
-      ResponseHandler.error(res, '更新失败');
+      const statusCode = error.statusCode || (error.code === 'FORBIDDEN' ? 403 : 500);
+      const errorCode = error.code || (statusCode === 400 ? 'VALIDATION_ERROR' : 'SERVER_ERROR');
+      ResponseHandler.error(
+        res,
+        statusCode === 400 || statusCode === 403 ? error.message : '更新失败',
+        errorCode,
+        statusCode,
+        error
+      );
+    } finally {
+      if (connection) connection.release();
     }
   }
 
@@ -555,7 +727,11 @@ class TechnicalCommunicationController {
       await connection.beginTransaction();
 
       const [existing] = await connection.query(
-        'SELECT id FROM technical_communications WHERE id = ?',
+        `SELECT id, author_id, status, visibility
+           FROM technical_communications
+          WHERE id = ?
+          LIMIT 1
+          FOR UPDATE`,
         [id]
       );
 
@@ -563,6 +739,19 @@ class TechnicalCommunicationController {
         await connection.rollback();
         return ResponseHandler.error(res, '即时通讯不存在', 'NOT_FOUND', 404);
       }
+
+      if (!(await this.canAccessCommunication(existing[0], req, 'write'))) {
+        await connection.rollback();
+        return ResponseHandler.forbidden(res, '无权删除此即时通讯');
+      }
+
+      // 先撤销文件访问元数据，再删除业务关联，避免删除后附件仍可被
+      // 通过旧 URL 读取。实际文件留给保留/清理作业处理。
+      await FileAccessService.markBusinessAttachmentsDeletedInTransaction(
+        connection,
+        'technical_communication',
+        id
+      );
 
       // 按依赖顺序删除关联数据
       await connection.query(
@@ -837,11 +1026,11 @@ class TechnicalCommunicationController {
   /**
    * 添加抄送人员
    */
-  async addRecipients(communicationId, recipients) {
+  async addRecipients(communicationId, recipients, executor = db.pool) {
     if (!recipients || recipients.length === 0) return;
 
     const values = recipients.map((userId) => [communicationId, userId, 'cc']);
-    await db.pool.query(
+    await executor.query(
       'INSERT IGNORE INTO technical_communication_recipients (communication_id, user_id, recipient_type) VALUES ?',
       [values]
     );
@@ -850,25 +1039,25 @@ class TechnicalCommunicationController {
   /**
    * 添加部门抄送
    */
-  async addDepartmentRecipients(communicationId, departmentIds) {
+  async addDepartmentRecipients(communicationId, departmentIds, executor = db.pool) {
     if (!departmentIds || departmentIds.length === 0) return;
 
     // 先记录部门抄送关系
     const deptValues = departmentIds.map((deptId) => [communicationId, deptId]);
-    await db.pool.query(
+    await executor.query(
       'INSERT IGNORE INTO technical_communication_department_recipients (communication_id, department_id) VALUES ?',
       [deptValues]
     );
 
     // 获取这些部门的所有启用用户
-    const [users] = await db.pool.query(
+    const [users] = await executor.query(
       'SELECT id FROM users WHERE department_id IN (?) AND status = 1',
       [departmentIds]
     );
 
     if (users.length > 0) {
       const userIds = users.map((u) => u.id);
-      await this.addRecipients(communicationId, userIds);
+      await this.addRecipients(communicationId, userIds, executor);
     }
   }
 

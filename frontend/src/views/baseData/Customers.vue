@@ -219,7 +219,7 @@ import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 import CustomerFormDialog from './components/CustomerFormDialog.vue';
 
 import { ref, reactive, onMounted, computed } from 'vue';
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { baseDataApi } from '@/api/baseData';
 import { Plus, Edit, Delete, Download, Switch } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';

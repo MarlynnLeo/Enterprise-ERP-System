@@ -304,7 +304,7 @@
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, onMounted, defineAsyncComponent, computed } from 'vue'
 import { Plus, Setting } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import dayjs from 'dayjs'
 import { useAuthStore } from '@/stores/auth'
 import { formatDate } from '@/utils/helpers/dateUtils'
@@ -727,7 +727,7 @@ const handlePunchIn = async (row) => {
 // 判定过程检验结果
 const handleJudge = async (row) => {
   try {
-    const { ElMessageBox } = await import('element-plus')
+    const { ElMessageBox } = await import('element-plus/es/components/message-box/index')
     const { value: result } = await ElMessageBox.confirm(
       `检验单 ${row.inspectionNo} 已巡检 ${row.punchCount || 0} 次，请判定结果：\n（将同步把所有检验项目判定为相同结果）`,
       '过程检验判定',

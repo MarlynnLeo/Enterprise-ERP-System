@@ -129,37 +129,30 @@ const router = createRouter({
   ]
 })
 
-let authenticatedEnhancementsPromise = null
+let statCardIconsModulePromise = null
 
-function initAuthenticatedEnhancements() {
-  if (authenticatedEnhancementsPromise) return authenticatedEnhancementsPromise
+function scheduleStatCardEnhancement() {
+  // Statistic icons are a legacy visual enhancement. Load and scan only the
+  // current route after the browser has had time to paint the page; there is no
+  // document-wide observer competing with menu interactions.
+  runWhenIdle(async () => {
+    const contentRoot = document.querySelector('.main-content')
+    if (!contentRoot) return
 
-  authenticatedEnhancementsPromise = Promise.all([
-    import('@/plugins/operationColumnAutoWidth').then(({ initOperationColumnAutoWidth }) => {
-      initOperationColumnAutoWidth(document.body)
-    }),
-    import('@/plugins/statCardIcons').then(({ initStatCardIcons }) => {
-      initStatCardIcons()
-    })
-  ]).catch((error) => {
-    // 增强功能加载失败不应阻塞用户进入业务页面。
-    console.error('页面增强功能初始化失败:', error)
-  })
-
-  return authenticatedEnhancementsPromise
-}
-
-// HMR：插件热更新时重置缓存，让下一次路由跳转重新初始化新版插件
-if (import.meta.hot) {
-  import.meta.hot.accept(['@/plugins/operationColumnAutoWidth'], () => {
-    authenticatedEnhancementsPromise = null
-    void initAuthenticatedEnhancements()
-  })
+    try {
+      statCardIconsModulePromise ||= import('@/plugins/statCardIcons')
+      const { initStatCardIcons } = await statCardIconsModulePromise
+      initStatCardIcons(contentRoot)
+    } catch (error) {
+      // A decorative enhancement must never affect route navigation.
+      console.error('统计卡片增强功能初始化失败:', error)
+    }
+  }, 1800)
 }
 
 router.afterEach((to) => {
   if (to.matched.some((record) => record.meta?.requiresAuth)) {
-    void initAuthenticatedEnhancements()
+    scheduleStatCardEnhancement()
   }
 })
 

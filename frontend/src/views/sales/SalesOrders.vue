@@ -610,7 +610,7 @@
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { formatCurrency } from '@/utils/format'
 import { salesApi } from '@/api'
@@ -621,7 +621,7 @@ import { useRouter, useRoute } from 'vue-router'
 const _router = useRouter()
 const route = useRoute()
 import { useFormKeyboardNav } from '@/composables/useFormKeyboardNav'
-import { Plus, Upload, Download } from '@element-plus/icons-vue'
+import { ArrowDown, Plus, Upload, Download } from '@element-plus/icons-vue'
 import { getSalesStatusText, getSalesStatusColor, SALES_STATUS_OPTIONS } from '@/constants/systemConstants'
 import printService from '@/services/printService'
 // ========== 组合式函数导入 ==========

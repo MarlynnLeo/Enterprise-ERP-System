@@ -273,7 +273,8 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { Plus, Odometer, CircleCheck, Warning, CircleClose, Edit, Delete } from '@element-plus/icons-vue';
 import { qualityApi } from '@/api/quality';
 import dayjs from 'dayjs';

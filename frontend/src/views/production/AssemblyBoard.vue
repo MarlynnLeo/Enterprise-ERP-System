@@ -126,7 +126,7 @@
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { assemblyExecutionApi } from '../../api/assembly'
 
 const statusType = { pending: 'info', in_progress: 'warning', completed: 'success', skipped: 'danger' }

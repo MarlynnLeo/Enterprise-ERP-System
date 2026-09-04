@@ -144,7 +144,7 @@
 import { ReportHelper } from '@/utils/commonHelpers';
 import { formatCurrency, formatAmount, formatLocalDate } from '@/utils/format'
 import { ref, reactive, computed, onMounted } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index';
 import { financeApi } from '@/api';
 import printService from '@/services/printService';
 import { loadExcelJS } from '@/utils/lazyVendors';

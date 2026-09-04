@@ -127,7 +127,8 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Plus, Edit, Delete } from '@element-plus/icons-vue'
 import { financeApi } from '@/api'
 import { parseListData } from '@/utils/responseParser'

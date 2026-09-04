@@ -5,7 +5,8 @@ import { formatLocalDate } from '@/utils/format';
  * 包含：表单数据、验证规则、金额计算、物料操作、客户选择、提交逻辑
  */
 import { ref, reactive, computed, watch, nextTick } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { salesApi, baseDataApi } from '@/api'
 import { parseListData } from '@/utils/responseParser'
 import { searchMaterials } from '@/utils/searchConfig'

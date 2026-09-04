@@ -12,6 +12,12 @@ const { logger } = require('../utils/logger');
 
 const DEFAULT_FILE_PERMISSIONS = ['system:files:download'];
 const DEFAULT_DOCUMENT_PERMISSIONS = ['system:documents:view'];
+const TECHNICAL_COMMUNICATION_TYPE = 'technical_communication';
+const TECHNICAL_COMMUNICATION_VIEW_PERMISSIONS = ['system:tech-comm'];
+const TECHNICAL_COMMUNICATION_MANAGER_PERMISSIONS = [
+  'system:tech-comm:*',
+  'system:tech-comm:manage',
+];
 
 // Every business-bound file must resolve through this fixed registry. Scope-backed
 // resources reuse the same object-existence policy as their API; shared master data and
@@ -43,6 +49,15 @@ const FILE_OBJECT_POLICIES = Object.freeze({
   production_plan: Object.freeze({ scopePolicy: 'production_plan' }),
   production_task: Object.freeze({ scopePolicy: 'production_task' }),
   quality_inspection: Object.freeze({ scopePolicy: 'quality_inspection' }),
+  // Technical communications have recipient-aware visibility rather than a
+  // generic department/data-scope rule.  The custom resolver below is shared
+  // by both the communication API and static attachment downloads.
+  [TECHNICAL_COMMUNICATION_TYPE]: Object.freeze({
+    table: 'technical_communications',
+    deletedAtColumn: false,
+    viewPermissions: TECHNICAL_COMMUNICATION_VIEW_PERMISSIONS,
+    customAccess: TECHNICAL_COMMUNICATION_TYPE,
+  }),
   contract: Object.freeze({ scopePolicy: 'contract' }),
   expense: Object.freeze({ scopePolicy: 'expense' }),
   ar_invoice: Object.freeze({ scopePolicy: 'ar_invoice' }),
@@ -175,6 +190,64 @@ function hasFileManagementPermission(userPermissions = []) {
     'system:files:manage',
     'system:admin',
   ]);
+}
+
+function getRequestUserId(req) {
+  return parseNullableId(req?.user?.id ?? req?.user?.userId);
+}
+
+function hasTechnicalCommunicationManagerPermission(userPermissions = []) {
+  return PermissionUtils.hasAnyPermission(
+    userPermissions,
+    TECHNICAL_COMMUNICATION_MANAGER_PERMISSIONS
+  );
+}
+
+/**
+ * Recipient-aware access policy for technical communication attachments.
+ *
+ * A file bound to a communication must follow the communication itself:
+ * authors and managers may mutate it; readers may access published public
+ * communications or a published private communication addressed to them.
+ * Keeping this check here prevents the static /uploads endpoint from becoming
+ * a second, weaker authorization path.
+ */
+async function assertTechnicalCommunicationAccess(req, communicationId, accessMode = 'read') {
+  const userId = getRequestUserId(req);
+  if (!userId) return false;
+
+  const [rows] = await pool.execute(
+    `SELECT id, author_id, status, visibility
+       FROM technical_communications
+      WHERE id = ?
+      LIMIT 1`,
+    [communicationId]
+  );
+  const communication = rows?.[0];
+  if (!communication) return false;
+
+  const permissions = Array.isArray(req?.userPermissions)
+    ? req.userPermissions
+    : await PermissionService.getUserPermissions(userId);
+  if (hasTechnicalCommunicationManagerPermission(permissions)) return true;
+
+  if (Number(communication.author_id) === userId) return true;
+  if (accessMode !== 'read' || communication.status !== 'published') return false;
+  if (communication.visibility !== 'private') return true;
+
+  const [recipientRows] = await pool.execute(
+    `SELECT 1
+       FROM technical_communication_recipients r
+      WHERE r.communication_id = ? AND r.user_id = ?
+      UNION
+     SELECT 1
+       FROM technical_communication_department_recipients dr
+       JOIN users u ON u.department_id = dr.department_id
+      WHERE dr.communication_id = ? AND u.id = ?
+      LIMIT 1`,
+    [communicationId, userId, communicationId, userId]
+  );
+  return Array.isArray(recipientRows) && recipientRows.length > 0;
 }
 
 function normalizePublicFlag(value, userPermissions = []) {
@@ -384,6 +457,9 @@ class FileAccessService {
 
     const descriptor = FILE_OBJECT_POLICIES[binding.businessType];
     if (!descriptor) return false;
+    if (descriptor.customAccess === TECHNICAL_COMMUNICATION_TYPE) {
+      return assertTechnicalCommunicationAccess(req, binding.businessId, accessMode);
+    }
     if (descriptor.scopePolicy) {
       // Private attachments intentionally remain at least as restrictive as
       // the bound object's existence check.
@@ -561,6 +637,242 @@ class FileAccessService {
       [binding.businessType, binding.businessId, record.id]
     );
     return normalizedUrl;
+  }
+
+  /**
+   * Bind a temporary upload to a business object, optionally registering a
+   * legacy URL that predates file_access_records.  Legacy registration is
+   * opt-in per URL and is used only while a trusted business owner edits an
+   * existing row; new uploads must always have a pre-existing access record.
+   */
+  static async bindOrRegisterUploadInTransaction(
+    connection,
+    {
+      userId,
+      fileUrl,
+      businessType,
+      businessId,
+      metadata = null,
+      source = 'upload',
+      isPublic = 0,
+      allowLegacy = false,
+    } = {}
+  ) {
+    const binding = validateBusinessBinding(businessType, businessId);
+    if (!binding.valid || !binding.bound) {
+      const error = new Error('业务附件绑定参数无效');
+      error.code = 'BUSINESS_BINDING_INVALID';
+      throw error;
+    }
+
+    const normalizedUrl = normalizeUploadUrl(fileUrl);
+    if (!normalizedUrl) {
+      const error = new Error('文件路径无效');
+      error.code = 'INVALID_FILE_REFERENCE';
+      throw error;
+    }
+
+    const metadataJson = metadata == null ? null : JSON.stringify(metadata);
+    if (metadataJson && Buffer.byteLength(metadataJson, 'utf8') > 64 * 1024) {
+      const error = new Error('文件元数据过大');
+      error.code = 'FILE_METADATA_TOO_LARGE';
+      throw error;
+    }
+
+    const [rows] = await connection.execute(
+      `SELECT id, business_type, business_id, uploaded_by, deleted_at
+         FROM file_access_records
+        WHERE file_url = ?
+        LIMIT 1
+        FOR UPDATE`,
+      [normalizedUrl]
+    );
+    const record = rows?.[0];
+
+    if (!record) {
+      if (!allowLegacy) {
+        const error = new Error('文件访问元数据不存在，请重新上传附件');
+        error.code = 'FILE_ACCESS_RECORD_NOT_FOUND';
+        throw error;
+      }
+      const resolved = getLocalFilePath(normalizedUrl);
+      if (!resolved || !fs.existsSync(resolved.target)) {
+        const error = new Error('历史附件文件不存在，请移除后重新上传');
+        error.code = 'UPLOAD_FILE_NOT_FOUND';
+        throw error;
+      }
+      await connection.execute(
+        `INSERT INTO file_access_records
+           (file_url, business_type, business_id, source, uploaded_by, is_public, metadata,
+            deleted_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NOW(), NOW())`,
+        [
+          normalizedUrl,
+          binding.businessType,
+          binding.businessId,
+          source === 'upload' ? 'technical_communication_legacy' : source,
+          parseNullableId(userId),
+          Number(isPublic) === 1 ? 1 : 0,
+          metadataJson,
+        ]
+      );
+      return normalizedUrl;
+    }
+
+    if (record.deleted_at) {
+      const error = new Error('文件已被删除，请重新上传附件');
+      error.code = 'FILE_ACCESS_RECORD_DELETED';
+      throw error;
+    }
+
+    const sameBinding =
+      record.business_type === binding.businessType &&
+      Number(record.business_id) === binding.businessId;
+    if (sameBinding) return normalizedUrl;
+
+    if (record.business_type || record.business_id) {
+      const error = new Error('文件已绑定到其他业务对象');
+      error.code = 'FILE_ACCESS_BINDING_CONFLICT';
+      throw error;
+    }
+
+    if (Number(record.uploaded_by) !== Number(userId)) {
+      const error = new Error('只能绑定自己上传的临时文件');
+      error.code = 'FILE_OWNER_MISMATCH';
+      throw error;
+    }
+
+    await connection.execute(
+      `UPDATE file_access_records
+          SET business_type = ?, business_id = ?, source = ?, is_public = ?,
+              metadata = COALESCE(?, metadata), updated_at = NOW()
+        WHERE id = ?`,
+      [
+        binding.businessType,
+        binding.businessId,
+        source,
+        Number(isPublic) === 1 ? 1 : 0,
+        metadataJson,
+        record.id,
+      ]
+    );
+    return normalizedUrl;
+  }
+
+  /**
+   * Reconcile a business row's attachment set in the caller's transaction.
+   * New URLs are claimed only when their upload record belongs to the caller;
+   * removed URLs are soft-deleted so retention/audit jobs can clean the file.
+   */
+  static async reconcileBusinessAttachmentsInTransaction(
+    connection,
+    {
+      userId,
+      businessType,
+      businessId,
+      attachments = [],
+      legacyUrls = new Set(),
+      source = 'upload',
+    } = {}
+  ) {
+    const binding = validateBusinessBinding(businessType, businessId);
+    if (!binding.valid || !binding.bound) {
+      const error = new Error('业务附件绑定参数无效');
+      error.code = 'BUSINESS_BINDING_INVALID';
+      throw error;
+    }
+
+    const requested = [];
+    const seen = new Set();
+    for (const attachment of Array.isArray(attachments) ? attachments : []) {
+      const rawUrl =
+        typeof attachment === 'string'
+          ? attachment
+          : attachment?.url ??
+            attachment?.fileUrl ??
+            attachment?.file_url ??
+            attachment?.path ??
+            attachment?.filePath;
+      const normalizedUrl = normalizeUploadUrl(rawUrl);
+      if (!normalizedUrl || seen.has(normalizedUrl)) continue;
+      seen.add(normalizedUrl);
+      requested.push({
+        url: normalizedUrl,
+        metadata:
+          typeof attachment === 'object' && attachment !== null
+            ? {
+                originalName:
+                  attachment.name ||
+                  attachment.filename ||
+                  attachment.originalName ||
+                  attachment.originalname ||
+                  null,
+                mimetype:
+                  attachment.type ||
+                  attachment.mimetype ||
+                  attachment.mimeType ||
+                  attachment.fileType ||
+                  attachment.file_type ||
+                  null,
+                size: attachment.size ?? attachment.fileSize ?? attachment.file_size ?? null,
+              }
+            : null,
+      });
+    }
+
+    const [currentRows] = await connection.execute(
+      `SELECT id, file_url
+         FROM file_access_records
+        WHERE business_type = ? AND business_id = ? AND deleted_at IS NULL
+        FOR UPDATE`,
+      [binding.businessType, binding.businessId]
+    );
+
+    for (const attachment of requested) {
+      await this.bindOrRegisterUploadInTransaction(connection, {
+        userId,
+        fileUrl: attachment.url,
+        businessType: binding.businessType,
+        businessId: binding.businessId,
+        metadata: attachment.metadata,
+        source,
+        isPublic: 0,
+        allowLegacy: legacyUrls instanceof Set && legacyUrls.has(attachment.url),
+      });
+    }
+
+    const requestedUrls = new Set(requested.map((attachment) => attachment.url));
+    const removedIds = (currentRows || [])
+      .filter((row) => !requestedUrls.has(normalizeUploadUrl(row.file_url)))
+      .map((row) => row.id)
+      .filter(Boolean);
+    if (removedIds.length > 0) {
+      const placeholders = removedIds.map(() => '?').join(',');
+      await connection.execute(
+        `UPDATE file_access_records
+            SET deleted_at = NOW(), updated_at = NOW()
+          WHERE id IN (${placeholders})`,
+        removedIds
+      );
+    }
+
+    return requested.map((attachment) => attachment.url);
+  }
+
+  static async markBusinessAttachmentsDeletedInTransaction(
+    connection,
+    businessType,
+    businessId
+  ) {
+    const binding = validateBusinessBinding(businessType, businessId);
+    if (!binding.valid || !binding.bound) return 0;
+    const [result] = await connection.execute(
+      `UPDATE file_access_records
+          SET deleted_at = NOW(), updated_at = NOW()
+        WHERE business_type = ? AND business_id = ? AND deleted_at IS NULL`,
+      [binding.businessType, binding.businessId]
+    );
+    return Number(result?.affectedRows || 0);
   }
 
   static async markDeleted(fileUrl) {

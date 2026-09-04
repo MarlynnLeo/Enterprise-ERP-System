@@ -8,18 +8,19 @@
 <template>
   <div class="attachment-upload">
     <el-upload
-      v-if="!readonly"
+      v-if="!readonly && attachments.length < maxFiles"
       v-model:file-list="fileList"
+      :accept="accept"
       :http-request="uploadAttachment"
       :on-success="handleSuccess"
       :on-error="handleError"
       :before-upload="beforeUpload"
-      :on-remove="handleRemove"
+      :on-exceed="handleExceed"
       multiple
       :limit="maxFiles"
-      :show-file-list="true"
+      :show-file-list="false"
     >
-      <el-button type="primary" :icon="Upload">
+      <el-button type="primary" :icon="Upload" aria-label="上传附件">
         上传附件
       </el-button>
       <template #tip>
@@ -38,6 +39,7 @@
           v-if="isImage(file)"
           class="image-thumb"
           :src="resourceUrl(file.url)"
+          :alt="file.name"
           :preview-src-list="imagePreviewUrls"
           :initial-index="imagePreviewIndex(file)"
           fit="cover"
@@ -49,11 +51,11 @@
           <span class="filesize">{{ formatFileSize(file.size) }}</span>
         </div>
         <div class="file-actions">
-          <el-button link type="primary" @click="downloadFile(file)">
+          <el-button link type="primary" :aria-label="`下载${file.name}`" @click="downloadFile(file)">
             <el-icon><Download /></el-icon>
             下载
           </el-button>
-          <el-button v-if="!readonly" link type="danger" @click="removeFile(index)">
+          <el-button v-if="!readonly" link type="danger" :aria-label="`移除${file.name}`" @click="removeFile(index)">
             <el-icon><Delete /></el-icon>
             删除
           </el-button>
@@ -64,11 +66,18 @@
 </template>
 
 <script setup>
-import { ref, watch, computed } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ref, watch, computed, nextTick } from 'vue';
+import { ElMessage } from 'element-plus/es/components/message/index';
 import { Upload, Document, Delete, Download } from '@element-plus/icons-vue';
 import { commonApi } from '@/api';
 import { buildResourceUrl } from '@/config/app';
+import { isPreviewableAttachmentImage } from '@/utils/attachmentPreview';
+import {
+  ATTACHMENT_ACCEPT,
+  ATTACHMENT_EXTENSIONS,
+  ATTACHMENT_MAX_SIZE_MB,
+  ATTACHMENT_MIME_TYPES
+} from '@/constants/attachmentUpload';
 
 const props = defineProps({
   modelValue: {
@@ -81,7 +90,7 @@ const props = defineProps({
   },
   maxSizeMB: {
     type: Number,
-    default: 10
+    default: ATTACHMENT_MAX_SIZE_MB
   },
   readonly: {
     type: Boolean,
@@ -105,48 +114,74 @@ const emit = defineEmits(['update:modelValue']);
 
 const normalizeAttachment = (file) => {
   if (typeof file === 'string') return { url: file, name: file.split('/').pop() || '附件' };
+  const url = file?.url || file?.fileUrl || file?.file_url || file?.path || file?.filePath || '';
+  const name = file?.name || file?.filename || file?.originalName || file?.originalname || '附件';
+  const type = file?.type || file?.mimetype || file?.mimeType || file?.fileType || file?.file_type || '';
+  const size = file?.size ?? file?.fileSize ?? file?.file_size ?? null;
   return {
     ...file,
-    url: file?.url || file?.fileUrl || file?.file_url || file?.path || file?.filePath || '',
-    name: file?.name || file?.filename || file?.originalName || '附件'
+    url,
+    name,
+    type,
+    size
   };
 };
 const fileList = ref([]);
+const pendingUploadKeys = new Set();
 const attachments = ref((props.modelValue || []).map(normalizeAttachment));
+const accept = ATTACHMENT_ACCEPT;
 const resourceUrl = (url) => buildResourceUrl(url);
-const isImage = (file) => /^image\//i.test(file?.type || '') || /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(file?.url || file?.name || '');
+const isImage = isPreviewableAttachmentImage;
 const imagePreviewUrls = computed(() => attachments.value.filter(isImage).map(file => resourceUrl(file.url)).filter(Boolean));
 const imagePreviewIndex = (file) => Math.max(0, imagePreviewUrls.value.indexOf(resourceUrl(file.url)));
 
+const fallbackUploadKey = (file) => `${file?.name || ''}:${file?.size || 0}:${file?.lastModified || 0}`;
+const uploadKey = (file) => {
+  if (file?.uid !== undefined && file?.uid !== null) return String(file.uid);
+  return fallbackUploadKey(file);
+};
+
+const uploadKeyCandidates = (file) => {
+  const keys = [uploadKey(file), fallbackUploadKey(file)];
+  return keys;
+};
+
+const releaseUploadSlot = (file) => {
+  uploadKeyCandidates(file).forEach(key => pendingUploadKeys.delete(key));
+  fileList.value = fileList.value.filter(item => pendingUploadKeys.has(uploadKey(item)));
+  nextTick(() => {
+    fileList.value = fileList.value.filter(item => pendingUploadKeys.has(uploadKey(item)));
+  });
+};
+
+const emitAttachments = () => emit('update:modelValue', attachments.value.slice());
+
 const beforeUpload = (file) => {
-  const isLtMaxSize = file.size / 1024 / 1024 < props.maxSizeMB;
-  if (!isLtMaxSize) {
+  const maxSizeBytes = Number(props.maxSizeMB) * 1024 * 1024;
+  if (!Number.isFinite(maxSizeBytes) || file.size > maxSizeBytes) {
     ElMessage.error(`文件大小不能超过 ${props.maxSizeMB}MB`);
     return false;
   }
 
-  const allowedTypes = [
-    'application/pdf',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'application/vnd.ms-powerpoint',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    'image/jpeg',
-    'image/png',
-    'image/gif',
-    'image/webp',
-    'text/plain',
-    'application/zip',
-    'application/x-rar-compressed'
-  ];
-
-  if (!allowedTypes.includes(file.type)) {
+  const extension = `.${String(file.name || '').split('.').pop()}`.toLowerCase();
+  const mimeType = String(file.type || '').split(';', 1)[0].trim().toLowerCase();
+  const hasSupportedExtension = ATTACHMENT_EXTENSIONS.includes(extension);
+  const hasSupportedMime = !mimeType || ATTACHMENT_MIME_TYPES.includes(mimeType);
+  const isOctetStreamExcel = mimeType === 'application/octet-stream' &&
+    ['.xls', '.xlsx', '.csv'].includes(extension);
+  const hasSupportedType = hasSupportedExtension && hasSupportedMime &&
+    (mimeType !== 'application/octet-stream' || isOctetStreamExcel);
+  if (!hasSupportedType) {
     ElMessage.error('不支持的文件类型');
     return false;
   }
 
+  if (attachments.value.length + pendingUploadKeys.size >= props.maxFiles) {
+    ElMessage.warning(`最多只能上传 ${props.maxFiles} 个文件`);
+    return false;
+  }
+
+  pendingUploadKeys.add(uploadKey(file));
   return true;
 };
 
@@ -168,46 +203,54 @@ const uploadAttachment = async ({ file, onSuccess, onError }) => {
 };
 
 const handleSuccess = (response, file) => {
-  const uploadedFile = response?.success ? response.data : response?.data || response;
-  const fileUrl = uploadedFile?.url || uploadedFile?.filePath || uploadedFile?.path;
+  const uploadedFile = response?.data?.data || response?.data || response;
+  const fileUrl = uploadedFile?.url || uploadedFile?.fileUrl || uploadedFile?.filePath || uploadedFile?.path;
 
   if (fileUrl) {
-    attachments.value.push({
-      name: file.name,
-      size: file.size,
-      url: fileUrl,
-      type: file.type
-    });
-    emit('update:modelValue', attachments.value);
+    const normalizedUrl = String(fileUrl);
+    if (!attachments.value.some(item => String(item.url) === normalizedUrl)) {
+      attachments.value.push({
+        id: uploadedFile?.id,
+        name: uploadedFile?.filename || uploadedFile?.originalName || file.name,
+        size: uploadedFile?.size ?? file.size,
+        url: normalizedUrl,
+        type: uploadedFile?.mimetype || uploadedFile?.mimeType || file.type
+      });
+      emitAttachments();
+    }
+    releaseUploadSlot(file);
     ElMessage.success('上传成功');
   } else {
-    ElMessage.error(response.message || '上传失败');
+    releaseUploadSlot(file);
+    ElMessage.error(response?.message || '上传失败');
   }
 };
 
-const handleError = (error) => {
+const handleError = (error, file) => {
+  releaseUploadSlot(file);
   console.error('Upload error:', error);
   ElMessage.error('上传失败，请重试');
 };
 
-const handleRemove = (file) => {
-  const index = attachments.value.findIndex(item => item.name === file.name && item.url === (file.url || file.response?.url));
-  if (index > -1) {
-    attachments.value.splice(index, 1);
-    emit('update:modelValue', attachments.value);
-  }
+const handleExceed = () => {
+  ElMessage.warning(`最多只能上传 ${props.maxFiles} 个文件`);
 };
 
 const removeFile = (index) => {
   attachments.value.splice(index, 1);
-  emit('update:modelValue', attachments.value);
+  emitAttachments();
   ElMessage.success('已删除');
 };
 
 const downloadFile = (file) => {
+  const href = resourceUrl(file?.url);
+  if (!href) {
+    ElMessage.warning('附件地址不可用');
+    return;
+  }
   const link = document.createElement('a');
-  link.href = resourceUrl(file.url);
-  link.download = file.name;
+  link.href = href;
+  link.download = file?.name || '附件';
   link.target = '_blank';
   document.body.appendChild(link);
   link.click();
@@ -220,7 +263,7 @@ const formatFileSize = (bytes) => {
   if (bytes === 0) return '0 B';
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
   return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
 };
 

@@ -5,6 +5,7 @@ const {
   sanitizeHTML,
   validateAndSanitizeInput,
 } = require('../../src/middleware/inputValidation');
+const { sqlInjectionDetection } = require('../../src/middleware/securityEnhanced');
 
 const createRequest = (path, body) => ({
   originalUrl: path,
@@ -73,7 +74,8 @@ describe('inputValidation middleware', () => {
 
   test('allows 8D narrative fields to contain quoted business prose', () => {
     const req = createRequest('/api/quality/eight-d-reports', {
-      d8_lessons_learned: "体系维度：将寿命验证从'可选项目'升级为'强制门径'；流程维度：完善DFMEA复盘。",
+      d8_lessons_learned:
+        "体系维度：将寿命验证从'可选项目'升级为'强制门径'；流程维度：完善DFMEA复盘。",
     });
     const res = createResponse();
     const next = jest.fn();
@@ -95,7 +97,9 @@ describe('inputValidation middleware', () => {
 
     expect(next).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(403);
-    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ errorCode: 'SUSPICIOUS_INPUT' }));
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ errorCode: 'SUSPICIOUS_INPUT' })
+    );
   });
 
   test('allows standard identifiers in AQL levels, including legacy escaped values', () => {
@@ -134,7 +138,88 @@ describe('inputValidation middleware', () => {
 
     expect(next).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(403);
-    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ errorCode: 'SUSPICIOUS_INPUT' }));
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ errorCode: 'SUSPICIOUS_INPUT' })
+    );
+  });
+
+  test('allows quality inspection methods with slash values and legacy entities', () => {
+    for (const method of ['目测/通止规', '目测&#x2F;通止规']) {
+      const req = createRequest('/api/quality/templates/78', {
+        items: [{ itemName: '外观', standard: '符合图纸', method }],
+      });
+      const res = createResponse();
+      const next = jest.fn();
+
+      detectSQLInjection(req, res, next);
+
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(res.status).not.toHaveBeenCalled();
+    }
+  });
+
+  test('uses the same relaxed quality-method policy in enhanced detection', () => {
+    const req = {
+      ...createRequest('/api/quality/templates/78', {
+        items: [{ itemName: '外观', standard: '符合图纸', method: '目测&#x2F;通止规' }],
+      }),
+      get: jest.fn(() => 'jest'),
+    };
+    const next = jest.fn();
+
+    sqlInjectionDetection(req, {}, next);
+
+    expect(next).toHaveBeenCalledWith();
+  });
+
+  test('canonicalizes raw and legacy slash values during sanitization', () => {
+    for (const method of ['目测/通止规', '目测&#x2F;通止规']) {
+      const req = createRequest('/api/quality/templates/78', {
+        items: [{ method }],
+      });
+      const next = jest.fn();
+
+      validateAndSanitizeInput(req, {}, next);
+
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(req.body.items[0].method).toBe('目测/通止规');
+    }
+  });
+
+  test('does not decode unrelated HTML entities during sanitization', () => {
+    const req = createRequest('/api/base-data/materials', {
+      description: '&lt;script&gt;alert(1)&lt;/script&gt;',
+    });
+    const next = jest.fn();
+
+    validateAndSanitizeInput(req, {}, next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(req.body.description).not.toContain('<script>');
+    expect(req.body.description).toContain('&amp;lt;script&amp;gt;');
+  });
+
+  test('still blocks high-risk SQL in quality inspection methods in both detectors', () => {
+    const payload = {
+      items: [{ itemName: '外观', standard: '符合图纸', method: '目测; DROP TABLE users' }],
+    };
+    const req = createRequest('/api/quality/templates/78', payload);
+    const res = createResponse();
+    const next = jest.fn();
+
+    detectSQLInjection(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(403);
+
+    const enhancedReq = {
+      ...createRequest('/api/quality/templates/78', payload),
+      get: jest.fn(() => 'jest'),
+    };
+    const enhancedNext = jest.fn();
+    sqlInjectionDetection(enhancedReq, {}, enhancedNext);
+
+    expect(enhancedNext).toHaveBeenCalledWith(expect.any(Error));
   });
 
   test('allows browser diagnostics on the client error reporting route', () => {

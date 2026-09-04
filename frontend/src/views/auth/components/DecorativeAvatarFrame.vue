@@ -19,7 +19,7 @@
 
     <el-avatar
       :size="resolvedAvatarSize"
-      :src="avatar || defaultAvatar"
+      :src="resolvedAvatarSrc"
       class="decorative-avatar"
       @error="handleError"
     >
@@ -63,6 +63,23 @@ const props = defineProps({
 const emit = defineEmits(['avatar-error'])
 
 const imageLoadFailed = ref(false)
+const avatarLoadFailed = ref(false)
+const defaultAvatarLoadFailed = ref(false)
+
+watch(
+  () => props.avatar,
+  () => {
+    avatarLoadFailed.value = false
+    defaultAvatarLoadFailed.value = false
+  }
+)
+
+watch(
+  () => props.defaultAvatar,
+  () => {
+    defaultAvatarLoadFailed.value = false
+  }
+)
 
 watch(
   () => props.frame?.image,
@@ -74,6 +91,12 @@ watch(
 const frameImage = computed(() => {
   if (imageLoadFailed.value) return ''
   return props.frame?.image || ''
+})
+
+const resolvedAvatarSrc = computed(() => {
+  if (props.avatar && !avatarLoadFailed.value) return props.avatar
+  if (props.defaultAvatar && !defaultAvatarLoadFailed.value) return props.defaultAvatar
+  return ''
 })
 
 const isNone = computed(
@@ -107,7 +130,15 @@ const fallbackInitial = computed(() => {
 })
 
 function handleError() {
-  emit('avatar-error')
+  if (props.avatar && !avatarLoadFailed.value) {
+    avatarLoadFailed.value = true
+    emit('avatar-error', props.avatar)
+    return
+  }
+
+  if (props.defaultAvatar && !defaultAvatarLoadFailed.value) {
+    defaultAvatarLoadFailed.value = true
+  }
 }
 
 function onFrameImageError() {

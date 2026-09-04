@@ -462,7 +462,7 @@ import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
 import { purchaseApi, qualityApi, baseDataApi } from '@/api';
 
 import { formatCurrency } from '@/utils/helpers/formatters';
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { useRoute } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { Plus, Close } from '@element-plus/icons-vue'

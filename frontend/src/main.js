@@ -4,7 +4,7 @@
 
 import { createApp, defineAsyncComponent } from 'vue'
 import { createPinia } from 'pinia'
-import { ElLoading } from 'element-plus'
+import { ElLoading } from 'element-plus/es/components/loading/index'
 import 'element-plus/theme-chalk/el-loading.css'
 import 'element-plus/theme-chalk/el-message-box.css'
 import 'element-plus/theme-chalk/el-message.css'
@@ -68,8 +68,8 @@ router.onError((error) => {
   console.error('路由错误:', error)
 })
 
-// 登录页不使用全局图标。只在进入受保护页面前加载并注册，避免低性能
-// 客户端打开登录页时下载和解析整套 Element Plus 图标。
+// 登录页不使用全局图标。进入受保护页面后在首帧完成、浏览器空闲时再
+// 注册兼容旧页面的全局图标，避免图标模块阻塞路由解析和首屏绘制。
 let elementIconsPromise = null
 const ensureElementIcons = () => {
   if (elementIconsPromise) return elementIconsPromise
@@ -84,9 +84,11 @@ const ensureElementIcons = () => {
   return elementIconsPromise
 }
 
-router.beforeResolve(async (to) => {
+router.afterEach((to) => {
   if (to.meta?.requiresAuth) {
-    await ensureElementIcons()
+    runWhenIdle(() => {
+      void ensureElementIcons()
+    }, 1800)
   }
 })
 

@@ -223,7 +223,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { formatCurrency, formatLocalDate } from '@/utils/format'
 import { Check, TrendCharts, Warning, CircleCheck, Refresh } from '@element-plus/icons-vue'
 import { financeApi } from '@/api'

@@ -206,7 +206,8 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { Plus, InfoFilled, Check } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { financeApi } from '@/api/finance'
 import { parsePaginatedData, parseDataObject } from '@/utils/responseParser'
 import { formatDate } from '@/utils/helpers/formatters'

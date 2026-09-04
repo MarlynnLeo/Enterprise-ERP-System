@@ -289,7 +289,7 @@
 import { handleTableRowView } from '@/utils/tableRowView'
 import { useDictionaryStore } from '@/stores/dictionary'
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { Check, Finished, Edit } from '@element-plus/icons-vue'
 import { qualityApi } from '@/api/quality'
 import { normalizePaginationData } from '@/utils/helpers/typeUtils'

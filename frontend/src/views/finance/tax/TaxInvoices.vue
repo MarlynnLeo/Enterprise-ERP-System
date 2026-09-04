@@ -477,7 +477,8 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { formatAmount, formatLocalDate } from '@/utils/format'
 import { Plus, View, Check, Discount, Delete, ArrowDown, Document, Clock, Download, Upload, Link, CircleClose as Unlink, EditPen } from '@element-plus/icons-vue';
 import { financeApi } from '@/api/finance';

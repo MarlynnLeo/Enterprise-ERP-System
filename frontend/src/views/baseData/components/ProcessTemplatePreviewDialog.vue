@@ -47,7 +47,7 @@
 
 <script setup>
 import { defineAsyncComponent, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { commonApi } from '@/api'
 import '@vue-office/docx/lib/v3/index.css'
 import '@vue-office/excel/lib/v3/index.css'

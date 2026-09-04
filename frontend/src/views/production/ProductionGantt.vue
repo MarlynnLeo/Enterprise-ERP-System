@@ -166,7 +166,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { Refresh, UserFilled, WarningFilled, ZoomIn } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { productionApi } from '@/api/production'

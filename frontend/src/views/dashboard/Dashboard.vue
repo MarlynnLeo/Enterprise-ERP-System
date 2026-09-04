@@ -46,74 +46,14 @@
       <!-- 待办事项、我发起和统计图表在同一行 -->
       <el-row :gutter="20">
         <el-col :xs="24" :sm="24" :md="8">
-          <div ref="todoContainerRef" class="list-container todo-container">
-            <div class="list-header">
-              <div class="tab-group">
-                <div
-                  :class="['tab', {'active': activeTodoTab === 'pending'}]"
-                  @click="switchTodoTab('pending')"
-                >{{ $te('page.dashboard.todoItems') ? $t('page.dashboard.todoItems') : ($te('dashboard.todoItems') ? $t('dashboard.todoItems') : '待办事项') }}</div>
-                <div
-                  :class="['tab', {'active': activeTodoTab === 'completed'}]"
-                  @click="switchTodoTab('completed')"
-                >{{ $te('common.completed') ? $t('common.completed') : '已完成' }}</div>
-              </div>
-              <el-button link class="todo-more-button" @click="goToTodoPage">
-                查看全部 {{ activeTodoCount }}
-              </el-button>
-            </div>
-            <div class="list-content">
-              <el-table
-                :data="activeTodoTasks"
-                :show-header="true"
-                style="width: 100%; height: 320px;"
-                :empty-text="activeTodoTab === 'pending' ? '暂无待办事项' : '暂无已完成事项'"
-                class="dashboard-table"
-              >
-                <el-table-column :label="$t('common.type') || '类型'" width="72">
-                  <template #default="{ row }">
-                    <span class="event-type" :class="getEventTypeClass(row.type)">{{ row.type }}</span>
-                  </template>
-                </el-table-column>
-                <el-table-column prop="title" :label="$t('common.title') || '标题'" min-width="100" show-overflow-tooltip />
-                <el-table-column
-                  v-if="showTodoDate"
-                  prop="date"
-                  :label="activeTodoTab === 'pending' ? ($t('common.deadline') || '截止时间') : ($t('common.updateTime') || '更新时间')"
-                  width="108"
-                />
-                <el-table-column v-if="showTodoStatus" :label="$t('common.status') || '状态'" width="76">
-                  <template #default="{ row }">
-                    <span :class="activeTodoTab === 'completed' ? 'status-completed' : getStatusClass(row.status)">
-                      {{ row.status }}
-                    </span>
-                  </template>
-                </el-table-column>
-                <el-table-column :label="$t('common.action') || '操作'" width="88" align="center">
-                  <template #default="{ row }">
-                    <el-button
-                      :type="activeTodoTab === 'pending' ? 'primary' : 'info'"
-                      size="small"
-                      class="action-btn"
-                      @click="activeTodoTab === 'pending' ? goToTodoPage() : viewTodoDetail(row.id)"
-                    >
-                      {{ activeTodoTab === 'pending' ? ($t('common.handle') || '处理') : ($t('common.detail') || '详情') }}
-                    </el-button>
-                  </template>
-                </el-table-column>
-                <!-- 空状态插槽 -->
-                <template #empty>
-                  <div class="empty-state">
-                    <el-icon class="empty-icon"><DocumentRemove /></el-icon>
-                    <p class="empty-text">{{ activeTodoTab === 'pending' ? '暂无待办事项' : '暂无已完成事项' }}</p>
-                    <p class="empty-desc todo-empty-desc">
-                      {{ activeTodoTab === 'pending' ? '太棒了！所有任务已完成' : '还没有完成任何任务' }}
-                    </p>
-                  </div>
-                </template>
-              </el-table>
-            </div>
-          </div>
+          <DashboardTodoList
+            :tasks="activeTodoTasks"
+            :tab="activeTodoTab"
+            :count="activeTodoCount"
+            @switch-tab="switchTodoTab"
+            @go-to-all="goToTodoPage"
+            @view="viewTodoDetail"
+          />
         </el-col>
 
         <el-col :xs="24" :sm="24" :md="8">
@@ -202,9 +142,8 @@ import {
   ArrowLeft,
   ArrowRight,
   Document,
-  DocumentRemove,
 } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 // ========== 组合式函数导入 ==========
 import { useWeather } from './composables/useWeather'
 import { useExchangeRate } from './composables/useExchangeRate'
@@ -216,6 +155,7 @@ import OnlineTimeRanking from './components/OnlineTimeRanking.vue'
 import PersonalInfoCard from './components/PersonalInfoCard.vue'
 import ProductionPlanTable from './components/ProductionPlanTable.vue'
 import PriceExchangePanel from './components/PriceExchangePanel.vue'
+import DashboardTodoList from './components/DashboardTodoList.vue'
 import { parseResponseData } from '@/utils/responseParser'
 import logger from '@/utils/logger'
 // ========== 解构组合式函数 ==========
@@ -290,16 +230,12 @@ const statistics = ref({
   documentCount: 0
 })
 const isLoadingStats = ref(true)
-const todoContainerRef = ref(null)
-const todoContainerWidth = ref(0)
 const activeTodoTasks = computed(() => (
   activeTodoTab.value === 'pending' ? pendingTasks.value : completedTasks.value
 ))
 const activeTodoCount = computed(() => (
   activeTodoTab.value === 'pending' ? pendingTotal.value : completedTotal.value
 ))
-const showTodoDate = computed(() => todoContainerWidth.value >= 470)
-const showTodoStatus = computed(() => todoContainerWidth.value >= 380)
 // 统计卡片配置（使用计算属性动态获取数据）
 const statCards = computed(() => [
   {
@@ -343,7 +279,6 @@ let userDataTimer = null
 let exchangeRateTimer = null
 let dashboardRefreshPromise = null
 let secondaryDashboardPromise = null
-let todoResizeObserver = null
 let idleInitHandle = null
 let idleInitUsesIdleCallback = false
 
@@ -378,27 +313,7 @@ const cancelIdleInitialization = () => {
   idleInitHandle = null
 }
 
-const updateTodoContainerWidth = () => {
-  todoContainerWidth.value = todoContainerRef.value?.getBoundingClientRect().width || 0
-}
 // === 全局状态常量映射字典（仅模板直接引用的保留在此） ===
-const EVENT_TYPE_MAP = {
-  '英语变更': 'event-english',
-  '新生指导': 'event-guide',
-  '报到注册': 'event-register',
-  '护照变更': 'event-passport',
-  '活动报名': 'event-activity',
-  '活动': 'event-activity'
-}
-const TODO_STATUS_MAP = {
-  '待确认': 'status-pending',
-  '未读': 'status-unread',
-  '已读': 'status-read',
-  '进行中': 'status-processing',
-  '关闭': 'status-closed'
-}
-const getEventTypeClass = (type) => EVENT_TYPE_MAP[type] || ''
-const getStatusClass = (status) => TODO_STATUS_MAP[status] || ''
 // 加载用户数据
 const loadUserProfile = async (force = false) => {
   try {
@@ -511,12 +426,6 @@ const handleUserProfileUpdated = async () => {
 // 组件挂载时加载数据
 onMounted(async () => {
   window.addEventListener('erp:user-profile-updated', handleUserProfileUpdated)
-  await nextTick()
-  updateTodoContainerWidth()
-  if (typeof ResizeObserver !== 'undefined' && todoContainerRef.value) {
-    todoResizeObserver = new ResizeObserver(updateTodoContainerWidth)
-    todoResizeObserver.observe(todoContainerRef.value)
-  }
 
   // 初始化加载状态
   isLoadingStats.value = true
@@ -527,27 +436,24 @@ onMounted(async () => {
   // 初始化轻量日历数据
   calendarDays.value = generateCalendarDays(currentDate.value)
 
-  // === 第二阶段：在主线程空闲或微延迟后初始化图表与外部数据源，彻底消除进页面卡顿 ===
+  // === 第二阶段：把非核心数据拆到真正的空闲窗口，避免与菜单交互争抢主线程 ===
   runWhenIdle(() => {
     refreshSecondaryDashboardData(false).finally(() => {
       isLoadingStats.value = false
     })
-    Promise.allSettled([
-      fetchWeatherData(),
-      fetchExchangeRates(),
-      fetchMetalPrices()
-    ]).then(() => {
-      // 图表依赖在文字和数据卡片稳定后再下载、解析，不参与首页 LCP。
-      runWhenIdle(async () => {
-        try {
-          await ensureEcharts()
-          updateMetalMiniCharts()
-        } catch (error) {
-          logger.error('图表模块延迟加载失败:', error)
-        }
-      }, 2000)
-    })
-  }, 400)
+
+    // Queue the independent network reads only after the first secondary
+    // slice has yielded. This keeps the idle scheduler single-flight.
+    runWhenIdle(() => {
+      Promise.allSettled([
+        fetchWeatherData(),
+        fetchExchangeRates(),
+        fetchMetalPrices()
+      ]).catch((error) => {
+        logger.error('加载仪表盘环境数据失败:', error)
+      })
+    }, 1200)
+  }, 1600)
 
   // 设置定时刷新
   userDataTimer = setInterval(() => {
@@ -564,8 +470,6 @@ onMounted(async () => {
 onUnmounted(() => {
   window.removeEventListener('erp:user-profile-updated', handleUserProfileUpdated)
   cancelIdleInitialization()
-  todoResizeObserver?.disconnect()
-  todoResizeObserver = null
   if (userDataTimer) {
     clearInterval(userDataTimer)
     userDataTimer = null
@@ -643,15 +547,8 @@ watch(() => currentDate.value, (newValue) => {
     height: auto !important;
     min-height: 90px;
   }
-  .todo-container {
-    height: 320px !important;
-    min-height: 320px;
-    max-height: 320px;
-  }
   .chart-container,
-  .calendar-container,
-  .calendar-wrapper,
-  .warning-container {
+  .calendar-wrapper {
     height: auto !important;
     min-height: 300px;
   }
@@ -1069,11 +966,8 @@ watch(() => currentDate.value, (newValue) => {
   color: var(--color-text-secondary);
 }
 /* 公共容器基础样式 - 统一卡片风格 */
-.list-container,
 .chart-container,
-.calendar-container,
-.calendar-wrapper,
-.warning-container {
+.calendar-wrapper {
   background: var(--color-bg-base);
   border-radius: 10px;
   box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-black) 5%, transparent);
@@ -1087,244 +981,10 @@ watch(() => currentDate.value, (newValue) => {
   transition: background-color var(--transition-base) ease, border-color var(--transition-base) ease, color var(--transition-base) ease, box-shadow var(--transition-base) ease, opacity var(--transition-base) ease, transform var(--transition-base) ease;
 }
 /* 卡片悬停效果 */
-.list-container:hover,
 .chart-container:hover,
-.calendar-container:hover,
-.calendar-wrapper:hover,
-.warning-container:hover {
+.calendar-wrapper:hover {
   box-shadow: 0 4px 16px 0 color-mix(in srgb, var(--ds-black) 10%, transparent);
   border-color: var(--color-border-light);
-}
-.list-header {
-  padding: 0;
-  border-bottom: 1px solid var(--color-border-lighter);
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  box-sizing: border-box; /* ✨ 统一box-sizing */
-}
-.tab-group {
-  display: flex;
-  height: 45px;
-}
-.tab {
-  padding: 0 15px;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  position: relative;
-  cursor: pointer;
-  color: var(--color-text-regular);
-  font-size: 14px;
-  transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  user-select: none;
-}
-.tab:hover {
-  color: var(--color-primary);
-  background-color: color-mix(in srgb, var(--ds-blue) 5%, transparent);
-}
-.tab.active {
-  color: var(--color-primary);
-  font-weight: bold;
-}
-.tab.active::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  height: 3px;
-  background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-primary-dark-2) 100%);
-  animation: slideIn 0.3s ease-out;
-  box-shadow: 0 2px 4px color-mix(in srgb, var(--ds-blue) 30%, transparent);
-}
-@keyframes slideIn {
-  from {
-    width: 0;
-    opacity: 0;
-  }
-  to {
-    width: 100%;
-    opacity: 1;
-  }
-}
-.list-content {
-  padding: 0;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-.todo-container {
-  height: 380px;
-  min-height: 380px;
-  max-height: 380px;
-  overflow: hidden;
-}
-.todo-container .list-content {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-.todo-more-button {
-  flex: 0 0 auto;
-  margin-right: 10px;
-  padding: 4px 6px;
-  font-size: 12px;
-  color: var(--color-text-secondary);
-}
-.todo-more-button:hover {
-  color: var(--color-primary);
-}
-/* 表格空状态样式 */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 20px;
-  color: var(--color-text-secondary);
-}
-.empty-icon {
-  font-size: 64px;
-  color: var(--color-text-placeholder);
-  margin-bottom: 16px;
-  opacity: 0.6;
-}
-.empty-text {
-  font-size: 16px;
-  font-weight: 500;
-  color: var(--color-text-regular);
-  margin: 0 0 8px 0;
-}
-.empty-desc {
-  font-size: 13px;
-  color: var(--color-text-secondary);
-  margin: 0;
-}
-.todo-empty-desc {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* 表格样式优化 */
-.dashboard-table {
-  border-radius: 0;
-  width: 100%;
-}
-.dashboard-table :deep(.el-table__empty-block) {
-  min-height: 200px;
-}
-.dashboard-table :deep(.el-table__row) {
-  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, transform 0.3s ease;
-}
-.dashboard-table :deep(.el-table__row:hover) {
-  background-color: var(--color-bg-hover) !important;
-}
-.production-table :deep(.el-table__row) {
-  cursor: pointer;
-}
-.production-table :deep(.el-tag) {
-  font-weight: 500;
-  border-radius: 12px;
-  padding: 0 10px;
-}
-/* 事件类型样式 */
-.event-type {
-  display: inline-block;
-}
-.event-english {
-  color: var(--color-danger);
-}
-.event-guide {
-  color: var(--color-primary);
-}
-.event-register {
-  color: var(--color-success);
-}
-.event-passport {
-  color: var(--color-warning);
-}
-.event-activity {
-  color: var(--color-danger);
-}
-/* 状态样式 */
-.status-pending {
-  color: var(--color-warning);
-}
-.status-unread {
-  color: var(--color-danger);
-}
-.status-read {
-  color: var(--color-text-secondary);
-}
-.status-processing {
-  color: var(--color-success);
-}
-.status-closed {
-  color: var(--color-text-secondary);
-}
-.status-completed {
-  color: var(--color-success);
-}
-.action-btn {
-  padding: 2px 4px;
-  font-size: 12px;
-  height: 22px;
-  min-width: 40px;
-  transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-}
-.action-btn::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 0;
-  height: 0;
-  border-radius: 50%;
-  background-color: color-mix(in srgb, var(--ds-white) 50%, transparent);
-  transform: translate(-50%, -50%);
-  transition: width 0.6s, height 0.6s;
-}
-.action-btn:active::before {
-  width: 200px;
-  height: 200px;
-}
-.action-btn:hover {
-  box-shadow: none;
-}
-/* 表格样式 */
-:deep(.el-table) {
-  --el-table-border-color: transparent;
-  --el-table-header-bg-color: color-mix(in srgb, var(--color-bg-hover) 50%, transparent);
-  --el-table-row-hover-bg-color: color-mix(in srgb, var(--color-bg-hover) 50%, transparent);
-  background-color: transparent !important;
-}
-:deep(.el-table th) {
-  background-color: color-mix(in srgb, var(--color-bg-hover) 50%, transparent);
-  font-weight: normal;
-  color: var(--color-text-regular);
-  font-size: 13px;
-  padding: 8px 0;
-  height: 40px;
-}
-:deep(.el-table td) {
-  padding: 8px 0;
-  font-size: 13px;
-  height: 40px;
-  background-color: transparent !important;
-}
-:deep(.el-table--enable-row-hover .el-table__body tr:hover > td) {
-  background-color: color-mix(in srgb, var(--color-bg-hover) 50%, transparent);
-}
-:deep(.el-table__inner-wrapper::before) {
-  display: none;
 }
 /* 空头像样式 */
 .empty-avatar {
@@ -1346,7 +1006,6 @@ watch(() => currentDate.value, (newValue) => {
   position: relative;
 }
 /* 日历样式（特殊配置） */
-.calendar-container,
 .calendar-wrapper {
   padding: 15px;
 }
@@ -1467,55 +1126,6 @@ watch(() => currentDate.value, (newValue) => {
 }
 .day-number.other-month:hover {
   opacity: 0.8;
-}
-/* 预警样式（特殊配置） */
-/* 删除重复的样式定义，已在公共容器样式中定义 */
-.warning-notice {
-  color: var(--color-text-secondary);
-}
-.warning-document {
-  color: var(--color-danger);
-}
-.warning-course {
-  color: var(--color-success);
-}
-.warning-activity {
-  color: var(--color-warning);
-}
-.warning-accommodation {
-  color: var(--color-primary);
-}
-.warning-completed {
-  color: var(--color-success);
-}
-.warning-cancelled {
-  color: var(--color-text-secondary);
-  text-decoration: line-through;
-}
-.warning-action-btn {
-  padding: 2px 10px;
-  font-size: 12px;
-  height: 24px;
-  min-width: 50px;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-}
-/* 预警表格特定样式 */
-.table-wrapper {
-  flex: 1; /* 占据剩余空间 */
-  overflow: hidden;
-  box-sizing: border-box; /* ✨ 确保box-sizing一致 */
-}
-.warning-container :deep(.el-table) {
-  height: 100% !important; /* ✨ 改为100%自动填充 */
-  width: 100% !important;
-}
-.warning-container :deep(.el-table__body) {
-  width: 100% !important;
-}
-.warning-container :deep(.el-table__header) {
-  width: 100% !important;
 }
 @media (max-width: 768px) {
   .combined-info-card {

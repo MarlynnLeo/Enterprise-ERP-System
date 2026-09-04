@@ -200,6 +200,9 @@ const qualityInspectionMap = {
       standard_type: body.standardType ?? body.standard_type,
       standard_no: body.standardNo ?? body.standard_no,
       note: body.note ?? body.remarks ?? body.remark,
+      // 附件由 file_access_records 管理；保留显式数组供质量检验模型在
+      // 同一事务内做授权记录差异回收，未传该字段时不改变现有附件。
+      attachments: Array.isArray(body.attachments) ? body.attachments : undefined,
       is_first_article: body.isFirstArticle ?? body.is_first_article,
       is_aql: body.isAql ?? body.is_aql,
     };

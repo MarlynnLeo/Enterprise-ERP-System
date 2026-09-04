@@ -174,7 +174,7 @@
               class="photo-item"
               @click="previewPhoto(pIdx)"
             >
-              <img :src="photo.url" class="photo-img" alt="现场照片" />
+              <img :src="buildResourceUrl(photo.url)" class="photo-img" alt="现场照片" />
               <div
                 v-if="isInspecting"
                 class="photo-delete"
@@ -185,13 +185,21 @@
             </div>
 
             <!-- 拍照上传按钮（无 emoji） -->
-            <div class="upload-trigger-btn camera-btn" v-if="isInspecting" @click="triggerCamera">
+            <div
+              class="upload-trigger-btn camera-btn"
+              v-if="isInspecting && photoList.length < INSPECTION_PHOTO_MAX_COUNT"
+              @click="triggerCamera"
+            >
               <CameraIcon class="trigger-svg-icon" />
               <div class="trigger-text">拍照上传</div>
             </div>
 
             <!-- 手机相册按钮（无 emoji） -->
-            <div class="upload-trigger-btn album-btn" v-if="isInspecting" @click="triggerAlbum">
+            <div
+              class="upload-trigger-btn album-btn"
+              v-if="isInspecting && photoList.length < INSPECTION_PHOTO_MAX_COUNT"
+              @click="triggerAlbum"
+            >
               <PhotoIcon class="trigger-svg-icon" />
               <div class="trigger-text">手机相册</div>
             </div>
@@ -206,7 +214,7 @@
         <input
           ref="cameraInputRef"
           type="file"
-          accept="image/*"
+          :accept="INSPECTION_PHOTO_ACCEPT"
           capture="environment"
           style="display: none"
           @change="handlePhotoChange($event)"
@@ -216,7 +224,7 @@
         <input
           ref="albumInputRef"
           type="file"
-          accept="image/*"
+          :accept="INSPECTION_PHOTO_ACCEPT"
           multiple
           style="display: none"
           @change="handlePhotoChange($event)"
@@ -251,15 +259,23 @@
     </div>
 
     <!-- 加载状态 -->
-    <div v-else class="loading-container">
-      <Loading size="36" />
+    <div v-else-if="loading" class="loading-container">
+      <Loading size="36" vertical>加载中...</Loading>
+    </div>
+
+    <div v-else class="error-container">
+      <Empty :description="errorMessage || '来料检验记录不存在或已被删除'" />
+      <div class="error-actions">
+        <VanButton type="primary" size="small" :loading="loading" @click="loadDetail">重试</VanButton>
+        <VanButton type="default" size="small" @click="goBack">返回列表</VanButton>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
   import { ref, reactive, computed, onMounted } from 'vue'
-  import { useRoute } from 'vue-router'
+  import { useRoute, useRouter } from 'vue-router'
   import {
     NavBar,
     CellGroup,
@@ -267,6 +283,7 @@
     Field,
     Button as VanButton,
     Loading,
+    Empty,
     showToast,
     showLoadingToast,
     closeToast,
@@ -275,6 +292,7 @@
   } from 'vant'
   import { CameraIcon, PhotoIcon } from '@heroicons/vue/24/outline'
   import { qualityApi } from '@/api'
+  import { buildResourceUrl } from '@/config/app'
   import { extractApiData, extractApiList } from '@/utils/apiHelper'
   import { useAuthStore } from '@/stores/auth'
   import {
@@ -282,13 +300,25 @@
     parseInspectionStandard,
     compareInspectionMeasurement
   } from '@/utils/inspectionMeasurement'
+  import {
+    ATTACHMENT_MAX_SIZE_BYTES,
+    ATTACHMENT_MAX_SIZE_MB,
+    INSPECTION_PHOTO_ACCEPT,
+    INSPECTION_PHOTO_EXTENSIONS,
+    INSPECTION_PHOTO_MAX_COUNT,
+    INSPECTION_PHOTO_MIME_TYPES
+  } from '@/constants/attachmentUpload'
 
   const route = useRoute()
+  const router = useRouter()
   const authStore = useAuthStore()
   const inspection = ref(null)
+  const loading = ref(true)
+  const errorMessage = ref('')
   const actionLoading = ref(false)
   const inspectItems = ref([])
   const photoList = ref([])
+  const uploadingPhotoCount = ref(0)
   const cameraInputRef = ref(null)
   const albumInputRef = ref(null)
 
@@ -312,23 +342,67 @@
     albumInputRef.value?.click()
   }
 
+  const getFileExtension = (file) => {
+    const fileName = String(file?.name || '').trim().toLowerCase()
+    const lastDot = fileName.lastIndexOf('.')
+    return lastDot >= 0 ? fileName.slice(lastDot) : ''
+  }
+
+  const isSupportedInspectionPhoto = (file) => {
+    const mimeType = String(file?.type || '').split(';', 1)[0].trim().toLowerCase()
+    return (
+      INSPECTION_PHOTO_MIME_TYPES.includes(mimeType) ||
+      INSPECTION_PHOTO_EXTENSIONS.includes(getFileExtension(file))
+    )
+  }
+
+  const normalizePhoto = (photo) => {
+    if (typeof photo === 'string') {
+      return {
+        url: photo,
+        name: photo.split('/').pop() || '现场照片'
+      }
+    }
+
+    return {
+      ...photo,
+      id: photo?.id,
+      url: photo?.url || photo?.fileUrl || photo?.file_url || photo?.path || photo?.filePath || '',
+      name: photo?.name || photo?.filename || photo?.originalName || '现场照片',
+      size: photo?.size ?? photo?.fileSize ?? photo?.file_size,
+      type: photo?.type || photo?.mimetype || photo?.mimeType || photo?.fileType || ''
+    }
+  }
+
   // 照片上传处理
   const handlePhotoChange = async (event) => {
     const files = Array.from(event.target.files || [])
     if (files.length === 0) return
 
+    const remainingCount = INSPECTION_PHOTO_MAX_COUNT - photoList.value.length - uploadingPhotoCount.value
+    if (files.length > remainingCount) {
+      showToast(`最多保留 ${INSPECTION_PHOTO_MAX_COUNT} 张照片，还可选择 ${Math.max(remainingCount, 0)} 张`)
+      event.target.value = ''
+      return
+    }
+
     for (const file of files) {
-      if (!file.type.startsWith('image/')) {
-        showToast('请选择图片文件')
+      if (!isSupportedInspectionPhoto(file)) {
+        showToast('请选择 JPG、PNG、GIF、BMP 或 WebP 图片')
         event.target.value = ''
         return
       }
-      if (file.size > 15 * 1024 * 1024) {
-        showToast('单张图片大小不能超过 15MB')
+      if (file.size > ATTACHMENT_MAX_SIZE_BYTES) {
+        showToast(`单张图片大小不能超过 ${ATTACHMENT_MAX_SIZE_MB}MB`)
         event.target.value = ''
         return
       }
     }
+
+    uploadingPhotoCount.value += files.length
+    let successCount = 0
+    let failureCount = 0
+    let firstFailureMessage = ''
 
     try {
       showLoadingToast({
@@ -340,32 +414,52 @@
       const inspectionId = inspection.value?.id || route.params.id
 
       for (const file of files) {
-        const formData = new FormData()
-        formData.append('file', file)
-        formData.append('businessType', 'quality_inspection')
-        formData.append('businessId', inspectionId)
-        formData.append('isPublic', 'true')
+        try {
+          const formData = new FormData()
+          formData.append('file', file)
+          formData.append('businessType', 'quality_inspection')
+          formData.append('businessId', inspectionId)
+          formData.append('isPublic', 'true')
 
-        const res = await qualityApi.uploadInspectionPhoto(formData)
-        const fileData = extractApiData(res, null) || res.data || res
-        const uploadedUrl = fileData?.url || fileData?.fileUrl
-        if (uploadedUrl) {
-          photoList.value.push({
-            url: uploadedUrl,
-            name: file.name,
-            size: file.size
-          })
+          const res = await qualityApi.uploadInspectionPhoto(formData)
+          const fileData = extractApiData(res, null) || res.data || res
+          const uploadedUrl = String(fileData?.url || fileData?.fileUrl || '').trim()
+          if (!uploadedUrl) {
+            throw new Error('服务器未返回照片地址')
+          }
+
+          if (!photoList.value.some((photo) => String(photo.url || '') === uploadedUrl)) {
+            photoList.value.push({
+              id: fileData?.id,
+              url: uploadedUrl,
+              name: fileData?.filename || fileData?.originalName || file.name,
+              size: fileData?.size ?? file.size,
+              type: fileData?.mimetype || fileData?.mimeType || file.type || ''
+            })
+          }
+          successCount += 1
+        } catch (error) {
+          failureCount += 1
+          firstFailureMessage ||= error.response?.data?.message || error.message || ''
+          console.error(`照片上传失败（${file.name}）:`, error)
         }
       }
 
       closeToast()
-      showToast('照片上传成功')
+      if (successCount > 0 && failureCount > 0) {
+        showToast(`成功上传 ${successCount} 张，${failureCount} 张失败`)
+      } else if (successCount > 0) {
+        showToast(`照片上传成功（${successCount} 张）`)
+      } else {
+        showToast(firstFailureMessage || '照片上传失败')
+      }
     } catch (err) {
       closeToast()
       console.error('照片上传失败:', err)
       const msg = err.response?.data?.message || err.message || '照片上传失败'
       showToast(msg)
     } finally {
+      uploadingPhotoCount.value = Math.max(0, uploadingPhotoCount.value - files.length)
       event.target.value = ''
     }
   }
@@ -378,11 +472,11 @@
 
   // 全屏高清双指缩放预览照片
   const previewPhoto = (startIndex) => {
-    const urls = photoList.value.map(p => p.url)
+    const urls = photoList.value.map((photo) => buildResourceUrl(photo.url)).filter(Boolean)
     if (urls.length > 0) {
       showImagePreview({
         images: urls,
-        startPosition: startIndex,
+        startPosition: Math.min(Math.max(startIndex, 0), urls.length - 1),
         closeable: true
       })
     }
@@ -537,7 +631,15 @@
 
   // 加载详情
   const loadDetail = async () => {
+    loading.value = true
+    errorMessage.value = ''
+    inspection.value = null
+    inspectItems.value = []
+    photoList.value = []
+    let lastError = null
+
     try {
+      try {
       const response = await qualityApi.getIncomingInspection(route.params.id)
       const data = extractApiData(response, null)
       if (data && data.id) {
@@ -589,12 +691,7 @@
 
         // 初始化照片列表
         if (Array.isArray(data.attachments)) {
-          photoList.value = data.attachments.map(att => ({
-            id: att.id,
-            url: att.url || att.fileUrl,
-            name: att.name || '现场照片',
-            size: att.size
-          }))
+          photoList.value = data.attachments.map(normalizePhoto).filter((photo) => photo.url)
         } else {
           photoList.value = []
         }
@@ -606,21 +703,25 @@
         inspectForm.note = data.note || data.remark || ''
         return
       }
-    } catch (e) {
-      console.error('API加载失败，尝试备用方式:', e)
-    }
+      lastError = Object.assign(new Error('inspection not found'), { code: 'NOT_FOUND' })
+      } catch (e) {
+        lastError = e
+        console.error('API加载失败，尝试备用方式:', e)
+      }
 
     // 备用：从路由 query 获取
     if (route.query.data) {
       try {
-        inspection.value = JSON.parse(route.query.data)
-        inspectItems.value = []
-        photoList.value = []
+        const data = JSON.parse(route.query.data)
+        if (!data || typeof data !== 'object') throw new Error('invalid inspection data')
+        inspection.value = data
         inspectForm.qualifiedQuantity = String(inspection.value.quantity || '')
         inspectForm.unqualifiedQuantity = '0'
         inspectForm.inspectorName = inspection.value.inspectorName || getCurrentUserDisplayName()
-      } catch {
-        showToast('数据加载失败')
+        inspectForm.note = inspection.value.note || inspection.value.remark || ''
+        return
+      } catch (error) {
+        lastError = error
       }
     } else {
       // 通过列表 API 兜底
@@ -631,18 +732,35 @@
         if (items.length > 0) {
           inspection.value = items[0]
           inspectItems.value = Array.isArray(items[0].items) ? items[0].items.map(normalizeInspectionItem) : []
-          photoList.value = Array.isArray(items[0].attachments) ? items[0].attachments : []
+          photoList.value = Array.isArray(items[0].attachments)
+            ? items[0].attachments.map(normalizePhoto).filter((photo) => photo.url)
+            : []
           inspectForm.qualifiedQuantity = String(items[0].quantity || '')
           inspectForm.unqualifiedQuantity = '0'
           inspectForm.inspectorName = items[0].inspectorName || getCurrentUserDisplayName()
+          inspectForm.note = items[0].note || items[0].remark || ''
+          return
         } else {
-          showToast('未找到检验记录')
+          lastError = Object.assign(new Error('inspection not found'), { code: 'NOT_FOUND' })
         }
-      } catch {
-        showToast('加载失败')
+      } catch (error) {
+        lastError = error
       }
     }
+
+      const status = lastError?.response?.status
+      errorMessage.value = status === 403
+        ? '没有权限查看此来料检验记录'
+        : status === 404 || lastError?.code === 'NOT_FOUND'
+          ? '来料检验记录不存在或已被删除'
+          : '加载失败，请重试'
+      showToast(errorMessage.value)
+    } finally {
+      loading.value = false
+    }
   }
+
+  const goBack = () => router.back()
 
   // 开始检验
   const handleStart = async () => {
@@ -721,7 +839,7 @@
         inspectorName: inspectForm.inspectorName,
         actualDate: new Date().toISOString().split('T')[0],
         note: inspectForm.note,
-        attachments: photoList.value.map(p => p.url),
+        attachments: photoList.value.map((photo) => photo.url).filter(Boolean),
         items: inspectItems.value.map(item => ({
           id: item.id || undefined,
           itemName: item.itemName,
@@ -755,9 +873,7 @@
     }
   }
 
-  onMounted(() => {
-    loadDetail()
-  })
+  onMounted(loadDetail)
 </script>
 
 <style lang="scss" scoped>
@@ -974,6 +1090,18 @@
     display: flex;
     justify-content: center;
     padding: 60px 0;
+  }
+
+  .error-container {
+    padding: 48px 16px;
+    text-align: center;
+  }
+
+  .error-actions {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 16px;
   }
 
   .item-method {

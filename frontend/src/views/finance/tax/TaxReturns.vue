@@ -396,7 +396,8 @@
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, onMounted, computed } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { formatAmount, formatLocalDate } from '@/utils/format'
 import { Plus, Check, Money, Delete } from '@element-plus/icons-vue';
 import { financeApi } from '@/api';

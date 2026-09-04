@@ -80,8 +80,16 @@
     </div>
 
     <!-- 加载状态 -->
-    <div v-else class="loading-container">
-      <Loading size="36" />
+    <div v-else-if="loading" class="loading-container">
+      <Loading size="36" vertical>加载中...</Loading>
+    </div>
+
+    <div v-else class="error-container">
+      <Empty :description="errorMessage || '过程检验记录不存在或已被删除'" />
+      <div class="error-actions">
+        <Button type="primary" size="small" :loading="loading" @click="loadDetail">重试</Button>
+        <Button type="default" size="small" @click="goBack">返回列表</Button>
+      </div>
     </div>
   </div>
 </template>
@@ -96,6 +104,7 @@
     Field,
     Button,
     Loading,
+    Empty,
     showToast,
     showConfirmDialog
   } from 'vant'
@@ -105,6 +114,8 @@
   const router = useRouter()
   const route = useRoute()
   const inspection = ref(null)
+  const loading = ref(true)
+  const errorMessage = ref('')
 
   const inspectForm = reactive({
     qualifiedQuantity: 0,
@@ -147,41 +158,50 @@
     return Math.round((q / total) * 100)
   }
 
-  const loadDetail = () => {
-    if (route.query.data) {
-      try {
-        inspection.value = JSON.parse(route.query.data)
-        inspectForm.qualifiedQuantity =
-          inspection.value.qualifiedQuantity ?? inspection.value.quantity ?? 0
-        inspectForm.unqualifiedQuantity = inspection.value.unqualifiedQuantity || 0
-        inspectForm.note = inspection.value.note || ''
-      } catch (e) {
-        console.error('解析检验数据失败:', e)
-        showToast('数据加载失败')
+  const applyInspectionData = (data) => {
+    inspection.value = data
+    inspectForm.qualifiedQuantity = data.qualifiedQuantity ?? data.quantity ?? 0
+    inspectForm.unqualifiedQuantity = data.unqualifiedQuantity || 0
+    inspectForm.note = data.note || ''
+  }
+
+  const loadDetail = async () => {
+    loading.value = true
+    errorMessage.value = ''
+    try {
+      if (route.query.data) {
+        const data = JSON.parse(route.query.data)
+        if (!data || typeof data !== 'object') throw new Error('invalid inspection data')
+        applyInspectionData(data)
+      } else {
+        await loadFromApi()
       }
-    } else {
-      loadFromApi()
+    } catch (error) {
+      console.error('加载过程检验详情失败:', error)
+      inspection.value = null
+      errorMessage.value = error?.response?.status === 403
+        ? '没有权限查看此过程检验记录'
+        : error?.response?.status === 404 || error?.code === 'NOT_FOUND'
+          ? '过程检验记录不存在或已被删除'
+          : '加载失败，请重试'
+      showToast(errorMessage.value)
+    } finally {
+      loading.value = false
     }
   }
 
   const loadFromApi = async () => {
-    try {
-      const response = await qualityApi.getProcessInspection(route.params.id)
-      const data = extractApiData(response, null)
-      if (data?.id) {
-        inspection.value = data
-        inspectForm.qualifiedQuantity =
-          inspection.value.qualifiedQuantity ?? inspection.value.quantity ?? 0
-        inspectForm.unqualifiedQuantity = inspection.value.unqualifiedQuantity || 0
-        inspectForm.note = inspection.value.note || ''
-      } else {
-        showToast('未找到检验记录')
-      }
-    } catch (error) {
-      console.error('加载详情失败:', error)
-      showToast('加载失败')
+    const response = await qualityApi.getProcessInspection(route.params.id)
+    const data = extractApiData(response, null)
+    if (!data?.id) {
+      const error = new Error('inspection not found')
+      error.code = 'NOT_FOUND'
+      throw error
     }
+    applyInspectionData(data)
   }
+
+  const goBack = () => router.back()
 
   const handleStart = async () => {
     try {
@@ -274,5 +294,15 @@
     justify-content: center;
     align-items: center;
     height: 60vh;
+  }
+  .error-container {
+    padding: 48px 16px;
+    text-align: center;
+  }
+  .error-actions {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 16px;
   }
 </style>

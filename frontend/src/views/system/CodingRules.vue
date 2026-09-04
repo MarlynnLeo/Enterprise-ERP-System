@@ -195,7 +195,8 @@
 </template>
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Plus, Edit, Delete, List } from '@element-plus/icons-vue'
 import { codingRuleApi } from '@/api/enhanced'
 import 'dayjs'

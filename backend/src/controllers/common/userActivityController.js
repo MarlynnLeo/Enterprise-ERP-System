@@ -8,6 +8,7 @@
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
 const { parsePagination } = require('../../utils/safePagination');
+const { normalizeAvatarUrl } = require('../../utils/avatarUrl');
 
 function parseDateOnly(value) {
   if (!value) return null;
@@ -529,7 +530,7 @@ exports.getOnlineTimeRanking = async (req, res) => {
       userId: row.user_id,
       username: row.username,
       realName: row.real_name || row.realName || row.username,
-      avatar: row.avatar || null,
+      avatar: normalizeAvatarUrl(row.avatar),
       avatarFrame: row.avatar_frame || null,
       bio: row.bio || '这个家伙很懒，什么也没留下',
       totalSeconds: parseInt(row.total_seconds),

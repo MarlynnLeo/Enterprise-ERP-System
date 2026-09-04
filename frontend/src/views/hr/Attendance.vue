@@ -120,10 +120,11 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { hrApi } from '@/api/hr'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Refresh, Upload, Setting } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
-import { parseResponseData } from '@/utils/responseParser'
+import { parseListData, parseResponseData } from '@/utils/responseParser'
 
 const period = ref(dayjs().format('YYYY-MM'))
 const tableData = ref([])
@@ -141,7 +142,8 @@ const fetchAttendance = async () => {
   loading.value = true
   try {
     const res = await hrApi.getAttendance(period.value)
-    tableData.value = parseResponseData(res)
+    // 考勤接口使用统一分页响应（data.list），避免把分页对象直接传给 el-table。
+    tableData.value = parseListData(res)
   } catch {
     ElMessage.error('获取考勤失败')
   } finally {

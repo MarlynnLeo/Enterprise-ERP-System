@@ -105,7 +105,7 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index';
 import { useRouter, useRoute } from 'vue-router';
 import { financeApi } from '@/api/finance';
 import { formatAmount } from '@/utils/format'

@@ -234,7 +234,7 @@
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, onMounted } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { qualityApi, baseDataApi } from '@/api'
 import { parseListData, parsePaginatedData, parseResponseData } from '@/utils/responseParser'
 import 'dayjs'

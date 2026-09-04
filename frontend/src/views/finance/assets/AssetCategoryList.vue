@@ -145,7 +145,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index';
 import { Plus } from '@element-plus/icons-vue';
 import { financeApi } from '@/api/finance';
 import { ensureInteger, normalizePaginationData } from '@/utils/helpers/typeUtils';

@@ -34,6 +34,7 @@ const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const {
   purchaseOrderMap,
   purchaseOrderItemMap,
+  purchaseRequisitionMap,
   toNumber,
 } = require('../../../utils/purchase/purchaseFieldMap');
 
@@ -1135,17 +1136,23 @@ const getRequisitions = async (req, res) => {
 
     const [rows] = await pool.query(query, queryParams);
 
-    // 获取申请单的物料详情
-    const items = [];
+    // 获取申请单的物料详情，并按申请单预先分组，避免在每一行申请单上
+    // 重复 filter/find 导致列表数据量变大后出现 O(n²) 查询后处理。
+    const itemsByRequisition = new Map();
+    const orderedByRequisitionMaterial = new Map();
     if (rows.length > 0) {
       const requisitionIds = rows.map((row) => row.id);
       const itemsQuery = `
-        SELECT id, requisition_id, material_id, material_code, material_name, specification, unit, unit_id, quantity, created_at, updated_at FROM purchase_requisition_items
+        SELECT id, requisition_id, material_id, material_code, material_name, specification, unit, unit_id, quantity, estimated_price, created_at, updated_at FROM purchase_requisition_items
         WHERE requisition_id IN (?)
         ORDER BY id
       `;
       const [itemRows] = await pool.query(itemsQuery, [requisitionIds]);
-      items.push(...itemRows);
+      itemRows.forEach((item) => {
+        const grouped = itemsByRequisition.get(item.requisition_id) || [];
+        grouped.push(item);
+        itemsByRequisition.set(item.requisition_id, grouped);
+      });
 
       // 获取已订购数量统计（用于计算采购状态）
       const orderedQuery = `
@@ -1159,17 +1166,23 @@ const getRequisitions = async (req, res) => {
         GROUP BY po.requisition_id, poi.material_code
       `;
       const [orderedRows] = await pool.query(orderedQuery, [requisitionIds]);
-
-      items.forEach((item) => {
-        const orderedInfo = orderedRows.find(
-          (r) => r.requisition_id === item.requisition_id && r.material_code === item.material_code
+      orderedRows.forEach((row) => {
+        orderedByRequisitionMaterial.set(
+          `${row.requisition_id}:${row.material_code}`,
+          parseFloat(row.ordered_qty) || 0
         );
-        item.ordered_quantity = orderedInfo ? parseFloat(orderedInfo.ordered_qty) : 0;
       });
+
+      for (const requisitionItems of itemsByRequisition.values()) {
+        requisitionItems.forEach((item) => {
+          item.ordered_quantity =
+            orderedByRequisitionMaterial.get(`${item.requisition_id}:${item.material_code}`) || 0;
+        });
+      }
     }
 
     const requisitions = rows.map((row) => {
-      const requisitionItems = items.filter((item) => item.requisition_id === row.id);
+      const requisitionItems = itemsByRequisition.get(row.id) || [];
 
       // 优先使用数据库中的real_name，如果为空则使用user_real_name
       if ((!row.real_name || row.real_name === '') && row.user_real_name) {
@@ -1182,6 +1195,14 @@ const getRequisitions = async (req, res) => {
       const processedReq = {
         ...row,
         materials: requisitionItems,
+        materials_count: requisitionItems.length,
+        total_amount: requisitionItems
+          .reduce(
+            (sum, item) =>
+              sum + parseFloat(item.estimated_price || 0) * parseFloat(item.quantity || 0),
+            0
+          )
+          .toFixed(2),
         // 判断是否全部生成订单（所有物料都有采购订单，不管数量）
         is_fully_ordered:
           requisitionItems.length > 0 &&
@@ -1196,7 +1217,9 @@ const getRequisitions = async (req, res) => {
         processedReq.is_partially_ordered = hasAnyOrdered;
       }
 
-      return processedReq;
+      // Keep the HTTP contract independent from the database naming scheme.
+      // The order picker and the detail dialog both consume camelCase fields.
+      return purchaseRequisitionMap.toApi(processedReq);
     });
 
     const totalCount = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
@@ -1271,9 +1294,13 @@ const getRequisition = async (req, res) => {
       item.ordered_quantity = orderedInfo ? parseFloat(orderedInfo.ordered_qty) : 0;
     });
 
-    requisition.materials = itemRows;
-
-    return ResponseHandler.success(res, requisition);
+    // The purchase order page consumes the same camelCase contract as the
+    // standalone requisition page.  Mapping at the controller boundary avoids
+    // leaking snake_case columns and fixes empty “关联申请单” details.
+    return ResponseHandler.success(
+      res,
+      purchaseRequisitionMap.toApi({ ...requisition, materials: itemRows })
+    );
   } catch (error) {
     logger.error('获取采购申请详情失败:', error);
     return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);

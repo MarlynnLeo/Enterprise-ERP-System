@@ -215,7 +215,8 @@ import { formatDate } from '@/utils/helpers/dateUtils'
 
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { Plus, Edit, Lock, Unlock } from '@element-plus/icons-vue';
 import { financeApi } from '@/api';
 // 数据加载状态

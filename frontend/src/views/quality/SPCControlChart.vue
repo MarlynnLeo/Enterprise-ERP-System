@@ -227,7 +227,7 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index';
 import { Plus, Search, Edit, Refresh } from '@element-plus/icons-vue';
 import { qualityApi } from '@/api/quality';
 

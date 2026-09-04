@@ -356,7 +356,8 @@
 
 <script setup>
 import { ref, reactive, onMounted, computed, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Edit, View, Delete } from '@element-plus/icons-vue'
 import { parsePaginatedData } from '@/utils/responseParser'
 // 导入常量和工具函数

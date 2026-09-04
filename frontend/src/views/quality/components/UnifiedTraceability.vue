@@ -269,7 +269,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { Refresh, Download } from '@element-plus/icons-vue'
 import { qualityApi } from '@/api/quality'
 import dayjs from 'dayjs'

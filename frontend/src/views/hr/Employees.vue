@@ -156,9 +156,10 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { hrApi } from '@/api/hr'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Plus, Refresh, Edit, SwitchButton } from '@element-plus/icons-vue'
-import { parseResponseData } from '@/utils/responseParser'
+import { parseListData } from '@/utils/responseParser'
 import { loadDepartmentOptions } from '@/utils/optionLoaders'
 
 const tableData = ref([])
@@ -186,7 +187,8 @@ const fetchEmployees = async () => {
   loading.value = true
   try {
     const res = await hrApi.getEmployees({})
-    tableData.value = parseResponseData(res)
+    // 员工接口使用统一分页响应（data.list），表格只接受数组。
+    tableData.value = parseListData(res)
   } catch {
     ElMessage.error('获取员工列表失败')
   } finally {

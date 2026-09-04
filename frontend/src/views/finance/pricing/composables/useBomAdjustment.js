@@ -3,7 +3,7 @@
  * 包含BOM查看、价格调整、历史记录等功能
  */
 import { ref, reactive } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index';
 import { financeApi } from '@/api/finance';
 
 export function useBomAdjustment() {

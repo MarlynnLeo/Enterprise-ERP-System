@@ -37,7 +37,7 @@
               <template #default="scope">{{ formatCurrency(scope.row.actualCost) }}</template>
             </el-table-column>
             <el-table-column label="总差异" width="120">
-              <template #default>
+              <template #default="scope">
                 <span :class="(scope.row.totalVariance ) >= 0 ? 'text-stock-ok font-weight-700' : 'text-stock-low font-weight-700'">
                   {{ formatCurrency(scope.row.totalVariance) }}
                 </span>
@@ -286,7 +286,7 @@
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, onMounted } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index';
 import { Download } from '@element-plus/icons-vue';
 import { financeApi } from '@/api';
 import { buildApiUrl } from '@/config/app';

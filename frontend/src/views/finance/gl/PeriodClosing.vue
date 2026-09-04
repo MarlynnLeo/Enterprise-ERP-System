@@ -493,7 +493,8 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { financeApi } from '@/api'
 import { formatCurrency, formatDate, formatDateTime } from '@/utils/format'
 import { periodLabel, selectDefaultOpenPeriod } from '@/utils/helpers/periodUtils'

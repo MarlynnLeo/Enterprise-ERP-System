@@ -43,8 +43,6 @@ html.dark .app-shell {
   flex: 0 0 var(--shell-sidebar-expanded-width);
   width: var(--shell-sidebar-expanded-width) !important;
   transition:
-    flex-basis 180ms ease,
-    width 180ms ease,
     background-color var(--transition-base) ease,
     border-color 0.15s ease,
     box-shadow 0.15s ease;
@@ -119,8 +117,9 @@ html.dark .app-shell {
   padding: 8px 0 12px;
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
-  -webkit-mask-image: linear-gradient(to bottom, var(--ds-black, #000) 0, var(--ds-black, #000) calc(100% - 18px), transparent 100%);
-  mask-image: linear-gradient(to bottom, var(--ds-black, #000) 0, var(--ds-black, #000) calc(100% - 18px), transparent 100%);
+  /* Isolate menu layout/paint from the main content. Mask gradients were
+     removed because they trigger an expensive repaint on older WebViews. */
+  contain: layout style paint;
 }
 .sidebar:hover .sidebar-menu,
 .sidebar:focus-within .sidebar-menu {
@@ -155,6 +154,9 @@ html.dark .app-shell {
 .app-menu-node {
   margin: 0;
   padding: 0;
+}
+.app-menu-node[hidden] {
+  display: none !important;
 }
 .app-menu-item {
   width: 100%;
@@ -218,27 +220,19 @@ html.dark .app-shell {
 .app-menu-title.is-opened .app-menu-arrow {
   transform: rotate(90deg);
 }
-.app-menu-children {
-  margin: 0 !important;
-  padding: 0 !important;
-  display: none;
-}
-.app-menu-children.is-open {
-  display: block;
-}
-.app-menu-list.is-depth-1 > .app-menu-node > .app-menu-item {
+.app-menu-node[data-depth='1'] > .app-menu-link {
   padding-left: 25px !important;
 }
-.app-menu-list.is-depth-2 > .app-menu-node > .app-menu-item,
-.app-menu-list.is-depth-3 > .app-menu-node > .app-menu-item {
+.app-menu-node[data-depth='2'] > .app-menu-item,
+.app-menu-node[data-depth='3'] > .app-menu-item {
   padding-left: 45px !important;
 }
-.app-menu-list.is-depth-1 > .app-menu-node > .app-menu-title {
+.app-menu-node[data-depth='1'] > .app-menu-title {
   padding-left: 20px !important;
   position: relative;
   background: linear-gradient(90deg, color-mix(in srgb, var(--shell-accent) 4%, transparent), transparent) !important;
 }
-.app-menu-list.is-depth-1 > .app-menu-node > .app-menu-title::before {
+.app-menu-node[data-depth='1'] > .app-menu-title::before {
   content: '';
   position: absolute;
   left: 8px;
@@ -445,6 +439,14 @@ html.perf-low-end .sidebar,
 html.perf-reduced-motion .sidebar {
   transition: none !important;
 }
+/* Width changes now happen in one layout pass; only text/icon opacity is
+   animated. This prevents a 180 ms full-page reflow on weak clients. */
+html .sidebar.is-resizing,
+html .app-sidebar.is-resizing {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+}
 .sidebar.is-resizing .logo-container .title,
 .sidebar.is-resizing .app-menu .app-menu-label,
 .sidebar.is-resizing .app-menu .app-menu-arrow {
@@ -476,9 +478,6 @@ html.perf-reduced-motion .sidebar {
 }
 .sidebar.is-mini .app-menu .app-menu-arrow {
   display: none;
-}
-.sidebar.is-mini .app-menu-children {
-  display: none !important;
 }
 .sidebar.is-mini .app-menu .app-menu-icon {
   width: var(--shell-menu-icon-size);

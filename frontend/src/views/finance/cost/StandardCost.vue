@@ -284,7 +284,8 @@
 import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { Delete } from '@element-plus/icons-vue';
 import { financeApi, salesApi } from '@/api';
 import { formatCurrency } from '@/utils/helpers/formatters';

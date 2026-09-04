@@ -3,7 +3,7 @@ import { formatLocalDate } from '@/utils/format';
  * 数据概览仪表盘公共工具函数
  */
 
-import { ElMessage } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index';
 
 /**
  * 统一的错误处理函数

@@ -105,7 +105,7 @@
 
 <script setup>
 import { ref, reactive, computed } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { qualityApi, purchaseApi, baseDataApi } from '@/api'
 import { parseListData } from '@/utils/responseParser'
 import { generateBatchNumber as generateBatchNumberHelper } from '@/utils/inspectionHelpers'

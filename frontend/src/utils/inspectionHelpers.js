@@ -3,7 +3,7 @@
  * 用于减少来料检验、过程检验、成品检验等页面的代码重复
  */
 
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import dayjs from 'dayjs'
 import { qualityApi, purchaseApi, baseDataApi } from '@/api'
 import { parseListData } from '@/utils/responseParser'

@@ -44,7 +44,7 @@
           @click="openConversation(conv)"
         >
           <div class="conv-avatar">
-            <img v-if="conv.displayAvatar" :src="conv.displayAvatar" class="avatar-img" />
+            <img v-if="conv.displayAvatar" :src="conv.displayAvatar" class="avatar-img" @error="clearAvatar(conv, 'displayAvatar')" />
             <div v-else class="avatar-fallback">
               <Icon :name="conv.type === 'group' ? 'friends-o' : 'user-o'" size="20" />
             </div>
@@ -89,7 +89,7 @@
           <!-- 普通消息 -->
           <template v-else>
             <div class="msg-avatar" v-if="msg.senderId !== currentUserId">
-              <img v-if="msg.senderAvatar" :src="msg.senderAvatar" class="avatar-img" />
+              <img v-if="msg.senderAvatar" :src="msg.senderAvatar" class="avatar-img" @error="clearAvatar(msg, 'senderAvatar')" />
               <div v-else class="avatar-fallback-sm">{{ (msg.senderRealName || msg.senderName || '?')[0] }}</div>
             </div>
             <div class="msg-body">
@@ -149,7 +149,7 @@
             @click="startChatWith(user)"
           >
             <div class="contact-avatar">
-              <img v-if="user.avatar" :src="user.avatar" class="avatar-img" />
+              <img v-if="user.avatar" :src="user.avatar" class="avatar-img" @error="clearAvatar(user, 'avatar')" />
               <div v-else class="avatar-fallback-sm">{{ (user.realName || user.username || '?')[0] }}</div>
               <span v-if="user.online" class="online-dot"></span>
             </div>
@@ -178,6 +178,9 @@ import dayjs from 'dayjs'
 defineOptions({ name: 'Chat' })
 
 const authStore = useAuthStore()
+const clearAvatar = (item, field) => {
+  if (item && item[field]) item[field] = ''
+}
 const { socket, isConnected } = useSocket()
 const currentUserId = computed(() => authStore.user?.id)
 

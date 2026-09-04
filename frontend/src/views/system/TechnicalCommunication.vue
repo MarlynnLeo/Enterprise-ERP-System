@@ -374,7 +374,8 @@ import { useDictionaryStore } from '@/stores/dictionary'
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { formatDateTime } from '@/utils/helpers/dateUtils'
 import { useRoute } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import {
   Plus, User, Clock, View, Star, Collection, ChatDotRound,
   Lock, Warning, ArrowDown, ArrowUp, Edit, Delete

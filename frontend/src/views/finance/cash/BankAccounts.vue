@@ -330,7 +330,8 @@ import { getCommonStatusText, getCommonStatusColor } from '@/constants/systemCon
 import { formatCurrency, formatLocalDate, maskBankAccount } from '@/utils/format'
 
 import { ref, reactive, onMounted } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { Plus, Edit, List, Lock, Unlock } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import { financeApi } from '@/api';

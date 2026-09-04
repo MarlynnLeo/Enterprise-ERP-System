@@ -182,7 +182,7 @@
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { Edit, Delete, VideoPlay, Check } from '@element-plus/icons-vue'
 import { performanceApi } from '@/api/enhanced'
 import {

@@ -1,53 +1,26 @@
 import { api, fastApi } from '../services/axiosInstance';
 import { baseDataApi } from './baseData';
 import { normalizePurchaseReceivingItems } from '../utils/purchaseReceiving';
+import {
+    normalizePurchaseOrderResponse,
+    normalizePurchaseRequisitionResponse
+} from '../utils/purchaseContracts';
 
 export { normalizePurchaseReceivingItems } from '../utils/purchaseReceiving';
-
-const DEFAULT_REQUISITION_LABEL = '关联申请';
+export {
+    normalizePurchaseOrder,
+    normalizePurchaseOrderItem,
+    normalizePurchaseOrderResponse,
+    normalizePurchaseRequisition,
+    normalizePurchaseRequisitionItem,
+    normalizePurchaseRequisitionResponse
+} from '../utils/purchaseContracts';
 
 const createIdempotencyKey = (prefix) => {
     const uuid = globalThis.crypto?.randomUUID?.();
     return `${prefix}:${uuid || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
 };
 
-const normalizePurchaseOrder = (order = {}) => {
-    if (!order || typeof order !== 'object') return order;
-
-    // HTTP 只认 camel
-    const requisitionId = order.requisitionId ?? null;
-    const requisitionNumber =
-      order.requisitionNumber || (requisitionId ? DEFAULT_REQUISITION_LABEL : '');
-
-    return {
-        ...order,
-        requisitionId,
-        requisitionNumber,
-        hasRequisition: Boolean(requisitionId && order.status === 'pending')
-    };
-};
-
-const normalizePurchaseOrderResponse = (response) => {
-    if (!response?.data) return response;
-
-    if (Array.isArray(response.data)) {
-        return { ...response, data: response.data.map(normalizePurchaseOrder) };
-    }
-
-    if (Array.isArray(response.data.list)) {
-        return { ...response, data: { ...response.data, list: response.data.list.map(normalizePurchaseOrder) } };
-    }
-
-    if (Array.isArray(response.data.items)) {
-        return { ...response, data: { ...response.data, items: response.data.items.map(normalizePurchaseOrder) } };
-    }
-
-    if (typeof response.data === 'object') {
-        return { ...response, data: normalizePurchaseOrder(response.data) };
-    }
-
-    return response;
-};
 
 export const purchaseApi = {
     // 采购申请
@@ -76,12 +49,14 @@ export const purchaseApi = {
                 apiUrl = `${apiUrl}?${searchParams.toString()}`;
 
                 // 发送请求，不再使用params参数
-                return fastApi.get(apiUrl);
+                const response = await fastApi.get(apiUrl);
+                return normalizePurchaseRequisitionResponse(response);
             }
 
             // 如果没有status数组，使用标准方式发送请求
             const config = { params };
-            return fastApi.get(apiUrl, config);
+            const response = await fastApi.get(apiUrl, config);
+            return normalizePurchaseRequisitionResponse(response);
         } catch (error) {
             console.error('采购申请列表API错误:', error);
             throw error;
@@ -89,7 +64,8 @@ export const purchaseApi = {
     },
     getRequisition: async (id) => {
         try {
-            return api.get(`/purchase/requisitions/${id}`);
+            const response = await api.get(`/purchase/requisitions/${id}`);
+            return normalizePurchaseRequisitionResponse(response);
         } catch (error) {
             console.error('采购申请详情API错误:', error);
             throw error;
@@ -177,8 +153,14 @@ export const purchaseApi = {
     getOrderStats: () => api.get('/purchase/orders/statistics'),
 
     // 采购订单关联申请单
-    getOrderRequisitions: (params) => api.get('/purchase/order-requisitions', { params }),
-    getOrderRequisition: (id) => api.get(`/purchase/order-requisitions/${id}`),
+    getOrderRequisitions: async (params) => {
+        const response = await api.get('/purchase/order-requisitions', { params });
+        return normalizePurchaseRequisitionResponse(response);
+    },
+    getOrderRequisition: async (id) => {
+        const response = await api.get(`/purchase/order-requisitions/${id}`);
+        return normalizePurchaseRequisitionResponse(response);
+    },
 
     // 采购入库
     getReceipts: (params) => api.get('/purchase/receipts', { params }),

@@ -407,7 +407,8 @@
 import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Plus, Tickets, Clock, Select, Money, Refresh, Edit, Promotion, Check, Wallet, CircleClose, Close, Delete } from '@element-plus/icons-vue'
 import { financeApi } from '@/api'
 import { parseDataObject, parseListData, parsePaginatedData } from '@/utils/responseParser'

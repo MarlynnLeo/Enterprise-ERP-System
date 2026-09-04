@@ -5,6 +5,12 @@
  * @date 2025-08-28
  */
 
+const {
+  ATTACHMENT_MAX_SIZE,
+  ATTACHMENT_MIME_TYPES,
+  ATTACHMENT_EXTENSIONS,
+} = require('./fileUploadPolicy');
+
 // 密码策略配置
 const PASSWORD_POLICY = {
   minLength: 1,
@@ -94,35 +100,10 @@ const RATE_LIMIT_CONFIG = {
 
 // 文件上传安全配置
 const FILE_UPLOAD_CONFIG = {
-  maxFileSize: 10 * 1024 * 1024, // 10MB
+  maxFileSize: ATTACHMENT_MAX_SIZE,
   maxFiles: 10, // 最多10个文件
-  allowedMimeTypes: [
-    'image/jpeg',
-    'image/png',
-    'image/gif',
-    'image/webp',
-    'application/pdf',
-    'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'text/csv',
-    'text/plain',
-  ],
-  allowedExtensions: [
-    '.jpg',
-    '.jpeg',
-    '.png',
-    '.gif',
-    '.webp',
-    '.pdf',
-    '.xls',
-    '.xlsx',
-    '.doc',
-    '.docx',
-    '.csv',
-    '.txt',
-  ],
+  allowedMimeTypes: [...ATTACHMENT_MIME_TYPES],
+  allowedExtensions: [...ATTACHMENT_EXTENSIONS],
   uploadPath: './uploads/',
   tempPath: './temp/',
 };

@@ -263,7 +263,8 @@
 <script setup>
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Plus, Coin, Finished, Edit, Delete, CircleCheck } from '@element-plus/icons-vue'
 import { financeApi } from '@/api/finance'
 import { formatDate } from '@/utils/helpers/dateUtils'

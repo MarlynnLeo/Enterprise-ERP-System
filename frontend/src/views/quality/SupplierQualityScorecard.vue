@@ -167,7 +167,8 @@
 <script setup>
 import { useDictionaryStore } from '@/stores/dictionary'
 import { ref, onMounted } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { Cpu } from '@element-plus/icons-vue';
 import { qualityApi } from '@/api/quality';
 import dayjs from 'dayjs';

@@ -638,7 +638,8 @@ const getTooltipContent = (row, selectedPlan) => {
   const bomUnit = row?.unitName || row?.unit || ''
   return `生产计划数量：${planQty} ${planUnit}，BOM用量：${bomQty} ${bomUnit}`
 }
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 import {

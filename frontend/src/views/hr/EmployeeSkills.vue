@@ -157,7 +157,8 @@
 
 <script setup>
 import { ref, onMounted, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Edit, Delete } from '@element-plus/icons-vue'
 import { employeeSkillApi } from '@/api/productionAssist'
 

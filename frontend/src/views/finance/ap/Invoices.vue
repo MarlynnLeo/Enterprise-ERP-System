@@ -424,7 +424,8 @@ import { searchMaterials, mapMaterialData, SEARCH_CONFIG } from '@/utils/searchC
 import { formatCurrency, formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { Plus } from '@element-plus/icons-vue';
 import { baseDataApi, purchaseApi } from '@/api';
 import { financeApi } from '@/api/finance';

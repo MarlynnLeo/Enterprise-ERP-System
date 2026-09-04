@@ -16,7 +16,7 @@
  */
 
 import { ref, reactive, toRaw } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 
 /**
  * @param {Object} options

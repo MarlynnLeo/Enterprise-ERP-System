@@ -5,7 +5,7 @@ import { formatLocalDate } from '@/utils/format';
  * @date 2025-11-12
  * @updated 2025-11-13 - 优化日志输出和数据解析
  */
-import { ElMessage } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index';
 import { qualityApi, supplierApi } from '@/api';
 import { generateBatchNumber } from '@/utils/inspectionHelpers';
 import {

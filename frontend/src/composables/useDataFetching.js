@@ -4,7 +4,7 @@
  * 合并了原有的多个数据获取组合式函数的功能
  */
 import { ref, reactive, computed } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { parseListData, parsePaginatedData, parseResponseData } from '@/utils/responseParser'
 /**
  * 防抖函数
@@ -545,7 +545,7 @@ export function useFormSubmit(submitFunction, options = {}) {
       const errorCode = err.response?.data?.code
       // 如果是重复提交错误（409状态码），考虑使用 Alert 引起注意
       if (err.response?.status === 409 || errorCode === 'DUPLICATE_DRAFT_EXISTS') {
-        import('element-plus').then(({ ElMessageBox }) => {
+        import('element-plus/es/components/message-box/index').then(({ ElMessageBox }) => {
           ElMessageBox.alert(errorMsg, '操作被限制', {
             confirmButtonText: '我知道了',
             type: 'warning'

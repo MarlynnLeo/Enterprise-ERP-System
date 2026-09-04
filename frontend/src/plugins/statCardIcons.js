@@ -1,4 +1,13 @@
-import { createVNode, nextTick, render } from 'vue'
+/**
+ * Optional statistic-card icon enhancement.
+ *
+ * Cards that need a specific icon should render it in their component. This
+ * helper only fills the gap for legacy cards that intentionally omit one. It
+ * is a scheduled, route-scoped scan with no app-wide mixin or MutationObserver
+ * so table/menu updates never trigger a second DOM walk.
+ */
+
+import { createVNode, render } from 'vue'
 import { ElIcon } from 'element-plus/es/components/icon/index'
 import {
   Bell,
@@ -17,7 +26,6 @@ import {
   Monitor,
   PieChart,
   Refresh,
-  SetUp,
   ShoppingCart,
   Tickets,
   Tools,
@@ -31,7 +39,6 @@ import {
 const defaultIcons = [
   Document,
   EditPen,
-  SetUp,
   Loading,
   Clock,
   CircleCheck,
@@ -68,119 +75,143 @@ const statusIconMap = [
   ['bell|通知|提醒', Bell]
 ]
 
-function getCardText(card) {
+const getCardText = (card) => {
   const title = card.querySelector('.stat-title, .stat-label, .text, .stat-card__label')
   return `${card.className || ''} ${title?.textContent || card.textContent || ''}`.toLowerCase()
 }
 
-function resolveIcon(card, index) {
+const resolveIcon = (card, index) => {
   const text = getCardText(card)
-  const matched = statusIconMap.find(([pattern]) => {
-    return pattern.split('|').some((keyword) => text.includes(keyword.toLowerCase()))
-  })
-
+  const matched = statusIconMap.find(([pattern]) =>
+    pattern.split('|').some((keyword) => text.includes(keyword.toLowerCase()))
+  )
   return matched?.[1] || defaultIcons[index % defaultIcons.length]
 }
 
-function hasUsableIcon(card) {
-  return Boolean(card.querySelector(
-    '.stat-card__icon, .stat-card-auto-icon, .stat-icon, .icon-container'
-  ))
-}
+const hasUsableIcon = (card) => Boolean(card.querySelector(
+  '.stat-card__icon, .stat-card-auto-icon, .stat-icon, .icon-container'
+))
 
-function mountIcon(card, target, iconComponent) {
+const mountIcon = (card, target, iconComponent) => {
   const holder = document.createElement('span')
   holder.className = 'stat-card-auto-icon'
   card.classList.add('stat-card--auto-icon')
-  const vnode = createVNode(ElIcon, { size: 24 }, {
-    default: () => createVNode(iconComponent)
-  })
-
-  render(vnode, holder)
+  render(
+    createVNode(ElIcon, { size: 24 }, {
+      default: () => createVNode(iconComponent)
+    }),
+    holder
+  )
   target.prepend(holder)
 }
 
-export function applyStatCardIcons(root = document) {
-  const cards = Array.from(root.querySelectorAll('.stat-card'))
+const collectCards = (root) => {
+  const cards = []
+  if (root?.matches?.('.stat-card')) cards.push(root)
+  if (root?.querySelectorAll) cards.push(...root.querySelectorAll('.stat-card'))
+  return cards
+}
 
-  cards.forEach((card, index) => {
+/** Apply the enhancement synchronously when a caller explicitly needs it. */
+export const applyStatCardIcons = (root = document) => {
+  collectCards(root).forEach((card, index) => {
     if (hasUsableIcon(card)) return
-
     const target = card.classList.contains('el-card')
       ? card.querySelector('.el-card__body')
       : card
-
-    if (!target) return
-    mountIcon(card, target, resolveIcon(card, index))
+    if (target) mountIcon(card, target, resolveIcon(card, index))
   })
 }
 
-let queued = false
-let initialized = false
-let observer
+let idleId = 0
+let frameId = 0
+let queuedRoot = null
+let destroyed = false
 
-function scheduleStatCardIconScan(root) {
-  if (typeof window === 'undefined') return
-  if (queued) return
-  queued = true
+const cancelScheduledScan = () => {
+  if (idleId && typeof window !== 'undefined' && window.cancelIdleCallback) {
+    window.cancelIdleCallback(idleId)
+  } else if (idleId) {
+    clearTimeout(idleId)
+  }
+  if (frameId && typeof window !== 'undefined') window.cancelAnimationFrame(frameId)
+  idleId = 0
+  frameId = 0
+}
 
-  nextTick(() => {
-    window.requestAnimationFrame(() => {
-      queued = false
-      applyStatCardIcons(root)
+const scheduleFrame = (callback) => {
+  if (typeof window !== 'undefined' && window.requestAnimationFrame) {
+    frameId = window.requestAnimationFrame(() => {
+      frameId = 0
+      callback()
     })
-  })
+  } else {
+    frameId = setTimeout(() => {
+      frameId = 0
+      callback()
+    }, 16)
+  }
 }
 
-function setupStatCardIconObserver() {
-  if (initialized || typeof window === 'undefined') return
-  initialized = true
+const runScheduledScan = () => {
+  const root = queuedRoot
+  queuedRoot = null
+  if (destroyed || !root) return
 
-  scheduleStatCardIconScan(document)
-
-  let debounceTimer = null
-
-  observer = new window.MutationObserver((mutations) => {
-    let hasStatCardChange = false
-    for (let i = 0; i < mutations.length; i++) {
-      const mutation = mutations[i]
-      if (mutation.type === 'childList') {
-        for (let j = 0; j < mutation.addedNodes.length; j++) {
-          const node = mutation.addedNodes[j]
-          if (node.nodeType === 1 && (node.matches?.('.stat-card') || node.querySelector?.('.stat-card'))) {
-            hasStatCardChange = true
-            break
-          }
-        }
+  const cards = collectCards(root)
+  let index = 0
+  const processBatch = () => {
+    const now = () => (typeof performance === 'undefined' ? Date.now() : performance.now())
+    const startedAt = now()
+    while (index < cards.length) {
+      const card = cards[index]
+      index += 1
+      if (!hasUsableIcon(card)) {
+        const target = card.classList.contains('el-card')
+          ? card.querySelector('.el-card__body')
+          : card
+        if (target) mountIcon(card, target, resolveIcon(card, index - 1))
       }
-      if (hasStatCardChange) break
+      // Keep each batch short enough that a menu click can run between cards.
+      if (index < cards.length && now() - startedAt >= 8) break
     }
-
-    if (hasStatCardChange) {
-      if (debounceTimer) clearTimeout(debounceTimer)
-      debounceTimer = setTimeout(() => {
-        scheduleStatCardIconScan(document)
-      }, 200)
-    }
-  })
-
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true
-  })
+    if (index < cards.length && !destroyed) scheduleFrame(processBatch)
+  }
+  processBatch()
 }
 
-export function registerStatCardIcons(app) {
-  app.mixin({
-    mounted() {
-      setupStatCardIconObserver()
-    }
-  })
+/** Queue a route-scoped, incremental scan during browser idle time. */
+export const initStatCardIcons = (root) => {
+  if (typeof window === 'undefined' || !root) return
+  destroyed = false
+  cancelScheduledScan()
+  queuedRoot = root
+  const callback = () => {
+    idleId = 0
+    runScheduledScan()
+  }
+  if (window.requestIdleCallback) {
+    idleId = window.requestIdleCallback(callback, { timeout: 2000 })
+  } else {
+    idleId = setTimeout(callback, 600)
+  }
 }
 
-/**
- * 统计卡仅出现在登录后的业务页，按需初始化可避免其图标和观察器进入登录页关键路径。
- */
-export function initStatCardIcons() {
-  setupStatCardIconObserver()
+// Compatibility API for legacy bootstrappers. It deliberately scopes the
+// scan to the current content area and does not install a global mixin.
+export const registerStatCardIcons = (app) => {
+  void app
+  initStatCardIcons(
+    document.querySelector('.main-content') || document.querySelector('#app') || document.body
+  )
+}
+
+export const destroyStatCardIcons = () => {
+  destroyed = true
+  cancelScheduledScan()
+  queuedRoot = null
+}
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(destroyStatCardIcons)
 }

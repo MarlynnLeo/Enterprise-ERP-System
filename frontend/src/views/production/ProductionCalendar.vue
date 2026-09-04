@@ -272,7 +272,8 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Refresh, Setting, Calendar, ArrowLeft, ArrowRight, Edit, Star } from '@element-plus/icons-vue'
 import { productionApi } from '@/api/production'
 import { parseListData } from '@/utils/responseParser'

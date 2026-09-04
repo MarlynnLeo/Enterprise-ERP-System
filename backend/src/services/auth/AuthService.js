@@ -8,29 +8,27 @@ const { pool } = require('../../config/db');
 const { logger } = require('../../utils/logger');
 const { retryTransientDatabaseRead } = require('../../utils/databaseAvailability');
 const { normalizeUsername } = require('../../utils/usernameSecurity');
+const { normalizeAvatarUrl } = require('../../utils/avatarUrl');
 
 /** 用户查询返回的安全字段（不含 password_hash, deleted_at 等敏感字段） */
 const USER_PROFILE_FIELDS = `u.id, u.username, u.real_name, u.email, u.department_id,
   u.position, u.role, u.avatar, u.phone, u.avatar_frame, u.bio, u.created_at,
   u.force_password_change, u.password_changed_at, u.password_expires_at`;
 
-const USER_LOGIN_FIELDS = 'id, username, real_name, email, password, status, token_version, force_password_change, password_changed_at, password_expires_at, failed_login_attempts, locked_until';
+const USER_LOGIN_FIELDS =
+  'id, username, real_name, email, password, status, token_version, force_password_change, password_changed_at, password_expires_at, failed_login_attempts, locked_until';
 
-const USER_REFRESH_FIELDS = 'id, username, role, real_name, email, status, token_version, force_password_change, password_changed_at, password_expires_at';
+const USER_REFRESH_FIELDS =
+  'id, username, role, real_name, email, status, token_version, force_password_change, password_changed_at, password_expires_at';
 
-const MENU_FIELDS = 'id, parent_id, name, path, icon, permission, type, visible, sort_order AS sort';
+const MENU_FIELDS =
+  'id, parent_id, name, path, icon, permission, type, visible, sort_order AS sort';
 
 // These are the only attributes a user may change through the self-service
 // profile endpoint.  Organization and authorization attributes (department,
 // position, role, status, and admin flags) belong to the privileged user
 // management workflow and must never be silently accepted here.
-const SELF_SERVICE_PROFILE_FIELDS = Object.freeze([
-  'real_name',
-  'email',
-  'phone',
-  'avatar',
-  'bio',
-]);
+const SELF_SERVICE_PROFILE_FIELDS = Object.freeze(['real_name', 'email', 'phone', 'avatar', 'bio']);
 
 class AuthService {
   /**
@@ -43,7 +41,9 @@ class AuthService {
     if (!canonicalUsername) return null;
     const [users] = await retryTransientDatabaseRead(
       () =>
-        pool.execute(`SELECT ${USER_LOGIN_FIELDS} FROM users WHERE LOWER(username) = ?`, [canonicalUsername]),
+        pool.execute(`SELECT ${USER_LOGIN_FIELDS} FROM users WHERE LOWER(username) = ?`, [
+          canonicalUsername,
+        ]),
       {
         onRetry: (error, attempt, delayMs) => {
           logger.warn('Authentication user lookup will retry after a transient database error', {
@@ -93,6 +93,14 @@ class AuthService {
     );
     const user = users[0] || null;
     if (user) {
+      const storedAvatar = user.avatar;
+      user.avatar = normalizeAvatarUrl(storedAvatar);
+      if (storedAvatar && !user.avatar) {
+        logger.warn('[Auth] Ignoring missing or invalid local avatar reference', {
+          userId,
+          avatar: storedAvatar,
+        });
+      }
       user.passwordExpired = false;
       user.password_expired = false;
       user.passwordChangeRequired = false;
@@ -133,10 +141,7 @@ class AuthService {
    * @returns {Promise<string|null>}
    */
   static async getUserPasswordHash(userId) {
-    const [users] = await pool.execute(
-      'SELECT password FROM users WHERE id = ?',
-      [userId]
-    );
+    const [users] = await pool.execute('SELECT password FROM users WHERE id = ?', [userId]);
     return users[0]?.password || null;
   }
 
@@ -203,10 +208,7 @@ class AuthService {
     updateFields.push('updated_at = NOW()');
     updateValues.push(userId);
 
-    await pool.execute(
-      `UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`,
-      updateValues
-    );
+    await pool.execute(`UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`, updateValues);
     return true;
   }
 
@@ -216,10 +218,7 @@ class AuthService {
    * @returns {Promise<string|null>}
    */
   static async getUserAvatar(userId) {
-    const [rows] = await pool.execute(
-      'SELECT avatar FROM users WHERE id = ?',
-      [userId]
-    );
+    const [rows] = await pool.execute('SELECT avatar FROM users WHERE id = ?', [userId]);
     return rows[0]?.avatar || null;
   }
 
@@ -243,10 +242,10 @@ class AuthService {
    * @param {string} frameId
    */
   static async updateAvatarFrame(userId, frameId) {
-    await pool.execute(
-      'UPDATE users SET avatar_frame = ?, updated_at = NOW() WHERE id = ?',
-      [frameId, userId]
-    );
+    await pool.execute('UPDATE users SET avatar_frame = ?, updated_at = NOW() WHERE id = ?', [
+      frameId,
+      userId,
+    ]);
   }
 
   /**
@@ -254,10 +253,7 @@ class AuthService {
    * @param {number} userId
    */
   static async incrementTokenVersion(userId) {
-    await pool.execute(
-      'UPDATE users SET token_version = token_version + 1 WHERE id = ?',
-      [userId]
-    );
+    await pool.execute('UPDATE users SET token_version = token_version + 1 WHERE id = ?', [userId]);
   }
 
   // ========== 菜单相关 ==========
@@ -291,10 +287,9 @@ class AuthService {
    * @returns {Promise<number[]>}
    */
   static async getUserRoleIds(userId) {
-    const [userRoles] = await pool.execute(
-      'SELECT role_id FROM user_roles WHERE user_id = ?',
-      [userId]
-    );
+    const [userRoles] = await pool.execute('SELECT role_id FROM user_roles WHERE user_id = ?', [
+      userId,
+    ]);
     return userRoles.map((r) => r.role_id);
   }
 

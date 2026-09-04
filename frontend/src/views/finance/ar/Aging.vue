@@ -138,7 +138,7 @@ import { formatAmount, formatLocalDate } from '@/utils/format';
 import { formatDate } from '@/utils/helpers/dateUtils'
 // 版本标识 - 强制刷新缓存 v3.0 - 使用安全数据访问器
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index';
 import { financeApi } from '@/api';
 import { parseListData } from '@/utils/responseParser';
 import printService from '@/services/printService';

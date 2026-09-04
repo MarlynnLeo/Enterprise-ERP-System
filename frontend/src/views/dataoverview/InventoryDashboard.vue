@@ -153,7 +153,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import Chart from '@/utils/chartCore'
 import { inventoryApi } from '@/api'
 import { parseDataObject } from '@/utils/responseParser'

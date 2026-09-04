@@ -329,7 +329,8 @@
 <script setup>
 import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { Refresh, InfoFilled, Upload } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { materialApi } from '@/api/material'
 import { useFinanceStore } from '@/stores/finance'
 import { MATERIAL_TYPE_OPTIONS, normalizeMaterialType } from '@/utils/materialTypes'

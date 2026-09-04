@@ -9,29 +9,13 @@
 const { logger } = require('../utils/logger');
 const { ResponseHandler } = require('../utils/responseHandler');
 const { UnifiedAppError } = require('./unifiedErrorHandler');
-
-// SQL 注入检测模式（严格）— 用于普通字段
-const SQL_INJECTION_PATTERNS = [
-  /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|UNION|SCRIPT)\b)/i,
-  /(';|--)/, // 单引号、分号、双横线注释
-  /(\/\*|\*\/)/, // SQL块注释标记
-  /(\bOR\b|\bAND\b).*(=|<|>)/i,
-  /(UNION.*SELECT|SELECT.*FROM|INSERT.*INTO|UPDATE.*SET|DELETE.*FROM)/i,
-];
-
-// SQL 注入检测模式（宽松）— 用于 description/remark 等可能含特殊字符的业务字段
-// 只检测高危组合，允许单引号、分号、注释符等单独出现
-const SQL_INJECTION_PATTERNS_RELAXED = [
-  /(UNION\s+ALL\s+SELECT|UNION\s+SELECT)/i,
-  /(SELECT\s+.+\s+FROM\s+.+\s+WHERE)/i,
-  /(INSERT\s+INTO\s+\w+)/i,
-  /(UPDATE\s+\w+\s+SET\s+)/i,
-  /(DELETE\s+FROM\s+\w+)/i,
-  /(DROP\s+(TABLE|DATABASE|INDEX))/i,
-  /(ALTER\s+TABLE\s+\w+)/i,
-  /(EXEC(UTE)?\s*\()/i,
-  /(;\s*DROP\s|;\s*DELETE\s|;\s*UPDATE\s|;\s*INSERT\s)/i,
-];
+const { SQL_FIELD_MODES, containsSQLInjection, getSQLFieldMode } = require('./inputSecurityPolicy');
+const path = require('path');
+const {
+  ATTACHMENT_MIME_TYPES,
+  ATTACHMENT_EXTENSIONS,
+  EXCEL_EXTENSIONS,
+} = require('../config/fileUploadPolicy');
 
 // XSS 检测模式
 const XSS_PATTERNS = [
@@ -47,101 +31,26 @@ const PATH_TRAVERSAL_PATTERNS = [/\.\.\//g, /\.\.\\/g, /%2e%2e%2f/gi, /%2e%2e%5c
 
 // SQL 注入检测中间件
 const sqlInjectionDetection = (req, res, next) => {
-  // 跳过富文本内容字段的检查（HTML内容可能包含类似SQL的模式）
-  const shouldSkipField = (fieldPath) => {
-    // 打印模板API的HTML内容字段
-    if (req.path.startsWith('/api/print/')) {
-      if (
-        ['content', 'header_html', 'footer_html', 'body_html'].some((f) => fieldPath.endsWith(f))
-      ) {
-        return true;
-      }
-    }
-    // 技术交流API的富文本内容字段
-    if (req.path.startsWith('/api/system/technical-communications')) {
-      if (['content', 'solution', 'description'].some((f) => fieldPath.endsWith(f))) {
-        return true;
-      }
-    }
-    // 附件/文件路径字段 - 这些字段包含合法的文件路径，不应该被SQL注入检测拦截
-    const attachmentFields = [
-      'attachment',
-      'file_path',
-      'fileUrl',
-      'filePath',
-      'url',
-      'instructionDocs',
-    ];
-    if (
-      attachmentFields.some(
-        (field) =>
-          fieldPath.endsWith(field) ||
-          fieldPath.includes('.attachment') ||
-          fieldPath.includes('.url')
-      )
-    ) {
-      return true;
-    }
-    // 物料规格相关字段 - 可能包含 / * 等特殊字符，完全跳过检测
-    const specFieldsSkip = [
-      'specs',
-      'specification',
-      'model',
-      'drawing_no',
-      'color_code',
-      'material',
-      'material_type',
-    ];
-    if (specFieldsSkip.some((field) => fieldPath.endsWith(field))) {
-      return 'skip';
-    }
-    // 业务文本字段 - 使用宽松规则（只检测高危组合）
-    const relaxedFields = [
-      'remark',
-      'remarks',
-      'description',
-      'name',
-      // AQL 级别可包含 GB/T 2828.1 II 等标准标识；保留高危 SQL 组合检测
-      'aqlLevel',
-      'aql_level',
-      'reason_name',
-      'reasonName',
-      'issue_reason',
-      'reason',
-      'title',
-      'label',
-      'location_detail',
-      'location',
-    ];
-    if (relaxedFields.some((field) => fieldPath.endsWith(field))) {
-      return 'relaxed';
-    }
-    return false;
-  };
+  const requestPath = req.path || req.originalUrl || '';
 
   const checkValue = (value, path = '') => {
-    const skipMode = shouldSkipField(path);
-    // 完全跳过的字段（如富文本、文件路径、物料规格）
-    if (skipMode === true || skipMode === 'skip') {
+    const fieldMode = getSQLFieldMode(requestPath, path);
+    if (fieldMode === SQL_FIELD_MODES.SKIP) {
       return;
     }
 
     if (typeof value === 'string') {
-      // 根据字段类型选择检测模式
-      const patterns = skipMode === 'relaxed' ? SQL_INJECTION_PATTERNS_RELAXED : SQL_INJECTION_PATTERNS;
-      for (const pattern of patterns) {
-        if (pattern.test(value)) {
-          logger.security('Security event: SQL injection attempt detected', {
-            ip: req.ip,
-            url: req.originalUrl,
-            path,
-            mode: skipMode === 'relaxed' ? 'relaxed' : 'strict',
-            value: value.substring(0, 100),
-            userAgent: req.get('User-Agent'),
-          });
+      if (containsSQLInjection(value, fieldMode)) {
+        logger.security('Security event: SQL injection attempt detected', {
+          ip: req.ip,
+          url: req.originalUrl,
+          path,
+          mode: fieldMode,
+          value: value.substring(0, 100),
+          userAgent: req.get('User-Agent'),
+        });
 
-          throw new UnifiedAppError('INVALID_REQUEST', 'Invalid input detected');
-        }
+        throw new UnifiedAppError('INVALID_REQUEST', 'Invalid input detected');
       }
     } else if (typeof value === 'object' && value !== null) {
       for (const [key, val] of Object.entries(value)) {
@@ -232,47 +141,43 @@ const fileUploadSecurity = (req, res, next) => {
     for (const file of files) {
       if (!file) continue;
 
-      // 检查文件类型
-      const allowedMimeTypes = [
-        'image/jpeg',
-        'image/png',
-        'image/gif',
-        'application/pdf',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'application/vnd.ms-excel',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'text/plain',
-        'text/csv',
-      ];
-
-      if (!allowedMimeTypes.includes(file.mimetype)) {
+      // Keep this legacy guard aligned with unifiedFileUpload.  The latter is
+      // authoritative and additionally checks magic bytes after multer writes
+      // the file; this guard still prevents drift for callers that use it
+      // directly.
+      const mimetype = String(file.mimetype || '').toLowerCase();
+      const ext = path.extname(String(file.originalname || '')).toLowerCase();
+      if (
+        !ATTACHMENT_MIME_TYPES.includes(mimetype) ||
+        !ATTACHMENT_EXTENSIONS.includes(ext) ||
+        (mimetype === 'application/octet-stream' && !EXCEL_EXTENSIONS.includes(ext))
+      ) {
         logger.security('Security event: disallowed file type uploaded', {
           ip: req.ip,
           filename: file.originalname,
-          mimetype: file.mimetype,
+          mimetype,
+          ext,
         });
 
         return ResponseHandler.error(res, 'File type not allowed', 'INVALID_FILE_TYPE', 400);
       }
 
       // 检查文件扩展名
-      const ext = file.originalname.split('.').pop().toLowerCase();
-      const dangerousExtensions = [
-        'exe',
-        'dll',
-        'bat',
-        'cmd',
-        'sh',
-        'php',
-        'jsp',
-        'asp',
-        'aspx',
-        'js',
-        'vbs',
-      ];
+      const dangerousExtensions = new Set([
+        '.exe',
+        '.dll',
+        '.bat',
+        '.cmd',
+        '.sh',
+        '.php',
+        '.jsp',
+        '.asp',
+        '.aspx',
+        '.js',
+        '.vbs',
+      ]);
 
-      if (dangerousExtensions.includes(ext)) {
+      if (dangerousExtensions.has(ext)) {
         logger.security('Security event: dangerous file extension uploaded', {
           ip: req.ip,
           filename: file.originalname,

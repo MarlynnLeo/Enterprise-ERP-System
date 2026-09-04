@@ -218,7 +218,8 @@ import { handleTableRowView } from '@/utils/tableRowView'
 import { parsePaginatedData } from '@/utils/responseParser';
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
 import { ref, reactive, onMounted, computed } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { baseDataApi } from '@/api/baseData';
 import { Plus, Edit, Delete, Download, Check, Close } from '@element-plus/icons-vue';
 import { WAREHOUSE_TYPES, getWarehouseTypeText } from '@/constants/systemConstants'

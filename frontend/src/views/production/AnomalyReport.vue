@@ -154,7 +154,8 @@
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { User, Check, CircleClose } from '@element-plus/icons-vue'
 import { anomalyReportApi } from '@/api/productionAssist'
 

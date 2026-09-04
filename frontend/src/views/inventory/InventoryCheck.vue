@@ -431,7 +431,8 @@ import { handleTableRowView } from '@/utils/tableRowView'
 import { parsePaginatedData, parseListData } from '@/utils/responseParser';
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
 import { ref, reactive, onMounted, computed } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { Plus, ArrowDown, Delete, RefreshRight, Edit } from '@element-plus/icons-vue';
 import { inventoryApi } from '@/api';
 import { SEARCH_CONFIG, searchMaterials, mapMaterialData } from '@/utils/searchConfig';

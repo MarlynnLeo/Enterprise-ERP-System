@@ -166,7 +166,7 @@ import { formatDate } from '@/utils/helpers/dateUtils';
 import { ref, computed, onMounted, onBeforeUnmount, reactive, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import Chart from '@/utils/chartCore';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index';
 import { Search } from '@element-plus/icons-vue';
 import { qualityApi } from '@/api';
 import { createLineChartConfig, createPieChartConfig, chartColors } from '@/utils/chartConfig';

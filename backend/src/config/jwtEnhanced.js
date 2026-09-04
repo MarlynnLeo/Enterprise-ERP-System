@@ -12,6 +12,7 @@ const {
   buildAuthCookieOptions,
   clearAuthCookies,
   clearCsrfCookies,
+  clearCsrfSessionCookies,
 } = require('../utils/cookieSecurity');
 
 const ALLOWED_JWT_ALGORITHMS = Object.freeze(['HS256']);
@@ -218,6 +219,7 @@ const setTokensToCookies = (req, res, accessToken, refreshToken) => {
 const clearTokenCookies = (req, res) => {
   clearAuthCookies(res);
   clearCsrfCookies(res);
+  clearCsrfSessionCookies(res);
   logger.info('Token cookies have been cleared');
 };
 

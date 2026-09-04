@@ -134,7 +134,7 @@
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { useAuthStore } from '../stores/auth'
 import { Clock, Lock, StarFilled, Tickets, TrendCharts, User } from '@element-plus/icons-vue'
 import { formatDate } from '@/utils/helpers/dateUtils'
@@ -423,7 +423,12 @@ const handleAvatarChange = async (file) => {
     ElMessage.error('头像上传失败: ' + (error.response?.data?.message || error.message || '未知错误'))
   }
 }
-const handleAvatarError = () => {
+const handleAvatarError = (failedAvatar) => {
+  const shouldClearFormAvatar = !failedAvatar || failedAvatar === userForm.avatar
+  authStore.clearInvalidAvatar(failedAvatar)
+  if (shouldClearFormAvatar) {
+    userForm.avatar = ''
+  }
   ElMessage.warning('头像加载失败，使用默认头像')
 }
 const handleFrameChange = async (frameId) => {

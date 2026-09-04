@@ -413,7 +413,8 @@ import { formatCurrency } from '@/utils/format'
 import { useRoute } from 'vue-router';
 
 // Element Plus
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { Plus, Printer, Check, RefreshLeft, Delete } from '@element-plus/icons-vue';
 
 // Pinia Stores

@@ -830,7 +830,8 @@
 import { handleTableRowView } from '@/utils/tableRowView'
 import { defineAsyncComponent, ref, onMounted, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 
 import dayjs from 'dayjs'
 import { formatDate, formatDateTime } from '@/utils/helpers/dateUtils'
@@ -1727,10 +1728,10 @@ const originalFileUrl = ref('')
 // 打开文件预览
 const openInstructionDoc = (doc) => {
   if (doc && doc.url) {
-    // 处理文件URL：如果是相对路径，添加API基础路径
-    let fileUrl = doc.url
-    if (!fileUrl.startsWith('http')) {
-      fileUrl = buildResourceUrl(fileUrl)
+    const fileUrl = buildResourceUrl(doc.url)
+    if (!fileUrl) {
+      ElMessage.warning('作业指导书地址不可用')
+      return
     }
 
     originalFileUrl.value = fileUrl
