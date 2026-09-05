@@ -106,6 +106,10 @@ describe('materialService', () => {
       const result = await materialService.deleteMaterial(1);
       expect(result).toBe(true);
       expect(softDelete).toHaveBeenCalledWith(pool, 'materials', 'id', 1);
+      expect(pool.execute).toHaveBeenCalledWith(
+        expect.stringContaining('UPDATE materials SET code = CONCAT'),
+        [1]
+      );
     });
 
     test('被 BOM 引用时应拒绝删除', async () => {
@@ -152,6 +156,10 @@ describe('materialService', () => {
       pool.query.mockResolvedValueOnce([[{ code: 'M005' }]]);
       const result = await materialService.getNextMaterialSequence('M');
       expect(result).toBe(6);
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('deleted_at IS NULL'),
+        expect.any(Array)
+      );
     });
   });
 

@@ -18,6 +18,7 @@
           ref="previewIframe"
           class="preview-iframe"
           :srcdoc="previewHtml"
+          @load="onPreviewLoaded"
         ></iframe>
       </div>
     </div>
@@ -37,6 +38,7 @@
 import { ref, computed, watch } from 'vue'
 
 import printService from '@/services/printService';
+import { autoFitPrintDocument } from '@/utils/printAutoFit'
 
 const props = defineProps({
   modelValue: Boolean,
@@ -67,6 +69,16 @@ const error = ref('');
 const previewHtml = ref('');
 const previewIframe = ref(null);
 
+const fitPreviewText = () => {
+  const previewDocument = previewIframe.value?.contentDocument
+  if (previewDocument) autoFitPrintDocument(previewDocument)
+}
+
+const onPreviewLoaded = () => {
+  fitPreviewText()
+  setTimeout(fitPreviewText, 120)
+}
+
 const generatePreview = async () => {
   loading.value = true;
   error.value = '';
@@ -84,6 +96,7 @@ const generatePreview = async () => {
 
 const handlePrint = () => {
   if (previewIframe.value && previewIframe.value.contentWindow) {
+    fitPreviewText()
     previewIframe.value.contentWindow.print();
   }
 };

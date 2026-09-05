@@ -26,8 +26,8 @@
             <el-tag :type="getQualityStatusColor(inspection.status)">{{ getQualityStatusText(inspection.status) }}</el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="物料编码">{{ inspection.itemCode || inspection.materialCode || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="物料名称">{{ inspection.productName || inspection.materialName || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="产品型号">{{ inspection.productCode || inspection.specs || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="物料名称">{{ inspection.itemName || inspection.materialName || inspection.productName || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="产品型号">{{ inspection.productCode || inspection.itemSpecs || inspection.specs || '-' }}</el-descriptions-item>
           <el-descriptions-item label="供应商">{{ inspection.supplierName || '-' }}</el-descriptions-item>
           <el-descriptions-item label="批次号">{{ inspection.batchNo || '-' }}</el-descriptions-item>
           <el-descriptions-item label="检验数量">{{ Math.floor(inspection.quantity || 0) }}</el-descriptions-item>
@@ -47,11 +47,13 @@
         <template v-if="inspection.items && inspection.items.length > 0">
           <el-divider content-position="center">检验项目</el-divider>
           <el-table :data="inspection.items" border class="w-full" max-height="300">
-            <el-table-column prop="itemName" label="项目" width="100" show-overflow-tooltip />
+             <el-table-column prop="itemName" label="项目" width="100" show-overflow-tooltip />
             <el-table-column prop="standard" label="检验要求/标准" min-width="180" show-overflow-tooltip>
               <template #default="{ row }">{{ row.standard || row.dimensionInfo || '-' }}</template>
             </el-table-column>
-            <el-table-column prop="method" label="检测方法" width="130" show-overflow-tooltip />
+             <el-table-column prop="method" label="检测方法" width="130" show-overflow-tooltip>
+               <template #default="{ row }">{{ row.method || '-' }}</template>
+             </el-table-column>
             <el-table-column label="测量值">
               <el-table-column v-for="n in MAX_INSPECTION_MEASUREMENT_COLUMNS" :key="n" :label="`${n}#`" min-width="55">
                 <template #default="{ row }">

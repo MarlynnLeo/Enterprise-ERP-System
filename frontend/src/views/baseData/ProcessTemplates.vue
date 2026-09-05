@@ -131,61 +131,53 @@
           header-class-name="operation-column-header"
         >
           <template #default="scope">
-            <el-button
-              size="small"
-              type="primary"
-              link
-              @click.stop="handleView(scope.row)"
-            >
-              <el-icon><View /></el-icon> 查看
-            </el-button>
-
-            <el-popconfirm
-              v-if="canUpdate && Number(scope.row.status) !== 1"
-              title="确定要启用该工序模板吗？"
-              @confirm="handleToggleStatus(scope.row)"
-            >
-              <template #reference>
-                <el-button size="small" type="success" plain @click.stop>
-                  <el-icon><Switch /></el-icon> 启用
-                </el-button>
-              </template>
-            </el-popconfirm>
-            <el-popconfirm
-              v-if="canUpdate && Number(scope.row.status) === 1"
-              title="确定要禁用该工序模板吗？"
-              @confirm="handleToggleStatus(scope.row)"
-              confirm-button-type="warning"
-            >
-              <template #reference>
-                <el-button size="small" type="warning" plain @click.stop>
-                  <el-icon><Switch /></el-icon> 禁用
-                </el-button>
-              </template>
-            </el-popconfirm>
-
-            <template v-if="Number(scope.row.status) === 0">
-              <el-button
-                v-if="canUpdate"
-                size="small"
-                type="primary"
-                @click.stop="handleEdit(scope.row)"
-              >
-                <el-icon><Edit /></el-icon> 编辑
+            <TableRowActions>
+              <el-button size="small" type="primary" @click="handleView(scope.row)">
+                <el-icon><View /></el-icon> 查看
               </el-button>
+
               <el-popconfirm
-                v-if="canDelete"
-                title="确定要删除该工序模板吗？此操作无法恢复。"
-                @confirm="handleDelete(scope.row)"
-                confirm-button-type="danger"
+                v-if="canUpdate && Number(scope.row.status) !== 1"
+                title="确定要启用该工序模板吗？"
+                @confirm="handleToggleStatus(scope.row)"
               >
                 <template #reference>
-                  <el-button size="small" type="danger" @click.stop>
-                    <el-icon><Delete /></el-icon> 删除
+                  <el-button size="small" type="success">
+                    <el-icon><Switch /></el-icon> 启用
                   </el-button>
                 </template>
               </el-popconfirm>
-            </template>
+              <el-popconfirm
+                v-if="canUpdate && Number(scope.row.status) === 1"
+                title="确定要禁用该工序模板吗？"
+                @confirm="handleToggleStatus(scope.row)"
+                confirm-button-type="warning"
+              >
+                <template #reference>
+                  <el-button size="small" type="warning">
+                    <el-icon><Switch /></el-icon> 禁用
+                  </el-button>
+                </template>
+              </el-popconfirm>
+
+              <template v-if="Number(scope.row.status) === 0">
+                <el-button v-if="canUpdate" size="small" type="primary" @click="handleEdit(scope.row)">
+                  <el-icon><Edit /></el-icon> 编辑
+                </el-button>
+                <el-popconfirm
+                  v-if="canDelete"
+                  title="确定要删除该工序模板吗？此操作无法恢复。"
+                  @confirm="handleDelete(scope.row)"
+                  confirm-button-type="danger"
+                >
+                  <template #reference>
+                    <el-button size="small" type="danger">
+                      <el-icon><Delete /></el-icon> 删除
+                    </el-button>
+                  </template>
+                </el-popconfirm>
+              </template>
+            </TableRowActions>
           </template>
         </el-table-column>
       </el-table>
@@ -357,9 +349,16 @@
             </template>
           </el-table-column>
 
-          <el-table-column label="操作" width="70" align="center" header-align="center">
+          <el-table-column
+            label="操作"
+            min-width="72"
+            align="left"
+            header-align="left"
+            class-name="operation-column"
+            header-class-name="operation-column-header"
+          >
             <template #default="{ $index }">
-              <el-button type="danger" size="small" link @click="removeProcess($index)">
+              <el-button type="danger" size="small" @click="removeProcess($index)">
                 <el-icon><Delete /></el-icon>
               </el-button>
             </template>
@@ -506,6 +505,7 @@ import { loadDepartmentOptions } from '@/utils/optionLoaders'
 import { formatDateTime } from '@/utils/helpers/dateUtils'
 import { useAuthStore } from '@/stores/auth'
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
+import TableRowActions from '@/components/common/TableRowActions.vue'
 
 // 权限store
 const authStore = useAuthStore()

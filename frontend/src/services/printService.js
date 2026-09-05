@@ -16,6 +16,7 @@ import {
 import { getCssTokenValue } from '@/utils/designTokens'
 import { parseResponseData } from '@/utils/responseParser'
 import { renderPrintTemplate } from '@/utils/cspSafePrintRenderer'
+import { autoFitPrintDocument } from '@/utils/printAutoFit'
 
 const getPrintTokens = () => ({
   border: getCssTokenValue('textPrimary'),
@@ -458,7 +459,9 @@ const printService = {
       // 创建隐藏 iframe
       const iframe = document.createElement('iframe')
       iframe.id = '__erp_print_frame__'
-      iframe.style.cssText = 'position:fixed;top:-10000px;left:-10000px;width:0;height:0;border:none;'
+      // 保留实际纸张尺寸，自动缩放工具需要可计算的单元格宽度。
+      // 仍放在视口外，不会影响当前页面，也不会闪出空白窗口。
+      iframe.style.cssText = 'position:fixed;top:-10000px;left:-10000px;width:210mm;height:297mm;border:none;'
       document.body.appendChild(iframe)
 
       const iframeDoc = iframe.contentDocument || iframe.contentWindow.document
@@ -466,8 +469,23 @@ const printService = {
       iframeDoc.write(html)
       iframeDoc.close()
 
+      const fitPrintText = () => {
+        try {
+          autoFitPrintDocument(iframeDoc)
+        } catch (error) {
+          console.warn('打印文本自动适配失败:', error)
+        }
+      }
+      // document.write 后先执行一次，字体加载完成及打印前再执行一次，
+      // 兼容自定义模板字体或浏览器延迟布局的情况。
+      setTimeout(fitPrintText, 0)
+      if (iframeDoc.fonts?.ready && typeof iframeDoc.fonts.ready.then === 'function') {
+        iframeDoc.fonts.ready.then(fitPrintText).catch(() => {})
+      }
+
       // 等待 iframe 渲染完成后触发打印
       const triggerPrint = () => {
+        fitPrintText()
         try {
           iframe.contentWindow.focus()
           iframe.contentWindow.print()

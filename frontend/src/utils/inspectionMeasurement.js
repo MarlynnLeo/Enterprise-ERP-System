@@ -356,11 +356,10 @@ function parseSingleNumberRule(text) {
  */
 export function parseInspectionStandard(itemOrStandard = {}) {
   const item = itemOrStandard && typeof itemOrStandard === 'object' ? itemOrStandard : null
-  const explicitRule = parseExplicitDimensionRule(item)
-  if (explicitRule) return explicitRule
-
   const text = getStandardText(itemOrStandard)
   if (text) {
+    // 比较符（例如“≥0.9N.m”）优先于标准尺寸字段。性能项目可以同时
+    // 展示标准尺寸 0.9，但其业务含义是单边下限而不是“必须等于 0.9”。
     const comparisonRule = parseComparisonRule(text)
     if (comparisonRule) return comparisonRule
 
@@ -375,6 +374,9 @@ export function parseInspectionStandard(itemOrStandard = {}) {
     const singleRule = parseSingleNumberRule(sanitizedText)
     if (singleRule) return singleRule
   }
+
+  const explicitRule = parseExplicitDimensionRule(item)
+  if (explicitRule) return explicitRule
 
   return {
     mode: 'qualitative',

@@ -1,15 +1,9 @@
 /**
- * One-shot operation-column measurement.
+ * Measures operation columns from their visible buttons.
  *
- * Operation columns are normally given an explicit width in the page
- * template. The old implementation installed document-wide MutationObserver
- * and ResizeObserver instances, cloned buttons after every DOM change, and
- * forced synchronous layout reads. That made unrelated navigation and table
- * updates compete for the main thread.
- *
- * This module remains as a compatibility API for the few pages that genuinely
- * need content-driven sizing. It performs one scheduled measurement only when
- * a caller explicitly invokes it; it never observes the application.
+ * The one-shot API remains available for isolated callers. Routed business
+ * pages use the live API, whose observer only schedules tables affected by
+ * operation-cell DOM changes and debounces repeated updates.
  */
 
 const OPERATION_CELL_SELECTOR = '.el-table__cell.operation-column'
@@ -25,7 +19,13 @@ const EXTRA_WIDTH = 4
 const FALLBACK_GAP = 6
 
 let frameId = 0
-let pendingRoot = null
+const pendingRoots = new Set()
+let mutationObserver = null
+let resizeObserver = null
+let resizeHandler = null
+let debounceTimer = 0
+const pendingTables = new Set()
+let observedTables = new WeakSet()
 
 const clamp = (value) => Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, Math.ceil(value)))
 
@@ -155,33 +155,131 @@ const getTables = (root) => {
 }
 
 /** Apply sizing immediately to the explicitly supplied root. */
-export const applyOperationColumnAutoWidth = (root = document) => {
+const applyOperationColumnAutoWidth = (root = document) => {
   if (typeof window === 'undefined') return
   getTables(root).forEach(applyTableWidths)
 }
 
-/** Schedule one measurement pass; no global observers are installed. */
-export const triggerOperationColumnAutoWidth = (root = document) => {
+/** Schedule one measurement pass without installing observers. */
+const scheduleOperationColumnAutoWidth = (root = document) => {
   if (typeof window === 'undefined') return
-  pendingRoot = root
+  pendingRoots.add(root)
   if (frameId) window.cancelAnimationFrame(frameId)
   frameId = window.requestAnimationFrame(() => {
     frameId = 0
-    const target = pendingRoot
-    pendingRoot = null
-    applyOperationColumnAutoWidth(target)
+    const roots = [...pendingRoots]
+    pendingRoots.clear()
+    roots.forEach((target) => applyOperationColumnAutoWidth(target))
   })
 }
 
-// Kept for callers that used the old plugin name. It is deliberately one-shot.
-export const initOperationColumnAutoWidth = (root = document) => {
-  triggerOperationColumnAutoWidth(root)
+const isProbeNode = (node) => Boolean(
+  node?.nodeType === 1 &&
+  (node.matches?.(`[${PROBE_ATTRIBUTE}]`) || node.closest?.(`[${PROBE_ATTRIBUTE}]`))
+)
+
+const addTablesFromNode = (node, tables) => {
+  if (!node || node.nodeType !== 1 || isProbeNode(node)) return
+  if (node.matches?.('.el-table')) tables.add(node)
+  node.querySelectorAll?.('.el-table').forEach((table) => tables.add(table))
+  const containingTable = node.closest?.('.el-table')
+  if (containingTable) tables.add(containingTable)
+}
+
+const isRelevantAttributeMutation = (target, attributeName) => {
+  if (!target || target.nodeType !== 1 || isProbeNode(target)) return false
+  if (attributeName === 'style' && target.matches?.('col, .operation-column, .operation-column-header')) {
+    return false
+  }
+  return Boolean(target.closest?.(
+    `${OPERATION_CELL_SELECTOR}, ${OPERATION_HEADER_SELECTOR}, ${ACTION_CONTAINER_SELECTOR}, ${ACTION_SELECTOR}`
+  ) || target.matches?.(
+    `${OPERATION_CELL_SELECTOR}, ${OPERATION_HEADER_SELECTOR}, ${ACTION_CONTAINER_SELECTOR}, ${ACTION_SELECTOR}`
+  ))
+}
+
+const observeTables = (root) => {
+  if (!resizeObserver) return
+  getTables(root).forEach((table) => {
+    if (observedTables.has(table)) return
+    observedTables.add(table)
+    resizeObserver.observe?.(table)
+  })
+}
+
+/** Start the live, scoped measurement used by routed business pages. */
+export const startOperationColumnAutoWidth = (root = document.body) => {
+  if (typeof window === 'undefined' || mutationObserver) return
+
+  if (typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver((entries) => {
+      entries.forEach(({ target }) => {
+        observeTables(target)
+        scheduleOperationColumnAutoWidth(target)
+      })
+    })
+  }
+
+  scheduleOperationColumnAutoWidth(root)
+  observeTables(root)
+
+  mutationObserver = new MutationObserver((mutations) => {
+    const tables = new Set()
+
+    for (const mutation of mutations) {
+      if (isProbeNode(mutation.target)) continue
+
+      if (mutation.type === 'childList') {
+        const changedNodes = [...mutation.addedNodes, ...mutation.removedNodes]
+        const hasNonProbeChange = changedNodes.some((node) => !isProbeNode(node))
+        changedNodes.forEach((node) => addTablesFromNode(node, tables))
+        // A removed v-if branch may only leave a comment node, so use the
+        // containing table for in-cell mutations. Ignore body-level probe
+        // insertions to avoid scheduling the measurement itself repeatedly.
+        if (hasNonProbeChange) addTablesFromNode(mutation.target, tables)
+      } else if (mutation.type === 'attributes' && isRelevantAttributeMutation(mutation.target, mutation.attributeName)) {
+        addTablesFromNode(mutation.target, tables)
+      }
+    }
+
+    if (tables.size === 0) return
+    tables.forEach((table) => pendingTables.add(table))
+    clearTimeout(debounceTimer)
+    debounceTimer = window.setTimeout(() => {
+      const nextTables = [...pendingTables]
+      pendingTables.clear()
+      nextTables.forEach((table) => {
+        observeTables(table)
+        scheduleOperationColumnAutoWidth(table)
+      })
+    }, 60)
+  })
+
+  mutationObserver.observe?.(root || document.body, {
+    subtree: true,
+    childList: true,
+    attributes: true,
+    attributeFilter: ['class', 'style', 'disabled', 'hidden']
+  })
+
+  resizeHandler = () => scheduleOperationColumnAutoWidth(root)
+  window.addEventListener('resize', resizeHandler, { passive: true })
 }
 
 export const destroyOperationColumnAutoWidth = () => {
   if (frameId && typeof window !== 'undefined') window.cancelAnimationFrame(frameId)
   frameId = 0
-  pendingRoot = null
+  pendingRoots.clear()
+  mutationObserver?.disconnect?.()
+  mutationObserver = null
+  resizeObserver?.disconnect?.()
+  resizeObserver = null
+  observedTables = new WeakSet()
+  if (typeof window !== 'undefined') window.removeEventListener('resize', resizeHandler)
+  resizeHandler = null
+  clearTimeout(debounceTimer)
+  debounceTimer = 0
+  pendingTables.clear()
 }
 
 if (import.meta.hot) {

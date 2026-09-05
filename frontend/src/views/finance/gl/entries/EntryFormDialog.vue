@@ -276,7 +276,6 @@
             <template #default="{ $index }">
               <el-button
                 type="danger"
-                link
                 size="small"
                 :disabled="entryForm.items.length <= 2"
                 @click="removeItem($index)"

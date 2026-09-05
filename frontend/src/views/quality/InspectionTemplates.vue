@@ -1112,11 +1112,17 @@
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="70" align="center">
+            <el-table-column
+              label="操作"
+              min-width="72"
+              align="left"
+              header-align="left"
+              class-name="operation-column"
+              header-class-name="operation-column-header"
+            >
               <template #default="scope">
                 <el-button
                   type="danger"
-                  link
                   size="small"
                   @click="parsedTemplateData.items.splice(scope.$index, 1)"
                 >

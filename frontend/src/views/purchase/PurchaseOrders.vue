@@ -424,7 +424,7 @@
           </el-table-column>
           <el-table-column label="操作" min-width="70" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
-              <el-button type="danger" link size="small" @click="removeItem(scope.$index)">删除</el-button>
+              <el-button type="danger" size="small" @click="removeItem(scope.$index)">删除</el-button>
             </template>
           </el-table-column>
         </el-table>

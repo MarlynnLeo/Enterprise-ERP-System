@@ -319,6 +319,11 @@ const materialService = {
 
       // ✅ 软删除替代硬删除
       await softDelete(pool, 'materials', 'id', id);
+      // ✅ 释放物料编码：删除即释放编码，避免占号阻止重新录入或导致发号跳号
+      await pool.execute(
+        'UPDATE materials SET code = CONCAT(code, "_del_", id) WHERE id = ? AND code NOT LIKE "%_del_%"',
+        [id]
+      );
       return true;
     } catch (error) {
       logger.error('deleteMaterial error:', error);
@@ -373,7 +378,7 @@ const materialService = {
       const query = `
         SELECT code
         FROM materials
-        WHERE code LIKE ? AND LENGTH(code) = ?
+        WHERE code LIKE ? AND LENGTH(code) = ? AND deleted_at IS NULL
         ORDER BY code DESC
         LIMIT 1
       `;

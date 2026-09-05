@@ -28,12 +28,40 @@
       <el-table-column prop="lineCount" label="明细" width="75" />
       <el-table-column prop="businessApprovedBy" label="业务审核人" min-width="120" />
       <el-table-column prop="financeApprovedLabel" label="财务审核人" min-width="120" />
-      <el-table-column label="操作" fixed="right" width="220">
+      <el-table-column
+        label="操作"
+        fixed="right"
+        min-width="72"
+        align="left"
+        header-align="left"
+        class-name="operation-column"
+        header-class-name="operation-column-header"
+      >
         <template #default="{ row }">
-          <el-button link type="primary" @click="openDetail(row)">详情</el-button>
-          <el-button v-if="row.financeStatus === 'pending'" v-permission="'finance:inventory:approve'" link type="success" @click="approve(row)">通过</el-button>
-          <el-button v-if="row.financeStatus === 'pending'" v-permission="'finance:inventory:approve'" link type="danger" @click="reject(row)">驳回</el-button>
-          <el-button v-if="row.financeStatus === 'approved' && row.postingKind !== 'reversal'" v-permission="'finance:inventory:reverse'" link type="warning" @click="reverse(row)">申请反审核</el-button>
+          <TableRowActions>
+            <el-button size="small" type="primary" @click="openDetail(row)">详情</el-button>
+            <el-button
+              v-if="row.financeStatus === 'pending'"
+              v-permission="'finance:inventory:approve'"
+              size="small"
+              type="success"
+              @click="approve(row)"
+            >通过</el-button>
+            <el-button
+              v-if="row.financeStatus === 'pending'"
+              v-permission="'finance:inventory:approve'"
+              size="small"
+              type="danger"
+              @click="reject(row)"
+            >驳回</el-button>
+            <el-button
+              v-if="row.financeStatus === 'approved' && row.postingKind !== 'reversal'"
+              v-permission="'finance:inventory:reverse'"
+              size="small"
+              type="warning"
+              @click="reverse(row)"
+            >申请反审核</el-button>
+          </TableRowActions>
         </template>
       </el-table-column>
     </el-table>
@@ -76,6 +104,7 @@ import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Refresh } from '@element-plus/icons-vue'
 import { financeApi } from '@/api/finance'
 import AppDialog from '@/components/ui/AppDialog.vue'
+import TableRowActions from '@/components/common/TableRowActions.vue'
 
 const loading = ref(false)
 const rows = ref([])

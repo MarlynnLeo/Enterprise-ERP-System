@@ -106,7 +106,6 @@
                 <el-button
                   type="danger"
                   size="small"
-                  link
                   @click="removeInvoiceItem(scope.$index)"
                   v-permission="'finance:ar:update'"
                   class="py-4">

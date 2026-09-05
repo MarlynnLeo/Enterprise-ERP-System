@@ -379,6 +379,7 @@ import {
 import MarginInputs from '../../components/ui/print/MarginInputs.vue'
 import PaperSizeSelect from '../../components/ui/print/PaperSizeSelect.vue'
 import { sanitizeHtml, writeSafeHtmlDocument } from '@/utils/htmlSecurity'
+import { autoFitPrintDocument } from '@/utils/printAutoFit'
 import { useAuthStore } from '@/stores/auth'
 import { getCssTokenValue } from '@/utils/designTokens'
 import printService, { normalizeSystemSettings } from '@/services/printService'
@@ -700,6 +701,19 @@ const onPreviewDialogOpened = () => {
   if (previewIframe.value && previewContent.value) {
     try {
       writeSafeHtmlDocument(previewIframe.value.contentWindow, previewContent.value)
+      const previewDocument = previewIframe.value.contentDocument
+      const fitPreviewText = () => {
+        if (previewIframe.value?.contentDocument === previewDocument) {
+          autoFitPrintDocument(previewDocument)
+        }
+      }
+      // 预览 iframe 已经写入后再测量，避免 document.write 尚未完成布局。
+      if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(fitPreviewText)
+      } else {
+        setTimeout(fitPreviewText, 0)
+      }
+      setTimeout(fitPreviewText, 120)
     } catch {
       ElMessage.error('预览内容渲染失败')
     }

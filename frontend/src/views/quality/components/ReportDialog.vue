@@ -26,11 +26,11 @@
       <div class="report-info">
         <div class="report-info-item">
           <span class="report-info-label">物料名称:</span>
-          <span>{{ inspection?.materialName || inspection?.materialName || inspection?.productName || '-' }}</span>
+          <span>{{ inspection?.itemName || inspection?.materialName || inspection?.productName || '-' }}</span>
         </div>
         <div class="report-info-item">
           <span class="report-info-label">产品型号:</span>
-          <span>{{ inspection?.productCode || inspection?.specs || inspection?.material_specs || '-' }}</span>
+          <span>{{ inspection?.productCode || inspection?.itemSpecs || inspection?.specs || inspection?.material_specs || '-' }}</span>
         </div>
         <div class="report-info-item">
           <span class="report-info-label">供应商:</span>
@@ -68,7 +68,9 @@
         <el-table :data="inspection?.items" border>
           <el-table-column prop="itemName" label="项目" min-width="130" show-overflow-tooltip />
           <el-table-column prop="standard" label="检验要求/标准" min-width="180" show-overflow-tooltip />
-          <el-table-column prop="method" label="检测方法" min-width="130" show-overflow-tooltip />
+          <el-table-column prop="method" label="检测方法" min-width="130" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.method || '-' }}</template>
+          </el-table-column>
           <el-table-column label="测量值">
             <el-table-column v-for="n in MAX_INSPECTION_MEASUREMENT_COLUMNS" :key="n" :label="`${n}#`" min-width="55">
               <template #default="scope">
@@ -160,7 +162,7 @@ const getInspectionPrintTemplateType = (inspection) => {
   }
   const templateCode = String(inspection?.templateCode || '').toUpperCase()
   const templateName = String(inspection?.templateName || '')
-  const materialName = String(inspection?.materialName || inspection?.itemName || inspection?.productName || '')
+  const materialName = String(inspection?.itemName || inspection?.materialName || inspection?.productName || '')
   const source = `${templateCode} ${templateName} ${materialName}`
   if (source.includes('QRZ-SPRING') || source.includes('弹簧')) return 'spring_inspection'
   if (
@@ -181,9 +183,10 @@ const handlePrint = async () => {
     return
   }
   const insp = props.inspection
+  const materialName = insp.itemName || insp.materialName || insp.productName || ''
   const printData = {
     inspection_no: insp.inspectionNo || '',
-    material_name: insp.materialName || insp.productName || '',
+    material_name: materialName,
     specs: insp.materialSpecs || insp.itemSpecs || insp.specs || '',
     product_code: insp.productCode || insp.materialCode || insp.itemCode || '',
     supplier_name: insp.supplierName || '',
@@ -214,8 +217,8 @@ const handlePrint = async () => {
       item_code: item.itemCode || item.code || '',
       item_name: item.itemName || item.name || '-',
       specification: item.standard || item.specification || '',
-       method: item.method || '',
-       inspection_method: item.method || '',
+      method: item.method || '',
+      inspection_method: item.method || '',
       quantity: item.actualValue || item.quantity || '',
       unit_name: item.unit || '',
       result: getStatusText(item.result),
@@ -235,8 +238,8 @@ const handlePrint = async () => {
       item_code: item.itemCode || item.code || '',
       item_name: item.itemName || item.name || '-',
       standard: item.standard || item.specification || '',
-       method: item.method || '',
-       inspection_method: item.method || '',
+      method: item.method || '',
+      inspection_method: item.method || '',
       result: getStatusText(item.result),
       judgment: getStatusText(item.result),
       remark: item.remark || item.remarks || '',
@@ -248,7 +251,6 @@ const handlePrint = async () => {
       ]))
     })),
     material_code: insp.materialCode || insp.itemCode || insp.productCode || '',
-    material_name: insp.materialName || insp.itemName || insp.productName || ''
   }
 
   try {

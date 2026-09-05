@@ -51,6 +51,26 @@ describe('inspection measurement helpers', () => {
     expect(compareInspectionMeasurement(item, '1.50').result).toBe('passed')
   })
 
+  it('prefers a comparison operator over a displayed nominal value', () => {
+    const item = {
+      type: 'performance',
+      standard: '≥0.9N.m，无滑牙、断杆，每批抽10只',
+      dimensionValue: 0.9,
+      toleranceUpper: null,
+      toleranceLower: null
+    }
+
+    expect(parseInspectionStandard(item)).toMatchObject({
+      operator: 'gte',
+      nominal: 0.9,
+      lowerBound: 0.9,
+      upperBound: null
+    })
+    expect(compareInspectionMeasurement(item, '0.89').result).toBe('failed')
+    expect(compareInspectionMeasurement(item, '0.9').result).toBe('passed')
+    expect(compareInspectionMeasurement(item, '1.2').result).toBe('passed')
+  })
+
   it('parses ranges and explicit nominal tolerances', () => {
     expect(parseInspectionStandard({ standard: '2.76～2.90mm之间', type: 'performance' })).toMatchObject({
       mode: 'numeric',

@@ -11,6 +11,25 @@ import logger from '@/utils/logger'
 
 export const MAX_INSPECTION_MEASUREMENT_COLUMNS = 6
 
+const firstUsableMaterialName = (...values) => {
+  for (const value of values) {
+    if (value === null || value === undefined) continue
+    const text = String(value).trim()
+    if (!text || text === '-' || text === '未知物料' || text.toLowerCase() === 'unknown') continue
+    if (text.includes('来自采购单') || text.includes('物料(PO') || text.includes('物料 PO')) continue
+    return text
+  }
+  return ''
+}
+
+const readField = (object, ...keys) => {
+  if (!object || typeof object !== 'object') return undefined
+  for (const key of keys) {
+    if (object[key] !== undefined && object[key] !== null) return object[key]
+  }
+  return undefined
+}
+
 /** Normalize fixed measurement fields and dynamic measurement rows. */
 export function normalizeInspectionMeasurements(item = {}) {
   if (Array.isArray(item.measurements) && item.measurements.length > 0) {
@@ -278,23 +297,70 @@ export async function fetchInspectionDetailWithItems(
     throw new Error('获取检验单详情失败')
   }
 
+  // 详情接口在不同版本中可能返回 itemName、materialName 或 productName。
+  // 先把列表行合并进来，再统一取值，避免新生成的来料检验单显示“未知物料”。
+  const fallbackRow = row || {}
+  const materialSource = { ...fallbackRow, ...inspectionData }
+  const extractedMaterialName = typeof extractMaterialName === 'function'
+    ? extractMaterialName(materialSource)
+    : extractMaterialNameSimple(materialSource)
+  const materialCodeCandidates = [
+    readField(inspectionData, 'itemCode', 'item_code'),
+    readField(inspectionData, 'materialCode', 'material_code'),
+    readField(fallbackRow, 'itemCode', 'item_code'),
+    readField(fallbackRow, 'materialCode', 'material_code')
+  ].filter(value => value !== null && value !== undefined).map(value => String(value).trim())
+  const extractedNameCandidate = materialCodeCandidates.includes(String(extractedMaterialName).trim())
+    ? ''
+    : extractedMaterialName
+  let materialName = firstUsableMaterialName(
+    readField(inspectionData, 'itemName', 'item_name'),
+    readField(inspectionData, 'materialName', 'material_name'),
+    readField(inspectionData, 'productName', 'product_name'),
+    readField(fallbackRow, 'itemName', 'item_name'),
+    readField(fallbackRow, 'materialName', 'material_name'),
+    extractedNameCandidate
+  )
+
+  // 少数旧接口只返回 materialId；在名称仍缺失时读取一次物料主数据，
+  // 让详情和打印也能显示真实名称，而不是“未知物料”。
+  if (!materialName) {
+    const materialId = readField(inspectionData, 'materialId', 'material_id') ||
+      readField(fallbackRow, 'materialId', 'material_id')
+    if (materialId && typeof baseDataApi.getMaterialsByIds === 'function') {
+      try {
+        const materialResponse = await baseDataApi.getMaterialsByIds([materialId])
+        const material = parseListData(materialResponse, { enableLog: false })[0]
+        materialName = firstUsableMaterialName(
+          readField(material, 'name', 'materialName', 'itemName', 'item_name')
+        )
+      } catch (error) {
+        console.warn('获取详情物料主数据失败:', error)
+      }
+    }
+  }
+  materialName = materialName || firstUsableMaterialName(extractedMaterialName) || '未知物料'
+
   // 统一字段映射（API 只认 camel）
   inspectionData = {
     ...inspectionData,
-    inspectionNo: inspectionData.inspectionNo || row.inspectionNo || '',
-    templateCode: inspectionData.templateCode || row.templateCode || '',
-    templateName: inspectionData.templateName || row.templateName || '',
+    inspectionNo: inspectionData.inspectionNo || fallbackRow.inspectionNo || '',
+    templateCode: inspectionData.templateCode || fallbackRow.templateCode || '',
+    templateName: inspectionData.templateName || fallbackRow.templateName || '',
     purchaseOrderNo:
       inspectionData.referenceNo ||
       inspectionData.purchaseOrderNo ||
-      row.purchaseOrderNo ||
+      fallbackRow.purchaseOrderNo ||
       '',
-    batchNo: inspectionData.batchNo || row.batchNo || '',
-    materialName: inspectionData.materialName || extractMaterialName(inspectionData),
+    batchNo: inspectionData.batchNo || fallbackRow.batchNo || '',
+    itemName: materialName,
+    materialName,
     productName:
-      inspectionData.productName ||
-      inspectionData.materialName ||
-      extractMaterialName(inspectionData),
+      firstUsableMaterialName(
+        inspectionData.productName,
+        inspectionData.product_name,
+        materialName
+      ) || materialName,
     productCode: inspectionData.productCode || inspectionData.specs || extractMaterialSpecs(inspectionData),
     quantity: inspectionData.quantity || inspectionData.totalQuantity || 0,
     unit: inspectionData.unit || '个',
@@ -341,8 +407,9 @@ export async function fetchInspectionDetailWithItems(
   if (inspectionData.items && inspectionData.items.length > 0) {
     inspectionData.items = inspectionData.items.map(item => ({
       ...item,
-      itemName: item.itemName || item.name || '未命名检验项',
-      standard: item.standard || item.criteria || '无标准',
+      itemName: readField(item, 'itemName', 'item_name', 'name') || '未命名检验项',
+      standard: readField(item, 'standard', 'item_standard', 'criteria') || '无标准',
+      method: readField(item, 'method', 'inspectionMethod', 'inspection_method') || '',
       actualValue: item.actualValue ?? '-',
       result: item.result || '',
       remarks: item.remarks || item.remark || item.comment || '',
@@ -439,27 +506,20 @@ export function extractMaterialNameSimple(item) {
 
   // 定义检查优先级
   const nameFields = [
-    item.productName,
+    // 来料检验接口通过 SQL 别名返回 item_name，边界转换后即为 itemName。
+    readField(item, 'itemName', 'item_name'),
+    readField(item, 'materialName', 'material_name'),
+    readField(item, 'productName', 'product_name'),
     item.material?.name,
-    item.materialName,
-    item.materialName,
-    item.item_name,
-    item.reference_data?.items?.[0]?.materialName,
-    item.reference_data?.materialName,
-    item.materialCode
+    readField(item.material, 'itemName', 'item_name'),
+    readField(item.reference_data?.items?.[0], 'materialName', 'itemName', 'item_name'),
+    readField(item.reference_data, 'materialName', 'itemName', 'item_name'),
+    // 没有名称时保留编码作为最后兜底，至少不会把有物料的单据误判为空。
+    readField(item, 'itemCode', 'item_code'),
+    readField(item, 'materialCode', 'material_code')
   ]
 
-  // 查找第一个有效值
-  for (const field of nameFields) {
-    if (field &&
-        field !== '-' &&
-        !field.includes('来自采购单') &&
-        !field.includes('物料(PO')) {
-      return field
-    }
-  }
-
-  return '未知物料'
+  return firstUsableMaterialName(...nameFields) || '未知物料'
 }
 
 /**
@@ -471,9 +531,9 @@ export function extractMaterialSpecsSimple(item) {
   if (!item) return '-'
 
   const specsFields = [
-    item.productCode,
+    readField(item, 'itemSpecs', 'item_specs'),
+    readField(item, 'productCode', 'product_code'),
     item.specs,
-    item.item_specs,
     item.material?.specs,
     item.reference_data?.items?.[0]?.specs,
     item.reference_data?.specs

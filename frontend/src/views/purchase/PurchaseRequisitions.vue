@@ -311,7 +311,6 @@
             <el-table-column label="操作" min-width="60" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="{ $index }">
                 <el-button
-                  link
                   type="danger"
                   size="small"
                   @click="removeMaterial($index)"

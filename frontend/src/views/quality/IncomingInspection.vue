@@ -99,12 +99,12 @@
         </el-table-column>
         <el-table-column prop="itemName" label="物料名称" min-width="130" show-overflow-tooltip>
           <template #default="{ row }">
-            {{ row.itemName || row.productName || extractMaterialName(row) }}
+            {{ row.itemName || row.materialName || row.productName || extractMaterialName(row) }}
           </template>
         </el-table-column>
         <el-table-column prop="itemSpecs" label="产品型号" min-width="150" show-overflow-tooltip>
           <template #default="{ row }">
-            {{ row.itemSpecs || row.productCode || '-' }}
+            {{ row.itemSpecs || row.specs || row.materialSpecs || row.productCode || '-' }}
           </template>
         </el-table-column>
         <el-table-column prop="supplierName" label="供应商" min-width="150" show-overflow-tooltip />
@@ -297,6 +297,15 @@ const reworkStatusMap = ref({})
 // ===== 物料缓存 =====
 const materialCache = ref({})
 
+const isMissingMaterialName = (value) => {
+  if (value === null || value === undefined) return true
+  const text = String(value).trim()
+  return !text || text === '-' || text === '未知物料' || text.toLowerCase() === 'unknown' ||
+    text.includes('来自采购单') || text.includes('物料(PO') || text.includes('物料 PO')
+}
+
+const getMaterialId = (item) => item?.materialId
+
 // ===== 初始化 =====
 onMounted(() => { fetchData() })
 
@@ -323,15 +332,20 @@ const fetchData = async () => {
 
     if (list.length > 0 || totalCount >= 0) {
       // 后端已输出 camel；仅补展示别名
-      inspectionList.value = list.map((item) => ({
-        ...item,
-        purchaseOrderNo: item.referenceNo || item.purchaseOrderNo,
-        materialName: item.itemName || item.productName || extractMaterialName(item),
-        specs: item.itemSpecs || extractMaterialSpecsSimple(item),
-        supplierName: item.supplierName || extractSupplierNameSimple(item),
-        inspectionDate: item.actualDate || item.plannedDate,
-        inspector: item.inspectorName || '-'
-      }))
+      inspectionList.value = list.map((item) => {
+        const materialName = extractMaterialName(item)
+        const itemName = isMissingMaterialName(item.itemName) ? materialName : item.itemName
+        return {
+          ...item,
+          purchaseOrderNo: item.referenceNo || item.purchaseOrderNo,
+          itemName,
+          materialName: isMissingMaterialName(item.materialName) ? itemName : item.materialName,
+          specs: item.itemSpecs || extractMaterialSpecsSimple(item),
+          supplierName: item.supplierName || extractSupplierNameSimple(item),
+          inspectionDate: item.actualDate || item.plannedDate,
+          inspector: item.inspectorName || '-'
+        }
+      })
       total.value = totalCount
 
       // 异步加载缺失的物料信息
@@ -353,10 +367,13 @@ const applyMaterialInfoToList = (materialId, info) => {
   if (!materialId || !info) return
 
   inspectionList.value.forEach(item => {
-    if (String(item.materialId) === String(materialId)) {
-      const materialName = info.name || info.materialName
+    if (String(getMaterialId(item)) === String(materialId)) {
+      const materialName = info.name || info.materialName || info.itemName
       const specs = info.specs || info.specification
-      if (materialName) item.materialName = materialName
+      if (materialName) {
+        if (isMissingMaterialName(item.itemName)) item.itemName = materialName
+        if (isMissingMaterialName(item.materialName)) item.materialName = materialName
+      }
       if (specs && (!item.specs || item.specs === '-')) item.specs = specs
     }
   })
@@ -365,14 +382,14 @@ const applyMaterialInfoToList = (materialId, info) => {
 const asyncLoadMaterialInfo = () => {
   setTimeout(async () => {
     const itemsNeedInfo = inspectionList.value.filter(item =>
-      item.materialId && (!item.materialName || item.materialName === '-' ||
-        item.materialName.startsWith('物料 ') || item.materialName.includes('采购单') ||
-        item.materialName.includes('PO') || !item.specs)
+      getMaterialId(item) && (isMissingMaterialName(item.itemName) || isMissingMaterialName(item.materialName) ||
+        String(item.itemName || '').startsWith('物料 ') || String(item.itemName || '').includes('采购单') ||
+        String(item.itemName || '').includes('PO') || !item.specs)
     )
 
     if (itemsNeedInfo.length === 0) return
 
-    const materialIds = [...new Set(itemsNeedInfo.map(i => i.materialId).filter(Boolean))]
+    const materialIds = [...new Set(itemsNeedInfo.map(getMaterialId).filter(Boolean).map(String))]
     const missingMaterialIds = materialIds.filter(materialId => !materialCache.value[materialId])
 
     try {
@@ -383,10 +400,11 @@ const asyncLoadMaterialInfo = () => {
           materials.push(...parseListData(response, { enableLog: false }))
         }
         materials.forEach(material => {
-          if (!material?.id) return
-          materialCache.value[material.id] = {
+          const materialId = material?.id ?? material?.materialId
+          if (!materialId) return
+          materialCache.value[String(materialId)] = {
             ...material,
-            name: material.name || material.materialName,
+            name: material.name || material.materialName || material.itemName,
             specs: material.specs || material.specification
           }
         })
@@ -405,12 +423,17 @@ const asyncLoadMaterialInfo = () => {
 const extractMaterialName = (item) => {
   if (!item) return '未知物料'
   const name = extractMaterialNameSimple(item)
-  if (name !== '未知物料') return name
-
-  const materialId = item.materialId
-  if (materialId && materialCache.value[materialId]) {
-    return materialCache.value[materialId].name || '未知物料'
+  const materialId = getMaterialId(item)
+  const cacheKey = materialId == null ? '' : String(materialId)
+  if (cacheKey && materialCache.value[cacheKey]) {
+    return materialCache.value[cacheKey].name || '未知物料'
   }
+  const codeCandidates = [item.itemCode, item.item_code, item.materialCode, item.material_code]
+    .filter(value => value !== null && value !== undefined)
+    .map(value => String(value).trim())
+  // 只有编码而没有名称时，返回占位值让异步主数据查询继续执行。
+  if (codeCandidates.includes(String(name).trim()) && cacheKey) return '未知物料'
+  if (!isMissingMaterialName(name)) return name
   return '未知物料'
 }
 

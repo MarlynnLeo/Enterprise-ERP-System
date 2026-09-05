@@ -248,10 +248,10 @@ const fetchOrderMaterials = async (orderNo) => {
 
     if (response.data?.items) {
       materialOptions.value = response.data.items.map(item => ({
-        id: item.materialId,
-        name: item.materialName || `${item.materialCode} (无名称)`,
-        code: item.materialCode,
-        specs: item.specs || item.specification || item.materialSpecs || '',
+        id: item.materialId || item.id,
+        name: item.itemName || item.materialName || `${item.materialCode} (无名称)`,
+        code: item.materialCode || item.itemCode,
+        specs: item.itemSpecs || item.specs || item.specification || item.materialSpecs || '',
         unit: item.unitName || item.unit,
         quantity: item.quantity,
         purchaseQuantity: item.purchaseQuantity || item.quantity
