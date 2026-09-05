@@ -314,4 +314,3 @@ export const normalizePurchaseRequisitionResponse = (response) => {
 
   return { ...response, data: normalizePurchaseRequisition(payload) }
 }
-

@@ -243,4 +243,3 @@ export const getIconComponent = (iconName) => {
   normalizedIconCache.set(rawName, component)
   return component
 }
-

@@ -30,4 +30,3 @@ export const buildMenuSearchOptions = (nodes, parentBreadcrumbs = []) => {
 
   return options
 }
-

@@ -379,4 +379,3 @@ exports.down = async function down() {
   // Deliberately non-destructive: these tables/columns may contain production
   // traceability and accounting history.
 };
-
