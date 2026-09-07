@@ -855,7 +855,7 @@ const loadInbounds = async () => {
     const response = await inventoryApi.getInboundList(params);
     const { list, total } = parsePaginatedData(response);
     tableData.value = list;
-    pagination.total = Math.max(total, 1);
+    pagination.total = Math.max(total, 0);
     updateStats();
   } catch (error) {
     console.error('加载入库单失败:', error);

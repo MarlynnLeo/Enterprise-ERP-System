@@ -21,8 +21,9 @@ class InboundTransactionService {
    * @param {Number} inboundId 入库单ID
    * @param {String} operator 操作人
    * @param {Object} inboundData 入库主表数据
+   * @param {Number|null} businessApprovedById 当前业务完成操作人的认证用户ID
    */
-  static async confirmInbound(connection, inboundId, operator, inboundData) {
+  static async confirmInbound(connection, inboundId, operator, inboundData, businessApprovedById = null) {
     logger.info(`开始分离核心入库处理，入库单ID: ${inboundId}`);
 
     // 获取入库单信息
@@ -282,6 +283,8 @@ class InboundTransactionService {
           referenceNo: inboundData.inbound_no,
           referenceType: 'inbound',
           operator: operator,
+          businessApprovedById,
+          businessApprovedBy: operator,
           remark: inboundData.remark || '',
           unitId: unitId,
           batchNumber: finalBatchNumber,
@@ -329,7 +332,7 @@ class InboundTransactionService {
     // 标准业务链：质检/业务引用 → 入库单
     const DocumentChainService = require('./DocumentChainService');
     const linkActor =
-      (inboundData && (inboundData.updated_by || inboundData.created_by)) || null;
+      businessApprovedById || (inboundData && (inboundData.updated_by || inboundData.created_by)) || null;
     await DocumentChainService.afterInventoryInboundConfirmed(
       {
         id: inboundId,

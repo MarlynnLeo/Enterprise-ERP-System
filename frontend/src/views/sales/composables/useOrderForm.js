@@ -83,6 +83,7 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
   // 客户列表和产品列表
   const customers = ref([])
   const filteredCustomers = ref([])
+  const selectedCustomerOption = ref(null)
   const customerSearchLoading = ref(false)
   const products = ref([])
   const filteredProducts = ref([])
@@ -187,23 +188,32 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
 
   const mapCustomerOption = (customer) => ({
     id: customer.id,
-    code: customer.customerCode || `C${customer.id}`,
+    code: customer.code || customer.customerCode || '',
     name: customer.name,
     contactPerson: customer.contactPerson,
     contactPhone: customer.contactPhone,
     address: customer.address
   })
 
+  const refreshFilteredCustomers = () => {
+    const options = [...customers.value]
+    const selected = selectedCustomerOption.value
+    if (selected && form.customerId === selected.id && !options.some(customer => String(customer.id) === String(selected.id))) {
+      options.push(selected)
+    }
+    filteredCustomers.value = options
+  }
+
   const fetchCustomers = async () => {
     try {
       const customersData = await loadCustomerPageOptions()
       customers.value = (customersData || []).map(mapCustomerOption)
-      filteredCustomers.value = [...customers.value]
+      refreshFilteredCustomers()
     } catch (error) {
       console.error('获取客户数据失败:', error)
       ElMessage.error('获取客户数据失败')
       customers.value = []
-      filteredCustomers.value = []
+      refreshFilteredCustomers()
     }
   }
 
@@ -216,11 +226,12 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
         ? await searchCustomerPageOptions(keyword)
         : await loadCustomerPageOptions()
       customers.value = remoteCustomers.map(mapCustomerOption)
-      filteredCustomers.value = [...customers.value]
+      refreshFilteredCustomers()
       customerSearchLoading.value = false
     })().catch(error => {
       console.error('搜索客户失败:', error)
-      filteredCustomers.value = []
+      customers.value = []
+      refreshFilteredCustomers()
       customerSearchLoading.value = false
     })
   }
@@ -231,7 +242,8 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
       ElMessage.error('客户数据格式错误')
       return
     }
-    const selectedCustomer = customers.value.find(c => c.id === customerId)
+    const selectedCustomer = filteredCustomers.value.find(c => c.id === customerId)
+    selectedCustomerOption.value = selectedCustomer || null
     if (selectedCustomer) {
       form.customerName = selectedCustomer.name
       form.contact = selectedCustomer.contactPerson || ''
@@ -550,6 +562,8 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
 
   const handleAdd = () => {
     dialogType.value = 'add'
+    selectedCustomerOption.value = null
+    refreshFilteredCustomers()
     Object.keys(form).forEach(key => {
       if (key === 'items') {
         form[key] = [createEmptyOrderItem(defaultVATRate.value)]
@@ -571,6 +585,7 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
 
   const handleEdit = async (row) => {
     dialogType.value = 'edit'
+    selectedCustomerOption.value = null
     Object.keys(form).forEach(key => {
       if (key === 'items') form[key] = []
       else form[key] = ''
@@ -596,6 +611,32 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
         remark: orderDetail.remark || orderDetail.remarks || orderDetail.notes || row.remark || '',
         items: []
       })
+      if (customerIdVal) {
+        const loadedCustomer = customers.value.find(customer => String(customer.id) === String(customerIdVal))
+        selectedCustomerOption.value = loadedCustomer || mapCustomerOption({
+          id: customerIdVal,
+          code: orderDetail.customerCode || row.customerCode,
+          name: customerNameVal,
+          contactPerson: form.contact,
+          contactPhone: form.phone,
+          address: form.address
+        })
+        form.customerId = selectedCustomerOption.value.id
+        refreshFilteredCustomers()
+        // 当前客户可能不在首屏或已停用，单独补齐选项以保留订单上的名称和编码。
+        if (!loadedCustomer) {
+          try {
+            const customerResponse = await baseDataApi.getCustomer(customerIdVal)
+            if (customerResponse.data?.id) {
+              selectedCustomerOption.value = mapCustomerOption(customerResponse.data)
+              form.customerId = selectedCustomerOption.value.id
+              refreshFilteredCustomers()
+            }
+          } catch (error) {
+            console.error('获取订单客户选项失败:', error)
+          }
+        }
+      }
       const orderItems = orderDetail.items || row.items || []
       if (Array.isArray(orderItems) && orderItems.length > 0) {
         form.items = orderItems.map(item => {

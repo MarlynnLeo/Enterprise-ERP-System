@@ -57,6 +57,7 @@ jest.mock(
 const QualityInspection = require('../../src/models/qualityInspection');
 const db = require('../../src/config/db');
 const InspectionClosureService = require('../../src/services/quality/InspectionClosureService');
+const { qualityInspectionMap } = require('../../src/utils/quality/qualityFieldMap');
 const {
   INSPECTION_SOURCE_TYPES,
   normalizeInspectionSourceType,
@@ -100,6 +101,15 @@ const createInsertConnection = () => ({
   }),
 });
 
+const getInsertedInspection = (connection) => {
+  const [insertSql, insertValues] = connection.query.mock.calls.find(([sql]) =>
+    String(sql).includes('INSERT INTO quality_inspections')
+  );
+  const columns = insertSql.match(/INSERT INTO quality_inspections\s*\(([^)]+)\)/)[1]
+    .split(',').map((column) => column.trim());
+  return Object.fromEntries(columns.map((column, index) => [column, insertValues[index]]));
+};
+
 describe('quality inspection source routing', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -112,6 +122,29 @@ describe('quality inspection source routing', () => {
       receiptNo: 'PR202609040001',
     });
     mockNonconformingProductService.autoCreateFromInspection.mockResolvedValue(undefined);
+  });
+
+  test.each(['purchase_order', 'outsourced_receipt'])('reports a missing %s source as a validation error before writing', async (source_type) => {
+    const connection = createInsertConnection();
+    await expect(QualityInspection.createInspection(buildInspectionPayload({
+      source_type, reference_id: null, reference_no: null,
+    }), connection)).rejects.toMatchObject({ statusCode: 400, code: 'VALIDATION_ERROR' });
+    expect(connection.query).not.toHaveBeenCalled();
+  });
+
+  test('reports an unknown source number as a validation error without inserting an inspection', async () => {
+    const connection = { query: jest.fn().mockResolvedValue([[]]) };
+    await expect(QualityInspection.createInspection(buildInspectionPayload({
+      source_type: 'purchase_order', reference_id: null, reference_no: 'MISSING-PO',
+    }), connection)).rejects.toMatchObject({ statusCode: 400, code: 'VALIDATION_ERROR' });
+    expect(connection.query.mock.calls.every(([sql]) => !sql.includes('INSERT'))).toBe(true);
+  });
+
+  test('reports a missing traceable batch as a validation error before writing', async () => {
+    const connection = createInsertConnection();
+    await expect(QualityInspection.createInspection(buildInspectionPayload({ batch_no: '' }), connection))
+      .rejects.toMatchObject({ statusCode: 400, code: 'VALIDATION_ERROR' });
+    expect(connection.query).not.toHaveBeenCalled();
   });
 
   test('persists outsourced_receipt when creating an outsourced incoming inspection', async () => {
@@ -129,6 +162,45 @@ describe('quality inspection source routing', () => {
     expect(insertCall[1][2]).toBe(INSPECTION_SOURCE_TYPES.OUTSOURCED_RECEIPT);
     expect(result.source_type).toBe(INSPECTION_SOURCE_TYPES.OUTSOURCED_RECEIPT);
     expect(mockProductionInboundService.createDraftFromIncomingInspection).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ['camelCase full', { isFullInspection: true }, 1],
+    ['camelCase sampled', { isFullInspection: false }, 0],
+    ['legacy full', { is_full_inspection: 1 }, 1],
+    ['legacy sampled', { is_full_inspection: 0 }, 0],
+  ])('persists and returns the %s inspection selection', async (_label, selection, storedFlag) => {
+    const connection = createInsertConnection();
+    const result = await QualityInspection.createInspection(
+      qualityInspectionMap.fromApi(buildInspectionPayload({ status: 'pending', ...selection })),
+      connection
+    );
+
+    const persistedFlag = getInsertedInspection(connection).is_full_inspection;
+    expect(persistedFlag).toBe(storedFlag);
+    expect(qualityInspectionMap.toApi({ ...result, is_full_inspection: persistedFlag }))
+      .toMatchObject({ isFullInspection: Boolean(storedFlag) });
+  });
+
+  test.each([
+    ['purchase incoming', { source_type: 'purchase_order' }, null],
+    ['outsourced incoming', { source_type: 'outsourced_receipt' }, null],
+    ['incoming with an explicit task', { source_type: 'outsourced_receipt', task_id: 99 }, 99],
+    ['process inspection', { inspection_type: 'process' }, 13],
+    ['final inspection', { inspection_type: 'final' }, 13],
+    ['first article inspection', { inspection_type: 'first_article' }, 13],
+    ['production with an explicit task', { inspection_type: 'process', task_id: 99 }, 99],
+  ])('stores the correct task link for %s', async (_label, source, taskId) => {
+    const connection = createInsertConnection();
+    await QualityInspection.createInspection(
+      buildInspectionPayload({ status: 'pending', ...source }),
+      connection
+    );
+
+    expect(getInsertedInspection(connection)).toMatchObject({
+      reference_id: 13,
+      task_id: taskId,
+    });
   });
 
   test('defaults ordinary incoming inspections to purchase_order and keeps purchase inbound behavior', async () => {

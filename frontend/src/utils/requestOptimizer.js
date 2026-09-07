@@ -117,8 +117,10 @@ export const applyRequestOptimizer = (apiInstance, axios, options = {}) => {
 
   const inflightRequests = new Map()
   const responseCache = new Map()
+  let cacheGeneration = 0
 
   const clearCache = () => {
+    cacheGeneration += 1
     responseCache.clear()
     inflightRequests.clear()
   }
@@ -206,13 +208,21 @@ export const applyRequestOptimizer = (apiInstance, axios, options = {}) => {
         return cloneResponse(response, adapterConfig, { source: 'dedupe' })
       }
 
+      const requestGeneration = cacheGeneration
       const requestPromise = originalAdapter(adapterConfig)
         .then((response) => {
-          setCacheEntry(key, response, cacheTtl, adapterConfig)
+          // A read started before a mutation/session change can still finish,
+          // but must not repopulate the cache with its older snapshot.
+          if (requestGeneration === cacheGeneration) {
+            setCacheEntry(key, response, cacheTtl, adapterConfig)
+          }
           return response
         })
         .finally(() => {
-          inflightRequests.delete(key)
+          // Clearing the cache may have allowed a newer read of the same key.
+          if (inflightRequests.get(key) === requestPromise) {
+            inflightRequests.delete(key)
+          }
         })
 
       inflightRequests.set(key, requestPromise)

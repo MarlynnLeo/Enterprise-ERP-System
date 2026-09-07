@@ -27,13 +27,13 @@
         <el-col :xs="12" :sm="12" :md="6">
           <el-card shadow="hover" class="stat-card summary-card">
             <div class="stat-label">总预算</div>
-            <div class="stat-value">{{ formatCurrency(summary.total_budget) }}</div>
+            <div class="stat-value">{{ formatCurrency(summary.totalBudget) }}</div>
           </el-card>
         </el-col>
         <el-col :xs="12" :sm="12" :md="6">
           <el-card shadow="hover" class="stat-card summary-card">
             <div class="stat-label">实际执行</div>
-            <div class="stat-value text-primary">{{ formatCurrency(summary.total_actual) }}</div>
+            <div class="stat-value text-primary">{{ formatCurrency(summary.totalActual) }}</div>
           </el-card>
         </el-col>
         <el-col :xs="12" :sm="12" :md="6">
@@ -41,9 +41,9 @@
             <div class="stat-label">预算结余</div>
             <div
               class="stat-value"
-              :class="summary.total_variance >= 0 ? 'text-success' : 'text-danger'"
+              :class="summary.totalVariance >= 0 ? 'text-success' : 'text-danger'"
             >
-              {{ formatCurrency(summary.total_variance) }}
+              {{ formatCurrency(summary.totalVariance) }}
             </div>
           </el-card>
         </el-col>
@@ -52,12 +52,12 @@
             <div class="stat-label">总体执行率</div>
             <el-progress
               type="dashboard"
-              :percentage="Math.min(summary.total_execution_rate, 100)"
-              :status="getProgressStatus(summary.total_execution_rate)"
+              :percentage="Math.min(summary.totalExecutionRate, 100)"
+              :status="getProgressStatus(summary.totalExecutionRate)"
               :width="80"
             >
               <template #default>
-                <span class="percentage-value">{{ summary.total_execution_rate.toFixed(1) }}%</span>
+                <span class="percentage-value">{{ summary.totalExecutionRate.toFixed(1) }}%</span>
               </template>
             </el-progress>
           </el-card>
@@ -141,10 +141,10 @@ const budgetList = ref([])
 const selectedBudgetId = ref('')
 const analysisData = ref(null)
 const summary = ref({
-  total_budget: 0,
-  total_actual: 0,
-  total_variance: 0,
-  total_execution_rate: 0
+  totalBudget: 0,
+  totalActual: 0,
+  totalVariance: 0,
+  totalExecutionRate: 0
 })
 
 let chartInstance = null
@@ -194,10 +194,10 @@ const resetSearch = () => {
   selectedBudgetId.value = ''
   analysisData.value = null
   summary.value = {
-    total_budget: 0,
-    total_actual: 0,
-    total_variance: 0,
-    total_execution_rate: 0
+    totalBudget: 0,
+    totalActual: 0,
+    totalVariance: 0,
+    totalExecutionRate: 0
   }
   if (chartInstance) {
     chartInstance.destroy()
@@ -215,7 +215,7 @@ const renderChart = (details) => {
   }
 
   // 排序前10个金额最大的科目，避免图表过密
-  const sortedDetails = [...details].sort((a, b) => b.budget_amount - a.budget_amount).slice(0, 15)
+  const sortedDetails = [...details].sort((a, b) => b.budgetAmount - a.budgetAmount).slice(0, 15)
 
   chartInstance = new Chart(ctx, {
     type: 'bar',

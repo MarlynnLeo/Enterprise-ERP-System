@@ -15,7 +15,7 @@ module.exports = {
      * 申请特采 (让步接收)
      */
     async applyConcession(ncpId, { reason, applicant }) {
-      const db = require('../../config/db');
+      const db = require('../../../config/db');
       let connection;
       try {
         if (!reason || !String(reason).trim()) {
@@ -73,7 +73,7 @@ module.exports = {
      * 审批特采
      */
     async approveConcession(ncpId, { status, approverId, approverName }) {
-      const db = require('../../config/db');
+      const db = require('../../../config/db');
       let connection;
       try {
         if (!['approved', 'rejected'].includes(status)) {

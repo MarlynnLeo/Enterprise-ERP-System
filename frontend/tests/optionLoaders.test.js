@@ -50,6 +50,8 @@ vi.mock('@/api/purchase', () => ({
 
 import {
   clearOptionLoaderCache,
+  loadCustomerOptions,
+  loadCustomerPageOptions,
   loadOutsourcedMaterialOptions,
   loadOutsourcedReceiptProcessingOptions,
   loadOutsourcedReceiptWarehouseOptions,
@@ -57,6 +59,7 @@ import {
   searchOutsourcedReceiptProcessingOptions,
   searchOutsourcedSupplierOptions,
 } from '@/utils/optionLoaders'
+import { baseDataApi } from '@/api/baseData'
 
 const paginatedResponse = (list) => ({
   data: {
@@ -65,6 +68,26 @@ const paginatedResponse = (list) => ({
     page: 1,
     pageSize: 100,
   },
+})
+
+describe('customer option status contract', () => {
+  beforeEach(() => {
+    clearOptionLoaderCache()
+    vi.clearAllMocks()
+    baseDataApi.getCustomers.mockResolvedValue(paginatedResponse([]))
+  })
+
+  test('requests enabled customers using the numeric status accepted by the API', async () => {
+    await loadCustomerOptions()
+    await loadCustomerPageOptions()
+    expect(baseDataApi.getCustomers).toHaveBeenCalledTimes(2)
+    for (const [params] of baseDataApi.getCustomers.mock.calls) expect(params.status).toBe(1)
+  })
+
+  test('preserves an explicit disabled status', async () => {
+    await loadCustomerPageOptions({ status: 0 })
+    expect(baseDataApi.getCustomers).toHaveBeenCalledWith(expect.objectContaining({ status: 0 }))
+  })
 })
 
 describe('outsourced processing option loaders', () => {

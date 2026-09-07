@@ -105,6 +105,9 @@ export const useAuthStore = defineStore('auth', () => {
 
   // 冷启动会话探测：cookie 可能有效但 user 尚未恢复
   const sessionProbed = ref(false)
+  let authGeneration = 0
+  let permissionsGeneration = 0
+  let _permissionsPromise = null
 
   // ==================== 计算属性 ====================
   // 与 PC 对齐：以 user 为准；探测完成前可短暂用登录标记触发 profile 拉取
@@ -166,7 +169,10 @@ export const useAuthStore = defineStore('auth', () => {
   /**
    * 清除认证信息
    */
-const clearAuthData = () => {
+  const clearAuthData = () => {
+    authGeneration++
+    permissionsGeneration++
+    _permissionsPromise = null
     token.value = ''
     user.value = null
     profileLoaded.value = false
@@ -202,10 +208,12 @@ const clearAuthData = () => {
    * @returns {Promise<boolean>} 登录是否成功
    */
   const login = async (credentials) => {
+    // Invalidate pending work from the previous principal before signing in.
+    clearAuthData()
+    const generation = authGeneration
     try {
-      // Remove any previous principal before starting a new login.
-      clearAuthData()
       const response = await api.post('/auth/login', credentials)
+      if (generation !== authGeneration) throw new Error('登录状态已变更，请重新登录')
       // Login rotates the auth cookies; discard any token that may have been
       // cached by a previous account/tab before the first protected write.
       resetCsrfToken()
@@ -230,9 +238,10 @@ const clearAuthData = () => {
         console.warn('[auth] 获取权限数据失败:', e.message)
       }
 
+      if (generation !== authGeneration) throw new Error('登录状态已变更，请重新登录')
       return true
     } catch (error) {
-      clearAuthData()
+      if (generation === authGeneration) clearAuthData()
       throw error
     }
   }
@@ -241,6 +250,8 @@ const clearAuthData = () => {
    * 登出
    */
   const logout = async () => {
+    clearAuthData()
+    const generation = authGeneration
     try {
       // 调用后端登出接口
       await api.post('/auth/logout')
@@ -249,11 +260,10 @@ const clearAuthData = () => {
     } finally {
       try {
         const { disconnectSocket } = await import('@/composables/useSocket')
-        disconnectSocket()
+        if (generation === authGeneration) disconnectSocket()
       } catch {
         // ignore
       }
-      clearAuthData()
     }
   }
 
@@ -262,8 +272,10 @@ const clearAuthData = () => {
    * @returns {Promise<boolean>} 是否成功
    */
   const fetchUserProfile = async () => {
+    const generation = authGeneration
     try {
       const response = await api.get('/auth/profile')
+      if (generation !== authGeneration) return false
       const userData = normalizeUserData(response.data)
 
       if (userData) {
@@ -280,21 +292,13 @@ const clearAuthData = () => {
         localStorage.setItem(STORAGE_KEYS.IS_LOGGED_IN, 'true')
         return true
       }
+      clearAuthData()
       sessionProbed.value = true
       return false
     } catch {
-      // 请求失败说明 cookie 已过期，清除本地登录标记
-      user.value = null
-      profileLoaded.value = false
+      if (generation !== authGeneration) return false
+      clearAuthData()
       sessionProbed.value = true
-      permissions.value = []
-      permissionsLoaded.value = false
-      localStorage.removeItem(STORAGE_KEYS.USER)
-      sessionStorage.removeItem(STORAGE_KEYS.USER)
-      localStorage.removeItem(STORAGE_KEYS.IS_LOGGED_IN)
-      sessionStorage.removeItem(STORAGE_KEYS.IS_LOGGED_IN)
-      sessionStorage.removeItem(STORAGE_KEYS.PERMISSIONS)
-      localStorage.removeItem(STORAGE_KEYS.PERMISSIONS)
       return false
     }
   }
@@ -336,88 +340,68 @@ const clearAuthData = () => {
     return true
   }
 
-  // W-25: 共享 Promise — 第一个请求完成时，所有等待者同时获得结果
-  let _permissionsPromise = null
-
   /**
    * 获取用户权限列表 — 复用网页端同一后端 API
    * @param {boolean} force - 是否强制刷新
    */
   const fetchUserPermissions = async (force = false) => {
+    if (!isAuthenticated.value) return false
     if (force) {
       permissionsLoaded.value = false
+      permissionsGeneration++
+      _permissionsPromise = null
     }
 
     if (permissionsLoaded.value && !force) {
       return true
     }
 
-    // 防止重复请求 — 后续调用者复用同一个 Promise，无需轮询
-    if (permissionsLoading.value && _permissionsPromise) {
+    // Coalesce only requests that still belong to this session.
+    if (_permissionsPromise) {
       return _permissionsPromise
     }
 
     permissionsLoading.value = true
 
-    // 创建共享 Promise，带 10 秒超时保护
+    const generation = authGeneration
+    const requestId = ++permissionsGeneration
+    const isCurrent = () => generation === authGeneration && requestId === permissionsGeneration
     let timer = null
-    _permissionsPromise = Promise.race([
-      (async () => {
-        try {
-          const timestamp = Date.now()
-          const response = await api.get(`/auth/permissions?_t=${timestamp}`)
-          const data = response.data
-
-          // 处理不同的权限数据格式
-          if (Array.isArray(data)) {
-            permissions.value = data
-          } else if (data && data.permissions && Array.isArray(data.permissions)) {
-            permissions.value = data.permissions
-          } else {
-            console.error('[auth] 权限数据格式不正确:', data)
-            permissions.value = []
-          }
-
-          // 权限缓存只保留在会话内，避免退出浏览器后残留权限快照。
-          safeSaveJSON(STORAGE_KEYS.PERMISSIONS, permissions.value, sessionStorage)
-          permissionsLoaded.value = true
-          return true
-        } catch (error) {
-          console.error('[auth] 获取用户权限失败:', error)
-
-          permissions.value = []
-          permissionsLoaded.value = false
-          safeSaveJSON(STORAGE_KEYS.PERMISSIONS, null, localStorage)
-          safeSaveJSON(STORAGE_KEYS.PERMISSIONS, null, sessionStorage)
-          throw error
-        } finally {
-          if (timer) {
-            clearTimeout(timer)
-            timer = null
-          }
-          permissionsLoading.value = false
-          _permissionsPromise = null
-        }
-      })(),
+    const pending = Promise.race([
+      api.get('/auth/permissions?_t=' + Date.now()),
       new Promise((_, reject) => {
         timer = setTimeout(() => {
-          console.warn('[auth] 等待权限加载超时，放弃等待')
           reject(new Error('权限加载超时'))
         }, 10000)
       })
-    ]).catch((error) => {
-      if (timer) {
-        clearTimeout(timer)
-        timer = null
+    ]).then((response) => {
+      if (!isCurrent()) return false
+      const data = response.data
+      const permissionList = Array.isArray(data) ? data : data?.permissions
+      if (!Array.isArray(permissionList) || permissionList.some((permission) => typeof permission !== 'string')) {
+        throw new Error('权限数据格式不正确')
       }
-      permissionsLoading.value = false
-      _permissionsPromise = null
-      // 超时情况下返回 false 而非抛出错误，与原行为一致
+      permissions.value = permissionList
+      safeSaveJSON(STORAGE_KEYS.PERMISSIONS, permissionList, sessionStorage)
+      permissionsLoaded.value = true
+      return true
+    }).catch((error) => {
+      if (!isCurrent()) return false
+      permissions.value = []
+      permissionsLoaded.value = false
+      safeSaveJSON(STORAGE_KEYS.PERMISSIONS, null, localStorage)
+      safeSaveJSON(STORAGE_KEYS.PERMISSIONS, null, sessionStorage)
       if (error?.message === '权限加载超时') return false
       throw error
+    }).finally(() => {
+      clearTimeout(timer)
+      if (isCurrent()) {
+        permissionsLoading.value = false
+        _permissionsPromise = null
+      }
     })
-
-    return _permissionsPromise
+    _permissionsPromise = pending
+    return pending
   }
 
   /**

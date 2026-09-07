@@ -229,14 +229,14 @@
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
-          v-model:current-page="currentPage"
-          v-model:page-size="pageSize"
+          :current-page="currentPage"
+          :page-size="pageSize"
           :page-sizes="[10, 20, 50, 100]"
           :small="false"
           :disabled="false"
           :background="true"
           layout="total, sizes, prev, pager, next, jumper"
-          :total="Math.max(total, 1)"
+          :total="total"
           @size-change="handleSizeChange"
           @current-change="handlePageChange"
         >
@@ -274,10 +274,10 @@
                 <el-option
                   v-for="item in filteredCustomers"
                   :key="item.id"
-                  :label="`${item.code} - ${item.name}`"
+                  :label="`${item.code ? item.code + ' - ' : ''}${item.name}`"
                   :value="item.id"
                 >
-                  <span class="option-code">{{ item.code }} - {{ item.name }}</span>
+                  <span class="option-code">{{ item.code ? item.code + ' - ' : '' }}{{ item.name }}</span>
                   <span class="option-name">{{ item.contactPerson || '无联系人' }}</span>
                 </el-option>
               </el-select>
@@ -330,119 +330,132 @@
             <el-table
               :data="form.items"
               border
-              class="w-full"
+              class="w-full order-items-table"
               table-layout="fixed"
               :header-cell-style="{ background: 'var(--color-bg-hover)', color: 'var(--color-text-regular)' }"
               empty-text="请添加订单物料"
             >
-              <el-table-column label="物料编码" width="120">
-                <template #default="{ row, $index }">
-                  <el-autocomplete
-                    :ref="(el) => setMaterialSelectRef(el, $index)"
-                    v-model="row.code"
-                    placeholder="输入"
-                    clearable
-                    :fetch-suggestions="(query, callback) => fetchMaterialSuggestions(query, callback, $index)"
-                    @select="(item) => handleMaterialSelect(item, $index)"
-                    @keydown.enter.prevent="handleMaterialEnter($index)"
-                    @clear="handleMaterialClear($index)"
-                    class="w-full"
-                    :trigger-on-focus="false"
-                    :debounce="300"
-                    :class="{ 'is-required-field': !row.materialId }"
+              <el-table-column
+                v-for="column in orderItemColumns"
+                :key="column.key"
+                :prop="column.prop"
+                :label="column.label"
+                :width="column.width"
+                :min-width="column.minWidth"
+                :fixed="column.fixed"
+                :align="column.align"
+                :header-align="column.headerAlign || column.align"
+                :show-overflow-tooltip="column.showOverflowTooltip"
+                :class-name="column.key === 'operations' ? 'operation-column' : undefined"
+                :header-class-name="column.key === 'operations' ? 'operation-column-header' : undefined"
+              >
+                <template #header>
+                  <div
+                    class="order-item-column-header"
+                    :class="{ 'is-draggable': column.draggable, 'is-dragging': draggedOrderItemColumn === column.key }"
+                    :draggable="column.draggable"
+                    :title="column.draggable ? '拖动调整列顺序' : ''"
+                    @dragstart="handleOrderItemColumnDragStart($event, column.key)"
+                    @dragover.prevent="handleOrderItemColumnDragOver($event, column.key)"
+                    @drop.prevent="handleOrderItemColumnDrop($event, column.key)"
+                    @dragend="handleOrderItemColumnDragEnd"
                   >
-                    <template #default="{ item }">
-                      <div class="option-row gap-12">
-                        <span class="option-row__code">{{ item.code }}</span>
-                        <span class="option-row__name">{{ item.name }}</span>
-                        <span v-if="item.specs" class="text-muted text-sm">{{ item.specs }}</span>
-                        <span v-if="item.price && Number(item.price) > 0" class="text-emerald-600 font-medium text-sm">¥{{ Number(item.price).toFixed(2) }}</span>
-                      </div>
-                    </template>
-                  </el-autocomplete>
+                    <span>{{ column.label }}</span>
+                    <el-icon v-if="column.draggable" class="order-item-column-drag-icon"><Rank /></el-icon>
+                  </div>
                 </template>
-              </el-table-column>
-              <el-table-column label="物料名称" prop="materialName" width="140" show-overflow-tooltip />
-
-              <el-table-column label="规格" prop="specification" width="140" show-overflow-tooltip />
-              <el-table-column label="数量" width="80">
                 <template #default="{ row, $index }">
-                  <el-input
-                    :ref="(el) => setQuantityInputRef(el, $index)"
-                    v-model="row.quantity"
-                    @input="(val) => { row.quantity = Number(val) || 0; calculateItemAmount($index); }"
-                    @keydown.enter="handleQuantityEnter($index)"
-                    placeholder="数量"
-                    size="small"
-                  />
-                </template>
-              </el-table-column>
-
-              <el-table-column label="单价" width="70">
-                <template #default="{ row, $index }">
-                  <el-input
-                    v-model="row.unitPrice"
-                    @input="(val) => { row.unitPrice = isBlankAmount(val) ? null : Number(val); calculateItemAmount($index); }"
-                    placeholder="单价"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    size="small"
-                  />
-                </template>
-              </el-table-column>
-              <el-table-column label="单位" prop="unitName" width="60" align="center" show-overflow-tooltip>
-                <template #default="{ row }">
-                  {{ row.unitName || row.unit || '-' }}
-                </template>
-              </el-table-column>
-              <el-table-column label="金额" width="80">
-                <template #default="{ row }">
-                    {{ formatCurrency(row.amount) }}
-                </template>
-              </el-table-column>
-              <el-table-column label="税率" width="85">
-                <template #default="{ row, $index }">
-                  <el-select
-                    v-model="row.taxRate"
-                    placeholder="税率"
-                    size="small"
-                    @change="calculateItemAmount($index)"
-                    class="w-full"
-                  >
-                    <el-option
-                      v-for="rate in vatRateOptions"
-                      :key="rate"
-                      :label="financeStore.formatTaxRate(rate)"
-                      :value="rate"
+                  <template v-if="column.key === 'materialCode'">
+                    <el-autocomplete
+                      :ref="(el) => setMaterialSelectRef(el, $index)"
+                      v-model="row.code"
+                      placeholder="输入"
+                      clearable
+                      :fetch-suggestions="(query, callback) => fetchMaterialSuggestions(query, callback, $index)"
+                      @select="(item) => handleMaterialSelect(item, $index)"
+                      @keydown.enter.prevent="handleMaterialEnter($index)"
+                      @clear="handleMaterialClear($index)"
+                      class="w-full"
+                      :trigger-on-focus="false"
+                      :debounce="300"
+                      :class="{ 'is-required-field': !row.materialId }"
+                    >
+                      <template #default="{ item }">
+                        <div class="option-row gap-12">
+                          <span class="option-row__code">{{ item.code }}</span>
+                          <span class="option-row__name">{{ item.name }}</span>
+                          <span v-if="item.specs" class="text-muted text-sm">{{ item.specs }}</span>
+                          <span v-if="item.price && Number(item.price) > 0" class="text-emerald-600 font-medium text-sm">¥{{ Number(item.price).toFixed(2) }}</span>
+                        </div>
+                      </template>
+                    </el-autocomplete>
+                  </template>
+                  <template v-else-if="column.key === 'quantity'">
+                    <el-input
+                      :ref="(el) => setQuantityInputRef(el, $index)"
+                      v-model="row.quantity"
+                      @input="(val) => { row.quantity = Number(val) || 0; calculateItemAmount($index); }"
+                      @keydown.enter="handleQuantityEnter($index)"
+                      placeholder="数量"
+                      size="small"
                     />
-                  </el-select>
-                </template>
-              </el-table-column>
-              <el-table-column label="税额" width="90">
-                <template #default="{ row }">
-                  {{ formatCurrency(row.taxAmount) }}
-                </template>
-              </el-table-column>
-              <el-table-column label="备注" min-width="120">
-                <template #default="{ row }">
-                  <el-input
-                    v-model="row.remark"
-                    placeholder="请输入备注"
-                    size="small"
-                    maxlength="200"
-                    clearable />
-                </template>
-              </el-table-column>
-              <el-table-column label="操作" width="75" fixed="right" align="center" header-align="center" class-name="operation-column" header-class-name="operation-column-header">
-                <template #default="{ $index }">
-                  <el-button
-                    type="danger"
-                    size="small"
-                    @click="removeMaterial($index)"
-                    v-permission="dialogType === 'add' ? 'sales:orders:create' : 'sales:orders:update'">
-                    删除
-                  </el-button>
+                  </template>
+                  <template v-else-if="column.key === 'unitPrice'">
+                    <el-input
+                      v-model="row.unitPrice"
+                      @input="(val) => { row.unitPrice = isBlankAmount(val) ? null : Number(val); calculateItemAmount($index); }"
+                      placeholder="单价"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      size="small"
+                    />
+                  </template>
+                  <template v-else-if="column.key === 'unitName'">
+                    {{ row.unitName || row.unit || '-' }}
+                  </template>
+                  <template v-else-if="column.key === 'amount'">
+                    {{ formatCurrency(row.amount) }}
+                  </template>
+                  <template v-else-if="column.key === 'taxRate'">
+                    <el-select
+                      v-model="row.taxRate"
+                      placeholder="税率"
+                      size="small"
+                      @change="calculateItemAmount($index)"
+                      class="w-full"
+                    >
+                      <el-option
+                        v-for="rate in vatRateOptions"
+                        :key="rate"
+                        :label="financeStore.formatTaxRate(rate)"
+                        :value="rate"
+                      />
+                    </el-select>
+                  </template>
+                  <template v-else-if="column.key === 'taxAmount'">
+                    {{ formatCurrency(row.taxAmount) }}
+                  </template>
+                  <template v-else-if="column.key === 'remark'">
+                    <el-input
+                      v-model="row.remark"
+                      placeholder="请输入备注"
+                      size="small"
+                      maxlength="200"
+                      clearable />
+                  </template>
+                  <template v-else-if="column.key === 'operations'">
+                    <el-button
+                      type="danger"
+                      size="small"
+                      @click="removeMaterial($index)"
+                      v-permission="dialogType === 'add' ? 'sales:orders:create' : 'sales:orders:update'">
+                      删除
+                    </el-button>
+                  </template>
+                  <template v-else>
+                    {{ row[column.prop] || '-' }}
+                  </template>
                 </template>
               </el-table-column>
             </el-table>
@@ -613,6 +626,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { formatCurrency } from '@/utils/format'
+import { moveOrderItemColumn, restoreOrderItemColumns } from '@/utils/orderItemColumns'
 import { salesApi } from '@/api'
 import { usePaginatedFetching } from '@/composables/useDataFetching'
 import { parseListData, parseResponseData } from '@/utils/responseParser'
@@ -621,7 +635,7 @@ import { useRouter, useRoute } from 'vue-router'
 const _router = useRouter()
 const route = useRoute()
 import { useFormKeyboardNav } from '@/composables/useFormKeyboardNav'
-import { ArrowDown, Plus, Upload, Download } from '@element-plus/icons-vue'
+import { ArrowDown, Plus, Upload, Download, Rank } from '@element-plus/icons-vue'
 import { getSalesStatusText, getSalesStatusColor, SALES_STATUS_OPTIONS } from '@/constants/systemConstants'
 import printService from '@/services/printService'
 // ========== 组合式函数导入 ==========
@@ -718,6 +732,63 @@ const {
   handleSubmit, handleAdd, handleEdit,
   vatRateOptions, financeStore
 } = useOrderForm(fetchData, updateParams)
+
+const ORDER_ITEM_COLUMNS_STORAGE_KEY = 'sales-order-item-columns-v1'
+const defaultOrderItemColumns = [
+  { key: 'materialCode', label: '物料编码', width: 120, draggable: true },
+  { key: 'materialName', label: '物料名称', prop: 'materialName', width: 140, showOverflowTooltip: true, draggable: true },
+  { key: 'specification', label: '规格', prop: 'specification', width: 140, showOverflowTooltip: true, draggable: true },
+  { key: 'quantity', label: '数量', width: 80, draggable: true },
+  { key: 'unitPrice', label: '单价', width: 70, draggable: true },
+  { key: 'unitName', label: '单位', prop: 'unitName', width: 60, align: 'center', showOverflowTooltip: true, draggable: true },
+  { key: 'amount', label: '金额', width: 80, draggable: true },
+  { key: 'taxRate', label: '税率', width: 85, draggable: true },
+  { key: 'taxAmount', label: '税额', width: 90, draggable: true },
+  { key: 'remark', label: '备注', minWidth: 120, draggable: true },
+  { key: 'operations', label: '操作', width: 75, fixed: 'right', align: 'center', headerAlign: 'center', draggable: false }
+]
+
+const loadOrderItemColumns = () => {
+  try {
+    const savedKeys = JSON.parse(window.localStorage.getItem(ORDER_ITEM_COLUMNS_STORAGE_KEY) || '[]')
+    return restoreOrderItemColumns(defaultOrderItemColumns, savedKeys)
+  } catch {
+    return [...defaultOrderItemColumns]
+  }
+}
+
+const orderItemColumns = ref(loadOrderItemColumns())
+const draggedOrderItemColumn = ref(null)
+const persistOrderItemColumns = () => {
+  try {
+    window.localStorage.setItem(
+      ORDER_ITEM_COLUMNS_STORAGE_KEY,
+      JSON.stringify(orderItemColumns.value.filter((column) => column.key !== 'operations').map((column) => column.key))
+    )
+  } catch {
+    // 本地存储不可用时仍保留当前页面内的列顺序
+  }
+}
+const handleOrderItemColumnDragStart = (event, key) => {
+  if (key === 'operations') return
+  draggedOrderItemColumn.value = key
+  event.dataTransfer?.setData('text/plain', key)
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
+}
+const handleOrderItemColumnDragOver = (event, key) => {
+  if (!draggedOrderItemColumn.value || key === 'operations' || key === draggedOrderItemColumn.value) return
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+}
+const handleOrderItemColumnDrop = (event, targetKey) => {
+  const sourceKey = draggedOrderItemColumn.value || event.dataTransfer?.getData('text/plain')
+  const nextColumns = moveOrderItemColumn(orderItemColumns.value, sourceKey, targetKey)
+  if (nextColumns === orderItemColumns.value) return
+  orderItemColumns.value = nextColumns
+  persistOrderItemColumns()
+}
+const handleOrderItemColumnDragEnd = () => {
+  draggedOrderItemColumn.value = null
+}
 // 键盘导航：Enter 跳转下一字段
 const { onFormKeydown: salesFormKeydown } = useFormKeyboardNav(() => handleSubmit())
 const {
@@ -956,6 +1027,26 @@ onUnmounted(() => {
 .materials-table {
   margin-bottom: var(--spacing-lg);
   overflow: visible;
+}
+.order-items-table :deep(.order-item-column-header) {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-height: 24px;
+}
+.order-items-table :deep(.order-item-column-header.is-draggable) {
+  cursor: grab;
+}
+.order-items-table :deep(.order-item-column-header.is-draggable:active) {
+  cursor: grabbing;
+}
+.order-items-table :deep(.order-item-column-header.is-dragging) {
+  opacity: 0.45;
+}
+.order-items-table :deep(.order-item-column-drag-icon) {
+  color: var(--color-text-secondary);
+  font-size: 13px;
 }
 /* 移除所有高度限制 */
 .el-table-column,

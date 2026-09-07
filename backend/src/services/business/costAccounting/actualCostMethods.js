@@ -774,7 +774,7 @@ module.exports = {
     options = {}
   ) {
     try {
-      const OverheadAllocationService = require('./OverheadAllocationService');
+      const OverheadAllocationService = require('../OverheadAllocationService');
 
       // 获取任务的成本中心和产品ID
       let costCenterId = options.costCenterId;
@@ -962,7 +962,7 @@ module.exports = {
         }
 
         // 制造费用：统一通过分摊规则引擎计算
-        const OverheadAllocationService = require('./OverheadAllocationService');
+        const OverheadAllocationService = require('../OverheadAllocationService');
         const ohResult = await OverheadAllocationService.calculateOverhead({
           productId,
           laborCost,

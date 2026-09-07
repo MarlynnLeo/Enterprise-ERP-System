@@ -2,6 +2,14 @@ const { pool } = require('../config/db');
 const { logger } = require('../utils/logger');
 const { softDelete } = require('../utils/softDelete');
 
+function normalizeCustomerStatus(value) {
+  if (value === 'active') return 1;
+  if (value === 'inactive') return 0;
+  if (value == null || value === '') return value;
+  const numeric = Number(value);
+  return Number.isInteger(numeric) ? numeric : value;
+}
+
 const customerService = {
   async getAllCustomers(page = 1, pageSize = 10, filters = {}) {
     try {
@@ -33,16 +41,7 @@ const customerService = {
       }
       if (filters.status !== undefined && filters.status !== '') {
         whereClause += ' AND status = ?';
-        // 处理字符串状态值，将其转换为对应的数字或保持字符串
-        if (filters.status === 'active') {
-          params.push('active');
-        } else if (filters.status === 'inactive') {
-          params.push('inactive');
-        } else {
-          // 如果是数字字符串，转换为数字
-          const numStatus = parseInt(filters.status);
-          params.push(isNaN(numStatus) ? filters.status : numStatus);
-        }
+        params.push(normalizeCustomerStatus(filters.status));
       }
 
       // 获取总记录数
@@ -137,7 +136,7 @@ const customerService = {
         phoneCanonical,
         email || null,
         address || null,
-        status === undefined || status === '' ? 1 : status, // 默认为1（启用）
+        status === undefined || status === '' ? 1 : normalizeCustomerStatus(status), // 默认为1（启用）
         remark || null,
         customer_type || 'direct',
         credit_limit || 0,
@@ -180,7 +179,7 @@ const customerService = {
         phone: phoneCanonical,
         email: data.email,
         address: data.address,
-        status: data.status === undefined || data.status === '' ? undefined : data.status,
+        status: data.status === undefined || data.status === '' ? undefined : normalizeCustomerStatus(data.status),
         remark: data.remark,
         customer_type: data.customer_type,
         credit_limit: data.credit_limit === undefined ? undefined : data.credit_limit || 0,
@@ -251,8 +250,8 @@ const customerService = {
       const [rows] = await pool.query(`
         SELECT
           COUNT(*) as total,
-          SUM(CASE WHEN status = 1 OR status = 'active' THEN 1 ELSE 0 END) as active,
-          SUM(CASE WHEN status = 0 OR status = 'inactive' THEN 1 ELSE 0 END) as inactive,
+          SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END) as active,
+          SUM(CASE WHEN status = 0 THEN 1 ELSE 0 END) as inactive,
           COALESCE(SUM(credit_limit), 0) as totalCredit
         FROM customers
       `);

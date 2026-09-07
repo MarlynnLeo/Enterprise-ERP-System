@@ -386,6 +386,9 @@ const setupInterceptors = (apiInstance) => {
                 !requestUrl.includes('/auth/login') &&
                 !requestUrl.includes('/auth/refresh') &&
                 !originalRequest._retry) {
+                // Queued requests share the same single retry limit as the
+                // request that started the refresh.
+                originalRequest._retry = true;
                 if (sharedIsRefreshing) {
                     return new Promise((resolve, reject) => {
                         sharedFailedQueue.push({ resolve, reject });
@@ -395,7 +398,6 @@ const setupInterceptors = (apiInstance) => {
                     // 刷新失败时此 Promise 会被 reject，
                     // 但无需 .catch() 再弹错误，因为发起刷新的请求已负责跳转登录页
                 }
-                originalRequest._retry = true;
                 sharedIsRefreshing = true;
                 try {
                     // Cookie-based refresh with cross-tab single-flight.

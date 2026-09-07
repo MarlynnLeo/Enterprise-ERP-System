@@ -470,9 +470,9 @@ const assetsModel = {
         accumulatedDepreciation: parseFloat(asset.accumulated_depreciation || 0),
         usefulLife: asset.useful_life ? Math.ceil(asset.useful_life / 12) : 5, // 月转年
         salvageValue: parseFloat(asset.salvage_value || 0),
-        salvageRate: asset.salvage_value && asset.acquisition_cost
-          ? parseFloat(((asset.salvage_value / asset.acquisition_cost) * 100).toFixed(2))
-          : 5, // 默认5%
+        salvageRate: Number(asset.acquisition_cost) > 0
+          ? parseFloat((((Number(asset.salvage_value) || 0) / Number(asset.acquisition_cost)) * 100).toFixed(2))
+          : 0,
         depreciationMethod: depreciationMethodMap[asset.depreciation_method] || asset.depreciation_method || 'straight_line',
         location: asset.location_id || '',
         department: asset.department_id ? departmentMap[asset.department_id] || '' : '',
@@ -1631,7 +1631,7 @@ const assetsModel = {
           categoryData.code,
           categoryData.default_useful_life || 5,
           categoryData.default_depreciation_method || 'straight_line',
-          categoryData.default_salvage_rate || 5.0,
+          categoryData.default_salvage_rate ?? 5.0,
           categoryData.description || null,
         ]
       );
@@ -1661,7 +1661,7 @@ const assetsModel = {
           categoryData.code,
           categoryData.default_useful_life || 5,
           categoryData.default_depreciation_method || 'straight_line',
-          categoryData.default_salvage_rate || 5.0,
+          categoryData.default_salvage_rate ?? 5.0,
           categoryData.description || null,
           id,
         ]

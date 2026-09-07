@@ -270,7 +270,7 @@ const updateOutboundStatus = async (req, res) => {
         );
 
         if (tasks.length > 0) {
-          const { apiStatusToDbStatus } = require('../../../utils/statusMapper');
+          const { apiStatusToDbStatus } = require('../../../../utils/statusMapper');
           const dbStatus = apiStatusToDbStatus(
             STATUS.PRODUCTION_TASK.MATERIAL_ISSUED,
             'productionTask'

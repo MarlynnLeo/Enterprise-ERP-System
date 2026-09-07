@@ -16,7 +16,7 @@ export const qualityApi = {
 
   // 单条检验详情（通用路由，适用于 incoming/process/final）
   getIncomingInspection(id) {
-    return api.get(`/quality/inspections/${id}`)
+    return api.get(`/quality/inspections/${id}`, { params: { include_supplier: true } })
   },
 
   // 获取检验项目列表

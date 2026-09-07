@@ -29,8 +29,10 @@ const api = axios.create({
 const unsafeMethods = new Set(['post', 'put', 'patch', 'delete'])
 let csrfToken = ''
 let csrfTokenPromise = null
+let csrfGeneration = 0
 
 export const resetCsrfToken = () => {
+  csrfGeneration++
   csrfToken = ''
   csrfTokenPromise = null
 }
@@ -78,10 +80,12 @@ const resolveCsrfTokenUrl = () => {
 const fetchCsrfToken = async () => {
   if (csrfToken) return csrfToken
   if (!csrfTokenPromise) {
-    csrfTokenPromise = axios.get(resolveCsrfTokenUrl(), {
+    const generation = csrfGeneration
+    const pending = axios.get(resolveCsrfTokenUrl(), {
       timeout: API_CONFIG.timeout,
       withCredentials: true
     }).then((response) => {
+      if (generation !== csrfGeneration) return fetchCsrfToken()
       const body = response.data || {}
       const token = body.csrfToken || body.token || body.data?.csrfToken || body.data?.token || ''
       if (!token) {
@@ -90,8 +94,9 @@ const fetchCsrfToken = async () => {
       csrfToken = token
       return token
     }).finally(() => {
-      csrfTokenPromise = null
+      if (csrfTokenPromise === pending) csrfTokenPromise = null
     })
+    csrfTokenPromise = pending
   }
   return csrfTokenPromise
 }
@@ -177,6 +182,8 @@ api.interceptors.response.use(
         !originalRequest.url?.includes('/auth/login') &&
         !originalRequest.url?.includes('/auth/refresh')
       ) {
+        // Queued requests also get a single refresh attempt.
+        originalRequest._retry = true
         if (isRefreshing) {
           // 正在刷新Token，将请求加入队列
           return new Promise((resolve, reject) => {
@@ -190,7 +197,6 @@ api.interceptors.response.use(
             })
         }
 
-        originalRequest._retry = true
         isRefreshing = true
 
         try {

@@ -1,5 +1,7 @@
 import { defineStore } from 'pinia'
+import { watch } from 'vue'
 import { systemApi } from '@/api/modules/system'
+import { useAuthStore } from '@/stores/auth'
 
 export const useDictionaryStore = defineStore('dictionary', {
   state: () => ({
@@ -10,6 +12,8 @@ export const useDictionaryStore = defineStore('dictionary', {
 
   actions: {
     async fetchDictionary(force = false) {
+      const auth = useAuthStore()
+      if (!auth.isAuthenticated || !auth.profileLoaded) return
       if (this.isLoading || (this.isLoaded && !force)) return
       this.isLoading = true
       try {
@@ -33,3 +37,15 @@ export const useDictionaryStore = defineStore('dictionary', {
     }
   }
 })
+
+export const watchAuthenticatedDictionary = (pinia) => {
+  const auth = useAuthStore(pinia)
+  const dictionary = useDictionaryStore(pinia)
+  return watch(
+    () => auth.isAuthenticated && auth.profileLoaded,
+    (authenticated) => {
+      if (authenticated) dictionary.fetchDictionary(true).catch(() => {})
+    },
+    { immediate: true }
+  )
+}

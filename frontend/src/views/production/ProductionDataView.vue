@@ -177,11 +177,11 @@ const trendGranularity = ref('day')
 
 // 统计数据
 const stats = ref({
-  plans: { total: 0, pending: 0, completed: 0, in_progress: 0 },
+  plans: { total: 0, pending: 0, completed: 0, inProgress: 0 },
   tasks: { total: 0, inProgress: 0, completed: 0, pending: 0 },
   processes: { completed: 0, total: 0, rate: '0%' },
   reports: { total: 0, today: 0 },
-  production: { total_quantity: 0, qualified_quantity: 0, quality_rate: 0 },
+  production: { totalQuantity: 0, qualifiedQuantity: 0, qualityRate: 0 },
 })
 
 // 待办任务
@@ -218,7 +218,7 @@ const statCards = computed(() => [
     icon: Document,
     theme: 'theme-blue',
     sub: [
-      { val: stats.value.plans.in_progress, label: '进行中', cls: 'color-blue' },
+      { val: stats.value.plans.inProgress, label: '进行中', cls: 'color-blue' },
       { val: stats.value.plans.completed, label: '已完成', cls: 'color-green' },
     ],
   },
@@ -246,7 +246,7 @@ const statCards = computed(() => [
   {
     key: 'quality',
     label: '今日质量率',
-    value: `${stats.value.production.quality_rate}%`,
+    value: `${stats.value.production.qualityRate}%`,
     icon: TrendCharts,
     theme: 'theme-orange',
     sub: [
@@ -281,11 +281,11 @@ const fetchStatistics = async () => {
     const res = await productionApi.getDashboardStatistics()
     const data = parseResponseData(res, {})
     stats.value = {
-      plans: data.plans || stats.value.plans,
-      tasks: data.tasks || stats.value.tasks,
-      processes: data.processes || stats.value.processes,
-      reports: data.reports || stats.value.reports,
-      production: data.production || stats.value.production,
+      plans: { ...stats.value.plans, ...data.plans },
+      tasks: { ...stats.value.tasks, ...data.tasks },
+      processes: { ...stats.value.processes, ...data.processes },
+      reports: { ...stats.value.reports, ...data.reports },
+      production: { ...stats.value.production, ...data.production },
     }
   } catch (e) {
     console.error('获取统计数据失败:', e)

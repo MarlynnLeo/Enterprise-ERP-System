@@ -12,6 +12,7 @@ const liveUatEnabled =
 const describeLiveUat = liveUatEnabled ? describe : describe.skip;
 const { authRequest, clearCache, getApp } = require('../testHelper');
 const db = liveUatEnabled ? require('../../src/config/db') : null;
+const { createFinanceActor, approveInventoryPosting } = require('../../scripts/lib/live-flow-client');
 
 jest.setTimeout(120000);
 
@@ -331,6 +332,8 @@ describeLiveUat('UAT full business flow', () => {
   test('purchase -> inventory -> production -> quality -> sales -> finance -> costing closes the loop', async () => {
     const prefix = `UAT${Date.now()}`;
     Object.assign(context, await prepareUatMasterData(prefix));
+    const financeActor = await createFinanceActor(app, db, prefix);
+    const financeApi = financeActor.api;
 
     const purchaseOrderRes = await api.post('/api/purchase/orders').send({
       order_date: today(),
@@ -397,6 +400,8 @@ describeLiveUat('UAT full business flow', () => {
       .put(`/api/purchase/receipts/${context.purchaseReceiptId}/status`)
       .send({ status: 'completed', remarks: 'UAT receive complete' });
     expectHttp(completePurchaseReceiptRes, 200, 'complete purchase receipt');
+
+    await approveInventoryPosting(db, financeApi, context.purchaseReceiptNo, { businessApi: api });
 
     const rawStockAfterPurchase = await scalar(
       `SELECT COALESCE(SUM(quantity), 0) AS qty
@@ -467,6 +472,8 @@ describeLiveUat('UAT full business flow', () => {
       .put(`/api/inventory/outbound/${context.productionOutboundId}/status`)
       .send({ newStatus: 'completed' });
     expectHttp(completeProductionOutboundRes, 200, 'complete production outbound');
+
+    await approveInventoryPosting(db, financeApi, context.productionOutboundNo, { businessApi: api });
 
     const rawStockAfterIssue = await scalar(
       `SELECT COALESCE(SUM(quantity), 0) AS qty
@@ -540,7 +547,7 @@ describeLiveUat('UAT full business flow', () => {
     });
     expectHttp(fgInboundRes, [200, 201], 'create finished goods inbound from quality');
     context.finishedInboundId = dataOf(fgInboundRes).id;
-    context.finishedInboundNo = dataOf(fgInboundRes).inbound_no;
+    context.finishedInboundNo = dataOf(fgInboundRes).inboundNo || dataOf(fgInboundRes).inbound_no;
 
     const confirmFgInboundRes = await api
       .put(`/api/inventory/inbound/status/${context.finishedInboundId}`)
@@ -551,6 +558,8 @@ describeLiveUat('UAT full business flow', () => {
       .put(`/api/inventory/inbound/status/${context.finishedInboundId}`)
       .send({ newStatus: 'completed' });
     expectHttp(completeFgInboundRes, 200, 'complete finished goods inbound');
+
+    await approveInventoryPosting(db, financeApi, context.finishedInboundNo, { businessApi: api });
 
     const fgStockAfterInbound = await scalar(
       `SELECT COALESCE(SUM(quantity), 0) AS qty
@@ -596,7 +605,7 @@ describeLiveUat('UAT full business flow', () => {
     });
     expectHttp(salesOutboundRes, 201, 'create sales outbound');
     context.salesOutboundId = dataOf(salesOutboundRes).id;
-    context.salesOutboundNo = dataOf(salesOutboundRes).outbound_no;
+    context.salesOutboundNo = dataOf(salesOutboundRes).outboundNo || dataOf(salesOutboundRes).outbound_no;
 
     const processingSalesOutboundRes = await api
       .put(`/api/sales/outbound/${context.salesOutboundId}`)
@@ -635,6 +644,8 @@ describeLiveUat('UAT full business flow', () => {
         ],
       });
     expectHttp(completeSalesOutboundRes, 200, 'complete sales outbound');
+
+    await approveInventoryPosting(db, financeApi, context.salesOutboundNo, { businessApi: api });
 
     const fgStockAfterSales = await scalar(
       `SELECT COALESCE(SUM(quantity), 0) AS qty
@@ -762,5 +773,29 @@ describeLiveUat('UAT full business flow', () => {
       ]
     );
     expect(Number(documentLinks.count)).toBeGreaterThanOrEqual(3);
+  });
+
+  it('rolls back the budget header and earlier lines after a real database detail failure', async () => {
+    const budgetModel = require('../../src/models/budget');
+    const marker = `UAT-BUD-${Date.now()}`;
+    const account = await scalar('SELECT id FROM gl_accounts WHERE is_active = 1 ORDER BY id LIMIT 1');
+    expect(account.id).toBeTruthy();
+
+    // The second account id overflows MySQL INT after the header and first line
+    // have been inserted, proving a database-level failure rolls back all rows.
+    await expect(budgetModel.createBudget({
+      budget_no: marker, budget_name: marker, budget_year: Number(today().slice(0, 4)),
+      start_date: `${today().slice(0, 4)}-01-01`, end_date: `${today().slice(0, 4)}-12-31`,
+      created_by: 1,
+    }, [
+      { account_id: account.id, budget_amount: 100, description: `${marker}-first` },
+      { account_id: 2147483648, budget_amount: 100, description: `${marker}-invalid` },
+    ])).rejects.toThrow(/Out of range value for column 'account_id'/);
+
+    const headers = await scalar('SELECT COUNT(*) AS count FROM budgets WHERE budget_no = ?', [marker]);
+    const lines = await scalar('SELECT COUNT(*) AS count FROM budget_details WHERE description IN (?, ?)',
+      [`${marker}-first`, `${marker}-invalid`]);
+    expect(Number(headers.count)).toBe(0);
+    expect(Number(lines.count)).toBe(0);
   });
 });

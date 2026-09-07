@@ -73,7 +73,7 @@
         :disabled="false"
         :background="true"
         layout="total, sizes, prev, pager, next, jumper"
-        :total="Math.max(parseInt(total) || 0, 1)"
+        :total="Math.max(parseInt(total) || 0, 0)"
         @size-change="val => emit('update:pageSize', val)"
         @current-change="val => emit('update:currentPage', val)"
       />

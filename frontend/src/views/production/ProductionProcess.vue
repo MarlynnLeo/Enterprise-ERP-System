@@ -288,7 +288,7 @@
           :disabled="false"
           :background="true"
           layout="total, sizes, prev, pager, next, jumper"
-          :total="Math.max(total, 1)"
+          :total="Math.max(total, 0)"
         >
         </el-pagination>
       </div>

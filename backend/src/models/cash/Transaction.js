@@ -13,6 +13,7 @@ const { DOCUMENT_TYPE_MAPPING } = require('../../constants/financeConstants');
 const DocumentLinkService = require('../../services/business/DocumentLinkService');
 const { DOCUMENT_LINK_TYPES: DocType } = require('../../constants/documentLinkTypes');
 const { toLocalDateString } = require('../../utils/dateUtils');
+const { isTruthyFlag } = require('../../utils/finance/settlementMath');
 
 function requirePositiveInteger(value, fieldName) {
   const parsed = Number.parseInt(value, 10);
@@ -432,7 +433,7 @@ class BankTransactionModel {
         throw new Error(`银行账户ID ${bankAccountId} 不存在`);
       }
       const bankAccount = bankAccounts[0];
-      if (bankAccount.is_active === 0) {
+      if (!isTruthyFlag(bankAccount.is_active)) {
         throw new Error(`银行账户 "${bankAccount.account_name}" 已停用`);
       }
       if (String(bankAccount.currency_code || 'CNY').toUpperCase() !== 'CNY') {

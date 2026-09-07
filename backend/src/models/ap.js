@@ -1170,7 +1170,7 @@ const apModel = {
         if (String(bankAccount.currency_code || 'CNY').toUpperCase() !== 'CNY') {
           throw new Error(`银行账户 "${bankAccount.account_name}" 不是人民币账户，当前不能用于付款`);
         }
-        if (bankAccount.is_active === 0) {
+        if (!isTruthyFlag(bankAccount.is_active)) {
           throw new Error(`银行账户 "${bankAccount.account_name}" 已被冻结，无法用于付款`);
         }
 

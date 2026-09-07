@@ -60,6 +60,15 @@
 
       <!-- 扫码区域 -->
       <div class="scan-area-section">
+        <div v-if="selectedType === 'assembly'" class="assembly-task-selector">
+          <label for="assembly-task">生产任务</label>
+          <select id="assembly-task" v-model="assemblyTaskId" class="assembly-task-select" :disabled="assemblyTaskLoading">
+            <option value="" disabled>{{ assemblyTaskLoading ? '加载任务中...' : '请选择生产任务' }}</option>
+            <option v-for="task in assemblyTasks" :key="task.id" :value="String(task.id)">
+              {{ task.code || task.taskCode }} · {{ task.productName }}
+            </option>
+          </select>
+        </div>
         <div class="scan-preview">
           <!-- 添加 html5-qrcode 挂载点 -->
           <div id="reader" class="scan-video"></div>
@@ -90,11 +99,11 @@
                 />
               </svg>
             </div>
-            <span class="success-text">扫码成功</span>
+            <span class="success-text">{{ selectedType === 'assembly' ? (assemblyResult?.success ? '校验通过' : '校验未通过') : '扫码成功' }}</span>
           </div>
 
           <!-- 物料信息（通用 + 盘点模式共用） -->
-          <div v-if="selectedType === 'material' || selectedType === 'check'" class="result-content">
+          <div v-if="['material', 'check', 'product'].includes(selectedType)" class="result-content">
             <div class="result-item">
               <span class="label">物料编码</span>
               <span class="value">{{ resultData.code }}</span>
@@ -172,8 +181,21 @@
           </div>
 
           <!-- 操作按钮 -->
+          <div v-if="selectedType === 'inspection'" class="result-content">
+            <div class="result-item">
+              <span class="label">检验单号</span>
+              <span class="value">{{ resultData.inspectionNo }}</span>
+            </div>
+            <div class="result-item">
+              <span class="label">物料名称</span>
+              <span class="value">{{ resultData.productName || resultData.materialName || '-' }}</span>
+            </div>
+          </div>
+          <div v-if="selectedType === 'assembly'" class="result-content">
+            <p>{{ assemblyResult?.message }}</p>
+          </div>
           <div class="result-actions">
-            <van-button v-if="selectedType !== 'check'" type="primary" block @click="handleViewDetail"> 查看详情 </van-button>
+            <van-button v-if="!['check', 'assembly'].includes(selectedType)" type="primary" block @click="handleViewDetail"> 查看详情 </van-button>
             <van-button plain block @click="resetScan" style="margin-top: 0.75rem">
               重新扫码
             </van-button>
@@ -252,7 +274,9 @@
   import { useRouter, useRoute } from 'vue-router'
   import Icon from '@/components/icons/index.vue'
   import { showToast, showLoadingToast, closeToast } from 'vant'
-  import { baseDataApi, inventoryApi, salesApi, productionApi } from '@/api'
+  import { baseDataApi, inventoryApi, salesApi, productionApi, qualityApi } from '@/api'
+  import { findExactScanMatch } from '@/utils/scanLookup'
+  import { extractApiList } from '@/utils/apiHelper'
   import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 
   // 支持的条码格式列表（包含所有常见一维码和二维码）
@@ -291,6 +315,12 @@
   const currentCameraIndex = ref(0)  // 当前使用的摄像头索引
   const assemblyTaskId = ref('')  // 装配防错：当前任务ID
   const assemblyResult = ref(null)  // 装配防错：验证结果
+  const assemblyTasks = ref([])
+  const assemblyTaskLoading = ref(false)
+  const inspectionKind = ref('incoming')
+  const inspectionLabel = computed(() => ({
+    incoming: '来料检验', process: '过程检验', final: '成品检验'
+  })[inspectionKind.value])
 
   // 当前摄像头方向标签（显示给用户）
   const currentFacingLabel = computed(() => {
@@ -321,6 +351,7 @@
       { value: 'location', label: '库位', icon: 'location-marker' },
       { value: 'order', label: '订单', icon: 'document-text' },
       { value: 'product', label: '产品', icon: 'shopping-bag' },
+      { value: 'inspection', label: inspectionLabel.value, icon: 'clipboard-check' },
       { value: 'assembly', label: '装配防错', icon: 'shield-check' }
     ]
     return types
@@ -362,7 +393,8 @@
       location: '将库位条码/二维码放入框内',
       order: '将订单条码/二维码放入框内',
       product: '将产品条码/二维码放入框内',
-      assembly: '扫描物料条码验证是否匹配 BOM'
+      assembly: '扫描物料条码验证是否匹配 BOM',
+      inspection: '将检验单条码/二维码放入框内'
     }
     return tips[selectedType.value] || '将条码/二维码放入框内'
   })
@@ -375,6 +407,20 @@
   const selectType = (type) => {
     selectedType.value = type
     resetScan()
+    if (type === 'assembly') loadAssemblyTasks()
+  }
+
+  const loadAssemblyTasks = async () => {
+    if (assemblyTaskLoading.value) return
+    assemblyTaskLoading.value = true
+    try {
+      const response = await productionApi.getProductionTasks({ status: 'in_progress', page: 1, pageSize: 100 })
+      assemblyTasks.value = extractApiList(response)
+    } catch (error) {
+      showToast(error.response?.data?.message || '生产任务加载失败')
+    } finally {
+      assemblyTaskLoading.value = false
+    }
   }
 
   // 处理扫码结果
@@ -397,6 +443,8 @@
         await queryMaterial(code)
       } else if (selectedType.value === 'assembly') {
         await verifyAssembly(code)
+      } else if (selectedType.value === 'inspection') {
+        await queryInspection(code)
       }
     } catch (error) {
       console.error('查询失败:', error)
@@ -464,14 +512,8 @@
   // 查询物料信息
   const queryMaterial = async (code) => {
     try {
-      const response = await baseDataApi.getMaterials({
-        code: code,
-        page: 1,
-        pageSize: 1
-      })
-
-      if (response.data && response.data.list && response.data.list.length > 0) {
-        const material = response.data.list[0]
+      const material = await findExactScanMatch(baseDataApi.getMaterials, code)
+      if (material) {
         resultData.value = {
           code: material.code,
           name: material.name,
@@ -494,18 +536,12 @@
   // 查询库位信息
   const queryLocation = async (code) => {
     try {
-      const response = await inventoryApi.getLocations({
-        code: code,
-        page: 1,
-        pageSize: 1
-      })
-
-      if (response.data && response.data.length > 0) {
-        const location = response.data[0]
+      const location = await findExactScanMatch(inventoryApi.getLocations, code)
+      if (location) {
         resultData.value = {
           code: location.code,
           name: location.name,
-          warehouse: location.warehouse_name,
+          warehouse: location.warehouseName,
           id: location.id
         }
         showToast({
@@ -523,14 +559,12 @@
   // 查询订单信息
   const queryOrder = async (orderNo) => {
     try {
-      const response = await salesApi.getSalesOrders({
-        orderNo: orderNo,
-        page: 1,
-        pageSize: 1
+      const order = await findExactScanMatch(salesApi.getSalesOrders, orderNo, {
+        field: 'orderNo',
+        filter: 'search'
       })
 
-      if (response.data && response.data.list && response.data.list.length > 0) {
-        const order = response.data.list[0]
+      if (order) {
         const statusMap = {
           pending: '待确认',
           confirmed: '已确认',
@@ -557,11 +591,26 @@
   }
 
   // 装配防错验证
+  const queryInspection = async (code) => {
+    const fetchInspections = {
+      incoming: qualityApi.getIncomingInspections,
+      process: qualityApi.getProcessInspections,
+      final: qualityApi.getFinalInspections
+    }[inspectionKind.value]
+    const inspection = await findExactScanMatch(fetchInspections, code, {
+      field: 'inspectionNo',
+      filter: 'keyword'
+    })
+    if (!inspection) throw new Error('未找到该检验单')
+    resultData.value = inspection
+    showToast({ type: 'success', message: '查询成功' })
+  }
+
   const verifyAssembly = async (code) => {
     if (!assemblyTaskId.value) {
-      assemblyResult.value = { success: false, message: '请先配置生产任务ID' }
+      assemblyResult.value = { success: false, message: '请先选择生产任务' }
       resultData.value = { type: 'assembly' }
-      showToast('请先配置任务ID')
+      showToast('请先选择生产任务')
       return
     }
     try {
@@ -591,7 +640,8 @@
       material: `/basedata/materials/${resultData.value.id}`,
       location: `/inventory/stock?locationId=${resultData.value.id}`,
       order: `/sales/orders/${resultData.value.id}`,
-      product: `/basedata/materials/${resultData.value.id}`
+      product: `/basedata/materials/${resultData.value.id}`,
+      inspection: `/quality/${inspectionKind.value}/${resultData.value.id}`
     }
 
     const targetRoute = routeMap[selectedType.value]
@@ -636,6 +686,7 @@
     try {
       scanResult.value = ''
       resultData.value = null
+      assemblyResult.value = null
       loading.value = false
       safeResumeCamera()
     } catch (err) {
@@ -863,6 +914,16 @@
       if (route.query.mode === 'check') {
         scanMode.value = 'check'
         selectedType.value = 'check'
+      } else if (route.query.mode === 'assembly' || route.query.type === 'assembly') {
+        selectedType.value = 'assembly'
+        assemblyTaskId.value = String(route.query.taskId || '')
+        loadAssemblyTasks()
+      } else {
+        const kind = { inspection: 'incoming', inspection_process: 'process', inspection_final: 'final' }[route.query.type]
+        if (kind) {
+          inspectionKind.value = kind
+          selectedType.value = 'inspection'
+        }
       }
       // 检查相机权限并启动扫描
       checkCameraPermissionAndStart()
@@ -873,6 +934,21 @@
 </script>
 
 <style lang="scss" scoped>
+  .assembly-task-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+    color: var(--text-primary);
+  }
+  .assembly-task-select {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+  }
   .scan-page {
     position: absolute;
     inset: 0;

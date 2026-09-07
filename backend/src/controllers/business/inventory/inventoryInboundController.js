@@ -1141,8 +1141,9 @@ const updateInboundStatus = async (req, res) => {
         await InboundTransactionService.confirmInbound(
           connection,
           id,
-          inboundData[0].operator || getRequestActorLabel(req),
-          inboundData[0]
+          getRequestActorLabel(req),
+          inboundData[0],
+          toRequiredInteger(req.user?.id)
         );
       }
 
@@ -1180,8 +1181,8 @@ const updateInboundStatus = async (req, res) => {
       }
 
       const [statusUpdate] = await connection.execute(
-        'UPDATE inventory_inbound SET status = ?, updated_at = NOW() WHERE id = ? AND is_deleted = 0 AND deleted_at IS NULL AND status = ?',
-        [newStatus, id, currentStatus]
+        'UPDATE inventory_inbound SET status = ?, updated_by = ?, updated_at = NOW() WHERE id = ? AND is_deleted = 0 AND deleted_at IS NULL AND status = ?',
+        [newStatus, toRequiredInteger(req.user?.id), id, currentStatus]
       );
       if (!statusUpdate.affectedRows) {
         await connection.rollback();

@@ -29,7 +29,7 @@
         <div class="info-grid">
           <div class="info-item">
             <span class="info-label">任务编号</span
-            ><span class="info-value mono">{{ selectedTask.taskCode }}</span>
+            ><span class="info-value mono">{{ selectedTask.code || selectedTask.taskCode }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">产品名称</span
@@ -40,13 +40,13 @@
           <div class="info-item">
             <span class="info-label">计划数量</span
             ><span class="info-value highlight"
-              >{{ selectedTask.plannedQuantity }}
-              {{ selectedTask.unitName || '件' }}</span
+              >{{ selectedTask.quantity ?? selectedTask.plannedQuantity }}
+              {{ selectedTask.unitName || selectedTask.unit || '件' }}</span
             >
           </div>
           <div class="info-item">
             <span class="info-label">已完成</span
-            ><span class="info-value">{{ selectedTask.completed_quantity || 0 }}</span>
+            ><span class="info-value">{{ selectedTask.completedQuantity || 0 }}</span>
           </div>
         </div>
       </div>
@@ -56,14 +56,14 @@
         <div class="section-title">报工信息</div>
         <CellGroup inset>
           <Field
-            v-model="reportForm.completed_quantity"
+            v-model="reportForm.completedQuantity"
             type="number"
             label="完成数量"
             placeholder="请输入本次完成数量"
             :rules="[{ required: true }]"
           />
           <Field
-            v-model="reportForm.defective_quantity"
+            v-model="reportForm.defectiveQuantity"
             type="number"
             label="不良数量"
             placeholder="请输入不良品数量（可选）"
@@ -102,8 +102,8 @@
         >
           <div class="picker-item-title">{{ task.productName }}</div>
           <div class="picker-item-sub">
-            {{ task.taskCode }} · {{ task.plannedQuantity }}
-            {{ task.unitName || '件' }}
+            {{ task.code || task.taskCode }} · {{ task.quantity ?? task.plannedQuantity }}
+            {{ task.unitName || task.unit || '件' }}
           </div>
         </div>
       </div>
@@ -124,11 +124,15 @@
   const selectedTaskName = ref('')
   const showTaskPicker = ref(false)
   const submitting = ref(false)
-  const reportForm = reactive({ completed_quantity: '', defective_quantity: '', remarks: '' })
+  const reportForm = reactive({ completedQuantity: '', defectiveQuantity: '', remarks: '' })
 
   const selectTask = (task) => {
+    if (task.status !== 'in_progress') {
+      showToast('仅生产中的任务可以报工')
+      return
+    }
     selectedTask.value = task
-    selectedTaskName.value = `${task.taskCode} - ${task.productName}`
+    selectedTaskName.value = `${task.code || task.taskCode} - ${task.productName}`
     showTaskPicker.value = false
   }
 
@@ -163,11 +167,12 @@
   }
 
   const submitReport = async () => {
+    if (submitting.value) return
     if (!selectedTask.value) {
       showToast('请选择任务')
       return
     }
-    if (!reportForm.completed_quantity) {
+    if (!reportForm.completedQuantity) {
       showToast('请输入完成数量')
       return
     }
@@ -175,15 +180,15 @@
     try {
       await productionApi.reportProductionProgress({
         taskId: selectedTask.value.id,
-        completed_quantity: Number(reportForm.completed_quantity),
-        defective_quantity: Number(reportForm.defective_quantity) || 0,
+        completedQuantity: reportForm.completedQuantity,
+        defectiveQuantity: reportForm.defectiveQuantity || 0,
         remarks: reportForm.remarks
       })
       showToast('报工成功')
       router.go(-1)
     } catch (e) {
       console.error('报工失败:', e)
-      showToast('报工失败')
+      showToast(e.response?.data?.message || e.message || '报工失败')
     } finally {
       submitting.value = false
     }

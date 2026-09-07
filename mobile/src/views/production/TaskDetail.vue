@@ -156,7 +156,7 @@
         >
         <VanButton
           v-if="task.status === 'in_progress'"
-          v-permission="'production:tasks:update'"
+          v-permission="'production:reports:create'"
           type="warning"
           block
           round
@@ -234,6 +234,7 @@
 </template>
 
 <script setup>
+  import { extractApiList } from '@/utils/apiHelper'
   import { ref, computed, onMounted } from 'vue'
   import { useRouter, useRoute } from 'vue-router'
   import {
@@ -398,9 +399,7 @@
     requestVisible.value = true
     try {
       const res = await inventoryApi.getWarehouses()
-      const data = res.data || res
-      const items = data.items || data.list || data.rows || data || []
-      const list = Array.isArray(items) ? items : []
+      const list = extractApiList(res)
       locationColumns.value = list.map((item) => ({
         text: item.warehouseName || item.locationName || item.name || `仓库#${item.id}`,
         value: item.id

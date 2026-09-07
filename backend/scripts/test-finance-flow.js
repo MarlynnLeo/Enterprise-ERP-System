@@ -112,6 +112,7 @@ function assertStatus(res, expected, label) {
 async function main() {
   console.log('\n========== 财务主流程测试开始 ==========\n');
   const today = dayjs().format('YYYY-MM-DD');
+  const prefix = `FIN${Date.now()}`;
   let api;
 
   // 0. 基础环境
@@ -159,17 +160,27 @@ async function main() {
     return `${rows[0].period_name}#${rows[0].id}`;
   });
 
-  const bank = await step('存在可用银行账户', async () => {
+  const bank = await step('创建独立测试银行账户', async () => {
+    const accountNumber = `${prefix}-BANK`;
+    const response = await api.post('/api/finance/bank-accounts', {
+      accountNumber,
+      accountName: `${prefix} 测试账户`,
+      bankName: '隔离审计测试银行',
+      currencyCode: 'CNY',
+      initialBalance: 100000,
+      accountType: '活期',
+      notes: 'finance-flow-test isolated synthetic account',
+    });
+    assertStatus(response, 201, 'create isolated bank account');
     const rows = await q(
       `SELECT id, account_name, current_balance
        FROM bank_accounts
-       WHERE is_active = 1
-       ORDER BY current_balance DESC
-       LIMIT 1`
+       WHERE account_number = ? AND is_active = 1`,
+      [accountNumber]
     );
-    if (!rows.length) throw new Error('没有启用中的银行账户');
+    if (!rows.length) throw new Error('测试银行账户创建后不可用');
     return rows[0];
-  });
+  }, { fatal: true });
 
   const customer = await step('存在客户主数据', async () => {
     const rows = await q(
@@ -220,15 +231,15 @@ async function main() {
       customerId: customer.id,
       invoiceDate: today,
       dueDate: today,
-      tax_rate: 0.13,
+      taxRate: 0.13,
       notes: 'finance-flow-test',
       // 故意传错合计，验证服务端按明细+税率重算 = 200 + 26
-      amount: 1,
+      totalAmount: 1,
       items: [
         {
           description: '流程测试物料',
           quantity: 2,
-          unit_price: 100,
+          unitPrice: 100,
         },
       ],
     };
@@ -373,17 +384,15 @@ async function main() {
       supplierId: supplier.id,
       invoiceDate: today,
       dueDate: today,
-      tax_rate: 0.13,
+      taxRate: 0.13,
       notes: 'finance-flow-test',
-      amount: 1,
+      totalAmount: 1,
       items: [
         {
           materialId: material.id,
-          material_id: material.id,
           description: material.name || '采购测试',
           quantity: 1,
           unitPrice: 50,
-          unit_price: 50,
         },
       ],
     };
@@ -411,15 +420,19 @@ async function main() {
       await q('SELECT current_balance FROM bank_accounts WHERE id = ?', [bank.id])
     )[0].current_balance;
     await q('UPDATE bank_accounts SET current_balance = 1 WHERE id = ?', [bank.id]);
-    const res = await api.post('/api/finance/ap/payments', {
-      invoiceId: apInvoiceId,
-      paymentDate: today,
-      amount: 56.5,
-      paymentMethod: '银行转账',
-      bankAccountId: bank.id,
-      notes: 'finance-flow-test insufficient',
-    });
-    await q('UPDATE bank_accounts SET current_balance = ? WHERE id = ?', [original, bank.id]);
+    let res;
+    try {
+      res = await api.post('/api/finance/ap/payments', {
+        invoiceId: apInvoiceId,
+        paymentDate: today,
+        amount: 56.5,
+        paymentMethod: '银行转账',
+        bankAccountId: bank.id,
+        notes: 'finance-flow-test insufficient',
+      });
+    } finally {
+      await q('UPDATE bank_accounts SET current_balance = ? WHERE id = ?', [original, bank.id]);
+    }
 
     if (res.status === 200 || res.status === 201) {
       throw new Error('余额不足时不应付款成功');
@@ -495,6 +508,8 @@ async function main() {
     const beforeCount = (
       await q('SELECT COUNT(*) AS c FROM ar_receipts WHERE notes LIKE ?', ['%atomic-fail-test%'])
     )[0].c;
+    const [bankBefore] = await q('SELECT current_balance FROM bank_accounts WHERE id = ?', [bank.id]);
+    const [invoiceBefore] = await q('SELECT paid_amount, balance_amount FROM ar_invoices WHERE id = ?', [arInvoiceId]);
 
     const res = await api.post('/api/finance/ar/receipts/batch', {
       receiptDate: today,
@@ -508,9 +523,9 @@ async function main() {
       ],
     });
 
-    // should fail overall
-    if (res.status === 200 && res.body?.data?.successCount > 0 && res.body?.data?.errorCount === 0) {
-      throw new Error('原子批处理不应全部成功');
+    assertStatus(res, 400, 'atomic batch with invalid second invoice');
+    if (!/99999999.*不存在/.test(res.body.message || '')) {
+      throw new Error(`第一条有效收款必须成功执行，再因第二条不存在回滚: ${JSON.stringify(res.body)}`);
     }
 
     const afterCount = (
@@ -519,13 +534,90 @@ async function main() {
     if (Number(afterCount) !== Number(beforeCount)) {
       throw new Error(`原子失败后不应新增收款单 before=${beforeCount} after=${afterCount}`);
     }
+    const [bankAfter] = await q('SELECT current_balance FROM bank_accounts WHERE id = ?', [bank.id]);
+    const [invoiceAfter] = await q('SELECT paid_amount, balance_amount FROM ar_invoices WHERE id = ?', [arInvoiceId]);
+    if (Number(bankBefore.current_balance) !== Number(bankAfter.current_balance)
+        || Number(invoiceBefore.paid_amount) !== Number(invoiceAfter.paid_amount)
+        || Number(invoiceBefore.balance_amount) !== Number(invoiceAfter.balance_amount)) {
+      throw new Error('批量回滚后银行余额或首张发票未恢复');
+    }
     return `HTTP ${res.status}`;
   });
+
+  for (const flow of [
+    { kind: 'AR', table: 'ar_invoices', invoiceId: arInvoiceId, path: '/api/finance/ar/receipts',
+      linesKey: 'receipts', dateKey: 'receiptDate', resultId: 'receiptId', sign: 1 },
+    { kind: 'AP', table: 'ap_invoices', invoiceId: apInvoiceId, path: '/api/finance/ap/payments',
+      linesKey: 'payments', dateKey: 'paymentDate', resultId: 'paymentId', sign: -1 },
+  ]) {
+    await step(`${flow.kind} 批量结算正向入账并作废还原`, async () => {
+      const [bankBefore] = await q('SELECT current_balance FROM bank_accounts WHERE id = ?', [bank.id]);
+      const response = await api.post(`${flow.path}/batch`, {
+        [flow.dateKey]: today, paymentMethod: '银行转账', bankAccountId: bank.id,
+        notes: `finance-flow-test ${flow.kind} batch success`, atomic: true,
+        [flow.linesKey]: [{ invoiceId: flow.invoiceId, amount: 10 }],
+      });
+      assertStatus(response, 200, `${flow.kind} valid batch`);
+      const result = response.body.data;
+      if (result.successCount !== 1 || result.errorCount !== 0) {
+        throw new Error(`批量成功数量不正确: ${JSON.stringify(response.body)}`);
+      }
+      const [after] = await q('SELECT current_balance FROM bank_accounts WHERE id = ?', [bank.id]);
+      const [invoice] = await q(`SELECT paid_amount FROM ${flow.table} WHERE id = ?`, [flow.invoiceId]);
+      if (Math.round((Number(after.current_balance) - Number(bankBefore.current_balance)) * 100) !== flow.sign * 1000
+          || Number(invoice.paid_amount) !== 10) {
+        throw new Error('批量成功后银行/发票变动不一致');
+      }
+      const settlementId = result.results[0][flow.resultId];
+      const reversed = await api.post(`${flow.path}/${settlementId}/void`, { voidReason: 'finance-flow-test batch reversal' });
+      assertStatus(reversed, 200, `${flow.kind} void batch settlement`);
+      const [restoredBank] = await q('SELECT current_balance FROM bank_accounts WHERE id = ?', [bank.id]);
+      const [restoredInvoice] = await q(`SELECT paid_amount FROM ${flow.table} WHERE id = ?`, [flow.invoiceId]);
+      if (Number(restoredBank.current_balance) !== Number(bankBefore.current_balance) || Number(restoredInvoice.paid_amount) !== 0) {
+        throw new Error('批量结算作废后银行/发票未还原');
+      }
+      return `settlement#${settlementId}, bank and invoice restored`;
+    });
+  }
 
   await step('权限：未登录访问应收应 401', async () => {
     const res = await request(app).get('/api/finance/ar/invoices');
     if (res.status !== 401) throw new Error(`期望 401, 实际 ${res.status}`);
     return '401';
+  });
+
+  await step('大额付款拒绝客户端伪造审批且不产生资金变动', async () => {
+    const PaymentApprovalGuard = require('../src/services/finance/PaymentApprovalGuard');
+    const threshold = await PaymentApprovalGuard.getThreshold();
+    const amount = Math.max(60000, threshold + 1);
+    const invoiceNumber = await CodeGeneratorService.nextCode('ap_invoice');
+    const created = await api.post('/api/finance/ap/invoices', {
+      invoiceNumber, supplierId: supplier.id, invoiceDate: today, dueDate: today,
+      taxRate: 0, notes: 'finance-flow-test large approval guard',
+      items: [{ materialId: material.id, quantity: 1, unitPrice: amount }],
+    });
+    assertStatus(created, 201, 'create large AP invoice');
+    const [invoice] = await q('SELECT id FROM ap_invoices WHERE invoice_number = ?', [invoiceNumber]);
+    const confirmed = await api.put(`/api/finance/ap/invoices/${invoice.id}/status`, { status: '已确认' });
+    assertStatus(confirmed, 200, 'confirm large AP invoice');
+    const [before] = await q('SELECT current_balance FROM bank_accounts WHERE id = ?', [bank.id]);
+    const result = await api.post('/api/finance/ap/payments', {
+      invoiceId: invoice.id, paymentDate: today, amount, paymentMethod: '银行转账',
+      bankAccountId: bank.id, approvalNo: 'CLIENT-FORGED', workflowStatus: 'approved',
+      approved: true, skipApproval: true, notes: 'finance-flow-test forged approval',
+    });
+    assertStatus(result, 400, 'large payment requires trusted approval');
+    if (!/审批阈值/.test(result.body.message || '')) {
+      throw new Error(`应由审批守卫拦截: ${JSON.stringify(result.body)}`);
+    }
+    const [after] = await q('SELECT current_balance FROM bank_accounts WHERE id = ?', [bank.id]);
+    const [paid] = await q('SELECT paid_amount, balance_amount FROM ap_invoices WHERE id = ?', [invoice.id]);
+    const [payments] = await q('SELECT COUNT(*) AS count FROM ap_payment_items WHERE invoice_id = ?', [invoice.id]);
+    if (Number(after.current_balance) !== Number(before.current_balance)
+        || Number(paid.paid_amount) !== 0 || Number(paid.balance_amount) !== amount || Number(payments.count) !== 0) {
+      throw new Error('审批拒绝后不得产生付款、核销或银行余额变化');
+    }
+    return `threshold=${threshold}, amount=${amount}, HTTP 400; 当前付款审批业务入口仍未闭环`;
   });
 
   console.log('\n========== 测试结果汇总 ==========\n');

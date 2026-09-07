@@ -123,6 +123,7 @@
                   <div class="card-actions" @click.stop>
                     <div
                       v-if="task.status === 'pending' || task.status === 'allocated'"
+                      v-permission="'production:tasks:update'"
                       class="action-btn start"
                       @click="startTask(task)"
                     >
@@ -130,6 +131,7 @@
                     </div>
                     <div
                       v-if="task.status === 'in_progress'"
+                      v-permission="'production:reports:create'"
                       class="action-btn report"
                       @click="reportProgress(task)"
                     >
@@ -408,6 +410,7 @@
   }
 
   const submitReport = async () => {
+    if (submitting.value || !currentTask.value) return
     if (!reportForm.completed_quantity) {
       showToast('请输入完成数量')
       return
@@ -424,7 +427,7 @@
       loadTasks(true)
     } catch (error) {
       console.error('报工失败:', error)
-      showToast('报工失败')
+      showToast(error.response?.data?.message || error.message || '报工失败')
     } finally {
       submitting.value = false
     }

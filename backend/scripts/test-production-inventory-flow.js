@@ -3,15 +3,16 @@
  *
  * 覆盖：
  * 1. 架构守卫：任务禁止 PUT completed；出库/入库创建禁止 completed 直接扣库
- * 2. 生产发料：draft→confirmed→completed 才扣库；撤销冲销回库
+ * 2. 生产发料：业务完成→独立财务审核才扣库；第三人审批冲销后回库
  * 3. 任务生命周期：in_progress → completeTask → inspection（非 PUT completed）
- * 4. 成品入库完成写库存；completed→reversed 冲销
+ * 4. 独立库存入库财务审核写库存；反审核审批冲销
  * 5. 销售发货核销预留
  *
  * 用法：node scripts/test-production-inventory-flow.js
  */
 
 const path = require('path');
+const assert = require('node:assert/strict');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 process.env.NODE_ENV = process.env.NODE_ENV || 'test';
@@ -30,6 +31,7 @@ const dayjs = require('dayjs');
 const db = require('../src/config/db');
 const InventoryService = require('../src/services/InventoryService');
 const InventoryReservationService = require('../src/services/InventoryReservationService');
+const { createFinanceActor, approveInventoryPosting } = require('./lib/live-flow-client');
 
 const app = require('../src/app');
 
@@ -156,7 +158,7 @@ async function prepareMaster(prefix) {
     );
     const [customer] = await conn.execute(
       `INSERT INTO customers (code, name, contact_person, contact_phone, status, remark)
-       VALUES (?, ?, 'SMOKE', '13900000001', 'active', ?)`,
+       VALUES (?, ?, 'SMOKE', '13900000001', 1, ?)`,
       [`${prefix}-CUS`, `${prefix} Customer`, prefix]
     );
     const [raw] = await conn.execute(
@@ -195,6 +197,36 @@ async function prepareMaster(prefix) {
       [tpl.insertId, prefix]
     );
 
+    const [inspectionItem] = await conn.execute(
+      `INSERT INTO inspection_items (item_name, standard, type, is_critical)
+       VALUES (?, 'No functional defect', 'function', 1)`,
+      [`${prefix} Functional check`]
+    );
+    const qualityTemplates = {};
+    for (const inspectionType of ['first_article', 'process', 'final']) {
+      const [template] = await conn.execute(
+        `INSERT INTO inspection_templates
+         (template_code, template_name, inspection_type, material_type, material_types,
+          is_general, is_default, priority, version, description, status, is_aql, created_by)
+         VALUES (?, ?, ?, ?, ?, 0, 0, 1, 'S1', ?, 'active', 0, 1)`,
+        [`${prefix}-${inspectionType}`, `${prefix} ${inspectionType}`, inspectionType,
+          fg.insertId, JSON.stringify([fg.insertId]), prefix]
+      );
+      await conn.execute('INSERT INTO template_item_mappings (template_id, item_id, sort_order) VALUES (?, ?, 1)',
+        [template.insertId, inspectionItem.insertId]);
+      qualityTemplates[inspectionType] = template.insertId;
+    }
+    await conn.execute(
+      `INSERT INTO first_article_rules
+       (product_id, first_article_qty, full_inspection_threshold, template_id, is_mandatory, note)
+       VALUES (?, 1, 1, ?, 1, ?)`, [fg.insertId, qualityTemplates.first_article, prefix]
+    );
+    await conn.execute(
+      `INSERT INTO process_inspection_rules
+       (product_id, inspection_interval, sample_rate, punch_interval, template_id, is_enabled, note)
+       VALUES (?, 1, 100, 1, ?, 1, ?)`, [fg.insertId, qualityTemplates.process, prefix]
+    );
+
     await conn.commit();
     return {
       prefix,
@@ -224,6 +256,7 @@ async function seedStock(materialId, locationId, qty, batch, operator) {
   const connection = await db.pool.getConnection();
   try {
     await connection.beginTransaction();
+    const material = await InventoryService.getMaterialInfo(materialId, connection);
     await InventoryService.updateStock(
       {
         materialId,
@@ -233,6 +266,7 @@ async function seedStock(materialId, locationId, qty, batch, operator) {
         referenceNo: `SMOKE-SEED-${batch}`,
         referenceType: 'smoke_seed',
         operator,
+        unitCost: Number(material.costPrice),
         batchNumber: batch,
         remark: 'smoke seed stock',
         idempotencyKey: `smoke_seed:${batch}:${materialId}:${locationId}`,
@@ -288,6 +322,26 @@ async function main() {
   const prefix = `SMK${Date.now().toString().slice(-10)}`;
   let api;
   let ctx;
+  let financeApi;
+  let reversalFinanceApi;
+
+  async function approveReversal(sourceNo) {
+    const rows = await q(
+      `SELECT r.id, r.source_no, r.original_posting_document_id
+       FROM inventory_posting_documents r
+       JOIN inventory_posting_documents original ON original.id = r.original_posting_document_id
+       WHERE original.source_no = ? AND r.posting_kind = 'reversal' AND r.finance_status = 'pending'`,
+      [sourceNo]
+    );
+    assert.equal(rows.length, 1, `One pending reversal is required for ${sourceNo}`);
+    const originalActor = await api.post(`/api/finance/inventory-postings/${rows[0].id}/approve`, {});
+    assertStatus(originalActor, 403, 'original business actor cannot approve reversal');
+    await approveInventoryPosting(db, reversalFinanceApi, rows[0].source_no, {
+      businessApi: financeApi, postingKind: 'reversal',
+    });
+    const [original] = await q('SELECT finance_status FROM inventory_posting_documents WHERE id = ?', [rows[0].original_posting_document_id]);
+    assert.equal(original.finance_status, 'reversed', 'Original posting must be reversed after independent approval');
+  }
 
   await step('数据库可连接', async () => {
     await q('SELECT 1 AS ok');
@@ -297,6 +351,14 @@ async function main() {
   await step('管理员登录', async () => {
     api = await createAuthClient();
     return 'login ok';
+  }, { fatal: true });
+
+  await step('创建独立过账审核人与反审核审批人', async () => {
+    // The first reviewer also requests business reversals through inventory/sales
+    // APIs. A distinct finance reviewer must approve those reversal requests.
+    financeApi = (await createFinanceActor(app, db, prefix, 'reviewer', 'admin')).api;
+    reversalFinanceApi = (await createFinanceActor(app, db, prefix, 'reversal')).api;
+    return 'business creator, movement reviewer, reversal reviewer are distinct';
   }, { fatal: true });
 
   await step('准备主数据', async () => {
@@ -312,6 +374,7 @@ async function main() {
       `${prefix}-RM-BATCH`,
       'smoke'
     );
+    await approveInventoryPosting(db, financeApi, `SMOKE-SEED-${prefix}-RM-BATCH`);
     const qty = await stockOf(ctx.rawMaterialId, ctx.rawLocationId);
     if (qty < 100) throw new Error(`原料库存不足: ${qty}`);
     return `qty=${qty}`;
@@ -404,7 +467,7 @@ async function main() {
     return `HTTP ${res.status}`;
   });
 
-  await step('生产发料 draft→confirm→complete 扣库', async () => {
+  await step('生产发料业务完成后财务审核扣库', async () => {
     const before = await stockOf(ctx.rawMaterialId, ctx.rawLocationId);
     const createRes = await api.post('/api/inventory/outbound', {
       outbound_date: today,
@@ -449,6 +512,8 @@ async function main() {
       newStatus: 'completed',
     });
     assertStatus(comp, 200, 'complete outbound');
+    assert.equal(await stockOf(ctx.rawMaterialId, ctx.rawLocationId), before, 'Business completion must not write formal stock');
+    await approveInventoryPosting(db, financeApi, outboundNo, { businessApi: api });
     const after = await stockOf(ctx.rawMaterialId, ctx.rawLocationId);
     const expected = before - ctx.rawUsageQty;
     if (Math.abs(after - expected) > 0.001) {
@@ -459,7 +524,7 @@ async function main() {
 
   await step('出库撤销冲销回库', async () => {
     const before = await stockOf(ctx.rawMaterialId, ctx.rawLocationId);
-    const res = await api.post(`/api/inventory/outbound/${outboundId}/cancel`, {
+    const res = await financeApi.post(`/api/inventory/outbound/${outboundId}/cancel`, {
       force: true,
       createReissue: false,
     });
@@ -468,6 +533,8 @@ async function main() {
       // 尝试通用 cancel 路径
       throw new Error(`cancel outbound HTTP ${res.status}: ${JSON.stringify(res.body).slice(0, 400)}`);
     }
+    assert.equal(await stockOf(ctx.rawMaterialId, ctx.rawLocationId), before, 'Reversal request must not write formal stock');
+    await approveReversal(outboundNo);
     const after = await stockOf(ctx.rawMaterialId, ctx.rawLocationId);
     if (Math.abs(after - (before + ctx.rawUsageQty)) > 0.001) {
       throw new Error(`冲销后库存应为 ${before + ctx.rawUsageQty}, 实际 ${after}`);
@@ -507,6 +574,7 @@ async function main() {
       newStatus: 'completed',
     });
     assertStatus(comp, 200, 're-complete outbound');
+    await approveInventoryPosting(db, financeApi, created.outboundNo || created.outbound_no, { businessApi: api });
     return `outbound=${oid}`;
   }, { fatal: true });
 
@@ -553,6 +621,7 @@ async function main() {
 
   // ---------- 成品入库 + 冲销 ----------
   let inboundId;
+  let inboundNo;
   await step('成品入库确认完成写库存', async () => {
     const before = await stockOf(ctx.productId, ctx.fgLocationId);
     const createRes = await api.post('/api/inventory/inbound', {
@@ -573,6 +642,7 @@ async function main() {
     });
     assertStatus(createRes, [200, 201], 'create inbound');
     inboundId = dataOf(createRes).id || dataOf(createRes).data?.id;
+    inboundNo = dataOf(createRes).inboundNo || dataOf(createRes).inbound_no;
     if (!inboundId) {
       inboundId = createRes.body?.data?.id || createRes.body?.data?.data?.id;
     }
@@ -595,6 +665,8 @@ async function main() {
       newStatus: 'completed',
     });
     assertStatus(comp, 200, 'complete inbound');
+    assert.equal(await stockOf(ctx.productId, ctx.fgLocationId), before, 'Business completion must not write formal stock');
+    await approveInventoryPosting(db, financeApi, inboundNo, { businessApi: api });
     const after = await stockOf(ctx.productId, ctx.fgLocationId);
     if (Math.abs(after - (before + ctx.productionQty)) > 0.001) {
       throw new Error(`入库后库存 expect=${before + ctx.productionQty} actual=${after}`);
@@ -604,10 +676,12 @@ async function main() {
 
   await step('入库 completed→reversed 冲销', async () => {
     const before = await stockOf(ctx.productId, ctx.fgLocationId);
-    const res = await api.put(`/api/inventory/inbound/status/${inboundId}`, {
+    const res = await financeApi.put(`/api/inventory/inbound/status/${inboundId}`, {
       newStatus: 'reversed',
     });
     assertStatus(res, 200, 'reverse inbound');
+    assert.equal(await stockOf(ctx.productId, ctx.fgLocationId), before, 'Reversal request must not write formal stock');
+    await approveReversal(inboundNo);
     const after = await stockOf(ctx.productId, ctx.fgLocationId);
     if (Math.abs(after - (before - ctx.productionQty)) > 0.001) {
       throw new Error(`冲销后库存 expect=${before - ctx.productionQty} actual=${after}`);
@@ -644,6 +718,7 @@ async function main() {
       newStatus: 'completed',
     });
     assertStatus(comp, 200, 're-complete inbound');
+    await approveInventoryPosting(db, financeApi, dataOf(createRes).inboundNo || dataOf(createRes).inbound_no, { businessApi: api });
     return `inbound=${id}`;
   }, { fatal: true });
 
@@ -702,6 +777,7 @@ async function main() {
     });
     assertStatus(outRes, [200, 201], 'create sales outbound');
     const outId = dataOf(outRes).id;
+    const salesOutboundNo = dataOf(outRes).outboundNo || dataOf(outRes).outbound_no;
 
     await api.put(`/api/sales/outbound/${outId}`, {
       order_id: orderId,
@@ -734,6 +810,8 @@ async function main() {
       ],
     });
     assertStatus(complete, 200, 'complete sales outbound');
+    assert.equal(await stockOf(ctx.productId, ctx.fgLocationId), beforeFg, 'Business completion must not write formal stock');
+    await approveInventoryPosting(db, financeApi, salesOutboundNo, { businessApi: api });
     const afterFg = await stockOf(ctx.productId, ctx.fgLocationId);
     if (Math.abs(afterFg - (beforeFg - ctx.salesQty)) > 0.001) {
       throw new Error(`销售扣库 expect=${beforeFg - ctx.salesQty} actual=${afterFg}`);
@@ -760,8 +838,11 @@ async function main() {
       throw new Error('发货后未看到 consumed 预留记录');
     }
 
-    // 财务集成：成本分录 + 销项发票（异步订阅，短等后查库；失败则直接调服务）
-    await new Promise((r) => setTimeout(r, 800));
+    // Current default is explicit finance posting, exercised through public APIs.
+    const costEntry = await financeApi.post(`/api/finance/integration/cost-entry/${outId}`, {});
+    assertStatus(costEntry, 200, 'sales cost entry API');
+    const outputTax = await financeApi.post(`/api/finance/integration/tax-output/${outId}`, {});
+    assertStatus(outputTax, 200, 'sales output tax API');
     let glRows = await q(
       `SELECT id, entry_number, document_number, is_posted, status
        FROM gl_entries
@@ -774,23 +855,6 @@ async function main() {
       [outId]
     );
     if (!glRows.length) {
-      // 兜底：同步调用集成服务（验证表名修复）
-      const FinanceIntegrationService = require('../src/services/external/FinanceIntegrationService');
-      const [sob] = await q('SELECT * FROM sales_outbound WHERE id = ?', [outId]);
-      const costResult = await FinanceIntegrationService.generateCostEntryFromSalesOutbound(sob);
-      if (costResult?.skipped && !costResult.entryId) {
-        throw new Error(`销售成本分录未生成: ${JSON.stringify(costResult)}`);
-      }
-      glRows = await q(
-        `SELECT id, entry_number, document_number, is_posted, status
-         FROM gl_entries
-         WHERE document_type = 'sales_outbound' AND document_number = ?
-           AND COALESCE(is_reversed, 0) = 0
-         ORDER BY id DESC LIMIT 1`,
-        [sob.outbound_no]
-      );
-    }
-    if (!glRows.length) {
       throw new Error('销售成本 GL 分录未找到');
     }
 
@@ -802,24 +866,14 @@ async function main() {
       [outId]
     );
     if (!taxRows.length) {
-      const FinanceIntegrationService = require('../src/services/external/FinanceIntegrationService');
-      const [sob] = await q('SELECT * FROM sales_outbound WHERE id = ?', [outId]);
-      await FinanceIntegrationService.generateOutputTaxInvoiceFromSalesOutbound(sob, 1);
-      taxRows = await q(
-        `SELECT id, invoice_number, total_amount, status
-         FROM tax_invoices
-         WHERE related_document_type IN ('sales_outbound', '销售出库单') AND related_document_id = ?
-         ORDER BY id DESC LIMIT 1`,
-        [outId]
-      );
-    }
-    if (!taxRows.length) {
       throw new Error('销项税票未找到');
     }
 
     // 冲销销售出库：库存回冲 + status=reversed
-    const revRes = await api.post(`/api/sales/outbound/${outId}/reverse`, {});
+    const revRes = await financeApi.post(`/api/sales/outbound/${outId}/reverse`, {});
     assertStatus(revRes, 200, 'reverse sales outbound');
+    assert.equal(await stockOf(ctx.productId, ctx.fgLocationId), afterFg, 'Reversal request must not write formal stock');
+    await approveReversal(salesOutboundNo);
     const afterRevFg = await stockOf(ctx.productId, ctx.fgLocationId);
     if (Math.abs(afterRevFg - beforeFg) > 0.001) {
       throw new Error(`冲销后成品库存应还原 ${beforeFg}, 实际 ${afterRevFg}`);
@@ -839,6 +893,7 @@ async function main() {
     const srcQty = await stockOf(ctx.productId, ctx.fgLocationId);
     if (srcQty < 1) {
       await seedStock(ctx.productId, ctx.fgLocationId, 2, `${prefix}-TR-FG`, 'smoke');
+      await approveInventoryPosting(db, financeApi, `SMOKE-SEED-${prefix}-TR-FG`);
     }
     const locations = await q(
       'SELECT id FROM locations WHERE deleted_at IS NULL AND id != ? ORDER BY id LIMIT 1',
@@ -850,17 +905,17 @@ async function main() {
 
     // 路由为 /api/inventory/transfer（单数）
     const createRes = await api.post('/api/inventory/transfer', {
-      transfer_date: today,
-      from_location_id: ctx.fgLocationId,
-      to_location_id: toLoc,
+      transferDate: today,
+      fromLocationId: ctx.fgLocationId,
+      toLocationId: toLoc,
       status: 'draft',
       operator: 'smoke',
       remark: `${prefix} transfer`,
       items: [
         {
-          material_id: ctx.productId,
+          materialId: ctx.productId,
           quantity: transferQty,
-          unit_id: ctx.unitId,
+          unitId: ctx.unitId,
         },
       ],
     });
@@ -868,6 +923,7 @@ async function main() {
 
     const transferId = dataOf(createRes).id || createRes.body?.data?.id;
     if (!transferId) throw new Error(`无 transfer id: ${JSON.stringify(createRes.body).slice(0, 300)}`);
+    const [transfer] = await q('SELECT transfer_no FROM inventory_transfers WHERE id = ?', [transferId]);
 
     const fromBefore = await stockOf(ctx.productId, ctx.fgLocationId);
     const toBefore = await stockOf(ctx.productId, toLoc);
@@ -880,6 +936,8 @@ async function main() {
       assertStatus(r, 200, `transfer → ${st}`);
     }
 
+    assert.equal(await stockOf(ctx.productId, ctx.fgLocationId), fromBefore, 'Business completion must not write formal stock');
+    await approveInventoryPosting(db, financeApi, transfer.transfer_no, { businessApi: api });
     const fromAfterComplete = await stockOf(ctx.productId, ctx.fgLocationId);
     const toAfterComplete = await stockOf(ctx.productId, toLoc);
     if (Math.abs(fromAfterComplete - (fromBefore - transferQty)) > 0.001) {
@@ -893,10 +951,12 @@ async function main() {
       );
     }
 
-    const rev = await api.put(`/api/inventory/transfer/${transferId}/status`, {
+    const rev = await financeApi.put(`/api/inventory/transfer/${transferId}/status`, {
       newStatus: 'reversed',
     });
     assertStatus(rev, 200, 'reverse transfer');
+    assert.equal(await stockOf(ctx.productId, ctx.fgLocationId), fromAfterComplete, 'Reversal request must not write formal stock');
+    await approveReversal(transfer.transfer_no);
 
     const rows = await q('SELECT status FROM inventory_transfers WHERE id = ?', [transferId]);
     if (rows[0]?.status !== 'reversed') {

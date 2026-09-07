@@ -4,6 +4,7 @@
 export default {
     path: 'basedata',
     name: 'basedata',
+    redirect: '/basedata/materials',
     component: () => import('../../views/baseData/BaseData.vue'),
     meta: {
         requiresAuth: true,

@@ -91,14 +91,32 @@ export const productionApi = {
       task_id: taskIdSnake,
       completedQuantity,
       completed_quantity: completedQuantitySnake,
+      defectiveQuantity,
+      defective_quantity: defectiveQuantitySnake,
+      unqualifiedQuantity,
       quantity,
       remarks,
       remark,
     } = data || {}
-    const id = taskId ?? taskIdSnake
-    return api.post(`/production/tasks/${id}/complete`, {
-      quantity: Number(completedQuantity ?? completedQuantitySnake ?? quantity),
-      remark: remarks ?? remark ?? '',
+    const id = Number(taskId ?? taskIdSnake)
+    const completed = Number(completedQuantity ?? completedQuantitySnake ?? quantity)
+    const defective = Number(defectiveQuantity ?? defectiveQuantitySnake ?? unqualifiedQuantity ?? 0)
+    if (!Number.isSafeInteger(id) || id <= 0) {
+      throw new Error('请选择有效的生产任务')
+    }
+    if (!Number.isFinite(completed) || completed <= 0) {
+      throw new Error('完成数量必须是大于0的有效数字')
+    }
+    if (!Number.isFinite(defective) || defective < 0 || defective > completed) {
+      throw new Error('不良数量必须在0与完成数量之间')
+    }
+    return api.post('/production/reports', {
+      taskId: id,
+      completedQuantity: completed,
+      qualifiedQuantity: completed - defective,
+      defectiveQuantity: defective,
+      unqualifiedQuantity: defective,
+      remarks: remarks ?? remark ?? '',
     })
   },
 

@@ -54,7 +54,7 @@ module.exports = {
      * 完成不合格品处理,并根据处理方式自动执行后续流程
      */
     async completeHandling(ncpId, completionData) {
-      const db = require('../../config/db');
+      const db = require('../../../config/db');
       let connection;
   
       try {
@@ -228,8 +228,8 @@ module.exports = {
   
         // 过程/终检让步：走库存其它入库，不创建采购收货
         if (inspectionType === 'process' || inspectionType === 'final' || inspectionType === 'first_article') {
-          const InventoryService = require('../InventoryService');
-          const { CodeGenerators } = require('../../utils/codeGenerator');
+          const InventoryService = require('../../InventoryService');
+          const { CodeGenerators } = require('../../../utils/codeGenerator');
           const warehouseId = await InventoryService.getMaterialLocation(ncp.material_id, connection);
           if (!warehouseId) {
             throw new Error(`不合格品 ${ncp.ncp_no} 物料未配置默认仓库，不能让步入库`);
@@ -321,7 +321,7 @@ module.exports = {
         }
   
         // 🔄 通过统一服务获取物料的默认仓库
-        const InventoryService = require('../InventoryService');
+        const InventoryService = require('../../InventoryService');
         const warehouseId = await InventoryService.getMaterialLocation(ncp.material_id, connection);
   
         // 获取仓库名称
@@ -724,7 +724,7 @@ module.exports = {
           );
           logger.info(`Purchase return notification sent: returnNo=${returnNo}`);
         } catch (notifyError) {
-          const DLQService = require('./DLQService');
+          const DLQService = require('../DLQService');
           await DLQService.recordSideEffectFailure(
             'NonconformingProduct:purchaseReturnNotification',
             { ncpId: ncp.id, returnNo, returnId },
@@ -822,7 +822,7 @@ module.exports = {
         logger.info(`Processing NCP rework disposition: ncpNo=${ncp.ncp_no}, quantity=${quantity}`);
   
         // 使用编码引擎生成返工单号
-        const CodeGenSvc = require('./CodeGeneratorService');
+        const CodeGenSvc = require('../CodeGeneratorService');
         const reworkNo = await CodeGenSvc.nextCode('rework_task', connection);
   
         // 注：rework_tasks 表应在数据库迁移脚本中创建，不在事务中动态建表

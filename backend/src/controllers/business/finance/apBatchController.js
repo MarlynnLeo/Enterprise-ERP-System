@@ -47,7 +47,7 @@ const batchPayments = async (req, res) => {
         }
         if (!SETTLEMENT_ELIGIBLE_STATUSES.includes(invoice.status)) {
           throw new Error(
-            `发票 ${invoice.invoice_number || item.invoiceId} 当前状态为"${invoice.status}"，不能直接付款`
+            `发票 ${invoice.invoiceNumber || item.invoiceId} 当前状态为"${invoice.status}"，不能直接付款`
           );
         }
 
@@ -58,7 +58,7 @@ const batchPayments = async (req, res) => {
         assertWithinBalance(
           line.settlementCents,
           toCents(invoice.balanceAmount || invoice.balance || 0),
-          `发票 ${invoice.invoice_number || item.invoiceId} 付款核销金额`
+          `发票 ${invoice.invoiceNumber || item.invoiceId} 付款核销金额`
         );
 
         const paymentNumber = await CodeGeneratorService.nextCode(
@@ -68,8 +68,8 @@ const batchPayments = async (req, res) => {
 
         const paymentData = {
           payment_number: paymentNumber,
-          supplier_id: item.supplierId || invoice.supplier_id,
-          supplier_name: item.supplierName || invoice.supplier_name,
+          supplier_id: invoice.supplierId,
+          supplier_name: invoice.supplierName,
           payment_date: paymentDate,
           total_amount: item.amount,
           payment_method: paymentMethod,

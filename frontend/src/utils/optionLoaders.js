@@ -4,6 +4,7 @@ import { purchaseApi } from '@/api/purchase'
 import { qualityApi } from '@/api/quality'
 import { systemApi } from '@/api/system'
 import { parseListData, parsePaginatedData } from '@/utils/responseParser'
+import { normalizeCustomerStatus } from '@/utils/customerStatus'
 
 export const OPTION_PAGE_SIZE = 50
 /** 下拉全量拉取时的单页大小（与后端上限对齐） */
@@ -222,14 +223,20 @@ export const searchOutsourcedSupplierOptions = (keyword = '', params = {}) =>
     keyword: String(keyword || '').trim() || undefined,
   })
 
-const normalizeCustomerParams = (params = {}) => normalizeKeywordSearch(params)
+const normalizeCustomerParams = (params = {}) => {
+  const normalized = normalizeKeywordSearch(params)
+  if (normalized.status != null && normalized.status !== '') {
+    normalized.status = normalizeCustomerStatus(normalized.status)
+  }
+  return normalized
+}
 
-/** 客户下拉：默认 active，分页拉全 */
+/** 客户下拉：默认启用（1），分页拉全 */
 export const loadCustomerOptions = (params = {}) => {
   const { status, page: _p, pageSize: _ps, limit: _l, ...rest } = normalizeCustomerParams(params)
   const base = {
     ...rest,
-    status: status !== undefined && status !== '' ? status : 'active',
+    status: status !== undefined && status !== '' ? status : 1,
   }
   const key = `customers:all:${stableSerialize(base)}`
   return withOptionCache(key, () => fetchAllOptionPages(baseDataApi.getCustomers, base))
@@ -249,7 +256,7 @@ export const searchCustomerOptions = (keyword = '', params = {}) => {
 export const loadCustomerPageOptions = (params = {}) => {
   const normalized = normalizeCustomerParams(params)
   return loadCachedList('customers:page', baseDataApi.getCustomers, normalized, {
-    defaults: { status: 'active' },
+    defaults: { status: 1 },
   })
 }
 

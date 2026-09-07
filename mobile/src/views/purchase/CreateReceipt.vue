@@ -249,6 +249,7 @@
 </template>
 
 <script setup>
+  import { extractApiList } from '@/utils/apiHelper'
   import { ref, reactive, computed, onMounted } from 'vue'
   import { useRouter, useRoute } from 'vue-router'
   import {
@@ -412,7 +413,7 @@
         pageSize: 50,
         status: 1 // 只获取启用的仓库
       })
-      warehouseList.value = response.data?.items || response.data || []
+      warehouseList.value = extractApiList(response)
     } catch (error) {
       console.error('获取仓库列表失败:', error)
       showToast('获取仓库列表失败')

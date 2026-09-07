@@ -641,7 +641,7 @@ class QualityInspection {
 
       // 批次号必须来自采购、生产或前端显式录入，避免模型层生成不可追溯的业务编号
       if (!inspection.batch_no || String(inspection.batch_no).includes('默认')) {
-        throw new Error('批次号不能为空，请从业务来源传入可追溯的批次号');
+        throw this._createValidationError('批次号不能为空，请从业务来源传入可追溯的批次号');
       }
 
       // 如果来料检验的 reference_id 为空但 reference_no 存在，按来源单据补齐 ID。
@@ -666,12 +666,12 @@ class QualityInspection {
           );
         } else {
           const sourceLabel = isOutsourcedIncoming ? '委外入库单' : '采购订单';
-          throw new Error(`来料检验单缺少有效${sourceLabel}引用: ${inspection.reference_no}`);
+          throw this._createValidationError(`来料检验单缺少有效${sourceLabel}引用: ${inspection.reference_no}`);
         }
       }
 
       if (inspection.inspection_type === 'incoming' && !inspection.reference_id) {
-        throw new Error(
+        throw this._createValidationError(
           this._isOutsourcedIncoming(inspection)
             ? '委外来料检验单必须关联委外入库单，不能创建无来源的来料检验单'
             : '来料检验单必须关联采购订单，不能创建无来源的来料检验单'
@@ -799,7 +799,9 @@ class QualityInspection {
           inspection.product_code || null,
           inspection.process_id || null,
           inspection.process_name || null,
-          inspection.task_id || inspection.reference_id || null,
+          inspection.task_id ||
+            (inspection.inspection_type === 'incoming' ? null : inspection.reference_id) ||
+            null,
           inspection.batch_no,
           inspection.quantity,
           inspection.unit,

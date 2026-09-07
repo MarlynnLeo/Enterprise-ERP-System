@@ -143,6 +143,7 @@ const qualityInspectionMap = {
       punchCount: row.punch_count != null ? toNumber(row.punch_count, 0) : null,
       taskStatus: row.task_status ?? null,
       isFirstArticle: row.is_first_article != null ? Boolean(row.is_first_article) : null,
+      isFullInspection: row.is_full_inspection != null ? Boolean(row.is_full_inspection) : null,
       isAql: row.is_aql != null ? Boolean(row.is_aql) : null,
       createdAt: formatDate(row.created_at),
       updatedAt: formatDate(row.updated_at),
@@ -204,6 +205,7 @@ const qualityInspectionMap = {
       // 同一事务内做授权记录差异回收，未传该字段时不改变现有附件。
       attachments: Array.isArray(body.attachments) ? body.attachments : undefined,
       is_first_article: body.isFirstArticle ?? body.is_first_article,
+      is_full_inspection: body.isFullInspection ?? body.is_full_inspection,
       is_aql: body.isAql ?? body.is_aql,
     };
     if (Array.isArray(body.items)) {

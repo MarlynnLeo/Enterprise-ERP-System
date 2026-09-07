@@ -6,6 +6,7 @@ import ModuleContainer from '../../components/common/ModuleContainer.vue'
 export default {
     path: 'sales',
     name: 'sales',
+    redirect: '/sales/orders',
     component: ModuleContainer,
     props: { moduleName: 'sales' },
     meta: {

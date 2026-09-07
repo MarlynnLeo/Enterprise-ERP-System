@@ -141,7 +141,7 @@
           layout="total, sizes, prev, pager, next, jumper"
           v-model:current-page="pagination.current"
           v-model:page-size="pagination.size"
-          :total="Math.max(parseInt(pagination.total) || 0, 1)"
+          :total="Math.max(parseInt(pagination.total) || 0, 0)"
           :page-sizes="[10, 20, 50, 100]"
           @size-change="handleSizeChange"
           @current-change="handlePageChange"

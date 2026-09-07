@@ -20,7 +20,7 @@ module.exports = {
     async createFromInspection(inspectionId, ncpData) {
       try {
         // Get inspection details with material info
-        const db = require('../../config/db');
+        const db = require('../../../config/db');
         const [inspectionRows] = await db.pool.query(
           `
           SELECT qi.*, m.code as material_code_from_table
@@ -76,7 +76,7 @@ module.exports = {
           return null;
         }
   
-        const db = require('../../config/db');
+        const db = require('../../../config/db');
         const client = externalConnection || db.pool;
   
         // 幂等校验：防止同一检验单重复创建 NCP（双路径触发保护）
@@ -216,7 +216,7 @@ module.exports = {
             }
           } catch (autoError) {
             logger.error('Auto disposition failed:', autoError);
-            const DLQService = require('./DLQService');
+            const DLQService = require('../DLQService');
             await DLQService.recordSideEffectFailure(
               'NonconformingProduct:autoDisposition',
               { ncpId: result.id, inspectionId: inspection.id },

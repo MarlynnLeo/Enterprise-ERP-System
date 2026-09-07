@@ -214,7 +214,7 @@ class SalaryService {
 
       const FinanceIntegrationService = require('../../external/FinanceIntegrationService');
       const financeModel = require('../../../models/finance');
-      const { currentDateString } = require('../../../utils/dateFormatter');
+      const { currentDateString } = require('../../../utils/dateUtils');
 
       const accountIds = await FinanceIntegrationService.resolveAccountIds([
         'ADMIN_EXPENSE',

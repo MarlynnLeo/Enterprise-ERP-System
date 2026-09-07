@@ -77,7 +77,7 @@ module.exports = {
   
           // 获取成本配置（只查一次，移到循环外）
           const settings = await this.getCostSettings();
-          const OverheadAllocationService = require('./OverheadAllocationService');
+      const OverheadAllocationService = require('../OverheadAllocationService');
   
           for (const task of wipTasks) {
             const taskMaterialCost = matCostMap.get(task.id) || 0;
@@ -401,7 +401,7 @@ module.exports = {
   
           // 获取成本配置（只查一次，移到循环外）
           const settings = await this.getCostSettings();
-          const OverheadAllocationService = require('./OverheadAllocationService');
+      const OverheadAllocationService = require('../OverheadAllocationService');
   
           for (const task of wipTasks) {
             const materialCost = matCostMap.get(task.task_id) || 0;
@@ -579,7 +579,7 @@ module.exports = {
         const totalWIP = Precision.round2(parseFloat(wipSummary[0]?.total_cost) || 0);
   
         // 获取科目
-        const { accountingConfig } = require('../../config/accountingConfig');
+      const { accountingConfig } = require('../../../config/accountingConfig');
         await accountingConfig.loadFromDatabase(db);
   
         const productionCostCode = accountingConfig.getAccountCode('PRODUCTION_COST');

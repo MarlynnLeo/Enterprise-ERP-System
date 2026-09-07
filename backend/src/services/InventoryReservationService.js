@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const InventoryService = require('./InventoryService');
+const Precision = require('../utils/precision');
 
 /**
  * Inventory reservation service for sales orders.
@@ -26,39 +27,54 @@ class InventoryReservationService {
 
       const reservations = [];
       const insufficientItems = [];
-      const materialIds = [...new Set(items.map(i => i.material_id).filter(Boolean))];
+      // Reservations are keyed by order/material/location, so repeated order
+      // lines must contribute to one combined requirement for that material.
+      const requiredByMaterial = new Map();
+      for (const item of items) {
+        const materialId = Number(item.material_id);
+        const quantity = Number(item.quantity ?? item.ordered_quantity ?? 0);
+        if (!Number.isInteger(materialId) || materialId <= 0 || !Number.isFinite(quantity) || quantity <= 0) {
+          throw new Error('Inventory reservations require a valid material and a positive quantity');
+        }
+        requiredByMaterial.set(
+          materialId,
+          Precision.add(requiredByMaterial.get(materialId) || 0, quantity)
+        );
+      }
+      const materialIds = [...requiredByMaterial.keys()];
       const materialInfoMap = await InventoryService.getBatchMaterialInfo(materialIds, conn);
 
-      for (const item of items) {
-        const matInfo = materialInfoMap.get(item.material_id);
+      for (const [materialId, requiredQuantity] of requiredByMaterial) {
+        const matInfo = materialInfoMap.get(materialId);
         if (!matInfo) {
-          throw new Error(`Material ${item.material_id} does not exist or has no default location`);
+          throw new Error(`Material ${materialId} does not exist or has no default location`);
         }
 
         const material = {
-          id: item.material_id,
+          id: materialId,
           code: matInfo.code || matInfo.materialCode,
           name: matInfo.name || matInfo.materialName,
         };
         const locationId = matInfo.locationId;
-        const requiredQuantity = parseFloat(item.quantity || item.ordered_quantity || 0);
 
-        const reservationKey = this.buildReservationKey(orderId, item.material_id, locationId);
+        const reservationKey = this.buildReservationKey(orderId, materialId, locationId);
         const [existingRows] = await conn.execute(
           `SELECT id, reserved_quantity
            FROM inventory_reservations
            WHERE order_id = ? AND material_id = ? AND location_id = ? AND status = 'active'
            FOR UPDATE`,
-          [orderId, item.material_id, locationId]
+          [orderId, materialId, locationId]
         );
         const alreadyReserved = existingRows.reduce(
-          (sum, row) => sum + (parseFloat(row.reserved_quantity) || 0),
+          (sum, row) => Precision.add(sum, parseFloat(row.reserved_quantity) || 0),
           0
         );
 
-        const availableForOrder = await this.getAvailableStock(item.material_id, locationId, conn, orderId);
-        const remainingQuantity = Math.max(0, requiredQuantity - alreadyReserved);
-        const availableForNewReservation = Math.max(0, availableForOrder);
+        const availableForOrder = await this.getAvailableStock(materialId, locationId, conn, orderId);
+        const remainingQuantity = Math.max(0, Precision.sub(requiredQuantity, alreadyReserved));
+        // availableForOrder excludes other orders only; this order's existing
+        // reservations already consume part of that stock and cannot be added again.
+        const availableForNewReservation = Math.max(0, Precision.sub(availableForOrder, alreadyReserved));
         const reservableQuantity = Math.min(availableForNewReservation, remainingQuantity);
 
         if (reservableQuantity > 0) {
@@ -85,7 +101,7 @@ class InventoryReservationService {
               [
                 orderId,
                 orderNo,
-                item.material_id,
+                materialId,
                 material.code,
                 material.name,
                 locationId,
@@ -100,7 +116,7 @@ class InventoryReservationService {
 
           reservations.push({
             id: reservationId,
-            materialId: item.material_id,
+            materialId,
             materialCode: material.code,
             materialName: material.name,
             locationId,
@@ -111,7 +127,7 @@ class InventoryReservationService {
         } else if (alreadyReserved > 0) {
           reservations.push({
             id: null,
-            materialId: item.material_id,
+            materialId,
             materialCode: material.code,
             materialName: material.name,
             locationId,
@@ -121,16 +137,16 @@ class InventoryReservationService {
           });
         }
 
-        const totalReservedForOrder = alreadyReserved + reservableQuantity;
+        const totalReservedForOrder = Precision.add(alreadyReserved, reservableQuantity);
         if (totalReservedForOrder < requiredQuantity) {
           insufficientItems.push({
-            materialId: item.material_id,
+            materialId,
             materialCode: material.code,
             materialName: material.name,
             required: requiredQuantity,
             available: availableForOrder,
             reserved: totalReservedForOrder,
-            shortage: requiredQuantity - totalReservedForOrder,
+            shortage: Precision.sub(requiredQuantity, totalReservedForOrder),
           });
         }
       }
@@ -181,6 +197,9 @@ class InventoryReservationService {
       );
 
       if (reservations.length === 0) {
+        if (!connection) {
+          await conn.commit();
+        }
         return {
           success: true,
           message: 'No active inventory reservations to release',
@@ -240,11 +259,11 @@ class InventoryReservationService {
 
     const [reservedResult] = await connection.execute(reservedSql, reservedParams);
     const reservedStock = reservedResult.reduce(
-      (sum, row) => sum + (parseFloat(row.reserved_quantity) || 0),
+      (sum, row) => Precision.add(sum, parseFloat(row.reserved_quantity) || 0),
       0
     );
 
-    return Math.max(0, totalStock - reservedStock);
+    return Math.max(0, Precision.sub(totalStock, reservedStock));
   }
 
   async getOrderReservations(orderId) {

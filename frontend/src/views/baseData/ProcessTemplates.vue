@@ -188,7 +188,7 @@
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
           :page-sizes="[10, 20, 50, 100]"
-          :total="Math.max(parseInt(total) || 0, 1)"
+          :total="Math.max(parseInt(total) || 0, 0)"
           layout="total, sizes, prev, pager, next, jumper"
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"

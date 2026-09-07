@@ -152,7 +152,7 @@
           :disabled="false"
           :background="true"
           layout="total, sizes, prev, pager, next, jumper"
-          :total="Math.max(pagination.total, 1)"
+          :total="Math.max(pagination.total, 0)"
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
         />

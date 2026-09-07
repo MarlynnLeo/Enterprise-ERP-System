@@ -18,8 +18,8 @@
       <el-descriptions-item label="信用额度">{{ form.creditLimit ?? '-' }}</el-descriptions-item>
       <el-descriptions-item label="收款账期">{{ form.paymentTermDays != null ? `${form.paymentTermDays} 天` : '-' }}</el-descriptions-item>
       <el-descriptions-item label="状态">
-        <el-tag :type="form.status === 'active' ? 'success' : 'danger'">
-          {{ form.status === 'active' ? '启用' : '禁用' }}
+        <el-tag :type="form.status === 1 ? 'success' : 'danger'">
+          {{ form.status === 1 ? '启用' : '禁用' }}
         </el-tag>
       </el-descriptions-item>
       <el-descriptions-item label="地址" :span="2">{{ form.address || '-' }}</el-descriptions-item>
@@ -71,8 +71,8 @@
       </el-form-item>
       <el-form-item label="状态">
         <el-radio-group v-model="form.status">
-          <el-radio :value="'active'">启用</el-radio>
-          <el-radio :value="'inactive'">禁用</el-radio>
+          <el-radio :value="1">启用</el-radio>
+          <el-radio :value="0">禁用</el-radio>
         </el-radio-group>
       </el-form-item>
       <el-form-item label="备注">
@@ -93,6 +93,7 @@ import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { baseDataApi } from '@/api/baseData'
 import { parsePaginatedData } from '@/utils/responseParser'
+import { normalizeCustomerStatus } from '@/utils/customerStatus'
 
 const props = defineProps({
   modelValue: Boolean,
@@ -130,7 +131,7 @@ const form = reactive({
   address: '',
   creditLimit: 0,
   paymentTermDays: 30,
-  status: 'active',
+  status: 1,
   remark: ''
 })
 
@@ -163,7 +164,7 @@ watch(() => props.editData, (newVal) => {
           newVal.paymentTermDays != null && newVal.paymentTermDays !== ''
             ? Number(newVal.paymentTermDays)
             : 30,
-        status: newVal.status || 'active',
+        status: normalizeCustomerStatus(newVal.status),
         remark: newVal.remark || ''
       })
     })
@@ -189,7 +190,7 @@ const resetForm = () => {
   form.address = ''
   form.creditLimit = 0
   form.paymentTermDays = 30
-  form.status = 'active'
+  form.status = 1
   form.remark = ''
   isEdit.value = false
 }
@@ -234,7 +235,7 @@ const submitForm = () => {
             form.paymentTermDays != null && form.paymentTermDays !== ''
               ? Number(form.paymentTermDays)
               : 30,
-          status: form.status || 'active',
+          status: normalizeCustomerStatus(form.status),
           remark: form.remark ? form.remark.trim() : ''
         }
 

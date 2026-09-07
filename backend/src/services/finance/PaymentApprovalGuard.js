@@ -16,26 +16,6 @@ class PaymentApprovalGuard {
     return Number.isFinite(n) ? n : 50000;
   }
 
-  static async ensureApprovalTable(connection = null) {
-    const exec = connection || db.pool;
-    await exec.execute(`
-      CREATE TABLE IF NOT EXISTS finance_payment_approvals (
-        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-        payment_ref VARCHAR(100) NULL,
-        amount DECIMAL(18,2) NOT NULL DEFAULT 0,
-        threshold DECIMAL(18,2) NOT NULL DEFAULT 0,
-        approval_no VARCHAR(100) NULL,
-        workflow_status VARCHAR(50) NULL,
-        approved_by INT UNSIGNED NULL,
-        skip_approval TINYINT(1) NOT NULL DEFAULT 0,
-        remark VARCHAR(500) NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_fpa_created (created_at),
-        INDEX idx_fpa_approval_no (approval_no)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    `);
-  }
-
   /**
    * @param {object} opts
    * @param {number} opts.amount
@@ -75,9 +55,8 @@ class PaymentApprovalGuard {
       throw err;
     }
 
-    // 审计落库（失败不阻断付款）
+    // 表结构由迁移管理。MySQL DDL 会隐式提交，不能在付款事务中建表。
     try {
-      await this.ensureApprovalTable(opts.connection);
       const exec = opts.connection || db.pool;
       await exec.execute(
         `INSERT INTO finance_payment_approvals
@@ -95,6 +74,11 @@ class PaymentApprovalGuard {
         ]
       );
     } catch (e) {
+      // 兼容尚未安装可选审计表的旧库；死锁等错误必须交给付款事务回滚，
+      // 避免事务已被数据库中止后继续执行付款写入。
+      if (e.code !== 'ER_NO_SUCH_TABLE' || !/finance_payment_approvals/i.test(e.message || '')) {
+        throw e;
+      }
       logger.warn('[PaymentApprovalGuard] audit insert skipped', e.message);
     }
 

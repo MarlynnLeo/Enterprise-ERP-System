@@ -39,8 +39,8 @@
         </el-form-item>
         <el-form-item :label="$t('common.status')">
           <el-select  v-model="searchForm.status" :placeholder="$t('page.baseData.materials.statusPlaceholder')" clearable>
-            <el-option :value="'active'" :label="$t('page.baseData.materials.enabled')"></el-option>
-            <el-option :value="'inactive'" :label="$t('page.baseData.materials.disabled')"></el-option>
+            <el-option :value="1" :label="$t('page.baseData.materials.enabled')"></el-option>
+            <el-option :value="0" :label="$t('page.baseData.materials.disabled')"></el-option>
           </el-select>
         </el-form-item>
       </template>
@@ -122,8 +122,8 @@
         </el-table-column>
         <el-table-column prop="status" :label="$t('common.status')" width="80">
           <template #default="scope">
-            <el-tag :type="scope.row.status === 'active' ? 'success' : 'danger'">
-              {{ scope.row.status === 'active' ? $t('page.baseData.materials.enabled') : $t('page.baseData.materials.disabled') }}
+            <el-tag :type="scope.row.status === 1 ? 'success' : 'danger'">
+              {{ scope.row.status === 1 ? $t('page.baseData.materials.enabled') : $t('page.baseData.materials.disabled') }}
             </el-tag>
           </template>
         </el-table-column>
@@ -147,20 +147,20 @@
           <template #default="scope">
             <el-popconfirm
               v-if="canUpdate"
-              :title="scope.row.status === 'active' ? '确定要禁用该客户吗？' : '确定要启用该客户吗？'"
+              :title="scope.row.status === 1 ? '确定要禁用该客户吗？' : '确定要启用该客户吗？'"
               @confirm="handleToggleStatus(scope.row)"
-              :confirm-button-type="scope.row.status === 'active' ? 'warning' : 'success'"
+              :confirm-button-type="scope.row.status === 1 ? 'warning' : 'success'"
             >
               <template #reference>
                 <el-button
                   size="small"
-                  :type="scope.row.status === 'active' ? 'warning' : 'success'">
-                  <el-icon><Switch /></el-icon> {{ scope.row.status === 'active' ? '禁用' : '启用' }}
+                  :type="scope.row.status === 1 ? 'warning' : 'success'">
+                  <el-icon><Switch /></el-icon> {{ scope.row.status === 1 ? '禁用' : '启用' }}
                 </el-button>
               </template>
             </el-popconfirm>
             
-            <template v-if="scope.row.status !== 'active'">
+            <template v-if="scope.row.status !== 1">
               <el-button
                 v-if="canUpdate"
                 size="small"
@@ -192,7 +192,7 @@
           layout="total, sizes, prev, pager, next, jumper"
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
-          :total="Math.max(parseInt(total) || 0, 1)"
+          :total="Math.max(parseInt(total) || 0, 0)"
           :page-sizes="[10, 20, 50, 100]"
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
@@ -215,6 +215,7 @@
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
 import { parsePaginatedData, parseResponseData } from '@/utils/responseParser'
+import { normalizeCustomerStatus } from '@/utils/customerStatus'
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 import CustomerFormDialog from './components/CustomerFormDialog.vue';
 
@@ -336,7 +337,7 @@ const fetchData = async () => {
 
     // 使用统一解析器
     const { list, total: totalCount } = parsePaginatedData(response, { enableLog: false });
-    tableData.value = list;
+    tableData.value = list.map(customer => ({ ...customer, status: normalizeCustomerStatus(customer.status) }));
     total.value = totalCount;
 
     // 确保total不为0，以显示分页
@@ -456,8 +457,8 @@ const handleDelete = async (row) => {
 // 切换启用/禁用状态
 const handleToggleStatus = async (row) => {
   const currentStatus = row.status;
-  const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
-  const action = newStatus === 'active' ? '启用' : '禁用';
+  const newStatus = currentStatus === 1 ? 0 : 1;
+  const action = newStatus === 1 ? '启用' : '禁用';
 
   try {
     await baseDataApi.updateCustomer(row.id, { status: newStatus });

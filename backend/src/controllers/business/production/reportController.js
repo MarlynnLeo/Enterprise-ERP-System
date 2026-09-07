@@ -19,6 +19,44 @@ const {
   promoteTaskToInProgress,
 } = require('../../../services/business/TaskLifecycleService');
 const ScopeGuard = require('../../../authorization/ScopeGuard');
+const { getAuthenticatedUserId } = require('../../../utils/authContext');
+const { getCurrentUserName } = require('../../../utils/userHelper');
+
+// Old clients may send report_quantity or one of the two defect aliases.
+// Normalize once so create/update persist the same balanced quantities.
+const normalizeReportQuantities = (data) => {
+  const completedQty = Number(data.completed_quantity ?? data.report_quantity ?? 0);
+  const defectiveInput = data.defective_quantity ?? data.unqualified_quantity;
+  const qualifiedQty = Number(data.qualified_quantity ?? (completedQty - Number(defectiveInput ?? 0)));
+  const defectiveQty = Number(defectiveInput ?? (completedQty - qualifiedQty));
+  const unqualifiedQty = Number(data.unqualified_quantity ?? defectiveQty);
+  const workHours = Number(data.work_hours ?? 0);
+  const fail = (message) => {
+    throw Object.assign(new Error(message), { errorCode: 'VALIDATION_ERROR', httpStatus: 400 });
+  };
+
+  if (!Number.isFinite(completedQty) || completedQty <= 0) {
+    fail('报工完成数量必须大于0');
+  }
+  if (![qualifiedQty, defectiveQty, unqualifiedQty, workHours].every((value) =>
+    Number.isFinite(value) && value >= 0
+  )) {
+    fail('合格数量、不良数量和工时必须是有限的非负数');
+  }
+  if (Math.abs(defectiveQty - unqualifiedQty) > 0.0001) {
+    fail('不良数量与不合格数量必须一致');
+  }
+  if (Math.abs(qualifiedQty + defectiveQty - completedQty) > 0.0001) {
+    fail('合格数量与不良数量之和必须等于完成数量');
+  }
+  if (data.report_quantity != null && (
+    !Number.isFinite(Number(data.report_quantity)) ||
+    Math.abs(Number(data.report_quantity) - completedQty) > 0.0001
+  )) {
+    fail('报工数量必须等于完成数量');
+  }
+  return { completedQty, qualifiedQty, defectiveQty, unqualifiedQty, workHours };
+};
 
 // 状态常量（统一引用 businessConfig，消除硬编码）
 const TASK_STATUS = businessConfig.status.productionTask;
@@ -288,21 +326,14 @@ exports.createReport = async (req, res) => {
   try {
     await connection.beginTransaction();
 
+    const reportData = mapKeysToSnake(req.body || {});
     const {
       task_id,
       process_id,
       process_name,
-      operator_id,
-      operator_name,
       report_time,
-      report_quantity,
-      completed_quantity,
-      qualified_quantity,
-      defective_quantity,
-      unqualified_quantity,
-      work_hours,
       remarks,
-    } = mapKeysToSnake(req.body || {});
+    } = reportData;
 
     if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'production_task', task_id, '无权为该生产任务报工'))) {
       await connection.rollback();
@@ -328,15 +359,8 @@ exports.createReport = async (req, res) => {
     }
 
     const planQuantity = parseFloat(task.quantity) || 0;
-    const completedQty = Number(completed_quantity ?? report_quantity ?? 0);
-    const qualifiedQty = Number(qualified_quantity || 0);
-    const defectiveQty = Number(defective_quantity ?? unqualified_quantity ?? 0);
-    const unqualifiedQty = Number(unqualified_quantity ?? defectiveQty ?? 0);
-
-    if (!Number.isFinite(completedQty) || completedQty <= 0) {
-      await connection.rollback();
-      return ResponseHandler.error(res, '报工完成数量必须大于0', 'VALIDATION_ERROR', 400);
-    }
+    const { completedQty, qualifiedQty, defectiveQty, unqualifiedQty, workHours } =
+      normalizeReportQuantities(reportData);
 
     if (process_id) {
       const [processRows] = await connection.query(
@@ -347,11 +371,6 @@ exports.createReport = async (req, res) => {
         await connection.rollback();
         return ResponseHandler.error(res, '报工工序不属于当前生产任务', 'VALIDATION_ERROR', 400);
       }
-    }
-
-    if (qualifiedQty > completedQty) {
-      await connection.rollback();
-      return ResponseHandler.error(res, '合格数量不能超过完成数量', 'VALIDATION_ERROR', 400);
     }
 
     const [reportedRows] = await connection.query(
@@ -371,6 +390,8 @@ exports.createReport = async (req, res) => {
 
     // 生成报工单号
     const reportNo = await CodeGenerators.generateReportCode(connection);
+    const operatorId = getAuthenticatedUserId(req);
+    const operatorName = await getCurrentUserName(req);
 
     const [result] = await connection.query(
       `
@@ -385,15 +406,15 @@ exports.createReport = async (req, res) => {
         task_id,
         process_id || null,
         process_name || null,
-        operator_id || 0,
-        operator_name || '未知',
+        operatorId,
+        operatorName,
         report_time || new Date(),
-        report_quantity || completedQty,
+        completedQty,
         completedQty,
         qualifiedQty,
         defectiveQty,
         unqualifiedQty,
-        work_hours || 0,
+        workHours,
         remarks || '',
       ]
     );
@@ -436,18 +457,13 @@ exports.updateReport = async (req, res) => {
     await connection.beginTransaction();
 
     const { id } = req.params;
+    const reportData = mapKeysToSnake(req.body || {});
     const {
       process_id,
       process_name,
-      operator_name,
       report_time,
-      completed_quantity,
-      qualified_quantity,
-      defective_quantity,
-      unqualified_quantity,
-      work_hours,
       remarks,
-    } = mapKeysToSnake(req.body || {});
+    } = reportData;
 
     const [reportCheck] = await connection.query('SELECT id, task_id, process_id as old_process_id FROM production_reports WHERE id = ? FOR UPDATE', [
       id,
@@ -463,18 +479,13 @@ exports.updateReport = async (req, res) => {
       await connection.rollback();
       return;
     }
-    const newCompletedQty = Number(completed_quantity || 0);
-    const newQualifiedQty = Number(qualified_quantity || 0);
-
-    if (!Number.isFinite(newCompletedQty) || newCompletedQty <= 0) {
-      await connection.rollback();
-      return ResponseHandler.error(res, '报工完成数量必须大于0', 'VALIDATION_ERROR', 400);
-    }
-
-    if (newQualifiedQty > newCompletedQty) {
-      await connection.rollback();
-      return ResponseHandler.error(res, '合格数量不能超过完成数量', 'VALIDATION_ERROR', 400);
-    }
+    const {
+      completedQty: newCompletedQty,
+      qualifiedQty: newQualifiedQty,
+      defectiveQty,
+      unqualifiedQty,
+      workHours,
+    } = normalizeReportQuantities(reportData);
 
     if (process_id) {
       const [processRows] = await connection.query(
@@ -519,7 +530,8 @@ exports.updateReport = async (req, res) => {
     await connection.query(
       `
       UPDATE production_reports
-      SET process_id = ?, process_name = ?, operator_name = ?, report_time = ?, completed_quantity = ?,
+      SET process_id = ?, process_name = ?, report_time = COALESCE(?, report_time),
+          report_quantity = ?, completed_quantity = ?,
           qualified_quantity = ?, defective_quantity = ?, unqualified_quantity = ?,
           work_hours = ?, remarks = ?
       WHERE id = ?
@@ -527,13 +539,13 @@ exports.updateReport = async (req, res) => {
       [
         process_id || null,
         process_name || null,
-        operator_name,
-        report_time,
+        report_time || null,
+        newCompletedQty,
         newCompletedQty,
         newQualifiedQty,
-        defective_quantity,
-        unqualified_quantity || 0,
-        work_hours || 0,
+        defectiveQty,
+        unqualifiedQty,
+        workHours,
         remarks || '',
         id,
       ]

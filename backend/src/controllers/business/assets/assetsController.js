@@ -22,10 +22,42 @@ const { getRequestActorLabel } = require('../../../utils/userUtils');
 const DISPOSED_ASSET_STATUSES = new Set(['报废', '已处置', '已出售', '已转让', '已捐赠', 'disposed', 'sold', 'transferred', 'donated']);
 
 function calculateAssetNetBookValue(asset) {
-  const acquisitionCost = Number(asset.acquisitionCost || asset.originalValue) || 0;
+  const acquisitionCost = Number(asset.acquisition_cost) || 0;
   const accumulatedDepreciation = Number(asset.accumulated_depreciation) || 0;
   const impairmentAmount = Number(asset.impairment_amount) || 0;
   return Math.round(Math.max(0, acquisitionCost - accumulatedDepreciation - impairmentAmount) * 100) / 100;
+}
+
+function toAssetApi(asset) {
+  const statusMap = {
+    在用: 'in_use', 闲置: 'idle', 维修: 'under_repair', 报废: 'disposed',
+    已处置: 'disposed', 已出售: 'sold', 已转让: 'transferred', 已捐赠: 'donated',
+  };
+  const originalValue = Number(asset.acquisition_cost) || 0;
+  return {
+    id: asset.id,
+    assetCode: asset.asset_code,
+    assetName: asset.asset_name,
+    assetType: asset.asset_type,
+    categoryId: asset.category_id,
+    purchaseDate: asset.acquisition_date,
+    originalValue,
+    netValue: calculateAssetNetBookValue(asset),
+    accumulatedDepreciation: Number(asset.accumulated_depreciation) || 0,
+    impairmentAmount: Number(asset.impairment_amount) || 0,
+    location: asset.location_id || '',
+    department: asset.department_name || '',
+    responsible: asset.custodian || '',
+    // getAssetById already converts the stored months to years.
+    usefulLife: asset.useful_life,
+    salvageRate: originalValue > 0
+      ? Math.round(((Number(asset.salvage_value) || 0) / originalValue) * 10000) / 100
+      : 0,
+    depreciationMethod: asset.depreciation_method,
+    status: statusMap[asset.status] || asset.status || 'in_use',
+    notes: asset.notes || '',
+    auditStatus: asset.audit_status || 'draft',
+  };
 }
 
 /**
@@ -86,29 +118,7 @@ const assetsController = {
         return ResponseHandler.error(res, `未找到ID为${assetId}的资产`, 'NOT_FOUND', 404);
       }
 
-      // 转换字段名为前端期望的驼峰式
-      const formattedAsset = {
-        id: asset.id,
-        assetCode: asset.asset_code,
-        assetName: asset.asset_name,
-        assetType: asset.asset_type,
-        categoryId: asset.category_id,
-        purchaseDate: asset.acquisition_date,
-        originalValue: parseFloat(asset.acquisition_cost),
-        netValue: calculateAssetNetBookValue(asset),
-        location: asset.location_id || '',
-        department: asset.department_name || '',
-        responsible: asset.custodian || '',
-        usefulLife: asset.useful_life,
-        salvageRate: asset.salvage_value
-          ? ((asset.salvage_value / asset.acquisition_cost) * 100).toFixed(2)
-          : 0,
-        depreciationMethod: asset.depreciation_method,
-        notes: asset.notes || '',
-        auditStatus: asset.audit_status || 'draft',
-      };
-
-      return ResponseHandler.success(res, formattedAsset, '获取固定资产详情成功');
+      return ResponseHandler.success(res, toAssetApi(asset), '获取固定资产详情成功');
     } catch (error) {
       ResponseHandler.error(res, '获取固定资产失败', 'SERVER_ERROR', 500, error);
     }
@@ -296,6 +306,11 @@ const assetsController = {
         return ResponseHandler.error(res, '已审核的资产不允许编辑，请先反审核', 'FORBIDDEN', 403);
       }
 
+      const salvageRate = req.body.salvageRate == null ? null : Number(req.body.salvageRate);
+      if (salvageRate !== null && (!Number.isFinite(salvageRate) || salvageRate < 0 || salvageRate > 100)) {
+        return ResponseHandler.error(res, '残值率必须在0到100之间', 'VALIDATION_ERROR', 400);
+      }
+
       // 处理location（存放地点）
       let locationId = existingAsset.location_id;
       if (req.body.location) {
@@ -339,9 +354,9 @@ const assetsController = {
         acquisition_date: req.body.purchaseDate || existingAsset.acquisition_date,
         depreciation_method: req.body.depreciationMethod || existingAsset.depreciation_method,
         useful_life: parseInt(req.body.usefulLife) || existingAsset.useful_life,
-        salvage_value:
-          parseFloat(req.body.originalValue) * (parseFloat(req.body.salvageRate) / 100) ||
-          existingAsset.salvage_value,
+        salvage_value: salvageRate === null
+          ? existingAsset.salvage_value
+          : Number(req.body.originalValue ?? existingAsset.acquisition_cost) * (salvageRate / 100),
         location_id: locationId,
         department_id: departmentId,
         custodian: req.body.responsible || existingAsset.custodian,
@@ -369,37 +384,7 @@ const assetsController = {
       // 获取更新后的资产
       const updatedAsset = await assetsModel.getAssetById(assetId);
 
-      // 转换为前端格式
-      const formattedAsset = {
-        id: updatedAsset.id,
-        assetCode: updatedAsset.asset_code,
-        assetName: updatedAsset.asset_name,
-        categoryId: updatedAsset.category_id,
-        purchaseDate: updatedAsset.acquisition_date,
-        originalValue: parseFloat(updatedAsset.acquisition_cost || 0),
-        netValue: calculateAssetNetBookValue(updatedAsset),
-        location: updatedAsset.location_id || '',
-        department: updatedAsset.department_name || '',
-        responsible: updatedAsset.custodian || '',
-        usefulLife: updatedAsset.useful_life || 0,
-        salvageRate: updatedAsset.salvage_value
-          ? ((updatedAsset.salvage_value / updatedAsset.acquisition_cost) * 100).toFixed(2)
-          : 0,
-        depreciationMethod: updatedAsset.depreciation_method || 'straight_line',
-        status:
-          updatedAsset.status === '在用'
-            ? 'in_use'
-            : updatedAsset.status === '闲置'
-              ? 'idle'
-              : updatedAsset.status === '维修'
-                ? 'under_repair'
-                : updatedAsset.status === '报废'
-                  ? 'disposed'
-                  : 'in_use',
-        notes: updatedAsset.notes || '',
-      };
-
-      return ResponseHandler.success(res, formattedAsset, '资产更新成功');
+      return ResponseHandler.success(res, toAssetApi(updatedAsset), '资产更新成功');
     } catch (error) {
       ResponseHandler.error(res, '更新固定资产失败', 'SERVER_ERROR', 500, error);
     }

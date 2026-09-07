@@ -1641,7 +1641,7 @@ class InventoryService {
     }
 
     const [rows] = await conn.execute(
-      'SELECT id, code, name, location_id, unit_id FROM materials WHERE id = ? AND deleted_at IS NULL',
+      'SELECT id, code, name, location_id, unit_id, cost_price FROM materials WHERE id = ? AND deleted_at IS NULL',
       [materialId]
     );
 
@@ -1661,6 +1661,7 @@ class InventoryService {
       unitId: mat.unit_id || null,
       materialCode: mat.code || '',
       materialName: mat.name || '',
+      costPrice: parseFloat(mat.cost_price) || 0,
     };
   }
 

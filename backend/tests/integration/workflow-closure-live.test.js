@@ -7,7 +7,7 @@ const workflowService = liveEnabled ? require('../../src/services/business/Workf
 jest.setTimeout(60000);
 
 describeLive('Workflow permission and approval closure UAT', () => {
-  const created = { userIds: [], templateIds: [], instanceId: null, contractId: null };
+  const created = { userIds: [], templateIds: [], instanceId: null, contractId: null, roleId: null };
   let previouslyActiveTemplateIds = [];
 
   afterAll(async () => {
@@ -29,6 +29,10 @@ describeLive('Workflow permission and approval closure UAT', () => {
       await db.pool.query('DELETE FROM user_roles WHERE user_id IN (?)', [created.userIds]);
       await db.pool.query('DELETE FROM users WHERE id IN (?)', [created.userIds]);
     }
+    if (created.roleId) {
+      await db.pool.query('DELETE FROM role_permissions WHERE role_id = ?', [created.roleId]);
+      await db.pool.query('DELETE FROM roles WHERE id = ?', [created.roleId]);
+    }
     await db.pool.end();
   });
 
@@ -49,20 +53,22 @@ describeLive('Workflow permission and approval closure UAT', () => {
       created.userIds.push(Number(result.insertId));
     }
     const [initiatorId, approver1Id, approver2Id] = created.userIds;
-    const [[workflowRole]] = await db.pool.query(
-      `SELECT r.id
-       FROM roles r
-       LEFT JOIN role_permissions rp ON rp.role_id = r.id
-       LEFT JOIN permissions p ON p.id = rp.permission_id
-       WHERE r.status = 1 AND (r.is_super_admin = 1 OR p.code = 'system:workflow:use')
-       GROUP BY r.id, r.code
-       ORDER BY CASE WHEN r.is_super_admin = 1 THEN 1 ELSE 0 END, r.id
-       LIMIT 1`
+    const workflowRoleCode = `${prefix.toLowerCase()}_approver`;
+    const [workflowRole] = await db.pool.query(
+      `INSERT INTO roles (name, code, description, status, is_super_admin)
+       VALUES (?, ?, 'Isolated workflow UAT approvers', 1, 0)`,
+      [`${prefix} Approvers`, workflowRoleCode]
     );
-    expect(workflowRole).toBeTruthy();
+    created.roleId = Number(workflowRole.insertId);
+    const [permissionGrant] = await db.pool.query(
+      `INSERT INTO role_permissions (role_id, permission_id)
+       SELECT ?, id FROM permissions WHERE code = 'system:workflow:use' AND status = 1`,
+      [created.roleId]
+    );
+    expect(permissionGrant.affectedRows).toBe(1);
     await db.pool.query(
       'INSERT INTO user_roles (user_id, role_id, created_at) VALUES (?, ?, NOW()), (?, ?, NOW())',
-      [approver1Id, workflowRole.id, approver2Id, workflowRole.id]
+      [approver1Id, created.roleId, approver2Id, created.roleId]
     );
 
     const template = await workflowService.createTemplate({
@@ -74,8 +80,8 @@ describeLive('Workflow permission and approval closure UAT', () => {
         node_name: 'Joint approval',
         node_type: 'approval',
         sequence: 1,
-        approver_type: 'user',
-        approver_ids: [approver1Id, approver2Id],
+        approver_type: 'role',
+        approver_ids: [workflowRoleCode],
         multi_approve_type: 'all',
         allow_self_approval: false,
       }],
@@ -156,8 +162,8 @@ describeLive('Workflow permission and approval closure UAT', () => {
         node_name: 'Sequential approval',
         node_type: 'approval',
         sequence: 1,
-        approver_type: 'user',
-        approver_ids: [approver1Id, approver2Id],
+        approver_type: 'role',
+        approver_ids: [workflowRoleCode],
         multi_approve_type: 'sequential',
       }],
     }, initiatorId);

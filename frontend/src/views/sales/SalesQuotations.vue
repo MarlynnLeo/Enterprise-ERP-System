@@ -179,7 +179,7 @@
           :disabled="false"
           :background="true"
           layout="total, sizes, prev, pager, next, jumper"
-          :total="Math.max(total, 1)"
+          :total="Math.max(total, 0)"
           @size-change="fetchData"
           @current-change="fetchData"
         />
@@ -645,7 +645,7 @@ const normalizeCustomerOption = (customer) => ({
   ...customer,
   id: customer.id,
   name: customer.name || customer.customerName || '',
-  code: customer.customerCode || '',
+  code: customer.code || customer.customerCode || '',
 })
 
 const normalizeProductOption = (product) => ({

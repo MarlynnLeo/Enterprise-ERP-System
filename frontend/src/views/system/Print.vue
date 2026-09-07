@@ -115,7 +115,7 @@
           :disabled="false"
           :background="true"
           layout="total, sizes, prev, pager, next, jumper"
-          :total="Math.max(parseInt(templatesTotal) || 0, 1)"
+          :total="Math.max(parseInt(templatesTotal) || 0, 0)"
           @size-change="handleTemplatesSizeChange"
           @current-change="handleTemplatesCurrentChange"
         >

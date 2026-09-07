@@ -110,13 +110,11 @@
   import { useRouter, useRoute } from 'vue-router'
   import { showToast } from 'vant'
   import { useAuthStore } from '@/stores/auth'
-  import { useDictionaryStore } from '@/stores/dictionary'
   import { APP_INFO } from '@/config/app'
 
   const router = useRouter()
   const route = useRoute()
   const authStore = useAuthStore()
-  const dictionaryStore = useDictionaryStore()
 
   const username = ref('')
   const password = ref('')
@@ -199,11 +197,6 @@
   }
 
   const completeLogin = async () => {
-    try {
-      await dictionaryStore.fetchDictionary(true)
-    } catch {
-      // Dictionary loading is non-blocking after authentication succeeds.
-    }
     localStorage.setItem('isLoggedIn', 'true')
     failCount.value = 0
     lockoutRemaining.value = 0

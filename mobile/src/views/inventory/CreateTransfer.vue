@@ -144,6 +144,7 @@
     showToast
   } from 'vant'
   import { inventoryApi } from '@/api'
+  import { extractApiList } from '@/utils/apiHelper'
 
   const router = useRouter()
   const submitting = ref(false)
@@ -158,11 +159,9 @@
     warehouseLoading.value = true
     try {
       const response = await inventoryApi.getWarehouses()
-      const data = response.data || response
-      const items = data.items || data.list || data.rows || data || []
-      const list = Array.isArray(items) ? items : []
+      const list = extractApiList(response)
       warehouseOptions.value = list.map((w) => ({
-        text: w.warehouseName || `仓库#${w.id}`,
+        text: w.name || w.warehouseName || `仓库#${w.id}`,
         value: String(w.id)
       }))
     } catch (error) {

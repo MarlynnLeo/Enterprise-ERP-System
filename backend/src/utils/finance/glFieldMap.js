@@ -211,6 +211,8 @@ function toBankTransactionApi(row) {
 /** 预算主表 + 明细 */
 function toBudgetDetailApi(row = {}) {
   if (row == null) return null;
+  const budgetAmount = toNumber(row.budget_amount ?? row.budgetAmount, 0);
+  const usedAmount = toNumber(row.used_amount ?? row.usedAmount, 0);
   return {
     id: row.id ?? null,
     budgetId: row.budget_id ?? row.budgetId ?? null,
@@ -219,9 +221,9 @@ function toBudgetDetailApi(row = {}) {
     accountName: row.account_name ?? row.accountName ?? null,
     departmentId: row.department_id ?? row.departmentId ?? null,
     departmentName: row.department_name ?? row.departmentName ?? null,
-    budgetAmount: toNumber(row.budget_amount ?? row.budgetAmount, 0),
-    usedAmount: toNumber(row.used_amount ?? row.usedAmount, 0),
-    remainingAmount: toNumber(row.remaining_amount ?? row.remainingAmount, 0),
+    budgetAmount,
+    usedAmount,
+    remainingAmount: toNumber(row.remaining_amount ?? row.remainingAmount, budgetAmount - usedAmount),
     actualAmount: toNumber(row.actual_amount ?? row.actualAmount, 0),
     executionRate:
       row.execution_rate != null
@@ -235,6 +237,7 @@ function toBudgetDetailApi(row = {}) {
         : row.warningThreshold != null
           ? toNumber(row.warningThreshold, 0)
           : null,
+    description: row.description ?? null,
     remarks: row.remarks ?? null,
   };
 }
@@ -242,6 +245,8 @@ function toBudgetDetailApi(row = {}) {
 function toBudgetApi(row) {
   if (row == null) return null;
   if (Array.isArray(row)) return row.map((r) => toBudgetApi(r));
+  const totalAmount = toNumber(row.total_amount ?? row.totalAmount, 0);
+  const usedAmount = toNumber(row.used_amount ?? row.usedAmount, 0);
   const api = {
     id: row.id,
     budgetNo: row.budget_no ?? row.budgetNo ?? null,
@@ -252,13 +257,16 @@ function toBudgetApi(row) {
     departmentName: row.department_name ?? row.departmentName ?? null,
     startDate: formatDate(row.start_date ?? row.startDate),
     endDate: formatDate(row.end_date ?? row.endDate),
-    totalAmount: toNumber(row.total_amount ?? row.totalAmount, 0),
-    usedAmount: toNumber(row.used_amount ?? row.usedAmount, 0),
+    totalAmount,
+    usedAmount,
+    remainingAmount: toNumber(row.remaining_amount ?? row.remainingAmount, totalAmount - usedAmount),
     status: row.status ?? null,
     creatorName: row.creator_name ?? row.creatorName ?? null,
+    approverName: row.approver_name ?? row.approverName ?? null,
     createdBy: row.created_by ?? row.createdBy ?? null,
     createdAt: formatDate(row.created_at ?? row.createdAt),
     updatedAt: formatDate(row.updated_at ?? row.updatedAt),
+    description: row.description ?? null,
     remarks: row.remarks ?? null,
   };
   const details = row.details || row.items;
@@ -274,10 +282,11 @@ function fromBudgetApi(body = {}) {
     budget_name: body.budgetName ?? body.budget_name,
     budget_year: body.budgetYear ?? body.budget_year,
     budget_type: body.budgetType ?? body.budget_type,
-    department_id: body.departmentId ?? body.department_id,
+    department_id: body.departmentId !== undefined ? body.departmentId : body.department_id,
     start_date: body.startDate ?? body.start_date,
     end_date: body.endDate ?? body.end_date,
     total_amount: body.totalAmount ?? body.total_amount,
+    description: body.description,
     remarks: body.remarks,
     status: body.status,
   };
@@ -288,9 +297,10 @@ function fromBudgetDetailApi(body = {}) {
   const row = {
     id: body.id,
     account_id: body.accountId ?? body.account_id,
-    department_id: body.departmentId ?? body.department_id,
+    department_id: body.departmentId !== undefined ? body.departmentId : body.department_id,
     budget_amount: body.budgetAmount ?? body.budget_amount,
     warning_threshold: body.warningThreshold ?? body.warning_threshold,
+    description: body.description,
     remarks: body.remarks,
   };
   return Object.fromEntries(Object.entries(row).filter(([, v]) => v !== undefined));

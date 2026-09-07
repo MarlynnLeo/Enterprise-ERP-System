@@ -162,11 +162,11 @@ const budgetModel = {
    * @returns {Promise<number>} 预算ID
    */
   createBudget: async (budgetData, details = [], connection = null) => {
-    const conn = connection || db.pool;
+    const conn = connection || (await db.pool.getConnection());
     const useTransaction = !connection;
 
     try {
-      if (useTransaction) await conn.query('START TRANSACTION');
+      if (useTransaction) await conn.beginTransaction();
 
       const {
         budget_no,
@@ -231,14 +231,16 @@ const budgetModel = {
         }
       }
 
-      if (useTransaction) await conn.query('COMMIT');
+      if (useTransaction) await conn.commit();
 
       logger.info('预算创建成功', { budgetId, budget_no });
       return budgetId;
     } catch (error) {
-      if (useTransaction) await conn.query('ROLLBACK');
+      if (useTransaction) await conn.rollback();
       logger.error('创建预算失败:', error);
       throw error;
+    } finally {
+      if (useTransaction) conn.release();
     }
   },
 
@@ -492,11 +494,11 @@ const budgetModel = {
           budget_name,
           budget_year,
           budget_type,
-          department_id,
+          department_id ?? null,
           startDate,
           endDate,
           resolvedTotalAmount,
-          description,
+          description ?? null,
           id,
         ]
       );

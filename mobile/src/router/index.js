@@ -45,7 +45,7 @@ const ROUTE_PERMISSION_RULES = [
   { pattern: /^\/production\/plans\/create$/, permission: 'production:plans:create' },
   { pattern: /^\/production\/plans(\/:id)?$/, permission: 'production:plans:view' },
   { pattern: /^\/production\/tasks\/create$/, permission: 'production:tasks:create' },
-  { pattern: /^\/production\/tasks\/:id\/report$/, permission: 'production:tasks:update' },
+  { pattern: /^\/production\/tasks\/:id\/report$/, permission: 'production:reports:create' },
   { pattern: /^\/production\/tasks(\/:id)?$/, permission: 'production:tasks:view' },
   { pattern: /^\/tasks(\/:id)?$/, permission: 'production:tasks:view' },
   { pattern: /^\/basedata\/materials\/create$/, permission: 'basedata:materials:create' },

@@ -272,5 +272,6 @@
   "20260903000003_repair_notification_rule_recipients.js": "2ea19bc3371655c9fb99df014bf08b8dacdbba636b6dca85c8527ea0c9887efe",
   "20260903000004_add_bom_detail_position.js": "0c1d7d8df455660523f5f2f34c5d492cfc5495b11c527f0be574c05959b55c7d",
   "20260904000001_repair_quality_inspection_source_types.js": "66a0168f5b177f66f44f36e9839f629f8e0984a0ea625a1364860278d7b246d1",
-  "20260904000002_reconcile_runtime_schema.js": "0432a0e27b861a1dfed30bea2150d56930a8ad28f796c7b58d6bd09d40091ace"
+  "20260904000002_reconcile_runtime_schema.js": "0432a0e27b861a1dfed30bea2150d56930a8ad28f796c7b58d6bd09d40091ace",
+  "20260906000001_seed_missing_manufacturing_account_mappings.js": "b0e591264d97f469479a5db7403d4023c7688f07f7f4b7e6197b47cfb58e52f6"
 }
