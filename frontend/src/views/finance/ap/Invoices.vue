@@ -8,9 +8,12 @@
 -->
 <template>
   <div class="module-page invoices-container">
-    <PageHeader title="应付发票" subtitle="请在会计凭证页选择采购订单手工生成；本页手工录入仅用于期初或例外">
+    <PageHeader
+      title="应付发票"
+      subtitle="请在会计凭证页选择采购订单手工生成；本页手工录入仅用于期初或例外"
+    >
       <template #actions>
-<el-button
+        <el-button
           type="info"
           plain
           :icon="Plus"
@@ -74,10 +77,18 @@
       </template>
     </FinanceQueryCard>
 
-<!-- 表格区域 -->
+    <!-- 表格区域 -->
     <el-card class="data-card">
-      <el-table :data="invoiceList" class="table-row-click w-full" border v-loading="loading"
-      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleViewDetails(row))">
+      <el-table
+        :data="invoiceList"
+        class="table-row-click w-full"
+        border
+        v-loading="loading"
+        @row-click="
+          (row, column, event) =>
+            handleTableRowView(row, column, event, () => handleViewDetails(row))
+        "
+      >
         <template #empty>
           <EmptyState description="暂无发票数据" />
         </template>
@@ -88,14 +99,20 @@
               type="primary"
               :underline="false"
               @click="openRelatedPurchaseOrderDialog(row)"
-              :title="row.relatedOrderNo ? `查看采购订单 ${row.relatedOrderNo}` : '查看关联采购订单'"
+              :title="
+                row.relatedOrderNo ? `查看采购订单 ${row.relatedOrderNo}` : '查看关联采购订单'
+              "
             >
               {{ row.invoiceNumber }}
             </el-link>
             <span v-else>{{ row.invoiceNumber }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="supplierInvoiceNumber" label="供应商发票号" width="200"></el-table-column>
+        <el-table-column
+          prop="supplierInvoiceNumber"
+          label="供应商发票号"
+          width="200"
+        ></el-table-column>
         <el-table-column prop="supplierName" label="供应商" min-width="180"></el-table-column>
         <el-table-column prop="invoiceDate" label="开票日期" width="110"></el-table-column>
         <el-table-column prop="dueDate" label="到期日期" width="110"></el-table-column>
@@ -131,7 +148,15 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="340" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column
+          label="操作"
+          min-width="340"
+          fixed="right"
+          align="left"
+          header-align="left"
+          class-name="operation-column"
+          header-class-name="operation-column-header"
+        >
           <template #default="scope">
             <el-button
               v-if="scope.row.status === '草稿'"
@@ -147,7 +172,7 @@
               type="success"
               size="small"
               @click="handleStatusChange(scope.row, '已确认')"
-              v-permission="'finance:ap:update'"
+              v-permission="'finance:ap:approve'"
             >
               确认
             </el-button>
@@ -160,7 +185,7 @@
               type="warning"
               size="small"
               @click="handleStatusChange(scope.row, '已取消')"
-              v-permission="'finance:ap:update'"
+              v-permission="'finance:ap:approve'"
             >
               取消
             </el-button>
@@ -176,7 +201,11 @@
             >
               付款
             </el-button>
-            <el-button class="btn-op-view" type="primary" size="small" @click="handleViewDetails(scope.row)"
+            <el-button
+              class="btn-op-view"
+              type="primary"
+              size="small"
+              @click="handleViewDetails(scope.row)"
               >查看</el-button
             >
           </template>
@@ -202,12 +231,7 @@
     </el-card>
 
     <!-- 记录付款对话框 -->
-    <AppDialog
-      v-model="paymentDialogVisible"
-      title="记录付款"
-      mode="form"
-      width="600px"
-    >
+    <AppDialog v-model="paymentDialogVisible" title="记录付款" mode="form" width="600px">
       <el-form :model="paymentForm" :rules="paymentRules" ref="paymentFormRef" label-width="100px">
         <el-form-item label="发票编号">
           <el-input v-model="paymentForm.invoiceNumber" disabled></el-input>
@@ -276,9 +300,7 @@
             >
               <div class="flex-between">
                 <span>{{ account.bankName }} - {{ account.accountName }}</span>
-                <span class="text-muted text-md">{{
-                  formatCurrency(account.balance)
-                }}</span>
+                <span class="text-muted text-md">{{ formatCurrency(account.balance) }}</span>
               </div>
             </el-option>
           </el-select>
@@ -304,15 +326,10 @@
           >
         </span>
       </template>
-        </AppDialog>
+    </AppDialog>
 
     <!-- 发票明细查看对话框 -->
-    <AppDialog
-      v-model="detailsDialogVisible"
-      title="发票详情查看"
-      mode="view"
-      content-width="wide"
-    >
+    <AppDialog v-model="detailsDialogVisible" title="发票详情查看" mode="view" content-width="wide">
       <div v-loading="detailsLoading">
         <!-- 基本信息 -->
         <el-descriptions :column="2" border>
@@ -350,6 +367,12 @@
           <el-descriptions-item label="状态">
             <el-tag :type="getStatusType(invoiceDetail)">{{ getStatusText(invoiceDetail) }}</el-tag>
           </el-descriptions-item>
+          <el-descriptions-item label="财务审核人">{{
+            invoiceDetail.approvedByName || invoiceDetail.approvedBy || '—'
+          }}</el-descriptions-item>
+          <el-descriptions-item label="财务审核时间">{{
+            invoiceDetail.approvedAt || '—'
+          }}</el-descriptions-item>
           <el-descriptions-item label="创建时间">{{
             invoiceDetail.createdAt
           }}</el-descriptions-item>
@@ -366,7 +389,12 @@
           border
           class="w-full"
         >
-          <el-table-column prop="materialName" label="物料/服务" min-width="150" show-overflow-tooltip />
+          <el-table-column
+            prop="materialName"
+            label="物料/服务"
+            min-width="150"
+            show-overflow-tooltip
+          />
           <el-table-column prop="description" label="描述" min-width="160" show-overflow-tooltip />
           <el-table-column prop="quantity" label="数量" width="100" />
           <el-table-column prop="unitPrice" label="单价" width="120">
@@ -417,14 +445,14 @@
   </div>
 </template>
 <script setup>
-import { getCommonStatusText, getCommonStatusColor } from '@/constants/systemConstants'
-import { handleTableRowView } from '@/utils/tableRowView'
+import { getCommonStatusText, getCommonStatusColor } from '@/constants/systemConstants';
+import { handleTableRowView } from '@/utils/tableRowView';
 import { parsePaginatedData, parseListData, parseResponseData } from '@/utils/responseParser';
 import { searchMaterials, mapMaterialData, SEARCH_CONFIG } from '@/utils/searchConfig';
 import { formatCurrency, formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessage } from 'element-plus/es/components/message/index';
 import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { Plus } from '@element-plus/icons-vue';
 import { baseDataApi, purchaseApi } from '@/api';
@@ -513,8 +541,7 @@ const jumpToRelatedPurchaseOrder = () => {
     },
   });
 };
-const { defaultVATRate, defaultPaymentTermDays } =
-  storeToRefs(financeStore);
+const { defaultVATRate, defaultPaymentTermDays } = storeToRefs(financeStore);
 // 高级搜索展开状态
 const showAdvancedSearch = ref(false);
 // 数据加载状态
@@ -603,9 +630,13 @@ const paymentRules = {
   ],
 };
 // 获取状态类型
-const getStatusType = (invoice) => getCommonStatusColor(typeof invoice === 'object' ? invoice?.status : invoice) || 'info';
+const getStatusType = (invoice) =>
+  getCommonStatusColor(typeof invoice === 'object' ? invoice?.status : invoice) || 'info';
 // 获取状态文本
-const getStatusText = (invoice) => getCommonStatusText(typeof invoice === 'object' ? invoice?.status : invoice) || (invoice?.status || '草稿');
+const getStatusText = (invoice) =>
+  getCommonStatusText(typeof invoice === 'object' ? invoice?.status : invoice) ||
+  invoice?.status ||
+  '草稿';
 // 处理付款期限变化
 const handlePaymentTermsChange = (days) => {
   if (invoiceForm.invoiceDate && days !== null) {
@@ -754,8 +785,7 @@ const showAddDialog = () => {
 };
 const handleStatusChange = async (row, status) => {
   const actionText = status === '已确认' ? '确认' : '取消';
-  const isCancelConfirmed =
-    status === '已取消' && ['已确认', '已逾期'].includes(row.status);
+  const isCancelConfirmed = status === '已取消' && ['已确认', '已逾期'].includes(row.status);
   const confirmMsg = isCancelConfirmed
     ? `确定取消已确认发票 ${row.invoiceNumber} 吗？将冲销关联会计凭证并释放来源单据，未付款发票才可取消。`
     : `确定要${actionText}发票 ${row.invoiceNumber} 吗？`;

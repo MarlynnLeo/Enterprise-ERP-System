@@ -336,4 +336,41 @@ describe('InventoryService batch number normalize on ledger write', () => {
 
     await new Promise((resolve) => setImmediate(resolve));
   });
+
+  it('uses the inbound posting source for batches created from purchase receipts', async () => {
+    const updateStock = jest.spyOn(InventoryService, 'updateStock').mockResolvedValue({
+      success: true,
+    });
+    const connection = {
+      execute: jest.fn().mockResolvedValue([[{ id: 7 }]]),
+    };
+    db.pool.execute = jest.fn().mockResolvedValue([[{ id: 7 }]]);
+
+    await BatchManagementService.createBatch(
+      {
+        material_id: 10,
+        material_code: 'MAT-10',
+        material_name: 'Material 10',
+        batch_number: 'B-RECEIPT-1',
+        original_quantity: 40,
+        unit: null,
+        receipt_id: 12,
+        receipt_no: 'RCV-20260909-0001',
+        warehouse_id: 3,
+        unit_cost: 5,
+        created_by: 7,
+      },
+      connection
+    );
+
+    expect(updateStock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transactionType: 'purchase_inbound',
+        referenceType: 'inbound',
+        referenceNo: 'RCV-20260909-0001',
+      }),
+      connection
+    );
+    updateStock.mockRestore();
+  });
 });

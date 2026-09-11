@@ -1123,10 +1123,24 @@ const updateInboundStatus = async (req, res) => {
 
       const currentStatus = inboundData[0].status;
       const validTransitions = INVENTORY_INBOUND_TRANSITIONS;
+      let canRetryRejectedPosting = false;
+      if (newStatus === STATUS.INBOUND.COMPLETED && currentStatus === newStatus) {
+        const [latestPostingRows] = await connection.execute(
+          `SELECT finance_status
+             FROM inventory_posting_documents
+            WHERE source_type = 'inbound'
+              AND (source_id = ? OR source_no = ?)
+              AND posting_kind = 'movement'
+            ORDER BY posting_sequence DESC, id DESC
+            LIMIT 1`,
+          [Number(id), inboundData[0].inbound_no]
+        );
+        canRetryRejectedPosting = latestPostingRows[0]?.finance_status === 'rejected';
+      }
 
       if (
         !validTransitions[currentStatus] ||
-        (!validTransitions[currentStatus].includes(newStatus) && currentStatus !== newStatus)
+        (!validTransitions[currentStatus].includes(newStatus) && !canRetryRejectedPosting)
       ) {
         await connection.rollback();
         return ResponseHandler.error(
@@ -1180,13 +1194,15 @@ const updateInboundStatus = async (req, res) => {
         );
       }
 
-      const [statusUpdate] = await connection.execute(
-        'UPDATE inventory_inbound SET status = ?, updated_by = ?, updated_at = NOW() WHERE id = ? AND is_deleted = 0 AND deleted_at IS NULL AND status = ?',
-        [newStatus, toRequiredInteger(req.user?.id), id, currentStatus]
-      );
-      if (!statusUpdate.affectedRows) {
-        await connection.rollback();
-        return ResponseHandler.error(res, '入库单状态已变更，请刷新后重试', 'VALIDATION_ERROR', 400);
+      if (!(currentStatus === newStatus && canRetryRejectedPosting)) {
+        const [statusUpdate] = await connection.execute(
+          'UPDATE inventory_inbound SET status = ?, updated_by = ?, updated_at = NOW() WHERE id = ? AND is_deleted = 0 AND deleted_at IS NULL AND status = ?',
+          [newStatus, toRequiredInteger(req.user?.id), id, currentStatus]
+        );
+        if (!statusUpdate.affectedRows) {
+          await connection.rollback();
+          return ResponseHandler.error(res, '入库单状态已变更，请刷新后重试', 'VALIDATION_ERROR', 400);
+        }
       }
 
       await connection.commit();

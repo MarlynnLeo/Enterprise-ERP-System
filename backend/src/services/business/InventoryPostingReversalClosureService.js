@@ -2,7 +2,6 @@
 
 const { logger } = require('../../utils/logger');
 const { currentDateString } = require('../../utils/dateUtils');
-const { CodeGenerators } = require('../../utils/codeGenerator');
 const { promoteTaskStatus, syncPlanStatus } = require('./TaskLifecycleService');
 
 function parseJson(value, fallback) {
@@ -53,16 +52,10 @@ class InventoryPostingReversalClosureService {
       return this.closeOutsourcedReceipt(connection, normalizedContext, actor);
     }
     if (sourceType === 'manual_transaction') {
-      // manual_transactions has no reversed status. The approved posting and
-      // reversal ledger are the audit record; never invent a business status.
-      return { sourceType, businessClosed: true, warnings: [] };
+      throw new Error('手工库存事务尚未实现业务与财务反审核闭环，已阻止反审核');
     }
 
-    return {
-      sourceType,
-      businessClosed: false,
-      warnings: [`未识别的库存来源类型 ${sourceType}，仅完成库存台账冲销`],
-    };
+    throw new Error(`库存来源类型 ${sourceType || '未知'} 尚未实现财务补偿，已阻止反审核`);
   }
 
   static async closeInbound(connection, context, actor) {
@@ -99,10 +92,19 @@ class InventoryPostingReversalClosureService {
       }
     }
 
+    const financeReversal = await this.reverseRelatedVouchers(connection, {
+      sourceType: context.sourceType,
+      sourceId: inbound.id,
+      sourceNo: inbound.inbound_no,
+      operator: actor.label || 'system',
+      reason: `入库反审核 ${inbound.inbound_no}`,
+    });
+
     return {
       sourceType: context.sourceType,
       sourceId: inbound.id,
       businessClosed: true,
+      financeReversal,
       warnings,
       actor: actor.label || null,
     };
@@ -180,6 +182,13 @@ class InventoryPostingReversalClosureService {
     );
     if (!outbound) throw new Error(`出库单 ${context.sourceNo} 不存在，无法完成反审核收尾`);
 
+    if (!outbound.reference_id && outbound.production_task_id) {
+      outbound.reference_id = outbound.production_task_id;
+      outbound.reference_type = 'production_task';
+    }
+    // 申请与财务审核之间生产状态可能变化；在同一冲销事务中重新锁定并校验来源。
+    const taskIds = await this.assertOutboundReversalAllowed(connection, outbound, context);
+
     await connection.execute(
       `UPDATE inventory_outbound
           SET status = 'reversed',
@@ -198,7 +207,6 @@ class InventoryPostingReversalClosureService {
       [`\nCancelled by outbound reversal ${outbound.outbound_no}`, outbound.id]
     );
 
-    const taskIds = this.resolveTaskIds(outbound, context);
     if (taskIds.length) {
       const placeholders = taskIds.map(() => '?').join(',');
       await connection.execute(
@@ -236,68 +244,8 @@ class InventoryPostingReversalClosureService {
       );
     }
 
-    let reissueOutbound = null;
-    const isBatch = outbound.reference_type === 'batch_production_tasks';
-    const canCreateReissue =
-      context.createReissue !== false &&
-      ((outbound.reference_id &&
-        ['production_task', 'production_plan'].includes(outbound.reference_type)) ||
-        (isBatch && taskIds.length));
-    if (canCreateReissue) {
-      const { fetchBomItemsForOutbound, fetchBatchBomItemsForOutbound } = require('../../controllers/business/inventory/outbound/outboundBomController');
-      const newOutboundNo = await CodeGenerators.generateInventoryOutboundCode(connection);
-      const operator = actor.label || outbound.operator || 'system';
-      let insertResult;
-      let bomResult;
-      if (isBatch) {
-        [insertResult] = await connection.execute(
-          `INSERT INTO inventory_outbound
-             (outbound_no, outbound_date, status, outbound_type, operator, remark,
-              reference_type, source_task_ids, is_batch_outbound, created_by, created_at, updated_at)
-           VALUES (?, CURDATE(), 'draft', ?, ?, ?, 'batch_production_tasks', ?, 1, ?, NOW(), NOW())`,
-          [
-            newOutboundNo,
-            outbound.outbound_type || 'batch_issue',
-            operator,
-            `由已反审核出库单 ${outbound.outbound_no} 按统一净需求重新生成，请核实明细。`,
-            JSON.stringify(taskIds),
-            actor.id || outbound.created_by || null,
-          ]
-        );
-        bomResult = await fetchBatchBomItemsForOutbound(connection, insertResult.insertId, taskIds);
-      } else {
-        [insertResult] = await connection.execute(
-          `INSERT INTO inventory_outbound
-             (outbound_no, outbound_date, status, outbound_type, operator, remark,
-              reference_id, reference_type, production_task_id, created_by, created_at, updated_at)
-           VALUES (?, CURDATE(), 'draft', ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-          [
-            newOutboundNo,
-            outbound.outbound_type || 'bom_issue',
-            operator,
-            `由已反审核出库单 ${outbound.outbound_no} 按统一净需求重新生成，请核实明细。`,
-            outbound.reference_id,
-            outbound.reference_type,
-            outbound.reference_type === 'production_task'
-              ? outbound.reference_id
-              : outbound.production_task_id || null,
-            actor.id || outbound.created_by || null,
-          ]
-        );
-        bomResult = await fetchBomItemsForOutbound(
-          connection,
-          insertResult.insertId,
-          outbound.reference_type,
-          outbound.reference_id
-        );
-      }
-      if (!bomResult?.success) throw new Error(`反审核后生成补发草稿失败: ${bomResult?.error || '未知错误'}`);
-      reissueOutbound = {
-        id: insertResult.insertId,
-        outboundNo: newOutboundNo,
-        itemCount: bomResult.itemCount || 0,
-      };
-    }
+    // 撤销操作仅冲销库存与回滚状态，不自动生成重发草稿
+    const reissueOutbound = null;
 
     const financeReversal = await this.reverseOutboundGLEntries(
       connection,
@@ -314,13 +262,81 @@ class InventoryPostingReversalClosureService {
     };
   }
 
+  static async assertOutboundReversalAllowed(connection, outbound, context = {}) {
+    const fail = (message, code = 'VALIDATION_ERROR', statusCode = 400, details) => {
+      throw Object.assign(new Error(message), {
+        code,
+        statusCode,
+        ...(details ? { details } : {}),
+      });
+    };
+    if (!['completed', 'partial_completed'].includes(outbound.status)) {
+      fail('只能撤销已完成或部分完成的出库单');
+    }
+
+    // 当前业务单据是来源关系的依据，不能用旧申请中的来源覆盖当前记录。
+    const taskIds = this.resolveTaskIds(outbound, {});
+    if (outbound.reference_type === 'batch_production_tasks' && !taskIds.length) {
+      fail('批量发料单缺少来源生产任务，无法安全撤销');
+    }
+    const sources = [];
+    if (taskIds.length) {
+      const [tasks] = await connection.execute(
+        `SELECT id, status, code FROM production_tasks
+          WHERE id IN (${taskIds.map(() => '?').join(',')}) AND deleted_at IS NULL
+          ORDER BY id FOR UPDATE`,
+        taskIds
+      );
+      if (tasks.length !== taskIds.length) fail('部分来源生产任务不存在，无法安全撤销');
+      sources.push(...tasks);
+    }
+    if (outbound.reference_type === 'production_plan' && outbound.reference_id) {
+      const [plans] = await connection.execute(
+        'SELECT id, status, code FROM production_plans WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+        [outbound.reference_id]
+      );
+      if (!plans.length) fail('来源生产计划不存在，无法安全撤销');
+      sources.push(...plans);
+      // 计划状态可能落后于子任务，已投产或已入库的任务同样需要保护。
+      const [planTasks] = await connection.execute(
+        'SELECT id, status, code FROM production_tasks WHERE plan_id = ? AND deleted_at IS NULL ORDER BY id FOR UPDATE',
+        [outbound.reference_id]
+      );
+      sources.push(...planTasks);
+    }
+    const prohibitedStatuses = [
+      'inspection',
+      'quality_passed',
+      'warehousing',
+      'completed',
+      'warehoused',
+    ];
+    const blocked = sources.find((source) => prohibitedStatuses.includes(source.status));
+    if (blocked) {
+      fail(`无法撤销：来源生产单据 ${blocked.code} 已进入 ${blocked.status} 状态`);
+    }
+    const inProgress = sources.filter((source) => source.status === 'in_progress');
+    if (inProgress.length && context.force !== true) {
+      fail(
+        '来源生产单据正在生产中，请核实已消耗物料和生产进度后重新提交强制撤销申请。',
+        'NEED_CONFIRM',
+        409,
+        { needConfirm: true, tasks: inProgress }
+      );
+    }
+    return taskIds;
+  }
+
   static resolveTaskIds(outbound, context) {
     const ids = new Set();
     const direct = positiveId(context.productionTaskId || outbound.production_task_id);
     if (direct && outbound.reference_type === 'production_task') ids.add(direct);
     const sourceIds = parseJson(context.sourceTaskIds || outbound.source_task_ids, []);
     if (Array.isArray(sourceIds)) {
-      sourceIds.map(positiveId).filter(Boolean).forEach((id) => ids.add(id));
+      sourceIds
+        .map(positiveId)
+        .filter(Boolean)
+        .forEach((id) => ids.add(id));
     }
     if (outbound.reference_type === 'production_task' && outbound.reference_id) {
       const id = positiveId(outbound.reference_id);
@@ -344,7 +360,9 @@ class InventoryPostingReversalClosureService {
         FOR UPDATE`,
       [outboundNo]
     );
-    if (!entries.length) return { reversedCount: 0, errors: [] };
+    if (!entries.length) {
+      throw new Error(`出库单 ${outboundNo} 没有可冲销的有效财务凭证，已阻止反审核`);
+    }
     const financeModel = require('../../models/finance');
     const today = currentDateString();
     for (const entry of entries) {
@@ -379,7 +397,20 @@ class InventoryPostingReversalClosureService {
         WHERE id = ? AND deleted_at IS NULL`,
       [transfer.id]
     );
-    return { sourceType: context.sourceType, sourceId: transfer.id, businessClosed: true, warnings: [] };
+    const financeReversal = await this.reverseRelatedVouchers(connection, {
+      sourceType: context.sourceType,
+      sourceId: transfer.id,
+      sourceNo: transfer.transfer_no,
+      operator: 'system',
+      reason: `库存调拨反审核 ${transfer.transfer_no}`,
+    });
+    return {
+      sourceType: context.sourceType,
+      sourceId: transfer.id,
+      businessClosed: true,
+      financeReversal,
+      warnings: [],
+    };
   }
 
   static async closeSalesOutbound(connection, context, actor) {
@@ -412,14 +443,21 @@ class InventoryPostingReversalClosureService {
     const orderIds = new Set();
     if (outbound.order_id) orderIds.add(Number(outbound.order_id));
     const related = parseJson(outbound.related_orders, []);
-    if (Array.isArray(related)) related.map(Number).filter((id) => id > 0).forEach((id) => orderIds.add(id));
+    if (Array.isArray(related))
+      related
+        .map(Number)
+        .filter((id) => id > 0)
+        .forEach((id) => orderIds.add(id));
     const [sourceOrders] = await connection.execute(
       `SELECT DISTINCT source_order_id
          FROM sales_outbound_items
         WHERE outbound_id = ? AND source_order_id IS NOT NULL`,
       [outbound.id]
     );
-    sourceOrders.map((row) => Number(row.source_order_id)).filter((id) => id > 0).forEach((id) => orderIds.add(id));
+    sourceOrders
+      .map((row) => Number(row.source_order_id))
+      .filter((id) => id > 0)
+      .forEach((id) => orderIds.add(id));
 
     const SalesOrderStatusService = require('./SalesOrderStatusService');
     const warnings = [];
@@ -440,7 +478,8 @@ class InventoryPostingReversalClosureService {
             WHERE id = ? AND deleted_at IS NULL FOR UPDATE`,
           [orderId]
         );
-        if (!orders.length || ['cancelled', 'completed'].includes(String(orders[0].status))) continue;
+        if (!orders.length || ['cancelled', 'completed'].includes(String(orders[0].status)))
+          continue;
         const [items] = await connection.execute(
           'SELECT material_id, quantity AS ordered_quantity FROM sales_order_items WHERE order_id = ?',
           [orderId]
@@ -457,8 +496,16 @@ class InventoryPostingReversalClosureService {
                 AND (sob.order_id = ? OR sobi.source_order_id = ?)`,
             [item.material_id, orderId, orderId]
           );
-          const remain = Math.max(0, Number(item.ordered_quantity || 0) - Number(shipped[0]?.shipped_qty || 0));
-          if (remain > 0.0001) remaining.push({ material_id: item.material_id, quantity: remain, ordered_quantity: remain });
+          const remain = Math.max(
+            0,
+            Number(item.ordered_quantity || 0) - Number(shipped[0]?.shipped_qty || 0)
+          );
+          if (remain > 0.0001)
+            remaining.push({
+              material_id: item.material_id,
+              quantity: remain,
+              ordered_quantity: remain,
+            });
         }
         if (remaining.length) {
           await InventoryReservationService.reserveInventoryForOrder(
@@ -504,25 +551,20 @@ class InventoryPostingReversalClosureService {
 
     const VoucherReversalService = require('../finance/VoucherReversalService');
     const { DOCUMENT_LINK_TYPES: DocType } = require('../../constants/documentLinkTypes');
-    const warnings = [];
-    try {
-      await VoucherReversalService.reverseBusinessVouchers(connection, {
-        sourceType: DocType.OUTSOURCED_PROCESSING,
-        sourceId: processing.id,
-        documentNumber: processing.processing_no,
-        documentType: 'outsourced_issue',
-        voidedBy: actor.id || actor.label || null,
-        reason: `取消委外加工单 ${processing.processing_no}`,
-      });
-    } catch (error) {
-      if (/未找到.*凭证|未冲销会计凭证/.test(String(error.message || ''))) {
-        warnings.push(`委外加工单 ${processing.processing_no} 没有历史凭证，已跳过凭证冲销`);
-        logger.warn(warnings[warnings.length - 1]);
-      } else {
-        throw error;
-      }
-    }
-    return { sourceType: context.sourceType, sourceId: processing.id, businessClosed: true, warnings };
+    await VoucherReversalService.reverseBusinessVouchers(connection, {
+      sourceType: DocType.OUTSOURCED_PROCESSING,
+      sourceId: processing.id,
+      documentNumber: processing.processing_no,
+      documentType: 'outsourced_issue',
+      voidedBy: actor.id || actor.label || null,
+      reason: `取消委外加工单 ${processing.processing_no}`,
+    });
+    return {
+      sourceType: context.sourceType,
+      sourceId: processing.id,
+      businessClosed: true,
+      warnings: [],
+    };
   }
 
   static async closeOutsourcedReceipt(connection, context, actor) {
@@ -547,24 +589,14 @@ class InventoryPostingReversalClosureService {
 
     const VoucherReversalService = require('../finance/VoucherReversalService');
     const { DOCUMENT_LINK_TYPES: DocType } = require('../../constants/documentLinkTypes');
-    const warnings = [];
-    try {
-      await VoucherReversalService.reverseBusinessVouchers(connection, {
-        sourceType: DocType.OUTSOURCED_RECEIPT,
-        sourceId: receipt.id,
-        documentNumber: receipt.receipt_no,
-        documentType: 'outsourced_receipt',
-        voidedBy: actor.id || actor.label || null,
-        reason: `取消委外入库单 ${receipt.receipt_no}`,
-      });
-    } catch (error) {
-      if (/未找到.*凭证|未冲销会计凭证/.test(String(error.message || ''))) {
-        warnings.push(`委外入库单 ${receipt.receipt_no} 没有历史凭证，已跳过凭证冲销`);
-        logger.warn(warnings[warnings.length - 1]);
-      } else {
-        throw error;
-      }
-    }
+    await VoucherReversalService.reverseBusinessVouchers(connection, {
+      sourceType: DocType.OUTSOURCED_RECEIPT,
+      sourceId: receipt.id,
+      documentNumber: receipt.receipt_no,
+      documentType: 'outsourced_receipt',
+      voidedBy: actor.id || actor.label || null,
+      reason: `取消委外入库单 ${receipt.receipt_no}`,
+    });
 
     // 该入库可能是加工单自动完成的最后一批。冲销后重新按“有效完成入库”判断，
     // 防止加工单仍显示完成而库存已经被冲回。
@@ -617,8 +649,47 @@ class InventoryPostingReversalClosureService {
       sourceType: context.sourceType,
       sourceId: receipt.id,
       businessClosed: true,
-      warnings,
+      warnings: [],
     };
+  }
+
+  static async reverseRelatedVouchers(
+    connection,
+    { sourceType, sourceId, sourceNo, operator, reason }
+  ) {
+    const financeModel = require('../../models/finance');
+    const [entries] = await connection.execute(
+      `SELECT id
+         FROM gl_entries
+        WHERE COALESCE(is_posted, 0) = 1
+          AND COALESCE(is_reversed, 0) = 0
+          AND (document_number = ? OR document_number LIKE CONCAT(?, '-%'))
+          AND NOT EXISTS (
+            SELECT 1 FROM gl_entries reversal
+             WHERE reversal.reversal_entry_id = gl_entries.id
+          )
+        ORDER BY id ASC
+        FOR UPDATE`,
+      [sourceNo, sourceNo]
+    );
+    if (!entries.length) {
+      throw new Error(`来源单 ${sourceNo || sourceId} 没有可冲销的有效财务凭证，已阻止反审核`);
+    }
+    const results = [];
+    for (const entry of entries) {
+      const reversalEntryId = await financeModel.reverseEntry(
+        entry.id,
+        {
+          entry_date: currentDateString(),
+          posting_date: currentDateString(),
+          description: reason,
+          created_by: operator,
+        },
+        connection
+      );
+      results.push({ originalEntryId: entry.id, entryId: reversalEntryId });
+    }
+    return { sourceType, sourceId, reversedCount: results.length, entries: results };
   }
 
   static async findByIdOrNo(connection, sourceId, sourceNo, sql) {

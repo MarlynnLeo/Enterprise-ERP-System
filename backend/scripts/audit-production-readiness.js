@@ -61,7 +61,16 @@ const PUBLIC_ROUTES = new Set([
 const CUSTOM_PERMISSION_MIDDLEWARES = new Set([
   'requireDocumentLinkView',
   'requireDefaultTemplatePermission',
+  'requireInventoryApprovalAccess',
 ]);
+
+const CUSTOM_PERMISSION_CODES = {
+  requireInventoryApprovalAccess: [
+    'finance:inventory:view',
+    'finance:inventory:approve',
+    'finance:inventory:reverse',
+  ],
+};
 
 function toPosix(filePath) {
   return filePath.split(path.sep).join('/');
@@ -224,6 +233,10 @@ function collectPermissionCodes(text) {
     for (const stringMatch of match[1].matchAll(/['"`]([A-Za-z0-9:_-]+)['"`]/g)) {
       if (stringMatch[1].includes(':')) permissions.add(stringMatch[1]);
     }
+  }
+  for (const [middlewareName, codes] of Object.entries(CUSTOM_PERMISSION_CODES)) {
+    if (!text.includes(middlewareName)) continue;
+    for (const code of codes) permissions.add(code);
   }
   return permissions;
 }

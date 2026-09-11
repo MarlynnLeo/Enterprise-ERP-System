@@ -61,20 +61,12 @@ class InventoryPostingService {
     const [existing] = await connection.execute(
       `SELECT * FROM inventory_posting_documents
         WHERE source_type = ? AND source_no = ? AND posting_kind = ?
-          AND posting_sequence = ?
-        ORDER BY id DESC LIMIT 1 FOR UPDATE`,
-      [sourceType, sourceNo, kind, postingSequence]
+        ORDER BY posting_sequence DESC, id DESC LIMIT 1 FOR UPDATE`,
+      [sourceType, sourceNo, kind]
     );
     if (existing.length && existing[0].finance_status !== STATUS.REJECTED) return existing[0];
     if (existing.length && existing[0].finance_status === STATUS.REJECTED) {
-      const [[sequenceRow]] = await connection.execute(
-        `SELECT COALESCE(MAX(posting_sequence), 0) + 1 AS next_sequence
-           FROM inventory_posting_documents
-          WHERE source_type = ? AND source_no = ? AND posting_kind = ?
-          FOR UPDATE`,
-        [sourceType, sourceNo, kind]
-      );
-      postingSequence = Number(sequenceRow?.next_sequence || postingSequence + 1);
+      postingSequence = Number(existing[0].posting_sequence || postingSequence) + 1;
     }
 
     const postingNo = input.postingNo || (await this._nextPostingNo(connection, sourceNo, kind));
@@ -183,6 +175,17 @@ class InventoryPostingService {
         totalValue: line.totalValue == null ? null : Number(line.totalValue),
         transactionDate: line.transactionDate,
         operator: line.operator,
+        supplierId: line.supplierId || null,
+        supplierName: line.supplierName || null,
+        productionDate: line.productionDate || null,
+        expiryDate: line.expiryDate || null,
+        warehouseName: line.warehouseName || null,
+        purchaseOrderId: line.purchaseOrderId || null,
+        purchaseOrderNo: line.purchaseOrderNo || null,
+        receiptId: line.receiptId || null,
+        receiptNo: line.receiptNo || null,
+        remark: line.remark || '',
+        allowEmptyBatch: line.allowEmptyBatch === true,
         sourceLineKey: line.sourceLineKey || null,
         reversalOfLedgerId: line.reversalOfLedgerId || null,
       };
@@ -318,6 +321,94 @@ class InventoryPostingService {
     return { ...document, lines, events };
   }
 
+  /**
+   * Read the approval trail from the business document page.
+   * This intentionally returns posting metadata/events only; callers that need
+   * cost and frozen-line details must use the finance-scoped get() endpoint.
+   */
+  static async getApprovalBySource({ sourceType, sourceId, sourceNo } = {}, connection = db.pool) {
+    const normalizedType = String(sourceType || '').trim();
+    const normalizedId = Number(sourceId);
+    const normalizedNo = String(sourceNo || '').trim();
+    if (!normalizedType || (!Number.isInteger(normalizedId) && !normalizedNo)) {
+      throw serviceError('审批来源单据参数无效', 400, 'INVALID_SOURCE');
+    }
+
+    const sourceTypeCondition =
+      normalizedType === 'inbound'
+        ? `(d.source_type = ? OR (
+             d.source_type = 'batch_create'
+             AND EXISTS (
+               SELECT 1
+                 FROM inventory_posting_lines legacy_purchase_line
+                WHERE legacy_purchase_line.posting_document_id = d.id
+                  AND legacy_purchase_line.transaction_type = 'purchase_inbound'
+             )
+           ))`
+        : 'd.source_type = ?';
+    const conditions = [sourceTypeCondition];
+    const params = [normalizedType];
+    if (Number.isInteger(normalizedId) && normalizedId > 0) {
+      if (normalizedNo) {
+        conditions.push('(d.source_id = ? OR (d.source_id IS NULL AND d.source_no = ?))');
+        params.push(normalizedId, normalizedNo);
+      } else {
+        conditions.push('d.source_id = ?');
+        params.push(normalizedId);
+      }
+    } else {
+      conditions.push('d.source_no = ?');
+      params.push(normalizedNo);
+    }
+
+    const [documents] = await connection.execute(
+      `SELECT id, posting_no, source_type, source_id, source_no,
+              posting_sequence, posting_kind, finance_status,
+              business_approved_by_id, business_approved_by, business_approved_at,
+              finance_approved_by, finance_approved_label, finance_approved_at,
+              rejected_by, rejected_label, rejected_at,
+              reversed_by, reversed_label, reversed_at,
+              locked, is_legacy, total_quantity, total_value, remark,
+              created_at, updated_at
+         FROM inventory_posting_documents d
+        WHERE ${conditions.join(' AND ')}
+        ORDER BY d.posting_kind = 'movement' DESC, d.posting_sequence DESC, d.id DESC`,
+      params
+    );
+
+    if (!documents.length) {
+      return { current: null, movement: null, reversal: null, postings: [], events: [] };
+    }
+
+    const documentIds = documents.map((document) => document.id);
+    const placeholders = documentIds.map(() => '?').join(',');
+    const [events] = await connection.execute(
+      `SELECT posting_document_id, event_type, from_status, to_status,
+              actor_id, actor_label, remark, event_data, created_at
+         FROM inventory_posting_events
+        WHERE posting_document_id IN (${placeholders})
+        ORDER BY created_at ASC, id ASC`,
+      documentIds
+    );
+
+    const movement =
+      documents.find((document) => document.posting_kind === POSTING_KIND.MOVEMENT) || null;
+    const reversal =
+      documents.find((document) => document.posting_kind === POSTING_KIND.REVERSAL) || null;
+    const current =
+      reversal?.finance_status === STATUS.PENDING || reversal?.finance_status === STATUS.APPROVED
+        ? reversal
+        : movement;
+
+    return {
+      current,
+      movement,
+      reversal,
+      postings: documents,
+      events,
+    };
+  }
+
   static async findApprovedForTransaction(connection, transaction = {}) {
     if (!connection) throw new Error('查找库存过账单必须提供数据库连接');
     const postingDocumentId = transaction.posting_document_id || transaction.postingDocumentId;
@@ -437,11 +528,13 @@ class InventoryPostingService {
 
   static _assertActorCanApprove(document, actor) {
     const normalizedActor = actorFrom(actor);
+    const businessApproverId = Number(document.business_approved_by_id || 0);
+    if (normalizedActor.id && businessApproverId && normalizedActor.id === businessApproverId) {
+      throw serviceError('制单/业务审核人与财务审核人必须分离', 403, 'SEPARATION_OF_DUTIES');
+    }
     if (
-      (normalizedActor.id &&
-        document.business_approved_by_id &&
-        normalizedActor.id === Number(document.business_approved_by_id)) ||
-      String(document.business_approved_by || '').trim() === normalizedActor.label.trim()
+      String(document.business_approved_by || '').trim() &&
+      String(document.business_approved_by).trim() === normalizedActor.label.trim()
     ) {
       throw serviceError('制单/业务审核人与财务审核人必须分离', 403, 'SEPARATION_OF_DUTIES');
     }
@@ -464,12 +557,15 @@ class InventoryPostingService {
     ]
       .map((value) => String(value || '').trim())
       .filter(Boolean);
-
     if (
       (normalizedActor.id && forbiddenIds.includes(normalizedActor.id)) ||
       forbiddenLabels.includes(normalizedActor.label.trim())
     ) {
-      throw serviceError('反审核申请人与原业务审核人/原财务审核人必须分离', 403, 'SEPARATION_OF_DUTIES');
+      throw serviceError(
+        '反审核申请人与原业务审核人/原财务审核人必须分离',
+        403,
+        'SEPARATION_OF_DUTIES'
+      );
     }
     return normalizedActor;
   }
@@ -478,6 +574,16 @@ class InventoryPostingService {
     const InventoryService = require('./InventoryService');
     const results = [];
     for (const line of lines) {
+      // 若该明细在业务完成时已被正式写入实物台账（posted_quantity 不为 NULL），财务审核时无需重复扣减/入库库存
+      if (line.posted_quantity != null) {
+        results.push({
+          lineId: line.id,
+          alreadyPosted: true,
+          quantity: Number(line.posted_quantity),
+          totalValue: Number(line.posted_value || line.total_value || 0),
+        });
+        continue;
+      }
       let payload;
       try {
         payload =
@@ -505,6 +611,17 @@ class InventoryPostingService {
           postingDocumentId: document.id,
           postingLineId: line.id,
           reversalOfLedgerId: payload.reversalOfLedgerId || null,
+          supplierId: payload.supplierId || null,
+          supplierName: payload.supplierName || null,
+          productionDate: payload.productionDate || null,
+          expiryDate: payload.expiryDate || null,
+          warehouseName: payload.warehouseName || null,
+          purchaseOrderId: payload.purchaseOrderId || null,
+          purchaseOrderNo: payload.purchaseOrderNo || null,
+          receiptId: payload.receiptId || null,
+          receiptNo: payload.receiptNo || null,
+          remark: payload.remark || '',
+          allowEmptyBatch: payload.allowEmptyBatch === true,
           internalPostingToken: INTERNAL_POSTING_TOKEN,
           allowNegativeStock: false,
         },
@@ -610,13 +727,7 @@ class InventoryPostingService {
           `UPDATE inventory_posting_documents
               SET finance_status = ?, reversed_by = ?, reversed_label = ?, reversed_at = NOW(), updated_at = NOW()
             WHERE id = ? AND finance_status = ? AND locked = 1`,
-          [
-            STATUS.REVERSED,
-            normalizedActor.id,
-            normalizedActor.label,
-            original.id,
-            STATUS.APPROVED,
-          ]
+          [STATUS.REVERSED, normalizedActor.id, normalizedActor.label, original.id, STATUS.APPROVED]
         );
         if (!originalUpdate.affectedRows) {
           throw serviceError('原始库存过账单已被处理，无法完成反审核', 409, 'CONCURRENT_UPDATE');
@@ -825,7 +936,11 @@ class InventoryPostingService {
         [id, POSTING_KIND.REVERSAL, STATUS.REJECTED]
       );
       if (existing) {
-        throw serviceError('该单据已有待处理或已完成的反审核申请，禁止重复申请', 409, 'ALREADY_REVERSED');
+        throw serviceError(
+          '该单据已有待处理或已完成的反审核申请，禁止重复申请',
+          409,
+          'ALREADY_REVERSED'
+        );
       }
 
       const [sourceLines] = await conn.execute(
@@ -895,7 +1010,7 @@ class InventoryPostingService {
       await conn.execute(
         `INSERT INTO inventory_posting_events
            (posting_document_id, event_type, from_status, to_status, actor_id, actor_label, remark, event_data)
-         VALUES (?, 'reversal_requested', NULL, ?, ?, ?, ?, ?)` ,
+         VALUES (?, 'reversal_requested', NULL, ?, ?, ?, ?, ?)`,
         [
           reversal.id,
           STATUS.PENDING,

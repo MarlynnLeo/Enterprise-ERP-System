@@ -91,6 +91,22 @@ class FinanceEnhancementController {
     }
   }
 
+  static async getInventoryPostingApprovalBySource(req, res) {
+    try {
+      const sourceType = String(req.query.sourceType || req.query.source_type || '').trim();
+      const sourceId = req.query.sourceId || req.query.source_id || null;
+      const sourceNo = req.query.sourceNo || req.query.source_no || '';
+      const result = await InventoryPostingService.getApprovalBySource({
+        sourceType,
+        sourceId,
+        sourceNo,
+      });
+      return ResponseHandler.success(res, result, '业务单据审批状态获取成功');
+    } catch (error) {
+      return respondServiceError(res, error, '获取业务单据审批状态失败');
+    }
+  }
+
   static async approveInventoryPosting(req, res) {
     try {
       const actor = InventoryPostingService.actorFromRequest(req);

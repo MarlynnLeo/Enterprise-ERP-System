@@ -69,6 +69,12 @@ const normalizeUserData = (userData) => {
   if (normalized.realName == null && normalized.real_name != null) {
     normalized.realName = normalized.real_name
   }
+  if (normalized.departmentId == null && normalized.department_id != null) {
+    normalized.departmentId = normalized.department_id
+  }
+  if (normalized.departmentName == null && normalized.department_name != null) {
+    normalized.departmentName = normalized.department_name
+  }
   if (normalized.forcePasswordChange == null && normalized.force_password_change != null) {
     normalized.forcePasswordChange = Boolean(normalized.force_password_change)
   }
@@ -115,6 +121,18 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => Boolean(user.value))
   const isAdmin = computed(() => permissionsLoaded.value && permissionSet.has('*'))
+  const isFinanceDepartment = computed(() =>
+    String(user.value?.departmentName || user.value?.department_name || '').trim() === '财务部'
+  )
+  const canViewInventoryApproval = computed(
+    () => isAdmin.value || hasPermission('finance:inventory:view')
+  )
+  const canApproveInventoryApproval = computed(
+    () => isAdmin.value || hasPermission('finance:inventory:approve')
+  )
+  const canReverseInventoryApproval = computed(
+    () => isAdmin.value || hasPermission('finance:inventory:reverse')
+  )
   // 强制修改密码功能已彻底关闭
   const mustChangePassword = computed(() => false)
 
@@ -397,6 +415,10 @@ export const useAuthStore = defineStore('auth', () => {
     permissionsLoading,
     isAuthenticated,
     isAdmin,
+    isFinanceDepartment,
+    canViewInventoryApproval,
+    canApproveInventoryApproval,
+    canReverseInventoryApproval,
     mustChangePassword,
     login,
     logout,

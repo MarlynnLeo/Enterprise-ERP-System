@@ -5,7 +5,6 @@
 
 import { baseMenuPermissions } from './permissions/index';
 
-
 const appendRoutePermissionEntries = (menus) => {
   const nextMenus = menus.map((menu) => ({ ...menu }));
 
@@ -15,40 +14,28 @@ const appendRoutePermissionEntries = (menus) => {
       path: '/finance/gl/entries/receipt',
       component: 'finance/gl/entries/ReceiptEntry',
       permission: 'finance:entries:create',
-      visible: 0
+      visible: 0,
     },
     {
       parentId: 72,
       path: '/finance/gl/entries/payment',
       component: 'finance/gl/entries/PaymentEntry',
       permission: 'finance:entries:create',
-      visible: 0
+      visible: 0,
     },
     {
       parentId: 72,
       path: '/finance/gl/entries/transfer',
       component: 'finance/gl/entries/TransferEntry',
       permission: 'finance:entries:create',
-      visible: 0
+      visible: 0,
     },
     {
       parentId: 72,
       path: '/finance/gl/entries/general',
       component: 'finance/gl/entries/GeneralEntry',
       permission: 'finance:entries:create',
-      visible: 0
-    },
-    {
-      id: 9320,
-      parentPermission: 'finance',
-      name: '库存过账审核',
-      path: '/finance/inventory-posting',
-      component: 'finance/inventory/InventoryPostingApproval',
-      icon: 'icon-check',
-      type: 1,
-      permission: 'finance:inventory:view',
-      sort: 18,
-      status: 1
+      visible: 0,
     },
     {
       id: 9302,
@@ -61,7 +48,7 @@ const appendRoutePermissionEntries = (menus) => {
       permission: 'finance:budgets:update',
       sort: 99,
       visible: 0,
-      status: 1
+      status: 1,
     },
     {
       id: 9303,
@@ -73,7 +60,7 @@ const appendRoutePermissionEntries = (menus) => {
       type: 1,
       permission: 'production:data-view',
       sort: 8,
-      status: 1
+      status: 1,
     },
     {
       id: 9304,
@@ -85,7 +72,7 @@ const appendRoutePermissionEntries = (menus) => {
       type: 1,
       permission: 'production:gantt',
       sort: 9,
-      status: 1
+      status: 1,
     },
     {
       id: 9311,
@@ -97,7 +84,7 @@ const appendRoutePermissionEntries = (menus) => {
       type: 1,
       permission: 'production:calendar',
       sort: 10,
-      status: 1
+      status: 1,
     },
     {
       id: 931101,
@@ -109,7 +96,7 @@ const appendRoutePermissionEntries = (menus) => {
       type: 2,
       permission: 'production:calendar:view',
       sort: 1,
-      status: 1
+      status: 1,
     },
     {
       id: 931102,
@@ -121,7 +108,7 @@ const appendRoutePermissionEntries = (menus) => {
       type: 2,
       permission: 'production:calendar:update',
       sort: 2,
-      status: 1
+      status: 1,
     },
     {
       id: 9305,
@@ -133,7 +120,7 @@ const appendRoutePermissionEntries = (menus) => {
       type: 1,
       permission: 'purchase:history',
       sort: 7,
-      status: 1
+      status: 1,
     },
     {
       id: 9306,
@@ -145,7 +132,7 @@ const appendRoutePermissionEntries = (menus) => {
       type: 1,
       permission: 'quality:8d',
       sort: 6,
-      status: 1
+      status: 1,
     },
     {
       id: 9307,
@@ -157,7 +144,7 @@ const appendRoutePermissionEntries = (menus) => {
       type: 1,
       permission: 'quality:aql',
       sort: 10,
-      status: 1
+      status: 1,
     },
     {
       id: 9308,
@@ -169,7 +156,7 @@ const appendRoutePermissionEntries = (menus) => {
       type: 1,
       permission: 'quality:gauges',
       sort: 13,
-      status: 1
+      status: 1,
     },
     {
       id: 9309,
@@ -181,7 +168,7 @@ const appendRoutePermissionEntries = (menus) => {
       type: 1,
       permission: 'quality:spc',
       sort: 14,
-      status: 1
+      status: 1,
     },
     {
       id: 9310,
@@ -193,8 +180,8 @@ const appendRoutePermissionEntries = (menus) => {
       type: 1,
       permission: 'quality:supplier-quality',
       sort: 15,
-      status: 1
-    }
+      status: 1,
+    },
   ];
 
   const usedIds = new Set(nextMenus.map((menu) => menu.id));
@@ -202,8 +189,10 @@ const appendRoutePermissionEntries = (menus) => {
 
   routeMenus.forEach((entry) => {
     const resolvedParentId = entry.parentPermission
-      ? nextMenus.find((menu) => menu.permission === entry.parentPermission)?.id || entry.parentId || 0
-      : entry.parentId ?? 0;
+      ? nextMenus.find((menu) => menu.permission === entry.parentPermission)?.id ||
+        entry.parentId ||
+        0
+      : (entry.parentId ?? 0);
     const normalizedEntry = { ...entry, parentId: resolvedParentId };
     delete normalizedEntry.parentPermission;
     const existing = entry.path
@@ -224,7 +213,7 @@ const appendRoutePermissionEntries = (menus) => {
       sort: normalizedEntry.sort ?? 99,
       status: normalizedEntry.status ?? 1,
       ...normalizedEntry,
-      id
+      id,
     });
   });
 
@@ -236,15 +225,42 @@ const appendActionPermissionEntries = (menus) => {
 
   const actionGroups = [
     { parentPermission: 'production:equipment', actions: ['view', 'create', 'update', 'delete'] },
-    { parentPermission: 'basedata:materials', actions: ['view', 'create', 'update', 'delete', 'import', 'export'] },
-    { parentPermission: 'basedata:boms', actions: ['view', 'create', 'update', 'delete', 'import', 'export', 'approve'] },
-    { parentPermission: 'basedata:customers', actions: ['view', 'create', 'update', 'delete', 'import', 'export'] },
-    { parentPermission: 'basedata:suppliers', actions: ['view', 'create', 'update', 'delete', 'import', 'export'] },
-    { parentPermission: 'basedata:categories', actions: ['view', 'create', 'update', 'delete', 'import', 'export'] },
-    { parentPermission: 'basedata:units', actions: ['view', 'create', 'update', 'delete', 'export'] },
-    { parentPermission: 'basedata:locations', actions: ['view', 'create', 'update', 'delete', 'edit', 'export'] },
-    { parentPermission: 'basedata:processtemplates', actions: ['view', 'create', 'update', 'delete', 'export'] },
-    { parentPermission: 'basedata:productcategories', actions: ['view', 'create', 'update', 'delete'] },
+    {
+      parentPermission: 'basedata:materials',
+      actions: ['view', 'create', 'update', 'delete', 'import', 'export'],
+    },
+    {
+      parentPermission: 'basedata:boms',
+      actions: ['view', 'create', 'update', 'delete', 'import', 'export', 'approve'],
+    },
+    {
+      parentPermission: 'basedata:customers',
+      actions: ['view', 'create', 'update', 'delete', 'import', 'export'],
+    },
+    {
+      parentPermission: 'basedata:suppliers',
+      actions: ['view', 'create', 'update', 'delete', 'import', 'export'],
+    },
+    {
+      parentPermission: 'basedata:categories',
+      actions: ['view', 'create', 'update', 'delete', 'import', 'export'],
+    },
+    {
+      parentPermission: 'basedata:units',
+      actions: ['view', 'create', 'update', 'delete', 'export'],
+    },
+    {
+      parentPermission: 'basedata:locations',
+      actions: ['view', 'create', 'update', 'delete', 'edit', 'export'],
+    },
+    {
+      parentPermission: 'basedata:processtemplates',
+      actions: ['view', 'create', 'update', 'delete', 'export'],
+    },
+    {
+      parentPermission: 'basedata:productcategories',
+      actions: ['view', 'create', 'update', 'delete'],
+    },
     {
       parentPermission: 'basedata:productcategories',
       permissions: [
@@ -255,82 +271,354 @@ const appendActionPermissionEntries = (menus) => {
         'basedata:inspectionmethods:view',
         'basedata:inspectionmethods:create',
         'basedata:inspectionmethods:update',
-        'basedata:inspectionmethods:delete'
-      ]
+        'basedata:inspectionmethods:delete',
+      ],
     },
     { parentPermission: 'basedata:ecn', actions: ['view', 'create', 'update', 'delete'] },
-    { parentPermission: 'inventory:stock', actions: ['view', 'adjust', 'edit', 'view-detail', 'export'] },
-    { parentPermission: 'inventory:inbound', actions: ['view', 'create', 'update', 'delete', 'export'] },
-    { parentPermission: 'inventory:outbound', actions: ['view', 'create', 'update', 'delete', 'export'] },
+    {
+      parentPermission: 'inventory:stock',
+      actions: ['view', 'adjust', 'edit', 'view-detail', 'export'],
+    },
+    {
+      parentPermission: 'inventory:inbound',
+      actions: ['view', 'create', 'update', 'delete', 'export'],
+    },
+    {
+      parentPermission: 'inventory:outbound',
+      actions: ['view', 'create', 'update', 'delete', 'export'],
+    },
     {
       parentPermission: 'inventory:manual-transaction',
-      permissions: ['inventory:manual:view', 'inventory:manual:create', 'inventory:manual:update', 'inventory:manual:delete', 'inventory:manual:approve']
+      permissions: [
+        'inventory:manual:view',
+        'inventory:manual:create',
+        'inventory:manual:update',
+        'inventory:manual:delete',
+        'inventory:manual:approve',
+      ],
     },
-    { parentPermission: 'inventory:transfer', actions: ['view', 'create', 'update', 'delete', 'export'] },
+    {
+      parentPermission: 'inventory:transfer',
+      actions: ['view', 'create', 'update', 'delete', 'export'],
+    },
     { parentPermission: 'inventory:check', actions: ['view', 'create', 'update', 'delete'] },
     { parentPermission: 'inventory:report', actions: ['view', 'export'] },
-    { parentPermission: 'inventory:transaction', permissions: ['inventory:transactions:view', 'inventory:transactions:export', 'inventory:ledger:view'] },
-    { parentPermission: 'purchase:requisitions', actions: ['view', 'create', 'update', 'delete', 'approve', 'export'] },
-    { parentPermission: 'purchase:orders', actions: ['view', 'create', 'update', 'delete', 'approve', 'export', 'import'] },
-    { parentPermission: 'purchase:receipts', actions: ['view', 'create', 'update', 'delete', 'export'] },
-    { parentPermission: 'purchase:returns', actions: ['view', 'create', 'update', 'delete', 'approve', 'export'] },
-    { parentPermission: 'purchase:processing', actions: ['view', 'create', 'update', 'delete', 'export'] },
+    {
+      parentPermission: 'inventory:transaction',
+      permissions: [
+        'inventory:transactions:view',
+        'inventory:transactions:export',
+        'inventory:ledger:view',
+      ],
+    },
+    {
+      parentPermission: 'purchase:requisitions',
+      actions: ['view', 'create', 'update', 'delete', 'approve', 'export'],
+    },
+    {
+      parentPermission: 'purchase:orders',
+      actions: ['view', 'create', 'update', 'delete', 'approve', 'export', 'import'],
+    },
+    {
+      parentPermission: 'purchase:receipts',
+      actions: ['view', 'create', 'update', 'delete', 'export'],
+    },
+    {
+      parentPermission: 'purchase:returns',
+      actions: ['view', 'create', 'update', 'delete', 'approve', 'export'],
+    },
+    {
+      parentPermission: 'purchase:processing',
+      actions: ['view', 'create', 'update', 'delete', 'export'],
+    },
     {
       parentPermission: 'purchase:processing-receipts',
-      permissions: ['purchase:processing-receipts:view', 'purchase:processing-receipts:create', 'purchase:processing-receipts:edit', 'purchase:processing-receipts:delete', 'purchase:processing-receipts:export']
+      permissions: [
+        'purchase:processing-receipts:view',
+        'purchase:processing-receipts:create',
+        'purchase:processing-receipts:edit',
+        'purchase:processing-receipts:delete',
+        'purchase:processing-receipts:export',
+      ],
     },
-    { parentPermission: 'sales:orders', actions: ['view', 'create', 'update', 'delete', 'export', 'import'] },
-    { parentPermission: 'sales:outbound', actions: ['view', 'create', 'update', 'delete', 'export'] },
-    { parentPermission: 'sales:returns', actions: ['view', 'create', 'update', 'delete', 'export'] },
-    { parentPermission: 'sales:exchanges', permissions: ['sales:exchanges:view', 'sales:exchanges:create', 'sales:exchanges:update', 'sales:exchanges:delete'] },
-    { parentPermission: 'sales:quotations', actions: ['view', 'create', 'update', 'delete', 'export'] },
-    { parentPermission: 'sales:packing-lists', permissions: ['sales:packing:view', 'sales:packing:create', 'sales:packing:update', 'sales:packing:delete'] },
+    {
+      parentPermission: 'sales:orders',
+      actions: ['view', 'create', 'update', 'delete', 'export', 'import'],
+    },
+    {
+      parentPermission: 'sales:outbound',
+      actions: ['view', 'create', 'update', 'delete', 'export'],
+    },
+    {
+      parentPermission: 'sales:returns',
+      actions: ['view', 'create', 'update', 'delete', 'export'],
+    },
+    {
+      parentPermission: 'sales:exchanges',
+      permissions: [
+        'sales:exchanges:view',
+        'sales:exchanges:create',
+        'sales:exchanges:update',
+        'sales:exchanges:delete',
+      ],
+    },
+    {
+      parentPermission: 'sales:quotations',
+      actions: ['view', 'create', 'update', 'delete', 'export'],
+    },
+    {
+      parentPermission: 'sales:packing-lists',
+      permissions: [
+        'sales:packing:view',
+        'sales:packing:create',
+        'sales:packing:update',
+        'sales:packing:delete',
+      ],
+    },
     { parentPermission: 'sales:delivery-stats', permissions: ['sales:reports:view'] },
-    { parentPermission: 'contract:view', permissions: ['contract:create', 'contract:edit', 'contract:delete'] },
-    { parentPermission: 'finance:accounts:view', permissions: ['finance:accounts:create', 'finance:accounts:update'] },
-    { parentPermission: 'finance:entries:view', permissions: ['finance:entries:create', 'finance:entries:update', 'finance:entries:delete', 'finance:entries:approve'] },
-    { parentPermission: 'finance:inventory:view', permissions: ['finance:inventory:approve', 'finance:inventory:reverse'] },
-    { parentPermission: 'finance:periods:view', permissions: ['finance:periods:create', 'finance:periods:update'] },
+    {
+      parentPermission: 'contract:view',
+      permissions: ['contract:create', 'contract:edit', 'contract:delete'],
+    },
+    {
+      parentPermission: 'finance:accounts:view',
+      permissions: ['finance:accounts:create', 'finance:accounts:update'],
+    },
+    {
+      parentPermission: 'finance:entries:view',
+      permissions: [
+        'finance:entries:create',
+        'finance:entries:update',
+        'finance:entries:delete',
+        'finance:entries:approve',
+      ],
+    },
+    {
+      parentPermission: 'finance:inventory:view',
+      permissions: ['finance:inventory:approve', 'finance:inventory:reverse'],
+    },
+    {
+      parentPermission: 'finance:periods:view',
+      permissions: ['finance:periods:create', 'finance:periods:update'],
+    },
     { parentPermission: 'finance:closing:view', permissions: ['finance:closing:execute'] },
-    { parentPermission: 'finance:ar:view', permissions: ['finance:ar:create', 'finance:ar:update', 'finance:ar:receive'] },
-    { parentPermission: 'finance:ap:view', permissions: ['finance:ap:create', 'finance:ap:update', 'finance:ap:pay'] },
-    { parentPermission: 'finance:assets:view', permissions: ['finance:assets:create', 'finance:assets:update', 'finance:assets:delete', 'finance:assets:execute', 'finance:assets:export'] },
-    { parentPermission: 'finance:cash:view', permissions: ['finance:cash:create', 'finance:cash:update', 'finance:cash:delete', 'finance:cash:approve', 'finance:cash:export', 'finance:cash:reconcile'] },
-    { parentPermission: 'finance:pricing:view', permissions: ['finance:pricing:create', 'finance:pricing:update', 'finance:pricing:delete', 'finance:pricing:export'] },
-    { parentPermission: 'finance:tax:view', permissions: ['finance:tax:create', 'finance:tax:update', 'finance:tax:delete', 'finance:tax:pay'] },
-    { parentPermission: 'finance:budgets:view', permissions: ['finance:budgets:create', 'finance:budgets:update', 'finance:budgets:delete', 'finance:budgets:approve'] },
-    { parentPermission: 'finance:cost:view', permissions: ['finance:cost:create', 'finance:cost:update', 'finance:cost:delete', 'finance:cost:execute', 'finance:cost:export'] },
-    { parentPermission: 'finance:expenses:view', permissions: ['finance:expenses:create', 'finance:expenses:update', 'finance:expenses:delete', 'finance:expenses:approve', 'finance:expenses:pay'] },
+    {
+      parentPermission: 'finance:ar:view',
+      permissions: [
+        'finance:ar:create',
+        'finance:ar:update',
+        'finance:ar:approve',
+        'finance:ar:receive',
+      ],
+    },
+    {
+      parentPermission: 'finance:ap:view',
+      permissions: [
+        'finance:ap:create',
+        'finance:ap:update',
+        'finance:ap:approve',
+        'finance:ap:pay',
+      ],
+    },
+    {
+      parentPermission: 'finance:assets:view',
+      permissions: [
+        'finance:assets:create',
+        'finance:assets:update',
+        'finance:assets:delete',
+        'finance:assets:execute',
+        'finance:assets:export',
+      ],
+    },
+    {
+      parentPermission: 'finance:cash:view',
+      permissions: [
+        'finance:cash:create',
+        'finance:cash:update',
+        'finance:cash:delete',
+        'finance:cash:approve',
+        'finance:cash:export',
+        'finance:cash:reconcile',
+      ],
+    },
+    { parentPermission: 'finance:salary:approve', permissions: ['finance:salary:approve'] },
+    {
+      parentPermission: 'finance:pricing:view',
+      permissions: [
+        'finance:pricing:create',
+        'finance:pricing:update',
+        'finance:pricing:delete',
+        'finance:pricing:export',
+      ],
+    },
+    {
+      parentPermission: 'finance:tax:view',
+      permissions: [
+        'finance:tax:create',
+        'finance:tax:update',
+        'finance:tax:delete',
+        'finance:tax:pay',
+      ],
+    },
+    {
+      parentPermission: 'finance:budgets:view',
+      permissions: [
+        'finance:budgets:create',
+        'finance:budgets:update',
+        'finance:budgets:delete',
+        'finance:budgets:approve',
+      ],
+    },
+    {
+      parentPermission: 'finance:cost:view',
+      permissions: [
+        'finance:cost:create',
+        'finance:cost:update',
+        'finance:cost:delete',
+        'finance:cost:execute',
+        'finance:cost:export',
+      ],
+    },
+    {
+      parentPermission: 'finance:expenses:view',
+      permissions: [
+        'finance:expenses:create',
+        'finance:expenses:update',
+        'finance:expenses:delete',
+        'finance:expenses:approve',
+        'finance:expenses:pay',
+      ],
+    },
     { parentPermission: 'finance:settings:view', permissions: ['finance:settings:update'] },
-    { parentPermission: 'finance:exchange-rates:view', permissions: ['finance:exchange-rates:update'] },
-    { parentPermission: 'quality:incoming', permissions: ['quality:inspections:view', 'quality:inspections:create', 'quality:inspections:update', 'quality:inspections:delete'] },
-    { parentPermission: 'quality:templates', permissions: ['quality:templates:view', 'quality:templates:create', 'quality:templates:update', 'quality:templates:delete'] },
-    { parentPermission: 'quality:templates', permissions: ['quality:settings:view', 'quality:settings:create', 'quality:settings:update', 'quality:settings:delete'] },
+    {
+      parentPermission: 'finance:exchange-rates:view',
+      permissions: ['finance:exchange-rates:update'],
+    },
+    {
+      parentPermission: 'quality:incoming',
+      permissions: [
+        'quality:inspections:view',
+        'quality:inspections:create',
+        'quality:inspections:update',
+        'quality:inspections:delete',
+      ],
+    },
+    {
+      parentPermission: 'quality:templates',
+      permissions: [
+        'quality:templates:view',
+        'quality:templates:create',
+        'quality:templates:update',
+        'quality:templates:delete',
+      ],
+    },
+    {
+      parentPermission: 'quality:templates',
+      permissions: [
+        'quality:settings:view',
+        'quality:settings:create',
+        'quality:settings:update',
+        'quality:settings:delete',
+      ],
+    },
     { parentPermission: 'quality:traceability', actions: ['view', 'create', 'update', 'export'] },
     { parentPermission: 'quality:nonconforming', actions: ['view', 'create', 'update', 'delete'] },
     { parentPermission: 'quality:replacement', actions: ['view', 'create', 'update', 'delete'] },
     { parentPermission: 'quality:rework', actions: ['view', 'create', 'update', 'delete'] },
     { parentPermission: 'quality:scrap', actions: ['view', 'create', 'update', 'delete'] },
-    { parentPermission: 'quality:statistics', permissions: ['quality:reports:view', 'quality:reports:update'] },
+    {
+      parentPermission: 'quality:statistics',
+      permissions: ['quality:reports:view', 'quality:reports:update'],
+    },
     { parentPermission: 'quality:8d', actions: ['view', 'create', 'update', 'delete'] },
-    { parentPermission: 'quality:aql', permissions: ['quality:aql:view', 'quality:standards:view', 'quality:standards:create', 'quality:standards:update', 'quality:standards:delete'] },
-    { parentPermission: 'quality:gauges', permissions: ['quality:gauges:view', 'quality:gauges:create', 'quality:gauges:update', 'quality:gauges:delete'] },
+    {
+      parentPermission: 'quality:aql',
+      permissions: [
+        'quality:aql:view',
+        'quality:standards:view',
+        'quality:standards:create',
+        'quality:standards:update',
+        'quality:standards:delete',
+      ],
+    },
+    {
+      parentPermission: 'quality:gauges',
+      permissions: [
+        'quality:gauges:view',
+        'quality:gauges:create',
+        'quality:gauges:update',
+        'quality:gauges:delete',
+      ],
+    },
     { parentPermission: 'quality:spc', permissions: ['quality:spc:view', 'quality:spc:update'] },
     { parentPermission: 'system:users', actions: ['create', 'update', 'delete'] },
     { parentPermission: 'system:departments', actions: ['create', 'update', 'delete'] },
     { parentPermission: 'system:permissions', permissions: ['system:permissions:manage'] },
-    { parentPermission: 'system:tech-comm', permissions: ['system:tech-comm:create', 'system:tech-comm:edit', 'system:tech-comm:delete', 'system:tech-comm:manage'] },
-    { parentPermission: 'system:print', permissions: ['system:print:view', 'system:print:create', 'system:print:update', 'system:print:delete'] },
-    { parentPermission: 'system:notifications', permissions: ['system:notifications:create', 'system:notifications:delete'] },
-    { parentPermission: 'system:business-types', permissions: ['system:business-types:create', 'system:business-types:update', 'system:business-types:delete'] },
-    { parentPermission: 'system:workflow', permissions: ['system:workflow:view', 'system:workflow:create', 'system:workflow:edit', 'system:workflow:delete', 'system:workflow:use'] },
-    { parentPermission: 'system:settings', permissions: ['system:settings:view', 'system:settings:edit', 'system:settings:read', 'system:settings:write', 'system:settings:update'] },
-    { parentPermission: 'system:documents', permissions: ['system:documents:view', 'system:documents:edit', 'system:documents:delete'] },
-    { parentPermission: 'system:business-alerts', permissions: ['system:business-alerts:view', 'system:business-alerts:edit'] },
+    {
+      parentPermission: 'system:tech-comm',
+      permissions: [
+        'system:tech-comm:create',
+        'system:tech-comm:edit',
+        'system:tech-comm:delete',
+        'system:tech-comm:manage',
+      ],
+    },
+    {
+      parentPermission: 'system:print',
+      permissions: [
+        'system:print:view',
+        'system:print:create',
+        'system:print:update',
+        'system:print:delete',
+      ],
+    },
+    {
+      parentPermission: 'system:notifications',
+      permissions: ['system:notifications:create', 'system:notifications:delete'],
+    },
+    {
+      parentPermission: 'system:business-types',
+      permissions: [
+        'system:business-types:create',
+        'system:business-types:update',
+        'system:business-types:delete',
+      ],
+    },
+    {
+      parentPermission: 'system:workflow',
+      permissions: [
+        'system:workflow:view',
+        'system:workflow:create',
+        'system:workflow:edit',
+        'system:workflow:delete',
+        'system:workflow:use',
+      ],
+    },
+    {
+      parentPermission: 'system:settings',
+      permissions: [
+        'system:settings:view',
+        'system:settings:edit',
+        'system:settings:read',
+        'system:settings:write',
+        'system:settings:update',
+      ],
+    },
+    {
+      parentPermission: 'system:documents',
+      permissions: ['system:documents:view', 'system:documents:edit', 'system:documents:delete'],
+    },
+    {
+      parentPermission: 'system:business-alerts',
+      permissions: ['system:business-alerts:view', 'system:business-alerts:edit'],
+    },
     { parentPermission: 'hr:employees', actions: ['view', 'create', 'update', 'delete'] },
     { parentPermission: 'hr:attendance', actions: ['view', 'update', 'export'] },
     { parentPermission: 'hr:salary', actions: ['view', 'update', 'export'] },
-    { parentPermission: 'hr:performance', permissions: ['hr:performance:view', 'hr:performance:edit'] }
+    {
+      parentPermission: 'hr:performance',
+      permissions: ['hr:performance:view', 'hr:performance:edit'],
+    },
   ];
 
   const usedIds = new Set(nextMenus.map((menu) => menu.id));
@@ -347,13 +635,16 @@ const appendActionPermissionEntries = (menus) => {
     const exact = nextMenus.find((menu) => menu.permission === parentPermission);
     if (exact) return exact.id;
 
-    const prefixParent = nextMenus.find((menu) => parentPermission.startsWith(`${menu.permission}:`));
+    const prefixParent = nextMenus.find((menu) =>
+      parentPermission.startsWith(`${menu.permission}:`)
+    );
     return prefixParent?.id || 0;
   };
 
   actionGroups.forEach((group) => {
     const parentId = findParentId(group.parentPermission);
-    const permissions = group.permissions || group.actions.map((action) => `${group.parentPermission}:${action}`);
+    const permissions =
+      group.permissions || group.actions.map((action) => `${group.parentPermission}:${action}`);
 
     permissions.forEach((permission, index) => {
       if (usedPermissions.has(permission)) return;
@@ -369,7 +660,7 @@ const appendActionPermissionEntries = (menus) => {
         type: 2,
         permission,
         sort: 1000 + index,
-        status: 1
+        status: 1,
       });
     });
   });
@@ -387,12 +678,12 @@ export const menuPermissions = buildStaticMenuPermissions(baseMenuPermissions);
  */
 export function buildMenuTree(menus = menuPermissions) {
   const menuMap = {};
-  menus.forEach(menu => {
+  menus.forEach((menu) => {
     menuMap[menu.id] = { ...menu, children: [] };
   });
 
   const tree = [];
-  menus.forEach(menu => {
+  menus.forEach((menu) => {
     const id = menu.id;
     const parentId = menu.parentId;
 
@@ -412,11 +703,14 @@ export function buildMenuTree(menus = menuPermissions) {
  * 导出SQL格式的菜单数据，用于数据库初始化
  */
 export function generateMenuSQL() {
-  let sql = 'INSERT INTO menus (id, parent_id, name, path, component, icon, permission, type, visible, status, sort_order, created_at, updated_at) VALUES\n';
+  let sql =
+    'INSERT INTO menus (id, parent_id, name, path, component, icon, permission, type, visible, status, sort_order, created_at, updated_at) VALUES\n';
 
-  const values = menuPermissions.map(menu => {
-    return `(${menu.id}, ${menu.parentId}, '${menu.name}', '${menu.path}', '${menu.component}', '${menu.icon}', '${menu.permission}', ${menu.type}, ${menu.visible ?? 1}, ${menu.status}, ${menu.sort}, NOW(), NOW())`;
-  }).join(',\n');
+  const values = menuPermissions
+    .map((menu) => {
+      return `(${menu.id}, ${menu.parentId}, '${menu.name}', '${menu.path}', '${menu.component}', '${menu.icon}', '${menu.permission}', ${menu.type}, ${menu.visible ?? 1}, ${menu.status}, ${menu.sort}, NOW(), NOW())`;
+    })
+    .join(',\n');
 
   sql += values + ';';
   return sql;

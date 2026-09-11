@@ -76,6 +76,7 @@ const batchPayments = async (req, res) => {
           bank_account_id: bankAccountId,
           notes: notes || `批量付款 - ${batchNumber}`,
           created_by: createdBy,
+          approval_id: item.approvalId || req.body.approvalId || null,
         };
 
         const paymentItems = [

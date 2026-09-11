@@ -22,9 +22,11 @@ services:
       start_period: 10s
 
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    # Production deployments set ERP_RELEASE_TAG in the server .env.  Keep a
+    # latest fallback only for backwards-compatible local inspection; there is
+    # deliberately no build context here, so a 1Panel restart cannot rebuild
+    # containers from a possibly edited server directory.
+    image: kacon-erp-backend:${ERP_RELEASE_TAG:-latest}
     restart: unless-stopped
     ports:
       # Bind to loopback only. Expose LAN/public access via 1Panel reverse
@@ -96,9 +98,7 @@ services:
       start_period: 30s
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    image: kacon-erp-frontend:${ERP_RELEASE_TAG:-latest}
     restart: unless-stopped
     ports:
       # LAN ERP UI (internal). Prefer fronting with 1Panel/nginx TLS in production.
@@ -116,9 +116,7 @@ services:
       start_period: 10s
 
   mobile:
-    build:
-      context: ./mobile
-      dockerfile: Dockerfile
+    image: kacon-erp-mobile:${ERP_RELEASE_TAG:-latest}
     restart: unless-stopped
     ports:
       # Internal mobile UI; prefer reverse-proxy TLS in production.

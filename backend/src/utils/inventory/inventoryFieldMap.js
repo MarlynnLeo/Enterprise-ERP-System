@@ -187,6 +187,7 @@ const inventoryOutboundMap = {
       outboundDate: formatDate(row.outbound_date),
       outboundType: resolveOutboundType(row),
       status: row.status ?? null,
+      financeStatus: row.finance_status ?? null,
       statusText: row.status_text ?? null,
       locationId: row.location_id ?? null,
       locationName: row.location_name ?? null,

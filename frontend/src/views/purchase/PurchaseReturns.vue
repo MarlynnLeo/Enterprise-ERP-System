@@ -223,6 +223,13 @@
           </el-table-column>
           <el-table-column label="退货原因" prop="returnReason" min-width="150" show-overflow-tooltip></el-table-column>
         </el-table>
+
+        <InventoryApprovalPanel
+          v-if="viewDialog.return?.id || viewDialog.return?.returnNumber || viewDialog.return?.returnNo"
+          source-type="purchase_return"
+          :source-id="viewDialog.return.id"
+          :source-no="viewDialog.return.returnNumber || viewDialog.return.returnNo"
+        />
       </div>
       <template #footer>
         <span class="dialog-footer">
@@ -403,6 +410,7 @@ import { purchaseApi } from '@/api';
 import { baseDataApi } from '@/api';
 import { formatCurrency } from '@/utils/helpers/formatters';
 import printService from '@/services/printService';
+import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue';
 import {
   getPurchaseReturnStatusText,
   getPurchaseReturnStatusColor

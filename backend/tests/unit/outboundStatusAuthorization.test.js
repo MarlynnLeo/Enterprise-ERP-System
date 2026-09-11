@@ -11,6 +11,11 @@ jest.mock('../../src/utils/codeGenerator', () => ({
 }));
 jest.mock('../../src/utils/softDelete', () => ({ softDeleteBatch: jest.fn() }));
 jest.mock('../../src/services/InventoryService', () => ({ updateStock: jest.fn() }));
+jest.mock('../../src/services/InventoryPostingService', () => ({
+  requireApprovedForTransaction: jest.fn(),
+  requestReversal: jest.fn(),
+  actorFromRequest: jest.fn(),
+}));
 jest.mock('../../src/services/business/AsyncTaskService', () => ({}));
 jest.mock('../../src/utils/userHelper', () => ({ getCurrentUserName: jest.fn(() => 'tester') }));
 jest.mock('../../src/controllers/business/inventory/inventoryConsistencyController', () => ({
@@ -59,6 +64,7 @@ jest.mock('../../src/controllers/business/inventory/outbound/outboundBomControll
 
 const db = require('../../src/config/db');
 const InventoryService = require('../../src/services/InventoryService');
+const InventoryPostingService = require('../../src/services/InventoryPostingService');
 const ScopeGuard = require('../../src/authorization/ScopeGuard');
 const { assertOutboundSourceAccess } = require('../../src/controllers/business/inventory/outbound/outboundHelpers');
 const {
@@ -171,7 +177,7 @@ describe('outbound status batch/source authorization', () => {
       const res = responseDouble();
 
       await cancelOutboundReissue(
-        { params: { id: '9' }, body: {}, user: { id: 3 } },
+        { params: { id: '9' }, body: {}, user: { id: 3 }, userPermissions: ['inventory:outbound:cancel'] },
         res
       );
 
@@ -182,6 +188,159 @@ describe('outbound status batch/source authorization', () => {
       expect(connection.commit).not.toHaveBeenCalled();
     }
   );
+});
+
+describe('outbound reversal approval guards', () => {
+  let connection;
+  const outbound = {
+    id: 9, outbound_no: 'OUT-9', status: 'completed',
+    reference_id: null, reference_type: null, production_task_id: null,
+  };
+  const actor = { id: 3, label: 'tester' };
+
+  function reversalRequest(body = {}) {
+    return {
+      params: { id: '9' }, body, user: { id: 3 },
+      userPermissions: ['inventory:outbound:cancel'],
+    };
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    connection = connectionDouble();
+    db.pool.getConnection.mockResolvedValue(connection);
+    ScopeGuard.denyUnlessAccess.mockResolvedValue(true);
+    ScopeGuard.assertAccess.mockResolvedValue(true);
+    assertOutboundSourceAccess.mockResolvedValue(true);
+    InventoryPostingService.requireApprovedForTransaction.mockReset();
+    InventoryPostingService.requireApprovedForTransaction.mockResolvedValue({ id: 20 });
+    InventoryPostingService.requestReversal.mockReset();
+    InventoryPostingService.requestReversal.mockResolvedValue({ reversalDocumentId: 21, financeStatus: 'pending' });
+    InventoryPostingService.actorFromRequest.mockReturnValue(actor);
+  });
+
+  test.each(['reversed', 'partial_completed'])('direct status update to %s is rejected without business writes', async (newStatus) => {
+    const res = responseDouble();
+
+    await updateOutboundStatus(reversalRequest({ newStatus }), res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(connection.execute).not.toHaveBeenCalled();
+    expect(connection.beginTransaction).not.toHaveBeenCalled();
+    expect(connection.commit).not.toHaveBeenCalled();
+    expect(connection.release).toHaveBeenCalledTimes(1);
+  });
+
+  test('the reversal endpoint also requires cancel permission', async () => {
+    const res = responseDouble();
+    const req = reversalRequest();
+    req.userPermissions = ['inventory:outbound:update'];
+
+    await cancelOutboundReissue(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(connection.beginTransaction).not.toHaveBeenCalled();
+    expect(InventoryPostingService.requestReversal).not.toHaveBeenCalled();
+  });
+
+  test.each([{ force: 'false' }, { force: 1 }, { createReissue: 'false' }, { createReissue: null }])(
+    'rejects nonboolean reversal options %j', async (body) => {
+      const res = responseDouble();
+
+      await cancelOutboundReissue(reversalRequest(body), res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(connection.execute).not.toHaveBeenCalled();
+      expect(InventoryPostingService.requestReversal).not.toHaveBeenCalled();
+    }
+  );
+
+  test.each([{}, { createReissue: false }])('submits a pending reversal without stock changes or reissue by default: %j', async (body) => {
+    connection.execute.mockResolvedValueOnce([[outbound]]);
+    const res = responseDouble();
+
+    await cancelOutboundReissue(reversalRequest(body), res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json.mock.calls[0][0].data).toEqual(expect.objectContaining({
+      id: 9, status: 'completed', financeStatus: 'pending', reversalDocumentId: 21,
+    }));
+    expect(InventoryPostingService.requestReversal).toHaveBeenCalledWith(
+      20, actor, '撤销出库单 OUT-9',
+      expect.objectContaining({ createReissue: false, force: false, sourceId: 9 }), connection
+    );
+    expect(connection.execute).toHaveBeenCalledTimes(1);
+    expect(connection.execute.mock.calls[0][0]).toContain('FOR UPDATE');
+    expect(InventoryService.updateStock).not.toHaveBeenCalled();
+    expect(connection.commit).toHaveBeenCalledTimes(1);
+  });
+
+  test('unapproved documents cannot submit a reversal', async () => {
+    connection.execute.mockResolvedValueOnce([[outbound]]);
+    InventoryPostingService.requireApprovedForTransaction.mockRejectedValue(
+      Object.assign(new Error('库存过账尚未审核'), { code: 'INVENTORY_POSTING_NOT_APPROVED', statusCode: 409 })
+    );
+    const res = responseDouble();
+
+    await cancelOutboundReissue(reversalRequest(), res);
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(InventoryPostingService.requestReversal).not.toHaveBeenCalled();
+    expect(connection.rollback).toHaveBeenCalledTimes(1);
+    expect(connection.commit).not.toHaveBeenCalled();
+  });
+
+  test('rejects the removed reissue option', async () => {
+    const res = responseDouble();
+
+    await cancelOutboundReissue(reversalRequest({ createReissue: true }), res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(connection.beginTransaction).not.toHaveBeenCalled();
+    expect(InventoryPostingService.requestReversal).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ['completed', false, 400], ['inspection', true, 400], ['in_progress', false, 409],
+  ])('checks fallback production_task_id for %s even with force=%s', async (taskStatus, force, statusCode) => {
+    connection.execute
+      .mockResolvedValueOnce([[{ ...outbound, production_task_id: 77 }]])
+      .mockResolvedValueOnce([[{ status: taskStatus, code: 'TASK-77' }]]);
+    const res = responseDouble();
+
+    await cancelOutboundReissue(reversalRequest({ force }), res);
+
+    expect(res.status).toHaveBeenCalledWith(statusCode);
+    expect(connection.execute.mock.calls[1][1]).toEqual([77]);
+    expect(connection.execute.mock.calls[1][0]).toContain('FOR UPDATE');
+    expect(assertOutboundSourceAccess).toHaveBeenCalledWith(connection, expect.any(Object), expect.objectContaining({
+      reference_id: 77, reference_type: 'production_task',
+    }));
+    expect(InventoryPostingService.requestReversal).not.toHaveBeenCalled();
+    expect(connection.commit).not.toHaveBeenCalled();
+    if (taskStatus === 'in_progress') {
+      expect(res.json.mock.calls[0][0]).toEqual(expect.objectContaining({
+        code: 'NEED_CONFIRM', details: expect.objectContaining({ needConfirm: true }),
+      }));
+    }
+  });
+
+  test('a confirmed force request still waits for finance and does not create a replacement', async () => {
+    connection.execute
+      .mockResolvedValueOnce([[{ ...outbound, production_task_id: 77 }]])
+      .mockResolvedValueOnce([[{ status: 'in_progress', code: 'TASK-77' }]]);
+    const res = responseDouble();
+
+    await cancelOutboundReissue(reversalRequest({ force: true }), res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(InventoryPostingService.requestReversal).toHaveBeenCalledWith(
+      20, actor, expect.any(String), expect.objectContaining({
+        createReissue: false, force: true, referenceType: 'production_task', referenceId: 77,
+      }), connection
+    );
+    expect(InventoryService.updateStock).not.toHaveBeenCalled();
+  });
 });
 
 /**

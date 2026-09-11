@@ -144,8 +144,8 @@ const INBOUND_TYPES = {
 // 与 statusRegistry.INVENTORY_TRANSFER_TRANSITIONS 对齐（权威 SSOT）
 const TRANSFER_STATUS = {
   draft: '草稿',
-  pending: '待审核',
-  approved: '已审核',
+  pending: '待完成',
+  approved: '历史已审核',
   completed: '已完成',
   reversed: '已冲销',
   cancelled: '已取消',
@@ -157,7 +157,7 @@ const TRANSFER_STATUS = {
 // 调拨单状态流转规则（与 inventoryTransferController / statusRegistry 一致）
 const TRANSFER_STATUS_FLOW = {
   draft: ['pending', 'cancelled'],
-  pending: ['approved', 'cancelled'],
+  pending: ['completed', 'cancelled'],
   approved: ['completed', 'cancelled'],
   completed: ['reversed'],
   reversed: [],

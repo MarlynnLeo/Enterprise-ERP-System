@@ -393,7 +393,11 @@ const getTransferDetails = async (req, res) => {
       .map((id) => transferById.get(id))
       .filter(Boolean);
 
-    ResponseHandler.success(res, orderedTransfers, '批量获取调拨单详情成功');
+    ResponseHandler.success(
+      res,
+      orderedTransfers.map((transfer) => inventoryTransferMap.toApi(transfer)),
+      '批量获取调拨单详情成功'
+    );
   } catch (error) {
     logger.error('批量获取调拨单详情失败:', error);
     ResponseHandler.error(res, '批量获取调拨单详情失败', 'SERVER_ERROR', 500, error);
@@ -858,10 +862,23 @@ const updateTransferStatus = async (req, res) => {
       }
       const currentStatus = transfer.status;
       const validTransitions = INVENTORY_TRANSFER_TRANSITIONS;
+      const [latestPostingRows] = await connection.execute(
+        `SELECT finance_status
+           FROM inventory_posting_documents
+          WHERE source_type = 'transfer'
+            AND (source_id = ? OR source_no = ?)
+            AND posting_kind = 'movement'
+          ORDER BY posting_sequence DESC, id DESC
+          LIMIT 1`,
+        [id, transfer.transfer_no]
+      );
+      const canRetryRejectedPosting =
+        newStatus === STATUS.TRANSFER.COMPLETED &&
+        latestPostingRows[0]?.finance_status === 'rejected';
 
       if (
         !validTransitions[currentStatus] ||
-        !validTransitions[currentStatus].includes(newStatus)
+        (!validTransitions[currentStatus].includes(newStatus) && !canRetryRejectedPosting)
       ) {
         await connection.rollback();
         return ResponseHandler.error(
@@ -872,7 +889,11 @@ const updateTransferStatus = async (req, res) => {
         );
       }
 
-      if (currentStatus === STATUS.TRANSFER.APPROVED && newStatus === STATUS.TRANSFER.COMPLETED) {
+      if (
+        newStatus === STATUS.TRANSFER.COMPLETED &&
+        ([STATUS.TRANSFER.PENDING, STATUS.TRANSFER.APPROVED].includes(currentStatus) ||
+          (currentStatus === STATUS.TRANSFER.COMPLETED && canRetryRejectedPosting))
+      ) {
         const [items] = await connection.execute(
           `SELECT
             i.id,
@@ -910,6 +931,7 @@ const updateTransferStatus = async (req, res) => {
               quantity: parseFloat(item.quantity),
               referenceNo: transfer.transfer_no,
               referenceType: 'transfer',
+              sourceId: id,
               operator: operatorName,
               remark: `从 ${fromLocationName} 调拨至 ${toLocationName}`,
               unitId: item.unit_id,
@@ -953,18 +975,20 @@ const updateTransferStatus = async (req, res) => {
         );
       }
 
-      const [statusUpdate] = await connection.execute(
-        'UPDATE inventory_transfers SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NULL AND status = ?',
-        [newStatus, id, currentStatus]
-      );
-      if (!statusUpdate.affectedRows) {
-        await connection.rollback();
-        return ResponseHandler.error(
-          res,
-          '调拨单状态已变更，请刷新后重试',
-          'VALIDATION_ERROR',
-          400
+      if (!(currentStatus === newStatus && canRetryRejectedPosting)) {
+        const [statusUpdate] = await connection.execute(
+          'UPDATE inventory_transfers SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NULL AND status = ?',
+          [newStatus, id, currentStatus]
         );
+        if (!statusUpdate.affectedRows) {
+          await connection.rollback();
+          return ResponseHandler.error(
+            res,
+            '调拨单状态已变更，请刷新后重试',
+            'VALIDATION_ERROR',
+            400
+          );
+        }
       }
 
       await connection.commit();

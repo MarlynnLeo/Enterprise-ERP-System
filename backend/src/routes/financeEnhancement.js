@@ -10,6 +10,7 @@ const router = express.Router();
 const FinanceEnhancementController = require('../controllers/business/finance/financeEnhancementController');
 const { authenticateToken } = require('../middleware/authEnhanced');
 const { requirePermission } = require('../middleware/requirePermission');
+const { requireInventoryApprovalAccess } = require('../middleware/inventoryApprovalAccess');
 const DLQService = require('../services/business/DLQService');
 const { ResponseHandler } = require('../utils/responseHandler');
 const { PRICE_EXPORT_PERMISSIONS, PRICE_UPDATE_PERMISSIONS } = require('../utils/desensitizer');
@@ -29,31 +30,40 @@ router.use(requirePriceMutationPermission('update'));
 // 库存过账审核：业务单据只生成冻结快照，正式库存与财务审核在统一事务内完成。
 router.get(
   '/inventory-postings',
-  requirePermission('finance:inventory:view'),
+  requireInventoryApprovalAccess('view'),
   FinanceEnhancementController.listInventoryPostings
 );
 router.get(
+  '/inventory-postings/by-source',
+  requireInventoryApprovalAccess('view'),
+  FinanceEnhancementController.getInventoryPostingApprovalBySource
+);
+router.get(
   '/inventory-postings/:id',
-  requirePermission('finance:inventory:view'),
+  requireInventoryApprovalAccess('view'),
   FinanceEnhancementController.getInventoryPosting
 );
 router.post(
   '/inventory-postings/:id/approve',
-  requirePermission('finance:inventory:approve'),
+  requireInventoryApprovalAccess('approve'),
   FinanceEnhancementController.approveInventoryPosting
 );
 router.post(
   '/inventory-postings/:id/reject',
-  requirePermission('finance:inventory:approve'),
+  requireInventoryApprovalAccess('approve'),
   FinanceEnhancementController.rejectInventoryPosting
 );
 router.post(
   '/inventory-postings/:id/reverse',
-  requirePermission('finance:inventory:reverse'),
+  requireInventoryApprovalAccess('reverse'),
   FinanceEnhancementController.reverseInventoryPosting
 );
 
-const FINANCE_FAILED_JOB_PREFIXES = ['Finance:', 'FinanceIntegration:'];
+const FINANCE_FAILED_JOB_PREFIXES = [
+  'Finance:',
+  'FinanceIntegration:',
+  'EventBus:INVENTORY_POSTING_APPROVED',
+];
 
 // ==================== 自动化集成路由 ====================
 
@@ -168,7 +178,12 @@ router.post(
       );
       return ResponseHandler.success(res, result, '进项税票生成成功');
     } catch (e) {
-      if (e.message && (e.message.includes('金额为0') || e.message.includes('税额为0') || e.message.includes('不能生成'))) {
+      if (
+        e.message &&
+        (e.message.includes('金额为0') ||
+          e.message.includes('税额为0') ||
+          e.message.includes('不能生成'))
+      ) {
         return ResponseHandler.error(res, e.message, 'VALIDATION_ERROR', 400);
       }
       return next(e);
@@ -203,7 +218,12 @@ router.post(
       );
       return ResponseHandler.success(res, result, '销项税票生成成功');
     } catch (e) {
-      if (e.message && (e.message.includes('金额为0') || e.message.includes('税额为0') || e.message.includes('不能生成'))) {
+      if (
+        e.message &&
+        (e.message.includes('金额为0') ||
+          e.message.includes('税额为0') ||
+          e.message.includes('不能生成'))
+      ) {
         return ResponseHandler.error(res, e.message, 'VALIDATION_ERROR', 400);
       }
       return next(e);
@@ -238,7 +258,12 @@ router.post(
       );
       return ResponseHandler.success(res, result, '销售成本凭证生成成功');
     } catch (e) {
-      if (e.message && (e.message.includes('成本为0') || e.message.includes('金额为0') || e.message.includes('不能生成'))) {
+      if (
+        e.message &&
+        (e.message.includes('成本为0') ||
+          e.message.includes('金额为0') ||
+          e.message.includes('不能生成'))
+      ) {
         return ResponseHandler.error(res, e.message, 'VALIDATION_ERROR', 400);
       }
       return next(e);
@@ -321,74 +346,102 @@ router.get(
  * @desc 获取期间结账状态
  * @access Private
  */
-router.get('/period/status/:periodId', requirePermission('finance:periodEnd:view'), FinanceEnhancementController.getPeriodClosingStatus);
+router.get(
+  '/period/status/:periodId',
+  requirePermission('finance:periodEnd:view'),
+  FinanceEnhancementController.getPeriodClosingStatus
+);
 
 /**
  * @route GET /api/finance/period/year-end-status/:year
  * @desc 获取年度结转状态
  * @access Private
  */
-router.get('/period/year-end-status/:year', requirePermission('finance:periodEnd:view'), FinanceEnhancementController.getYearEndStatus);
+router.get(
+  '/period/year-end-status/:year',
+  requirePermission('finance:periodEnd:view'),
+  FinanceEnhancementController.getYearEndStatus
+);
 
 /**
  * @route POST /api/finance/period/year-end-transfer
  * @desc 年度结转
  * @access Private
  */
-router.post('/period/year-end-transfer', requirePermission('finance:periodEnd:execute'), FinanceEnhancementController.yearEndTransfer);
+router.post(
+  '/period/year-end-transfer',
+  requirePermission('finance:periodEnd:execute'),
+  FinanceEnhancementController.yearEndTransfer
+);
 
 /**
  * @route GET /api/finance/automation/history
  * @desc 获取自动化任务执行历史
  * @access Private
  */
-router.get('/automation/history', requirePermission('finance:automation:view'), FinanceEnhancementController.getAutomationHistory);
+router.get(
+  '/automation/history',
+  requirePermission('finance:automation:view'),
+  FinanceEnhancementController.getAutomationHistory
+);
 
-router.get('/automation/failed-jobs', requirePermission('finance:automation:view'), async (req, res) => {
-  try {
-    const { status = 'pending', page = 1, pageSize = 20 } = req.query;
-    const result = await DLQService.listFailedJobs({
-      status,
-      page,
-      pageSize,
-      taskNamePrefixes: FINANCE_FAILED_JOB_PREFIXES,
-    });
-    return ResponseHandler.paginated(
-      res,
-      result.list,
-      result.total,
-      result.page,
-      result.pageSize,
-      '获取财务自动化失败任务成功'
-    );
-  } catch (error) {
-    return ResponseHandler.error(res, '获取财务自动化失败任务失败', 'SERVER_ERROR', 500, error);
+router.get(
+  '/automation/failed-jobs',
+  requirePermission('finance:automation:view'),
+  async (req, res) => {
+    try {
+      const { status = 'pending', page = 1, pageSize = 20 } = req.query;
+      const result = await DLQService.listFailedJobs({
+        status,
+        page,
+        pageSize,
+        taskNamePrefixes: FINANCE_FAILED_JOB_PREFIXES,
+      });
+      return ResponseHandler.paginated(
+        res,
+        result.list,
+        result.total,
+        result.page,
+        result.pageSize,
+        '获取财务自动化失败任务成功'
+      );
+    } catch (error) {
+      return ResponseHandler.error(res, '获取财务自动化失败任务失败', 'SERVER_ERROR', 500, error);
+    }
   }
-});
+);
 
-router.post('/automation/failed-jobs/retry', requirePermission('finance:automation:execute'), async (req, res) => {
-  try {
-    const limit = req.body?.limit || req.query?.limit || 20;
-    const result = await DLQService.retryPendingJobs({
-      limit,
-      taskNamePrefixes: FINANCE_FAILED_JOB_PREFIXES,
-    });
-    return ResponseHandler.success(res, result, '财务自动化失败任务重试已执行');
-  } catch (error) {
-    return ResponseHandler.error(res, '重试财务自动化失败任务失败', 'SERVER_ERROR', 500, error);
+router.post(
+  '/automation/failed-jobs/retry',
+  requirePermission('finance:automation:execute'),
+  async (req, res) => {
+    try {
+      const limit = req.body?.limit || req.query?.limit || 20;
+      const result = await DLQService.retryPendingJobs({
+        limit,
+        taskNamePrefixes: FINANCE_FAILED_JOB_PREFIXES,
+      });
+      return ResponseHandler.success(res, result, '财务自动化失败任务重试已执行');
+    } catch (error) {
+      return ResponseHandler.error(res, '重试财务自动化失败任务失败', 'SERVER_ERROR', 500, error);
+    }
   }
-});
+);
 
-router.put('/automation/failed-jobs/:id/resolve', requirePermission('finance:automation:execute'), async (req, res) => {
-  try {
-    const { id } = req.params;
-    const operator = getRequestActorLabel(req);
-    await DLQService.markResolved(id, operator);
-    return ResponseHandler.success(res, { id: Number(id) }, '财务自动化失败任务已标记为已处理');
-  } catch (error) {
-    return ResponseHandler.error(res, '标记财务自动化失败任务失败', 'SERVER_ERROR', 500, error);
+router.put(
+  '/automation/failed-jobs/:id/resolve',
+  requirePermission('finance:automation:execute'),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const operator = getRequestActorLabel(req);
+      await DLQService.markResolved(id, operator);
+      return ResponseHandler.success(res, { id: Number(id) }, '财务自动化失败任务已标记为已处理');
+    } catch (error) {
+      return ResponseHandler.error(res, '标记财务自动化失败任务失败', 'SERVER_ERROR', 500, error);
+    }
   }
-});
+);
 
 // ==================== 成本核算路由 ====================
 
@@ -400,7 +453,11 @@ const overheadAllocationController = require('../controllers/business/finance/ov
  * @desc 获取成本统计数据
  * @access Private
  */
-router.get('/cost/statistics', requirePermission('finance:cost:view'), costController.getCostStatistics);
+router.get(
+  '/cost/statistics',
+  requirePermission('finance:cost:view'),
+  costController.getCostStatistics
+);
 
 /**
  * @route GET /api/finance/cost/trend
@@ -414,21 +471,33 @@ router.get('/cost/trend', requirePermission('finance:cost:view'), costController
  * @desc 获取成本构成数据
  * @access Private
  */
-router.get('/cost/composition', requirePermission('finance:cost:view'), costController.getCostComposition);
+router.get(
+  '/cost/composition',
+  requirePermission('finance:cost:view'),
+  costController.getCostComposition
+);
 
 /**
  * @route GET /api/finance/cost/standard-list
  * @desc 获取标准成本列表
  * @access Private
  */
-router.get('/cost/standard-list', requirePermission('finance:cost:view'), costController.getStandardCostList);
+router.get(
+  '/cost/standard-list',
+  requirePermission('finance:cost:view'),
+  costController.getStandardCostList
+);
 
 /**
  * @route GET /api/finance/cost/standard/:productId
  * @desc 计算标准成本
  * @access Private
  */
-router.get('/cost/standard/:productId', requirePermission('finance:cost:view'), costController.getStandardCost);
+router.get(
+  '/cost/standard/:productId',
+  requirePermission('finance:cost:view'),
+  costController.getStandardCost
+);
 router.post(
   '/cost/standard/:productId/calculate',
   requirePermission('finance:cost:execute'),
@@ -441,28 +510,45 @@ router.post(
  * @desc 获取成本设置
  * @access Private
  */
-router.get('/cost/settings', requirePermission('finance:cost:view'), costController.getCostSettings);
+router.get(
+  '/cost/settings',
+  requirePermission('finance:cost:view'),
+  costController.getCostSettings
+);
 
 /**
  * @route POST /api/finance/cost/settings
  * @desc 保存成本设置
  * @access Private
  */
-router.post('/cost/settings', requirePermission('finance:cost:update'), requirePermission(PRICE_UPDATE_PERMISSIONS), costController.saveCostSettings);
+router.post(
+  '/cost/settings',
+  requirePermission('finance:cost:update'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  costController.saveCostSettings
+);
 
 /**
  * @route GET /api/finance/cost/supplement-reasons
  * @desc 获取补料原因配置
  * @access Private
  */
-router.get('/cost/supplement-reasons', requirePermission(SUPPLEMENT_REASON_PERMISSIONS), costController.getSupplementReasons);
+router.get(
+  '/cost/supplement-reasons',
+  requirePermission(SUPPLEMENT_REASON_PERMISSIONS),
+  costController.getSupplementReasons
+);
 
 /**
  * @route POST /api/finance/cost/supplement-reasons
  * @desc 保存补料原因配置
  * @access Private
  */
-router.post('/cost/supplement-reasons', requirePermission('finance:cost:create'), costController.saveSupplementReason);
+router.post(
+  '/cost/supplement-reasons',
+  requirePermission('finance:cost:create'),
+  costController.saveSupplementReason
+);
 router.put(
   '/cost/supplement-reasons/:id',
   requirePermission('finance:cost:update'),
@@ -474,7 +560,11 @@ router.put(
  * @desc 删除补料原因配置
  * @access Private
  */
-router.delete('/cost/supplement-reasons/:id', requirePermission('finance:cost:delete'), costController.deleteSupplementReason);
+router.delete(
+  '/cost/supplement-reasons/:id',
+  requirePermission('finance:cost:delete'),
+  costController.deleteSupplementReason
+);
 
 // ==================== GL Integration 路由 ====================
 
@@ -483,21 +573,33 @@ router.delete('/cost/supplement-reasons/:id', requirePermission('finance:cost:de
  * @desc 获取总账科目列表
  * @access Private
  */
-router.get('/cost/gl-accounts', requirePermission('finance:cost:view'), costController.getGLAccounts);
+router.get(
+  '/cost/gl-accounts',
+  requirePermission('finance:cost:view'),
+  costController.getGLAccounts
+);
 
 /**
  * @route GET /api/finance/cost/gl-mappings
  * @desc 获取科目映射配置
  * @access Private
  */
-router.get('/cost/gl-mappings', requirePermission('finance:cost:view'), costController.getGLMappings);
+router.get(
+  '/cost/gl-mappings',
+  requirePermission('finance:cost:view'),
+  costController.getGLMappings
+);
 
 /**
  * @route POST /api/finance/cost/gl-mapping
  * @desc 保存科目映射
  * @access Private
  */
-router.post('/cost/gl-mapping', requirePermission('finance:cost:update'), costController.saveGLMapping);
+router.post(
+  '/cost/gl-mapping',
+  requirePermission('finance:cost:update'),
+  costController.saveGLMapping
+);
 
 // ==========================================
 // 制造费用分摊配置
@@ -509,76 +611,212 @@ router.post('/cost/gl-mapping', requirePermission('finance:cost:update'), costCo
  * @route DELETE /api/finance/cost/overhead-allocation/:id
  * @route GET /api/finance/cost/overhead-allocation/bases
  */
-router.get('/cost/overhead-allocation', requirePermission('finance:cost:view'), overheadAllocationController.getConfigs);
-router.post('/cost/overhead-allocation', requirePermission('finance:cost:create'), overheadAllocationController.createConfig);
-router.put('/cost/overhead-allocation/:id', requirePermission('finance:cost:update'), overheadAllocationController.updateConfig);
-router.delete('/cost/overhead-allocation/:id', requirePermission('finance:cost:delete'), overheadAllocationController.deleteConfig);
-router.get('/cost/overhead-allocation/bases', requirePermission('finance:cost:view'), overheadAllocationController.getAllocationBases);
+router.get(
+  '/cost/overhead-allocation',
+  requirePermission('finance:cost:view'),
+  overheadAllocationController.getConfigs
+);
+router.post(
+  '/cost/overhead-allocation',
+  requirePermission('finance:cost:create'),
+  overheadAllocationController.createConfig
+);
+router.put(
+  '/cost/overhead-allocation/:id',
+  requirePermission('finance:cost:update'),
+  overheadAllocationController.updateConfig
+);
+router.delete(
+  '/cost/overhead-allocation/:id',
+  requirePermission('finance:cost:delete'),
+  overheadAllocationController.deleteConfig
+);
+router.get(
+  '/cost/overhead-allocation/bases',
+  requirePermission('finance:cost:view'),
+  overheadAllocationController.getAllocationBases
+);
 
 // ==================== 物料标准成本管理 ====================
-router.get('/cost/material-standard-costs', requirePermission('finance:cost:view'), costController.getMaterialStandardCosts);
-router.post('/cost/material-standard-costs/freeze', requirePermission('finance:cost:execute'), requirePermission(PRICE_UPDATE_PERMISSIONS), costController.freezeMaterialStandardCosts);
-router.put('/cost/material-standard-costs/:id', requirePermission('finance:cost:update'), requirePermission(PRICE_UPDATE_PERMISSIONS), costController.updateMaterialStandardCost);
+router.get(
+  '/cost/material-standard-costs',
+  requirePermission('finance:cost:view'),
+  costController.getMaterialStandardCosts
+);
+router.post(
+  '/cost/material-standard-costs/freeze',
+  requirePermission('finance:cost:execute'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  costController.freezeMaterialStandardCosts
+);
+router.put(
+  '/cost/material-standard-costs/:id',
+  requirePermission('finance:cost:update'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  costController.updateMaterialStandardCost
+);
 
 // ==================== 成本版本管理系统 (Standard Cost Versions - V2) ====================
 const standardCostVersionController = require('../controllers/business/finance/standardCostVersionController');
-router.get('/cost-versions', requirePermission('finance:cost:view'), standardCostVersionController.getVersions);
-router.post('/cost-versions', requirePermission('finance:cost:execute'), requirePermission(PRICE_UPDATE_PERMISSIONS), standardCostVersionController.createVersion);
-router.put('/cost-versions/:id/submit', requirePermission('finance:cost:update'), standardCostVersionController.submitVersion);
-router.put('/cost-versions/:id/approve', requirePermission('finance:cost:execute'), requirePermission(PRICE_UPDATE_PERMISSIONS), standardCostVersionController.approveVersion);
-router.post('/cost-versions/:id/generate', requirePermission('finance:cost:execute'), requirePermission(PRICE_UPDATE_PERMISSIONS), standardCostVersionController.generateCostsFromPurchase);
+router.get(
+  '/cost-versions',
+  requirePermission('finance:cost:view'),
+  standardCostVersionController.getVersions
+);
+router.post(
+  '/cost-versions',
+  requirePermission('finance:cost:execute'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  standardCostVersionController.createVersion
+);
+router.put(
+  '/cost-versions/:id/submit',
+  requirePermission('finance:cost:update'),
+  standardCostVersionController.submitVersion
+);
+router.put(
+  '/cost-versions/:id/approve',
+  requirePermission('finance:cost:execute'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  standardCostVersionController.approveVersion
+);
+router.post(
+  '/cost-versions/:id/generate',
+  requirePermission('finance:cost:execute'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  standardCostVersionController.generateCostsFromPurchase
+);
 
 // ==================== 成本中心路由 — 已统一到 costCenterRoutes.js ====================
 // 完整 CRUD + 报表由 /api/finance/cost-centers 路由负责
 
 // ==================== 费率历史路由 ====================
 
-router.get('/cost/settings-history', requirePermission('finance:cost:view'), costController.getCostSettingsHistory);
-router.get('/cost/settings-by-date', requirePermission('finance:cost:view'), costController.getCostSettingsByDate);
+router.get(
+  '/cost/settings-history',
+  requirePermission('finance:cost:view'),
+  costController.getCostSettingsHistory
+);
+router.get(
+  '/cost/settings-by-date',
+  requirePermission('finance:cost:view'),
+  costController.getCostSettingsByDate
+);
 
 // ==================== 批量成本计算路由 ====================
 
-router.post('/cost/batch-calculate', requirePermission('finance:cost:execute'), requirePermission(PRICE_UPDATE_PERMISSIONS), costController.batchCalculateStandardCost);
+router.post(
+  '/cost/batch-calculate',
+  requirePermission('finance:cost:execute'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  costController.batchCalculateStandardCost
+);
 
 // ==================== 成本冻结路由 ====================
 
-router.post('/cost/freeze/:productId', requirePermission('finance:cost:execute'), requirePermission(PRICE_UPDATE_PERMISSIONS), costController.freezeCost);
-router.post('/cost/unfreeze/:productId', requirePermission('finance:cost:execute'), requirePermission(PRICE_UPDATE_PERMISSIONS), costController.unfreezeCost);
-router.post('/cost/freeze-period', requirePermission('finance:cost:execute'), requirePermission(PRICE_UPDATE_PERMISSIONS), costController.freezePeriodCosts);
+router.post(
+  '/cost/freeze/:productId',
+  requirePermission('finance:cost:execute'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  costController.freezeCost
+);
+router.post(
+  '/cost/unfreeze/:productId',
+  requirePermission('finance:cost:execute'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  costController.unfreezeCost
+);
+router.post(
+  '/cost/freeze-period',
+  requirePermission('finance:cost:execute'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  costController.freezePeriodCosts
+);
 
 // ==================== 实际成本路由 ====================
 
-router.get('/cost/actual', requirePermission('finance:cost:view'), costController.getActualCostList);
-router.get('/cost/actual/:taskId', requirePermission('finance:cost:view'), costController.getActualCostDetail);
+router.get(
+  '/cost/actual',
+  requirePermission('finance:cost:view'),
+  costController.getActualCostList
+);
+router.get(
+  '/cost/actual/:taskId',
+  requirePermission('finance:cost:view'),
+  costController.getActualCostDetail
+);
 
 // ==================== 成本差异路由 ====================
 
-router.get('/cost/variance', requirePermission('finance:cost:view'), costController.getCostVarianceList);
-router.get('/cost/variance/:taskId', requirePermission('finance:cost:view'), costController.getCostVarianceDetail);
+router.get(
+  '/cost/variance',
+  requirePermission('finance:cost:view'),
+  costController.getCostVarianceList
+);
+router.get(
+  '/cost/variance/:taskId',
+  requirePermission('finance:cost:view'),
+  costController.getCostVarianceDetail
+);
 
 // WIP（在制品）成本报告
 router.get('/cost/wip-report', requirePermission('finance:cost:view'), costController.getWIPReport);
 
 // 委外在途成本报告
-router.get('/cost/outsourced-wip', requirePermission('finance:cost:view'), costController.getOutsourcedWIPReport);
+router.get(
+  '/cost/outsourced-wip',
+  requirePermission('finance:cost:view'),
+  costController.getOutsourcedWIPReport
+);
 
 // ==================== 成本预警路由 ====================
 
 router.get('/cost/alerts', requirePermission('finance:cost:view'), costController.getCostAlerts);
-router.get('/cost/alert-settings', requirePermission('finance:cost:view'), costController.getCostAlertSettings);
-router.post('/cost/alert-settings', requirePermission('finance:cost:update'), costController.saveCostAlertSettings);
+router.get(
+  '/cost/alert-settings',
+  requirePermission('finance:cost:view'),
+  costController.getCostAlertSettings
+);
+router.post(
+  '/cost/alert-settings',
+  requirePermission('finance:cost:update'),
+  costController.saveCostAlertSettings
+);
 
 // ==================== 年度成本对比路由 ====================
 
-router.get('/cost/yearly-comparison', requirePermission('finance:cost:view'), costController.getYearlyCostComparison);
+router.get(
+  '/cost/yearly-comparison',
+  requirePermission('finance:cost:view'),
+  costController.getYearlyCostComparison
+);
 
 // ==================== 成本报表导出路由 ====================
 
-router.get('/cost/closing/status', requirePermission('finance:cost:view'), costController.getClosingStatus);
-router.post('/cost/closing/:periodId/execute', requirePermission('finance:cost:execute'), requirePermission(PRICE_UPDATE_PERMISSIONS), costController.executeClosingWorkbench);
+router.get(
+  '/cost/closing/status',
+  requirePermission('finance:cost:view'),
+  costController.getClosingStatus
+);
+router.post(
+  '/cost/closing/:periodId/execute',
+  requirePermission('finance:cost:execute'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  costController.executeClosingWorkbench
+);
 
-router.get('/cost/export/ledger', requirePermission('finance:cost:export'), requirePermission(PRICE_EXPORT_PERMISSIONS), costController.exportCostLedger);
-router.get('/cost/export/variance', requirePermission('finance:cost:export'), requirePermission(PRICE_EXPORT_PERMISSIONS), costController.exportCostVariance);
+router.get(
+  '/cost/export/ledger',
+  requirePermission('finance:cost:export'),
+  requirePermission(PRICE_EXPORT_PERMISSIONS),
+  costController.exportCostLedger
+);
+router.get(
+  '/cost/export/variance',
+  requirePermission('finance:cost:export'),
+  requirePermission(PRICE_EXPORT_PERMISSIONS),
+  costController.exportCostVariance
+);
 
 // 注：原有的 /cost/actual/:productionOrderId 和 /cost/variance/:productionOrderId
 // 路由已整合到上面的新API中
@@ -588,7 +826,12 @@ router.get('/cost/export/variance', requirePermission('finance:cost:export'), re
  * @desc 重新计算库存成本
  * @access Private
  */
-router.post('/cost/recalculate-inventory', requirePermission('finance:cost:execute'), requirePermission(PRICE_UPDATE_PERMISSIONS), FinanceEnhancementController.recalculateInventoryCost);
+router.post(
+  '/cost/recalculate-inventory',
+  requirePermission('finance:cost:execute'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  FinanceEnhancementController.recalculateInventoryCost
+);
 
 // ==================== 高级报表路由 ====================
 
@@ -597,21 +840,33 @@ router.post('/cost/recalculate-inventory', requirePermission('finance:cost:execu
  * @desc 财务比率分析
  * @access Private
  */
-router.get('/reports/ratio-analysis', requirePermission('finance:reports:view'), FinanceEnhancementController.generateFinancialRatioAnalysis);
+router.get(
+  '/reports/ratio-analysis',
+  requirePermission('finance:reports:view'),
+  FinanceEnhancementController.generateFinancialRatioAnalysis
+);
 
 /**
  * @route GET /api/finance/reports/trend-analysis
  * @desc 趋势分析
  * @access Private
  */
-router.get('/reports/trend-analysis', requirePermission('finance:reports:view'), FinanceEnhancementController.generateTrendAnalysis);
+router.get(
+  '/reports/trend-analysis',
+  requirePermission('finance:reports:view'),
+  FinanceEnhancementController.generateTrendAnalysis
+);
 
 /**
  * @route GET /api/finance/reports/dashboard
  * @desc 财务仪表板数据
  * @access Private
  */
-router.get('/reports/dashboard', requirePermission('finance:reports:view'), FinanceEnhancementController.getDashboardData);
+router.get(
+  '/reports/dashboard',
+  requirePermission('finance:reports:view'),
+  FinanceEnhancementController.getDashboardData
+);
 
 // ==================== 系统初始化路由 ====================
 
@@ -620,6 +875,10 @@ router.get('/reports/dashboard', requirePermission('finance:reports:view'), Fina
  * @desc 初始化财务增强功能相关表
  * @access Private (仅超级管理员)
  */
-router.post('/system/initialize', requirePermission('system:initialize'), FinanceEnhancementController.initializeSystem);
+router.post(
+  '/system/initialize',
+  requirePermission('system:initialize'),
+  FinanceEnhancementController.initializeSystem
+);
 
 module.exports = router;

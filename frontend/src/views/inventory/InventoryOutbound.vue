@@ -102,10 +102,16 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="status" label="状态" min-width="90" show-overflow-tooltip>
+        <el-table-column prop="status" label="状态" min-width="140" show-overflow-tooltip>
           <template #default="scope">
-            <el-tag :type="getStatusType(scope.row.status)">
+            <el-tag :type="getStatusType(scope.row.status)" class="mr-xs">
               {{ getStatusText(scope.row.status) }}
+            </el-tag>
+            <el-tag v-if="['completed', 'partial_completed'].includes(scope.row.status) && scope.row.financeStatus"
+              :type="getFinanceStatusTagType(scope.row.financeStatus)"
+              size="small"
+              effect="plain">
+              {{ getFinanceStatusText(scope.row.financeStatus) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -195,11 +201,14 @@
               <el-icon><Close /></el-icon> 取消
             </el-button>
 
-            <!-- 已出库状态显示撤销重发按钮 -->
+            <!-- 已完成/部分完成状态显示撤销按钮 -->
             <el-button v-if="scope.row.status === 'completed' || scope.row.status === 'partial_completed'" size="small" type="danger"
-              v-permission="'inventory:outbound:update'"
+              v-permission="'inventory:outbound:cancel'"
+              :disabled="cancellingOutboundId === scope.row.id"
+              :loading="cancellingOutboundId === scope.row.id"
+              :title="scope.row.financeStatus === 'approved' ? '已完成财务审核，提交撤销申请需经财务审批' : '未完成财务审核，直接撤销出库并冲回库存'"
               @click="handleCancelOutbound(scope.row)">
-              <el-icon><RefreshLeft /></el-icon> 撤销重发
+              <el-icon><RefreshLeft /></el-icon> 撤销
             </el-button>
 
             <!-- 非草稿状态显示打印按钮 -->
@@ -493,6 +502,16 @@
           </template>
         </el-table-column>
       </el-table>
+      <InventoryApprovalPanel
+        ref="inventoryApprovalPanelRef"
+        v-if="authStore.canViewInventoryApproval && currentOutbound.id"
+        source-type="outbound"
+        :source-id="currentOutbound.id"
+        :source-no="currentOutbound.outboundNo"
+        :resubmit-status="['completed', 'partial_completed'].includes(currentOutbound.status) ? 'completed' : ''"
+        @resubmit="handleResubmitOutbound"
+        @changed="handleApprovalChanged"
+      />
       </div>
     </AppDialog>
 
@@ -669,6 +688,7 @@ import {
 } from '@/constants/systemConstants'
 import TableRowActions from '@/components/common/TableRowActions.vue'
 import { useDictionaryStore } from '@/stores/dictionary'
+import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue'
 export default {
   name: 'InventoryOutbound',
   components: {
@@ -683,7 +703,8 @@ export default {
     Check,
     Finished,
     RefreshLeft,
-    TableRowActions
+    TableRowActions,
+    InventoryApprovalPanel
   },
   setup() {
     const authStore = useAuthStore()
@@ -718,6 +739,7 @@ export default {
     const dateRange = ref([])  // 时间范围
     const productionGroupList = ref([])
     const tableHeight = ref('500px')
+    const cancellingOutboundId = ref(null)
 
     const statusOptions = computed(() => {
       const configured = dictionaryStore.getOptions('inbound_outbound_status')
@@ -808,6 +830,20 @@ export default {
     const getStatusText = (status) => {
       if (status === 'reversed') return '已冲销'
       return getInboundOutboundStatusText(status)
+    }
+
+    const getFinanceStatusText = (status) => {
+      if (status === 'approved') return '财务已审'
+      if (status === 'pending') return '待财务审'
+      if (status === 'rejected') return '财务驳回'
+      return status || ''
+    }
+
+    const getFinanceStatusTagType = (status) => {
+      if (status === 'approved') return 'success'
+      if (status === 'pending') return 'warning'
+      if (status === 'rejected') return 'danger'
+      return 'info'
     }
     const outboundTypeAliases = {
       supplement: 'supplement',
@@ -1373,30 +1409,48 @@ export default {
       }).catch(() => { })
     }
 
-    // 撤销重发 - 冲回库存并按最新BOM生成新的草稿出库单
+    const inventoryApprovalPanelRef = ref(null)
+
+    const handleResubmitOutbound = async (status) => {
+      if (!currentOutbound.id || !status) return
+      try {
+        await inventoryApi.updateOutboundStatus(currentOutbound.id, { newStatus: status })
+        ElMessage.success('已重新提交财务审核')
+        await fetchOutboundList()
+        await handleView(currentOutbound)
+        await inventoryApprovalPanelRef.value?.refresh()
+      } catch (error) {
+        ElMessage.error(error.response?.data?.message || '重新提交审核失败')
+      }
+    }
+
+    const handleApprovalChanged = async () => {
+      await fetchOutboundList()
+      if (viewDialogVisible.value && currentOutbound.id) {
+        await handleView(currentOutbound)
+      }
+    }
+
+    // 撤销出库单：若未完成财务审核直接冲回库存并作废；若已完成财务审核提交反审核申请
     const executeCancelOutbound = async (row, force = false) => {
+      if (cancellingOutboundId.value !== null) return
+      cancellingOutboundId.value = row.id
       try {
         const res = await inventoryApi.cancelOutbound(row.id, { force })
-        const data = parseResponseData(res, {})
-        const reissueNo = data.reissueOutbound?.outboundNo
-        const financeErrors = data.financeReversal?.errors || []
-
-        ElMessage.success(reissueNo ? `撤销重发成功，新出库单：${reissueNo}` : '撤销成功，库存已冲回')
-        if (financeErrors.length > 0) {
-          ElMessage.warning('库存已冲回，但财务凭证冲销失败，请到总账凭证人工复核')
-        }
-        fetchOutboundList()
+        const direct = res?.data?.directCancelled
+        ElMessage.success(direct ? '出库单已成功撤销，实物库存已直接冲回' : '撤销申请已提交，待财务审核通过后冲销库存')
+        await fetchOutboundList()
       } catch (error) {
         console.error('撤销失败:', error)
         const errorData = error.response?.data
 
         // 处理需要确认的情况（生产中状态）
-        if (errorData?.code === 'NEED_CONFIRM' && errorData?.data?.needConfirm) {
+        if (errorData?.code === 'NEED_CONFIRM' && (errorData?.details?.needConfirm || errorData?.data?.needConfirm)) {
           ElMessageBox.confirm(
-            `${errorData.message}\n\n确定要强制撤销重发吗？这可能会导致生产进度与库存数据需要人工复核。`,
+            `${errorData.message}\n\n确定要提交强制撤销申请吗？财务审核前请核实已消耗物料和生产进度。`,
             '需要确认',
             {
-              confirmButtonText: '强制撤销重发',
+              confirmButtonText: '申请强制撤销',
               cancelButtonText: '取消',
               type: 'error'
             }
@@ -1406,19 +1460,24 @@ export default {
         } else {
           ElMessage.error(errorData?.message || '撤销失败')
         }
+      } finally {
+        cancellingOutboundId.value = null
       }
     }
 
     const handleCancelOutbound = async (row, force = false) => {
+      const isApproved = row.financeStatus === 'approved'
       const confirmMsg = force
-        ? `强制撤销重发警告：出库单 ${row.outboundNo} 关联的生产任务正在进行中，部分物料可能已被消耗。确定要强制撤销重发吗？`
-        : `确定要撤销重发出库单 ${row.outboundNo} 吗？系统会冲回原库存流水，将原单标记为已冲销，并按最新BOM生成新的草稿出库单。`
+        ? `出库单 ${row.outboundNo} 关联的生产任务正在进行中，部分物料可能已被消耗。确定要提交强制撤销申请吗？`
+        : isApproved
+          ? `出库单 ${row.outboundNo} 已完成财务审核入账。撤销将提交反审核申请，待财务审核通过后冲回库存并将原单标记为已冲销。确定继续吗？`
+          : `出库单 ${row.outboundNo} 尚未完成财务审核。撤销将直接冲回实物库存并将单据标记为已冲销。确定要撤销吗？`
 
       ElMessageBox.confirm(
         confirmMsg,
-        force ? '强制撤销重发确认' : '撤销重发确认',
+        force ? '强制撤销确认' : '撤销出库确认',
         {
-          confirmButtonText: force ? '强制撤销重发' : '确定撤销重发',
+          confirmButtonText: force ? '申请强制撤销' : isApproved ? '提交反审核申请' : '确认撤销出库',
           cancelButtonText: '取消',
           type: force ? 'error' : 'warning',
           dangerouslyUseHTMLString: false
@@ -2396,7 +2455,14 @@ export default {
       selectedOutbounds,
       handleSelectionChange,
       clearSelection,
-      handleBatchPrint
+      handleBatchPrint,
+      cancellingOutboundId,
+      getFinanceStatusText,
+      getFinanceStatusTagType,
+      authStore,
+      inventoryApprovalPanelRef,
+      handleResubmitOutbound,
+      handleApprovalChanged
     }
   }
 }

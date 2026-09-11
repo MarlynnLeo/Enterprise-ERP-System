@@ -14,6 +14,16 @@ cd "$PROJECT_DIR"
 export COMPOSE_FILE="$CANONICAL_PROJECT_DIR/docker-compose.yml"
 unset COMPOSE_PATH_SEPARATOR
 
+command -v flock >/dev/null || {
+  echo "flock is required to serialize ERP deployments" >&2
+  exit 23
+}
+exec 9>"$PROJECT_DIR/.deploy.lock"
+flock -n 9 || {
+  echo "Another ERP deployment is already running; refusing concurrent release." >&2
+  exit 23
+}
+
 verify_frontend_menu_source() {
   local sidebar="$PROJECT_DIR/frontend/src/components/layout/SidebarMenu.vue"
   local layout="$PROJECT_DIR/frontend/src/views/Layout.vue"
@@ -119,9 +129,27 @@ verify_auth_artifacts() {
 normalize_env_cookie_policy
 verify_minimum_privilege_db_user
 
+if grep -Eq '^[[:space:]]+build:' docker-compose.yml; then
+  echo "Refusing deployment: production Compose must use immutable images and cannot define build contexts." >&2
+  exit 22
+fi
+
+release_id="${ERP_RELEASE_ID:-manual-$(date +%Y%m%d%H%M%S)}"
+release_tag="release-${release_id}"
+
+docker build --pull -t "kacon-erp-backend:${release_tag}" backend
+docker build --pull --build-arg APP_BUILD_ID="$release_id" -t "kacon-erp-frontend:${release_tag}" frontend
+docker build --pull -t "kacon-erp-mobile:${release_tag}" mobile
+
+if grep -q '^ERP_RELEASE_TAG=' .env; then
+  sed -i "s/^ERP_RELEASE_TAG=.*/ERP_RELEASE_TAG=$release_tag/" .env
+else
+  printf '\nERP_RELEASE_TAG=%s\n' "$release_tag" >> .env
+fi
+chmod 600 .env
+
 docker compose config --quiet
-docker compose build --pull
-docker compose run --rm backend npm run migrate
-docker compose up -d --remove-orphans
+docker compose run --rm --no-deps backend npm run migrate
+docker compose up -d --force-recreate --remove-orphans
 docker compose ps
 verify_auth_artifacts

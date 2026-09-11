@@ -143,7 +143,6 @@
       >
           <template #default="{ row }">
             <TableRowActions>
-              
               <el-popconfirm
                 v-if="row.status === 'draft'"
                 title="确定要确认该入库单吗？"
@@ -455,6 +454,15 @@
         <el-table-column prop="batchNo" label="批次号" width="200" />
         <el-table-column prop="remarks" label="备注" min-width="150" />
       </el-table>
+      <InventoryApprovalPanel
+        v-if="authStore.canViewInventoryApproval"
+        source-type="inbound"
+        :source-id="currentInbound.id"
+        :source-no="currentInbound.inboundNo"
+        :resubmit-status="currentInbound.status === 'completed' ? 'completed' : ''"
+        @resubmit="handleResubmitInbound"
+        @changed="handleApprovalChanged"
+      />
       </div>
       <template #footer>
         <el-button @click="viewDialogVisible = false">关闭</el-button>
@@ -647,6 +655,7 @@ import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 import { loadLocationOptions } from '@/utils/optionLoaders'
 import printService from '@/services/printService'
 import TableRowActions from '@/components/common/TableRowActions.vue'
+import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue'
 const route = useRoute()
 // 权限store
 const authStore = useAuthStore()
@@ -971,6 +980,16 @@ const handleUpdateStatus = async (id, newStatus) => {
     console.error('状态更新失败:', error);
     ElMessage.error(error.response?.data?.message || '状态更新失败');
   }
+}
+
+const handleResubmitInbound = async (status) => {
+  if (!currentInbound.id || !status) return
+  await handleUpdateStatus(currentInbound.id, status)
+  await handleView(currentInbound.id)
+}
+
+const handleApprovalChanged = async () => {
+  await loadInbounds()
 }
 // 组件引用管理
 const materialSelectRefs = ref({})

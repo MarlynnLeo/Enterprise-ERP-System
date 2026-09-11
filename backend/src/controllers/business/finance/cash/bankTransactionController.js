@@ -98,6 +98,40 @@ const bankTransactionController = {
   },
 
   /**
+   * 获取资金调拨申请列表。审核权限只开放待审工作台，过账仍由审核事务完成。
+   */
+  getFundTransferRequests: async (req, res) => {
+    try {
+      const status = String(req.query.status || 'pending').trim();
+      if (!['pending', 'approved', 'rejected'].includes(status)) {
+        return ResponseHandler.error(res, '无效的资金调拨状态', 'VALIDATION_ERROR', 400);
+      }
+
+      const pagination = parsePagination(req.query.page, req.query.limit || req.query.pageSize, {
+        defaultPageSize: 20,
+        maxPageSize: 100,
+      });
+      const result = await cash.getFundTransferRequests({
+        status,
+        page: pagination.page,
+        pageSize: pagination.pageSize,
+      });
+
+      return ResponseHandler.paginated(
+        res,
+        result.requests,
+        result.pagination.total,
+        result.pagination.page,
+        result.pagination.pageSize,
+        '获取资金调拨申请成功'
+      );
+    } catch (error) {
+      logger.error('获取资金调拨申请失败:', error);
+      return ResponseHandler.error(res, '获取资金调拨申请失败', 'SERVER_ERROR', 500, error);
+    }
+  },
+
+  /**
    * 获取单笔银行交易详情
    */
   getBankTransactionsForPrint: async (req, res) => {
@@ -142,7 +176,16 @@ const bankTransactionController = {
         return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
       }
 
-      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'bank_transaction', id, '无权访问该银行交易'))) {
+      if (
+        !(await ScopeGuard.denyUnlessAccess(
+          res,
+          db.pool,
+          req,
+          'bank_transaction',
+          id,
+          '无权访问该银行交易'
+        ))
+      ) {
         return;
       }
 
@@ -237,7 +280,16 @@ const bankTransactionController = {
         return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
       }
 
-      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'bank_transaction', id, '无权修改该银行交易'))) {
+      if (
+        !(await ScopeGuard.denyUnlessAccess(
+          res,
+          db.pool,
+          req,
+          'bank_transaction',
+          id,
+          '无权修改该银行交易'
+        ))
+      ) {
         return;
       }
 
@@ -292,7 +344,16 @@ const bankTransactionController = {
         return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
       }
 
-      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'bank_transaction', id, '无权删除该银行交易'))) {
+      if (
+        !(await ScopeGuard.denyUnlessAccess(
+          res,
+          db.pool,
+          req,
+          'bank_transaction',
+          id,
+          '无权删除该银行交易'
+        ))
+      ) {
         return;
       }
 
@@ -355,10 +416,10 @@ const bankTransactionController = {
         res,
         {
           success: true,
-          message: '资金调拨成功',
+          message: '资金调拨申请已提交，待财务审核',
           data: result,
         },
-        '创建成功',
+        '申请已提交',
         201
       );
     } catch (error) {
@@ -378,6 +439,42 @@ const bankTransactionController = {
     }
   },
 
+  approveFundTransfer: async (req, res) => {
+    try {
+      const result = await cash.approveTransfer(req.params.id, getAuthenticatedUserId(req));
+      return ResponseHandler.success(res, result, '资金调拨审核通过并已过账');
+    } catch (error) {
+      logger.error('审核资金调拨失败:', error);
+      return ResponseHandler.error(
+        res,
+        error.message || '审核资金调拨失败',
+        'VALIDATION_ERROR',
+        400,
+        error
+      );
+    }
+  },
+
+  rejectFundTransfer: async (req, res) => {
+    try {
+      const result = await cash.rejectTransfer(
+        req.params.id,
+        getAuthenticatedUserId(req),
+        req.body?.reason || req.body?.remark || ''
+      );
+      return ResponseHandler.success(res, result, '资金调拨申请已驳回');
+    } catch (error) {
+      logger.error('驳回资金调拨失败:', error);
+      return ResponseHandler.error(
+        res,
+        error.message || '驳回资金调拨失败',
+        'VALIDATION_ERROR',
+        400,
+        error
+      );
+    }
+  },
+
   /**
    * 导出银行交易数据
    */
@@ -393,7 +490,10 @@ const bankTransactionController = {
       };
 
       // 获取所有符合条件的交易数据（不分页）
-      const result = await BankTransactionModel.getBankTransactions({ ...filters, noPagination: true });
+      const result = await BankTransactionModel.getBankTransactions({
+        ...filters,
+        noPagination: true,
+      });
       const transactions = result.transactions || [];
 
       if (transactions.length === 0) {
@@ -688,15 +788,17 @@ const bankTransactionController = {
       const errors = [];
       const items = rows.map((row, index) => {
         const rowNo = index + 2;
-        const transactionDate = normalizeExcelDate(getFirstValue(row, [
-          'transactionDate',
-          'transaction_date',
-          'Date',
-          '日期',
-          '交易日期',
-          '记账日期',
-          '入账日期',
-        ]));
+        const transactionDate = normalizeExcelDate(
+          getFirstValue(row, [
+            'transactionDate',
+            'transaction_date',
+            'Date',
+            '日期',
+            '交易日期',
+            '记账日期',
+            '入账日期',
+          ])
+        );
         const amount = parseStatementAmount(row);
         const signedAmount = parseStatementSignedAmount(row);
         const typeValue = getFirstValue(row, [
@@ -740,8 +842,12 @@ const bankTransactionController = {
           transaction_type: inferredType,
           amount,
           summary: getFirstValue(row, ['summary', '摘要', '说明', '用途', '备注']) || '',
-          reference_number: getFirstValue(row, ['referenceNumber', 'reference_no', '参考号', '流水号', '凭证号']) || '',
-          counterparty: getFirstValue(row, ['counterparty', '交易对方', '对方户名', '对方账户', '客户名称']) || '',
+          reference_number:
+            getFirstValue(row, ['referenceNumber', 'reference_no', '参考号', '流水号', '凭证号']) ||
+            '',
+          counterparty:
+            getFirstValue(row, ['counterparty', '交易对方', '对方户名', '对方账户', '客户名称']) ||
+            '',
           balance: Number.isNaN(balance) ? null : balance,
         };
       });

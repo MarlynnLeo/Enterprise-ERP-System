@@ -25,7 +25,7 @@ const {
   updateOutboundStatus,
   batchUpdateOutboundStatus,
   batchDeleteOutbound,
-  cancelOutboundReissue,
+  cancelOutbound,
 } = require('./outbound/outboundStatusController');
 
 const {
@@ -46,7 +46,7 @@ module.exports = {
   _createOutbound,
   createOutbound,
   deleteOutbound,
-  cancelOutbound: cancelOutboundReissue,
+  cancelOutbound,
   fetchBomItemsForOutbound,
   updateOutboundStatus,
   supplementOutbound,

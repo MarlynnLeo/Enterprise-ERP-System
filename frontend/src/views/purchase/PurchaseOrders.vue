@@ -99,11 +99,11 @@
       </el-card>
       <el-card class="stat-card" shadow="hover">
         <div class="stat-value">{{ orderStats.pendingCount || 0 }}</div>
-        <div class="stat-label">待审批订单</div>
+        <div class="stat-label">待审核订单</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
         <div class="stat-value">{{ orderStats.approvedCount || 0 }}</div>
-        <div class="stat-label">已批准订单</div>
+        <div class="stat-label">已审核订单</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
         <div class="stat-value">{{ orderStats.completedCount || 0 }}</div>
@@ -205,7 +205,7 @@
             <el-tooltip
               v-if="scope.row.status === 'draft'"
               :disabled="hasPurchaseOrderSupplier(scope.row)"
-              content="请先编辑订单并设置供应商后再提交审批"
+              content="请先编辑订单并设置供应商后再提交审核"
               placement="top"
             >
               <span class="inline-action-wrap">
@@ -216,7 +216,7 @@
                   :disabled="loading || !hasPurchaseOrderSupplier(scope.row)"
                   @click="updateStatus(scope.row.id, 'pending')"
                 >
-                  提交审批
+                  提交审核
                 </el-button>
               </span>
             </el-tooltip>
@@ -227,7 +227,7 @@
               v-permission="'purchase:orders:approve'"
               @click="openApprovalDialog(scope.row)"
             >
-              审批
+              审核
             </el-button>
             <!-- 到货（confirmed/approved/partial_received 状态） -->
             <el-button
@@ -807,7 +807,7 @@
     </Transition>
     <BusinessApprovalDialog
       v-model="approvalDialog.visible"
-      title="审批采购订单"
+      title="审核采购订单"
       :loading="approvalDialog.loading"
       v-model:comment="approvalDialog.comment"
       :summary-items="orderApprovalSummary"

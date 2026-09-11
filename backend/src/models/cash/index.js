@@ -25,9 +25,7 @@ const extraMethods = {
     try {
       await connection.beginTransaction();
 
-      const [accounts] = await connection.execute(
-        'SELECT id, account_name FROM bank_accounts'
-      );
+      const [accounts] = await connection.execute('SELECT id, account_name FROM bank_accounts');
 
       logger.info(`开始重新计算 ${accounts.length} 个银行账户的余额...`);
 
@@ -90,6 +88,9 @@ module.exports = {
   updateBankTransaction: Transaction.updateBankTransaction,
   deleteBankTransaction: Transaction.deleteBankTransaction,
   transferFunds: Transfer.transferFunds,
+  getFundTransferRequests: Transfer.getTransferRequests,
+  approveTransfer: Transfer.approveTransfer,
+  rejectTransfer: Transfer.rejectTransfer,
   // 显式导出CashTransaction的审核/作废方法
   submitForAudit: CashTransaction.submitForAudit,
   approveTransaction: CashTransaction.approveTransaction,

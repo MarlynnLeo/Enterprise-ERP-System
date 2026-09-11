@@ -262,6 +262,13 @@
           :document-id="currentOutbound.id"
         />
 
+        <InventoryApprovalPanel
+          v-if="currentOutbound?.id || currentOutbound?.outboundNo"
+          source-type="sales_outbound"
+          :source-id="currentOutbound.id"
+          :source-no="currentOutbound.outboundNo"
+        />
+
         <el-divider>出库明细</el-divider>
 
         <el-table :data="currentOutbound.items || []" class="w-full" border stripe>
@@ -652,6 +659,7 @@ import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 import printService from '@/services/printService'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
 import FinanceStreamStatus from '@/views/finance/components/FinanceStreamStatus.vue'
+import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue'
 import { getCommonStatusText } from '@/constants/systemConstants'
 // 状态变量
 const loading = ref(false)

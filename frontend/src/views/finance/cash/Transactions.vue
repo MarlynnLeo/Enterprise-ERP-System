@@ -10,12 +10,93 @@
   <div class="module-page transactions-container">
     <PageHeader title="银行流水" subtitle="管理银行收支记录">
       <template #actions>
-<el-button v-permission="'finance:cash:create'" type="primary" :icon="Plus" @click="showAddDialog">新增交易</el-button>
-          <el-button v-permission="'finance:cash:export'" type="success" @click="exportTransactions">导出数据</el-button>
-          <el-button v-permission="'finance:cash:create'" type="warning" @click="showImportDialog">导入数据</el-button>
-          <el-button v-permission="'finance:cash:view'" type="primary" plain @click="printBankStatement">打印</el-button>
+        <el-button
+          v-permission="'finance:cash:create'"
+          type="primary"
+          :icon="Plus"
+          @click="showAddDialog"
+          >新增交易</el-button
+        >
+        <el-button v-permission="'finance:cash:export'" type="success" @click="exportTransactions"
+          >导出数据</el-button
+        >
+        <el-button v-permission="'finance:cash:create'" type="warning" @click="showImportDialog"
+          >导入数据</el-button
+        >
+        <el-button
+          v-permission="'finance:cash:view'"
+          type="primary"
+          plain
+          @click="printBankStatement"
+          >打印</el-button
+        >
       </template>
     </PageHeader>
+
+    <el-card
+      v-permission="'finance:cash:approve'"
+      class="data-card transfer-approval-card"
+      shadow="never"
+    >
+      <template #header>
+        <div class="approval-card-header">
+          <span>待审核资金调拨</span>
+          <el-button
+            v-permission="'finance:cash:approve'"
+            type="primary"
+            text
+            :icon="Refresh"
+            :loading="transferRequestsLoading"
+            @click="loadTransferRequests"
+            >刷新</el-button
+          >
+        </div>
+      </template>
+      <el-table :data="transferRequests" border v-loading="transferRequestsLoading" size="small">
+        <template #empty>
+          <EmptyState description="暂无待审核资金调拨" />
+        </template>
+        <el-table-column prop="transactionNumber" label="调拨单号" min-width="150" />
+        <el-table-column label="源账户" min-width="150">
+          <template #default="{ row }">{{ row.fromAccountName || row.fromAccountId }}</template>
+        </el-table-column>
+        <el-table-column label="目标账户" min-width="150">
+          <template #default="{ row }">{{ row.toAccountName || row.toAccountId }}</template>
+        </el-table-column>
+        <el-table-column prop="amount" label="金额" width="120">
+          <template #default="{ row }">{{ formatCurrency(row.amount) }}</template>
+        </el-table-column>
+        <el-table-column prop="transactionDate" label="调拨日期" width="115" />
+        <el-table-column prop="createdByName" label="申请人" width="110" />
+        <el-table-column prop="description" label="说明" min-width="180" show-overflow-tooltip />
+        <el-table-column
+          label="操作"
+          width="170"
+          fixed="right"
+          class-name="operation-column"
+          header-class-name="operation-column-header"
+        >
+          <template #default="{ row }">
+            <el-button
+              v-permission="'finance:cash:approve'"
+              type="success"
+              size="small"
+              :loading="transferActionLoading === row.id"
+              @click="approveTransferRequest(row)"
+              >通过并过账</el-button
+            >
+            <el-button
+              v-permission="'finance:cash:approve'"
+              type="danger"
+              size="small"
+              :loading="transferActionLoading === row.id"
+              @click="rejectTransferRequest(row)"
+              >驳回</el-button
+            >
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -91,8 +172,10 @@
         border
         v-loading="loading"
         show-overflow-tooltip
-      
-      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
+        @row-click="
+          (row, column, event) => handleTableRowView(row, column, event, () => handleView(row))
+        "
+      >
         <template #empty>
           <EmptyState description="暂无交易数据" />
         </template>
@@ -105,7 +188,13 @@
         <el-table-column label="交易类型" width="90">
           <template #default="scope">
             <el-tag
-              :type="scope.row.type === 'income' ? 'success' : (scope.row.type === 'expense' ? 'danger' : 'info')"
+              :type="
+                scope.row.type === 'income'
+                  ? 'success'
+                  : scope.row.type === 'expense'
+                    ? 'danger'
+                    : 'info'
+              "
               size="small"
             >
               {{ getTransactionTypeText(scope.row.type) }}
@@ -114,7 +203,15 @@
         </el-table-column>
         <el-table-column prop="amount" label="交易金额" width="120">
           <template #default="scope">
-            <span :class="[scope.row.type === 'income' ? 'positive-value' : (scope.row.type === 'expense' ? 'negative-value' : '')]">
+            <span
+              :class="[
+                scope.row.type === 'income'
+                  ? 'positive-value'
+                  : scope.row.type === 'expense'
+                    ? 'negative-value'
+                    : '',
+              ]"
+            >
               {{ formatCurrency(scope.row.amount) }}
             </span>
           </template>
@@ -158,14 +255,23 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
-      >
+        <el-table-column
+          label="操作"
+          min-width="320"
+          fixed="right"
+          align="left"
+          header-align="left"
+          class-name="operation-column"
+          header-class-name="operation-column-header"
+        >
           <template #default="scope">
             <div class="table-actions">
-              
               <el-button
                 v-permission="'finance:cash:update'"
-                v-if="['draft', 'rejected'].includes(scope.row.status || 'draft') && !scope.row.isReconciled"
+                v-if="
+                  ['draft', 'rejected'].includes(scope.row.status || 'draft') &&
+                  !scope.row.isReconciled
+                "
                 type="warning"
                 size="small"
                 @click="handleEdit(scope.row)"
@@ -174,7 +280,10 @@
               </el-button>
               <el-button
                 v-permission="'finance:cash:update'"
-                v-if="['draft', 'rejected'].includes(scope.row.status || 'draft') && !scope.row.isReconciled"
+                v-if="
+                  ['draft', 'rejected'].includes(scope.row.status || 'draft') &&
+                  !scope.row.isReconciled
+                "
                 type="success"
                 size="small"
                 @click="submitForAudit(scope.row)"
@@ -191,7 +300,10 @@
                 <el-icon><Check /></el-icon> 审核
               </el-button>
               <el-popconfirm
-                v-if="['draft', 'rejected'].includes(scope.row.status || 'draft') && !scope.row.isReconciled"
+                v-if="
+                  ['draft', 'rejected'].includes(scope.row.status || 'draft') &&
+                  !scope.row.isReconciled
+                "
                 title="确定要删除该交易记录吗？此操作不可恢复！"
                 @confirm="handleDelete(scope.row)"
                 confirm-button-type="danger"
@@ -226,20 +338,21 @@
     </el-card>
 
     <!-- 添加/编辑交易对话框 -->
-    <AppDialog
-      v-model="dialogVisible"
-      :title="dialogTitle"
-      mode="form"
-      width="600px"
-    >
-      <el-form :model="transactionForm" :rules="transactionRules" ref="transactionFormRef" label-width="100px">
+    <AppDialog v-model="dialogVisible" :title="dialogTitle" mode="form" width="600px">
+      <el-form
+        :model="transactionForm"
+        :rules="transactionRules"
+        ref="transactionFormRef"
+        label-width="100px"
+      >
         <el-form-item label="交易类型" prop="type">
           <el-radio-group v-model="transactionForm.type" @change="handleTypeChange">
             <el-radio
               v-for="type in bankConfig.transactionTypes"
               :key="type.value"
               :value="type.value"
-            >{{ type.label }}</el-radio>
+              >{{ type.label }}</el-radio
+            >
           </el-radio-group>
         </el-form-item>
 
@@ -254,7 +367,10 @@
           ></el-date-picker>
         </el-form-item>
 
-        <el-form-item :label="transactionForm.type === 'transfer' ? '源账户' : '交易账户'" prop="accountId">
+        <el-form-item
+          :label="transactionForm.type === 'transfer' ? '源账户' : '交易账户'"
+          prop="accountId"
+        >
           <el-select v-model="transactionForm.accountId" placeholder="请选择账户" class="w-full">
             <el-option
               v-for="item in accountOptions"
@@ -265,10 +381,18 @@
           </el-select>
         </el-form-item>
 
-        <el-form-item v-if="transactionForm.type === 'transfer'" label="目标账户" prop="targetAccountId">
-          <el-select v-model="transactionForm.targetAccountId" placeholder="请选择目标账户" class="w-full">
+        <el-form-item
+          v-if="transactionForm.type === 'transfer'"
+          label="目标账户"
+          prop="targetAccountId"
+        >
+          <el-select
+            v-model="transactionForm.targetAccountId"
+            placeholder="请选择目标账户"
+            class="w-full"
+          >
             <el-option
-              v-for="item in accountOptions.filter(acc => acc.id !== transactionForm.accountId)"
+              v-for="item in accountOptions.filter((acc) => acc.id !== transactionForm.accountId)"
               :key="item.id"
               :label="item.accountName"
               :value="item.id"
@@ -318,7 +442,11 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="支付方式" prop="paymentMethod">
-              <el-select v-model="transactionForm.paymentMethod" placeholder="请选择支付方式" class="w-full">
+              <el-select
+                v-model="transactionForm.paymentMethod"
+                placeholder="请选择支付方式"
+                class="w-full"
+              >
                 <el-option
                   v-for="method in bankConfig.paymentMethods"
                   :key="method.value"
@@ -331,7 +459,10 @@
         </el-row>
 
         <el-form-item label="交易对方" prop="counterparty">
-          <el-input v-model="transactionForm.counterparty" placeholder="请输入交易对方名称"></el-input>
+          <el-input
+            v-model="transactionForm.counterparty"
+            placeholder="请输入交易对方名称"
+          ></el-input>
         </el-form-item>
 
         <el-form-item label="交易描述" prop="description">
@@ -344,30 +475,29 @@
         </el-form-item>
 
         <el-form-item label="参考号" prop="referenceNumber">
-          <el-input v-model="transactionForm.referenceNumber" placeholder="请输入参考号/单据号"></el-input>
+          <el-input
+            v-model="transactionForm.referenceNumber"
+            placeholder="请输入参考号/单据号"
+          ></el-input>
         </el-form-item>
       </el-form>
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button v-permission="transactionForm.id ? 'finance:cash:update' : 'finance:cash:create'" type="primary" @click="saveTransaction" :loading="saveLoading">确认</el-button>
+          <el-button
+            v-permission="transactionForm.id ? 'finance:cash:update' : 'finance:cash:create'"
+            type="primary"
+            @click="saveTransaction"
+            :loading="saveLoading"
+            >确认</el-button
+          >
         </span>
       </template>
-        </AppDialog>
+    </AppDialog>
     <!-- 导入数据对话框 -->
-    <AppDialog
-      v-model="importDialogVisible"
-      title="导入交易数据"
-      mode="form"
-      width="600px"
-    >
+    <AppDialog v-model="importDialogVisible" title="导入交易数据" mode="form" width="600px">
       <div class="import-content">
-        <el-alert
-          title="导入说明"
-          type="info"
-          :closable="false"
-          show-icon
-        >
+        <el-alert title="导入说明" type="info" :closable="false" show-icon>
           <template #default>
             <p>1. 请先下载模板文件，按照模板格式填写数据</p>
             <p>2. 支持Excel(.xlsx)和CSV(.csv)格式文件</p>
@@ -387,13 +517,9 @@
             drag
           >
             <el-icon class="el-icon--upload"><upload-filled /></el-icon>
-            <div class="el-upload__text">
-              将文件拖到此处，或<em>点击上传</em>
-            </div>
+            <div class="el-upload__text">将文件拖到此处，或<em>点击上传</em></div>
             <template #tip>
-              <div class="el-upload__tip">
-                只能上传xlsx/xls/csv文件，且不超过10MB
-              </div>
+              <div class="el-upload__tip">只能上传xlsx/xls/csv文件，且不超过10MB</div>
             </template>
           </el-upload>
         </div>
@@ -435,7 +561,7 @@
           </el-button>
         </span>
       </template>
-        </AppDialog>
+    </AppDialog>
 
     <!-- 查看交易详情对话框 -->
     <AppDialog
@@ -456,7 +582,16 @@
         </div>
         <div class="detail-item">
           <span class="label">交易类型：</span>
-          <el-tag :type="currentTransaction.type === 'income' ? 'success' : (currentTransaction.type === 'expense' ? 'danger' : 'info')" size="small">
+          <el-tag
+            :type="
+              currentTransaction.type === 'income'
+                ? 'success'
+                : currentTransaction.type === 'expense'
+                  ? 'danger'
+                  : 'info'
+            "
+            size="small"
+          >
             {{ getTransactionTypeText(currentTransaction.type) }}
           </el-tag>
         </div>
@@ -470,49 +605,76 @@
 
       <el-descriptions :column="2" border class="mt-20">
         <el-descriptions-item label="交易金额">
-          <span :class="currentTransaction.type === 'income' ? 'positive-value' : (currentTransaction.type === 'expense' ? 'negative-value' : '')">
+          <span
+            :class="
+              currentTransaction.type === 'income'
+                ? 'positive-value'
+                : currentTransaction.type === 'expense'
+                  ? 'negative-value'
+                  : ''
+            "
+          >
             {{ formatCurrency(currentTransaction.amount) }}
           </span>
         </el-descriptions-item>
-        <el-descriptions-item label="交易对方">{{ currentTransaction.relatedParty || currentTransaction.counterparty || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="交易分类">{{ getCategoryDisplayText(currentTransaction.category) }}</el-descriptions-item>
-        <el-descriptions-item label="支付方式">{{ getPaymentMethodDisplayText(currentTransaction.paymentMethod) }}</el-descriptions-item>
-        <el-descriptions-item label="参考号">{{ currentTransaction.referenceNumber || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="关联发票">{{ currentTransaction.relatedInvoiceNumber || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="交易对方">{{
+          currentTransaction.relatedParty || currentTransaction.counterparty || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="交易分类">{{
+          getCategoryDisplayText(currentTransaction.category)
+        }}</el-descriptions-item>
+        <el-descriptions-item label="支付方式">{{
+          getPaymentMethodDisplayText(currentTransaction.paymentMethod)
+        }}</el-descriptions-item>
+        <el-descriptions-item label="参考号">{{
+          currentTransaction.referenceNumber || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="关联发票">{{
+          currentTransaction.relatedInvoiceNumber || '-'
+        }}</el-descriptions-item>
         <el-descriptions-item label="对账状态">
           <el-tag :type="currentTransaction.isReconciled ? 'success' : 'info'" size="small">
             {{ currentTransaction.isReconciled ? '已对账' : '未对账' }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="交易描述" :span="2">{{ currentTransaction.description || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="交易描述" :span="2">{{
+          currentTransaction.description || '-'
+        }}</el-descriptions-item>
       </el-descriptions>
     </AppDialog>
   </div>
 </template>
 <script setup>
-import { getCommonStatusText } from '@/constants/systemConstants'
-import { handleTableRowView } from '@/utils/tableRowView'
+import { getCommonStatusText } from '@/constants/systemConstants';
+import { handleTableRowView } from '@/utils/tableRowView';
 import { formatLocalDate } from '@/utils/format';
 import { parsePaginatedData, parseListData, parseDataObject } from '@/utils/responseParser';
 import { ref, reactive, onMounted, watch, computed } from 'vue';
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
-import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessage } from 'element-plus/es/components/message/index';
 import { ElMessageBox } from 'element-plus/es/components/message-box/index';
-import { Plus, UploadFilled, Edit, Promotion, Check, Delete } from '@element-plus/icons-vue'
+import {
+  Plus,
+  UploadFilled,
+  Edit,
+  Promotion,
+  Check,
+  Delete,
+  Refresh,
+} from '@element-plus/icons-vue';
 import { financeApi } from '@/api/finance';
 import { useAuthStore } from '@/stores/auth';
 import { useFinanceStore } from '@/stores/finance';
 import { storeToRefs } from 'pinia';
 import { useRouter } from 'vue-router';
-import printService from '@/services/printService'
+import printService from '@/services/printService';
 import { buildApiUrl } from '@/config/app';
 import { loadExcelJS } from '@/utils/lazyVendors';
 // 权限store
-const authStore = useAuthStore()
-const financeStore = useFinanceStore()
-const { bankConfig } = storeToRefs(financeStore)
+const authStore = useAuthStore();
+const financeStore = useFinanceStore();
+const { bankConfig } = storeToRefs(financeStore);
 // 权限计算属性
-
 
 // 数据加载状态
 const loading = ref(false);
@@ -536,12 +698,15 @@ const importFileList = ref([]);
 const importResult = ref(null);
 // 数据列表
 const transactionList = ref([]);
+const transferRequests = ref([]);
+const transferRequestsLoading = ref(false);
+const transferActionLoading = ref(null);
 const {
   previousItem: previousViewTransaction,
   nextItem: nextViewTransaction,
   hasPrevious: hasPreviousViewTransaction,
   hasNext: hasNextViewTransaction,
-  setCurrentItem: setCurrentViewTransaction
+  setCurrentItem: setCurrentViewTransaction,
 } = useListDetailNavigation(transactionList);
 const accountOptions = ref([]);
 // 交易统计
@@ -550,13 +715,13 @@ const transactionStats = reactive({
   totalIncome: 0,
   totalExpense: 0,
   netAmount: 0,
-  avgAmount: 0
+  avgAmount: 0,
 });
 // 搜索表单
 const searchForm = reactive({
   dateRange: null,
   type: '',
-  accountId: ''
+  accountId: '',
 });
 // 交易表单
 const transactionForm = reactive({
@@ -571,45 +736,34 @@ const transactionForm = reactive({
   counterparty: '',
   description: '',
   referenceNumber: '',
-  transactionNumber: ''
+  transactionNumber: '',
 });
 // 表单验证规则
 const transactionRules = {
-  type: [
-    { required: true, message: '请选择交易类型', trigger: 'change' }
-  ],
-  transactionDate: [
-    { required: true, message: '请选择交易日期', trigger: 'change' }
-  ],
-  accountId: [
-    { required: true, message: '请选择账户', trigger: 'change' }
-  ],
-  targetAccountId: [
-    { required: true, message: '请选择目标账户', trigger: 'change' }
-  ],
+  type: [{ required: true, message: '请选择交易类型', trigger: 'change' }],
+  transactionDate: [{ required: true, message: '请选择交易日期', trigger: 'change' }],
+  accountId: [{ required: true, message: '请选择账户', trigger: 'change' }],
+  targetAccountId: [{ required: true, message: '请选择目标账户', trigger: 'change' }],
   amount: [
     { required: true, message: '请输入交易金额', trigger: 'blur' },
-    { type: 'number', min: 0.01, message: '金额必须大于0', trigger: 'blur' }
+    { type: 'number', min: 0.01, message: '金额必须大于0', trigger: 'blur' },
   ],
-  category: [
-    { required: true, message: '请选择交易分类', trigger: 'change' }
-  ],
-  paymentMethod: [
-    { required: true, message: '请选择支付方式', trigger: 'change' }
-  ],
-  counterparty: [
-    { required: true, message: '请输入交易对方', trigger: 'blur' }
-  ]
+  category: [{ required: true, message: '请选择交易分类', trigger: 'change' }],
+  paymentMethod: [{ required: true, message: '请选择支付方式', trigger: 'change' }],
+  counterparty: [{ required: true, message: '请输入交易对方', trigger: 'blur' }],
 };
 // 监听交易类型变化，重置相关字段
-watch(() => transactionForm.type, (newType) => {
-  transactionForm.category = '';
-  if (newType === 'transfer') {
-    transactionForm.targetAccountId = null;
-  } else {
-    transactionForm.targetAccountId = undefined;
+watch(
+  () => transactionForm.type,
+  (newType) => {
+    transactionForm.category = '';
+    if (newType === 'transfer') {
+      transactionForm.targetAccountId = null;
+    } else {
+      transactionForm.targetAccountId = undefined;
+    }
   }
-});
+);
 // 格式化货币
 // formatCurrency 已统一引用公共实现;
 // 金额格式化
@@ -624,29 +778,29 @@ const getTransactionTypeText = (type) => getCommonStatusText(type) || type;
 // 获取分类显示文本
 const getCategoryDisplayText = (category) => {
   const categoryMap = {
-    'sales_income': '销售收入',
-    'investment_income': '投资收益',
-    'interest_income': '利息收入',
-    'other_income': '其他收入',
-    'purchase_expense': '采购支出',
-    'salary_expense': '工资支出',
-    'rent_expense': '租金支出',
-    'utility_expense': '水电费',
-    'office_expense': '办公费用',
-    'other_expense': '其他支出',
-    'internal_transfer': '内部转账',
-    'fund_allocation': '资金调拨'
+    sales_income: '销售收入',
+    investment_income: '投资收益',
+    interest_income: '利息收入',
+    other_income: '其他收入',
+    purchase_expense: '采购支出',
+    salary_expense: '工资支出',
+    rent_expense: '租金支出',
+    utility_expense: '水电费',
+    office_expense: '办公费用',
+    other_expense: '其他支出',
+    internal_transfer: '内部转账',
+    fund_allocation: '资金调拨',
   };
   return categoryMap[category] || category || '';
 };
 // 获取支付方式显示文本
 const getPaymentMethodDisplayText = (method) => {
   const methodMap = {
-    'cash': '现金',
-    'bank_transfer': '银行转账',
-    'check': '支票',
-    'credit_card': '信用卡',
-    'electronic_payment': '电子支付'
+    cash: '现金',
+    bank_transfer: '银行转账',
+    check: '支票',
+    credit_card: '信用卡',
+    electronic_payment: '电子支付',
   };
   return methodMap[method] || method || '';
 };
@@ -671,7 +825,7 @@ const loadTransactions = async () => {
       page: currentPage.value,
       limit: pageSize.value,
       accountId: searchForm.accountId,
-      transactionType: searchForm.type
+      transactionType: searchForm.type,
     };
     if (searchForm.dateRange && searchForm.dateRange.length === 2) {
       params.startDate = searchForm.dateRange[0];
@@ -681,7 +835,7 @@ const loadTransactions = async () => {
     // 使用统一的响应解析工具
     const { list, total: totalCount } = parsePaginatedData(response, { enableLog: false });
     // API 已 camel（toBankTransactionApi）
-    transactionList.value = list.map(item => {
+    transactionList.value = list.map((item) => {
       let formattedDate = item.transactionDate;
       if (formattedDate && typeof formattedDate === 'string' && formattedDate.includes('T')) {
         formattedDate = formattedDate.split('T')[0];
@@ -703,7 +857,7 @@ const loadTransactions = async () => {
         relatedInvoiceId: item.relatedInvoiceId,
         relatedInvoiceType: item.relatedInvoiceType,
         relatedInvoiceNumber: item.relatedInvoiceNumber || null,
-        status: item.status || 'draft'
+        status: item.status || 'draft',
       };
       return result;
     });
@@ -758,11 +912,17 @@ const loadTransactionsStats = async () => {
     if (stats && stats.summary) {
       // 更新统计数据，确保所有值都是有效数字
       transactionStats.totalCount = stats.summary.totalCount || 0;
-      transactionStats.totalIncome = typeof stats.summary.totalIncome === 'number' ? stats.summary.totalIncome : 0;
-      transactionStats.totalExpense = typeof stats.summary.totalExpense === 'number' ? stats.summary.totalExpense : 0;
-      transactionStats.netAmount = typeof stats.summary.netAmount === 'number' ? stats.summary.netAmount : 0;
-      transactionStats.avgAmount = transactionStats.totalCount > 0 ?
-        (Math.abs(transactionStats.totalIncome) + Math.abs(transactionStats.totalExpense)) / transactionStats.totalCount : 0;
+      transactionStats.totalIncome =
+        typeof stats.summary.totalIncome === 'number' ? stats.summary.totalIncome : 0;
+      transactionStats.totalExpense =
+        typeof stats.summary.totalExpense === 'number' ? stats.summary.totalExpense : 0;
+      transactionStats.netAmount =
+        typeof stats.summary.netAmount === 'number' ? stats.summary.netAmount : 0;
+      transactionStats.avgAmount =
+        transactionStats.totalCount > 0
+          ? (Math.abs(transactionStats.totalIncome) + Math.abs(transactionStats.totalExpense)) /
+            transactionStats.totalCount
+          : 0;
     } else {
       // 后端未返回摘要数据，重置为0
       resetTransactionStats();
@@ -784,8 +944,72 @@ const resetTransactionStats = () => {
 onMounted(() => {
   loadTransactions();
   loadAccountOptions();
+  loadTransferRequests();
   financeStore.loadSettings();
 });
+
+const loadTransferRequests = async () => {
+  if (!authStore.hasPermission('finance:cash:approve')) return;
+  transferRequestsLoading.value = true;
+  try {
+    const response = await financeApi.bankTransactions.getTransferRequests({
+      status: 'pending',
+      page: 1,
+      limit: 50,
+    });
+    transferRequests.value = parsePaginatedData(response, { enableLog: false }).list;
+  } catch (error) {
+    console.error('加载资金调拨申请失败:', error);
+    transferRequests.value = [];
+    ElMessage.error('加载资金调拨申请失败');
+  } finally {
+    transferRequestsLoading.value = false;
+  }
+};
+
+const approveTransferRequest = async (row) => {
+  try {
+    await ElMessageBox.confirm(
+      `确认通过资金调拨 ${row.transactionNumber} 吗？通过后将立即更新两个账户余额并生成总账凭证。`,
+      '审核资金调拨',
+      { type: 'warning' }
+    );
+    transferActionLoading.value = row.id;
+    await financeApi.bankTransactions.approveTransfer(row.id);
+    ElMessage.success('资金调拨已审核并过账');
+    await Promise.all([loadTransferRequests(), loadTransactions()]);
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return;
+    ElMessage.error(error.response?.data?.message || error.message || '审核资金调拨失败');
+  } finally {
+    transferActionLoading.value = null;
+  }
+};
+
+const rejectTransferRequest = async (row) => {
+  try {
+    const { value: reason } = await ElMessageBox.prompt(
+      `请输入驳回 ${row.transactionNumber} 的原因。`,
+      '驳回资金调拨',
+      {
+        confirmButtonText: '确认驳回',
+        cancelButtonText: '取消',
+        inputPlaceholder: '驳回原因（必填）',
+        inputValidator: (value) => (String(value || '').trim() ? true : '请填写驳回原因'),
+        inputErrorMessage: '请填写驳回原因',
+      }
+    );
+    transferActionLoading.value = row.id;
+    await financeApi.bankTransactions.rejectTransfer(row.id, { reason: reason.trim() });
+    ElMessage.success('资金调拨申请已驳回');
+    await loadTransferRequests();
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return;
+    ElMessage.error(error.response?.data?.message || error.message || '驳回资金调拨失败');
+  } finally {
+    transferActionLoading.value = null;
+  }
+};
 // 搜索交易
 const searchTransactions = () => {
   currentPage.value = 1;
@@ -824,15 +1048,16 @@ const transactionViewNavigation = computed(() => ({
   hasNext: hasNextViewTransaction.value,
   loading: false,
   previous: handleViewPrevious,
-  next: handleViewNext
+  next: handleViewNext,
 }));
 // 编辑交易
 const handleEdit = (row) => {
   dialogTitle.value = '编辑交易';
   resetTransactionForm();
   // 获取交易详情
-  financeApi.bankTransactions.getDetail(row.id)
-    .then(response => {
+  financeApi.bankTransactions
+    .getDetail(row.id)
+    .then((response) => {
       // 使用统一的响应解析工具
       const transaction = parseDataObject(response, { enableLog: false });
       if (transaction) {
@@ -854,7 +1079,7 @@ const handleEdit = (row) => {
         ElMessage.warning('获取交易详情失败');
       }
     })
-    .catch(error => {
+    .catch((error) => {
       console.error('获取交易详情失败:', error);
 
       // 如果API不存在，仍然使用行数据填充表单
@@ -908,17 +1133,19 @@ const handleDelete = (row) => {
   ElMessageBox.confirm('确认要删除该交易记录吗？此操作不可恢复！', '警告', {
     confirmButtonText: '确认',
     cancelButtonText: '取消',
-    type: 'warning'
-  }).then(async () => {
-    try {
-      await financeApi.bankTransactions.delete(row.id);
-      ElMessage.success('删除成功');
-      loadTransactions();
-    } catch (error) {
-      console.error('删除交易失败:', error);
-      ElMessage.error('删除交易失败');
-    }
-  }).catch(() => {});
+    type: 'warning',
+  })
+    .then(async () => {
+      try {
+        await financeApi.bankTransactions.delete(row.id);
+        ElMessage.success('删除成功');
+        loadTransactions();
+      } catch (error) {
+        console.error('删除交易失败:', error);
+        ElMessage.error('删除交易失败');
+      }
+    })
+    .catch(() => {});
 };
 // 保存交易
 const saveTransaction = async () => {
@@ -968,7 +1195,7 @@ const saveTransaction = async () => {
           isReconciled: false,
           reconciliationDate: null,
           category: transactionForm.category,
-          paymentMethod: transactionForm.paymentMethod
+          paymentMethod: transactionForm.paymentMethod,
         };
 
         // 对于编辑操作，保留原交易编号
@@ -985,7 +1212,9 @@ const saveTransaction = async () => {
             loadTransactions();
           } catch (updateError) {
             console.error('更新交易失败:', updateError);
-            ElMessage.error(`更新交易失败: ${updateError.response?.data?.message || updateError.message}`);
+            ElMessage.error(
+              `更新交易失败: ${updateError.response?.data?.message || updateError.message}`
+            );
           }
         } else {
           // 新增交易
@@ -998,20 +1227,21 @@ const saveTransaction = async () => {
               data.transactionDate = formattedDate.split('T')[0];
             }
 
-            const response = transactionForm.type === 'transfer'
-              ? await financeApi.bankTransactions.createTransfer({
-                transactionNumber,
-                fromAccountId: transactionForm.accountId,
-                toAccountId: transactionForm.targetAccountId,
-                transactionDate: data.transactionDate,
-                amount: data.amount,
-                description: enhancedDescription.trim(),
-                referenceNumber: transactionForm.referenceNumber || ''
-              })
-              : await financeApi.bankTransactions.create({
-                ...data,
-                transactionNumber
-              });
+            const response =
+              transactionForm.type === 'transfer'
+                ? await financeApi.bankTransactions.createTransfer({
+                    transactionNumber,
+                    fromAccountId: transactionForm.accountId,
+                    toAccountId: transactionForm.targetAccountId,
+                    transactionDate: data.transactionDate,
+                    amount: data.amount,
+                    description: enhancedDescription.trim(),
+                    referenceNumber: transactionForm.referenceNumber || '',
+                  })
+                : await financeApi.bankTransactions.create({
+                    ...data,
+                    transactionNumber,
+                  });
             // 显示成功信息，包括新的余额
             const responseData = parseDataObject(response, { enableLog: false });
             if (responseData && responseData.newBalance !== undefined) {
@@ -1023,7 +1253,9 @@ const saveTransaction = async () => {
             loadTransactions();
           } catch (createError) {
             console.error('创建交易失败:', createError);
-            ElMessage.error(`创建交易失败: ${createError.response?.data?.message || createError.message}`);
+            ElMessage.error(
+              `创建交易失败: ${createError.response?.data?.message || createError.message}`
+            );
           }
         }
       } catch (error) {
@@ -1039,9 +1271,9 @@ const saveTransaction = async () => {
 // 映射交易类型到后端支持的类型
 const mapTransactionType = (type) => {
   const typeMap = {
-    'income': '存款',
-    'expense': '取款',
-    'transfer': '转账'
+    income: '存款',
+    expense: '取款',
+    transfer: '转账',
   };
   return typeMap[type] || type;
 };
@@ -1049,24 +1281,24 @@ const mapTransactionType = (type) => {
 const mapTransactionTypeToFrontend = (backendType) => {
   const typeMap = {
     // 中文类型映射
-    '存款': 'income',
-    '转入': 'income',
-    '利息': 'income',
-    '收入': 'income',
-    '取款': 'expense',
-    '转出': 'expense',
-    '费用': 'expense',
-    '支出': 'expense',
+    存款: 'income',
+    转入: 'income',
+    利息: 'income',
+    收入: 'income',
+    取款: 'expense',
+    转出: 'expense',
+    费用: 'expense',
+    支出: 'expense',
     // 英文类型保持不变
-    'income': 'income',
-    'expense': 'expense',
-    'transfer': 'transfer',
-    'transfer_in': 'income',
-    'transfer_out': 'expense',
-    'deposit': 'income',
-    'withdrawal': 'expense',
-    'interest': 'income',
-    'fee': 'expense'
+    income: 'income',
+    expense: 'expense',
+    transfer: 'transfer',
+    transfer_in: 'income',
+    transfer_out: 'expense',
+    deposit: 'income',
+    withdrawal: 'expense',
+    interest: 'income',
+    fee: 'expense',
   };
 
   return typeMap[backendType] || 'income'; // 默认为收入类型
@@ -1080,7 +1312,10 @@ const getPaymentMethodFromDescription = (description) => {
     { pattern: /(银行转账|bank transfer)/i, method: 'bank_transfer' },
     { pattern: /(支票|check)/i, method: 'check' },
     { pattern: /(信用卡|credit card)/i, method: 'credit_card' },
-    { pattern: /(电子支付|electronic payment|支付宝|微信|alipay|wechat)/i, method: 'electronic_payment' }
+    {
+      pattern: /(电子支付|electronic payment|支付宝|微信|alipay|wechat)/i,
+      method: 'electronic_payment',
+    },
   ];
 
   // 查找匹配的支付方式
@@ -1103,7 +1338,7 @@ const getAuditStatusType = (status) => {
     pending: 'warning',
     reviewed: 'primary',
     approved: 'success',
-    rejected: 'danger'
+    rejected: 'danger',
   };
   return map[status] || 'info';
 };
@@ -1114,7 +1349,7 @@ const getAuditStatusText = (status) => {
     pending: '待审核',
     reviewed: '已初审',
     approved: '已批准',
-    rejected: '已驳回'
+    rejected: '已驳回',
   };
   return map[status] || '草稿';
 };
@@ -1122,10 +1357,10 @@ const getAuditStatusText = (status) => {
 const submitForAudit = async (row) => {
   try {
     await ElMessageBox.confirm('确定要提交该交易进行审核吗?', '提交审核', {
-      type: 'info'
+      type: 'info',
     });
     await financeApi.bankTransactions.submit(row.id, {
-      userId: authStore.user?.id || 0
+      userId: authStore.user?.id || 0,
     });
 
     ElMessage.success('提交审核成功');
@@ -1160,7 +1395,7 @@ const handleAudit = (row) => {
         const response = await financeApi.bankTransactions.audit(row.id, {
           status,
           remark,
-          auditorId: authStore.user?.id || 0
+          auditorId: authStore.user?.id || 0,
         });
 
         const responseData = parseDataObject(response, { enableLog: false });
@@ -1178,8 +1413,8 @@ const handleAudit = (row) => {
         instance.confirmButtonLoading = false;
         instance.cancelButtonLoading = false;
       }
-    }
-  }).catch(action => {
+    },
+  }).catch((action) => {
     // 驳回逻辑在beforeClose中处理了，这里只需捕获取消
     if (action === 'cancel') {
       // 驳回按钮点击也会触发cancel，但已经在beforeClose处理
@@ -1245,7 +1480,7 @@ const handleImport = async () => {
     importResult.value = {
       success: false,
       message: error.message || '导入失败',
-      data: null
+      data: null,
     };
     ElMessage.error(error.message || '导入失败');
   } finally {
@@ -1257,23 +1492,23 @@ const downloadTemplate = async () => {
   // 创建模板数据
   const templateData = [
     {
-      '交易日期': '2025-01-01',
-      '账户名称': '工商银行基本户',
-      '交易类型': '存款',
-      '交易金额': 10000.00,
-      '交易对方': '客户A',
-      '交易描述': '销售收入',
-      '参考号': 'REF001'
+      交易日期: '2025-01-01',
+      账户名称: '工商银行基本户',
+      交易类型: '存款',
+      交易金额: 10000.0,
+      交易对方: '客户A',
+      交易描述: '销售收入',
+      参考号: 'REF001',
     },
     {
-      '交易日期': '2025-01-02',
-      '账户名称': '工商银行基本户',
-      '交易类型': '取款',
-      '交易金额': 5000.00,
-      '交易对方': '供应商B',
-      '交易描述': '采购付款',
-      '参考号': 'REF002'
-    }
+      交易日期: '2025-01-02',
+      账户名称: '工商银行基本户',
+      交易类型: '取款',
+      交易金额: 5000.0,
+      交易对方: '供应商B',
+      交易描述: '采购付款',
+      参考号: 'REF002',
+    },
   ];
   // 使用动态导入 ExcelJS 库
   try {
@@ -1288,15 +1523,17 @@ const downloadTemplate = async () => {
       { header: '交易金额', key: 'amount', width: 15 },
       { header: '交易对方', key: 'counterparty', width: 20 },
       { header: '交易描述', key: 'description', width: 30 },
-      { header: '参考号', key: 'reference', width: 15 }
+      { header: '参考号', key: 'reference', width: 15 },
     ];
     // 添加模板数据
-    templateData.forEach(row => {
+    templateData.forEach((row) => {
       worksheet.addRow(row);
     });
     // 生成并下载文件
     const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -1314,7 +1551,7 @@ const printBankStatement = async () => {
     // 获取当前筛选条件下的所有交易数据
     const params = {
       accountId: searchForm.accountId,
-      transactionType: searchForm.type
+      transactionType: searchForm.type,
     };
     if (searchForm.dateRange && searchForm.dateRange.length === 2) {
       params.startDate = searchForm.dateRange[0];
@@ -1324,11 +1561,13 @@ const printBankStatement = async () => {
     // 使用统一的响应解析工具
     const { list: printData } = parsePaginatedData(response, { enableLog: false });
     // 获取账户信息
-    const selectedAccount = accountOptions.value.find(acc => acc.id === searchForm.accountId);
+    const selectedAccount = accountOptions.value.find((acc) => acc.id === searchForm.accountId);
     const accountName = selectedAccount ? selectedAccount.accountName : '全部账户';
     const accountNumber = selectedAccount ? selectedAccount.accountNumber : '';
     // 打印数据 API 已 camel
-    const sortedData = [...printData].sort((a, b) => new Date(a.transactionDate) - new Date(b.transactionDate));
+    const sortedData = [...printData].sort(
+      (a, b) => new Date(a.transactionDate) - new Date(b.transactionDate)
+    );
     const incomeTypes = new Set(['存款', '转入', 'deposit', 'income']);
     const expenseTypes = new Set(['取款', '转出', 'withdrawal', 'expense']);
     let runningBalance = 0;
@@ -1345,16 +1584,18 @@ const printBankStatement = async () => {
         referenceNumber: item.referenceNumber || '',
         description: item.description || '',
         incomeAmount: isIncome ? amount.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) : '-',
-        expenseAmount: !isIncome ? amount.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) : '-',
-        balance: runningBalance.toLocaleString('zh-CN', { minimumFractionDigits: 2 })
+        expenseAmount: !isIncome
+          ? amount.toLocaleString('zh-CN', { minimumFractionDigits: 2 })
+          : '-',
+        balance: runningBalance.toLocaleString('zh-CN', { minimumFractionDigits: 2 }),
       };
     });
 
     const totalIncome = sortedData
-      .filter(item => incomeTypes.has(item.transactionType))
+      .filter((item) => incomeTypes.has(item.transactionType))
       .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
     const totalExpense = sortedData
-      .filter(item => expenseTypes.has(item.transactionType))
+      .filter((item) => expenseTypes.has(item.transactionType))
       .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
 
     const html = await printService.generateByDefaultTemplate('finance', 'bank_statement', {
@@ -1364,7 +1605,7 @@ const printBankStatement = async () => {
       totalIncome: totalIncome.toLocaleString('zh-CN', { minimumFractionDigits: 2 }),
       totalExpense: totalExpense.toLocaleString('zh-CN', { minimumFractionDigits: 2 }),
       finalBalance: runningBalance.toLocaleString('zh-CN', { minimumFractionDigits: 2 }),
-      items
+      items,
     });
 
     printService.previewDocument(html);
@@ -1386,13 +1627,13 @@ const jumpToInvoice = (row) => {
     // 跳转到应收发票页面
     router.push({
       path: '/finance/ar/invoices',
-      query: { invoiceId: row.relatedInvoiceId }
+      query: { invoiceId: row.relatedInvoiceId },
     });
   } else if (row.relatedInvoiceType === 'AP') {
     // 跳转到应付发票页面
     router.push({
       path: '/finance/ap/invoices',
-      query: { invoiceId: row.relatedInvoiceId }
+      query: { invoiceId: row.relatedInvoiceId },
     });
   }
 };
@@ -1405,13 +1646,16 @@ const handleCurrentChange = (page) => {
   currentPage.value = page;
   loadTransactions();
 };
-// 页面加载时执行
-onMounted(() => {
-  loadAccountOptions();
-  loadTransactions();
-});
 </script>
 <style scoped>
+.transfer-approval-card {
+  margin-bottom: 20px;
+}
+.approval-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
 .header-card {
   margin-bottom: 20px;
 }

@@ -155,7 +155,8 @@ const PURCHASE_RECEIPT_STATUS_TRANSITIONS = {
 // in_transit / rejected 仅兼容历史数据，新流程不再写入
 const INVENTORY_TRANSFER_TRANSITIONS = {
   draft: ['pending', 'cancelled'],
-  pending: ['approved', 'cancelled'],
+  // 业务人员完成单据后生成待财务审核过账；approved 仅保留为历史状态兼容。
+  pending: ['completed', 'cancelled'],
   approved: ['completed', 'cancelled'],
   completed: ['reversed'],
   reversed: [],

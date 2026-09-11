@@ -114,8 +114,8 @@ const FALLBACK_DICTIONARY = {
   purchase_status: {
     draft: { name: '草稿', color: 'info' },
     pending: { name: '待处理', color: 'warning' },
-    submitted: { name: '待审批', color: 'warning' },
-    approved: { name: '已批准', color: 'success' },
+    submitted: { name: '待审核', color: 'warning' },
+    approved: { name: '已审核', color: 'success' },
     confirmed: { name: '已确认', color: 'primary' },
     processing: { name: '处理中', color: 'primary' },
     partial_received: { name: '部分收货', color: 'warning' },
@@ -171,9 +171,9 @@ const FALLBACK_DICTIONARY = {
   },
   approval_status: {
     draft: { name: '草稿', color: 'info' },
-    pending: { name: '待审批', color: 'warning' },
-    approved: { name: '已审批', color: 'success' },
-    rejected: { name: '已拒绝', color: 'danger' },
+    pending: { name: '待审核', color: 'warning' },
+    approved: { name: '已审核', color: 'success' },
+    rejected: { name: '已驳回', color: 'danger' },
     cancelled: { name: '已取消', color: 'danger' },
   },
   user_status: {
@@ -572,7 +572,7 @@ const getColor = (group, code) => {
   const semanticColors = {
     // 成功/完成类 (绿色)
     'completed': 'success', '已完成': 'success',
-    'approved': 'success', '已审批': 'success', '审批通过': 'success',
+    'approved': 'success', '已审核': 'success', '审核通过': 'success', '已审批': 'success', '审批通过': 'success',
     'active': 'success', '启用': 'success', '正常': 'success',
     'inspected': 'success', '合格': 'success', '已检验': 'success',
 
@@ -583,14 +583,14 @@ const getColor = (group, code) => {
     'processing': 'primary', '执行中': 'primary', '出库': 'primary',
 
     // 警告/待处理动作 (橙/黄色)
-    'pending': 'warning', '待审批': 'warning', '待处理': 'warning', '未开始': 'warning',
+    'pending': 'warning', '待审核': 'warning', '待审批': 'warning', '待处理': 'warning', '未开始': 'warning',
     'inspecting': 'warning', '待检验': 'warning', '检验中': 'warning',
     'material_issuing': 'warning', '发料中': 'warning', '配料中': 'warning',
     'paused': 'warning', '已暂停': 'warning', '暂停': 'warning',
 
     // 危险/失败操作 (红色)
     'cancelled': 'danger', '已取消': 'danger', '取消': 'danger',
-    'rejected': 'danger', '已拒绝': 'danger', '拒绝': 'danger',
+    'rejected': 'danger', '已拒绝': 'danger', '已驳回': 'danger', '拒绝': 'danger',
     'failed': 'danger', '失败': 'danger', '不合格': 'danger',
     'disabled': 'danger', '禁用': 'danger', '停用': 'danger'
   };

@@ -10,11 +10,12 @@
   <div class="module-page invoices-container">
     <PageHeader title="应收发票" subtitle="管理销售发票与核销">
       <template #actions>
-<el-button
+        <el-button
           type="primary"
           :icon="Plus"
           @click="showAddDialog"
-          v-permission="'finance:ar:create'">
+          v-permission="'finance:ar:create'"
+        >
           新增发票
         </el-button>
       </template>
@@ -31,10 +32,18 @@
     >
       <template #basic>
         <el-form-item label="发票编号">
-          <el-input  v-model="searchForm.invoiceNumber" placeholder="输入发票编号" clearable ></el-input>
+          <el-input
+            v-model="searchForm.invoiceNumber"
+            placeholder="输入发票编号"
+            clearable
+          ></el-input>
         </el-form-item>
         <el-form-item label="客户名称">
-          <el-input  v-model="searchForm.customerName" placeholder="输入客户名称" clearable ></el-input>
+          <el-input
+            v-model="searchForm.customerName"
+            placeholder="输入客户名称"
+            clearable
+          ></el-input>
         </el-form-item>
       </template>
       <template #advanced>
@@ -70,8 +79,11 @@
           class="table-row-click table-full-width"
           border
           v-loading="loading"
-        
-      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleViewDetails(row))">
+          @row-click="
+            (row, column, event) =>
+              handleTableRowView(row, column, event, () => handleViewDetails(row))
+          "
+        >
           <template #empty>
             <EmptyState description="暂无发票数据" />
           </template>
@@ -82,7 +94,9 @@
                 type="primary"
                 :underline="false"
                 @click="openRelatedSalesOrderDialog(row)"
-                :title="row.relatedOrderNo ? `查看销售订单 ${row.relatedOrderNo}` : '查看关联销售订单'"
+                :title="
+                  row.relatedOrderNo ? `查看销售订单 ${row.relatedOrderNo}` : '查看关联销售订单'
+                "
               >
                 {{ row.invoiceNumber }}
               </el-link>
@@ -124,15 +138,23 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" min-width="340" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
-      >
+          <el-table-column
+            label="操作"
+            min-width="340"
+            fixed="right"
+            align="left"
+            header-align="left"
+            class-name="operation-column"
+            header-class-name="operation-column-header"
+          >
             <template #default="scope">
               <el-button
                 v-if="scope.row.status === '草稿'"
                 type="primary"
                 size="small"
                 @click="handleEdit(scope.row)"
-                v-permission="'finance:ar:update'">
+                v-permission="'finance:ar:update'"
+              >
                 编辑
               </el-button>
               <el-button
@@ -140,7 +162,8 @@
                 type="success"
                 size="small"
                 @click="handleStatusChange(scope.row, '已确认')"
-                v-permission="'finance:ar:update'">
+                v-permission="'finance:ar:approve'"
+              >
                 确认
               </el-button>
               <el-button
@@ -152,18 +175,22 @@
                 type="warning"
                 size="small"
                 @click="handleStatusChange(scope.row, '已取消')"
-                v-permission="'finance:ar:update'">
+                v-permission="'finance:ar:approve'"
+              >
                 取消
               </el-button>
               <el-button
-                v-if="['已确认', '部分付款', '已逾期'].includes(scope.row.status) && scope.row.balanceAmount > 0"
+                v-if="
+                  ['已确认', '部分付款', '已逾期'].includes(scope.row.status) &&
+                  scope.row.balanceAmount > 0
+                "
                 type="success"
                 size="small"
                 @click="handleRecordPayment(scope.row)"
-                v-permission="'finance:ar:receive'">
+                v-permission="'finance:ar:receive'"
+              >
                 收款
               </el-button>
-              
             </template>
           </el-table-column>
         </el-table>
@@ -232,95 +259,95 @@
   </div>
 </template>
 <script setup>
-import { getCommonStatusText, getCommonStatusColor } from '@/constants/systemConstants'
-import { handleTableRowView } from '@/utils/tableRowView'
-import { formatCurrency, formatLocalDate } from '@/utils/format'
+import { getCommonStatusText, getCommonStatusColor } from '@/constants/systemConstants';
+import { handleTableRowView } from '@/utils/tableRowView';
+import { formatCurrency, formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { ElMessage } from 'element-plus/es/components/message/index'
-import { ElMessageBox } from 'element-plus/es/components/message-box/index'
+import { ElMessage } from 'element-plus/es/components/message/index';
+import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { Plus } from '@element-plus/icons-vue';
 import { baseDataApi } from '@/api';
 import { financeApi } from '@/api/finance';
 import { salesApi } from '@/api/sales';
-import { parseListData, parsePaginatedData, parseResponseData } from '@/utils/responseParser'
-import logger from '@/utils/logger'
-import { useFinanceStore } from '@/stores/finance'
-import { storeToRefs } from 'pinia'
-import printService from '@/services/printService'
-import InvoiceFormDialog from './components/InvoiceFormDialog.vue'
-import PaymentDialog from './components/PaymentDialog.vue'
-import InvoiceDetailDialog from './components/InvoiceDetailDialog.vue'
-import RelatedOrderDialog from '../components/RelatedOrderDialog.vue'
-const financeStore = useFinanceStore()
-const { defaultVATRate } = storeToRefs(financeStore)
-const router = useRouter()
+import { parseListData, parsePaginatedData, parseResponseData } from '@/utils/responseParser';
+import logger from '@/utils/logger';
+import { useFinanceStore } from '@/stores/finance';
+import { storeToRefs } from 'pinia';
+import printService from '@/services/printService';
+import InvoiceFormDialog from './components/InvoiceFormDialog.vue';
+import PaymentDialog from './components/PaymentDialog.vue';
+import InvoiceDetailDialog from './components/InvoiceDetailDialog.vue';
+import RelatedOrderDialog from '../components/RelatedOrderDialog.vue';
+const financeStore = useFinanceStore();
+const { defaultVATRate } = storeToRefs(financeStore);
+const router = useRouter();
 
-const relatedOrderDialogVisible = ref(false)
-const relatedOrderLoading = ref(false)
-const relatedOrderDetail = ref(null)
+const relatedOrderDialogVisible = ref(false);
+const relatedOrderLoading = ref(false);
+const relatedOrderDetail = ref(null);
 const relatedOrderContext = reactive({
   invoiceNumber: '',
   customerName: '',
   relatedOrderId: null,
   relatedOrderNo: '',
-})
+});
 
 /** 点击发票编号 → 弹窗展示关联销售订单 */
 const openRelatedSalesOrderDialog = async (row) => {
   if (!row?.relatedOrderId && !row?.relatedOrderNo) {
-    ElMessage.warning('该发票未关联销售订单')
-    return
+    ElMessage.warning('该发票未关联销售订单');
+    return;
   }
-  relatedOrderContext.invoiceNumber = row.invoiceNumber || ''
-  relatedOrderContext.customerName = row.customerName || ''
-  relatedOrderContext.relatedOrderId = row.relatedOrderId || null
-  relatedOrderContext.relatedOrderNo = row.relatedOrderNo || ''
-  relatedOrderDetail.value = null
-  relatedOrderDialogVisible.value = true
-  relatedOrderLoading.value = true
+  relatedOrderContext.invoiceNumber = row.invoiceNumber || '';
+  relatedOrderContext.customerName = row.customerName || '';
+  relatedOrderContext.relatedOrderId = row.relatedOrderId || null;
+  relatedOrderContext.relatedOrderNo = row.relatedOrderNo || '';
+  relatedOrderDetail.value = null;
+  relatedOrderDialogVisible.value = true;
+  relatedOrderLoading.value = true;
   try {
-    let orderId = row.relatedOrderId
+    let orderId = row.relatedOrderId;
     if (!orderId && row.relatedOrderNo) {
       const listRes = await salesApi.getOrders({
         search: row.relatedOrderNo,
         page: 1,
         pageSize: 5,
-      })
-      const list = parseListData(listRes, { enableLog: false }) || []
+      });
+      const list = parseListData(listRes, { enableLog: false }) || [];
       const hit =
-        list.find((o) => String(o.orderNo || '') === String(row.relatedOrderNo)) || list[0]
-      orderId = hit?.id
-      if (hit?.orderNo) relatedOrderContext.relatedOrderNo = hit.orderNo
-      if (hit?.id) relatedOrderContext.relatedOrderId = hit.id
+        list.find((o) => String(o.orderNo || '') === String(row.relatedOrderNo)) || list[0];
+      orderId = hit?.id;
+      if (hit?.orderNo) relatedOrderContext.relatedOrderNo = hit.orderNo;
+      if (hit?.id) relatedOrderContext.relatedOrderId = hit.id;
     }
     if (!orderId) {
-      ElMessage.warning('未找到对应销售订单详情')
-      return
+      ElMessage.warning('未找到对应销售订单详情');
+      return;
     }
-    const res = await salesApi.getOrder(orderId)
-    relatedOrderDetail.value = parseResponseData(res, null) || res?.data || null
+    const res = await salesApi.getOrder(orderId);
+    relatedOrderDetail.value = parseResponseData(res, null) || res?.data || null;
     if (relatedOrderDetail.value?.id) {
-      relatedOrderContext.relatedOrderId = relatedOrderDetail.value.id
+      relatedOrderContext.relatedOrderId = relatedOrderDetail.value.id;
     }
     if (relatedOrderDetail.value?.orderNo) {
-      relatedOrderContext.relatedOrderNo = relatedOrderDetail.value.orderNo
+      relatedOrderContext.relatedOrderNo = relatedOrderDetail.value.orderNo;
     }
   } catch (error) {
-    logger.error('加载关联销售订单失败:', error)
-    ElMessage.error(error?.response?.data?.message || error.message || '加载销售订单失败')
+    logger.error('加载关联销售订单失败:', error);
+    ElMessage.error(error?.response?.data?.message || error.message || '加载销售订单失败');
   } finally {
-    relatedOrderLoading.value = false
+    relatedOrderLoading.value = false;
   }
-}
+};
 
 /** 对话框底部：跳转销售订单列表并筛选 */
 const jumpToRelatedSalesOrder = () => {
   if (!relatedOrderContext.relatedOrderId && !relatedOrderContext.relatedOrderNo) {
-    ElMessage.warning('无关联销售订单可跳转')
-    return
+    ElMessage.warning('无关联销售订单可跳转');
+    return;
   }
-  relatedOrderDialogVisible.value = false
+  relatedOrderDialogVisible.value = false;
   router.push({
     path: '/sales/orders',
     query: {
@@ -331,8 +358,8 @@ const jumpToRelatedSalesOrder = () => {
         ? { orderNo: String(relatedOrderContext.relatedOrderNo) }
         : {}),
     },
-  })
-}
+  });
+};
 // 权限计算属性
 // 数据加载状态
 const loading = ref(false);
@@ -366,10 +393,13 @@ const invoiceDetails = reactive({
   paidAmount: 0,
   balanceAmount: 0,
   status: '',
+  approvedBy: null,
+  approvedByName: '',
+  approvedAt: '',
   createdAt: '',
   notes: '',
   items: [],
-  payments: []
+  payments: [],
 });
 // 数据列表
 const invoiceList = ref([]);
@@ -380,7 +410,7 @@ const searchForm = reactive({
   invoiceNumber: '',
   customerName: '',
   dateRange: [],
-  status: ''
+  status: '',
 });
 // 发票表单（API camelCase 契约）
 const invoiceForm = reactive({
@@ -391,7 +421,7 @@ const invoiceForm = reactive({
   dueDate: '',
   items: [],
   notes: '',
-  taxRate: defaultVATRate.value
+  taxRate: defaultVATRate.value,
 });
 // 收款表单
 const paymentForm = reactive({
@@ -406,13 +436,17 @@ const paymentForm = reactive({
   amount: 0,
   paymentMethod: 'bank_transfer',
   bankAccountId: null,
-  notes: ''
+  notes: '',
 });
 
 // 获取状态类型
-const getStatusType = (invoice) => getCommonStatusColor(typeof invoice === 'object' ? invoice?.status : invoice) || 'info';
+const getStatusType = (invoice) =>
+  getCommonStatusColor(typeof invoice === 'object' ? invoice?.status : invoice) || 'info';
 // 获取状态文本
-const getStatusText = (invoice) => getCommonStatusText(typeof invoice === 'object' ? invoice?.status : invoice) || (invoice?.status || '草稿');
+const getStatusText = (invoice) =>
+  getCommonStatusText(typeof invoice === 'object' ? invoice?.status : invoice) ||
+  invoice?.status ||
+  '草稿';
 // 添加发票明细项（用于编辑时的默认项）
 const addInvoiceItem = () => {
   invoiceForm.items.push({
@@ -420,11 +454,10 @@ const addInvoiceItem = () => {
     description: '',
     quantity: 1,
     unitPrice: 0,
-    amount: 0
+    amount: 0,
   });
 };
 // 自动生成发票编号
-;
 // 加载发票列表
 const loadInvoices = async () => {
   loading.value = true;
@@ -436,7 +469,7 @@ const loadInvoices = async () => {
       customerName: searchForm.customerName,
       startDate: searchForm.dateRange?.[0] || '',
       endDate: searchForm.dateRange?.[1] || '',
-      status: searchForm.status
+      status: searchForm.status,
     };
 
     const response = await financeApi.getARInvoices(params);
@@ -485,7 +518,7 @@ const loadProductOptions = async () => {
     // 使用物料API加载产品数据
     const response = await baseDataApi.getMaterials({
       pageSize: 50,
-      type: 'finished'
+      type: 'finished',
     });
     productOptions.value = parseListData(response, { enableLog: false });
   } catch (error) {
@@ -517,8 +550,7 @@ const showAddDialog = () => {
 };
 const handleStatusChange = async (row, status) => {
   const actionText = status === '已确认' ? '确认' : '取消';
-  const isCancelConfirmed =
-    status === '已取消' && ['已确认', '已逾期'].includes(row.status);
+  const isCancelConfirmed = status === '已取消' && ['已确认', '已逾期'].includes(row.status);
   const invNo = row.invoiceNumber;
   const confirmMsg = isCancelConfirmed
     ? `确定取消已确认发票 ${invNo} 吗？将冲销关联会计凭证并释放来源单据，未收款发票才可取消。`
@@ -565,7 +597,7 @@ const handleEdit = async (row) => {
         description: item.description || '',
         quantity: parseFloat(item.quantity) || 0,
         unitPrice: parseFloat(item.unitPrice) || 0,
-        amount: parseFloat(item.amount) || 0
+        amount: parseFloat(item.amount) || 0,
       }));
       if (invoiceForm.items.length === 0) addInvoiceItem();
     } else {
@@ -592,7 +624,7 @@ const handleEdit = async (row) => {
 const handleViewDetails = async (row) => {
   try {
     // 清空上次的数据
-    Object.keys(invoiceDetails).forEach(key => {
+    Object.keys(invoiceDetails).forEach((key) => {
       if (Array.isArray(invoiceDetails[key])) {
         invoiceDetails[key] = [];
       } else if (typeof invoiceDetails[key] === 'number') {
@@ -619,6 +651,9 @@ const handleViewDetails = async (row) => {
       invoiceDetails.paidAmount = invoice.paidAmount;
       invoiceDetails.balanceAmount = invoice.balanceAmount;
       invoiceDetails.status = invoice.status;
+      invoiceDetails.approvedBy = invoice.approvedBy;
+      invoiceDetails.approvedByName = invoice.approvedByName;
+      invoiceDetails.approvedAt = invoice.approvedAt;
       invoiceDetails.createdAt = invoice.createdAt;
       invoiceDetails.notes = invoice.notes;
 
@@ -688,7 +723,6 @@ const handleRecordPayment = async (row) => {
   paymentDialogVisible.value = true;
 };
 // 查看发票关联的收款记录
-;
 // 保存发票
 const saveInvoice = async () => {
   if (!invoiceFormRef.value) return;
@@ -728,8 +762,8 @@ const saveInvoice = async () => {
             description: item.description,
             quantity: parseFloat(item.quantity),
             unitPrice: parseFloat(item.unitPrice),
-            amount: parseFloat(item.amount)
-          }))
+            amount: parseFloat(item.amount),
+          })),
         };
 
         if (invoiceForm.id) {
@@ -746,7 +780,9 @@ const saveInvoice = async () => {
         loadInvoices();
       } catch (error) {
         logger.error('保存发票失败:', error);
-        ElMessage.error('保存发票失败: ' + (error.response?.data?.error || error.message || '未知错误'));
+        ElMessage.error(
+          '保存发票失败: ' + (error.response?.data?.error || error.message || '未知错误')
+        );
       } finally {
         saveLoading.value = false;
       }
@@ -764,11 +800,11 @@ const savePayment = async () => {
         // 准备提交的数据
         const _data = {
           invoiceId: paymentForm.invoiceId,
-          receiptDate: paymentForm.paymentDate,  // 后端期望 receiptDate
+          receiptDate: paymentForm.paymentDate, // 后端期望 receiptDate
           amount: paymentForm.amount,
           paymentMethod: paymentForm.paymentMethod,
-          bankAccountId: paymentForm.bankAccountId || null,  // 添加银行账户ID
-          notes: paymentForm.notes
+          bankAccountId: paymentForm.bankAccountId || null, // 添加银行账户ID
+          notes: paymentForm.notes,
         };
 
         // 发送请求
@@ -781,7 +817,11 @@ const savePayment = async () => {
       } catch (error) {
         logger.error('保存收款记录失败:', error);
         logger.error('错误详情:', error.response?.data);
-        const errorMsg = error.response?.data?.error || error.response?.data?.message || error.message || '未知错误';
+        const errorMsg =
+          error.response?.data?.error ||
+          error.response?.data?.message ||
+          error.message ||
+          '未知错误';
         ElMessage.error('保存收款记录失败: ' + errorMsg);
       } finally {
         savePaymentLoading.value = false;
@@ -824,7 +864,6 @@ onMounted(() => {
 // 格式化货币
 // 格式化货币 - 已统一使用 @/utils/format 导入
 // 获取支付方式文本
-;
 // 打印发票 - 使用打印模板系统
 const handlePrint = async () => {
   if (!invoiceDetails.id) {
@@ -851,7 +890,7 @@ const handlePrint = async () => {
         quantity: qty.toString(),
         unit_price: price === null || Number.isNaN(price) ? '-' : price.toFixed(2),
         tax_amount: '-',
-        amount: amount === null || Number.isNaN(amount) ? '-' : amount.toFixed(2)
+        amount: amount === null || Number.isNaN(amount) ? '-' : amount.toFixed(2),
       };
     });
     const subtotal = items.every((item) => item.amount !== '-')
@@ -873,7 +912,7 @@ const handlePrint = async () => {
       balance_amount: formatCurrency(invoiceDetails.balanceAmount),
       notes: invoiceDetails.notes || '',
       print_time: new Date().toLocaleString(),
-      items
+      items,
     });
 
     printService.previewDocument(html);

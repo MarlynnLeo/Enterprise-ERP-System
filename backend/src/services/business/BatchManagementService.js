@@ -57,7 +57,9 @@ class BatchManagementService {
       // 写入 inventory_ledger 台账（可跳过：仅登记追溯关系时）
       // 优先使用业务上下文判断交易类型，避免依赖单号前缀造成 RCV/GR 等编码规则差异断链。
       const refNo = reference_no || referenceNo || receipt_no || `BATCH-${batch_number}`;
-      const refType = reference_type || referenceType || 'batch_create';
+      const hasPurchaseReceiptContext = Boolean(receipt_id || receipt_no);
+      const refType =
+        reference_type || referenceType || (hasPurchaseReceiptContext ? 'inbound' : 'batch_create');
       let txType = transaction_type || transactionType || 'inbound';
       if (!transaction_type && !transactionType && (receipt_id || receipt_no || purchase_order_id || purchase_order_no)) {
         txType = 'purchase_inbound';

@@ -29,6 +29,33 @@ const { fetchBomItemsForOutbound } = require('./outboundBomController');
 const { resolveActorLabel } = require('../../../../utils/userUtils');
 const { inventoryOutboundMap } = require('../../../../utils/inventory/inventoryFieldMap');
 
+// 每张出库单只关联最新的正常过账，避免历史驳回/冲销记录重复累计或误报已审核。
+// 单号回退只转换外表值的排序规则，保留过账表 source_no 的索引比较。
+const OUTBOUND_FINANCE_STATUS_JOIN = `
+  LEFT JOIN inventory_posting_documents outbound_posting ON outbound_posting.id = (
+    SELECT posting.id
+    FROM inventory_posting_documents posting
+    WHERE posting.source_type = 'outbound'
+      AND posting.posting_kind = 'movement'
+      AND (posting.source_id = o.id OR (posting.source_id IS NULL AND posting.source_no = o.outbound_no COLLATE utf8mb4_unicode_ci))
+    ORDER BY posting.posting_sequence DESC, posting.id DESC
+    LIMIT 1
+  )
+`;
+
+// 历史迁移过账可能仍为 approved；已冲销/已取消的业务单据不计入当前已审核。
+const APPROVED_OUTBOUND_BUSINESS_STATUS_SQL = "o.status IN ('completed', 'partial_completed')";
+const OUTBOUND_DISPLAY_STATUS_SQL = `CASE
+  WHEN ${APPROVED_OUTBOUND_BUSINESS_STATUS_SQL} AND outbound_posting.finance_status = 'approved' THEN 'approved'
+  ELSE o.status
+END`;
+
+const getOutboundDisplayStatusText = (outbound) => (
+  outbound.finance_status === 'approved' && ['completed', 'partial_completed'].includes(outbound.status)
+    ? '已审核'
+    : getStatusText(outbound.status)
+);
+
 const getOutboundList = async (req, res) => {
   try {
     // 确保参数为数字类型
@@ -70,7 +97,7 @@ const getOutboundList = async (req, res) => {
     }
 
     if (status && status !== '') {
-      whereClause += ' AND o.status = ?';
+      whereClause += ` AND (${OUTBOUND_DISPLAY_STATUS_SQL}) = ?`;
       params.push(status);
     }
 
@@ -110,6 +137,7 @@ const getOutboundList = async (req, res) => {
         p.specs as product_specs,
         pt.quantity as product_quantity,
         o.status,
+        outbound_posting.finance_status,
         o.operator,
         CASE
           WHEN o.operator = 'system' THEN '系统'
@@ -136,6 +164,7 @@ const getOutboundList = async (req, res) => {
         o.reference_id,
         o.reference_type
       FROM inventory_outbound o
+      ${OUTBOUND_FINANCE_STATUS_JOIN}
       LEFT JOIN inventory_outbound_items oi ON o.id = oi.outbound_id
       LEFT JOIN materials m ON oi.material_id = m.id
       LEFT JOIN units mu ON m.unit_id = mu.id
@@ -145,7 +174,7 @@ const getOutboundList = async (req, res) => {
       LEFT JOIN departments pg ON p.production_group_id = pg.id AND pg.status = 1
       ${scopeClause.join}
       ${whereClause}
-      GROUP BY o.id, o.outbound_no, o.outbound_date, o.status, o.operator, o.remark, o.created_at, o.updated_at, o.reference_id, o.reference_type, p.code, p.specs, pt.quantity, pg.name
+      GROUP BY o.id, o.outbound_no, o.outbound_date, o.status, outbound_posting.finance_status, o.operator, o.remark, o.created_at, o.updated_at, o.reference_id, o.reference_type, p.code, p.specs, pt.quantity, pg.name
       ORDER BY o.created_at DESC
     `, pagination.limit, pagination.offset);
 
@@ -157,6 +186,7 @@ const getOutboundList = async (req, res) => {
     const countQuery = `
       SELECT COUNT(DISTINCT o.id) as total
       FROM inventory_outbound o
+      ${OUTBOUND_FINANCE_STATUS_JOIN}
       LEFT JOIN inventory_outbound_items oi ON o.id = oi.outbound_id
       LEFT JOIN materials m ON oi.material_id = m.id
       LEFT JOIN production_tasks pt ON pt.id = COALESCE(o.production_task_id, CASE WHEN o.reference_type = 'production_task' THEN o.reference_id ELSE NULL END)
@@ -169,15 +199,16 @@ const getOutboundList = async (req, res) => {
     const total = countResult[0].total;
 
     const statsQuery = `
-      SELECT o.status, COUNT(DISTINCT o.id) as count
+      SELECT ${OUTBOUND_DISPLAY_STATUS_SQL} as status, COUNT(DISTINCT o.id) as count
       FROM inventory_outbound o
+      ${OUTBOUND_FINANCE_STATUS_JOIN}
       LEFT JOIN inventory_outbound_items oi ON o.id = oi.outbound_id
       LEFT JOIN materials m ON oi.material_id = m.id
       LEFT JOIN production_tasks pt ON pt.id = COALESCE(o.production_task_id, CASE WHEN o.reference_type = 'production_task' THEN o.reference_id ELSE NULL END)
       LEFT JOIN materials p ON pt.product_id = p.id
       ${scopeClause.join}
       ${whereClause}
-      GROUP BY o.status
+      GROUP BY ${OUTBOUND_DISPLAY_STATUS_SQL}
     `;
     const [statsRows] = await db.pool.query(statsQuery, filterParams);
     const statistics = {
@@ -188,12 +219,14 @@ const getOutboundList = async (req, res) => {
       completedCount: 0,
       reversedCount: 0,
       cancelledCount: 0,
+      approvedCount: 0,
     };
     const statusStatsMap = {
       draft: 'draftCount',
       confirmed: 'confirmedCount',
       partial_completed: 'partialCompletedCount',
       completed: 'completedCount',
+      approved: 'approvedCount',
       reversed: 'reversedCount',
       cancelled: 'cancelledCount',
     };
@@ -221,7 +254,7 @@ const getOutboundList = async (req, res) => {
       api.totalQuantity = Number(item.total_quantity) || 0;
       api.itemUnitName = item.item_unit_name ?? null;
       api.createdAtFormatted = item.created_at_formatted ?? null;
-      api.statusText = getStatusText(item.status);
+      api.statusText = getOutboundDisplayStatusText(item);
       return api;
     });
 
@@ -273,7 +306,7 @@ const exportOutbound = async (req, res) => {
     }
 
     if (status) {
-      whereClause += ' AND o.status = ?';
+      whereClause += ` AND (${OUTBOUND_DISPLAY_STATUS_SQL}) = ?`;
       params.push(status);
     }
 
@@ -306,6 +339,7 @@ const exportOutbound = async (req, res) => {
         o.outbound_no,
         DATE_FORMAT(o.outbound_date, '%Y-%m-%d') as outbound_date,
         o.status,
+        outbound_posting.finance_status,
         CASE
           WHEN o.outbound_type IS NOT NULL AND o.outbound_type != '' AND o.outbound_type NOT IN ('manual', 'other') THEN o.outbound_type
           WHEN o.production_task_id IS NOT NULL OR o.reference_type = 'production_task' THEN 'production'
@@ -327,6 +361,7 @@ const exportOutbound = async (req, res) => {
         o.remark,
         DATE_FORMAT(o.created_at, '%Y-%m-%d %H:%i:%s') as created_at
       FROM inventory_outbound o
+      ${OUTBOUND_FINANCE_STATUS_JOIN}
       LEFT JOIN inventory_outbound_items oi ON o.id = oi.outbound_id
       LEFT JOIN materials m ON oi.material_id = m.id
       LEFT JOIN locations l ON m.location_id = l.id
@@ -336,7 +371,7 @@ const exportOutbound = async (req, res) => {
       ${scopeClause.join || ''}
       ${whereClause}
       GROUP BY o.id, o.outbound_no, o.outbound_date, o.status, o.outbound_type, o.reference_type,
-               o.reference_id, o.operator, o.remark, o.created_at
+               o.reference_id, o.operator, o.remark, o.created_at, outbound_posting.finance_status
       ORDER BY o.created_at DESC
       `,
       params
@@ -348,7 +383,7 @@ const exportOutbound = async (req, res) => {
     worksheet.columns = [
       { header: '出库单号', key: 'outbound_no', width: 20 },
       { header: '出库日期', key: 'outbound_date', width: 14 },
-      { header: '状态', key: 'status_text', width: 14 },
+      { header: '状态', key: 'status_text', width: 24 },
       { header: '类型', key: 'outbound_type', width: 16 },
       { header: '关联类型', key: 'reference_type', width: 18 },
       { header: '关联ID', key: 'reference_id', width: 12 },
@@ -365,7 +400,7 @@ const exportOutbound = async (req, res) => {
     rows.forEach((row) => {
       worksheet.addRow({
         ...row,
-        status_text: getStatusText(row.status),
+        status_text: getOutboundDisplayStatusText(row),
       });
     });
 
@@ -403,6 +438,7 @@ const getOutboundDetail = async (req, res) => {
       `
       SELECT
         o.*,
+        outbound_posting.finance_status,
         COALESCE(
           (SELECT u.real_name FROM users u WHERE u.username = o.operator LIMIT 1),
           o.operator
@@ -414,6 +450,7 @@ const getOutboundDetail = async (req, res) => {
         DATE_FORMAT(o.created_at, '%Y-%m-%d %H:%i:%s') as created_at,
         DATE_FORMAT(o.updated_at, '%Y-%m-%d %H:%i:%s') as updated_at
       FROM inventory_outbound o
+      ${OUTBOUND_FINANCE_STATUS_JOIN}
       LEFT JOIN production_tasks pt ON (o.reference_type = 'production_task' AND o.reference_id = pt.id)
       LEFT JOIN materials m ON pt.product_id = m.id
       WHERE o.id = ?
@@ -538,7 +575,7 @@ const getOutboundDetail = async (req, res) => {
       production_task_code: outboundResult[0].production_task_code || null,
       production_task_product_name: outboundResult[0].production_task_product_name || null,
       production_task_quantity: outboundResult[0].production_task_quantity || null,
-      status_text: getStatusText(outboundResult[0].status),
+      status_text: getOutboundDisplayStatusText(outboundResult[0]),
       items: enhancedItems,
     });
 

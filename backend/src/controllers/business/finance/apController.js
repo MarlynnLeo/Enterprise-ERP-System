@@ -9,7 +9,6 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const { logger } = require('../../../utils/logger');
 
-
 const apModel = require('../../../models/ap');
 const db = require('../../../config/db');
 const BankAccountModel = require('../../../models/cash/Account');
@@ -22,6 +21,8 @@ const {
   BANK_BACKED_PAYMENT_METHODS,
 } = require('../../../constants/financeConstants');
 const ScopeGuard = require('../../../authorization/ScopeGuard');
+const PermissionService = require('../../../services/PermissionService');
+const PaymentApprovalService = require('../../../services/finance/PaymentApprovalService');
 const {
   fromInvoiceApi,
   toInvoiceApi,
@@ -114,7 +115,16 @@ const apController = {
       if (isNaN(invoiceId)) {
         return ResponseHandler.error(res, '无效的发票ID', 'VALIDATION_ERROR', 400);
       }
-      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'ap_invoice', invoiceId, '无权访问该应付发票'))) {
+      if (
+        !(await ScopeGuard.denyUnlessAccess(
+          res,
+          db.pool,
+          req,
+          'ap_invoice',
+          invoiceId,
+          '无权访问该应付发票'
+        ))
+      ) {
         return;
       }
       const invoice = await apModel.getInvoiceById(invoiceId);
@@ -140,7 +150,16 @@ const apController = {
       if (isNaN(invoiceId)) {
         return ResponseHandler.error(res, '无效的发票ID', 'VALIDATION_ERROR', 400);
       }
-      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'ap_invoice', invoiceId, '无权访问该应付发票'))) {
+      if (
+        !(await ScopeGuard.denyUnlessAccess(
+          res,
+          db.pool,
+          req,
+          'ap_invoice',
+          invoiceId,
+          '无权访问该应付发票'
+        ))
+      ) {
         return;
       }
       const invoice = await apModel.getInvoiceById(invoiceId);
@@ -213,7 +232,16 @@ const apController = {
         return ResponseHandler.error(res, '缺少状态参数', 'VALIDATION_ERROR', 400);
       }
 
-      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'ap_invoice', invoiceId, '无权变更该应付发票状态'))) {
+      if (
+        !(await ScopeGuard.denyUnlessAccess(
+          res,
+          db.pool,
+          req,
+          'ap_invoice',
+          invoiceId,
+          '无权变更该应付发票状态'
+        ))
+      ) {
         return;
       }
 
@@ -228,6 +256,7 @@ const apController = {
       }
 
       const updated = await apModel.updateInvoiceStatus(invoiceId, status, {
+        approver_id: getAuthenticatedUserId(req),
         updated_by: getAuthenticatedUserId(req),
       });
 
@@ -258,7 +287,16 @@ const apController = {
       if (!invoiceId) {
         return ResponseHandler.error(res, '无效的发票ID', 'VALIDATION_ERROR', 400);
       }
-      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'ap_invoice', invoiceId, '无权修改该应付发票'))) {
+      if (
+        !(await ScopeGuard.denyUnlessAccess(
+          res,
+          db.pool,
+          req,
+          'ap_invoice',
+          invoiceId,
+          '无权修改该应付发票'
+        ))
+      ) {
         return;
       }
 
@@ -373,7 +411,16 @@ const apController = {
       if (isNaN(paymentId)) {
         return ResponseHandler.error(res, '无效的付款记录ID', 'VALIDATION_ERROR', 400);
       }
-      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'ap_payment', paymentId, '无权访问该付款记录'))) {
+      if (
+        !(await ScopeGuard.denyUnlessAccess(
+          res,
+          db.pool,
+          req,
+          'ap_payment',
+          paymentId,
+          '无权访问该付款记录'
+        ))
+      ) {
         return;
       }
       const payment = await apModel.getPaymentById(paymentId);
@@ -409,14 +456,16 @@ const apController = {
         );
       }
 
-      if (!(await ScopeGuard.denyUnlessAccess(
-        res,
-        db.pool,
-        req,
-        'ap_invoice',
-        paymentData.invoiceId,
-        '无权对该应付发票付款'
-      ))) {
+      if (
+        !(await ScopeGuard.denyUnlessAccess(
+          res,
+          db.pool,
+          req,
+          'ap_invoice',
+          paymentData.invoiceId,
+          '无权对该应付发票付款'
+        ))
+      ) {
         return;
       }
 
@@ -432,7 +481,11 @@ const apController = {
         );
       }
 
-      if (![INVOICE_STATUS.CONFIRMED, INVOICE_STATUS.PARTIAL_PAID, INVOICE_STATUS.OVERDUE].includes(invoice.status)) {
+      if (
+        ![INVOICE_STATUS.CONFIRMED, INVOICE_STATUS.PARTIAL_PAID, INVOICE_STATUS.OVERDUE].includes(
+          invoice.status
+        )
+      ) {
         return ResponseHandler.error(
           res,
           `发票当前状态为"${invoice.status}"，必须先确认后才能付款`,
@@ -444,12 +497,7 @@ const apController = {
       // 检查付款核销金额（实付+折扣）是否超过未付余额 (精度修复: 分/整数比对)
       const payAmountCents = Math.round(parseFloat(paymentData.amount || 0) * 100);
       if (payAmountCents < 0) {
-        return ResponseHandler.error(
-          res,
-          '付款金额不能为负数',
-          'VALIDATION_ERROR',
-          400
-        );
+        return ResponseHandler.error(res, '付款金额不能为负数', 'VALIDATION_ERROR', 400);
       }
 
       const discountAmount = parseFloat(paymentData.discountAmount || 0);
@@ -458,12 +506,7 @@ const apController = {
       }
       const discountCents = Math.round(discountAmount * 100);
       if (payAmountCents === 0 && discountCents === 0) {
-        return ResponseHandler.error(
-          res,
-          '付款金额与折扣金额不能同时为0',
-          'VALIDATION_ERROR',
-          400
-        );
+        return ResponseHandler.error(res, '付款金额与折扣金额不能同时为0', 'VALIDATION_ERROR', 400);
       }
 
       const settlementCents = payAmountCents + discountCents;
@@ -521,7 +564,8 @@ const apController = {
 
       // 构建完整的付款数据结构
       const completePaymentData = {
-        payment_number: paymentData.paymentNumber || await CodeGeneratorService.nextCode('ap_payment'),
+        payment_number:
+          paymentData.paymentNumber || (await CodeGeneratorService.nextCode('ap_payment')),
         supplier_id: invoice.supplierId,
         supplier_name: invoice.supplierName,
         payment_date: paymentData.paymentDate || currentDateString(),
@@ -530,6 +574,11 @@ const apController = {
         reference_number: paymentData.referenceNumber || null,
         bank_account_id: paymentData.bankAccountId || null,
         notes: paymentData.notes || '',
+        approval_id: paymentData.approvalId || null,
+        approval_no: paymentData.approvalNo || null,
+        server_admin_override:
+          paymentData.skipApproval === true &&
+          (await PermissionService.isAdmin(getAuthenticatedUserId(req))),
         ...ScopeGuard.stampOwner(req, 'ap_payment'),
       };
 
@@ -568,6 +617,60 @@ const apController = {
         error.message || '创建付款记录失败',
         'VALIDATION_ERROR',
         400,
+        error
+      );
+    }
+  },
+
+  createPaymentApproval: async (req, res) => {
+    try {
+      const actorId = getAuthenticatedUserId(req);
+      const result = await PaymentApprovalService.create(req.body || {}, actorId);
+      return ResponseHandler.success(res, result, '付款审批申请已创建', 201);
+    } catch (error) {
+      return ResponseHandler.error(
+        res,
+        error.message || '创建付款审批申请失败',
+        error.code || 'VALIDATION_ERROR',
+        error.statusCode || 400,
+        error
+      );
+    }
+  },
+
+  approvePaymentApproval: async (req, res) => {
+    try {
+      const result = await PaymentApprovalService.approve(
+        safeParseId(req.params.id),
+        getAuthenticatedUserId(req),
+        req.body?.remark || ''
+      );
+      return ResponseHandler.success(res, result, '付款审批已通过');
+    } catch (error) {
+      return ResponseHandler.error(
+        res,
+        error.message || '付款审批失败',
+        error.code || 'VALIDATION_ERROR',
+        error.statusCode || 400,
+        error
+      );
+    }
+  },
+
+  rejectPaymentApproval: async (req, res) => {
+    try {
+      const result = await PaymentApprovalService.reject(
+        safeParseId(req.params.id),
+        getAuthenticatedUserId(req),
+        req.body?.remark || ''
+      );
+      return ResponseHandler.success(res, result, '付款审批已驳回');
+    } catch (error) {
+      return ResponseHandler.error(
+        res,
+        error.message || '驳回付款审批失败',
+        error.code || 'VALIDATION_ERROR',
+        error.statusCode || 400,
         error
       );
     }
@@ -637,10 +740,14 @@ const apController = {
     try {
       const { supplierName, status } = req.query;
       const formattedData = await apModel.getSupplierPayablesSummary({ supplierName, status });
-      return ResponseHandler.success(res, {
-        data: formattedData,
-        total: formattedData.length,
-      }, '获取供应商应付款成功');
+      return ResponseHandler.success(
+        res,
+        {
+          data: formattedData,
+          total: formattedData.length,
+        },
+        '获取供应商应付款成功'
+      );
     } catch (error) {
       logger.error('获取供应商应付款失败:', error);
       return ResponseHandler.error(res, '获取供应商应付款失败', 'SERVER_ERROR', 500, error);
@@ -969,17 +1076,21 @@ const apController = {
       // 查询发票关联的付款记录
       const payments = await apModel.getInvoicePayments(invoiceId);
 
-      return ResponseHandler.success(res, {
-        data: payments,
-        total: payments.length,
-        invoice: {
-          id: invoice.id,
-          invoiceNumber: invoice.invoiceNumber,
-          amount: parseFloat(invoice.amount),
-          paidAmount: parseFloat(invoice.paidAmount),
-          balance: parseFloat(invoice.balance),
+      return ResponseHandler.success(
+        res,
+        {
+          data: payments,
+          total: payments.length,
+          invoice: {
+            id: invoice.id,
+            invoiceNumber: invoice.invoiceNumber,
+            amount: parseFloat(invoice.amount),
+            paidAmount: parseFloat(invoice.paidAmount),
+            balance: parseFloat(invoice.balance),
+          },
         },
-      }, '获取发票付款记录成功');
+        '获取发票付款记录成功'
+      );
     } catch (error) {
       return ResponseHandler.error(res, '获取发票付款记录失败', 'SERVER_ERROR', 500, error);
     }

@@ -396,6 +396,13 @@
           </el-table-column>
           <el-table-column prop="remarks" label="备注" min-width="150"></el-table-column>
         </el-table>
+
+        <InventoryApprovalPanel
+          v-if="checkDetail.id || checkDetail.checkNo"
+          source-type="check"
+          :source-id="checkDetail.id"
+          :source-no="checkDetail.checkNo"
+        />
       </div>
       <template #footer>
         <div class="dialog-footer">
@@ -444,6 +451,7 @@ import {
   getInventoryCheckStatusColor
 } from '@/constants/systemConstants';
 import TableRowActions from '@/components/common/TableRowActions.vue';
+import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue';
 // 权限store
 const authStore = useAuthStore();
 // 权限计算属性

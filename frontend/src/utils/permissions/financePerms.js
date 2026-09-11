@@ -4,7 +4,7 @@
  */
 
 export const financePerms = [
-// 7. 财务管理
+  // 7. 财务管理
   {
     id: 7,
     parentId: 0,
@@ -15,7 +15,7 @@ export const financePerms = [
     type: 0,
     permission: 'finance',
     sort: 7,
-    status: 1
+    status: 1,
   },
   // 总账管理
   {
@@ -28,7 +28,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:accounts:view',
     sort: 1,
-    status: 1
+    status: 1,
   },
   {
     id: 7111,
@@ -40,7 +40,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:accounts:view',
     sort: 2,
-    status: 1
+    status: 1,
   },
   {
     id: 72,
@@ -52,7 +52,7 @@ export const financePerms = [
     type: 0, // 目录
     permission: 'finance:entries:view',
     sort: 3,
-    status: 1
+    status: 1,
   },
   // 凭证子菜单
   {
@@ -65,7 +65,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:entries:view',
     sort: 1,
-    status: 1
+    status: 1,
   },
   {
     id: 722,
@@ -77,7 +77,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:entries:view',
     sort: 2,
-    status: 1
+    status: 1,
   },
   {
     id: 723,
@@ -89,7 +89,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:entries:view',
     sort: 4,
-    status: 1
+    status: 1,
   },
   {
     id: 724,
@@ -101,7 +101,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:entries:view',
     sort: 4,
-    status: 1
+    status: 1,
   },
   {
     id: 725,
@@ -113,7 +113,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:entries:view',
     sort: 5,
-    status: 1
+    status: 1,
   },
   {
     id: 73,
@@ -125,7 +125,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:periods:view',
     sort: 3,
-    status: 1
+    status: 1,
   },
   {
     id: 731,
@@ -137,7 +137,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:reports:view',
     sort: 31,
-    status: 1
+    status: 1,
   },
   {
     id: 732,
@@ -149,7 +149,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:closing:view',
     sort: 32,
-    status: 1
+    status: 1,
   },
   // 应收账款
   {
@@ -162,7 +162,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:ar:view',
     sort: 4,
-    status: 1
+    status: 1,
   },
   {
     id: 75,
@@ -174,7 +174,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:ar:view',
     sort: 5,
-    status: 1
+    status: 1,
   },
   {
     id: 751,
@@ -186,7 +186,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:ar:view',
     sort: 55,
-    status: 1
+    status: 1,
   },
   {
     id: 76,
@@ -198,7 +198,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:reports:view',
     sort: 6,
-    status: 1
+    status: 1,
   },
   // 应付账款
   {
@@ -211,7 +211,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:ap:view',
     sort: 7,
-    status: 1
+    status: 1,
   },
   {
     id: 78,
@@ -223,7 +223,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:ap:view',
     sort: 8,
-    status: 1
+    status: 1,
   },
   {
     id: 781,
@@ -235,7 +235,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:ap:view',
     sort: 85,
-    status: 1
+    status: 1,
   },
   {
     id: 782,
@@ -247,7 +247,19 @@ export const financePerms = [
     type: 1,
     permission: 'finance:ap:view',
     sort: 86,
-    status: 1
+    status: 1,
+  },
+  {
+    id: 783,
+    parentId: 7,
+    name: '工资审核',
+    path: '/finance/salary-approval',
+    component: 'hr/Salary',
+    icon: 'icon-money',
+    type: 1,
+    permission: 'finance:salary:approve',
+    sort: 87,
+    status: 1,
   },
   {
     id: 79,
@@ -259,7 +271,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:reports:view',
     sort: 9,
-    status: 1
+    status: 1,
   },
   // 固定资产
   {
@@ -272,7 +284,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:assets:view',
     sort: 10,
-    status: 1
+    status: 1,
   },
   {
     id: 711,
@@ -284,7 +296,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:assets:view',
     sort: 11,
-    status: 1
+    status: 1,
   },
   {
     id: 712,
@@ -296,7 +308,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:pricing:view',
     sort: 14,
-    status: 1
+    status: 1,
   },
   {
     id: 713,
@@ -308,7 +320,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:assets:view',
     sort: 12,
-    status: 1
+    status: 1,
   },
   {
     id: 7131,
@@ -320,7 +332,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:assets:view',
     sort: 13,
-    status: 1
+    status: 1,
   },
   {
     id: 7132,
@@ -332,7 +344,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:assets:view',
     sort: 14,
-    status: 1
+    status: 1,
   },
   {
     id: 7133,
@@ -344,7 +356,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:assets:view',
     sort: 15,
-    status: 1
+    status: 1,
   },
   // 出纳管理
   {
@@ -357,7 +369,7 @@ export const financePerms = [
     type: 0,
     permission: 'finance:cash:view',
     sort: 13,
-    status: 1
+    status: 1,
   },
   {
     id: 7201,
@@ -369,7 +381,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:cash:view',
     sort: 1,
-    status: 1
+    status: 1,
   },
   {
     id: 7202,
@@ -381,7 +393,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:cash:view',
     sort: 2,
-    status: 1
+    status: 1,
   },
   {
     id: 7203,
@@ -393,7 +405,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:cash:view',
     sort: 3,
-    status: 1
+    status: 1,
   },
   {
     id: 7204,
@@ -405,7 +417,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:cash:reconcile',
     sort: 4,
-    status: 1
+    status: 1,
   },
   {
     id: 7205,
@@ -417,7 +429,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:reports:view',
     sort: 5,
-    status: 1
+    status: 1,
   },
   // 财务报表
   {
@@ -430,7 +442,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:reports:view',
     sort: 14,
-    status: 1
+    status: 1,
   },
   {
     id: 717,
@@ -442,7 +454,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:reports:view',
     sort: 15,
-    status: 1
+    status: 1,
   },
   {
     id: 718,
@@ -454,7 +466,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:reports:standard-cash-flow:view',
     sort: 16,
-    status: 1
+    status: 1,
   },
   // 财务自动化（页面已并入财务设置 · 自动化任务 Tab）
   {
@@ -467,7 +479,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:automation:view',
     sort: 16,
-    status: 1
+    status: 1,
   },
   {
     id: 71901,
@@ -479,7 +491,7 @@ export const financePerms = [
     type: 2,
     permission: 'finance:automation:execute',
     sort: 1,
-    status: 1
+    status: 1,
   },
   {
     id: 7191,
@@ -491,7 +503,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:settings:view',
     sort: 160,
-    status: 1
+    status: 1,
   },
   {
     id: 7192,
@@ -503,7 +515,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:exchange-rates:view',
     sort: 161,
-    status: 1
+    status: 1,
   },
   // 税务管理
   {
@@ -516,7 +528,7 @@ export const financePerms = [
     type: 0,
     permission: 'finance:tax:view',
     sort: 17,
-    status: 1
+    status: 1,
   },
   {
     id: 7301,
@@ -528,7 +540,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:tax:view',
     sort: 1,
-    status: 1
+    status: 1,
   },
   {
     id: 7302,
@@ -540,7 +552,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:tax:view',
     sort: 2,
-    status: 1
+    status: 1,
   },
   {
     id: 7303,
@@ -552,7 +564,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:tax:view',
     sort: 3,
-    status: 1
+    status: 1,
   },
   // 预算管理
   {
@@ -565,7 +577,7 @@ export const financePerms = [
     type: 0,
     permission: 'finance:budgets:view',
     sort: 18,
-    status: 1
+    status: 1,
   },
   {
     id: 741,
@@ -577,7 +589,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:budgets:view',
     sort: 1,
-    status: 1
+    status: 1,
   },
   {
     id: 742,
@@ -590,7 +602,7 @@ export const financePerms = [
     permission: 'finance:budgets:create',
     sort: 2,
     visible: 0,
-    status: 1
+    status: 1,
   },
   {
     id: 743,
@@ -602,7 +614,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:budgets:view',
     sort: 3,
-    status: 1
+    status: 1,
   },
   {
     id: 744,
@@ -614,7 +626,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:budgets:view',
     sort: 4,
-    status: 1
+    status: 1,
   },
 
   // 成本管理
@@ -628,7 +640,7 @@ export const financePerms = [
     type: 0,
     permission: 'finance:cost:view',
     sort: 19,
-    status: 1
+    status: 1,
   },
   {
     id: 751,
@@ -640,7 +652,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:cost:view',
     sort: 1,
-    status: 1
+    status: 1,
   },
   {
     id: 753,
@@ -652,7 +664,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:cost:view',
     sort: 3,
-    status: 1
+    status: 1,
   },
   {
     id: 7521,
@@ -664,7 +676,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:cost:view',
     sort: 2,
-    status: 1
+    status: 1,
   },
   {
     id: 7522,
@@ -676,7 +688,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:cost:view',
     sort: 3,
-    status: 1
+    status: 1,
   },
   {
     id: 754,
@@ -688,7 +700,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:cost:view',
     sort: 4,
-    status: 1
+    status: 1,
   },
   {
     id: 755,
@@ -700,7 +712,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:cost:view',
     sort: 5,
-    status: 1
+    status: 1,
   },
   {
     id: 756,
@@ -712,7 +724,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:cost:view',
     sort: 6,
-    status: 1
+    status: 1,
   },
   {
     id: 7561,
@@ -724,7 +736,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:cost:view',
     sort: 7,
-    status: 1
+    status: 1,
   },
   {
     id: 7562,
@@ -736,7 +748,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:cost:view',
     sort: 8,
-    status: 1
+    status: 1,
   },
   {
     id: 757,
@@ -748,7 +760,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:cost:view',
     sort: 9,
-    status: 1
+    status: 1,
   },
   {
     id: 758,
@@ -760,7 +772,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:cost:view',
     sort: 10,
-    status: 1
+    status: 1,
   },
 
   // 费用管理
@@ -774,7 +786,7 @@ export const financePerms = [
     type: 1,
     permission: 'finance:expenses:view',
     sort: 20,
-    status: 1
+    status: 1,
   },
   {
     id: 761,
@@ -786,6 +798,6 @@ export const financePerms = [
     type: 1,
     permission: 'finance:expenses:view',
     sort: 21,
-    status: 1
+    status: 1,
   },
 ];

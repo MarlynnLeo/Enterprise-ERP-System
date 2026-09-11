@@ -30,6 +30,7 @@ const ScopeGuard = require('../../../../authorization/ScopeGuard');
 const { getRequestActorLabel } = require('../../../../utils/userUtils');
 const { PermissionUtils } = require('../../../../utils/authUtils');
 const PermissionService = require('../../../../services/PermissionService');
+const InventoryPostingReversalClosureService = require('../../../../services/business/InventoryPostingReversalClosureService');
 
 const MAX_BATCH_OUTBOUND_IDS = 500;
 
@@ -48,9 +49,14 @@ function isCancelStatus(status) {
  * 曾导致本检查对所有人恒为拒绝。
  */
 async function hasOutboundCancelPermission(req) {
+  // In normal HTTP requests requirePermission has already attached the
+  // effective permission set. Keep the fallback for direct/internal callers,
+  // but never let a missing user id turn a permission denial into a 500.
   const permissions = Array.isArray(req.userPermissions)
     ? req.userPermissions
-    : await PermissionService.getUserPermissions(req.user?.id);
+    : req.user?.id
+      ? await PermissionService.getUserPermissions(req.user.id)
+      : [];
   return PermissionUtils.hasPermission(permissions, OUTBOUND_CANCEL_PERMISSION);
 }
 
@@ -65,6 +71,13 @@ const updateOutboundStatus = async (req, res) => {
       return ResponseHandler.error(res, '缺少目标状态 newStatus', 'VALIDATION_ERROR', 400);
     }
 
+    if (newStatus === STATUS.OUTBOUND.REVERSED) {
+      return ResponseHandler.error(res, '冲销必须提交撤销申请，并由财务审核通过后执行', 'REVERSAL_APPROVAL_REQUIRED', 400);
+    }
+    if (newStatus === STATUS.OUTBOUND.PARTIAL_COMPLETED) {
+      return ResponseHandler.error(res, '部分完成由完成出库时自动计算，不能直接设置', 'VALIDATION_ERROR', 400);
+    }
+
     if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'inventory_outbound', id, '无权变更该出库单状态'))) {
       return;
     }
@@ -73,7 +86,7 @@ const updateOutboundStatus = async (req, res) => {
 
     // 检查出库单是否存在
     const [checkResult] = await connection.execute(
-      `SELECT status, reference_id, reference_type, production_task_id, source_task_ids,
+      `SELECT outbound_no, status, reference_id, reference_type, production_task_id, source_task_ids,
               issue_reason, is_excess
        FROM inventory_outbound
        WHERE id = ?
@@ -92,6 +105,23 @@ const updateOutboundStatus = async (req, res) => {
     }
 
     const currentStatus = checkResult[0].status;
+    let canRetryRejectedPosting = false;
+    if (
+      newStatus === STATUS.OUTBOUND.COMPLETED &&
+      ['completed', 'partial_completed'].includes(currentStatus)
+    ) {
+      const [latestPostingRows] = await connection.execute(
+        `SELECT finance_status
+           FROM inventory_posting_documents
+          WHERE source_type = 'outbound'
+            AND (source_id = ? OR (source_id IS NULL AND source_no = ?))
+            AND posting_kind = 'movement'
+          ORDER BY posting_sequence DESC, id DESC
+          LIMIT 1`,
+        [Number(id), checkResult[0].outbound_no || '']
+      );
+      canRetryRejectedPosting = latestPostingRows[0]?.finance_status === 'rejected';
+    }
     let referenceId = checkResult[0].reference_id;
     let referenceType = checkResult[0].reference_type;
     const productionTaskId = checkResult[0].production_task_id;
@@ -134,7 +164,10 @@ const updateOutboundStatus = async (req, res) => {
     // 验证状态转换的合法性（引用统一状态注册表）
     const validTransitions = INVENTORY_OUTBOUND_TRANSITIONS;
 
-    if (!validTransitions[currentStatus] || !validTransitions[currentStatus].includes(newStatus)) {
+    if (
+      !validTransitions[currentStatus] ||
+      (!validTransitions[currentStatus].includes(newStatus) && !canRetryRejectedPosting)
+    ) {
       await connection.rollback();
       return ResponseHandler.error(
         res,
@@ -445,6 +478,7 @@ const updateOutboundStatus = async (req, res) => {
                     item: { ...item, actual_quantity: issueQty },
                     locationId,
                     outboundNo: outboundInfo[0].outbound_no,
+                    sourceId: Number(id),
                     operator: outboundInfo[0].operator,
                     referenceType,
                     unitId: item.unit_id,
@@ -461,6 +495,7 @@ const updateOutboundStatus = async (req, res) => {
                       unitId: item.unit_id,
                       referenceNo: outboundInfo[0].outbound_no,
                       referenceType: 'outbound',
+                      sourceId: Number(id),
                       operator: outboundInfo[0].operator,
                       remark: `出库单号: ${outboundInfo[0].outbound_no}`,
                       idempotencyKey: `${dynamicTransactionType}:${outboundInfo[0].outbound_no}:${item.material_id}:${locationId}:${issueQty}`,
@@ -1069,7 +1104,7 @@ const batchDeleteOutbound = async (req, res) => {
  * @param {number} taskId - 关联的生产任务ID
  */
 
-const cancelOutboundReissue = async (req, res) => {
+const cancelOutbound = async (req, res) => {
   const connection = await db.pool.getConnection();
   try {
     const { id } = req.params;
@@ -1077,7 +1112,16 @@ const cancelOutboundReissue = async (req, res) => {
     if (!Number.isInteger(numericId) || numericId <= 0) {
       return ResponseHandler.error(res, '无效的出库单ID', 'VALIDATION_ERROR', 400);
     }
-    const { force, createReissue = true } = req.body || {};
+    const { force = false, createReissue } = req.body || {};
+    if (typeof force !== 'boolean' || (createReissue !== undefined && typeof createReissue !== 'boolean')) {
+      return ResponseHandler.error(res, 'force 必须为布尔值', 'VALIDATION_ERROR', 400);
+    }
+    if (createReissue === true) {
+      return ResponseHandler.error(res, '撤销接口不支持重发，请直接提交撤销申请', 'VALIDATION_ERROR', 400);
+    }
+    if (!(await hasOutboundCancelPermission(req))) {
+      return ResponseHandler.forbidden(res, '无权撤销出库单');
+    }
 
     if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'inventory_outbound', id, '无权撤销该出库单'))) {
       return;
@@ -1106,6 +1150,10 @@ const cancelOutboundReissue = async (req, res) => {
     }
 
     const outbound = rows[0];
+    if (!outbound.reference_id && outbound.production_task_id) {
+      outbound.reference_id = outbound.production_task_id;
+      outbound.reference_type = 'production_task';
+    }
     const { status, reference_id, reference_type, outbound_no } = outbound;
     const batchTaskIds =
       reference_type === 'batch_production_tasks'
@@ -1121,130 +1169,20 @@ const cancelOutboundReissue = async (req, res) => {
       return ResponseHandler.error(res, '只能撤销已完成或部分完成的出库单', 'VALIDATION_ERROR', 400);
     }
 
-    const prohibitedStatuses = ['inspection', 'quality_passed', 'completed', 'warehoused'];
-    const warningStatuses = ['in_progress'];
-
-    if (reference_id && reference_type === 'production_task') {
-      const [taskCheck] = await connection.execute(
-        'SELECT status, code FROM production_tasks WHERE id = ? AND deleted_at IS NULL',
-        [reference_id]
-      );
-
-      if (taskCheck.length > 0) {
-        const taskStatus = taskCheck[0].status;
-        const taskCode = taskCheck[0].code;
-        if (prohibitedStatuses.includes(taskStatus)) {
-          await connection.rollback();
-          return ResponseHandler.error(
-            res,
-            `无法撤销：关联的生产任务 ${taskCode} 已进入 ${taskStatus} 状态`,
-            'VALIDATION_ERROR',
-            400
-          );
-        }
-
-        if (warningStatuses.includes(taskStatus) && !force) {
-          await connection.rollback();
-          return ResponseHandler.error(
-            res,
-            `警告：关联的生产任务 ${taskCode} 正在生产中。如确需撤销，请使用强制撤销。`,
-            'NEED_CONFIRM',
-            409,
-            { needConfirm: true, taskStatus, taskCode }
-          );
-        }
-      }
-    }
-
-    if (reference_id && reference_type === 'production_plan') {
-      const [planCheck] = await connection.execute(
-        'SELECT status, code FROM production_plans WHERE id = ? AND deleted_at IS NULL',
-        [reference_id]
-      );
-
-      if (planCheck.length > 0) {
-        const planStatus = planCheck[0].status;
-        const planCode = planCheck[0].code;
-        if (prohibitedStatuses.includes(planStatus)) {
-          await connection.rollback();
-          return ResponseHandler.error(
-            res,
-            `无法撤销：关联的生产计划 ${planCode} 已进入 ${planStatus} 状态`,
-            'VALIDATION_ERROR',
-            400
-          );
-        }
-
-        if (warningStatuses.includes(planStatus) && !force) {
-          await connection.rollback();
-          return ResponseHandler.error(
-            res,
-            `警告：关联的生产计划 ${planCode} 正在生产中。如确需撤销，请使用强制撤销。`,
-            'NEED_CONFIRM',
-            409,
-            { needConfirm: true, planStatus, planCode }
-          );
-        }
-      }
-    }
-
     if (reference_type === 'batch_production_tasks') {
       if (batchTaskIds.length === 0) {
         await connection.rollback();
-        return ResponseHandler.error(res, '批量发料单缺少来源生产任务，无法安全撤销重发', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(res, '批量发料单缺少来源生产任务，无法安全撤销', 'VALIDATION_ERROR', 400);
       }
-
-      if (
-        !(await ScopeGuard.denyUnlessAllAccess(
-          res,
-          connection,
-          req,
-          'production_task',
-          batchTaskIds,
-          '无权撤销该批量出库关联的生产任务'
-        ))
-      ) {
+      if (!(await ScopeGuard.denyUnlessAllAccess(
+        res, connection, req, 'production_task', batchTaskIds, '无权撤销该批量出库关联的生产任务'
+      ))) {
         await connection.rollback();
         return;
       }
-
-      const placeholders = batchTaskIds.map(() => '?').join(',');
-      const [taskRows] = await connection.execute(
-        `SELECT id, status, code
-         FROM production_tasks
-         WHERE id IN (${placeholders})
-         FOR UPDATE`,
-        batchTaskIds
-      );
-
-      if (taskRows.length !== batchTaskIds.length) {
-        await connection.rollback();
-        return ResponseHandler.error(res, '批量发料单的部分来源生产任务不存在', 'VALIDATION_ERROR', 400);
-      }
-
-      const blockedTask = taskRows.find((task) => prohibitedStatuses.includes(task.status));
-      if (blockedTask) {
-        await connection.rollback();
-        return ResponseHandler.error(
-          res,
-          `无法撤销：批量来源生产任务 ${blockedTask.code} 已进入 ${blockedTask.status} 状态`,
-          'VALIDATION_ERROR',
-          400
-        );
-      }
-
-      const inProgressTasks = taskRows.filter((task) => warningStatuses.includes(task.status));
-      if (inProgressTasks.length > 0 && !force) {
-        await connection.rollback();
-        return ResponseHandler.error(
-          res,
-          `警告：${inProgressTasks.length} 个批量来源生产任务正在生产中。如确需撤销，请使用强制撤销。`,
-          'NEED_CONFIRM',
-          409,
-          { needConfirm: true, tasks: inProgressTasks }
-        );
-      }
     }
+
+    await InventoryPostingReversalClosureService.assertOutboundReversalAllowed(connection, outbound, { force });
 
     const InventoryPostingService = require('../../../../services/InventoryPostingService');
     const posting = await InventoryPostingService.requireApprovedForTransaction(connection, {
@@ -1258,7 +1196,7 @@ const cancelOutboundReissue = async (req, res) => {
       `撤销出库单 ${outbound_no}`,
       {
         force: force === true,
-        createReissue: createReissue !== false,
+        createReissue: false,
         sourceType: 'outbound',
         sourceId: numericId,
         sourceNo: outbound_no,
@@ -1281,7 +1219,6 @@ const cancelOutboundReissue = async (req, res) => {
           status,
           reversalDocumentId: reversal.reversalDocumentId,
           financeStatus: reversal.financeStatus,
-          createReissue: createReissue !== false,
         },
         '出库反审核申请已提交，待财务审批后冲销库存并完成业务收尾'
       );
@@ -1289,10 +1226,10 @@ const cancelOutboundReissue = async (req, res) => {
 
   } catch (error) {
     await connection.rollback();
-    logger.error('撤销重发失败:', error);
+    logger.error('撤销出库失败:', error);
     return ResponseHandler.error(
       res,
-      error.message || '撤销重发失败',
+      error.message || '撤销出库失败',
       error.code || 'SERVER_ERROR',
       error.statusCode || 500,
       error
@@ -1306,5 +1243,7 @@ module.exports = {
   updateOutboundStatus,
   batchUpdateOutboundStatus,
   batchDeleteOutbound,
-  cancelOutboundReissue,
+  cancelOutbound,
+  // Backward-compatible export for internal callers; the operation is cancel-only.
+  cancelOutboundReissue: cancelOutbound,
 };

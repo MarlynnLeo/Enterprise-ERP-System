@@ -42,7 +42,8 @@ const SALARY_COLUMNS = `s.id, s.employee_id, s.period, s.base_salary, s.daily_wa
   s.overtime_pay, s.position_allowance, s.housing_allowance, s.meal_allowance,
   s.full_attendance_bonus, s.leave_deduction, s.gross_salary,
   s.pension, s.housing_fund, s.net_salary, s.status,
-  s.split_details, s.created_at, s.updated_at`;
+  s.split_details, s.calculated_by, s.calculated_at, s.approved_by,
+  s.approved_at, s.created_at, s.updated_at`;
 
 /** 请假/加班申请的公共显式列名 */
 const REQUEST_COMMON_COLUMNS = (alias) => `${alias}.id, ${alias}.request_no,
@@ -109,10 +110,7 @@ class HrService {
     if (setClauses.length === 0) return;
 
     values.push(businessId);
-    await pool.query(
-      `UPDATE ${safeTable} SET ${setClauses.join(', ')} WHERE id = ?`,
-      values
-    );
+    await pool.query(`UPDATE ${safeTable} SET ${setClauses.join(', ')} WHERE id = ?`, values);
   }
 
   // ========== 员工管理 ==========
@@ -202,9 +200,13 @@ class HrService {
    */
   static async getSalaryRecords({ period, req }) {
     const scopeClause = buildHrScopeClause(req, 'e');
-    let sql = `SELECT ${SALARY_COLUMNS}, e.name AS employee_name, e.employee_no
+    let sql = `SELECT ${SALARY_COLUMNS}, e.name AS employee_name, e.employee_no,
+       COALESCE(NULLIF(TRIM(calculator.real_name), ''), calculator.username) AS calculated_by_name,
+       COALESCE(NULLIF(TRIM(approver.real_name), ''), approver.username) AS approved_by_name
        FROM hr_salary_records s
-       JOIN hr_employees e ON s.employee_id = e.id`;
+       JOIN hr_employees e ON s.employee_id = e.id
+       LEFT JOIN users calculator ON calculator.id = s.calculated_by
+       LEFT JOIN users approver ON approver.id = s.approved_by`;
     const params = [...scopeClause.params];
     if (period) {
       sql += ` WHERE s.period = ?${scopeClause.sql}`;
@@ -238,9 +240,8 @@ class HrService {
     params.push(...scopeClause.params);
 
     // 根据类型选择具体列
-    const specificCols = requestType === 'leave'
-      ? LEAVE_SPECIFIC_COLUMNS(alias)
-      : OVERTIME_SPECIFIC_COLUMNS(alias);
+    const specificCols =
+      requestType === 'leave' ? LEAVE_SPECIFIC_COLUMNS(alias) : OVERTIME_SPECIFIC_COLUMNS(alias);
 
     if (status && status !== 'all') {
       conditions.push(`${alias}.status = ?`);

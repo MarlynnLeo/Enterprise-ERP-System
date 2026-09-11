@@ -1,13 +1,7 @@
-/**
- * 大额付款审批钩子
- * - 阈值内：直接允许
- * - 超阈值：要求 workflow 已通过、审批单号、或管理员 skipApproval
- * - 可选：将审批记录写入 finance_payment_approvals（表存在时）
- */
+/** 服务端权威的大额付款审批校验。 */
 
 const SystemConfigService = require('../system/SystemConfigService');
 const { logger } = require('../../utils/logger');
-const db = require('../../config/db');
 
 class PaymentApprovalGuard {
   static async getThreshold() {
@@ -19,13 +13,11 @@ class PaymentApprovalGuard {
   /**
    * @param {object} opts
    * @param {number} opts.amount
-   * @param {boolean} [opts.approved]
-   * @param {boolean} [opts.skipApproval]
-   * @param {string} [opts.workflowStatus]
-   * @param {string} [opts.approvalNo] 审批单号
-   * @param {number} [opts.approvedBy]
-   * @param {string} [opts.paymentRef]
-   * @param {string} [opts.remark]
+   * @param {number} [opts.approvalId]
+   * @param {string} [opts.approvalNo]
+   * @param {number} [opts.supplierId]
+   * @param {number[]} [opts.invoiceIds]
+   * @param {boolean} [opts.serverAdminOverride] 服务端校验过的管理员例外
    * @param {object} [opts.connection]
    */
   static async assertPayable(opts = {}) {
@@ -35,54 +27,68 @@ class PaymentApprovalGuard {
       return { required: false, threshold, allowed: true };
     }
 
-    const approvalNo = opts.approvalNo || opts.approval_no || null;
-    const approved =
-      opts.approved === true
-      || opts.skipApproval === true
-      || (approvalNo && String(approvalNo).trim().length >= 3)
-      || ['approved', '已通过', 'completed', '已完成'].includes(
-        String(opts.workflowStatus || '').toLowerCase()
-      );
-
-    if (!approved) {
-      const msg =
-        `付款金额 ${amount} 超过审批阈值 ${threshold}，请先完成付款审批（传 approvalNo / workflowStatus=approved，或管理员 skipApproval）`;
-      logger.warn('[PaymentApprovalGuard] blocked', { amount, threshold });
-      const err = new Error(msg);
-      err.code = 'PAYMENT_APPROVAL_REQUIRED';
-      err.statusCode = 400;
-      err.threshold = threshold;
-      throw err;
+    if (opts.serverAdminOverride === true) {
+      return { required: true, threshold, allowed: true, adminOverride: true };
     }
 
-    // 表结构由迁移管理。MySQL DDL 会隐式提交，不能在付款事务中建表。
-    try {
-      const exec = opts.connection || db.pool;
-      await exec.execute(
-        `INSERT INTO finance_payment_approvals
-          (payment_ref, amount, threshold, approval_no, workflow_status, approved_by, skip_approval, remark)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          opts.paymentRef || opts.payment_number || null,
-          amount,
-          threshold,
-          approvalNo,
-          opts.workflowStatus || opts.workflow_status || null,
-          opts.approvedBy || opts.approved_by || null,
-          opts.skipApproval ? 1 : 0,
-          opts.remark || null,
-        ]
+    const approvalId = Number(opts.approvalId || opts.approval_id || 0);
+    const approvalNo = String(opts.approvalNo || opts.approval_no || '').trim();
+    if (!approvalId && !approvalNo) {
+      const error = new Error(
+        `付款金额 ${amount} 超过审批阈值 ${threshold}，必须先完成服务端付款审批`
       );
-    } catch (e) {
-      // 兼容尚未安装可选审计表的旧库；死锁等错误必须交给付款事务回滚，
-      // 避免事务已被数据库中止后继续执行付款写入。
-      if (e.code !== 'ER_NO_SUCH_TABLE' || !/finance_payment_approvals/i.test(e.message || '')) {
-        throw e;
+      error.code = 'PAYMENT_APPROVAL_REQUIRED';
+      error.statusCode = 400;
+      error.threshold = threshold;
+      throw error;
+    }
+
+    const connection = opts.connection;
+    if (!connection) throw new Error('大额付款审批校验必须在付款事务连接中执行');
+    const [rows] = await connection.execute(
+      `SELECT * FROM finance_payment_approvals
+        WHERE status = 'approved' AND used_at IS NULL
+          AND (${approvalId ? 'id = ?' : 'approval_no = ?'})
+        LIMIT 1 FOR UPDATE`,
+      [approvalId || approvalNo]
+    );
+    const approval = rows[0];
+    if (!approval) {
+      const error = new Error('付款审批不存在、未通过或已被使用');
+      error.code = 'PAYMENT_APPROVAL_INVALID';
+      error.statusCode = 409;
+      throw error;
+    }
+    if (Math.round(Number(approval.amount) * 100) !== Math.round(amount * 100)) {
+      throw new Error('付款金额与审批金额不一致');
+    }
+    if (approval.supplier_id && Number(approval.supplier_id) !== Number(opts.supplierId)) {
+      throw new Error('付款供应商与审批供应商不一致');
+    }
+    const requestedInvoiceIds = new Set((opts.invoiceIds || []).map(Number));
+    const approvedInvoiceIds = (() => {
+      try {
+        const parsed = JSON.parse(approval.invoice_ids || '[]');
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
       }
-      logger.warn('[PaymentApprovalGuard] audit insert skipped', e.message);
+    })();
+    if (approval.invoice_id) approvedInvoiceIds.push(Number(approval.invoice_id));
+    const uniqueApprovedInvoiceIds = new Set(approvedInvoiceIds.map(Number));
+    if (
+      uniqueApprovedInvoiceIds.size &&
+      (requestedInvoiceIds.size !== uniqueApprovedInvoiceIds.size ||
+        [...uniqueApprovedInvoiceIds].some((id) => !requestedInvoiceIds.has(id)))
+    ) {
+      throw new Error('付款发票范围与审批范围不一致');
     }
-
-    return { required: true, threshold, allowed: true, approvalNo };
+    if (!approval.approved_by) throw new Error('付款审批缺少有效审核人');
+    logger.info('[PaymentApprovalGuard] approved record validated', {
+      approvalId: approval.id,
+      amount,
+    });
+    return { required: true, threshold, allowed: true, approvalId: approval.id };
   }
 }
 

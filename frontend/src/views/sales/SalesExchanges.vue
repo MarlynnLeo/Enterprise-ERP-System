@@ -499,6 +499,13 @@
           <el-table-column prop="unitName" label="单位" width="80" />
         </el-table>
       </div>
+
+      <InventoryApprovalPanel
+        v-if="currentExchange?.id || currentExchange?.exchangeNo"
+        source-type="sales_exchange"
+        :source-id="currentExchange.id"
+        :source-no="currentExchange.exchangeNo"
+      />
       </div>
       <template #footer>
         <span class="dialog-footer">
@@ -625,6 +632,7 @@ import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { salesApi, inventoryApi, baseDataApi } from '@/api'
 import { Plus, Check, ArrowDown, ArrowUp } from '@element-plus/icons-vue'
+import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue'
 const loading = ref(false)
 const exchangeRecords = ref([])
 const {

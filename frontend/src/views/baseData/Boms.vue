@@ -117,7 +117,7 @@
       v-model="locateDialogVisible"
       title="零部件定位结果"
       mode="view"
-      width="750px"
+      :width="BOM_DIALOG_WIDTH"
     >
       <el-alert
         v-if="locateResults.length > 0"
@@ -143,6 +143,16 @@
         <el-table-column prop="unit" label="单位" width="70" />
       </el-table>
       <template #footer>
+        <el-button
+          v-if="canExport"
+          type="primary"
+          :icon="Download"
+          :loading="locateExportLoading"
+          :disabled="locateResults.length === 0"
+          @click="handleExportLocateResults"
+        >
+          导出
+        </el-button>
         <el-button @click="locateDialogVisible = false">关闭</el-button>
       </template>
         </AppDialog>
@@ -227,6 +237,8 @@ import { materialApi, bomApi } from '@/api';
 import { parsePaginatedData, parseListData, parseDataObject, parseResponseData } from '@/utils/responseParser';
 import { normalizeBomOption, searchBomOptions } from '@/utils/optionLoaders';
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
+import { useExportExcel } from '@/composables/useExportExcel';
+import { BOM_DIALOG_WIDTH } from '@/constants/bom';
 // 引入新组件
 import BomTable from './components/BomTable.vue';
 import BomStatCards from './components/BomStatCards.vue';
@@ -239,6 +251,7 @@ const canCreate = computed(() => authStore.hasPermission('basedata:boms:create')
 const canUpdate = computed(() => authStore.hasPermission('basedata:boms:update'));
 const canDelete = computed(() => authStore.hasPermission('basedata:boms:delete'));
 const canApprove = computed(() => authStore.hasPermission('basedata:boms:approve'));
+const canExport = computed(() => authStore.hasPermission('basedata:boms:export'));
 
 
 // 状态
@@ -267,6 +280,7 @@ const compareDialogVisible = ref(false);
 const locateDialogVisible = ref(false);
 const locateResults = ref([]);
 const locateKeyword = ref('');
+const { exportLoading: locateExportLoading, exportToExcel } = useExportExcel();
 // 复制弹窗状态
 const copyDialogVisible = ref(false);
 const copySelectedBomId = ref(null);
@@ -589,6 +603,23 @@ const searchProductsForCopy = async (query) => {
   } else {
     copyProductOptions.value = [];
   }
+};
+
+const handleExportLocateResults = () => {
+  exportToExcel({
+    columns: [
+      { header: '产品编码', key: 'productCode', width: 20 },
+      { header: '产品名称', key: 'productName', width: 25 },
+      { header: 'BOM版本', key: 'version', width: 12 },
+      { header: '物料编码', key: 'materialCode', width: 20 },
+      { header: '物料名称', key: 'materialName', width: 25 },
+      { header: '用量', key: 'quantity', width: 12 },
+      { header: '单位', key: 'unit', width: 10 },
+    ],
+    data: locateResults.value,
+    filename: '零部件定位结果',
+    sheetName: '定位结果',
+  });
 };
 
 const loadCopySourceBomOptions = async (query = '') => {

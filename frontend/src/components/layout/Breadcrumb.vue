@@ -35,10 +35,12 @@ const breadcrumbs = computed(() => {
   })
 
   // 构建面包屑
-  pathArray.forEach(segment => {
+  pathArray.forEach((segment, index) => {
     path += `/${segment}`
     // 传递前一个路径片段作为上下文
-    const title = getTitleByPath(segment, prevSegment)
+    const title = index === pathArray.length - 1 && route.meta.title
+      ? route.meta.title
+      : getTitleByPath(segment, prevSegment)
     if (title) {
       breadcrumbs.push({
         path,

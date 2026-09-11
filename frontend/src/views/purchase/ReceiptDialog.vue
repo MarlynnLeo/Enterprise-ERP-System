@@ -54,6 +54,14 @@
         <span class="total-label">入库总金额：</span>
         <span class="total-value">{{ formatPrice(calculateTotal()) }}</span>
       </div>
+      <InventoryApprovalPanel
+        source-type="outsourced_processing_receipt"
+        :source-id="receiptForm.id || props.receiptId"
+        :source-no="receiptForm.receiptNo"
+        :resubmit-status="receiptForm.status === 'confirmed' ? 'confirmed' : ''"
+        @resubmit="handleResubmitReceipt"
+        @changed="handleApprovalChanged"
+      />
     </div>
 
     <el-form v-else ref="receiptFormRef" :model="receiptForm" :rules="rules" label-width="100px" class="form-container">
@@ -218,7 +226,7 @@
 import { formatLocalDate } from '@/utils/format';
 
 import { ref, computed, reactive, watch } from 'vue';
-import { ElMessage } from 'element-plus/es/components/message/index';
+import { ElMessage } from 'element-plus';
 import { purchaseApi } from '@/api/purchase';
 import { ensureValidId } from '@/utils/helpers/dataUtils'
 import {
@@ -230,6 +238,7 @@ import {
   getOutsourcedStatusText,
   getOutsourcedStatusColor
 } from '@/constants/systemConstants';
+import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue';
 
 
 const props = defineProps({
@@ -281,6 +290,7 @@ const dialogVisible = computed({
 
 // 入库单表单
 const receiptForm = reactive({
+  id: null,
   receiptNo: '',
   processingId: null,
   processingNo: '',
@@ -458,6 +468,7 @@ const loadReceiptDetail = async () => {
 
     // 填充表单数据，使用工具函数确保数据格式正确
     receiptForm.processingId = ensureValidId(data.processingId);
+    receiptForm.id = data.id || props.receiptId;
     receiptForm.receiptNo = data.receiptNo || '';
     receiptForm.processingNo = data.processingNo || '';
     receiptForm.supplierId = ensureValidId(data.supplierId);
@@ -472,6 +483,20 @@ const loadReceiptDetail = async () => {
     ElMessage.error('获取入库单详情失败');
   }
 };
+
+const handleResubmitReceipt = async (status) => {
+  if (!props.receiptId || !status) return;
+  try {
+    await purchaseApi.outsourcedReceipts.updateStatus(props.receiptId, status);
+    ElMessage.success('已重新提交财务审核');
+    await loadReceiptDetail();
+    emit('success');
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || '重新提交审核失败');
+  }
+};
+
+const handleApprovalChanged = () => emit('success');
 
 // 提交表单
 const handleSubmit = async () => {
@@ -550,6 +575,7 @@ watch(() => props.visible, (newVal) => {
     // 初始化数据
     Object.assign(receiptForm, {
       processingId: null,
+      id: null,
       receiptNo: '',
       processingNo: '',
       supplierId: null,

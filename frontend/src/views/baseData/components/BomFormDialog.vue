@@ -4,7 +4,7 @@
     @update:model-value="val => emit('update:modelValue', val)"
     :title="title"
     mode="form"
-    width="1020px"
+    :width="BOM_DIALOG_WIDTH"
     @close="handleClose"
     @open="handleOpen"
   >
@@ -353,6 +353,7 @@ import { commonApi } from '@/api/common'
 import { parseListData, parsePaginatedData, parseResponseData } from '@/utils/responseParser'
 import { buildResourceUrl } from '@/config/app'
 import { isPreviewableAttachmentImage } from '@/utils/attachmentPreview'
+import { BOM_DIALOG_WIDTH } from '@/constants/bom'
 const props = defineProps({
   modelValue: Boolean,
   editData: {

@@ -178,6 +178,13 @@
           :document-id="viewDialog.receipt.id"
         />
 
+        <InventoryApprovalPanel
+          v-if="viewDialog.receipt?.id || viewDialog.receipt?.receiptNo"
+          source-type="inbound"
+          :source-id="viewDialog.receipt.id"
+          :source-no="viewDialog.receipt.receiptNo"
+        />
+
         <el-divider content-position="center">收货物料</el-divider>
         <template v-if="!viewDialog.receipt.items || viewDialog.receipt.items.length === 0">
           <div class="no-data-info">
@@ -472,6 +479,7 @@ import {
   getPurchaseReceiptStatusColor
 } from '@/constants/systemConstants';
 import FinanceStreamStatus from '@/views/finance/components/FinanceStreamStatus.vue';
+import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue';
 
 const isBlankAmount = (value) => value === null || value === undefined || value === '';
 // 初始化认证存储

@@ -71,12 +71,12 @@ export function useBusinessApproval({ businessType, onSuccess } = {}) {
       if (action === 'approve') {
         if (result.generatedOrders?.length) {
           const orders = result.generatedOrders
-          ElMessage.success(`审批通过！已自动生成 ${orders.length} 个采购订单`)
+          ElMessage.success(`审核通过！已自动生成 ${orders.length} 个采购订单`)
         } else {
-          ElMessage.success('审批通过')
+          ElMessage.success('审核通过')
         }
       } else {
-        ElMessage.success('已拒绝')
+        ElMessage.success('已驳回')
       }
       approvalDialog.visible = false
       if (typeof onSuccess === 'function') await onSuccess(action, result)

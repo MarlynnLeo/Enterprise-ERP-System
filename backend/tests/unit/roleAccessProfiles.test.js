@@ -98,6 +98,33 @@ describe('roleAccessProfiles', () => {
     expect(
       menuAllowed({ path: '/finance/settings', permission: 'finance:settings' }, assistant)
     ).toBe(false);
+    for (const permission of [
+      'basedata:materials:view',
+      'basedata:locations:view',
+      'basedata:units:view',
+      'inventory:inbound:view',
+      'inventory:outbound:view',
+      'inventory:manual:view',
+      'inventory:transfer:view',
+      'inventory:check:view',
+      'purchase:receipts:view',
+      'purchase:returns:view',
+      'purchase:processing:view',
+      'purchase:processing-receipts:view',
+      'sales:outbound:view',
+      'sales:returns:view',
+      'sales:exchanges:view',
+      'quality:scrap:view',
+    ]) {
+      expect(permissionAllowed(permission, assistant)).toBe(true);
+      expect(permissionAllowed(permission.replace(':view', ':create'), assistant)).toBe(false);
+    }
+    expect(
+      menuAllowed(
+        { path: '/inventory/manual-transaction', permission: 'inventory:manual-transaction' },
+        assistant
+      )
+    ).toBe(true);
 
     const manager = getProfile('finance_manager');
     expect(permissionAllowed('finance:closing:execute', manager)).toBe(true);

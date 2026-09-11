@@ -2,7 +2,7 @@
   <AppDialog
     title="查看BOM详情"
     mode="view"
-    width="1020px"
+    :width="BOM_DIALOG_WIDTH"
     :loading="loading || !bomData"
     :model-value="modelValue"
     :detail-navigation="detailNavigation"
@@ -133,6 +133,7 @@ import { ElMessage } from 'element-plus/es/components/message/index'
 import { buildResourceUrl } from '@/config/app'
 import { isPreviewableAttachmentImage } from '@/utils/attachmentPreview'
 import { commonApi } from '@/api'
+import { BOM_DIALOG_WIDTH } from '@/constants/bom'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },

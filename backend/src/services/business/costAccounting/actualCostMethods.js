@@ -17,14 +17,94 @@ const {
   DOCUMENT_TYPES,
 } = require('./runtime');
 const InventoryValuationAdjustmentService = require('../../InventoryValuationAdjustmentService');
+const InventoryPostingService = require('../../InventoryPostingService');
 
 module.exports = {
   /**
+   * Production cost GL entries are downstream of production inbound inventory
+   * posting.  Require every related production inbound movement to be
+   * finance-approved before allowing the GL phase to run.
+   */
+  async assertApprovedProductionInboundPostings(connection, productionOrderId) {
+    const [taskRows] = await connection.execute(
+      'SELECT plan_id FROM production_tasks WHERE id = ? AND deleted_at IS NULL LIMIT 1',
+      [productionOrderId]
+    );
+    const planId = taskRows[0]?.plan_id || null;
+
+    const [rows] = await connection.execute(
+      `SELECT DISTINCT ib.inbound_no
+         FROM inventory_inbound ib
+         LEFT JOIN quality_inspections qi
+           ON qi.id = ib.inspection_id
+          AND qi.deleted_at IS NULL
+        WHERE COALESCE(ib.is_deleted, 0) = 0
+          AND ib.inbound_type IN ('production', 'production_return')
+          AND (
+            (ib.reference_type IN ('production_task', 'production') AND ib.reference_id = ?)
+            OR qi.reference_id = ?
+            OR qi.task_id = ?
+            OR (? IS NOT NULL AND ib.reference_type = 'production_plan' AND ib.reference_id = ?)
+          )
+        ORDER BY ib.inbound_no`,
+      [productionOrderId, productionOrderId, productionOrderId, planId, planId]
+    );
+
+    if (!rows.length) {
+      const error = new Error(`生产任务 ${productionOrderId} 尚无生产入库单，不能生成成本凭证`);
+      error.code = 'PRODUCTION_INBOUND_REQUIRED';
+      error.statusCode = 409;
+      throw error;
+    }
+
+    for (const row of rows) {
+      await InventoryPostingService.requireApprovedForTransaction(connection, {
+        reference_type: 'inbound',
+        reference_no: row.inbound_no,
+      });
+    }
+
+    const [outboundRows] = await connection.execute(
+      `SELECT DISTINCT io.outbound_no
+         FROM inventory_outbound io
+        WHERE io.deleted_at IS NULL
+          AND io.status IN ('completed', 'partial_completed')
+          AND (
+            io.production_task_id = ?
+            OR (io.reference_type = 'production_task' AND io.reference_id = ?)
+            OR (? IS NOT NULL AND io.reference_type = 'production_plan' AND io.reference_id = ?)
+            OR (
+              io.source_task_ids IS NOT NULL
+              AND JSON_VALID(io.source_task_ids)
+              AND JSON_CONTAINS(io.source_task_ids, CAST(? AS JSON))
+            )
+          )
+        ORDER BY io.outbound_no`,
+      [productionOrderId, productionOrderId, planId, planId, String(productionOrderId)]
+    );
+
+    for (const row of outboundRows) {
+      await InventoryPostingService.requireApprovedForTransaction(connection, {
+        reference_type: 'outbound',
+        reference_no: row.outbound_no,
+      });
+    }
+
+    return {
+      inboundNos: rows.map((row) => row.inbound_no),
+      outboundNos: outboundRows.map((row) => row.outbound_no),
+    };
+  },
+
+  /**
    * 计算产品实际成本
    * @param {number} productionOrderId 生产订单ID
+   * @param {Object} [options] { postToGL, requireInventoryApproval }
    * @returns {Object} 实际成本信息
    */
-  async calculateActualCost(productionOrderId, externalConn = null) {
+  async calculateActualCost(productionOrderId, externalConn = null, options = {}) {
+    const postToGL = options.postToGL !== false;
+    const requireInventoryApproval = options.requireInventoryApproval !== false;
     const isExternalConn = !!externalConn;
     const connection = externalConn || (await db.pool.getConnection());
     try {
@@ -57,12 +137,23 @@ module.exports = {
         );
       }
 
+      if (requireInventoryApproval) {
+        await this.assertApprovedProductionInboundPostings(
+          connection,
+          productionOrderId,
+        );
+      }
+
       const completionDate = this.toDateOnly(order.completed_at || currentDateString()); // 使用完工日期作为记账日期
 
-      // 检查期间是否开启 (GL Check) - 修正错误的调法
-      const periodId = await GLService.getPeriodIdByDate(completionDate);
-      if (!periodId) {
-        throw new Error('未找到该完工日期对应的开放会计期间');
+      // 只有正式生成总账凭证时才要求开放会计期间；审批前预计算不能
+      // 因总账期间状态阻断仓库单据提交。
+      let periodId = null;
+      if (postToGL) {
+        periodId = await GLService.getPeriodIdByDate(completionDate);
+        if (!periodId) {
+          throw new Error('未找到该完工日期对应的开放会计期间');
+        }
       }
 
       // 计算实际材料成本
@@ -135,7 +226,7 @@ module.exports = {
         producedQuantity > 0
           ? Precision.round(Precision.div(totalActualCost, producedQuantity), 4)
           : 0;
-      if (finishedGoodsUnitCost > 0 && order.product_id) {
+      if (postToGL && finishedGoodsUnitCost > 0 && order.product_id) {
         await connection.execute(
           'UPDATE materials SET cost_price = ? WHERE id = ? AND deleted_at IS NULL',
           [finishedGoodsUnitCost, order.product_id]
@@ -300,6 +391,9 @@ module.exports = {
       }
 
       // ========== GL Integration (生成凭证) ==========
+      // Production inbound confirmation may pre-calculate and persist cost,
+      // but only the finance-approved posting event may execute this block.
+      if (postToGL) {
 
       // 1. 获取所有需要的科目映射 (纯净的 SSOT 节点提取，杜绝防呆字面量)
       const config = globalConfigManager.getConfig();
@@ -536,6 +630,11 @@ module.exports = {
         );
         throw new Error(`未配置生产成本总账科目映射，不能完成成本结转: Order ${productionOrderId}`);
       }
+      } else {
+        logger.info(
+          `生产任务 ${productionOrderId} 成本已预计算，等待生产入库财务审批后生成总账凭证`
+        );
+      }
 
       if (!isExternalConn) await connection.commit();
 
@@ -550,6 +649,7 @@ module.exports = {
           totalCost: totalActualCost,
           unitCost: totalActualCost / order.quantity,
         },
+        voucherGenerated: postToGL,
         details: {
           materials: materialCost.details,
           labor: laborCost.details,

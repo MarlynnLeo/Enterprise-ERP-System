@@ -109,6 +109,14 @@
         <el-table-column label="操作" min-width="220" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button
+              v-if="authStore.canViewInventoryApproval && scope.row.approvalStatus"
+              size="small"
+              type="warning"
+              @click.stop="handleViewReceipt(scope.row)"
+            >
+              {{ scope.row.approvalStatus === 'pending' ? '审批' : '查看审批' }}
+            </el-button>
+            <el-button
               v-if="scope.row.status === 'pending' && !scope.row.arrivalRequired"
               size="small"
               type="primary"
@@ -285,6 +293,7 @@ import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { Plus } from '@element-plus/icons-vue'
 import { purchaseApi } from '@/api/purchase';
+import { useAuthStore } from '@/stores/auth';
 
 import ReceiptDialog from './ReceiptDialog.vue';
 import {
@@ -294,6 +303,7 @@ import {
 } from '@/constants/systemConstants';
 
 const route = useRoute();
+const authStore = useAuthStore();
 
 // 状态选项（使用统一常量）
 const statusOptions = OUTSOURCED_STATUS_OPTIONS;
@@ -384,6 +394,8 @@ const fetchReceiptList = async () => {
     const rawList = response.data?.list || response.data || [];
     receiptList.value = (Array.isArray(rawList) ? rawList : []).map((item) => ({
       ...item,
+      approvalStatus: item.approvalStatus ?? item.approval_status ?? null,
+      approvalDocumentId: item.approvalDocumentId ?? item.approval_document_id ?? null,
       // 后端 CASE 字段在不同驱动/旧接口中可能是 0/1、字符串或布尔值；
       // 不能直接 Boolean('0')，否则待到货按钮会被错误显示。
       arrivalRequired: ['1', 1, true].includes(item.arrivalRequired ?? item.arrival_required)

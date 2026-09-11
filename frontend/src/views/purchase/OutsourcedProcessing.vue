@@ -244,6 +244,15 @@
           <span class="total-label">加工总金额：</span>
           <span class="total-value">{{ formatPrice(viewData.totalAmount) }}</span>
         </div>
+        <InventoryApprovalPanel
+          v-if="authStore.canViewInventoryApproval"
+          source-type="outsourced_processing_material"
+          :source-id="viewData.id"
+          :source-no="viewData.processingNo"
+          :resubmit-status="['confirmed', 'in_progress'].includes(viewData.status) ? viewData.status : ''"
+          @resubmit="handleResubmitProcessing"
+          @changed="fetchProcessingList"
+        />
       </div>
       <template #footer>
         <span class="dialog-footer">
@@ -598,11 +607,15 @@ import {
   searchOutsourcedSupplierOptions,
 } from '@/utils/optionLoaders';
 import { Plus, Search } from '@element-plus/icons-vue';
+import { useAuthStore } from '@/stores/auth';
 import {
   OUTSOURCED_STATUS_OPTIONS,
   getOutsourcedStatusText,
   getOutsourcedStatusColor
 } from '@/constants/systemConstants';
+import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue';
+
+const authStore = useAuthStore();
 
 // 状态选项
 const statusOptions = OUTSOURCED_STATUS_OPTIONS;
@@ -845,6 +858,18 @@ const handleViewProcessing = async (row) => {
     ElMessage.error('获取加工单详情失败');
   } finally {
     viewDialogLoading.value = false;
+  }
+};
+
+const handleResubmitProcessing = async (status) => {
+  if (!viewData.id || !status) return;
+  try {
+    await purchaseApi.outsourcedProcessing.updateStatus(viewData.id, status);
+    ElMessage.success('已重新提交财务审核');
+    await fetchProcessingList();
+    await handleViewProcessing({ id: viewData.id });
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || '重新提交审核失败');
   }
 };
 

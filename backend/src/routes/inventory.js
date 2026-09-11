@@ -202,11 +202,11 @@ router.delete(
   inventoryOutboundController.deleteOutbound
 );
 
-// 撤销发料 - 回退已完成的出库单
+// 撤销发料 - 提交反审核申请，由财务审核通过后冲销
 router.post(
   '/outbound/:id/cancel',
   authenticateToken,
-  requirePermission('inventory:outbound:update'),
+  requirePermission('inventory:outbound:cancel'),
   inventoryOutboundController.cancelOutbound
 );
 

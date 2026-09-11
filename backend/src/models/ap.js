@@ -35,6 +35,7 @@ const {
 } = require('../utils/finance/settlementMath');
 const { applyNormalizedInvoiceAmounts } = require('../utils/finance/invoiceAmounts');
 const { toInvoiceApi } = require('../utils/finance/invoiceFieldMap');
+const { resolveActorUserId } = require('../utils/userUtils');
 
 const resolveInvoiceItemAmount = (item) =>
   item.amount !== undefined && item.amount !== null
@@ -93,6 +94,24 @@ const getOpenPeriodIdByDate = async (connection, entryDate) => {
 
   return periods[0].id;
 };
+
+async function resolveInvoiceApprover(connection, invoice, options = {}) {
+  const approverId = await resolveActorUserId(
+    connection,
+    options.approver_id,
+    options.approverId,
+    options.updated_by,
+    options.created_by
+  );
+  const makerId = Number(invoice.created_by || 0);
+  if (makerId && makerId === Number(approverId)) {
+    const error = new Error('应付发票制单人与财务审核人必须分离');
+    error.code = 'SEPARATION_OF_DUTIES';
+    error.statusCode = 403;
+    throw error;
+  }
+  return approverId;
+}
 
 const getAccountIdByCode = async (connection, accountCode, accountLabel) => {
   if (!accountCode) {
@@ -276,9 +295,10 @@ const createInvoiceConfirmationEntry = async (connection, invoice, createdBy = n
   const amountPolicy = normalizeInvoiceAmountPolicy(invoice);
   const totalAbs = amountPolicy.absoluteAmount;
   const taxAbs = Math.abs(toCents(invoice.tax_amount || 0)) / 100;
-  let netAbs = Math.abs(
-    toCents(invoice.amount_excluding_tax ?? invoice.subtotal ?? invoice.subtotal_amount ?? 0)
-  ) / 100;
+  let netAbs =
+    Math.abs(
+      toCents(invoice.amount_excluding_tax ?? invoice.subtotal ?? invoice.subtotal_amount ?? 0)
+    ) / 100;
   if (netAbs <= 0 && totalAbs > 0) {
     netAbs = Math.max(0, Math.round((totalAbs - taxAbs) * 100) / 100);
   }
@@ -289,7 +309,9 @@ const createInvoiceConfirmationEntry = async (connection, invoice, createdBy = n
   if (taxAbs > 0.0001 && !canSplitTax) {
     if (TAX_SPLIT_FAIL_CLOSED) {
       if (!inputTaxAccountId) {
-        throw new Error('未配置进项税科目(VAT_INPUT_TAX)，禁止确认含税应付发票（价税分离 fail-closed）');
+        throw new Error(
+          '未配置进项税科目(VAT_INPUT_TAX)，禁止确认含税应付发票（价税分离 fail-closed）'
+        );
       }
       throw new Error(
         `价税金额不平（未税 ${netAbs} + 税 ${taxAbs} ≠ 合计 ${totalAbs}），禁止确认发票`
@@ -509,10 +531,7 @@ const apModel = {
           throw new Error('发票金额必须大于0才能确认');
         }
         // 强制三单匹配时：来源为收货的 AP 须先有 confirmed 匹配单
-        if (
-          invoiceData.source_type === 'purchase_receipt' &&
-          invoiceData.source_id
-        ) {
+        if (invoiceData.source_type === 'purchase_receipt' && invoiceData.source_id) {
           try {
             const ThreeWayMatchService = require('../services/finance/ThreeWayMatchService');
             if (await ThreeWayMatchService.isMatchRequired()) {
@@ -520,9 +539,7 @@ const apModel = {
                 invoiceData.source_id
               );
               if (!ok) {
-                throw new Error(
-                  '已开启三单匹配强制：请先完成并确认 PO-收货-发票匹配，再确认应付'
-                );
+                throw new Error('已开启三单匹配强制：请先完成并确认 PO-收货-发票匹配，再确认应付');
               }
             }
           } catch (e) {
@@ -573,9 +590,11 @@ const apModel = {
               DATE_FORMAT(a.invoice_date, '%Y-%m-%d') as invoice_date,
               DATE_FORMAT(a.due_date, '%Y-%m-%d') as due_date,
               DATE_FORMAT(a.created_at, '%Y-%m-%d') as created_at,
-              s.name as supplier_name
+              s.name as supplier_name,
+              COALESCE(NULLIF(TRIM(approver.real_name), ''), approver.username) as approved_by_name
        FROM ap_invoices a
        LEFT JOIN suppliers s ON a.supplier_id = s.id
+       LEFT JOIN users approver ON approver.id = a.approved_by
        WHERE a.id = ?`,
       [id]
     );
@@ -697,11 +716,14 @@ const apModel = {
               DATE_FORMAT(a.due_date, '%Y-%m-%d') AS due_date,
               a.total_amount, a.amount_excluding_tax, a.tax_amount, a.tax_rate,
               a.paid_amount, a.balance_amount, a.terms, a.source_type, a.source_id,
-              a.status, DATE_FORMAT(a.created_at, '%Y-%m-%d') AS created_at,
+              a.status, a.approved_by, a.approved_at,
+              COALESCE(NULLIF(TRIM(approver.real_name), ''), approver.username) AS approved_by_name,
+              DATE_FORMAT(a.created_at, '%Y-%m-%d') AS created_at,
               COALESCE(po_direct.id, pr.order_id, po_from_receipt.id) AS related_order_id,
               COALESCE(po_direct.order_no, pr.order_no, po_from_receipt.order_no) AS related_order_no
         FROM ap_invoices a
         LEFT JOIN suppliers s ON a.supplier_id = s.id
+        LEFT JOIN users approver ON approver.id = a.approved_by
         LEFT JOIN purchase_orders po_direct
           ON a.source_type = 'purchase_order' AND a.source_id = po_direct.id AND po_direct.deleted_at IS NULL
         LEFT JOIN purchase_receipts pr
@@ -746,6 +768,10 @@ const apModel = {
       }
 
       const invoice = invoices[0];
+      const approverId =
+        invoice.status !== status
+          ? await resolveInvoiceApprover(connection, invoice, options)
+          : null;
       assertManualStatusTransition(invoice.status, status, invoice);
 
       if (invoice.status !== status && status === INVOICE_STATUS.CONFIRMED) {
@@ -759,20 +785,14 @@ const apModel = {
             if (await ThreeWayMatchService.isMatchRequired()) {
               const ok = await ThreeWayMatchService.hasConfirmedMatchForReceipt(invoice.source_id);
               if (!ok) {
-                throw new Error(
-                  '已开启三单匹配强制：请先完成并确认 PO-收货-发票匹配，再确认应付'
-                );
+                throw new Error('已开启三单匹配强制：请先完成并确认 PO-收货-发票匹配，再确认应付');
               }
             }
           } catch (e) {
             if (e.message && e.message.includes('三单匹配')) throw e;
           }
         }
-        await createInvoiceConfirmationEntry(
-          connection,
-          invoice,
-          options.updated_by || options.created_by
-        );
+        await createInvoiceConfirmationEntry(connection, invoice, approverId);
       }
 
       // 已确认/逾期→取消：冲销关联确认凭证（未付款已在 assertManualStatusTransition 校验）
@@ -809,18 +829,33 @@ const apModel = {
 
       if (invoice.status !== status) {
         await connection.execute(
-          'UPDATE ap_invoices SET status = ?, updated_at = NOW() WHERE id = ?',
-          [status, id]
+          `UPDATE ap_invoices
+              SET status = ?, updated_by = ?,
+                  approved_by = CASE WHEN ? = ? THEN ? ELSE approved_by END,
+                  approved_at = CASE WHEN ? = ? THEN NOW() ELSE approved_at END,
+                  updated_at = NOW()
+            WHERE id = ?`,
+          [
+            status,
+            approverId,
+            status,
+            INVOICE_STATUS.CONFIRMED,
+            approverId,
+            status,
+            INVOICE_STATUS.CONFIRMED,
+            id,
+          ]
         );
       }
 
-      if (status === INVOICE_STATUS.CANCELLED || status === 'cancelled' || status === 'void' || status === '作废') {
+      if (
+        status === INVOICE_STATUS.CANCELLED ||
+        status === 'cancelled' ||
+        status === 'void' ||
+        status === '作废'
+      ) {
         const FinanceIntegrationService = require('../services/external/FinanceIntegrationService');
-        await FinanceIntegrationService.releaseInvoiceSourceOnCancel(
-          connection,
-          'ap_invoices',
-          id
-        );
+        await FinanceIntegrationService.releaseInvoiceSourceOnCancel(connection, 'ap_invoices', id);
       }
 
       await connection.commit();
@@ -1013,17 +1048,17 @@ const apModel = {
       const payAmount = Array.isArray(paymentItems)
         ? paymentItems.reduce((s, it) => s + Number(it.amount || it.payment_amount || 0), 0)
         : Number(paymentData.amount || paymentData.total_amount || 0);
-      await PaymentApprovalGuard.assertPayable({
+      const paymentApproval = await PaymentApprovalGuard.assertPayable({
         amount: payAmount,
-        approved: paymentData.approved,
-        skipApproval: paymentData.skipApproval,
-        workflowStatus: paymentData.workflow_status || paymentData.workflowStatus,
+        approvalId: paymentData.approval_id || paymentData.approvalId,
         approvalNo: paymentData.approval_no || paymentData.approvalNo,
-        approvedBy: paymentData.created_by || paymentData.approved_by,
-        paymentRef: paymentData.payment_number,
-        remark: paymentData.notes,
+        supplierId: paymentData.supplier_id,
+        invoiceIds: (paymentItems || []).map((item) => item.invoice_id),
+        serverAdminOverride: paymentData.server_admin_override === true,
         connection,
       });
+
+      const approvalId = paymentApproval.approvalId || null;
 
       if (
         BANK_BACKED_PAYMENT_METHODS.has(paymentData.payment_method) &&
@@ -1043,8 +1078,7 @@ const apModel = {
         await BudgetControlService.executeBudgetControl(
           {
             accountId: budgetAccountId,
-            departmentId:
-              paymentData.department_id || paymentData.gl_entry?.department_id || null,
+            departmentId: paymentData.department_id || paymentData.gl_entry?.department_id || null,
             amount: paymentData.total_amount,
             date: paymentData.payment_date,
             documentType: 'ap_payment',
@@ -1062,8 +1096,8 @@ const apModel = {
       const [result] = await connection.execute(
         `INSERT INTO ap_payments
         (payment_number, supplier_id, payment_date, total_amount,
-         payment_method, reference_number, bank_account_id, notes, created_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         payment_method, reference_number, bank_account_id, notes, created_by, approval_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           paymentData.payment_number,
           paymentData.supplier_id,
@@ -1074,6 +1108,7 @@ const apModel = {
           paymentData.bank_account_id || null,
           paymentData.notes || null,
           paymentData.created_by || null,
+          approvalId,
         ]
       );
 
@@ -1115,7 +1150,9 @@ const apModel = {
           String(invoice.currency_code || 'CNY').toUpperCase() !== 'CNY' ||
           Math.abs(Number(invoice.exchange_rate || 1) - 1) > 0.000001
         ) {
-          throw new Error(`发票 ${invoice.invoice_number} 为非人民币业务，当前未启用本位币换算，不能核销`);
+          throw new Error(
+            `发票 ${invoice.invoice_number} 为非人民币业务，当前未启用本位币换算，不能核销`
+          );
         }
         linkedInvoices.push({ id: invoice.id, invoice_number: invoice.invoice_number });
         assertInvoiceSettlementsEligible(invoice.status, `发票 ${invoice.invoice_number}`);
@@ -1153,10 +1190,7 @@ const apModel = {
       const totalDiscount = fromCents(totalDiscountCents);
 
       // 如果是银行类付款且有实际出账金额，更新银行账户余额并创建银行交易记录
-      if (
-        BANK_BACKED_PAYMENT_METHODS.has(paymentData.payment_method) &&
-        totalCashCents > 0
-      ) {
+      if (BANK_BACKED_PAYMENT_METHODS.has(paymentData.payment_method) && totalCashCents > 0) {
         const [bankAccounts] = await connection.execute(
           'SELECT id, account_number, account_name, bank_name, branch_name, currency_code, current_balance, opening_balance, account_type, is_active, contact_person, contact_phone, notes, created_at, updated_at, created_by, updated_by, last_transaction_date FROM bank_accounts WHERE id = ? FOR UPDATE',
           [paymentData.bank_account_id]
@@ -1168,7 +1202,9 @@ const apModel = {
 
         const bankAccount = bankAccounts[0];
         if (String(bankAccount.currency_code || 'CNY').toUpperCase() !== 'CNY') {
-          throw new Error(`银行账户 "${bankAccount.account_name}" 不是人民币账户，当前不能用于付款`);
+          throw new Error(
+            `银行账户 "${bankAccount.account_name}" 不是人民币账户，当前不能用于付款`
+          );
         }
         if (!isTruthyFlag(bankAccount.is_active)) {
           throw new Error(`银行账户 "${bankAccount.account_name}" 已被冻结，无法用于付款`);
@@ -1273,7 +1309,8 @@ const apModel = {
       }
 
       for (const invoice of linkedInvoices) {
-        await DocumentLinkService.tryAutoLink(DocType.AP_INVOICE,
+        await DocumentLinkService.tryAutoLink(
+          DocType.AP_INVOICE,
           invoice.id,
           invoice.invoice_number,
           DocType.AP_PAYMENT,
@@ -1284,7 +1321,8 @@ const apModel = {
         );
       }
       if (glEntryId) {
-        await DocumentLinkService.tryAutoLink(DocType.AP_PAYMENT,
+        await DocumentLinkService.tryAutoLink(
+          DocType.AP_PAYMENT,
           paymentId,
           paymentData.payment_number,
           DocType.FINANCE_VOUCHER,
@@ -1295,7 +1333,8 @@ const apModel = {
         );
       }
       if (bankTransactionId) {
-        await DocumentLinkService.tryAutoLink(DocType.AP_PAYMENT,
+        await DocumentLinkService.tryAutoLink(
+          DocType.AP_PAYMENT,
           paymentId,
           paymentData.payment_number,
           DocType.BANK_TRANSACTION,
@@ -1313,6 +1352,18 @@ const apModel = {
           glEntryId,
           paymentData.created_by || glEntry?.created_by || null
         );
+      }
+
+      if (approvalId) {
+        const [approvalUpdate] = await connection.execute(
+          `UPDATE finance_payment_approvals
+              SET status = 'used', used_at = NOW(), payment_id = ?
+            WHERE id = ? AND status = 'approved' AND used_at IS NULL`,
+          [paymentId, approvalId]
+        );
+        if (!approvalUpdate.affectedRows) {
+          throw new Error('付款审批已被其他付款使用');
+        }
       }
 
       if (!isExternalTransaction) {
@@ -1712,7 +1763,8 @@ const apModel = {
       }
 
       for (const reversalEntry of reversalEntries) {
-        await DocumentLinkService.tryAutoLink(DocType.AP_PAYMENT,
+        await DocumentLinkService.tryAutoLink(
+          DocType.AP_PAYMENT,
           paymentId,
           payment.payment_number,
           DocType.FINANCE_VOUCHER,
@@ -1724,7 +1776,8 @@ const apModel = {
       }
 
       if (reversalBankTransactionId) {
-        await DocumentLinkService.tryAutoLink(DocType.AP_PAYMENT,
+        await DocumentLinkService.tryAutoLink(
+          DocType.AP_PAYMENT,
           paymentId,
           payment.payment_number,
           DocType.BANK_TRANSACTION,
@@ -1757,7 +1810,8 @@ const apModel = {
             reversalBankTransactionId,
           ]);
           for (const reversalEntry of reversalEntries) {
-            await DocumentLinkService.tryAutoLink(DocType.BANK_TRANSACTION,
+            await DocumentLinkService.tryAutoLink(
+              DocType.BANK_TRANSACTION,
               reversalBankTransactionId,
               reversalBankTransactionNumber,
               DocType.FINANCE_VOUCHER,
@@ -1973,7 +2027,6 @@ const apModel = {
       throw error;
     }
   },
-
 
   /**
    * 获取供应商应付款汇总（含联系人信息和余额筛选）

@@ -539,7 +539,8 @@ class InventoryService {
                FROM inventory_posting_lines l
                JOIN inventory_posting_documents d ON d.id = l.posting_document_id
               WHERE l.material_id = ? AND l.location_id = ?
-                AND d.finance_status = 'pending' AND d.posting_kind = 'movement'`,
+                AND d.finance_status = 'pending' AND d.posting_kind = 'movement'
+                AND l.posted_quantity IS NULL`,
             [materialId, locationId]
           );
           quantity = Precision.add(quantity, Number(pendingRows[0]?.pending_stock || 0));
@@ -637,6 +638,7 @@ class InventoryService {
              FROM inventory_posting_lines l
              JOIN inventory_posting_documents d ON d.id = l.posting_document_id
             WHERE (${conditions}) AND d.finance_status = 'pending' AND d.posting_kind = 'movement'
+              AND l.posted_quantity IS NULL
             GROUP BY l.material_id, l.location_id`,
           params
         );
@@ -925,12 +927,13 @@ class InventoryService {
                JOIN inventory_posting_documents d ON d.id = l.posting_document_id
               WHERE l.material_id = ? AND l.location_id = ?
                 AND d.finance_status = 'pending' AND d.posting_kind = 'movement'
-           ) stock_movements
+                AND l.posted_quantity IS NULL AND ? = 1
+            ) stock_movements
            WHERE batch_number IS NOT NULL AND batch_number != ''
            GROUP BY batch_number
            HAVING batch_quantity > 0
            ORDER BY MIN(created_at) ASC`,
-          [materialId, locationId, materialId, locationId]
+          [materialId, locationId, materialId, locationId, isFormalPosting ? 0 : 1]
         );
 
         let remainingQuantity = outboundQuantity;
@@ -1051,6 +1054,17 @@ class InventoryService {
                 transactionDate: resolvedTransactionDate,
                 operator,
                 reversalOfLedgerId,
+                supplierId,
+                supplierName,
+                productionDate,
+                expiryDate,
+                warehouseName,
+                purchaseOrderId,
+                purchaseOrderNo,
+                receiptId,
+                receiptNo,
+                remark,
+                allowEmptyBatch: emptyBatchAllowed,
                 sourceLineKey: `${transactionType}:${referenceType}:${referenceNo}:${materialId}:${locationId}:${ledgerBatchNumber || 'EMPTY'}`,
               },
             ]
@@ -1070,6 +1084,8 @@ class InventoryService {
             unitCost: actualUnitCost,
             totalValue: currentTotalValue,
           });
+          // A pending snapshot is the business movement. Only approval may
+          // write the formal ledger, balances and posted quantities.
           currentBefore = currentAfter;
           continue;
         }
@@ -1133,6 +1149,15 @@ class InventoryService {
           },
           connection
         );
+        const lineIdToUpdate = postingLineId;
+        if (lineIdToUpdate) {
+          await connection.execute(
+            `UPDATE inventory_posting_lines
+                SET posted_quantity = ?, posted_value = ?, updated_at = NOW()
+              WHERE id = ? AND posted_quantity IS NULL`,
+            [batchChangeQty, currentTotalValue, lineIdToUpdate]
+          );
+        }
         currentBefore = currentAfter;
       }
 

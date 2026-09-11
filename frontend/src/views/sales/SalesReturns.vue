@@ -218,6 +218,13 @@
           <el-table-column prop="quantity" label="退货数量" width="100" />
           <el-table-column prop="reason" label="明细原因" min-width="160" />
         </el-table>
+
+        <InventoryApprovalPanel
+          v-if="currentReturn?.id || currentReturn?.returnNo"
+          source-type="sales_return"
+          :source-id="currentReturn.id"
+          :source-no="currentReturn.returnNo"
+        />
       </div>
       <template #footer>
         <span class="dialog-footer">
@@ -348,6 +355,7 @@ import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { salesApi } from '@/api'
 import { Plus } from '@element-plus/icons-vue'
 import printService from '@/services/printService'
+import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue'
 // 退货单详情相关
 const detailsVisible = ref(false)
 const currentReturn = ref(null)

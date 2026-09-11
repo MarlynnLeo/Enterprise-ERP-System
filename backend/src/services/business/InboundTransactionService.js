@@ -107,7 +107,12 @@ class InboundTransactionService {
         throw new Error(`生产入库单 ${inboundData.inbound_no} 未关联生产任务，不能核算成品成本`);
       }
 
-      const costResult = await CostAccountingService.calculateActualCost(taskId, connection);
+      // 入库确认阶段只预计算并保存成本，用于冻结过账快照；生产成本总账
+      // 必须等该入库单完成财务审批后，由 INVENTORY_POSTING_APPROVED 事件生成。
+      const costResult = await CostAccountingService.calculateActualCost(taskId, connection, {
+        postToGL: false,
+        requireInventoryApproval: false,
+      });
       productionUnitCost = Number(costResult?.actualCost?.unitCost) || 0;
       if (productionUnitCost <= 0) {
         throw new Error(`生产任务 ${taskId} 实际单位成本无效，不能完成成品入库`);
@@ -282,6 +287,7 @@ class InboundTransactionService {
           transactionType: transactionType,
           referenceNo: inboundData.inbound_no,
           referenceType: 'inbound',
+          sourceId: inboundId,
           operator: operator,
           businessApprovedById,
           businessApprovedBy: operator,

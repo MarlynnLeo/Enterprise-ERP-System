@@ -1251,12 +1251,26 @@ const updateProcessingStatus = async (req, res) => {
     }
 
     const currentStatus = existingProcessing[0].status;
-    if (currentStatus === status) {
+    let canRetryRejectedPosting = false;
+    if (['confirmed', 'in_progress'].includes(status) && currentStatus === status) {
+      const [latestPostingRows] = await connection.execute(
+        `SELECT finance_status
+           FROM inventory_posting_documents
+          WHERE source_type = 'outsourced_processing_material'
+            AND (source_id = ? OR source_no = ?)
+            AND posting_kind = 'movement'
+          ORDER BY posting_sequence DESC, id DESC
+          LIMIT 1`,
+        [Number(id), existingProcessing[0].processing_no]
+      );
+      canRetryRejectedPosting = latestPostingRows[0]?.finance_status === 'rejected';
+    }
+    if (currentStatus === status && !canRetryRejectedPosting) {
       await connection.rollback();
       return ResponseHandler.success(res, { warnings: [] }, '委外加工单状态未变化');
     }
 
-    if (!PROCESSING_STATUS_TRANSITIONS[currentStatus]?.has(status)) {
+    if (!PROCESSING_STATUS_TRANSITIONS[currentStatus]?.has(status) && !canRetryRejectedPosting) {
       await connection.rollback();
       return ResponseHandler.error(
         res,
@@ -1294,8 +1308,9 @@ const updateProcessingStatus = async (req, res) => {
 
     // 如果从待出库(pending)状态执行发料出库(进入已确认或加工中)，则扣减发料原材料库存
     const isOutboundFromPending =
-      currentStatus === STATUS.PROCESSING.PENDING &&
-      [STATUS.PROCESSING.CONFIRMED, STATUS.PROCESSING.IN_PROGRESS].includes(status);
+      (currentStatus === STATUS.PROCESSING.PENDING &&
+        [STATUS.PROCESSING.CONFIRMED, STATUS.PROCESSING.IN_PROGRESS].includes(status)) ||
+      (currentStatus === status && canRetryRejectedPosting);
 
     if (isOutboundFromPending) {
       // 获取发料明细
@@ -1324,6 +1339,7 @@ const updateProcessingStatus = async (req, res) => {
               transactionType: 'outsourced_outbound',
               referenceNo: existingProcessing[0].processing_no,
               referenceType: 'outsourced_processing_material',
+              sourceId: Number(id),
               operator: getRequestActorLabel(req),
               remark: `委外加工发料 ${existingProcessing[0].processing_no}`,
               unitId: material.unit_id,
@@ -1520,7 +1536,27 @@ const getReceipts = async (req, res) => {
                 WHERE opri_status.receipt_id = outsourced_processing_receipts.id
                   AND COALESCE(opri_status.actual_quantity, 0) + 0.000001 <
                       COALESCE(opri_status.expected_quantity, 0)
-             ) THEN 1 ELSE 0 END AS arrival_required
+             ) THEN 1 ELSE 0 END AS arrival_required,
+             (
+               SELECT d.finance_status
+                 FROM inventory_posting_documents d
+                WHERE d.source_type = 'outsourced_processing_receipt'
+                  AND (d.source_id = outsourced_processing_receipts.id
+                       OR d.source_no = outsourced_processing_receipts.receipt_no)
+                  AND d.posting_kind = 'movement'
+                ORDER BY d.posting_sequence DESC, d.id DESC
+                LIMIT 1
+             ) AS approval_status,
+             (
+               SELECT d.id
+                 FROM inventory_posting_documents d
+                WHERE d.source_type = 'outsourced_processing_receipt'
+                  AND (d.source_id = outsourced_processing_receipts.id
+                       OR d.source_no = outsourced_processing_receipts.receipt_no)
+                  AND d.posting_kind = 'movement'
+                ORDER BY d.posting_sequence DESC, d.id DESC
+                LIMIT 1
+             ) AS approval_document_id
         FROM outsourced_processing_receipts
       WHERE 1=1
     `;
@@ -2427,12 +2463,26 @@ const updateReceiptStatus = async (req, res) => {
     }
 
     const currentStatus = existingReceipt[0].status;
-    if (currentStatus === status) {
+    let canRetryRejectedPosting = false;
+    if (status === 'confirmed' && currentStatus === status) {
+      const [latestPostingRows] = await connection.execute(
+        `SELECT finance_status
+           FROM inventory_posting_documents
+          WHERE source_type = 'outsourced_processing_receipt'
+            AND (source_id = ? OR source_no = ?)
+            AND posting_kind = 'movement'
+          ORDER BY posting_sequence DESC, id DESC
+          LIMIT 1`,
+        [Number(id), existingReceipt[0].receipt_no]
+      );
+      canRetryRejectedPosting = latestPostingRows[0]?.finance_status === 'rejected';
+    }
+    if (currentStatus === status && !canRetryRejectedPosting) {
       await connection.rollback();
       return ResponseHandler.success(res, null, '委外入库单状态未变化');
     }
 
-    if (!RECEIPT_STATUS_TRANSITIONS[currentStatus]?.has(status)) {
+    if (!RECEIPT_STATUS_TRANSITIONS[currentStatus]?.has(status) && !canRetryRejectedPosting) {
       await connection.rollback();
       return ResponseHandler.error(
         res,
@@ -2542,6 +2592,7 @@ const updateReceiptStatus = async (req, res) => {
               transactionType: 'outsourced_inbound',
               referenceNo: receiptNo,
               referenceType: 'outsourced_processing_receipt',
+              sourceId: Number(id),
               operator: existingReceipt[0].operator || getRequestActorLabel(req),
               remark: `委外入库 ${receiptNo}`,
               unitId: item.unit_id,

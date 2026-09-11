@@ -278,6 +278,13 @@
         <el-descriptions-item label="创建时间">{{ detailData.createdAt }}</el-descriptions-item>
         <el-descriptions-item label="更新时间">{{ detailData.updatedAt }}</el-descriptions-item>
       </el-descriptions>
+
+      <InventoryApprovalPanel
+        v-if="detailData?.id || detailData?.scrapNo"
+        source-type="scrap_record"
+        :source-id="detailData.id"
+        :source-no="detailData.scrapNo"
+      />
       <template #footer>
         <el-button @click="detailDialogVisible = false">关闭</el-button>
       </template>
@@ -294,6 +301,7 @@ import { Check, Finished, Edit } from '@element-plus/icons-vue'
 import { qualityApi } from '@/api/quality'
 import { normalizePaginationData } from '@/utils/helpers/typeUtils'
 import { parseResponseData } from '@/utils/responseParser'
+import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue'
 
 const dictStore = useDictionaryStore()
 const searchForm = reactive({

@@ -32,11 +32,30 @@ const {
 } = require('../utils/finance/settlementMath');
 const { applyNormalizedInvoiceAmounts } = require('../utils/finance/invoiceAmounts');
 const { toInvoiceApi } = require('../utils/finance/invoiceFieldMap');
+const { resolveActorUserId } = require('../utils/userUtils');
 
 const resolveInvoiceItemAmount = (item) =>
   item.amount !== undefined && item.amount !== null
     ? parseFloat(item.amount)
     : (parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0);
+
+async function resolveInvoiceApprover(connection, invoice, options = {}) {
+  const approverId = await resolveActorUserId(
+    connection,
+    options.approver_id,
+    options.approverId,
+    options.updated_by,
+    options.created_by
+  );
+  const makerId = Number(invoice.created_by || 0);
+  if (makerId && makerId === Number(approverId)) {
+    const error = new Error('应收发票制单人与财务审核人必须分离');
+    error.code = 'SEPARATION_OF_DUTIES';
+    error.statusCode = 403;
+    throw error;
+  }
+  return approverId;
+}
 
 const assertInvoiceItemsMatchTotal = (items, totalAmount, invoiceData = {}) => {
   if (!Array.isArray(items) || items.length === 0) return;
@@ -237,9 +256,10 @@ const createInvoiceConfirmationEntry = async (connection, invoice, createdBy = n
   const amountPolicy = normalizeInvoiceAmountPolicy(invoice);
   const totalAbs = amountPolicy.absoluteAmount;
   const taxAbs = Math.abs(toCents(invoice.tax_amount || 0)) / 100;
-  let netAbs = Math.abs(
-    toCents(invoice.amount_excluding_tax ?? invoice.subtotal ?? invoice.subtotal_amount ?? 0)
-  ) / 100;
+  let netAbs =
+    Math.abs(
+      toCents(invoice.amount_excluding_tax ?? invoice.subtotal ?? invoice.subtotal_amount ?? 0)
+    ) / 100;
   if (netAbs <= 0 && totalAbs > 0) {
     netAbs = Math.max(0, Math.round((totalAbs - taxAbs) * 100) / 100);
   }
@@ -250,7 +270,9 @@ const createInvoiceConfirmationEntry = async (connection, invoice, createdBy = n
   if (taxAbs > 0.0001 && !canSplitTax) {
     if (TAX_SPLIT_FAIL_CLOSED) {
       if (!outputTaxAccountId) {
-        throw new Error('未配置销项税科目(VAT_OUTPUT_TAX)，禁止确认含税应收发票（价税分离 fail-closed）');
+        throw new Error(
+          '未配置销项税科目(VAT_OUTPUT_TAX)，禁止确认含税应收发票（价税分离 fail-closed）'
+        );
       }
       throw new Error(
         `价税金额不平（未税 ${netAbs} + 税 ${taxAbs} ≠ 合计 ${totalAbs}），禁止确认发票`
@@ -536,11 +558,13 @@ const arModel = {
                a.total_amount, a.amount_excluding_tax, a.tax_amount, a.tax_rate,
                a.paid_amount, a.balance_amount,
                a.status, a.currency_code, a.terms, a.customer_invoice_number,
-               a.source_type, a.source_id,
+               a.source_type, a.source_id, a.approved_by, a.approved_at,
+               COALESCE(NULLIF(TRIM(approver.real_name), ''), approver.username) AS approved_by_name,
                COALESCE(so_direct.id, so_from_outbound.id) AS related_order_id,
                COALESCE(so_direct.order_no, so_from_outbound.order_no) AS related_order_no
         FROM ar_invoices a
         LEFT JOIN customers c ON a.customer_id = c.id
+        LEFT JOIN users approver ON approver.id = a.approved_by
         LEFT JOIN sales_orders so_direct
           ON a.source_type = 'sales_order' AND a.source_id = so_direct.id AND so_direct.deleted_at IS NULL
         LEFT JOIN sales_outbound sob
@@ -684,9 +708,12 @@ const arModel = {
                 a.paid_amount, a.balance_amount,
                 a.status, a.currency_code, a.exchange_rate, a.terms, a.notes,
                 a.customer_invoice_number, a.source_type, a.source_id,
+                a.approved_by, a.approved_at,
+                COALESCE(NULLIF(TRIM(approver.real_name), ''), approver.username) as approved_by_name,
                 DATE_FORMAT(a.created_at, '%Y-%m-%d') as created_at
          FROM ar_invoices a
          LEFT JOIN customers c ON a.customer_id = c.id
+         LEFT JOIN users approver ON approver.id = a.approved_by
          WHERE a.id = ?`,
         [id]
       );
@@ -743,6 +770,10 @@ const arModel = {
       }
 
       const invoice = invoices[0];
+      const approverId =
+        invoice.status !== status
+          ? await resolveInvoiceApprover(connection, invoice, options)
+          : null;
       assertManualStatusTransition(invoice.status, status, invoice);
 
       if (invoice.status !== status && status === INVOICE_STATUS.CONFIRMED) {
@@ -750,11 +781,7 @@ const arModel = {
         if (!amountPolicy.isCreditNote && toCents(invoice.total_amount) <= 0) {
           throw new Error('发票金额必须大于0才能确认');
         }
-        await createInvoiceConfirmationEntry(
-          connection,
-          invoice,
-          options.updated_by || options.created_by
-        );
+        await createInvoiceConfirmationEntry(connection, invoice, approverId);
       }
 
       // 已确认/逾期→取消：冲销关联确认凭证（未收款已在 assertManualStatusTransition 校验）
@@ -791,19 +818,34 @@ const arModel = {
 
       if (invoice.status !== status) {
         await connection.execute(
-          'UPDATE ar_invoices SET status = ?, updated_at = NOW() WHERE id = ?',
-          [status, id]
+          `UPDATE ar_invoices
+              SET status = ?, updated_by = ?,
+                  approved_by = CASE WHEN ? = ? THEN ? ELSE approved_by END,
+                  approved_at = CASE WHEN ? = ? THEN NOW() ELSE approved_at END,
+                  updated_at = NOW()
+            WHERE id = ?`,
+          [
+            status,
+            approverId,
+            status,
+            INVOICE_STATUS.CONFIRMED,
+            approverId,
+            status,
+            INVOICE_STATUS.CONFIRMED,
+            id,
+          ]
         );
       }
 
       // 取消后释放 source 唯一键，允许同业务单据重新生成
-      if (status === INVOICE_STATUS.CANCELLED || status === 'cancelled' || status === 'void' || status === '作废') {
+      if (
+        status === INVOICE_STATUS.CANCELLED ||
+        status === 'cancelled' ||
+        status === 'void' ||
+        status === '作废'
+      ) {
         const FinanceIntegrationService = require('../services/external/FinanceIntegrationService');
-        await FinanceIntegrationService.releaseInvoiceSourceOnCancel(
-          connection,
-          'ar_invoices',
-          id
-        );
+        await FinanceIntegrationService.releaseInvoiceSourceOnCancel(connection, 'ar_invoices', id);
       }
 
       await connection.commit();
@@ -1123,7 +1165,9 @@ const arModel = {
           String(invoice.currency_code || 'CNY').toUpperCase() !== 'CNY' ||
           Math.abs(Number(invoice.exchange_rate || 1) - 1) > 0.000001
         ) {
-          throw new Error(`发票 ${invoice.invoice_number} 为非人民币业务，当前未启用本位币换算，不能核销`);
+          throw new Error(
+            `发票 ${invoice.invoice_number} 为非人民币业务，当前未启用本位币换算，不能核销`
+          );
         }
         linkedInvoices.push({ id: invoice.id, invoice_number: invoice.invoice_number });
         assertInvoiceSettlementsEligible(invoice.status, `发票 ${invoice.invoice_number}`);
@@ -1161,10 +1205,7 @@ const arModel = {
       const totalDiscount = fromCents(totalDiscountCents);
 
       // 如果是银行类收款且有实际到账金额，更新银行账户余额并创建银行交易记录
-      if (
-        BANK_BACKED_PAYMENT_METHODS.has(receiptData.payment_method) &&
-        totalCashCents > 0
-      ) {
+      if (BANK_BACKED_PAYMENT_METHODS.has(receiptData.payment_method) && totalCashCents > 0) {
         const [bankAccounts] = await connection.execute(
           'SELECT id, account_number, account_name, bank_name, branch_name, currency_code, current_balance, opening_balance, account_type, is_active, contact_person, contact_phone, notes, created_at, updated_at, created_by, updated_by, last_transaction_date FROM bank_accounts WHERE id = ? FOR UPDATE',
           [receiptData.bank_account_id]
@@ -1176,7 +1217,9 @@ const arModel = {
 
         const bankAccount = bankAccounts[0];
         if (String(bankAccount.currency_code || 'CNY').toUpperCase() !== 'CNY') {
-          throw new Error(`银行账户 "${bankAccount.account_name}" 不是人民币账户，当前不能用于收款`);
+          throw new Error(
+            `银行账户 "${bankAccount.account_name}" 不是人民币账户，当前不能用于收款`
+          );
         }
         if (!isTruthyFlag(bankAccount.is_active)) {
           throw new Error(`银行账户 "${bankAccount.account_name}" 已被冻结，无法用于收款`);
@@ -1279,7 +1322,8 @@ const arModel = {
       }
 
       for (const invoice of linkedInvoices) {
-        await DocumentLinkService.tryAutoLink(DocType.AR_INVOICE,
+        await DocumentLinkService.tryAutoLink(
+          DocType.AR_INVOICE,
           invoice.id,
           invoice.invoice_number,
           DocType.AR_RECEIPT,
@@ -1290,7 +1334,8 @@ const arModel = {
         );
       }
       if (glEntryId) {
-        await DocumentLinkService.tryAutoLink(DocType.AR_RECEIPT,
+        await DocumentLinkService.tryAutoLink(
+          DocType.AR_RECEIPT,
           receiptId,
           receiptData.receipt_number,
           DocType.FINANCE_VOUCHER,
@@ -1301,7 +1346,8 @@ const arModel = {
         );
       }
       if (bankTransactionId) {
-        await DocumentLinkService.tryAutoLink(DocType.AR_RECEIPT,
+        await DocumentLinkService.tryAutoLink(
+          DocType.AR_RECEIPT,
           receiptId,
           receiptData.receipt_number,
           DocType.BANK_TRANSACTION,
@@ -1726,7 +1772,8 @@ const arModel = {
       }
 
       for (const reversalEntry of reversalEntries) {
-        await DocumentLinkService.tryAutoLink(DocType.AR_RECEIPT,
+        await DocumentLinkService.tryAutoLink(
+          DocType.AR_RECEIPT,
           receiptId,
           receipt.receipt_number,
           DocType.FINANCE_VOUCHER,
@@ -1738,7 +1785,8 @@ const arModel = {
       }
 
       if (reversalBankTransactionId) {
-        await DocumentLinkService.tryAutoLink(DocType.AR_RECEIPT,
+        await DocumentLinkService.tryAutoLink(
+          DocType.AR_RECEIPT,
           receiptId,
           receipt.receipt_number,
           DocType.BANK_TRANSACTION,
@@ -1771,7 +1819,8 @@ const arModel = {
             reversalBankTransactionId,
           ]);
           for (const reversalEntry of reversalEntries) {
-            await DocumentLinkService.tryAutoLink(DocType.BANK_TRANSACTION,
+            await DocumentLinkService.tryAutoLink(
+              DocType.BANK_TRANSACTION,
               reversalBankTransactionId,
               reversalBankTransactionNumber,
               DocType.FINANCE_VOUCHER,
@@ -2065,7 +2114,6 @@ const arModel = {
       }
     }
   },
-
 
   /**
    * 获取客户应收款汇总（含联系人信息和余额筛选）

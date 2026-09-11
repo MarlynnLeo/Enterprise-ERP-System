@@ -147,18 +147,25 @@ cp .env.docker.example .env
 # DB_* / JWT_* / CSRF_SECRET / REDIS_PASSWORD / ALLOWED_ORIGINS / PUBLIC_API_BASE_URL
 ```
 
-### 2. 构建并启动
+### 2. 生产发布
 
-```bash
-docker compose build --pull backend frontend mobile
-docker compose up -d
+生产 Compose 只引用带发布号的镜像，不包含 `build:` 配置。不要在服务器目录执行
+`docker compose build` 或 1Panel 的“重建”操作，否则会绕过发布校验。统一使用：
+
+```powershell
+$env:DEPLOY_SERVER_HOST='192.168.1.251'
+$env:DEPLOY_SERVER_USER='guiyi'
+$env:DEPLOY_SSH_PRIVATE_KEY=(Get-Content $env:USERPROFILE\.ssh\id_ed25519_deploy -Raw)
+node scripts/deploy_to_server.js
 ```
+
+部署脚本会构建候选镜像、执行迁移、原子更新发布标签并验证容器健康状态。
 
 ### 3. 执行迁移
 
 ```bash
-docker compose run -T --rm backend npm run migrations:verify
-docker compose run -T --rm backend npm run migrate
+docker compose run -T --rm --no-deps backend npm run migrations:verify
+docker compose run -T --rm --no-deps backend npm run migrate
 ```
 
 ### 4. 健康检查

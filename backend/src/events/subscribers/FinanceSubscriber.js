@@ -164,6 +164,9 @@ class FinanceSubscriber {
       'EventBus:PURCHASE_RETURN_COMPLETED': async (payload) => {
         await this.handlePurchaseReturnCompleted(payload.args?.[0] || payload);
       },
+      'EventBus:INVENTORY_POSTING_APPROVED': async (payload) => {
+        await this.handleInventoryPostingApproved(payload.args?.[0] || payload);
+      },
     };
 
     Object.entries(handlers).forEach(([taskName, handler]) => {
@@ -371,6 +374,9 @@ class FinanceSubscriber {
       'production_inbound',
       'outsourced_outbound',
       'outsourced_inbound',
+      // 内部调拨只改变库存所属库位，不产生损益类成本凭证。
+      'transfer_out',
+      'transfer_in',
     ]);
 
     for (const line of posting.lines) {
@@ -405,6 +411,17 @@ class FinanceSubscriber {
       ? await InventoryPostingService.get(payload.postingDocumentId)
       : null;
 
+    if (
+      !posting ||
+      posting.finance_status !== InventoryPostingService.STATUS.APPROVED ||
+      Number(posting.locked) !== 1
+    ) {
+      const error = new Error(`库存过账 ${sourceNo} 未处于财务审核通过且锁定状态，拒绝触发财务集成`);
+      error.code = 'INVENTORY_POSTING_NOT_APPROVED';
+      error.statusCode = 409;
+      throw error;
+    }
+
     // Reversal postings are completed, together with their business-side
     // closure, inside InventoryPostingService.approve(). They must never be
     // replayed through the normal movement integration handlers below.
@@ -412,106 +429,138 @@ class FinanceSubscriber {
       return;
     }
 
-    const [salesOutbound] = await db.pool.execute(
-      `SELECT id
-         FROM sales_outbound
-        WHERE outbound_no = ?
-          AND deleted_at IS NULL
-          AND status NOT IN ('reversed', 'cancelled')
-        LIMIT 1`,
-      [sourceNo]
-    );
-    if (salesOutbound[0]) {
+    const sourceType = String(posting.source_type || payload?.sourceType || '').trim();
+    const financeActorId = posting.finance_approved_by || posting.business_approved_by_id || null;
+
+    // 调拨的两条库存流水已经在同一库存过账事务内完成，不能落入通用
+    // InventoryCostService，否则会错误生成销售成本/普通库存成本凭证。
+    if (
+      posting.source_type === 'transfer' ||
+      posting.lines.every((line) => ['transfer_out', 'transfer_in'].includes(line.transaction_type))
+    ) {
+      logger.info(`[FinanceSubscriber] 调拨过账已完成，跳过损益类成本凭证: ${sourceNo}`);
+      return;
+    }
+
+    if (sourceType === 'sales_outbound') {
+      const [salesOutbound] = await db.pool.execute(
+        `SELECT id
+           FROM sales_outbound
+          WHERE outbound_no = ?
+            AND deleted_at IS NULL
+            AND status NOT IN ('reversed', 'cancelled')
+          LIMIT 1`,
+        [sourceNo]
+      );
+      if (!salesOutbound[0]) throw new Error(`销售出库单不存在或已取消: ${sourceNo}`);
       await this.replaySalesOutboundCompleted({ outboundId: salesOutbound[0].id });
       return;
     }
 
-    const [purchaseReceipts] = await db.pool.execute(
-      'SELECT id FROM purchase_receipts WHERE receipt_no = ? AND deleted_at IS NULL LIMIT 1',
-      [sourceNo]
-    );
-    if (purchaseReceipts[0] && !salesOutbound[0]) {
-      await this.handlePurchaseReceiptCompleted({ receiptId: purchaseReceipts[0].id });
-      if (posting) await this.replayInventoryPostingCosts(posting);
-      return;
-    }
-
-    const [salesReturns] = await db.pool.execute(
-      'SELECT id FROM sales_returns WHERE return_no = ? AND deleted_at IS NULL LIMIT 1',
-      [sourceNo]
-    );
-    if (salesReturns[0] && !salesOutbound[0] && !purchaseReceipts[0]) {
-      await this.handleSalesReturnCompleted({ returnId: salesReturns[0].id });
-      if (posting) await this.replayInventoryPostingCosts(posting);
-      return;
-    }
-
-    const [purchaseReturns] = await db.pool.execute(
-      'SELECT id FROM purchase_returns WHERE return_no = ? AND deleted_at IS NULL LIMIT 1',
-      [sourceNo]
-    );
-    if (purchaseReturns[0] && !salesOutbound[0] && !purchaseReceipts[0] && !salesReturns[0]) {
+    if (sourceType === 'purchase_return') {
+      const [purchaseReturns] = await db.pool.execute(
+        'SELECT id FROM purchase_returns WHERE return_no = ? AND deleted_at IS NULL LIMIT 1',
+        [sourceNo]
+      );
+      if (!purchaseReturns[0]) throw new Error(`采购退货单不存在: ${sourceNo}`);
       await this.handlePurchaseReturnCompleted({ returnId: purchaseReturns[0].id });
-      if (posting) await this.replayInventoryPostingCosts(posting);
+      await this.replayInventoryPostingCosts(posting);
       return;
     }
 
-    const [productionInbounds] = await db.pool.execute(
-      `SELECT ib.reference_id AS task_id, pt.code AS task_code
-               FROM inventory_inbound ib
-               LEFT JOIN production_tasks pt ON pt.id = ib.reference_id AND pt.deleted_at IS NULL
-              WHERE ib.inbound_no = ?
-                AND ib.inbound_type = 'production'
-                AND COALESCE(ib.is_deleted, 0) = 0
-              LIMIT 1`,
-      [sourceNo]
-    );
+    if (sourceType === 'sales_return') {
+      const [salesReturns] = await db.pool.execute(
+        'SELECT id FROM sales_returns WHERE return_no = ? AND deleted_at IS NULL LIMIT 1',
+        [sourceNo]
+      );
+      if (!salesReturns[0]) throw new Error(`销售退货单不存在: ${sourceNo}`);
+      await this.handleSalesReturnCompleted({ returnId: salesReturns[0].id });
+      await this.replayInventoryPostingCosts(posting);
+      return;
+    }
+
+    const isPurchaseReceiptPosting =
+      ['inbound', 'purchase_receipt'].includes(sourceType) ||
+      (sourceType === 'batch_create' &&
+        posting.lines.some((line) => line.transaction_type === 'purchase_inbound'));
+    if (isPurchaseReceiptPosting) {
+      const [purchaseReceipts] = await db.pool.execute(
+        'SELECT id FROM purchase_receipts WHERE receipt_no = ? AND deleted_at IS NULL LIMIT 1',
+        [sourceNo]
+      );
+      if (purchaseReceipts[0]) {
+        await this.handlePurchaseReceiptCompleted({ receiptId: purchaseReceipts[0].id });
+        await this.replayInventoryPostingCosts(posting);
+        return;
+      }
+    }
+
     if (
-      productionInbounds[0]?.task_id &&
-      !salesOutbound[0] &&
-      !purchaseReceipts[0] &&
-      !salesReturns[0] &&
-      !purchaseReturns[0]
+      ['inbound', 'production_inbound'].includes(sourceType) ||
+      posting.lines.some((line) => line.transaction_type === 'production_inbound')
     ) {
-      await this.handleProductionTaskCompleted({
-        taskId: productionInbounds[0].task_id,
-        taskCode: productionInbounds[0].task_code,
-        isFullComplete: true,
-        inboundNo: sourceNo,
-      });
-      return;
+      const [productionInbounds] = await db.pool.execute(
+        `SELECT COALESCE(ib.reference_id, qi.reference_id, qi.task_id) AS task_id,
+                       pt.code AS task_code
+                 FROM inventory_inbound ib
+                 LEFT JOIN quality_inspections qi
+                   ON qi.id = ib.inspection_id
+                  AND qi.deleted_at IS NULL
+                 LEFT JOIN production_tasks pt
+                   ON pt.id = COALESCE(ib.reference_id, qi.reference_id, qi.task_id)
+                  AND pt.deleted_at IS NULL
+                WHERE ib.inbound_no = ?
+                  AND ib.inbound_type = 'production'
+                  AND COALESCE(ib.is_deleted, 0) = 0
+                LIMIT 1`,
+        [sourceNo]
+      );
+      if (productionInbounds[0]?.task_id) {
+        await this.handleProductionTaskCompleted({
+          taskId: productionInbounds[0].task_id,
+          taskCode: productionInbounds[0].task_code,
+          isFullComplete: true,
+          inboundNo: sourceNo,
+        });
+        return;
+      }
     }
 
-    const [outsourcedProcessing] = await db.pool.execute(
-      'SELECT id, processing_no, created_by FROM outsourced_processings WHERE processing_no = ? LIMIT 1',
-      [sourceNo]
-    );
-    if (outsourcedProcessing[0]) {
+    if (sourceType === 'outsourced_processing_material') {
+      const [outsourcedProcessing] = await db.pool.execute(
+        'SELECT id, processing_no FROM outsourced_processings WHERE processing_no = ? LIMIT 1',
+        [sourceNo]
+      );
+      if (!outsourcedProcessing[0]) throw new Error(`委外加工单不存在: ${sourceNo}`);
       const [materials] = await db.pool.execute(
         'SELECT id, material_id, material_name, quantity, unit_price FROM outsourced_processing_materials WHERE processing_id = ?',
         [outsourcedProcessing[0].id]
       );
       await FinanceIntegrationService.generateOutsourcedIssueEntry(
-        outsourcedProcessing[0],
+        { ...outsourcedProcessing[0], created_by: financeActorId },
         materials
       );
       return;
     }
 
-    const [outsourcedReceipts] = await db.pool.execute(
-      `SELECT id, receipt_no, processing_id, created_by, operator, status
-         FROM outsourced_processing_receipts
-        WHERE receipt_no = ?
-          AND status <> 'cancelled'
-        LIMIT 1`,
-      [sourceNo]
-    );
-    if (outsourcedReceipts[0]) {
+    if (['outsourced_processing_receipt', 'outsourced_receipt'].includes(sourceType)) {
+      const [outsourcedReceipts] = await db.pool.execute(
+        `SELECT id, receipt_no, processing_id, operator, status
+           FROM outsourced_processing_receipts
+          WHERE receipt_no = ?
+            AND status <> 'cancelled'
+          LIMIT 1`,
+        [sourceNo]
+      );
+      if (!outsourcedReceipts[0]) throw new Error(`委外入库单不存在或已取消: ${sourceNo}`);
       const [items] = await db.pool.execute(
         'SELECT * FROM outsourced_processing_receipt_items WHERE receipt_id = ?',
         [outsourcedReceipts[0].id]
       );
-      await FinanceIntegrationService.generateOutsourcedReceiptEntry(outsourcedReceipts[0], items);
+      await FinanceIntegrationService.generateOutsourcedReceiptEntry(
+        { ...outsourcedReceipts[0], created_by: financeActorId },
+        items
+      );
       return;
     }
 

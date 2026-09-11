@@ -273,5 +273,11 @@
   "20260903000004_add_bom_detail_position.js": "0c1d7d8df455660523f5f2f34c5d492cfc5495b11c527f0be574c05959b55c7d",
   "20260904000001_repair_quality_inspection_source_types.js": "66a0168f5b177f66f44f36e9839f629f8e0984a0ea625a1364860278d7b246d1",
   "20260904000002_reconcile_runtime_schema.js": "0432a0e27b861a1dfed30bea2150d56930a8ad28f796c7b58d6bd09d40091ace",
-  "20260906000001_seed_missing_manufacturing_account_mappings.js": "b0e591264d97f469479a5db7403d4023c7688f07f7f4b7e6197b47cfb58e52f6"
+  "20260906000001_seed_missing_manufacturing_account_mappings.js": "b0e591264d97f469479a5db7403d4023c7688f07f7f4b7e6197b47cfb58e52f6",
+  "20260907000001_remove_inventory_posting_menu.js": "f104d6315d8dd1104c4b2d2888d24a9ab13390496a2599f766785e268fd04246",
+  "20260909000001_finance_approval_state_closure.js": "ed7363b49fa88bec12b211324fac10246f405fa07c7e468f4dfcad6b897f6ad1",
+  "20260909000002_finance_salary_approval_menu.js": "8111f27213bf3883e6f31f46ef09835d3d742e81c231f157b9636fe89d289737",
+  "20260909000003_remove_inventory_posting_workbench.js": "c9cf029912fe68c7006da7830b1b866cd02747bed08340b1597278dd1948a7a1",
+  "20260909000004_finance_inventory_source_read_access.js": "36d97eaff1992b740777875b6e46418e3d2b34838cbb74adef2ac083b001df9b",
+  "20260909000005_finance_inventory_foundation_read_access.js": "9a97aefac53b7518455e3cdea325d29b01cde931155f40d8be60590ce7c408c8"
 }

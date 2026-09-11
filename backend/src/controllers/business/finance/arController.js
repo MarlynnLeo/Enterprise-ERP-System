@@ -108,7 +108,16 @@ const arController = {
         return ResponseHandler.error(res, '无效的发票ID', 'VALIDATION_ERROR', 400);
       }
 
-      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'ar_invoice', id, '无权访问该应收发票'))) {
+      if (
+        !(await ScopeGuard.denyUnlessAccess(
+          res,
+          db.pool,
+          req,
+          'ar_invoice',
+          id,
+          '无权访问该应收发票'
+        ))
+      ) {
         return;
       }
 
@@ -154,8 +163,7 @@ const arController = {
       const modelData = {
         ...mapped,
         status: INVOICE_STATUS.DRAFT,
-        currency_code:
-          mapped.currency_code || financeConfig.get('invoice.defaultCurrency', 'CNY'),
+        currency_code: mapped.currency_code || financeConfig.get('invoice.defaultCurrency', 'CNY'),
         ...ScopeGuard.stampOwner(req, 'ar_invoice'),
       };
 
@@ -208,7 +216,16 @@ const arController = {
         return ResponseHandler.error(res, '缺少状态信息', 'VALIDATION_ERROR', 400);
       }
 
-      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'ar_invoice', id, '无权变更该应收发票状态'))) {
+      if (
+        !(await ScopeGuard.denyUnlessAccess(
+          res,
+          db.pool,
+          req,
+          'ar_invoice',
+          id,
+          '无权变更该应收发票状态'
+        ))
+      ) {
         return;
       }
 
@@ -224,6 +241,7 @@ const arController = {
 
       // 调用模型方法更新状态
       const success = await arModel.updateInvoiceStatus(id, status, {
+        approver_id: getAuthenticatedUserId(req),
         updated_by: getAuthenticatedUserId(req),
       });
 
@@ -255,7 +273,16 @@ const arController = {
         return ResponseHandler.error(res, '无效的发票ID', 'VALIDATION_ERROR', 400);
       }
 
-      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'ar_invoice', id, '无权访问该应收发票'))) {
+      if (
+        !(await ScopeGuard.denyUnlessAccess(
+          res,
+          db.pool,
+          req,
+          'ar_invoice',
+          id,
+          '无权访问该应收发票'
+        ))
+      ) {
         return;
       }
 
@@ -271,8 +298,7 @@ const arController = {
         paid_amount: parseFloat(invoice.paid_amount || 0),
         balance_amount: parseFloat(invoice.balance_amount || 0),
         items: (invoice.items || []).map((item) => {
-          const unitPrice =
-            parseFloat(item.unit_price ?? item.unitPrice ?? item.price ?? 0) || 0;
+          const unitPrice = parseFloat(item.unit_price ?? item.unitPrice ?? item.price ?? 0) || 0;
           return {
             ...item,
             quantity: parseFloat(item.quantity || 0),
@@ -302,7 +328,16 @@ const arController = {
         return ResponseHandler.error(res, '无效的发票ID', 'VALIDATION_ERROR', 400);
       }
 
-      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'ar_invoice', invoiceId, '无权修改该应收发票'))) {
+      if (
+        !(await ScopeGuard.denyUnlessAccess(
+          res,
+          db.pool,
+          req,
+          'ar_invoice',
+          invoiceId,
+          '无权修改该应收发票'
+        ))
+      ) {
         return;
       }
 
@@ -365,7 +400,13 @@ const arController = {
       }
     } catch (error) {
       logger.error('更新应收账款发票失败:', error);
-      return ResponseHandler.error(res, error.message || '更新应收账款发票失败', 'SERVER_ERROR', 500, error);
+      return ResponseHandler.error(
+        res,
+        error.message || '更新应收账款发票失败',
+        'SERVER_ERROR',
+        500,
+        error
+      );
     }
   },
 
@@ -411,7 +452,16 @@ const arController = {
         return ResponseHandler.error(res, '无效的收款记录ID', 'VALIDATION_ERROR', 400);
       }
 
-      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'ar_receipt', receiptId, '无权访问该收款记录'))) {
+      if (
+        !(await ScopeGuard.denyUnlessAccess(
+          res,
+          db.pool,
+          req,
+          'ar_receipt',
+          receiptId,
+          '无权访问该收款记录'
+        ))
+      ) {
         return;
       }
 
@@ -451,14 +501,16 @@ const arController = {
       }
 
       // 获取发票信息（收款前校验发票行级权限）
-      if (!(await ScopeGuard.denyUnlessAccess(
-        res,
-        db.pool,
-        req,
-        'ar_invoice',
-        receiptData.invoiceId,
-        '无权对该应收发票收款'
-      ))) {
+      if (
+        !(await ScopeGuard.denyUnlessAccess(
+          res,
+          db.pool,
+          req,
+          'ar_invoice',
+          receiptData.invoiceId,
+          '无权对该应收发票收款'
+        ))
+      ) {
         return;
       }
 
@@ -467,7 +519,11 @@ const arController = {
         return ResponseHandler.error(res, '应收发票不存在', 'NOT_FOUND', 404);
       }
 
-      if (![INVOICE_STATUS.CONFIRMED, INVOICE_STATUS.PARTIAL_PAID, INVOICE_STATUS.OVERDUE].includes(invoice.status)) {
+      if (
+        ![INVOICE_STATUS.CONFIRMED, INVOICE_STATUS.PARTIAL_PAID, INVOICE_STATUS.OVERDUE].includes(
+          invoice.status
+        )
+      ) {
         return ResponseHandler.error(
           res,
           `发票当前状态为"${invoice.status}"，必须先确认后才能收款`,

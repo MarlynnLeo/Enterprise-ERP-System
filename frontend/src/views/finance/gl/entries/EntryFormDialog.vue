@@ -72,9 +72,9 @@
           </template>
           <el-table-column type="selection" width="48" reserve-selection />
           <el-table-column
-            :prop="currentBusinessMeta.docNoField"
+            prop="docNo"
             :label="currentBusinessMeta.docNoLabel"
-            min-width="140"
+            min-width="150"
             show-overflow-tooltip
           />
           <el-table-column
@@ -82,11 +82,7 @@
             :label="currentBusinessMeta.partyLabel"
             min-width="140"
             show-overflow-tooltip
-          >
-            <template #default="{ row }">
-              {{ row.partyName || row.customerName || row.supplierName || '-' }}
-            </template>
-          </el-table-column>
+          />
           <el-table-column
             v-if="currentBusinessMeta.showSourceOrder"
             prop="sourceOrderNo"
@@ -94,23 +90,22 @@
             min-width="130"
             show-overflow-tooltip
           />
-          <el-table-column prop="docDate" label="日期" width="110">
-            <template #default="{ row }">
-              {{
-                row.docDate ||
-                row.orderDate ||
-                row.deliveryDate ||
-                row.receiptDate ||
-                '-'
-              }}
-            </template>
-          </el-table-column>
+          <el-table-column prop="docDate" label="日期" width="110" />
           <el-table-column prop="totalAmount" label="金额" width="120" align="right">
             <template #default="{ row }">
-              {{ formatCurrency(row.totalAmount || row.subtotal || 0) }}
+              {{ formatCurrency(row.totalAmount || 0) }}
             </template>
           </el-table-column>
-          <el-table-column prop="status" label="状态" width="100" />
+          <el-table-column prop="status" label="状态" width="100">
+            <template #default="{ row }">
+              <el-tag
+                :type="row.status === 'completed' || row.status === 'confirmed' ? 'success' : 'info'"
+                size="small"
+              >
+                {{ formatOrderStatus(row.status) }}
+              </el-tag>
+            </template>
+          </el-table-column>
         </el-table>
 
         <div v-if="orderTotal > orderPageSize" class="pager">
@@ -617,6 +612,15 @@ import { formatCurrency, formatLocalDate } from '@/utils/format'
 import { parsePaginatedData, parseListData, parseResponseData } from '@/utils/responseParser'
 import { loadDepartmentOptions, loadUserListOptions } from '@/utils/optionLoaders'
 
+const ORDER_STATUS_MAP = Object.freeze({
+  completed: '已完成',
+  confirmed: '已确认',
+  approved: '已审核',
+  pending: '待处理',
+  draft: '草稿',
+})
+const formatOrderStatus = (status) => ORDER_STATUS_MAP[status] || status || '-'
+
 /**
  * 专业 ERP 主路径（对话框仅展示这两类）：
  * - 采购应付：入库单（按入库量）
@@ -630,7 +634,7 @@ const BUSINESS_TYPE_OPTIONS = [
     emptyText: '暂无待生成凭证的采购入库单（已生成应付的不会显示）',
     confirmLabel: '采购入库单',
     docNoLabel: '入库单号',
-    docNoField: 'receipt_no',
+    docNoField: 'docNo',
     partyLabel: '供应商',
     showSourceOrder: true,
     sourceOrderLabel: '关联采购订单',
@@ -643,7 +647,7 @@ const BUSINESS_TYPE_OPTIONS = [
     emptyText: '暂无待生成凭证的销售出库单（已生成应收的不会显示）',
     confirmLabel: '销售出库单',
     docNoLabel: '出库单号',
-    docNoField: 'outbound_no',
+    docNoField: 'docNo',
     partyLabel: '客户',
     showSourceOrder: true,
     sourceOrderLabel: '关联销售订单',
@@ -813,11 +817,11 @@ function handlePreviewClosed() {
 
 function voucherTabLabel(voucher, index) {
   if (voucher.error) return `${index + 1}. 失败`
-  if (voucher.skipped) return `${index + 1}. ${voucher.docNo || voucher.id || '单据'} · 跳过`
+  if (voucher.skipped) return `${index + 1}. ${voucher.docNo || voucher.receiptNo || voucher.outboundNo || voucher.id || '单据'} · 跳过`
   if (voucher.isMerged && voucher.sourceIds?.length > 1) {
     return `合并凭证（${voucher.sourceIds.length} 张）`
   }
-  return `${index + 1}. ${voucher.docNo || `#${voucher.id}`}`
+  return `${index + 1}. ${voucher.docNo || voucher.receiptNo || voucher.outboundNo || `#${voucher.id}`}`
 }
 
 function previewDebit(voucher) {

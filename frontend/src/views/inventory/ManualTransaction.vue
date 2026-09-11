@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * ManualTransaction.vue
  * @description 手工出入管理页面
@@ -51,11 +51,11 @@
             value-format="YYYY-MM-DD"
           />
         </el-form-item>
-        <el-form-item label="审批状态">
-          <el-select v-model="searchForm.approvalStatus" placeholder="审批状态" clearable>
-            <el-option label="待审批" value="pending" />
-            <el-option label="已通过" value="approved" />
-            <el-option label="已拒绝" value="rejected" />
+        <el-form-item label="审核状态">
+          <el-select v-model="searchForm.approvalStatus" placeholder="审核状态" clearable>
+            <el-option label="待审核" value="pending" />
+            <el-option label="已审核" value="approved" />
+            <el-option label="已驳回" value="rejected" />
           </el-select>
         </el-form-item>
       </template>
@@ -124,7 +124,7 @@
             {{ row.operatorName || row.operator || '未知' }}
           </template>
         </el-table-column>
-        <el-table-column label="审批状态" width="100">
+        <el-table-column label="审核状态" width="100">
           <template #default="{ row }">
             <el-tag :type="getApprovalStatusTag(row.approvalStatus)">
               {{ getApprovalStatusText(row.approvalStatus) }}
@@ -144,7 +144,7 @@
                 v-permission="'inventory:manual:approve'"
                 @click="handleApprove(row)"
               >
-                <el-icon><Check /></el-icon> 审批
+                <el-icon><Check /></el-icon> 审核
               </el-button>
               <el-button
                 v-if="row.approvalStatus === 'pending' && canDelete"
@@ -449,6 +449,13 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <InventoryApprovalPanel
+        v-if="currentRecord.id || currentRecord.transactionNo"
+        source-type="manual_transaction"
+        :source-id="currentRecord.id"
+        :source-no="currentRecord.transactionNo"
+      />
       </div>
 
       <template #footer>
@@ -629,10 +636,10 @@
       </template>
         </AppDialog>
 
-    <!-- 审批对话框 -->
+    <!-- 审核对话框 -->
     <AppDialog
       v-model="approvalDialogVisible"
-      title="审批出入库单"
+      title="审核出入库单"
       mode="form"
       width="500px"
     >
@@ -649,12 +656,12 @@
       </el-descriptions>
 
       <el-form :model="approvalForm" label-width="80px" class="mt-20">
-        <el-form-item label="审批备注">
+        <el-form-item label="审核备注">
           <el-input
             v-model="approvalForm.remark"
             type="textarea"
             :rows="3"
-            placeholder="请输入审批备注（可选）"
+            placeholder="请输入审核备注（可选）"
           />
         </el-form-item>
       </el-form>
@@ -686,6 +693,7 @@ import { searchMaterials } from '@/utils/searchConfig'
 import { parseListData } from '@/utils/responseParser'
 import { loadLocationOptions } from '@/utils/optionLoaders'
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
+import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue'
 const authStore = useAuthStore()
 
 // 权限控制
@@ -870,9 +878,9 @@ const getBusinessTypeTag = (code) => {
   return getBusinessTypeCategoryColor(category)
 }
 
-// 获取审批状态文本
+// 获取审核状态文本
 const getApprovalStatusText = (status) => {
-  return getApprovalStatusDictionaryText(status) || '待审批'
+  return getApprovalStatusDictionaryText(status) || '待审核'
 }
 
 // 获取审批状态标签类型
@@ -1199,10 +1207,10 @@ const manualTransactionViewNavigation = computed(() => ({
 
 // 删除
 const handleDelete = (row) => {
-  // 检查审批状态
+  // 检查审核状态
   if (row.approvalStatus === 'approved') {
     ElMessageBox.confirm(
-      '该单据已审批通过，删除后将回滚库存。确定要删除吗？',
+      '该单据已审核通过，删除后将回滚库存。确定要删除吗？',
       '警告',
       {
         confirmButtonText: '确定删除',
@@ -1221,7 +1229,7 @@ const handleDelete = (row) => {
       }
     }).catch(() => {})
   } else if (row.approvalStatus === 'rejected') {
-    ElMessage.warning('已拒绝的单据无需删除')
+    ElMessage.warning('已驳回的单据无需删除')
   } else {
     // pending 状态，正常删除
     ElMessageBox.confirm('确定要删除这个单据吗？', '提示', {
@@ -1241,9 +1249,9 @@ const handleDelete = (row) => {
   }
 }
 
-// ==================== 审批相关 ====================
+// ==================== 审核相关 ====================
 
-// 打开审批对话框
+// 打开审核对话框
 const handleApprove = (row) => {
   approvalForm.id = row.id
   approvalForm.transactionNo = row.transactionNo
@@ -1255,7 +1263,7 @@ const handleApprove = (row) => {
   approvalDialogVisible.value = true
 }
 
-// 审批通过
+// 审核通过
 const handleApproveConfirm = async () => {
   try {
     approvalSubmitting.value = true
@@ -1263,18 +1271,18 @@ const handleApproveConfirm = async () => {
       action: 'approve',
       remark: approvalForm.remark
     })
-    ElMessage.success('审批通过，库存已更新')
+    ElMessage.success('审核通过，库存已更新')
     approvalDialogVisible.value = false
     loadTableData()
   } catch (error) {
-    console.error('审批失败:', error)
-    ElMessage.error('审批失败: ' + (error.message || '未知错误'))
+    console.error('审核失败:', error)
+    ElMessage.error('审核失败: ' + (error.message || '未知错误'))
   } finally {
     approvalSubmitting.value = false
   }
 }
 
-// 审批拒绝
+// 审核驳回
 const handleReject = async () => {
   try {
     approvalSubmitting.value = true
@@ -1282,11 +1290,11 @@ const handleReject = async () => {
       action: 'reject',
       remark: approvalForm.remark
     })
-    ElMessage.success('已拒绝该单据')
+    ElMessage.success('已驳回该单据')
     approvalDialogVisible.value = false
     loadTableData()
   } catch (error) {
-    console.error('拒绝失败:', error)
+    console.error('驳回失败:', error)
     ElMessage.error('操作失败: ' + (error.message || '未知错误'))
   } finally {
     approvalSubmitting.value = false
@@ -1547,7 +1555,7 @@ const handleSubmit = async () => {
 
         try {
           await ElMessageBox.confirm(
-            `以下物料库存不足：\n${messages}\n\n是否继续创建？（需审批通过后才会出库）`,
+            `以下物料库存不足：\n${messages}\n\n是否继续创建？（需审核通过后才会出库）`,
             '库存不足提示',
             {
               confirmButtonText: '继续创建',
@@ -1579,7 +1587,7 @@ const handleSubmit = async () => {
 
       // 只支持创建，不支持编辑（手工出入库单据一旦创建，不应修改，如需修改请删除重建）
       await inventoryApi.createManualTransaction(data)
-      ElMessage.success('创建成功，等待审批')
+      ElMessage.success('创建成功，等待审核')
 
       dialogVisible.value = false
       loadTableData()

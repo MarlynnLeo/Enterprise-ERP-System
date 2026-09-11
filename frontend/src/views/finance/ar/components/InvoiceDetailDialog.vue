@@ -19,27 +19,45 @@
       <el-descriptions-item label="客户名称">{{ invoice.customerName }}</el-descriptions-item>
       <el-descriptions-item label="开票日期">{{ invoice.invoiceDate }}</el-descriptions-item>
       <el-descriptions-item label="到期日期">{{ invoice.dueDate }}</el-descriptions-item>
-      <el-descriptions-item label="未税金额">{{ formatCurrency(invoice.amountExcludingTax) }}</el-descriptions-item>
-      <el-descriptions-item label="税额">{{ formatCurrency(invoice.taxAmount) }}</el-descriptions-item>
-      <el-descriptions-item label="价税合计">{{ formatCurrency(invoice.totalAmount) }}</el-descriptions-item>
-      <el-descriptions-item label="已收金额">{{ formatCurrency(invoice.paidAmount) }}</el-descriptions-item>
-      <el-descriptions-item label="剩余金额">{{ formatCurrency(invoice.balanceAmount) }}</el-descriptions-item>
+      <el-descriptions-item label="未税金额">{{
+        formatCurrency(invoice.amountExcludingTax)
+      }}</el-descriptions-item>
+      <el-descriptions-item label="税额">{{
+        formatCurrency(invoice.taxAmount)
+      }}</el-descriptions-item>
+      <el-descriptions-item label="价税合计">{{
+        formatCurrency(invoice.totalAmount)
+      }}</el-descriptions-item>
+      <el-descriptions-item label="已收金额">{{
+        formatCurrency(invoice.paidAmount)
+      }}</el-descriptions-item>
+      <el-descriptions-item label="剩余金额">{{
+        formatCurrency(invoice.balanceAmount)
+      }}</el-descriptions-item>
       <el-descriptions-item label="状态">
         <el-tag :type="getStatusType(invoice)">{{ getStatusText(invoice) }}</el-tag>
       </el-descriptions-item>
+      <el-descriptions-item label="财务审核人">{{
+        invoice.approvedByName || invoice.approvedBy || '-'
+      }}</el-descriptions-item>
+      <el-descriptions-item label="财务审核时间">{{
+        invoice.approvedAt || '-'
+      }}</el-descriptions-item>
       <el-descriptions-item label="创建时间">{{ invoice.createdAt || '-' }}</el-descriptions-item>
-      <el-descriptions-item label="备注" :span="2">{{ invoice.notes || '无' }}</el-descriptions-item>
+      <el-descriptions-item label="备注" :span="2">{{
+        invoice.notes || '无'
+      }}</el-descriptions-item>
     </el-descriptions>
 
     <el-divider content-position="center">发票明细项</el-divider>
 
-    <el-table
-      v-if="(invoice.items || []).length"
-      :data="invoice.items || []"
-      border
-      class="w-full"
-    >
-      <el-table-column prop="productName" label="商品/服务名称" min-width="150" show-overflow-tooltip>
+    <el-table v-if="(invoice.items || []).length" :data="invoice.items || []" border class="w-full">
+      <el-table-column
+        prop="productName"
+        label="商品/服务名称"
+        min-width="150"
+        show-overflow-tooltip
+      >
         <template #default="scope">
           {{ scope.row.productName || scope.row.name || '-' }}
         </template>
@@ -62,33 +80,35 @@
     <template #footer>
       <span class="dialog-footer">
         <el-button @click="$emit('update:modelValue', false)">关闭</el-button>
-        <el-button v-permission="'finance:ar:view'" type="success" @click="$emit('print')">打印</el-button>
+        <el-button v-permission="'finance:ar:view'" type="success" @click="$emit('print')"
+          >打印</el-button
+        >
       </span>
     </template>
   </AppDialog>
 </template>
 
 <script setup>
-import { formatCurrency } from '@/utils/format'
+import { formatCurrency } from '@/utils/format';
 
 defineProps({
   modelValue: {
     type: Boolean,
-    default: false
+    default: false,
   },
   invoice: {
     type: Object,
-    default: () => ({})
+    default: () => ({}),
   },
   getStatusType: {
     type: Function,
-    required: true
+    required: true,
   },
   getStatusText: {
     type: Function,
-    required: true
-  }
-})
+    required: true,
+  },
+});
 
-defineEmits(['update:modelValue', 'print'])
+defineEmits(['update:modelValue', 'print']);
 </script>

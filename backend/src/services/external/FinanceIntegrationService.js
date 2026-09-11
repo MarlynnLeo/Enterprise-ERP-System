@@ -1070,6 +1070,36 @@ class FinanceIntegrationService {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
+
+      const [outboundRows] = await connection.execute(
+        `SELECT DISTINCT so.outbound_no
+           FROM sales_outbound so
+          WHERE so.deleted_at IS NULL
+            AND so.status IN ('completed', 'partial_completed')
+            AND (
+              so.order_id = ?
+              OR EXISTS (
+                SELECT 1
+                  FROM sales_outbound_items soi
+                 WHERE soi.outbound_id = so.id
+                   AND soi.source_order_id = ?
+              )
+            )
+          ORDER BY so.outbound_no`,
+        [salesOrder.id, salesOrder.id]
+      );
+      if (!outboundRows.length) {
+        throw new Error(
+          `订单 ${salesOrder.order_no || salesOrder.id} 尚无已完成销售出库单，不能生成收入凭证`
+        );
+      }
+      for (const outbound of outboundRows) {
+        await this.requireApprovedInventoryPosting(
+          connection,
+          'sales_outbound',
+          outbound.outbound_no
+        );
+      }
       await this.lockSourceDocument(connection, 'sales_orders', salesOrder.id);
 
       // 若订单关联出库已有有效 AR，禁止订单级开票
@@ -1756,6 +1786,24 @@ class FinanceIntegrationService {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
+
+      const [receiptRows] = await connection.execute(
+        `SELECT receipt_no
+           FROM purchase_receipts
+          WHERE order_id = ?
+            AND deleted_at IS NULL
+            AND status IN ('confirmed', 'completed')
+          ORDER BY receipt_no`,
+        [purchaseOrder.id]
+      );
+      if (!receiptRows.length) {
+        throw new Error(
+          `订单 ${purchaseOrder.order_no || purchaseOrder.id} 尚无已完成采购入库单，不能生成应付凭证`
+        );
+      }
+      for (const receipt of receiptRows) {
+        await this.requireApprovedInventoryPosting(connection, 'inbound', receipt.receipt_no);
+      }
       await this.lockSourceDocument(connection, 'purchase_orders', purchaseOrder.id);
 
       const { INACTIVE_INVOICE_STATUSES } = require('../../constants/financeConstants');

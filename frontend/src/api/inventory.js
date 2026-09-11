@@ -177,8 +177,6 @@ export const inventoryApi = {
 
     // 批量发料
     batchOutbound: (data) => api.post('/inventory/outbound/batch', data),
-    cancelOutbound: (id, data) => api.post(`/inventory/outbound/${id}/cancel`, data),
-    supplementOutbound: (id, data) => api.post(`/inventory/outbound/${id}/supplement`, data),
 
     // 获取物料库存
     getMaterialStock: async (materialId, warehouseId) => {

@@ -10,7 +10,7 @@
   <div class="module-page inventory-transfer-container">
     <PageHeader title="库存调拨管理" subtitle="管理库存调拨与转移">
       <template #actions>
-<el-button type="primary" :icon="Plus" @click="openTransferDialog()">新建调拨单</el-button>
+        <el-button type="primary" :icon="Plus" @click="openTransferDialog()">新建调拨单</el-button>
       </template>
     </PageHeader>
 
@@ -23,16 +23,30 @@
     >
       <template #basic>
         <el-form-item label="物料名称">
-          <el-input v-model="searchForm.materialName" placeholder="物料名称" clearable @keyup.enter="handleSearch"></el-input>
+          <el-input
+            v-model="searchForm.materialName"
+            placeholder="物料名称"
+            clearable
+            @keyup.enter="handleSearch"
+          ></el-input>
         </el-form-item>
       </template>
       <template #advanced>
         <el-form-item label="调拨单号">
-          <el-input  v-model="searchForm.transfer_no" placeholder="请输入调拨单号" clearable ></el-input>
+          <el-input
+            v-model="searchForm.transfer_no"
+            placeholder="请输入调拨单号"
+            clearable
+          ></el-input>
         </el-form-item>
         <el-form-item label="调拨状态">
-          <el-select  v-model="searchForm.status" placeholder="请选择状态" clearable>
-            <el-option v-for="item in statusOptions" :key="item.value" :label="item.label" :value="item.value"></el-option>
+          <el-select v-model="searchForm.status" placeholder="请选择状态" clearable>
+            <el-option
+              v-for="item in statusOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            ></el-option>
           </el-select>
         </el-form-item>
         <el-form-item label="日期范围">
@@ -80,11 +94,11 @@
       </el-card>
       <el-card class="stat-card" shadow="hover">
         <div class="stat-value">{{ transferStats.pendingCount || 0 }}</div>
-        <div class="stat-label">待审批调拨单</div>
+        <div class="stat-label">待完成调拨单</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
         <div class="stat-value">{{ transferStats.approvedCount || 0 }}</div>
-        <div class="stat-label">已批准调拨单</div>
+        <div class="stat-label">历史已审核调拨单</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
         <div class="stat-value">{{ transferStats.completedCount || 0 }}</div>
@@ -104,24 +118,43 @@
         border
         class="table-row-click w-full"
         @selection-change="handleSelectionChange"
-      
-      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewTransfer(row.id))">
+        @row-click="
+          (row, column, event) => handleTableRowView(row, column, event, () => viewTransfer(row.id))
+        "
+      >
         <template #empty>
           <EmptyState description="暂无调拨单数据" />
         </template>
         <el-table-column type="selection" width="55"></el-table-column>
-        <el-table-column prop="transferNo" label="调拨单号" min-width="100" show-overflow-tooltip></el-table-column>
+        <el-table-column
+          prop="transferNo"
+          label="调拨单号"
+          min-width="100"
+          show-overflow-tooltip
+        ></el-table-column>
         <el-table-column label="调拨日期" min-width="100">
           <template #default="scope">
             {{ formatDate(scope.row.transferDate) }}
           </template>
         </el-table-column>
-        <el-table-column prop="fromLocation" label="源库位" min-width="120" show-overflow-tooltip></el-table-column>
-        <el-table-column prop="toLocation" label="目标库位" min-width="120" show-overflow-tooltip></el-table-column>
+        <el-table-column
+          prop="fromLocationName"
+          label="源库位"
+          min-width="120"
+          show-overflow-tooltip
+        ></el-table-column>
+        <el-table-column
+          prop="toLocationName"
+          label="目标库位"
+          min-width="120"
+          show-overflow-tooltip
+        ></el-table-column>
         <el-table-column prop="itemCount" label="物料种类" min-width="100"></el-table-column>
         <el-table-column prop="status" label="状态" min-width="100">
           <template #default="scope">
-            <el-tag :type="getStatusType(scope.row.status)">{{ getStatusText(scope.row.status) }}</el-tag>
+            <el-tag :type="getStatusType(scope.row.status)">{{
+              getStatusText(scope.row.status)
+            }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="creatorName" label="创建人" min-width="100">
@@ -129,8 +162,15 @@
             {{ scope.row.creatorName || scope.row.creator || '未知' }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
-      >
+        <el-table-column
+          label="操作"
+          min-width="300"
+          fixed="right"
+          align="left"
+          header-align="left"
+          class-name="operation-column"
+          header-class-name="operation-column-header"
+        >
           <template #default="scope">
             <TableRowActions>
               <el-dropdown
@@ -144,22 +184,35 @@
                 </el-button>
                 <template #dropdown>
                   <el-dropdown-menu>
-                    <el-dropdown-item v-if="scope.row.status === 'draft'" @click="updateStatus(scope.row.id, 'pending')">
+                    <el-dropdown-item
+                      v-if="scope.row.status === 'draft'"
+                      @click="updateStatus(scope.row.id, 'pending')"
+                    >
                       <el-icon><Check /></el-icon>提交调拨单
                     </el-dropdown-item>
-                    <el-dropdown-item v-if="scope.row.status === 'pending'" @click="updateStatus(scope.row.id, 'approved')">
-                      <el-icon><Select /></el-icon>批准调拨单
-                    </el-dropdown-item>
-                    <el-dropdown-item v-if="scope.row.status === 'approved'" @click="updateStatus(scope.row.id, 'completed')">
+                    <el-dropdown-item
+                      v-if="['pending', 'approved'].includes(scope.row.status)"
+                      @click="updateStatus(scope.row.id, 'completed')"
+                    >
                       <el-icon><Finished /></el-icon>完成调拨
                     </el-dropdown-item>
-                    <el-dropdown-item v-if="['draft', 'pending', 'approved'].includes(scope.row.status)" @click="updateStatus(scope.row.id, 'cancelled')">
+                    <el-dropdown-item
+                      v-if="['draft', 'pending', 'approved'].includes(scope.row.status)"
+                      @click="updateStatus(scope.row.id, 'cancelled')"
+                    >
                       <el-icon><Close /></el-icon>取消调拨
                     </el-dropdown-item>
-                    <el-dropdown-item v-if="scope.row.status === 'draft'" @click="deleteTransfer(scope.row.id)" divided>
+                    <el-dropdown-item
+                      v-if="scope.row.status === 'draft'"
+                      @click="deleteTransfer(scope.row.id)"
+                      divided
+                    >
                       <el-icon><Delete /></el-icon>删除调拨单
                     </el-dropdown-item>
-                    <el-dropdown-item v-if="scope.row.status === 'draft'" @click="duplicateTransfer(scope.row.id)">
+                    <el-dropdown-item
+                      v-if="scope.row.status === 'draft'"
+                      @click="duplicateTransfer(scope.row.id)"
+                    >
                       <el-icon><CopyDocument /></el-icon>复制调拨单
                     </el-dropdown-item>
                     <el-dropdown-item @click="printTransfer(scope.row.id)">
@@ -168,7 +221,6 @@
                   </el-dropdown-menu>
                 </template>
               </el-dropdown>
-
 
               <el-button
                 size="small"
@@ -207,157 +259,183 @@
       wide
     >
       <div v-loading="editLoading">
-      <el-form :model="transferForm" :rules="transferRules" ref="transferFormRef" label-width="100px">
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="调拨日期" prop="transferDate">
-              <el-date-picker
-                v-model="transferForm.transfer_date"
-                type="date"
-                placeholder="选择调拨日期"
-                value-format="YYYY-MM-DD"
-                class="w-full"
-              />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="源库位" prop="fromLocationId">
-              <el-select
-                v-model="transferForm.from_location_id"
-                placeholder="选择源库位"
-                class="w-full"
-                filterable
-                @change="handleFromLocationChange"
-              >
-                <el-option
-                  v-for="item in locationOptions"
-                  :key="item.id"
-                  :label="item.name"
-                  :value="item.id"
+        <el-form
+          :model="transferForm"
+          :rules="transferRules"
+          ref="transferFormRef"
+          label-width="100px"
+        >
+          <el-row :gutter="20">
+            <el-col :span="12">
+              <el-form-item label="调拨日期" prop="transfer_date">
+                <el-date-picker
+                  v-model="transferForm.transfer_date"
+                  type="date"
+                  placeholder="选择调拨日期"
+                  value-format="YYYY-MM-DD"
+                  class="w-full"
                 />
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="源库位" prop="from_location_id">
+                <el-select
+                  v-model="transferForm.from_location_id"
+                  placeholder="选择源库位"
+                  class="w-full"
+                  filterable
+                  @change="handleFromLocationChange"
+                >
+                  <el-option
+                    v-for="item in locationOptions"
+                    :key="item.id"
+                    :label="item.name"
+                    :value="item.id"
+                  />
+                </el-select>
+              </el-form-item>
+            </el-col>
+          </el-row>
 
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="目标库位" prop="toLocationId">
-              <el-select
-                v-model="transferForm.to_location_id"
-                placeholder="选择目标库位"
-                class="w-full"
-                filterable
-              >
-                <el-option
-                  v-for="item in locationOptions.filter(loc => loc.id !== transferForm.from_location_id)"
-                  :key="item.id"
-                  :label="item.name"
-                  :value="item.id"
+          <el-row :gutter="20">
+            <el-col :span="12">
+              <el-form-item label="目标库位" prop="to_location_id">
+                <el-select
+                  v-model="transferForm.to_location_id"
+                  placeholder="选择目标库位"
+                  class="w-full"
+                  filterable
+                >
+                  <el-option
+                    v-for="item in locationOptions.filter(
+                      (loc) => loc.id !== transferForm.from_location_id
+                    )"
+                    :key="item.id"
+                    :label="item.name"
+                    :value="item.id"
+                  />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="操作人" prop="creator">
+                <el-input
+                  v-model="transferForm.creator"
+                  placeholder="系统自动填充当前用户姓名"
+                  readonly
                 />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="操作人" prop="creator">
-              <el-input v-model="transferForm.creator" placeholder="系统自动填充当前用户姓名" readonly />
-            </el-form-item>
-          </el-col>
-        </el-row>
+              </el-form-item>
+            </el-col>
+          </el-row>
 
-        <el-form-item label="备注">
-          <el-input
-            v-model="transferForm.remark"
-            type="textarea"
-            :rows="2"
-            placeholder="请输入备注"
-          />
-        </el-form-item>
+          <el-form-item label="备注">
+            <el-input
+              v-model="transferForm.remark"
+              type="textarea"
+              :rows="2"
+              placeholder="请输入备注"
+            />
+          </el-form-item>
 
-        <el-divider>调拨明细</el-divider>
+          <el-divider>调拨明细</el-divider>
 
-        <div class="table-toolbar">
-          <el-button type="primary" @click="addTransferItem">
-            <el-icon><Plus /></el-icon>添加物料
-          </el-button>
-        </div>
+          <div class="table-toolbar">
+            <el-button type="primary" @click="addTransferItem">
+              <el-icon><Plus /></el-icon>添加物料
+            </el-button>
+          </div>
 
-        <el-table :data="transferForm.items" border class="w-full">
-          <el-table-column label="物料" min-width="200">
-            <template #default="{ row, $index }">
-              <el-select
-                v-model="row.materialId"
-                placeholder="请选择或输入关键字搜索"
-                class="w-full"
-                filterable
-                remote
-                reserve-keyword
-                :remote-method="debouncedSearchMaterials"
-                :loading="loadingMaterials"
-                @focus="handleMaterialSelectFocus"
-                @change="(value) => handleMaterialChange(value, $index)"
-                clearable
-              >
-                <el-option
-                  v-for="item in materialOptions"
-                  :key="item.id"
-                  :label="`${item.code} - ${item.name}`"
-                  :value="item.id"
+          <el-table :data="transferForm.items" border class="w-full">
+            <el-table-column label="物料" min-width="200">
+              <template #default="{ row, $index }">
+                <el-select
+                  v-model="row.materialId"
+                  placeholder="请选择或输入关键字搜索"
+                  class="w-full"
+                  filterable
+                  remote
+                  reserve-keyword
+                  :remote-method="debouncedSearchMaterials"
+                  :loading="loadingMaterials"
+                  @focus="handleMaterialSelectFocus"
+                  @change="(value) => handleMaterialChange(value, $index)"
+                  clearable
+                >
+                  <el-option
+                    v-for="item in materialOptions"
+                    :key="item.id"
+                    :label="`${item.code} - ${item.name}`"
+                    :value="item.id"
+                  />
+                </el-select>
+              </template>
+            </el-table-column>
+            <el-table-column label="规格型号" width="150">
+              <template #default="{ row }">
+                <span>{{ row.specification || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="数量" width="150">
+              <template #default="{ row }">
+                <el-input
+                  v-model="row.quantity"
+                  placeholder="请输入数量"
+                  type="number"
+                  :min="0.01"
+                  :max="row.availableStock || 999999"
+                  step="0.01"
+                  class="w-full"
                 />
-              </el-select>
-            </template>
-          </el-table-column>
-          <el-table-column label="规格型号" width="150">
-            <template #default="{ row }">
-              <span>{{ row.specification || '-' }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="数量" width="150">
-            <template #default="{ row }">
-              <el-input
-                v-model="row.quantity"
-                placeholder="请输入数量"
-                type="number"
-                :min="0.01"
-                :max="row.availableStock || 999999"
-                step="0.01"
-                class="w-full"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column label="单位" width="120">
-            <template #default="{ row }">
-              <span>{{ row.unitName || '-' }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="库存数量" width="120">
-            <template #default="{ row }">
-              <span>{{ row.availableStock || '-' }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="备注" min-width="150">
-            <template #default="{ row }">
-              <el-input v-model="row.remark" placeholder="请输入备注" />
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" min-width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
-            <template #default="{ $index }">
-              <el-button type="danger" size="small" @click="removeTransferItem($index)" v-permission="'inventory:transfer:update'">
-                删除
-              </el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-      </el-form>
+              </template>
+            </el-table-column>
+            <el-table-column label="单位" width="120">
+              <template #default="{ row }">
+                <span>{{ row.unitName || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="库存数量" width="120">
+              <template #default="{ row }">
+                <span>{{ row.availableStock || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="备注" min-width="150">
+              <template #default="{ row }">
+                <el-input v-model="row.remark" placeholder="请输入备注" />
+              </template>
+            </el-table-column>
+            <el-table-column
+              label="操作"
+              min-width="80"
+              fixed="right"
+              align="left"
+              header-align="left"
+              class-name="operation-column"
+              header-class-name="operation-column-header"
+            >
+              <template #default="{ $index }">
+                <el-button
+                  type="danger"
+                  size="small"
+                  @click="removeTransferItem($index)"
+                  v-permission="'inventory:transfer:update'"
+                >
+                  删除
+                </el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-form>
       </div>
 
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="transferDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submitTransferForm" :loading="submitting">确定</el-button>
+          <el-button type="primary" @click="submitTransferForm" :loading="submitting"
+            >确定</el-button
+          >
         </span>
       </template>
-        </AppDialog>
+    </AppDialog>
 
     <!-- 查看调拨单详情对话框 -->
     <AppDialog
@@ -369,27 +447,65 @@
     >
       <div v-loading="detailLoading" id="print-section">
         <el-descriptions :column="3" border>
-          <el-descriptions-item label="调拨单号">{{ transferDetail.transfer_no || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="调拨日期">{{ formatDate(transferDetail.transfer_date) || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="调拨单号">{{
+            transferDetail.transferNo || '-'
+          }}</el-descriptions-item>
+          <el-descriptions-item label="调拨日期">{{
+            formatDate(transferDetail.transferDate) || '-'
+          }}</el-descriptions-item>
           <el-descriptions-item label="状态">
-            <el-tag :type="getStatusType(transferDetail.status)">{{ getStatusText(transferDetail.status) }}</el-tag>
+            <el-tag :type="getStatusType(transferDetail.status)">{{
+              getStatusText(transferDetail.status)
+            }}</el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="源库位">{{ transferDetail.from_location || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="目标库位">{{ transferDetail.to_location || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="创建人">{{ transferDetail.creator || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="备注" :span="3">{{ transferDetail.remarks || '无' }}</el-descriptions-item>
+          <el-descriptions-item label="源库位">{{
+            transferDetail.fromLocationName || '-'
+          }}</el-descriptions-item>
+          <el-descriptions-item label="目标库位">{{
+            transferDetail.toLocationName || '-'
+          }}</el-descriptions-item>
+          <el-descriptions-item label="创建人">{{
+            transferDetail.creator || '-'
+          }}</el-descriptions-item>
+          <el-descriptions-item label="备注" :span="3">{{
+            transferDetail.remarks || '无'
+          }}</el-descriptions-item>
         </el-descriptions>
 
         <h3 class="mt-20">物料明细</h3>
-        <el-table :data="transferDetail.items || []" border style="width: 100%; margin-top: 10px;">
+        <el-table :data="transferDetail.items || []" border style="width: 100%; margin-top: 10px">
           <el-table-column type="index" label="序号" width="50"></el-table-column>
-          <el-table-column prop="materialCode" label="物料编码" min-width="150" show-overflow-tooltip></el-table-column>
-          <el-table-column prop="materialName" label="物料名称" min-width="160" show-overflow-tooltip></el-table-column>
-          <el-table-column prop="specification" label="规格型号" min-width="140" show-overflow-tooltip></el-table-column>
+          <el-table-column
+            prop="materialCode"
+            label="物料编码"
+            min-width="150"
+            show-overflow-tooltip
+          ></el-table-column>
+          <el-table-column
+            prop="materialName"
+            label="物料名称"
+            min-width="160"
+            show-overflow-tooltip
+          ></el-table-column>
+          <el-table-column
+            prop="specification"
+            label="规格型号"
+            min-width="140"
+            show-overflow-tooltip
+          ></el-table-column>
           <el-table-column prop="quantity" label="调拨数量" min-width="100"></el-table-column>
           <el-table-column prop="unitName" label="单位" min-width="80"></el-table-column>
           <el-table-column prop="remarks" label="备注" min-width="150"></el-table-column>
         </el-table>
+        <InventoryApprovalPanel
+          v-if="authStore.canViewInventoryApproval"
+          source-type="transfer"
+          :source-id="transferDetail.id"
+          :source-no="transferDetail.transferNo || ''"
+          :resubmit-status="transferDetail.status === 'completed' ? 'completed' : ''"
+          @resubmit="handleResubmitTransfer"
+          @changed="loadTransferList"
+        />
       </div>
       <template #footer>
         <div class="dialog-footer">
@@ -401,12 +517,23 @@
 </template>
 
 <script setup>
-import { handleTableRowView } from '@/utils/tableRowView'
+import { handleTableRowView } from '@/utils/tableRowView';
 import { ref, reactive, onMounted, computed } from 'vue';
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
-import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessage } from 'element-plus/es/components/message/index';
 import { ElMessageBox } from 'element-plus/es/components/message-box/index';
-import { Plus, ArrowDown, Delete, Check, Select, Finished, Close, CopyDocument, Printer, Download, Edit } from '@element-plus/icons-vue';
+import {
+  Plus,
+  ArrowDown,
+  Delete,
+  Check,
+  Finished,
+  Close,
+  CopyDocument,
+  Printer,
+  Download,
+  Edit,
+} from '@element-plus/icons-vue';
 import { inventoryApi } from '@/api';
 import { getCurrentDate } from '@/utils/helpers/dateUtils';
 import { formatDate } from '@/utils/helpers/formatters';
@@ -417,6 +544,7 @@ import { useDictionaryStore } from '@/stores/dictionary';
 import { parseListData, parsePaginatedData } from '@/utils/responseParser';
 import { SEARCH_CONFIG, searchMaterials, mapMaterialData } from '@/utils/searchConfig';
 import printService from '@/services/printService';
+import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue';
 
 // 权限store
 const authStore = useAuthStore();
@@ -436,28 +564,30 @@ const statusOptions = computed(() => {
   const configured = dictionaryStore.getOptions('transfer_status');
   return configured.length > 0
     ? configured
-    : ['draft', 'pending', 'approved', 'completed', 'reversed', 'cancelled']
-      .map(value => ({ value, label: getTransferStatusText(value) }));
+    : ['draft', 'pending', 'approved', 'completed', 'reversed', 'cancelled'].map((value) => ({
+        value,
+        label: getTransferStatusText(value),
+      }));
 });
 
 // 状态映射函数（使用统一常量）
 const getStatusText = (status) => {
-  return getTransferStatusText(status) || status || '未知'
-}
+  return getTransferStatusText(status) || status || '未知';
+};
 
 // 搜索表单
 const searchForm = reactive({
   materialName: '',
   transfer_no: '',
   status: '',
-  date_range: []
+  date_range: [],
 });
 
 // 分页配置
 const pagination = reactive({
   current: 1,
   size: 10,
-  total: 0
+  total: 0,
 });
 
 // 其他状态变量
@@ -468,7 +598,7 @@ const {
   nextItem: nextViewTransfer,
   hasPrevious: hasPreviousViewTransfer,
   hasNext: hasNextViewTransfer,
-  setCurrentItem: setCurrentViewTransfer
+  setCurrentItem: setCurrentViewTransfer,
 } = useListDetailNavigation(transferList);
 const materialOptions = ref([]); // 物料选项
 const locationOptions = ref([]); // 库位选项
@@ -490,17 +620,45 @@ const transferForm = reactive({
   to_location_id: '',
   creator: authStore.realName || '系统用户', // 使用当前登录用户的真实姓名
   remark: '',
-  items: []
+  items: [],
 });
 
 // 调拨单详情
 const transferDetail = ref({});
 
+const normalizeTransferItemForForm = (item = {}) => ({
+  id: item.id,
+  materialId: item.materialId ?? item.material_id ?? '',
+  materialName: item.materialName ?? item.material_name ?? '',
+  materialCode: item.materialCode ?? item.material_code ?? '',
+  specification: item.specification ?? item.specs ?? '',
+  quantity: item.quantity ?? 0,
+  unitId: item.unitId ?? item.unit_id ?? '',
+  unitName: item.unitName ?? item.unit_name ?? '',
+  availableStock: item.availableStock ?? item.available_stock ?? 0,
+  remark: item.remarks ?? item.remark ?? '',
+});
+
+const fillTransferForm = (transferData = {}, { duplicate = false } = {}) => {
+  transferForm.id = duplicate ? '' : transferData.id ?? '';
+  transferForm.transfer_date = duplicate
+    ? getCurrentDate()
+    : transferData.transferDate ?? transferData.transfer_date ?? getCurrentDate();
+  transferForm.from_location_id =
+    transferData.fromLocationId ?? transferData.from_location_id ?? '';
+  transferForm.to_location_id = transferData.toLocationId ?? transferData.to_location_id ?? '';
+  const remark = transferData.remarks ?? transferData.remark ?? '';
+  transferForm.remark = duplicate ? `${remark} (复制)` : remark;
+  transferForm.items = Array.isArray(transferData.items)
+    ? transferData.items.map(normalizeTransferItemForForm)
+    : [];
+};
+
 // 表单验证规则
 const transferRules = {
   transfer_date: [{ required: true, message: '请选择调拨日期', trigger: 'change' }],
   from_location_id: [{ required: true, message: '请选择源库位', trigger: 'change' }],
-  to_location_id: [{ required: true, message: '请选择目标库位', trigger: 'change' }]
+  to_location_id: [{ required: true, message: '请选择目标库位', trigger: 'change' }],
 };
 
 // 调拨单统计数据
@@ -510,7 +668,7 @@ const transferStats = ref({
   pendingCount: 0,
   approvedCount: 0,
   completedCount: 0,
-  cancelledCount: 0
+  cancelledCount: 0,
 });
 
 // 状态映射函数已在上面定义，确保没有重复定义
@@ -551,7 +709,7 @@ const transferViewNavigation = computed(() => ({
   hasNext: hasNextViewTransfer.value,
   loading: detailLoading.value,
   previous: handleViewPrevious,
-  next: handleViewNext
+  next: handleViewNext,
 }));
 
 // 编辑调拨单
@@ -570,27 +728,8 @@ const editTransfer = async (id) => {
     // 重置表单
     resetTransferForm();
 
-    // 填充表单数据
-    transferForm.id = transferData.id;
-    transferForm.transfer_date = transferData.transfer_date;
-    transferForm.from_location_id = transferData.from_location_id;
-    transferForm.to_location_id = transferData.to_location_id;
-    transferForm.remark = transferData.remark || transferData.remarks || '';
-
-    // 填充物料明细
-    if (transferData.items && transferData.items.length > 0) {
-      transferForm.items = transferData.items.map(item => ({
-        id: item.id,
-        material_id: item.materialId,
-        material_name: item.materialName,
-        material_code: item.materialCode,
-        specs: item.specs,
-        quantity: item.quantity,
-        unit_name: item.unitName,
-        available_stock: item.availableStock || 0,
-        remarks: item.remarks || ''
-      }));
-    }
+    fillTransferForm(transferData);
+    await handleFromLocationChange();
   } catch (error) {
     console.error('获取调拨单详情失败:', error);
     ElMessage.error('获取调拨单详情失败');
@@ -605,7 +744,7 @@ const updateStatus = async (id, status) => {
     await ElMessageBox.confirm(`确定要将调拨单状态更新为"${getStatusText(status)}"吗？`, '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
-      type: 'warning'
+      type: 'warning',
     });
 
     await inventoryApi.updateTransferStatus(id, status);
@@ -620,13 +759,25 @@ const updateStatus = async (id, status) => {
   }
 };
 
+const handleResubmitTransfer = async (status) => {
+  if (!transferDetail.value?.id || !status) return;
+  try {
+    await inventoryApi.updateTransferStatus(transferDetail.value.id, status);
+    ElMessage.success('已重新提交财务审核');
+    await loadTransferList();
+    await viewTransfer(transferDetail.value.id);
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || '重新提交审核失败');
+  }
+};
+
 // 删除调拨单
 const deleteTransfer = async (id) => {
   try {
     await ElMessageBox.confirm('确定要删除该调拨单吗？此操作不可逆。', '警告', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
-      type: 'warning'
+      type: 'warning',
     });
 
     await inventoryApi.deleteTransfer(id);
@@ -682,10 +833,7 @@ const openTransferDialog = async () => {
 
   try {
     // 异步加载基础数据
-    await Promise.all([
-      fetchMaterials(),
-      fetchLocations()
-    ]);
+    await Promise.all([fetchMaterials(), fetchLocations()]);
   } catch (error) {
     console.error('加载基础数据失败:', error);
     ElMessage.error('加载基础数据失败，可能需要重新登录');
@@ -712,14 +860,15 @@ const resetTransferForm = () => {
 // 添加调拨物料
 const addTransferItem = () => {
   transferForm.items.push({
-    material_id: '',
-    material_name: '',
-    material_code: '',
-    specs: '',
+    materialId: '',
+    materialName: '',
+    materialCode: '',
+    specification: '',
     quantity: 1,
-    unit_name: '',
-    available_stock: 0,
-    remarks: ''
+    unitId: '',
+    unitName: '',
+    availableStock: 0,
+    remark: '',
   });
 };
 
@@ -732,7 +881,7 @@ const removeTransferItem = (index) => {
 const handleMaterialChange = async (materialId, index) => {
   if (!materialId) return;
 
-  const material = materialOptions.value.find(m => m.id === materialId);
+  const material = materialOptions.value.find((m) => m.id === materialId);
   if (material) {
     transferForm.items[index].materialName = material.name;
     transferForm.items[index].materialCode = material.code;
@@ -742,7 +891,10 @@ const handleMaterialChange = async (materialId, index) => {
     // 获取该物料在源库位的库存
     if (transferForm.from_location_id) {
       try {
-        const response = await inventoryApi.getMaterialStock(materialId, transferForm.from_location_id);
+        const response = await inventoryApi.getMaterialStock(
+          materialId,
+          transferForm.from_location_id
+        );
         // 拦截器已解包，response.data 就是业务数据
         if (response.data?.quantity) {
           transferForm.items[index].available_stock = response.data.quantity;
@@ -769,20 +921,22 @@ const handleFromLocationChange = async () => {
   if (transferForm.items.length > 0 && transferForm.from_location_id) {
     try {
       const queries = transferForm.items
-        .filter(item => item.materialId)
-        .map(item => ({
+        .filter((item) => item.materialId)
+        .map((item) => ({
           materialId: item.materialId,
-          locationId: transferForm.from_location_id
+          locationId: transferForm.from_location_id,
         }));
       const stockResults = [];
       for (const chunk of chunkArray(queries, BATCH_STOCK_QUERY_LIMIT)) {
         const response = await inventoryApi.getBatchMaterialStock(chunk);
         stockResults.push(...(response.data || []));
       }
-      const stockMap = new Map(stockResults.map(stock => [
-        Number(stock.materialId),
-        Number(stock.quantity || stock.stockQuantity || 0)
-      ]));
+      const stockMap = new Map(
+        stockResults.map((stock) => [
+          Number(stock.materialId),
+          Number(stock.quantity || stock.stockQuantity || 0),
+        ])
+      );
       for (const item of transferForm.items) {
         item.availableStock = stockMap.get(Number(item.materialId)) || 0;
       }
@@ -812,7 +966,7 @@ const submitTransferForm = async () => {
     for (let i = 0; i < transferForm.items.length; i++) {
       const item = transferForm.items[i];
       if (!item.materialId) {
-        ElMessage.warning(`第${i+1}行物料未选择`);
+        ElMessage.warning(`第${i + 1}行物料未选择`);
         return;
       }
 
@@ -833,23 +987,26 @@ const submitTransferForm = async () => {
 
     // 准备提交数据
     const formData = {
-      transfer_date: transferForm.transfer_date,
-      from_location_id: transferForm.from_location_id,
-      to_location_id: transferForm.to_location_id,
-      remark: transferForm.remark,
-      items: transferForm.items,
+      transferDate: transferForm.transfer_date,
+      fromLocationId: transferForm.from_location_id,
+      toLocationId: transferForm.to_location_id,
+      remarks: transferForm.remark,
+      items: transferForm.items.map((item) => ({
+        ...(item.id ? { id: item.id } : {}),
+        materialId: item.materialId,
+        quantity: item.quantity,
+        ...(item.unitId ? { unitId: item.unitId } : {}),
+        remarks: item.remark ?? item.remarks ?? '',
+      })),
       status: 'draft',
-      from_location: locationOptions.value.find(loc => loc.id === transferForm.from_location_id)?.name || '',
-      to_location: locationOptions.value.find(loc => loc.id === transferForm.to_location_id)?.name || ''
     };
-
 
     // 提交表单
     if (dialogType.value === 'create') {
       await inventoryApi.createTransfer(formData);
       ElMessage.success('调拨单创建成功');
     } else {
-      await inventoryApi.updateTransfer(formData.id, formData);
+      await inventoryApi.updateTransfer(transferForm.id, formData);
       ElMessage.success('调拨单更新成功');
     }
 
@@ -885,7 +1042,7 @@ const loadingMaterials = ref(false);
 let currentSearchId = 0;
 
 // 防抖函数
-import { debounce } from '@/utils/commonHelpers'
+import { debounce } from '@/utils/commonHelpers';
 const searchProducts = async (query) => {
   const searchId = ++currentSearchId;
   loadingMaterials.value = true;
@@ -901,7 +1058,10 @@ const searchProducts = async (query) => {
   }
 };
 
-const debouncedSearchMaterials = debounce(searchProducts, SEARCH_CONFIG.SEARCH_DEBOUNCE_DELAY || 300);
+const debouncedSearchMaterials = debounce(
+  searchProducts,
+  SEARCH_CONFIG.SEARCH_DEBOUNCE_DELAY || 300
+);
 
 const handleMaterialSelectFocus = () => {
   if (materialOptions.value.length === 0) {
@@ -938,18 +1098,18 @@ const loadTransferStats = async () => {
         pendingCount: response.data.pendingCount || 0,
         approvedCount: response.data.approvedCount || 0,
         completedCount: response.data.completedCount || 0,
-        cancelledCount: response.data.cancelledCount || 0
+        cancelledCount: response.data.cancelledCount || 0,
       };
     }
   } catch (error) {
     console.error('获取调拨单统计数据失败:', error);
     // 如果API失败，从当前列表数据计算统计信息作为备用
     const total = pagination.total || 0; // 使用分页总数
-    const draftCount = transferList.value.filter(item => item.status === 'draft').length;
-    const pendingCount = transferList.value.filter(item => item.status === 'pending').length;
-    const approvedCount = transferList.value.filter(item => item.status === 'approved').length;
-    const completedCount = transferList.value.filter(item => item.status === 'completed').length;
-    const cancelledCount = transferList.value.filter(item => item.status === 'cancelled').length;
+    const draftCount = transferList.value.filter((item) => item.status === 'draft').length;
+    const pendingCount = transferList.value.filter((item) => item.status === 'pending').length;
+    const approvedCount = transferList.value.filter((item) => item.status === 'approved').length;
+    const completedCount = transferList.value.filter((item) => item.status === 'completed').length;
+    const cancelledCount = transferList.value.filter((item) => item.status === 'cancelled').length;
 
     // 更新统计数据
     transferStats.value = {
@@ -958,7 +1118,7 @@ const loadTransferStats = async () => {
       pendingCount,
       approvedCount,
       completedCount,
-      cancelledCount
+      cancelledCount,
     };
   }
 };
@@ -972,8 +1132,8 @@ const loadTransferList = async () => {
       page: pagination.current,
       limit: pagination.size,
       materialName: searchForm.materialName,
-      transfer_no: searchForm.transfer_no,
-      status: searchForm.status
+      transferNo: searchForm.transfer_no,
+      status: searchForm.status,
     };
 
     // 添加日期范围参数
@@ -1012,25 +1172,8 @@ const duplicateTransfer = async (id) => {
     // 重置表单
     resetTransferForm();
 
-    // 填充表单数据，但不设置id，因为是新建
-    transferForm.transfer_date = getCurrentDate(); // 使用当前日期
-    transferForm.from_location_id = transferData.from_location_id;
-    transferForm.to_location_id = transferData.to_location_id;
-    transferForm.remark = (transferData.remark || transferData.remarks || '') + ' (复制)';
-
-    // 填充物料明细
-    if (transferData.items && transferData.items.length > 0) {
-      transferForm.items = transferData.items.map(item => ({
-        material_id: item.materialId,
-        material_name: item.materialName,
-        material_code: item.materialCode,
-        specs: item.specs,
-        quantity: item.quantity,
-        unit_name: item.unitName,
-        available_stock: item.availableStock || 0,
-        remarks: item.remarks || ''
-      }));
-    }
+    fillTransferForm(transferData, { duplicate: true });
+    await handleFromLocationChange();
 
     ElMessage.success('已创建调拨单副本，请检查并保存');
   } catch (error) {
@@ -1065,8 +1208,8 @@ const printTransfer = async (id) => {
         specification: item.specification || item.specs || '-',
         quantity: item.quantity ?? '-',
         unit_name: item.unitName || item.unit || '-',
-        remark: item.remark || item.remarks || ''
-      }))
+        remark: item.remark || item.remarks || '',
+      })),
     });
 
     printService.previewDocument(html);
@@ -1077,7 +1220,6 @@ const printTransfer = async (id) => {
     detailLoading.value = false;
   }
 };
-
 
 // 页面初始化
 onMounted(async () => {
@@ -1125,8 +1267,8 @@ const handleBatchCommand = async (command) => {
 // 导出选中的调拨单
 const exportSelectedTransfers = async () => {
   try {
-    const ids = selectedTransfers.value.map(item => item.id);
-    const transferNos = selectedTransfers.value.map(item => item.transferNo).join(', ');
+    const ids = selectedTransfers.value.map((item) => item.id);
+    const transferNos = selectedTransfers.value.map((item) => item.transferNo).join(', ');
 
     ElMessage.info(`正在导出 ${selectedTransfers.value.length} 个调拨单: ${transferNos}`);
 
@@ -1135,7 +1277,7 @@ const exportSelectedTransfers = async () => {
 
     // 处理二进制文件下载
     const blob = new Blob([response.data], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -1163,7 +1305,7 @@ const batchPrintTransfers = async () => {
   try {
     ElMessage.info('正在准备打印...');
 
-    const ids = selectedTransfers.value.map(item => item.id);
+    const ids = selectedTransfers.value.map((item) => item.id);
     const response = await inventoryApi.getTransferDetails(ids);
     const transferDetails = parseListData(response, { enableLog: false });
 
@@ -1185,8 +1327,8 @@ const batchPrintTransfers = async () => {
           specification: item.specification || item.specs || '-',
           quantity: item.quantity ?? '-',
           unit_name: item.unitName || item.unit || '-',
-          remark: item.remark || item.remarks || ''
-        }))
+          remark: item.remark || item.remarks || '',
+        })),
       });
 
       pages.push(page);
@@ -1202,7 +1344,7 @@ const batchPrintTransfers = async () => {
 // 批量删除调拨单
 const batchDeleteTransfers = async () => {
   // 筛选出可以删除的调拨单（草稿状态）
-  const deletableTransfers = selectedTransfers.value.filter(item => item.status === 'draft');
+  const deletableTransfers = selectedTransfers.value.filter((item) => item.status === 'draft');
 
   if (deletableTransfers.length === 0) {
     ElMessage.warning('选中的调拨单中没有可删除的项（只能删除草稿状态的调拨单）');
@@ -1216,11 +1358,11 @@ const batchDeleteTransfers = async () => {
       {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
-        type: 'warning'
+        type: 'warning',
       }
     );
 
-    const ids = deletableTransfers.map(item => item.id);
+    const ids = deletableTransfers.map((item) => item.id);
 
     try {
       await inventoryApi.batchDeleteTransfers(ids);
@@ -1349,7 +1491,6 @@ const batchDeleteTransfers = async () => {
 .table-toolbar {
   margin-bottom: 10px;
 }
-
 
 :deep(.el-table__cell) {
   overflow: hidden;

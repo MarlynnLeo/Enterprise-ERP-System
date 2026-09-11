@@ -14,6 +14,7 @@
 
 const db = require('../../config/db');
 const FinanceIntegrationService = require('../external/FinanceIntegrationService');
+const InventoryPostingService = require('../InventoryPostingService');
 const { parsePagination } = require('../../utils/safePagination');
 const { logger } = require('../../utils/logger');
 const { normalizeTaxRate, taxAmount: calcTaxAmount } = require('../../utils/money');
@@ -238,6 +239,15 @@ class ManualVoucherService {
       'pr.deleted_at IS NULL',
       `pr.status NOT IN (${SQL_BLOCKED_STATUS_IN})`,
       "pr.status IN ('completed', 'confirmed')",
+      `EXISTS (
+         SELECT 1
+           FROM inventory_posting_documents ipd
+           JOIN inventory_posting_lines ipl ON ipl.posting_document_id = ipd.id
+          WHERE ipl.reference_no = pr.receipt_no
+            AND ipd.finance_status = 'approved'
+            AND ipd.locked = 1
+            AND ipd.posting_kind = 'movement'
+        )`,
       `NOT EXISTS (
          SELECT 1 FROM ap_invoices ap
          WHERE ap.source_type = ?
@@ -304,6 +314,16 @@ class ManualVoucherService {
     const where = [
       'sob.deleted_at IS NULL',
       "sob.status = 'completed'",
+      `EXISTS (
+         SELECT 1
+           FROM inventory_posting_documents ipd
+           JOIN inventory_posting_lines ipl ON ipl.posting_document_id = ipd.id
+          WHERE ipl.reference_no = sob.outbound_no
+            AND ipl.transaction_type = 'sales_outbound'
+            AND ipd.finance_status = 'approved'
+            AND ipd.locked = 1
+            AND ipd.posting_kind = 'movement'
+        )`,
       // 已有出库级应收 → 不展示
       `NOT EXISTS (
          SELECT 1 FROM ar_invoices ar
@@ -378,114 +398,32 @@ class ManualVoucherService {
     return { list, total, page, pageSize };
   }
 
-  // ==================== 例外列表（订单级，API 保留） ====================
+  // ==================== 历史接口兼容（订单级已全面停用） ====================
 
+  /**
+   * @deprecated 订单级应收已全面停用。根据企业会计准则，凭证必须基于实际发货的销售出库单生成。
+   * 接口保留以兼容旧版前端调用，直接返回标准空列表，避免无谓的数据库连接与查询开销。
+   */
   static async listEligibleSalesOrders(query = {}) {
-    const { page, pageSize, limit, offset } = parsePagination(
+    const { page, pageSize } = parsePagination(
       query.page,
       query.pageSize,
       { defaultPageSize: 10 }
     );
-    const keyword = String(query.keyword || '').trim();
-
-    const where = [
-      'so.deleted_at IS NULL',
-      `so.status NOT IN (${SQL_BLOCKED_STATUS_IN})`,
-      `NOT EXISTS (
-         SELECT 1 FROM ar_invoices ar
-         WHERE ar.source_type = ?
-           AND ar.source_id = so.id
-           AND ar.status NOT IN (${SQL_INACTIVE_STATUS_IN})
-       )`,
-      "COALESCE(so.invoice_status, 'uninvoiced') NOT IN ('invoiced', 'fully_invoiced')",
-    ];
-    const params = [
-      ...BLOCKED_DOC_STATUSES,
-      BUSINESS_TYPES.SALES_ORDER,
-      ...INACTIVE_INVOICE_STATUSES,
-    ];
-
-    if (keyword) {
-      where.push('(so.order_no LIKE ? OR c.name LIKE ? OR so.contract_code LIKE ?)');
-      const like = `%${keyword}%`;
-      params.push(like, like, like);
-    }
-
-    const whereSql = where.join(' AND ');
-    const [countRows] = await db.pool.execute(
-      `SELECT COUNT(*) AS total FROM sales_orders so
-       LEFT JOIN customers c ON so.customer_id = c.id WHERE ${whereSql}`,
-      params
-    );
-    const total = Number(countRows[0]?.total || 0);
-    const [list] = await db.pool.execute(
-      `SELECT so.id, so.order_no, so.order_no AS doc_no, so.customer_id,
-              c.name AS customer_name, c.name AS party_name,
-              so.total_amount, so.subtotal, so.status, so.invoice_status,
-              so.delivery_date AS doc_date, so.created_at
-       FROM sales_orders so
-       LEFT JOIN customers c ON so.customer_id = c.id
-       WHERE ${whereSql}
-       ORDER BY so.id DESC
-       LIMIT ${Number(limit)} OFFSET ${Number(offset)}`,
-      params
-    );
-    return { list, total, page, pageSize };
+    return { list: [], total: 0, page, pageSize };
   }
 
+  /**
+   * @deprecated 订单级应付已全面停用。根据企业会计准则，凭证必须基于实际验收入库的采购入库单生成。
+   * 接口保留以兼容旧版前端调用，直接返回标准空列表，避免无谓的数据库连接与查询开销。
+   */
   static async listEligiblePurchaseOrders(query = {}) {
-    const { page, pageSize, limit, offset } = parsePagination(
+    const { page, pageSize } = parsePagination(
       query.page,
       query.pageSize,
       { defaultPageSize: 10 }
     );
-    const keyword = String(query.keyword || '').trim();
-
-    const where = [
-      'po.deleted_at IS NULL',
-      `po.status NOT IN (${SQL_BLOCKED_STATUS_IN})`,
-      `NOT EXISTS (
-         SELECT 1 FROM ap_invoices ap
-         WHERE ap.source_type = ?
-           AND ap.source_id = po.id
-           AND ap.status NOT IN (${SQL_INACTIVE_STATUS_IN})
-       )`,
-    ];
-    const params = [
-      ...BLOCKED_DOC_STATUSES,
-      BUSINESS_TYPES.PURCHASE_ORDER,
-      ...INACTIVE_INVOICE_STATUSES,
-    ];
-
-    if (keyword) {
-      where.push(
-        '(po.order_no LIKE ? OR COALESCE(po.supplier_name, s.name) LIKE ? OR po.contract_code LIKE ?)'
-      );
-      const like = `%${keyword}%`;
-      params.push(like, like, like);
-    }
-
-    const whereSql = where.join(' AND ');
-    const [countRows] = await db.pool.execute(
-      `SELECT COUNT(*) AS total FROM purchase_orders po
-       LEFT JOIN suppliers s ON po.supplier_id = s.id WHERE ${whereSql}`,
-      params
-    );
-    const total = Number(countRows[0]?.total || 0);
-    const [list] = await db.pool.execute(
-      `SELECT po.id, po.order_no, po.order_no AS doc_no, po.supplier_id,
-              COALESCE(po.supplier_name, s.name) AS supplier_name,
-              COALESCE(po.supplier_name, s.name) AS party_name,
-              po.total_amount, po.subtotal, po.status,
-              po.order_date AS doc_date, po.created_at
-       FROM purchase_orders po
-       LEFT JOIN suppliers s ON po.supplier_id = s.id
-       WHERE ${whereSql}
-       ORDER BY po.id DESC
-       LIMIT ${Number(limit)} OFFSET ${Number(offset)}`,
-      params
-    );
-    return { list, total, page, pageSize };
+    return { list: [], total: 0, page, pageSize };
   }
 
   // ==================== 加载 ====================
@@ -1072,6 +1010,10 @@ class ManualVoucherService {
         `采购入库单 ${receipt.receipt_no} 未完成，不能生成凭证（当前：${receipt.status}）`
       );
     }
+    await InventoryPostingService.requireApprovedForTransaction(db.pool, {
+      reference_type: 'inbound',
+      reference_no: receipt.receipt_no,
+    });
 
     const shared = {
       force: true,
@@ -1124,6 +1066,10 @@ class ManualVoucherService {
         `销售出库单 ${outbound.outbound_no} 状态为 ${outbound.status}，仅已完成出库可生成应收`
       );
     }
+    await InventoryPostingService.requireApprovedForTransaction(db.pool, {
+      reference_type: 'sales_outbound',
+      reference_no: outbound.outbound_no,
+    });
 
     const salesOrders = await this.loadSalesOrdersForOutbound(
       outboundId,
@@ -1175,42 +1121,22 @@ class ManualVoucherService {
     };
   }
 
-  /** 例外：整单销售订单 */
-  static async generateFromSalesOrder(orderId, userId = null) {
-    const order = await this.loadSalesOrder(orderId);
-    if (!order) throw businessError('销售订单不存在', 'NOT_FOUND', 404);
-    if (isBlockedStatus(order.status)) {
-      throw businessError(`销售订单 ${order.order_no} 状态为 ${order.status}，不能生成凭证`);
-    }
-    const result = await FinanceIntegrationService.generateARInvoiceFromSalesOrder(
-      order,
-      userId,
-      { force: true }
+  /** 例外：整单销售订单（已停用） */
+  static async generateFromSalesOrder(_orderId, _userId = null) {
+    throw businessError(
+      '订单级应收已全面停用；根据企业会计准则，凭证必须源自财务审核通过的销售出库单',
+      'ORDER_LEVEL_VOUCHER_DISABLED',
+      409
     );
-    return {
-      order,
-      result,
-      item: buildResultItem(order.id, order.order_no, result, '应收发票已存在'),
-    };
   }
 
-  /** 例外：整单采购订单 */
-  static async generateFromPurchaseOrder(orderId, userId = null) {
-    const order = await this.loadPurchaseOrder(orderId);
-    if (!order) throw businessError('采购订单不存在', 'NOT_FOUND', 404);
-    if (isBlockedStatus(order.status)) {
-      throw businessError(`采购订单 ${order.order_no} 状态为 ${order.status}，不能生成凭证`);
-    }
-    const result = await FinanceIntegrationService.generateAPInvoiceFromPurchaseOrder(
-      order,
-      userId,
-      { force: true }
+  /** 例外：整单采购订单（已停用） */
+  static async generateFromPurchaseOrder(_orderId, _userId = null) {
+    throw businessError(
+      '订单级应付已全面停用；根据企业会计准则，凭证必须源自财务审核通过的采购入库单',
+      'ORDER_LEVEL_VOUCHER_DISABLED',
+      409
     );
-    return {
-      order,
-      result,
-      item: buildResultItem(order.id, order.order_no, result, '应付发票已存在'),
-    };
   }
 
   // ==================== 批量 ====================

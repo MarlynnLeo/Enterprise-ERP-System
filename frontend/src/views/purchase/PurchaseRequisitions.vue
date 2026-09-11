@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * PurchaseRequisitions.vue
  * @description 前端界面组件文件
@@ -41,9 +41,9 @@
             @change="loadRequisitions(1)"
           >
             <el-option label="草稿" value="draft"></el-option>
-            <el-option label="已提交" value="submitted"></el-option>
-            <el-option label="已批准" value="approved"></el-option>
-            <el-option label="已拒绝" value="rejected"></el-option>
+            <el-option label="待审核" value="submitted"></el-option>
+            <el-option label="已审核" value="approved"></el-option>
+            <el-option label="已驳回" value="rejected"></el-option>
             <el-option label="已完成" value="completed"></el-option>
           </el-select>
         </el-form-item>
@@ -88,15 +88,15 @@
       </el-card>
       <el-card class="stat-card" shadow="hover">
         <div class="stat-value">{{ requisitionStats.submittedCount || 0 }}</div>
-        <div class="stat-label">已提交审批</div>
+        <div class="stat-label">待审核</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
         <div class="stat-value">{{ requisitionStats.approvedCount || 0 }}</div>
-        <div class="stat-label">已批准</div>
+        <div class="stat-label">已审核</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
         <div class="stat-value">{{ requisitionStats.rejectedCount || 0 }}</div>
-        <div class="stat-label">已拒绝</div>
+        <div class="stat-label">已驳回</div>
       </el-card>
     </div>
     <!-- 采购申请列表 -->
@@ -170,7 +170,7 @@
               v-permission="'purchase:requisitions:update'"
               @click="handleCommand('submit', row)"
             >
-              提交审批
+              提交审核
             </el-button>
             <el-button
               v-if="row.status === 'rejected'"
@@ -188,7 +188,7 @@
               v-permission="'purchase:requisitions:approve'"
               @click="openApprovalDialog(row)"
             >
-              审批
+              审核
             </el-button>
           </template>
         </el-table-column>
@@ -414,7 +414,7 @@
         </AppDialog>
     <BusinessApprovalDialog
       v-model="approvalDialog.visible"
-      title="审批采购申请"
+      title="审核采购申请"
       :loading="approvalDialog.loading"
       v-model:comment="approvalDialog.comment"
       :summary-items="requisitionApprovalSummary"
@@ -1061,7 +1061,7 @@ const handleBatchSubmit = async () => {
 const handleCommand = (command, row) => {
   switch (command) {
     case 'submit':
-      showStatusDialog(row.id, 'submitted', '状态更新', '将此申请提交审批');
+      showStatusDialog(row.id, 'submitted', '状态更新', '将此申请提交审核');
       break;
     case 'redraft':
       showStatusDialog(row.id, 'draft', '重新编辑', '将此申请退回至草稿状态');
@@ -1090,10 +1090,10 @@ const updateStatus = async () => {
       { newStatus: statusDialog.newStatus }
     );
 
-    // 检查后端自动审批通过后是否生成了采购订单（auto_approved场景）
+    // 检查后端自动审核通过后是否生成了采购订单（auto_approved场景）
     if (response.generated_orders && response.generated_orders.length > 0) {
       const orders = response.generated_orders;
-      let message = `审批成功！已自动生成 ${orders.length} 个采购订单：\n`;
+      let message = `审核成功！已自动生成 ${orders.length} 个采购订单：\n`;
       orders.forEach((order, index) => {
         message += `\n${index + 1}. 订单号: ${order.orderNo}`;
         message += `\n   供应商: ${order.supplierName}`;

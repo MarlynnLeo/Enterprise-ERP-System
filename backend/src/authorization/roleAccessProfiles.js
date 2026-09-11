@@ -75,7 +75,11 @@ function isPriceSensitive(code) {
 function permissionAllowed(code, spec) {
   if (!code) return false;
   if ((spec.denyPermissions || []).includes(code)) return false;
-  if (spec.denyPrice !== false && isPriceSensitive(code) && !(spec.allowPricePermissions || []).includes(code)) {
+  if (
+    spec.denyPrice !== false &&
+    isPriceSensitive(code) &&
+    !(spec.allowPricePermissions || []).includes(code)
+  ) {
     return false;
   }
   if (COMMON_PERMISSIONS.includes(code)) return true;
@@ -153,9 +157,12 @@ const SALES_APPROVE = [
 const FINANCE_APPROVE = [
   'finance:budgets:approve',
   'finance:cash:approve',
+  'finance:ap:approve',
+  'finance:ar:approve',
   'finance:entries:approve',
   'finance:expenses:approve',
   'finance:assets:approve',
+  'finance:salary:approve',
   'finance:inventory:approve',
   'finance:inventory:reverse',
 ];
@@ -173,6 +180,44 @@ const QUALITY_APPROVE = [
   'quality:scrap:approve',
   'quality:nonconforming:approve',
 ];
+
+// 财务审核必须在来源业务单据详情中完成，因此财务岗位需要来源单据的只读权限。
+// 这些权限只开放查询，不授予建单、修改、删除或业务审核能力。
+const FINANCE_INVENTORY_SOURCE_VIEW = [
+  'inventory:inbound:view',
+  'inventory:outbound:view',
+  'inventory:manual:view',
+  'inventory:transfer:view',
+  'inventory:check:view',
+  'purchase:receipts:view',
+  'purchase:returns:view',
+  'purchase:processing:view',
+  'purchase:processing-receipts:view',
+  'sales:outbound:view',
+  'sales:returns:view',
+  'sales:exchanges:view',
+  'quality:scrap:view',
+];
+
+const FINANCE_INVENTORY_SOURCE_PATHS = [
+  '/inventory',
+  '/inventory/inbound',
+  '/inventory/outbound',
+  '/inventory/manual-transaction',
+  '/inventory/transfer',
+  '/inventory/check',
+  '/purchase',
+  '/purchase/receipts',
+  '/purchase/returns',
+  '/purchase/processing',
+  '/purchase/processing-receipts',
+  '/sales',
+  '/sales/outbound',
+  '/sales/returns',
+  '/sales/exchanges',
+  '/quality',
+  '/quality/scrap-records',
+];
 const OPERATOR_DENY_APPROVE = [
   ...PURCHASE_APPROVE,
   ...SALES_APPROVE,
@@ -185,10 +230,7 @@ const OPERATOR_DENY_APPROVE = [
   'sales:returns:approve',
 ];
 
-const WAREHOUSE_DENY = [
-  ...OPERATOR_DENY_APPROVE,
-  'inventory:outbound:cancel',
-];
+const WAREHOUSE_DENY = [...OPERATOR_DENY_APPROVE, 'inventory:outbound:cancel'];
 
 const WAREHOUSE_PURCHASE_RECEIPT_PERMS = [
   'purchase',
@@ -374,7 +416,13 @@ const purchaseDept = defineProfile({
   label: '采购部门',
   modules: ['仪表盘', '采购', '采购概览', '物料/供应商', '库存查询'],
   permissionPrefixes: ['purchase'],
-  exactPermissions: [...MATERIAL_VIEW, ...SUPPLIER_VIEW, ...STOCK_VIEW, 'dataoverview', 'dataoverview:purchase'],
+  exactPermissions: [
+    ...MATERIAL_VIEW,
+    ...SUPPLIER_VIEW,
+    ...STOCK_VIEW,
+    'dataoverview',
+    'dataoverview:purchase',
+  ],
   denyPermissions: OPERATOR_DENY_APPROVE,
   pathPrefixes: ['/purchase'],
   exactPaths: [
@@ -394,7 +442,15 @@ const purchaseManager = defineProfile({
   label: '采购管理',
   modules: ['仪表盘', '采购', '采购概览', '物料/供应商', '库存查询'],
   permissionPrefixes: ['purchase'],
-  exactPermissions: [...MATERIAL_VIEW, ...SUPPLIER_VIEW, ...STOCK_VIEW, ...WORKFLOW_USE, ...PURCHASE_APPROVE, 'dataoverview', 'dataoverview:purchase'],
+  exactPermissions: [
+    ...MATERIAL_VIEW,
+    ...SUPPLIER_VIEW,
+    ...STOCK_VIEW,
+    ...WORKFLOW_USE,
+    ...PURCHASE_APPROVE,
+    'dataoverview',
+    'dataoverview:purchase',
+  ],
   pathPrefixes: ['/purchase'],
   exactPaths: [
     '/basedata',
@@ -413,7 +469,12 @@ const purchaseManager = defineProfile({
 const productionPlanner = defineProfile({
   label: '生产计划员',
   modules: ['仪表盘', '生产计划', '生产任务', '生产过程', '生产报工', 'BOM/工艺', '库存查询'],
-  permissionPrefixes: ['production:plans', 'production:tasks', 'production:process', 'production:reports'],
+  permissionPrefixes: [
+    'production:plans',
+    'production:tasks',
+    'production:process',
+    'production:reports',
+  ],
   exactPermissions: [
     'production',
     ...MATERIAL_VIEW,
@@ -423,7 +484,12 @@ const productionPlanner = defineProfile({
     'dataoverview',
     'dataoverview:production',
   ],
-  pathPrefixes: ['/production/plan', '/production/task', '/production/process', '/production/report'],
+  pathPrefixes: [
+    '/production/plan',
+    '/production/task',
+    '/production/process',
+    '/production/report',
+  ],
   exactPaths: [
     '/production',
     '/basedata',
@@ -441,7 +507,17 @@ const productionPlanner = defineProfile({
 
 const productionPlanning = defineProfile({
   label: '生产计划',
-  modules: ['仪表盘', '采购', '销售', '生产计划', '生产任务', '生产过程', '生产报工', 'BOM/工艺', '库存查询'],
+  modules: [
+    '仪表盘',
+    '采购',
+    '销售',
+    '生产计划',
+    '生产任务',
+    '生产过程',
+    '生产报工',
+    'BOM/工艺',
+    '库存查询',
+  ],
   permissionPrefixes: [
     'purchase',
     'sales',
@@ -514,7 +590,15 @@ const salesDept = defineProfile({
   label: '销售部门',
   modules: ['仪表盘', '销售', '销售概览', '客户/物料', '库存查询'],
   permissionPrefixes: ['sales', 'contract'],
-  exactPermissions: [...MATERIAL_VIEW, ...CUSTOMER_VIEW, ...STOCK_VIEW, ...WORKFLOW_USE, ...SALES_APPROVE, 'dataoverview', 'dataoverview:sales'],
+  exactPermissions: [
+    ...MATERIAL_VIEW,
+    ...CUSTOMER_VIEW,
+    ...STOCK_VIEW,
+    ...WORKFLOW_USE,
+    ...SALES_APPROVE,
+    'dataoverview',
+    'dataoverview:sales',
+  ],
   pathPrefixes: ['/sales'],
   exactPaths: [
     '/basedata',
@@ -606,7 +690,14 @@ const qualityProfile = defineProfile({
   label: '品质',
   modules: ['仪表盘', '质量', '质量概览', '物料/客商', '库存查询'],
   permissionPrefixes: ['quality'],
-  exactPermissions: [...MATERIAL_VIEW, ...CUSTOMER_VIEW, ...SUPPLIER_VIEW, ...STOCK_VIEW, 'dataoverview', 'dataoverview:quality'],
+  exactPermissions: [
+    ...MATERIAL_VIEW,
+    ...CUSTOMER_VIEW,
+    ...SUPPLIER_VIEW,
+    ...STOCK_VIEW,
+    'dataoverview',
+    'dataoverview:quality',
+  ],
   denyPermissions: OPERATOR_DENY_APPROVE,
   pathPrefixes: ['/quality'],
   exactPaths: [
@@ -651,7 +742,12 @@ const incomingInspector = defineProfile({
   label: '来料检验员',
   modules: ['仪表盘', '来料检验', '不合格品', '物料/供应商', '库存查询'],
   permissionPrefixes: ['quality:incoming'],
-  exactPermissions: [...INSPECTOR_SHARED_PERMS, ...SUPPLIER_VIEW, 'quality:incoming:view', 'purchase:orders:view'],
+  exactPermissions: [
+    ...INSPECTOR_SHARED_PERMS,
+    ...SUPPLIER_VIEW,
+    'quality:incoming:view',
+    'purchase:orders:view',
+  ],
   denyPermissions: OPERATOR_DENY_APPROVE,
   pathPrefixes: ['/quality/incoming'],
   exactPaths: [...INSPECTOR_SHARED_PATHS, '/basedata/suppliers'],
@@ -697,14 +793,30 @@ const financeDept = defineProfile({
   label: '会计管理',
   modules: ['仪表盘', '财务', '财务概览', '客户/供应商'],
   permissionPrefixes: ['finance'],
-  exactPermissions: [...CUSTOMER_VIEW, ...SUPPLIER_VIEW, ...WORKFLOW_USE, ...FINANCE_APPROVE, 'basedata', 'dataoverview', 'dataoverview:finance'],
+  exactPermissions: [
+    ...CUSTOMER_VIEW,
+    ...SUPPLIER_VIEW,
+    ...MATERIAL_VIEW,
+    ...LOCATION_VIEW,
+    ...UNIT_VIEW,
+    ...WORKFLOW_USE,
+    ...FINANCE_APPROVE,
+    ...FINANCE_INVENTORY_SOURCE_VIEW,
+    'basedata',
+    'dataoverview',
+    'dataoverview:finance',
+  ],
   pathPrefixes: ['/finance'],
   exactPaths: [
     '/basedata',
+    '/basedata/materials',
+    '/basedata/locations',
+    '/basedata/units',
     '/basedata/customers',
     '/basedata/suppliers',
     '/dataoverview',
     '/dataoverview/finance',
+    ...FINANCE_INVENTORY_SOURCE_PATHS,
     ...WORKFLOW_PATHS,
   ],
   denyPrice: false,
@@ -729,6 +841,10 @@ const accountantAssistant = defineProfile({
     'finance:assets:view',
     'finance:cost:view',
     'finance:inventory:view',
+    ...FINANCE_INVENTORY_SOURCE_VIEW,
+    ...MATERIAL_VIEW,
+    ...LOCATION_VIEW,
+    ...UNIT_VIEW,
     'finance:budget:view',
     ...CUSTOMER_VIEW,
     ...SUPPLIER_VIEW,
@@ -757,15 +873,18 @@ const accountantAssistant = defineProfile({
     '/finance/assets/list',
     '/finance/assets/reports',
     '/finance/cost',
-    '/finance/inventory-posting',
     '/finance/cost/dashboard',
     '/finance/budget',
     '/finance/budget/list',
     '/basedata',
+    '/basedata/materials',
+    '/basedata/locations',
+    '/basedata/units',
     '/basedata/customers',
     '/basedata/suppliers',
     '/dataoverview',
     '/dataoverview/finance',
+    ...FINANCE_INVENTORY_SOURCE_PATHS,
   ],
   denyPrice: false,
   dataScope: DATA_SCOPE.ALL,
@@ -844,7 +963,7 @@ const ROLE_ACCESS_PROFILES = Object.freeze({
     denyPermissions: [],
     dataScope: DATA_SCOPE.ALL,
   }),
-  '100001': qualityProfile,
+  100001: qualityProfile,
   finance_manager: financeDept,
   accountant: accountantAssistant,
   cashier,

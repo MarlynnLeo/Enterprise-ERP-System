@@ -40,29 +40,97 @@ router.use(desensitizeSensitiveResponse('view'));
 router.use(requirePriceMutationPermission('update'));
 
 // 系统初始化路由
-router.post('/init', requirePermission('system:settings:update'), financeController.initFinanceTables);
-router.post('/expenses/init', requirePermission('system:settings:update'), expenseController.initExpenseTables);
+router.post(
+  '/init',
+  requirePermission('system:settings:update'),
+  financeController.initFinanceTables
+);
+router.post(
+  '/expenses/init',
+  requirePermission('system:settings:update'),
+  expenseController.initExpenseTables
+);
 
 // 费用管理模块路由
 // 1. 费用类型管理
-router.get('/expenses/categories', requirePermission('finance:expenses:view'), expenseController.getExpenseCategories);
-router.post('/expenses/categories', requirePermission('finance:expenses:create'), expenseController.createExpenseCategory);
-router.put('/expenses/categories/:id', requirePermission('finance:expenses:update'), expenseController.updateExpenseCategory);
-router.delete('/expenses/categories/:id', requirePermission('finance:expenses:delete'), expenseController.deleteExpenseCategory);
+router.get(
+  '/expenses/categories',
+  requirePermission('finance:expenses:view'),
+  expenseController.getExpenseCategories
+);
+router.post(
+  '/expenses/categories',
+  requirePermission('finance:expenses:create'),
+  expenseController.createExpenseCategory
+);
+router.put(
+  '/expenses/categories/:id',
+  requirePermission('finance:expenses:update'),
+  expenseController.updateExpenseCategory
+);
+router.delete(
+  '/expenses/categories/:id',
+  requirePermission('finance:expenses:delete'),
+  expenseController.deleteExpenseCategory
+);
 
 // 2. 费用记录管理
-router.get('/expenses/generate-number', requirePermission('finance:expenses:create'), expenseController.generateExpenseNumber);
-router.get('/expenses/stats', requirePermission('finance:expenses:view'), expenseController.getExpenseStats);
+router.get(
+  '/expenses/generate-number',
+  requirePermission('finance:expenses:create'),
+  expenseController.generateExpenseNumber
+);
+router.get(
+  '/expenses/stats',
+  requirePermission('finance:expenses:view'),
+  expenseController.getExpenseStats
+);
 router.get('/expenses', requirePermission('finance:expenses:view'), expenseController.getExpenses);
-router.get('/expenses/:id', requirePermission('finance:expenses:view'), expenseController.getExpenseById);
-router.post('/expenses', requirePermission('finance:expenses:create'), expenseController.createExpense);
-router.put('/expenses/:id', requirePermission('finance:expenses:update'), expenseController.updateExpense);
-router.post('/expenses/:id/submit', requirePermission('finance:expenses:update'), expenseController.submitExpense);
-router.post('/expenses/:id/approve', requirePermission('finance:expenses:approve'), expenseController.approveExpense);
-router.post('/expenses/:id/pay', requirePermission('finance:expenses:pay'), expenseController.payExpense);
-router.post('/expenses/:id/void-payment', requirePermission('finance:expenses:pay'), expenseController.voidExpensePayment);
-router.post('/expenses/:id/cancel', requirePermission('finance:expenses:update'), expenseController.cancelExpense);
-router.delete('/expenses/:id', requirePermission('finance:expenses:delete'), expenseController.deleteExpense);
+router.get(
+  '/expenses/:id',
+  requirePermission('finance:expenses:view'),
+  expenseController.getExpenseById
+);
+router.post(
+  '/expenses',
+  requirePermission('finance:expenses:create'),
+  expenseController.createExpense
+);
+router.put(
+  '/expenses/:id',
+  requirePermission('finance:expenses:update'),
+  expenseController.updateExpense
+);
+router.post(
+  '/expenses/:id/submit',
+  requirePermission('finance:expenses:update'),
+  expenseController.submitExpense
+);
+router.post(
+  '/expenses/:id/approve',
+  requirePermission('finance:expenses:approve'),
+  expenseController.approveExpense
+);
+router.post(
+  '/expenses/:id/pay',
+  requirePermission('finance:expenses:pay'),
+  expenseController.payExpense
+);
+router.post(
+  '/expenses/:id/void-payment',
+  requirePermission('finance:expenses:pay'),
+  expenseController.voidExpensePayment
+);
+router.post(
+  '/expenses/:id/cancel',
+  requirePermission('finance:expenses:update'),
+  expenseController.cancelExpense
+);
+router.delete(
+  '/expenses/:id',
+  requirePermission('finance:expenses:delete'),
+  expenseController.deleteExpense
+);
 
 // 财务系统设置路由
 router.get(
@@ -70,69 +138,240 @@ router.get(
   requirePermission(FINANCE_BUSINESS_OPTION_PERMISSIONS),
   financeSettingsController.getBusinessOptions
 );
-router.get('/settings', requirePermission('finance:settings:view'), financeSettingsController.getSettings);
-router.put('/settings', requirePermission('finance:settings:update'), financeSettingsController.updateSettings);
-router.get('/settings/default', requirePermission('finance:settings:view'), financeSettingsController.getDefaultSettings);
-router.post('/settings/reset', requirePermission('finance:settings:update'), financeSettingsController.resetSettings);
+router.get(
+  '/settings',
+  requirePermission('finance:settings:view'),
+  financeSettingsController.getSettings
+);
+router.put(
+  '/settings',
+  requirePermission('finance:settings:update'),
+  financeSettingsController.updateSettings
+);
+router.get(
+  '/settings/default',
+  requirePermission('finance:settings:view'),
+  financeSettingsController.getDefaultSettings
+);
+router.post(
+  '/settings/reset',
+  requirePermission('finance:settings:update'),
+  financeSettingsController.resetSettings
+);
 
 // 总账模块路由
 // 1. 会计科目管理
-router.get('/accounts/options', requirePermission('finance:accounts:view'), financeController.getAccountOptions);
-router.get('/accounts', requirePermission('finance:accounts:view'), financeController.getAllAccounts);
-router.post('/accounts', requirePermission('finance:accounts:create'), financeController.createAccount);
-router.get('/accounts/:id', requirePermission('finance:accounts:view'), financeController.getAccountById);
-router.put('/accounts/:id', requirePermission('finance:accounts:update'), financeController.updateAccount);
-router.patch('/accounts/:id/deactivate', requirePermission('finance:accounts:update'), financeController.deactivateAccount);
-router.patch('/accounts/:id/status', requirePermission('finance:accounts:update'), financeController.toggleAccountStatus);
+router.get(
+  '/accounts/options',
+  requirePermission('finance:accounts:view'),
+  financeController.getAccountOptions
+);
+router.get(
+  '/accounts',
+  requirePermission('finance:accounts:view'),
+  financeController.getAllAccounts
+);
+router.post(
+  '/accounts',
+  requirePermission('finance:accounts:create'),
+  financeController.createAccount
+);
+router.get(
+  '/accounts/:id',
+  requirePermission('finance:accounts:view'),
+  financeController.getAccountById
+);
+router.put(
+  '/accounts/:id',
+  requirePermission('finance:accounts:update'),
+  financeController.updateAccount
+);
+router.patch(
+  '/accounts/:id/deactivate',
+  requirePermission('finance:accounts:update'),
+  financeController.deactivateAccount
+);
+router.patch(
+  '/accounts/:id/status',
+  requirePermission('finance:accounts:update'),
+  financeController.toggleAccountStatus
+);
 
 // 期初余额管理
-router.get('/opening-balances', requirePermission('finance:accounts:view'), financeController.getOpeningBalances);
-router.get('/opening-balances/preview', requirePermission('finance:accounts:view'), financeController.previewOpeningBalances);
-router.post('/opening-balances/initialize', requirePermission('finance:accounts:update'), financeController.initializeOpeningBalances);
-router.post('/opening-balances/batch', requirePermission('finance:accounts:update'), financeController.setBatchOpeningBalance);
-router.post('/opening-balances/:id', requirePermission('finance:accounts:update'), financeController.setOpeningBalance);
+router.get(
+  '/opening-balances',
+  requirePermission('finance:accounts:view'),
+  financeController.getOpeningBalances
+);
+router.get(
+  '/opening-balances/preview',
+  requirePermission('finance:accounts:view'),
+  financeController.previewOpeningBalances
+);
+router.post(
+  '/opening-balances/initialize',
+  requirePermission('finance:accounts:update'),
+  financeController.initializeOpeningBalances
+);
+router.post(
+  '/opening-balances/batch',
+  requirePermission('finance:accounts:update'),
+  financeController.setBatchOpeningBalance
+);
+router.post(
+  '/opening-balances/:id',
+  requirePermission('finance:accounts:update'),
+  financeController.setOpeningBalance
+);
 
 // 2. 会计分录管理
 router.get('/entries', requirePermission('finance:entries:view'), financeController.getEntries);
-router.get('/entries/:id', requirePermission('finance:entries:view'), financeController.getEntryById);
-router.get('/entries/:id/items', requirePermission('finance:entries:view'), financeController.getEntryItems);
+router.get(
+  '/entries/:id',
+  requirePermission('finance:entries:view'),
+  financeController.getEntryById
+);
+router.get(
+  '/entries/:id/items',
+  requirePermission('finance:entries:view'),
+  financeController.getEntryItems
+);
 router.post('/entries', requirePermission('finance:entries:create'), financeController.createEntry);
-router.patch('/entries/:id/post', requirePermission('finance:entries:approve'), financeController.postEntry);
-router.post('/entries/:id/reverse', requirePermission('finance:entries:approve'), financeController.reverseEntry);
-router.delete('/entries/:id', requirePermission('finance:entries:delete'), financeController.deleteEntry);
+router.patch(
+  '/entries/:id/post',
+  requirePermission('finance:entries:approve'),
+  financeController.postEntry
+);
+router.post(
+  '/entries/:id/reverse',
+  requirePermission('finance:entries:approve'),
+  financeController.reverseEntry
+);
+router.delete(
+  '/entries/:id',
+  requirePermission('finance:entries:delete'),
+  financeController.deleteEntry
+);
 
 // 3. 会计期间管理
 router.get('/periods', requirePermission('finance:periods:view'), financeController.getAllPeriods);
-router.get('/periods/:id', requirePermission('finance:periods:view'), financeController.getPeriodById);
-router.post('/periods', requirePermission('finance:periods:create'), financeController.createPeriod);
-router.put('/periods/:id', requirePermission('finance:periods:update'), financeController.updatePeriod);
-router.patch('/periods/:id/close', requirePermission('finance:closing:execute'), financeController.closePeriod);
+router.get(
+  '/periods/:id',
+  requirePermission('finance:periods:view'),
+  financeController.getPeriodById
+);
+router.post(
+  '/periods',
+  requirePermission('finance:periods:create'),
+  financeController.createPeriod
+);
+router.put(
+  '/periods/:id',
+  requirePermission('finance:periods:update'),
+  financeController.updatePeriod
+);
+router.patch(
+  '/periods/:id/close',
+  requirePermission('finance:closing:execute'),
+  financeController.closePeriod
+);
 // 反结账与关账同级权限，避免仅有期间维护权限即可抹掉结转凭证
-router.patch('/periods/:id/reopen', requirePermission('finance:closing:execute'), financeController.reopenPeriod);
+router.patch(
+  '/periods/:id/reopen',
+  requirePermission('finance:closing:execute'),
+  financeController.reopenPeriod
+);
 
 // 3. 试算平衡表
-router.get('/gl/trial-balance', requirePermission('finance:reports:view'), financeController.getTrialBalance);
+router.get(
+  '/gl/trial-balance',
+  requirePermission('finance:reports:view'),
+  financeController.getTrialBalance
+);
 
 // 4. 期末结转
-router.get('/gl/closing/preview/:id', requirePermission('finance:closing:view'), financeController.getClosingPreview);
-router.get('/gl/closing/unposted/:id', requirePermission('finance:entries:view'), financeController.getClosingUnpostedEntries);
-router.patch('/gl/closing/unposted-entries/:entryId/dates', requirePermission('finance:entries:update'), financeController.updateClosingUnpostedEntryDates);
-router.post('/gl/closing/execute/:id', requirePermission('finance:closing:execute'), financeController.executeClosing);
-router.get('/gl/closing/unreconciled/:id', requirePermission('finance:cash:reconcile'), financeController.getClosingUnreconciledTransactions);
-router.get('/gl/closing/history/:id', requirePermission('finance:closing:view'), financeController.getClosingHistory);
+router.get(
+  '/gl/closing/preview/:id',
+  requirePermission('finance:closing:view'),
+  financeController.getClosingPreview
+);
+router.get(
+  '/gl/closing/unposted/:id',
+  requirePermission('finance:entries:view'),
+  financeController.getClosingUnpostedEntries
+);
+router.patch(
+  '/gl/closing/unposted-entries/:entryId/dates',
+  requirePermission('finance:entries:update'),
+  financeController.updateClosingUnpostedEntryDates
+);
+router.post(
+  '/gl/closing/execute/:id',
+  requirePermission('finance:closing:execute'),
+  financeController.executeClosing
+);
+router.get(
+  '/gl/closing/unreconciled/:id',
+  requirePermission('finance:cash:reconcile'),
+  financeController.getClosingUnreconciledTransactions
+);
+router.get(
+  '/gl/closing/history/:id',
+  requirePermission('finance:closing:view'),
+  financeController.getClosingHistory
+);
 
 // 应付账款模块路由
 // 1. 应付账款发票管理
-router.get('/ap/invoices/generate-number', requirePermission('finance:ap:create'), apController.generateInvoiceNumber); // 生成发票编号
+router.get(
+  '/ap/invoices/generate-number',
+  requirePermission('finance:ap:create'),
+  apController.generateInvoiceNumber
+); // 生成发票编号
 router.get('/ap/invoices', requirePermission('finance:ap:view'), apController.getInvoices);
-router.get('/ap/invoices/unpaid', requirePermission('finance:ap:view'), apController.getUnpaidInvoices);
-router.get('/ap/invoices/overdue', requirePermission('finance:ap:view'), overdueController.getOverdueAPInvoices);
-router.get('/ap/invoices/:id/edit', requirePermission('finance:ap:update'), apController.getInvoiceForEdit);
+router.get(
+  '/ap/invoices/unpaid',
+  requirePermission('finance:ap:view'),
+  apController.getUnpaidInvoices
+);
+router.get(
+  '/ap/invoices/overdue',
+  requirePermission('finance:ap:view'),
+  overdueController.getOverdueAPInvoices
+);
+router.get(
+  '/ap/invoices/:id/edit',
+  requirePermission('finance:ap:update'),
+  apController.getInvoiceForEdit
+);
 router.get('/ap/invoices/:id', requirePermission('finance:ap:view'), apController.getInvoiceById);
-router.get('/ap/invoices/:id/payments', requirePermission('finance:ap:view'), apController.getInvoicePayments);
+router.get(
+  '/ap/invoices/:id/payments',
+  requirePermission('finance:ap:view'),
+  apController.getInvoicePayments
+);
 router.post('/ap/invoices', requirePermission('finance:ap:create'), apController.createInvoice);
 router.put('/ap/invoices/:id', requirePermission('finance:ap:update'), apController.updateInvoice);
-router.put('/ap/invoices/:id/status', requirePermission('finance:ap:update'), apController.updateInvoiceStatus);
+router.put(
+  '/ap/invoices/:id/status',
+  requirePermission('finance:ap:approve'),
+  apController.updateInvoiceStatus
+);
+router.post(
+  '/ap/payment-approvals',
+  requirePermission('finance:ap:create'),
+  apController.createPaymentApproval
+);
+router.post(
+  '/ap/payment-approvals/:id/approve',
+  requirePermission('finance:ap:approve'),
+  apController.approvePaymentApproval
+);
+router.post(
+  '/ap/payment-approvals/:id/reject',
+  requirePermission('finance:ap:approve'),
+  apController.rejectPaymentApproval
+);
 
 // 2. 付款管理
 router.get('/ap/payments', requirePermission('finance:ap:view'), apController.getPayments);
@@ -140,123 +379,376 @@ router.get('/ap/payments/:id', requirePermission('finance:ap:view'), apControlle
 router.post('/ap/payments', requirePermission('finance:ap:pay'), apController.createPayment);
 router.post('/ap/payments/:id/void', requirePermission('finance:ap:pay'), apController.voidPayment); // 作废付款与付款同级权限
 // 批量付款
-router.post('/ap/payments/batch', requirePermission('finance:ap:pay'), apBatchController.batchPayments);
+router.post(
+  '/ap/payments/batch',
+  requirePermission('finance:ap:pay'),
+  apBatchController.batchPayments
+);
 // AP付款冲销
-router.post('/ap/payments/:id/reverse', requirePermission('finance:ap:pay'), overdueController.reversePayment);
+router.post(
+  '/ap/payments/:id/reverse',
+  requirePermission('finance:ap:pay'),
+  overdueController.reversePayment
+);
 
 // 3. 应付账款分析
-router.get('/ap/settlement-dashboard', requirePermission('finance:ap:view'), apController.getSettlementDashboard);
-router.get('/ap/supplier-payables', requirePermission('finance:reports:view'), apController.getSupplierPayables);
-router.get('/ap/supplier-payables/:id', requirePermission('finance:reports:view'), apController.getSupplierPayablesById);
+router.get(
+  '/ap/settlement-dashboard',
+  requirePermission('finance:ap:view'),
+  apController.getSettlementDashboard
+);
+router.get(
+  '/ap/supplier-payables',
+  requirePermission('finance:reports:view'),
+  apController.getSupplierPayables
+);
+router.get(
+  '/ap/supplier-payables/:id',
+  requirePermission('finance:reports:view'),
+  apController.getSupplierPayablesById
+);
 router.get('/ap/aging', requirePermission('finance:reports:view'), apController.getPayablesAging);
-router.get('/ap/aging/:id', requirePermission('finance:reports:view'), apController.getPayablesAgingById);
+router.get(
+  '/ap/aging/:id',
+  requirePermission('finance:reports:view'),
+  apController.getPayablesAgingById
+);
 
 // 应收账款模块路由
 // 1. 应收账款发票管理
-router.get('/ar/invoices/generate-number', requirePermission('finance:ar:create'), arController.generateInvoiceNumber); // 生成发票编号
+router.get(
+  '/ar/invoices/generate-number',
+  requirePermission('finance:ar:create'),
+  arController.generateInvoiceNumber
+); // 生成发票编号
 router.get('/ar/invoices', requirePermission('finance:ar:view'), arController.getInvoices);
-router.get('/ar/invoices/overdue', requirePermission('finance:ar:view'), overdueController.getOverdueARInvoices);
+router.get(
+  '/ar/invoices/overdue',
+  requirePermission('finance:ar:view'),
+  overdueController.getOverdueARInvoices
+);
 router.get('/ar/invoices/:id', requirePermission('finance:ar:view'), arController.getInvoiceById);
-router.get('/ar/invoices/:id/edit', requirePermission('finance:ar:update'), arController.getInvoiceForEdit);
-router.get('/ar/invoices/:id/payments', requirePermission('finance:ar:view'), arController.getInvoicePayments);
+router.get(
+  '/ar/invoices/:id/edit',
+  requirePermission('finance:ar:update'),
+  arController.getInvoiceForEdit
+);
+router.get(
+  '/ar/invoices/:id/payments',
+  requirePermission('finance:ar:view'),
+  arController.getInvoicePayments
+);
 router.post('/ar/invoices', requirePermission('finance:ar:create'), arController.createInvoice);
 router.put('/ar/invoices/:id', requirePermission('finance:ar:update'), arController.updateInvoice);
-router.put('/ar/invoices/:id/status', requirePermission('finance:ar:update'), arController.updateInvoiceStatus);
+router.put(
+  '/ar/invoices/:id/status',
+  requirePermission('finance:ar:approve'),
+  arController.updateInvoiceStatus
+);
 
 // 2. 收款管理
-router.get('/ar/receipts/generate-number', requirePermission('finance:ar:create'), arController.generateReceiptNumber); // 生成收款编号
-router.get('/ar/receipts/unpaid-invoices', requirePermission('finance:ar:view'), arController.getUnpaidInvoices); // 获取未付清的发票
+router.get(
+  '/ar/receipts/generate-number',
+  requirePermission('finance:ar:create'),
+  arController.generateReceiptNumber
+); // 生成收款编号
+router.get(
+  '/ar/receipts/unpaid-invoices',
+  requirePermission('finance:ar:view'),
+  arController.getUnpaidInvoices
+); // 获取未付清的发票
 router.get('/ar/receipts', requirePermission('finance:ar:view'), arController.getReceipts);
 router.get('/ar/receipts/:id', requirePermission('finance:ar:view'), arController.getReceiptById);
 router.post('/ar/receipts', requirePermission('finance:ar:receive'), arController.createReceipt);
-router.post('/ar/receipts/:id/void', requirePermission('finance:ar:receive'), arController.voidReceipt); // 作废收款与收款同级权限
+router.post(
+  '/ar/receipts/:id/void',
+  requirePermission('finance:ar:receive'),
+  arController.voidReceipt
+); // 作废收款与收款同级权限
 // 批量收款
-router.post('/ar/receipts/batch', requirePermission('finance:ar:receive'), arBatchController.batchReceipts);
+router.post(
+  '/ar/receipts/batch',
+  requirePermission('finance:ar:receive'),
+  arBatchController.batchReceipts
+);
 // AR收款冲销
-router.post('/ar/receipts/:id/reverse', requirePermission('finance:ar:receive'), overdueController.reverseReceipt);
+router.post(
+  '/ar/receipts/:id/reverse',
+  requirePermission('finance:ar:receive'),
+  overdueController.reverseReceipt
+);
 
 // 3. 应收账款分析
-router.get('/ar/settlement-dashboard', requirePermission('finance:ar:view'), arController.getSettlementDashboard);
-router.get('/ar/customer-receivables', requirePermission('finance:reports:view'), arController.getCustomerReceivables);
-router.get('/ar/customer-receivables/:id', requirePermission('finance:reports:view'), arController.getCustomerReceivablesById);
-router.get('/ar/aging', requirePermission('finance:reports:view'), arController.getReceivablesAging);
-router.get('/ar/aging/:id', requirePermission('finance:reports:view'), arController.getReceivablesAgingById);
+router.get(
+  '/ar/settlement-dashboard',
+  requirePermission('finance:ar:view'),
+  arController.getSettlementDashboard
+);
+router.get(
+  '/ar/customer-receivables',
+  requirePermission('finance:reports:view'),
+  arController.getCustomerReceivables
+);
+router.get(
+  '/ar/customer-receivables/:id',
+  requirePermission('finance:reports:view'),
+  arController.getCustomerReceivablesById
+);
+router.get(
+  '/ar/aging',
+  requirePermission('finance:reports:view'),
+  arController.getReceivablesAging
+);
+router.get(
+  '/ar/aging/:id',
+  requirePermission('finance:reports:view'),
+  arController.getReceivablesAgingById
+);
 
 // 固定资产模块路由
 // 1. 固定资产管理
 router.get('/assets', requirePermission('finance:assets:view'), assetsController.getAssets);
 
 // 资产类别管理
-router.get('/assets/categories', requirePermission('finance:assets:view'), assetsController.getAssetCategories);
-router.get('/assets/categories/:id', requirePermission('finance:assets:view'), assetsController.getAssetCategoryById);
-router.post('/assets/categories', requirePermission('finance:assets:create'), assetsController.createAssetCategory);
-router.put('/assets/categories/:id', requirePermission('finance:assets:update'), assetsController.updateAssetCategory);
-router.delete('/assets/categories/:id', requirePermission('finance:assets:delete'), assetsController.deleteAssetCategory);
+router.get(
+  '/assets/categories',
+  requirePermission('finance:assets:view'),
+  assetsController.getAssetCategories
+);
+router.get(
+  '/assets/categories/:id',
+  requirePermission('finance:assets:view'),
+  assetsController.getAssetCategoryById
+);
+router.post(
+  '/assets/categories',
+  requirePermission('finance:assets:create'),
+  assetsController.createAssetCategory
+);
+router.put(
+  '/assets/categories/:id',
+  requirePermission('finance:assets:update'),
+  assetsController.updateAssetCategory
+);
+router.delete(
+  '/assets/categories/:id',
+  requirePermission('finance:assets:delete'),
+  assetsController.deleteAssetCategory
+);
 
 // 基础数据API (供前端用于表单选择)
 // 自动编号生成
-router.get('/assets/generate-code', requirePermission('finance:assets:view'), assetsController.generateAssetCode);
+router.get(
+  '/assets/generate-code',
+  requirePermission('finance:assets:view'),
+  assetsController.generateAssetCode
+);
 
 // 折旧管理
-router.get('/assets/depreciation/records', requirePermission('finance:assets:view'), assetsController.getDepreciationRecords);
-router.get('/assets/depreciation/calculate', requirePermission('finance:assets:execute'), assetsController.calculateBatchDepreciation);
-router.post('/assets/depreciation/submit', requirePermission('finance:assets:execute'), assetsController.submitDepreciation);
-router.get('/assets/depreciation/export', requirePermission('finance:assets:export'), requirePermission(PRICE_EXPORT_PERMISSIONS), assetsController.exportDepreciation);
+router.get(
+  '/assets/depreciation/records',
+  requirePermission('finance:assets:view'),
+  assetsController.getDepreciationRecords
+);
+router.get(
+  '/assets/depreciation/calculate',
+  requirePermission('finance:assets:execute'),
+  assetsController.calculateBatchDepreciation
+);
+router.post(
+  '/assets/depreciation/submit',
+  requirePermission('finance:assets:execute'),
+  assetsController.submitDepreciation
+);
+router.get(
+  '/assets/depreciation/export',
+  requirePermission('finance:assets:export'),
+  requirePermission(PRICE_EXPORT_PERMISSIONS),
+  assetsController.exportDepreciation
+);
 
 // 资产统计
-router.get('/assets/stats', requirePermission('finance:assets:view'), assetsController.getAssetStatistics);
-router.get('/assets/dashboard/stats', requirePermission('finance:assets:view'), assetsController.getDashboardStats);
-
+router.get(
+  '/assets/stats',
+  requirePermission('finance:assets:view'),
+  assetsController.getAssetStatistics
+);
+router.get(
+  '/assets/dashboard/stats',
+  requirePermission('finance:assets:view'),
+  assetsController.getDashboardStats
+);
 
 // 资产看板数据与折旧预测
-router.get('/assets/depreciation/forecast', requirePermission('finance:assets:view'), assetsController.getDepreciationForecast);
+router.get(
+  '/assets/depreciation/forecast',
+  requirePermission('finance:assets:view'),
+  assetsController.getDepreciationForecast
+);
 
 // 资产操作
 router.get('/assets/:id', requirePermission('finance:assets:view'), assetsController.getAssetById);
 router.post('/assets', requirePermission('finance:assets:create'), assetsController.createAsset);
 router.put('/assets/:id', requirePermission('finance:assets:update'), assetsController.updateAsset);
-router.post('/assets/:id/depreciation', requirePermission('finance:assets:execute'), assetsController.calculateDepreciation);
-router.post('/assets/:id/dispose', requirePermission('finance:assets:execute'), assetsController.disposeAsset);
-router.post('/assets/:id/transfer', requirePermission('finance:assets:update'), assetsController.transferAsset);
-router.post('/assets/:id/split', requirePermission('finance:assets:update'), assetsController.splitAsset);
-router.post('/assets/:id/audit', requirePermission('finance:assets:update'), assetsController.auditAsset);
+router.post(
+  '/assets/:id/depreciation',
+  requirePermission('finance:assets:execute'),
+  assetsController.calculateDepreciation
+);
+router.post(
+  '/assets/:id/dispose',
+  requirePermission('finance:assets:execute'),
+  assetsController.disposeAsset
+);
+router.post(
+  '/assets/:id/transfer',
+  requirePermission('finance:assets:update'),
+  assetsController.transferAsset
+);
+router.post(
+  '/assets/:id/split',
+  requirePermission('finance:assets:update'),
+  assetsController.splitAsset
+);
+router.post(
+  '/assets/:id/audit',
+  requirePermission('finance:assets:update'),
+  assetsController.auditAsset
+);
 
 // 资产变动记录与折旧/减值历史
-router.get('/assets/:id/change-logs', requirePermission('finance:assets:view'), assetsController.getAssetChangeLogs);
-router.get('/assets/:id/depreciation-history', requirePermission('finance:assets:view'), assetsController.getDepreciationHistory);
-router.get('/assets/:id/impairments', requirePermission('finance:assets:view'), assetsController.getImpairments);
-router.post('/assets/:id/impairments', requirePermission('finance:assets:update'), assetsController.createImpairment);
+router.get(
+  '/assets/:id/change-logs',
+  requirePermission('finance:assets:view'),
+  assetsController.getAssetChangeLogs
+);
+router.get(
+  '/assets/:id/depreciation-history',
+  requirePermission('finance:assets:view'),
+  assetsController.getDepreciationHistory
+);
+router.get(
+  '/assets/:id/impairments',
+  requirePermission('finance:assets:view'),
+  assetsController.getImpairments
+);
+router.post(
+  '/assets/:id/impairments',
+  requirePermission('finance:assets:update'),
+  assetsController.createImpairment
+);
 
 // 2. 在建工程(CIP)管理
 router.get('/assets-cip', requirePermission('finance:assets:view'), cipController.getCipProjects);
-router.get('/assets-cip/:id', requirePermission('finance:assets:view'), cipController.getCipProjectById);
-router.post('/assets-cip', requirePermission('finance:assets:create'), cipController.createCipProject);
-router.put('/assets-cip/:id', requirePermission('finance:assets:update'), cipController.updateCipProject);
-router.delete('/assets-cip/:id', requirePermission('finance:assets:delete'), cipController.deleteCipProject);
-router.post('/assets-cip/:id/cost', requirePermission('finance:assets:update'), cipController.addCost);
-router.post('/assets-cip/:id/transfer', requirePermission('finance:assets:update'), cipController.transferToFixedAsset);
+router.get(
+  '/assets-cip/:id',
+  requirePermission('finance:assets:view'),
+  cipController.getCipProjectById
+);
+router.post(
+  '/assets-cip',
+  requirePermission('finance:assets:create'),
+  cipController.createCipProject
+);
+router.put(
+  '/assets-cip/:id',
+  requirePermission('finance:assets:update'),
+  cipController.updateCipProject
+);
+router.delete(
+  '/assets-cip/:id',
+  requirePermission('finance:assets:delete'),
+  cipController.deleteCipProject
+);
+router.post(
+  '/assets-cip/:id/cost',
+  requirePermission('finance:assets:update'),
+  cipController.addCost
+);
+router.post(
+  '/assets-cip/:id/transfer',
+  requirePermission('finance:assets:update'),
+  cipController.transferToFixedAsset
+);
 
 // 3. 资产盘点管理
-router.get('/assets-inventory', requirePermission('finance:assets:view'), inventoryController.getInventories);
-router.get('/assets-inventory/:id', requirePermission('finance:assets:view'), inventoryController.getInventoryById);
-router.post('/assets-inventory', requirePermission('finance:assets:create'), inventoryController.createInventory);
-router.put('/assets-inventory/:id/items/:itemId', requirePermission('finance:assets:update'), inventoryController.updateInventoryItem);
-router.post('/assets-inventory/:id/complete', requirePermission('finance:assets:update'), inventoryController.completeInventory);
+router.get(
+  '/assets-inventory',
+  requirePermission('finance:assets:view'),
+  inventoryController.getInventories
+);
+router.get(
+  '/assets-inventory/:id',
+  requirePermission('finance:assets:view'),
+  inventoryController.getInventoryById
+);
+router.post(
+  '/assets-inventory',
+  requirePermission('finance:assets:create'),
+  inventoryController.createInventory
+);
+router.put(
+  '/assets-inventory/:id/items/:itemId',
+  requirePermission('finance:assets:update'),
+  inventoryController.updateInventoryItem
+);
+router.post(
+  '/assets-inventory/:id/complete',
+  requirePermission('finance:assets:update'),
+  inventoryController.completeInventory
+);
 
 // 现金管理模块路由
 // 1. 银行账户管理
-router.get('/bank-accounts', requirePermission('finance:cash:view'), cashController.getBankAccounts);
-router.get('/bank-accounts/stats', requirePermission('finance:cash:view'), cashController.getBankAccountsStats);
-router.get('/bank-accounts/:id', requirePermission('finance:cash:view'), cashController.getBankAccountById);
-router.post('/bank-accounts', requirePermission('finance:cash:create'), cashController.createBankAccount);
-router.put('/bank-accounts/:id', requirePermission('finance:cash:update'), cashController.updateBankAccount);
-router.patch('/bank-accounts/:id/status', requirePermission('finance:cash:update'), cashController.updateBankAccountStatus);
+router.get(
+  '/bank-accounts',
+  requirePermission('finance:cash:view'),
+  cashController.getBankAccounts
+);
+router.get(
+  '/bank-accounts/stats',
+  requirePermission('finance:cash:view'),
+  cashController.getBankAccountsStats
+);
+router.get(
+  '/bank-accounts/:id',
+  requirePermission('finance:cash:view'),
+  cashController.getBankAccountById
+);
+router.post(
+  '/bank-accounts',
+  requirePermission('finance:cash:create'),
+  cashController.createBankAccount
+);
+router.put(
+  '/bank-accounts/:id',
+  requirePermission('finance:cash:update'),
+  cashController.updateBankAccount
+);
+router.patch(
+  '/bank-accounts/:id/status',
+  requirePermission('finance:cash:update'),
+  cashController.updateBankAccountStatus
+);
 
 // 2. 银行交易管理
 // 注意：具体路径必须在参数路径之前定义
-router.get('/bank-transactions/print-data', requirePermission('finance:cash:view'), cashController.getBankTransactionsForPrint);
-router.get('/bank-transactions', requirePermission('finance:cash:view'), cashController.getBankTransactions);
-router.get('/bank-transactions/export', requirePermission('finance:cash:export'), requirePermission(PRICE_EXPORT_PERMISSIONS), cashController.exportBankTransactions);
+router.get(
+  '/bank-transactions/print-data',
+  requirePermission('finance:cash:view'),
+  cashController.getBankTransactionsForPrint
+);
+router.get(
+  '/bank-transactions',
+  requirePermission('finance:cash:view'),
+  cashController.getBankTransactions
+);
+router.get(
+  '/bank-transactions/export',
+  requirePermission('finance:cash:export'),
+  requirePermission(PRICE_EXPORT_PERMISSIONS),
+  cashController.exportBankTransactions
+);
 router.post(
   '/bank-transactions/import',
   requirePermission('finance:cash:create'),
@@ -264,14 +756,57 @@ router.post(
   FileUploadMiddlewares.excel,
   cashController.importBankTransactions
 );
-router.post('/bank-transactions/transfer', requirePermission('finance:cash:create'), cashController.transferFunds);
-router.post('/bank-transactions', requirePermission('finance:cash:create'), cashController.createBankTransaction);
+router.post(
+  '/bank-transactions/transfer',
+  requirePermission('finance:cash:create'),
+  cashController.transferFunds
+);
+router.get(
+  '/bank-transactions/transfer-requests',
+  requirePermission('finance:cash:approve'),
+  cashController.getFundTransferRequests
+);
+router.post(
+  '/bank-transactions/transfers/:id/approve',
+  requirePermission('finance:cash:approve'),
+  cashController.approveFundTransfer
+);
+router.post(
+  '/bank-transactions/transfers/:id/reject',
+  requirePermission('finance:cash:approve'),
+  cashController.rejectFundTransfer
+);
+router.post(
+  '/bank-transactions',
+  requirePermission('finance:cash:create'),
+  cashController.createBankTransaction
+);
 // 参数路由放在最后
-router.get('/bank-transactions/:id', requirePermission('finance:cash:view'), cashController.getBankTransactionById);
-router.put('/bank-transactions/:id', requirePermission('finance:cash:update'), cashController.updateBankTransaction);
-router.delete('/bank-transactions/:id', requirePermission('finance:cash:delete'), cashController.deleteBankTransaction);
-router.post('/bank-transactions/:id/submit', requirePermission('finance:cash:update'), cashController.submitForAudit);
-router.post('/bank-transactions/:id/audit', requirePermission('finance:cash:approve'), cashController.auditTransaction);
+router.get(
+  '/bank-transactions/:id',
+  requirePermission('finance:cash:view'),
+  cashController.getBankTransactionById
+);
+router.put(
+  '/bank-transactions/:id',
+  requirePermission('finance:cash:update'),
+  cashController.updateBankTransaction
+);
+router.delete(
+  '/bank-transactions/:id',
+  requirePermission('finance:cash:delete'),
+  cashController.deleteBankTransaction
+);
+router.post(
+  '/bank-transactions/:id/submit',
+  requirePermission('finance:cash:update'),
+  cashController.submitForAudit
+);
+router.post(
+  '/bank-transactions/:id/audit',
+  requirePermission('finance:cash:approve'),
+  cashController.auditTransaction
+);
 
 // 3. 现金交易管理（已整合到主控制器）
 const {
@@ -286,8 +821,17 @@ const {
 } = require('../middleware/validation/cashTransactionValidation');
 
 // 现金交易路由 - 使用主控制器的现金交易方法
-router.get('/cash-transactions/print-data', requirePermission('finance:cash:view'), cashController.getCashTransactionsForPrint);
-router.get('/cash-transactions', requirePermission('finance:cash:view'), getCashTransactionsValidation, cashController.getCashTransactions);
+router.get(
+  '/cash-transactions/print-data',
+  requirePermission('finance:cash:view'),
+  cashController.getCashTransactionsForPrint
+);
+router.get(
+  '/cash-transactions',
+  requirePermission('finance:cash:view'),
+  getCashTransactionsValidation,
+  cashController.getCashTransactions
+);
 router.get(
   '/cash-transactions/stats',
   requirePermission('finance:cash:view'),
@@ -334,23 +878,63 @@ router.delete(
   cashController.deleteCashTransaction
 );
 // 现金交易审核路由
-router.put('/cash-transactions/:id/submit', requirePermission('finance:cash:update'), cashController.submitCashTransactionForAudit);
-router.put('/cash-transactions/:id/approve', requirePermission('finance:cash:approve'), cashController.approveCashTransaction);
-router.put('/cash-transactions/:id/reject', requirePermission('finance:cash:approve'), cashController.rejectCashTransaction);
-router.post('/cash-transactions/:id/void', requirePermission('finance:cash:approve'), cashController.voidCashTransaction);
+router.put(
+  '/cash-transactions/:id/submit',
+  requirePermission('finance:cash:update'),
+  cashController.submitCashTransactionForAudit
+);
+router.put(
+  '/cash-transactions/:id/approve',
+  requirePermission('finance:cash:approve'),
+  cashController.approveCashTransaction
+);
+router.put(
+  '/cash-transactions/:id/reject',
+  requirePermission('finance:cash:approve'),
+  cashController.rejectCashTransaction
+);
+router.post(
+  '/cash-transactions/:id/void',
+  requirePermission('finance:cash:approve'),
+  cashController.voidCashTransaction
+);
 
 // 银行对账模块路由
-router.get('/cash/reconciliation/unreconciled', requirePermission('finance:cash:reconcile'), cashController.getUnreconciledTransactions);
-router.get('/cash/reconciliation/reconciled', requirePermission('finance:cash:reconcile'), cashController.getReconciledTransactions);
-router.get('/cash/reconciliation/stats', requirePermission('finance:cash:reconcile'), cashController.getReconciliationStats);
-router.get('/cash/reconciliation/matched-transaction', requirePermission('finance:cash:reconcile'), cashController.getMatchedTransactions);
-router.get('/cash/reconciliation/possible-matches', requirePermission('finance:cash:reconcile'), cashController.getPossibleMatchingTransactions);
+router.get(
+  '/cash/reconciliation/unreconciled',
+  requirePermission('finance:cash:reconcile'),
+  cashController.getUnreconciledTransactions
+);
+router.get(
+  '/cash/reconciliation/reconciled',
+  requirePermission('finance:cash:reconcile'),
+  cashController.getReconciledTransactions
+);
+router.get(
+  '/cash/reconciliation/stats',
+  requirePermission('finance:cash:reconcile'),
+  cashController.getReconciliationStats
+);
+router.get(
+  '/cash/reconciliation/matched-transaction',
+  requirePermission('finance:cash:reconcile'),
+  cashController.getMatchedTransactions
+);
+router.get(
+  '/cash/reconciliation/possible-matches',
+  requirePermission('finance:cash:reconcile'),
+  cashController.getPossibleMatchingTransactions
+);
 router.post(
   '/cash/reconciliation/cancel-reconciled',
   requirePermission('finance:cash:reconcile'),
   cashController.cancelTransactionReconciliation
 );
-router.post('/cash/reconciliation/confirm-match', requirePermission('finance:cash:reconcile'), cashController.confirmTransactionMatch);
+router.post(
+  '/cash/reconciliation/confirm-match',
+  requirePermission('finance:cash:reconcile'),
+  cashController.confirmTransactionMatch
+);
 router.post(
   '/cash/reconciliation/import-statement',
   requirePermission('finance:cash:reconcile'),
@@ -359,79 +943,197 @@ router.post(
 );
 
 // 3. 统计相关路由
-router.get('/statistics/cash-flow', requirePermission('finance:reports:view'), cashController.getCashFlowStatistics);
+router.get(
+  '/statistics/cash-flow',
+  requirePermission('finance:reports:view'),
+  cashController.getCashFlowStatistics
+);
 
 // 4. 修复工具路由
-router.post('/cash/fix/recalculate-balances', requirePermission('system:settings:update'), cashController.recalculateBankAccountBalances);
+router.post(
+  '/cash/fix/recalculate-balances',
+  requirePermission('system:settings:update'),
+  cashController.recalculateBankAccountBalances
+);
 
 // 财务报表模块路由（基于真实数据）
 const enhancedReportsController = require('../controllers/common/enhancedReportsController');
 
 // 1. 资产负债表
-router.get('/reports/balance-sheet', requirePermission('finance:reports:view'), enhancedReportsController.getBalanceSheet);
+router.get(
+  '/reports/balance-sheet',
+  requirePermission('finance:reports:view'),
+  enhancedReportsController.getBalanceSheet
+);
 
 // 2. 利润表
-router.get('/reports/income-statement', requirePermission('finance:reports:view'), enhancedReportsController.getIncomeStatement);
+router.get(
+  '/reports/income-statement',
+  requirePermission('finance:reports:view'),
+  enhancedReportsController.getIncomeStatement
+);
 
 // 3. 现金流量表（出纳报表）
-router.get('/reports/cash-flow', requirePermission('finance:reports:view'), enhancedReportsController.getCashFlowStatement);
+router.get(
+  '/reports/cash-flow',
+  requirePermission('finance:reports:view'),
+  enhancedReportsController.getCashFlowStatement
+);
 
 // 4. 标准现金流量表（间接法）
-router.get('/reports/standard-cash-flow', requirePermission('finance:reports:standard-cash-flow:view'), enhancedReportsController.getStandardCashFlowStatement);
+router.get(
+  '/reports/standard-cash-flow',
+  requirePermission('finance:reports:standard-cash-flow:view'),
+  enhancedReportsController.getStandardCashFlowStatement
+);
 
 // 5. 财务报表汇总
-router.get('/reports/summary', requirePermission('finance:reports:view'), enhancedReportsController.getReportsSummary);
-
+router.get(
+  '/reports/summary',
+  requirePermission('finance:reports:view'),
+  enhancedReportsController.getReportsSummary
+);
 
 // 税务模块路由 — 已迁移到 business/finance/taxRoutes.js，由 app.js 挂载到 /api/finance/tax
 
-
 // 预算管理模块路由 — 已迁移到 business/finance/budgetRoutes.js，由 app.js 挂载到 /api/finance/budgets
-
 
 // 5. 产品定价管理
 const pricingExportController = require('../controllers/business/finance/pricingExportController');
 const pricingStrategyController = require('../controllers/business/finance/pricingStrategyController');
 
 // 定价策略字段管理
-router.get('/pricing/strategy-fields', requirePermission('finance:pricing:view'), pricingStrategyController.getStrategyFields);
-router.post('/pricing/strategy-fields', requirePermission('finance:pricing:create'), requirePermission(PRICE_UPDATE_PERMISSIONS), pricingStrategyController.createStrategyField);
-router.put('/pricing/strategy-fields/:id', requirePermission('finance:pricing:update'), requirePermission(PRICE_UPDATE_PERMISSIONS), pricingStrategyController.updateStrategyField);
-router.delete('/pricing/strategy-fields/:id', requirePermission('finance:pricing:delete'), requirePermission(PRICE_UPDATE_PERMISSIONS), pricingStrategyController.deleteStrategyField);
-router.patch('/pricing/strategy-fields/:id/toggle', requirePermission('finance:pricing:update'), requirePermission(PRICE_UPDATE_PERMISSIONS), pricingStrategyController.toggleStrategyField);
+router.get(
+  '/pricing/strategy-fields',
+  requirePermission('finance:pricing:view'),
+  pricingStrategyController.getStrategyFields
+);
+router.post(
+  '/pricing/strategy-fields',
+  requirePermission('finance:pricing:create'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  pricingStrategyController.createStrategyField
+);
+router.put(
+  '/pricing/strategy-fields/:id',
+  requirePermission('finance:pricing:update'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  pricingStrategyController.updateStrategyField
+);
+router.delete(
+  '/pricing/strategy-fields/:id',
+  requirePermission('finance:pricing:delete'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  pricingStrategyController.deleteStrategyField
+);
+router.patch(
+  '/pricing/strategy-fields/:id/toggle',
+  requirePermission('finance:pricing:update'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  pricingStrategyController.toggleStrategyField
+);
 
 // 定价设置 (必须在 /pricing/:productId 之前，否则 settings 会被误匹配为 productId)
-router.get('/pricing/settings', requirePermission('finance:pricing:view'), pricingController.getPricingSettings);
-router.put('/pricing/settings', requirePermission('finance:pricing:update'), requirePermission(PRICE_UPDATE_PERMISSIONS), pricingController.updatePricingSettings);
+router.get(
+  '/pricing/settings',
+  requirePermission('finance:pricing:view'),
+  pricingController.getPricingSettings
+);
+router.put(
+  '/pricing/settings',
+  requirePermission('finance:pricing:update'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  pricingController.updatePricingSettings
+);
 
 // 产品定价
 router.get('/pricing', requirePermission('finance:pricing:view'), pricingController.getPricingList);
-router.post('/pricing', requirePermission('finance:pricing:update'), requirePermission(PRICE_UPDATE_PERMISSIONS), pricingController.createPricing); // 创建产品定价
-router.get('/pricing/export', requirePermission('finance:pricing:export'), requirePermission(PRICE_EXPORT_PERMISSIONS), pricingExportController.exportPricingList); // 导出功能
-router.get('/pricing/calculate-bom/:productId', requirePermission('finance:pricing:view'), pricingController.calculateBomCost); // 必须在 /:productId 之前
-router.get('/pricing/:productId', requirePermission('finance:pricing:view'), pricingController.getPricingDetail); // 获取单个产品定价详情
-router.get('/pricing/:productId/history', requirePermission('finance:pricing:view'), pricingController.getPricingHistory); // 获取产品定价历史
-router.get('/pricing/:productId/bom', requirePermission('finance:pricing:view'), pricingController.getBomDetails); // 获取BOM明细
+router.post(
+  '/pricing',
+  requirePermission('finance:pricing:update'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  pricingController.createPricing
+); // 创建产品定价
+router.get(
+  '/pricing/export',
+  requirePermission('finance:pricing:export'),
+  requirePermission(PRICE_EXPORT_PERMISSIONS),
+  pricingExportController.exportPricingList
+); // 导出功能
+router.get(
+  '/pricing/calculate-bom/:productId',
+  requirePermission('finance:pricing:view'),
+  pricingController.calculateBomCost
+); // 必须在 /:productId 之前
+router.get(
+  '/pricing/:productId',
+  requirePermission('finance:pricing:view'),
+  pricingController.getPricingDetail
+); // 获取单个产品定价详情
+router.get(
+  '/pricing/:productId/history',
+  requirePermission('finance:pricing:view'),
+  pricingController.getPricingHistory
+); // 获取产品定价历史
+router.get(
+  '/pricing/:productId/bom',
+  requirePermission('finance:pricing:view'),
+  pricingController.getBomDetails
+); // 获取BOM明细
 
 // BOM价格调整路由
-router.get('/bom-price-adjustments/:productId', requirePermission('finance:pricing:view'), bomPriceAdjustmentController.getAdjustments); // 获取产品的价格调整列表
-router.post('/bom-price-adjustments', requirePermission('finance:pricing:update'), requirePermission(PRICE_UPDATE_PERMISSIONS), bomPriceAdjustmentController.saveAdjustment); // 保存价格调整
+router.get(
+  '/bom-price-adjustments/:productId',
+  requirePermission('finance:pricing:view'),
+  bomPriceAdjustmentController.getAdjustments
+); // 获取产品的价格调整列表
+router.post(
+  '/bom-price-adjustments',
+  requirePermission('finance:pricing:update'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  bomPriceAdjustmentController.saveAdjustment
+); // 保存价格调整
 router.get(
   '/bom-price-adjustments/:productId/:materialId/history',
   requirePermission('finance:pricing:view'),
   bomPriceAdjustmentController.getAdjustmentHistory
 ); // 获取调整历史
-router.delete('/bom-price-adjustments/:id', requirePermission('finance:pricing:delete'), requirePermission(PRICE_UPDATE_PERMISSIONS), bomPriceAdjustmentController.deleteAdjustment); // 删除调整
+router.delete(
+  '/bom-price-adjustments/:id',
+  requirePermission('finance:pricing:delete'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  bomPriceAdjustmentController.deleteAdjustment
+); // 删除调整
 
 // 逾期检查触发路由（全局）
-router.get('/overdue/check', requirePermission('finance:reports:view'), overdueController.checkOverdueInvoices);
+router.get(
+  '/overdue/check',
+  requirePermission('finance:reports:view'),
+  overdueController.checkOverdueInvoices
+);
 
 // 盈利分析路由 — 使用独立控制器（符合 SRP 原则）
 const profitabilityController = require('../controllers/business/finance/profitabilityController');
 
-router.get('/profitability/summary', requirePermission('finance:reports:view'), profitabilityController.getProfitSummary);
-router.get('/profitability/products', requirePermission('finance:reports:view'), profitabilityController.getProductProfitability);
-router.get('/profitability/customers', requirePermission('finance:reports:view'), profitabilityController.getCustomerProfitability);
-router.get('/profitability/trend', requirePermission('finance:reports:view'), profitabilityController.getProfitTrend);
+router.get(
+  '/profitability/summary',
+  requirePermission('finance:reports:view'),
+  profitabilityController.getProfitSummary
+);
+router.get(
+  '/profitability/products',
+  requirePermission('finance:reports:view'),
+  profitabilityController.getProductProfitability
+);
+router.get(
+  '/profitability/customers',
+  requirePermission('finance:reports:view'),
+  profitabilityController.getCustomerProfitability
+);
+router.get(
+  '/profitability/trend',
+  requirePermission('finance:reports:view'),
+  profitabilityController.getProfitTrend
+);
 
 module.exports = router;

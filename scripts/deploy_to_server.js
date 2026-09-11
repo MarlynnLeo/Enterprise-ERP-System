@@ -233,6 +233,7 @@ set -eu
 TARGET='${REMOTE_PROJECT_DIR}'
 ARCHIVE='${remoteArchive}'
 RELEASE_ID='${descriptor.buildId}'
+RELEASE_TAG="release-$RELEASE_ID"
 export COMPOSE_FILE="$TARGET/docker-compose.yml"
 unset COMPOSE_PATH_SEPARATOR
 INCOMING="$TARGET/.incoming-release-$RELEASE_ID"
@@ -262,7 +263,18 @@ trap cleanup EXIT
 
 test -d "$TARGET"
 test -f "$TARGET/docker-compose.yml"
+test -f "$TARGET/.env"
 command -v rsync >/dev/null
+command -v flock >/dev/null
+
+# A deployment is the only operation allowed to change the live source tree.
+# Serialize releases so a 1Panel action or a second upload cannot interleave
+# rsync, image tagging, and container recreation.
+exec 9>"$TARGET/.deploy.lock"
+flock -n 9 || {
+  echo 'Another ERP deployment is already running; refusing concurrent release.' >&2
+  exit 23
+}
 
 validate_compose_ownership() {
   local cid working_dir config_file
@@ -284,6 +296,11 @@ test -f "$INCOMING/backend/Dockerfile"
 test -f "$INCOMING/frontend/Dockerfile"
 test -f "$INCOMING/mobile/Dockerfile"
 
+if grep -Eq '^[[:space:]]+build:' "$INCOMING/docker-compose.yml"; then
+  echo 'Refusing release: production Compose must use immutable images and cannot define build contexts.' >&2
+  exit 22
+fi
+
 validate_menu_source() {
   local root="$1"
   local sidebar="$root/frontend/src/components/layout/SidebarMenu.vue"
@@ -299,9 +316,20 @@ validate_menu_source() {
 
 validate_menu_source "$INCOMING"
 
-OLD_BACKEND_IMAGE=$(docker compose -f "$TARGET/docker-compose.yml" ps -q backend | xargs -r docker inspect --format '{{.Image}}')
-OLD_FRONTEND_IMAGE=$(docker compose -f "$TARGET/docker-compose.yml" ps -q frontend | xargs -r docker inspect --format '{{.Image}}')
-OLD_MOBILE_IMAGE=$(docker compose -f "$TARGET/docker-compose.yml" ps -q mobile | xargs -r docker inspect --format '{{.Image}}')
+# Read the running image IDs before replacing the Compose file.  The first
+# immutable-image migration may still be starting from the legacy build-based
+# Compose file, so querying the container names is intentionally independent
+# of Compose interpolation.
+OLD_BACKEND_IMAGE=$(docker inspect --format '{{.Image}}' kacon-erp-backend-1 2>/dev/null || true)
+OLD_FRONTEND_IMAGE=$(docker inspect --format '{{.Image}}' kacon-erp-frontend-1 2>/dev/null || true)
+OLD_MOBILE_IMAGE=$(docker inspect --format '{{.Image}}' kacon-erp-mobile-1 2>/dev/null || true)
+OLD_RELEASE_TAG=$(sed -n 's/^ERP_RELEASE_TAG=//p' "$TARGET/.env" | tail -n 1 || true)
+if [ -z "$OLD_RELEASE_TAG" ]; then
+  OLD_RELEASE_TAG="legacy-$RELEASE_ID"
+  [ -z "$OLD_BACKEND_IMAGE" ] || docker tag "$OLD_BACKEND_IMAGE" "kacon-erp-backend:$OLD_RELEASE_TAG"
+  [ -z "$OLD_FRONTEND_IMAGE" ] || docker tag "$OLD_FRONTEND_IMAGE" "kacon-erp-frontend:$OLD_RELEASE_TAG"
+  [ -z "$OLD_MOBILE_IMAGE" ] || docker tag "$OLD_MOBILE_IMAGE" "kacon-erp-mobile:$OLD_RELEASE_TAG"
+fi
 
 tar \
   --exclude='frontend/node_modules' \
@@ -325,6 +353,7 @@ tar \
   -C "$TARGET" docker-compose.yml package.json package-lock.json .gitattributes .gitignore .prettierignore .prettierrc eslint.config.mjs README.md backend frontend mobile scripts
 [ ! -f "$TARGET/.deployed-release.json" ] || \
   install -m 0644 "$TARGET/.deployed-release.json" "$BACKUP_DIR/deployed-release.json"
+install -m 0600 "$TARGET/.env" "$BACKUP_DIR/env-before-$RELEASE_ID"
 
 docker build \
   --pull \
@@ -356,6 +385,10 @@ docker run --rm --entrypoint node "$CANDIDATE_BACKEND" -e \
   "require('fs').accessSync('/app/src/index.js')"
 docker run --rm --entrypoint /bin/sh "$CANDIDATE_MOBILE" -c 'test -f /usr/share/nginx/html/index.html'
 
+docker tag "$CANDIDATE_BACKEND" "kacon-erp-backend:$RELEASE_TAG"
+docker tag "$CANDIDATE_FRONTEND" "kacon-erp-frontend:$RELEASE_TAG"
+docker tag "$CANDIDATE_MOBILE" "kacon-erp-mobile:$RELEASE_TAG"
+
 sync_source_tree() {
   local directory="$1"
   rsync -a --delete \
@@ -379,9 +412,17 @@ for root_file in docker-compose.yml package.json package-lock.json .gitattribute
 done
 printf '%s' '${manifest}' | base64 -d > "$TARGET/.deployed-release.json"
 
-docker tag "$CANDIDATE_BACKEND" kacon-erp-backend:latest
-docker tag "$CANDIDATE_FRONTEND" kacon-erp-frontend:latest
-docker tag "$CANDIDATE_MOBILE" kacon-erp-mobile:latest
+set_release_tag() {
+  local release_tag="$1"
+  if grep -q '^ERP_RELEASE_TAG=' "$TARGET/.env"; then
+    sed -i "s/^ERP_RELEASE_TAG=.*/ERP_RELEASE_TAG=$release_tag/" "$TARGET/.env"
+  else
+    printf '\nERP_RELEASE_TAG=%s\n' "$release_tag" >> "$TARGET/.env"
+  fi
+  chmod 600 "$TARGET/.env"
+}
+
+set_release_tag "$RELEASE_TAG"
 cd "$TARGET"
 docker compose -f "$TARGET/docker-compose.yml" config --quiet
 docker compose -f "$TARGET/docker-compose.yml" run --rm --no-deps backend npm run migrate
@@ -425,6 +466,12 @@ if ! health_check backend || ! health_check frontend || ! health_check mobile; t
   else
     rm -f "$TARGET/.deployed-release.json"
   fi
+  if [ -f "$BACKUP_DIR/env-before-$RELEASE_ID" ]; then
+    install -m 0600 "$BACKUP_DIR/env-before-$RELEASE_ID" "$TARGET/.env"
+  fi
+  [ -z "$OLD_BACKEND_IMAGE" ] || docker tag "$OLD_BACKEND_IMAGE" "kacon-erp-backend:$OLD_RELEASE_TAG"
+  [ -z "$OLD_FRONTEND_IMAGE" ] || docker tag "$OLD_FRONTEND_IMAGE" "kacon-erp-frontend:$OLD_RELEASE_TAG"
+  [ -z "$OLD_MOBILE_IMAGE" ] || docker tag "$OLD_MOBILE_IMAGE" "kacon-erp-mobile:$OLD_RELEASE_TAG"
   [ -z "$OLD_BACKEND_IMAGE" ] || docker tag "$OLD_BACKEND_IMAGE" kacon-erp-backend:latest
   [ -z "$OLD_FRONTEND_IMAGE" ] || docker tag "$OLD_FRONTEND_IMAGE" kacon-erp-frontend:latest
   [ -z "$OLD_MOBILE_IMAGE" ] || docker tag "$OLD_MOBILE_IMAGE" kacon-erp-mobile:latest
@@ -435,6 +482,11 @@ fi
 CID=$(docker compose -f "$TARGET/docker-compose.yml" ps -q frontend)
 DEPLOYED_BUILD=$(docker exec "$CID" cat /usr/share/nginx/html/version.json | cut -d '"' -f4)
 test "$DEPLOYED_BUILD" = "$RELEASE_ID"
+for service in backend frontend mobile; do
+  cid=$(docker compose -f "$TARGET/docker-compose.yml" ps -q "$service")
+  image=$(docker inspect --format '{{.Config.Image}}' "$cid")
+  test "$image" = "kacon-erp-$service:$RELEASE_TAG"
+done
 docker compose -f "$TARGET/docker-compose.yml" ps
 echo "Deployed ERP release: $RELEASE_ID"
 `;
