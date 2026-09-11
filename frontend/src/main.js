@@ -45,6 +45,7 @@ import './assets/stat-cards.css'
 import permissionDirective from './directives/permission'
 import { setupErrorReporter } from '@/utils/errorReporter'
 import { setupReleaseRecovery } from '@/utils/releaseRecovery'
+import { startOperationColumnAutoWidth } from '@/plugins/operationColumnAutoWidth'
 
 setupReleaseRecovery()
 
@@ -134,4 +135,5 @@ themeReady
   })
   .finally(() => {
     app.mount('#app')
+    startOperationColumnAutoWidth(document.body)
   })
