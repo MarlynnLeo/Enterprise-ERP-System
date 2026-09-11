@@ -110,6 +110,11 @@ elif args[0] == 'run':
         output(json.dumps(dict(buildId=release, performanceContract=2)))
 elif args[0] == 'compose':
     command = args[3]
+    if command == 'run':
+        assert '-T' in args and '--interactive=false' in args
+        # A release is streamed over stdin; migrations must see EOF, never
+        # the shell commands that switch containers and verify the release.
+        assert sys.stdin.read() == ''
     if command == 'run' and scenario == 'migration' and selected_tag() == new_tag:
         sys.exit(1)
     if command == 'up':

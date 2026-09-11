@@ -254,7 +254,9 @@ cd "$TARGET"
 docker compose -f "$TARGET/docker-compose.yml" config --quiet
 PHASE=migration
 record_state running
-docker compose -f "$TARGET/docker-compose.yml" run --rm --no-deps backend npm run migrate
+# The orchestrator streams this script over SSH stdin. Never let the one-off
+# container consume the remaining deployment commands or request a TTY.
+docker compose -f "$TARGET/docker-compose.yml" run -T --interactive=false --rm --no-deps backend npm run migrate </dev/null
 PHASE=container-switch
 record_state running
 docker compose -f "$TARGET/docker-compose.yml" up -d --force-recreate --remove-orphans
