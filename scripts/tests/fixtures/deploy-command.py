@@ -25,9 +25,10 @@ def image(ref):
     return state['images'].get(ref) or next((v for v in state['images'].values() if v['id'] == ref), None)
 
 
-def selected_tag():
-    return next(line.split('=', 1)[1] for line in (target / '.env').read_text().splitlines()
-                if line.startswith('ERP_RELEASE_TAG='))
+def selected_tag(service='backend'):
+    values = dict(line.split('=', 1) for line in (target / '.env').read_text().splitlines() if '=' in line)
+    default = os.environ.get('ERP_RELEASE_TAG') or values['ERP_RELEASE_TAG']
+    return (os.environ.get('ERP_FRONTEND_RELEASE_TAG') or values.get('ERP_FRONTEND_RELEASE_TAG') or default) if service == 'frontend' else default
 
 
 def output(value):
@@ -72,7 +73,7 @@ elif args[0] == 'inspect':
     elif 'config_files' in fmt:
         output(os.environ['ERP_TEST_POSIX_TARGET'] + '/docker-compose.yml')
     elif 'State.Health' in fmt:
-        output('unhealthy' if scenario == 'health' and tag == new_tag else 'healthy')
+        output('unhealthy' if scenario in ['health', 'frontend-health'] and tag == new_tag else 'healthy')
     elif fmt == '{{.Config.Image}}':
         output('kacon-erp-' + service + ':' + tag)
     elif fmt == '{{.Image}}':
@@ -109,13 +110,17 @@ elif args[0] == 'run':
     if args[args.index('--entrypoint') + 1] == 'cat':
         output(json.dumps(dict(buildId=release, performanceContract=2)))
 elif args[0] == 'compose':
-    command = args[3]
+    command = next(value for value in args if value in ['config', 'run', 'up', 'ps'])
+    if command == 'config' and '--images' in args:
+        output('\n'.join('kacon-erp-' + service + ':' + selected_tag(service) for service in services))
     if command == 'run':
         assert '-T' in args and '--interactive=false' in args
         # A release is streamed over stdin; migrations must see EOF, never
         # the shell commands that switch containers and verify the release.
         assert sys.stdin.read() == ''
-    if command == 'run' and scenario == 'migration' and selected_tag() == new_tag:
+        if scenario == 'missing-migrations' and 'node' in args:
+            sys.exit(1)
+    if command == 'run' and 'npm' in args and scenario == 'migration' and selected_tag() == new_tag:
         sys.exit(1)
     if command == 'up':
         tag = selected_tag()
@@ -123,7 +128,9 @@ elif args[0] == 'compose':
             state['containers']['backend'] = tag
             save()
             sys.exit(1)
-        state['containers'] = {service: tag for service in services}
+        affected = ['frontend'] if '--no-deps' in args else services
+        for service in affected:
+            state['containers'][service] = selected_tag(service)
         save()
     if command == 'ps' and '-q' in args:
         output('kacon-erp-' + args[-1] + '-1')

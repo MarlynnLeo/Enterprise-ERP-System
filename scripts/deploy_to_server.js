@@ -11,10 +11,11 @@ const PROJECT_DIR = path.resolve(__dirname, '..');
 const REMOTE_PROJECT_DIR = '/opt/1panel/docker/compose/KACON-ERP';
 
 function parseArguments(args) {
-  const options = { ref: 'HEAD', explicitRef: false, dryRun: false };
+  const options = { ref: 'HEAD', explicitRef: false, dryRun: false, frontendOnly: false };
   for (let index = 0; index < args.length; index++) {
     const argument = args[index];
     if (argument === '--dry-run') options.dryRun = true;
+    else if (argument === '--frontend-only') options.frontendOnly = true;
     else if (argument === '--ref' || argument.startsWith('--ref=')) {
       options.ref = argument === '--ref' ? args[++index] : argument.slice(6);
       if (!options.ref) throw new Error('--ref requires a Git commit or ref.');
@@ -106,7 +107,7 @@ const shellQuote = (value) => "'" + String(value).replace(/'/g, "'\"'\"'") + "'"
 function createRemoteScript(descriptor, deployed, runId, remoteArchive) {
   const manifest = {
     ...descriptor,
-    services: ['backend', 'frontend', 'mobile'],
+    services: descriptor.services || ['backend', 'frontend', 'mobile'],
     previousBuildId: deployed?.buildId || null,
     deployedAt: new Date().toISOString()
   };
@@ -114,6 +115,7 @@ function createRemoteScript(descriptor, deployed, runId, remoteArchive) {
     TARGET: REMOTE_PROJECT_DIR,
     ARCHIVE: remoteArchive,
     RELEASE_ID: descriptor.buildId,
+    RELEASE_SCOPE: descriptor.services?.join(',') === 'frontend' ? 'frontend' : 'all',
     SOURCE_HASH: descriptor.sourceHash,
     GIT_COMMIT: descriptor.commit,
     ARCHIVE_SHA256: descriptor.archiveSha256,
@@ -135,7 +137,9 @@ async function main(args = process.argv.slice(2)) {
     snapshot = createSourceSnapshot({ projectDir: PROJECT_DIR, ...options });
     await validateReleaseSource(snapshot.sourceDir);
     const descriptor = snapshot.descriptor;
+    descriptor.services = options.frontendOnly ? ['frontend'] : ['backend', 'frontend', 'mobile'];
     console.log('Release: ' + descriptor.buildId);
+    console.log('Services: ' + descriptor.services.join(', '));
     console.log('Git commit: ' + descriptor.commit);
     console.log('Verified source files: ' + descriptor.fileCount);
     if (descriptor.excludedWorkingTreeChanges) {

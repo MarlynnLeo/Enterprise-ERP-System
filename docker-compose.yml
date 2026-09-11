@@ -97,7 +97,7 @@ services:
       start_period: 30s
 
   frontend:
-    image: kacon-erp-frontend:${ERP_RELEASE_TAG:?ERP_RELEASE_TAG is required}
+    image: kacon-erp-frontend:${ERP_FRONTEND_RELEASE_TAG:-${ERP_RELEASE_TAG:?ERP_RELEASE_TAG is required}}
     restart: unless-stopped
     ports:
       # LAN ERP UI (internal). Prefer fronting with 1Panel/nginx TLS in production.

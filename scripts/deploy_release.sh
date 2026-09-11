@@ -17,6 +17,11 @@ export COMPOSE_FILE="$TARGET/docker-compose.yml"
 unset COMPOSE_PATH_SEPARATOR
 
 RELEASE_TAG="release-$RELEASE_ID"
+case "$RELEASE_SCOPE" in
+  all) SELECTED_SERVICES=(backend frontend mobile); SOURCE_DIRECTORIES=(backend frontend mobile scripts) ;;
+  frontend) SELECTED_SERVICES=(frontend); SOURCE_DIRECTORIES=(frontend scripts) ;;
+  *) echo 'Unknown release scope.' >&2; exit 2 ;;
+esac
 INCOMING="$TARGET/.incoming-release-$RUN_ID"
 BACKUP_DIR="$TARGET/.deploy-backups/$RUN_ID"
 ROLLBACK_DIR="$TARGET/.rollback-release-$RUN_ID"
@@ -35,14 +40,26 @@ SWITCH_STARTED=0
 export PHASE=validation
 ROLLBACK_STATUS=not-needed
 
+compose() {
+  docker compose --project-directory "$TARGET" --env-file "$TARGET/.env" -f "$TARGET/docker-compose.yml" "$@"
+}
+
+switch_containers() {
+  if [ "$RELEASE_SCOPE" = frontend ]; then
+    compose up -d --no-deps --force-recreate frontend
+  else
+    compose up -d --force-recreate --remove-orphans
+  fi
+}
+
 record_state() {
-  python3 - "$TARGET/.last-deployment.json" "$RELEASE_ID" "$1" "$PHASE" "$ROLLBACK_STATUS" "$EXPECTED_BUILD_ID" "$RUN_ID" <<'PY'
+  python3 - "$TARGET/.last-deployment.json" "$RELEASE_ID" "$1" "$PHASE" "$ROLLBACK_STATUS" "$EXPECTED_BUILD_ID" "$RUN_ID" "$RELEASE_SCOPE" <<'PY'
 import datetime, json, os, sys
-target, build, status, phase, rollback, previous, run = sys.argv[1:]
+target, build, status, phase, rollback, previous, run, scope = sys.argv[1:]
 temporary = target + '.tmp-' + run
 with open(temporary, 'w') as output:
     json.dump(dict(buildId=build, previousBuildId=previous, status=status,
-                   phase=phase, rollback=rollback,
+                   phase=phase, rollback=rollback, scope=scope,
                    updatedAt=datetime.datetime.now(datetime.timezone.utc).isoformat()), output, indent=2)
 os.replace(temporary, target)
 PY
@@ -66,7 +83,7 @@ copy_root_files() {
 
 health_check() {
   local service="$1" cid health
-  cid=$(docker compose -f "$TARGET/docker-compose.yml" ps -q "$service")
+  cid=$(compose ps -q "$service")
   test -n "$cid" || return 1
   for _ in $(seq 1 45); do
     health=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$cid")
@@ -82,7 +99,7 @@ rollback_release() {
   echo "Restoring the previous ERP release after failure in $PHASE." >&2
   mkdir -p "$ROLLBACK_DIR" || return 1
   tar -xzf "$BACKUP_DIR/source.tar.gz" -C "$ROLLBACK_DIR" || return 1
-  for directory in backend frontend mobile scripts; do
+  for directory in "${SOURCE_DIRECTORIES[@]}"; do
     sync_directory "$ROLLBACK_DIR" "$directory" || return 1
   done
   copy_root_files "$ROLLBACK_DIR" || return 1
@@ -92,10 +109,12 @@ rollback_release() {
   else
     rm -f -- "$TARGET/.deployed-release.json" || return 1
   fi
-  docker tag "$OLD_BACKEND_IMAGE" "kacon-erp-backend:$OLD_RELEASE_TAG" || return 1
-  docker tag "$OLD_FRONTEND_IMAGE" "kacon-erp-frontend:$OLD_RELEASE_TAG" || return 1
-  docker tag "$OLD_MOBILE_IMAGE" "kacon-erp-mobile:$OLD_RELEASE_TAG" || return 1
-  docker compose -f "$TARGET/docker-compose.yml" up -d --force-recreate --remove-orphans || return 1
+  docker tag "$OLD_FRONTEND_IMAGE" "$OLD_FRONTEND_REF" || return 1
+  if [ "$RELEASE_SCOPE" = all ]; then
+    docker tag "$OLD_BACKEND_IMAGE" "$OLD_BACKEND_REF" || return 1
+    docker tag "$OLD_MOBILE_IMAGE" "$OLD_MOBILE_REF" || return 1
+  fi
+  switch_containers || return 1
   for service in backend frontend mobile redis; do health_check "$service" || return 1; done
 }
 
@@ -160,14 +179,15 @@ if grep -Eq '<el-(menu|sub-menu|menu-item)([[:space:]>]|-)|default-openeds|colla
   exit 20
 fi
 
-OLD_RELEASE_TAG=$(sed -n 's/^ERP_RELEASE_TAG=//p' "$TARGET/.env" | tail -n 1)
-test -n "$OLD_RELEASE_TAG"
 OLD_BACKEND_IMAGE=$(docker inspect --format '{{.Image}}' kacon-erp-backend-1)
 OLD_FRONTEND_IMAGE=$(docker inspect --format '{{.Image}}' kacon-erp-frontend-1)
 OLD_MOBILE_IMAGE=$(docker inspect --format '{{.Image}}' kacon-erp-mobile-1)
-for service in backend frontend mobile; do
-  running_image=$(docker inspect --format '{{.Config.Image}}' "kacon-erp-$service-1")
-  test "$running_image" = "kacon-erp-$service:$OLD_RELEASE_TAG"
+OLD_BACKEND_REF=$(docker inspect --format '{{.Config.Image}}' kacon-erp-backend-1)
+OLD_FRONTEND_REF=$(docker inspect --format '{{.Config.Image}}' kacon-erp-frontend-1)
+OLD_MOBILE_REF=$(docker inspect --format '{{.Config.Image}}' kacon-erp-mobile-1)
+COMPOSE_IMAGES=$(compose config --images)
+for running_image in "$OLD_BACKEND_REF" "$OLD_FRONTEND_REF" "$OLD_MOBILE_REF"; do
+  printf '%s\n' "$COMPOSE_IMAGES" | grep -Fx -- "$running_image" >/dev/null
 done
 
 build_image() {
@@ -194,7 +214,7 @@ build_image() {
       -t "$candidate" "$INCOMING/$service"
   fi
 }
-for service in backend frontend mobile; do build_image "$service"; done
+for service in "${SELECTED_SERVICES[@]}"; do build_image "$service"; done
 
 PHASE=candidate-validation
 record_state running
@@ -206,10 +226,12 @@ docker run --rm --entrypoint /bin/sh "kacon-erp-frontend:candidate-$RUN_ID" -c '
 '
 docker run --rm --entrypoint cat "kacon-erp-frontend:candidate-$RUN_ID" /usr/share/nginx/html/version.json |
   python3 -c 'import json,sys; v=json.load(sys.stdin); assert v["buildId"]==sys.argv[1] and v["performanceContract"]==2' "$RELEASE_ID"
-docker run --rm --entrypoint node "kacon-erp-backend:candidate-$RUN_ID" -e "require('fs').accessSync('/app/src/index.js')"
-docker run --rm --entrypoint /bin/sh "kacon-erp-mobile:candidate-$RUN_ID" -c 'test -f /usr/share/nginx/html/index.html'
+if [ "$RELEASE_SCOPE" = all ]; then
+  docker run --rm --entrypoint node "kacon-erp-backend:candidate-$RUN_ID" -e "require('fs').accessSync('/app/src/index.js')"
+  docker run --rm --entrypoint /bin/sh "kacon-erp-mobile:candidate-$RUN_ID" -c 'test -f /usr/share/nginx/html/index.html'
+fi
 
-for service in backend frontend mobile; do
+for service in "${SELECTED_SERVICES[@]}"; do
   image="kacon-erp-$service:$RELEASE_TAG"
   candidate="kacon-erp-$service:candidate-$RUN_ID"
   if docker image inspect "$image" >/dev/null 2>&1; then
@@ -219,6 +241,20 @@ for service in backend frontend mobile; do
   fi
 done
 
+# Validate the candidate against the current database before any live write.
+# A database migrated by other ongoing work must not trigger a container
+# restart or be silently downgraded by this release.
+if [ "$RELEASE_SCOPE" = all ]; then
+  PHASE=migration-preflight
+  record_state running
+  ERP_RELEASE_TAG="$RELEASE_TAG" compose run -T --interactive=false --rm --no-deps backend node -e '
+    const knex = require("knex")(require("./knexfile")["production"]);
+    knex.migrate.list().then(() => knex.destroy()).catch(async error => {
+      console.error(error.message); await knex.destroy(); process.exitCode = 1;
+    });
+  ' </dev/null
+fi
+
 PHASE=backup
 record_state running
 tar \
@@ -226,7 +262,7 @@ tar \
   --exclude='*/logs' --exclude='*/backups' --exclude='*/uploads' \
   --exclude='*/.env' --exclude='*/.env.*' \
   -czf "$BACKUP_DIR/source.tar.gz" -C "$TARGET" \
-  docker-compose.yml package.json package-lock.json .gitattributes .gitignore .prettierignore .prettierrc eslint.config.mjs README.md backend frontend mobile scripts
+  docker-compose.yml package.json package-lock.json .gitattributes .gitignore .prettierignore .prettierrc eslint.config.mjs README.md "${SOURCE_DIRECTORIES[@]}"
 install -m 0600 "$TARGET/.env" "$BACKUP_DIR/env"
 if [ -f "$TARGET/.deployed-release.json" ]; then
   install -m 0644 "$TARGET/.deployed-release.json" "$BACKUP_DIR/manifest.json"
@@ -237,29 +273,32 @@ fi
 PHASE=source-switch
 SWITCH_STARTED=1
 record_state running
-for directory in backend frontend mobile scripts; do sync_directory "$INCOMING" "$directory"; done
+for directory in "${SOURCE_DIRECTORIES[@]}"; do sync_directory "$INCOMING" "$directory"; done
 copy_root_files "$INCOMING"
-python3 - "$TARGET/.env" "$RELEASE_TAG" "$RUN_ID" <<'PY'
+python3 - "$TARGET/.env" "$RELEASE_TAG" "$RUN_ID" "$RELEASE_SCOPE" <<'PY'
 import os, sys
-target, tag, run = sys.argv[1:]
-lines = [line for line in open(target).read().splitlines() if not line.startswith('ERP_RELEASE_TAG=')]
+target, tag, run, scope = sys.argv[1:]
+keys = ['ERP_FRONTEND_RELEASE_TAG='] + (['ERP_RELEASE_TAG='] if scope == 'all' else [])
+lines = [line for line in open(target).read().splitlines() if not any(line.startswith(key) for key in keys)]
 temporary = target + '.release-' + run
 with open(temporary, 'w') as output:
-    output.write('\n'.join(lines + ['ERP_RELEASE_TAG=' + tag]) + '\n')
+    output.write('\n'.join(lines + [key + tag for key in keys]) + '\n')
 os.chmod(temporary, 0o600)
 os.replace(temporary, target)
 PY
 
 cd "$TARGET"
-docker compose -f "$TARGET/docker-compose.yml" config --quiet
-PHASE=migration
-record_state running
-# The orchestrator streams this script over SSH stdin. Never let the one-off
-# container consume the remaining deployment commands or request a TTY.
-docker compose -f "$TARGET/docker-compose.yml" run -T --interactive=false --rm --no-deps backend npm run migrate </dev/null
+compose config --quiet
+if [ "$RELEASE_SCOPE" = all ]; then
+  PHASE=migration
+  record_state running
+  # The orchestrator streams this script over SSH stdin. Never let the one-off
+  # container consume the remaining deployment commands or request a TTY.
+  compose run -T --interactive=false --rm --no-deps backend npm run migrate </dev/null
+fi
 PHASE=container-switch
 record_state running
-docker compose -f "$TARGET/docker-compose.yml" up -d --force-recreate --remove-orphans
+switch_containers
 PHASE=health-verification
 record_state running
 for service in backend frontend mobile redis; do health_check "$service"; done
@@ -269,16 +308,42 @@ record_state running
 curl -fsS --max-time 10 http://127.0.0.1:18081/version.json |
   python3 -c 'import json,sys; v=json.load(sys.stdin); assert v["buildId"]==sys.argv[1] and v["performanceContract"]==2' "$RELEASE_ID"
 for service in backend frontend mobile; do
-  cid=$(docker compose -f "$TARGET/docker-compose.yml" ps -q "$service")
-  test "$(docker inspect --format '{{.Config.Image}}' "$cid")" = "kacon-erp-$service:$RELEASE_TAG"
-  test "$(docker inspect --format '{{.Image}}' "$cid")" = "$(docker image inspect --format '{{.Id}}' "kacon-erp-$service:$RELEASE_TAG")"
+  cid=$(compose ps -q "$service")
+  expected_ref="kacon-erp-$service:$RELEASE_TAG"
+  if [ "$RELEASE_SCOPE" = frontend ]; then
+    case "$service" in
+      backend) expected_ref="$OLD_BACKEND_REF" ;;
+      mobile) expected_ref="$OLD_MOBILE_REF" ;;
+    esac
+  fi
+  actual_ref=$(docker inspect --format '{{.Config.Image}}' "$cid")
+  actual_id=$(docker inspect --format '{{.Image}}' "$cid")
+  test "$actual_ref" = "$expected_ref"
+  test "$actual_id" = "$(docker image inspect --format '{{.Id}}' "$expected_ref")"
+  if [ "$RELEASE_SCOPE" = frontend ]; then
+    case "$service" in
+      backend) test "$actual_id" = "$OLD_BACKEND_IMAGE" ;;
+      mobile) test "$actual_id" = "$OLD_MOBILE_IMAGE" ;;
+    esac
+  fi
+  printf '%s\t%s\t%s\n' "$service" "$actual_ref" "$actual_id" >> "$BACKUP_DIR/service-images.tsv"
 done
 
-printf '%s' "$MANIFEST_BASE64" | base64 -d > "$TARGET/.deployed-release.json.tmp-$RUN_ID"
+python3 - "$TARGET/.deployed-release.json.tmp-$RUN_ID" "$BACKUP_DIR/service-images.tsv" "$MANIFEST_BASE64" <<'PY'
+import base64, json, sys
+target, images, encoded = sys.argv[1:]
+manifest = json.loads(base64.b64decode(encoded))
+manifest['serviceImages'] = {}
+for line in open(images):
+    service, image, image_id = line.strip().split('\t')
+    manifest['serviceImages'][service] = dict(image=image, imageId=image_id)
+with open(target, 'w') as output:
+    json.dump(manifest, output, indent=2)
+PY
 chmod 644 "$TARGET/.deployed-release.json.tmp-$RUN_ID"
 mv -- "$TARGET/.deployed-release.json.tmp-$RUN_ID" "$TARGET/.deployed-release.json"
 PHASE=complete
 record_state succeeded
 SWITCH_STARTED=0
-docker compose -f "$TARGET/docker-compose.yml" ps
+compose ps
 echo "Deployed and verified ERP release: $RELEASE_ID"
