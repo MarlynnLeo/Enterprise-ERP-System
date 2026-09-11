@@ -102,7 +102,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="status" label="状态" min-width="140" show-overflow-tooltip>
+        <el-table-column prop="status" label="状态" min-width="100" show-overflow-tooltip>
           <template #default="scope">
             <el-tag :type="getOutboundStatusDisplay(scope.row).type" class="mr-xs">
               {{ getOutboundStatusDisplay(scope.row).text }}
@@ -116,7 +116,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="数量" min-width="90" show-overflow-tooltip>
+        <el-table-column label="数量" width="70" show-overflow-tooltip>
           <template #default="scope">
             <!--
               确定性判断（基于 outboundType 字段，零推断）：
