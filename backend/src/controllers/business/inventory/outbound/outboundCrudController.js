@@ -50,11 +50,22 @@ const OUTBOUND_DISPLAY_STATUS_SQL = `CASE
   ELSE o.status
 END`;
 
-const getOutboundDisplayStatusText = (outbound) => (
-  outbound.finance_status === 'approved' && ['completed', 'partial_completed'].includes(outbound.status)
-    ? '已审核'
-    : getStatusText(outbound.status)
-);
+const OUTBOUND_FINANCE_STATUS_TEXT = Object.freeze({
+  approved: '财务已审',
+  pending: '待财务审',
+  rejected: '财务驳回',
+});
+
+const getOutboundDisplayStatusText = (outbound) => {
+  if (
+    ['completed', 'partial_completed'].includes(outbound.status)
+    && OUTBOUND_FINANCE_STATUS_TEXT[outbound.finance_status]
+  ) {
+    return OUTBOUND_FINANCE_STATUS_TEXT[outbound.finance_status];
+  }
+
+  return getStatusText(outbound.status);
+};
 
 const getOutboundList = async (req, res) => {
   try {

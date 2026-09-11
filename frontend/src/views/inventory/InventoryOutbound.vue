@@ -104,14 +104,8 @@
 
         <el-table-column prop="status" label="状态" min-width="140" show-overflow-tooltip>
           <template #default="scope">
-            <el-tag :type="getStatusType(scope.row.status)" class="mr-xs">
-              {{ getStatusText(scope.row.status) }}
-            </el-tag>
-            <el-tag v-if="['completed', 'partial_completed'].includes(scope.row.status) && scope.row.financeStatus"
-              :type="getFinanceStatusTagType(scope.row.financeStatus)"
-              size="small"
-              effect="plain">
-              {{ getFinanceStatusText(scope.row.financeStatus) }}
+            <el-tag :type="getOutboundStatusDisplay(scope.row).type" class="mr-xs">
+              {{ getOutboundStatusDisplay(scope.row).text }}
             </el-tag>
           </template>
         </el-table-column>
@@ -689,6 +683,7 @@ import {
 import TableRowActions from '@/components/common/TableRowActions.vue'
 import { useDictionaryStore } from '@/stores/dictionary'
 import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue'
+import { getOutboundDisplayStatus as resolveOutboundDisplayStatus } from '@/utils/inventory/outboundDisplayStatus'
 export default {
   name: 'InventoryOutbound',
   components: {
@@ -832,19 +827,11 @@ export default {
       return getInboundOutboundStatusText(status)
     }
 
-    const getFinanceStatusText = (status) => {
-      if (status === 'approved') return '财务已审'
-      if (status === 'pending') return '待财务审'
-      if (status === 'rejected') return '财务驳回'
-      return status || ''
-    }
+    const getOutboundStatusDisplay = (row) => resolveOutboundDisplayStatus(row, (status) => ({
+      text: getStatusText(status),
+      type: getStatusType(status),
+    }))
 
-    const getFinanceStatusTagType = (status) => {
-      if (status === 'approved') return 'success'
-      if (status === 'pending') return 'warning'
-      if (status === 'rejected') return 'danger'
-      return 'info'
-    }
     const outboundTypeAliases = {
       supplement: 'supplement',
       exchange: 'exchange',
@@ -2428,6 +2415,7 @@ export default {
       formatDate,
       getStatusType,
       getStatusText,
+      getOutboundStatusDisplay,
       getOutboundTypeText,
       getOutboundTypeTag,
       getCountdownText,
@@ -2457,8 +2445,6 @@ export default {
       clearSelection,
       handleBatchPrint,
       cancellingOutboundId,
-      getFinanceStatusText,
-      getFinanceStatusTagType,
       authStore,
       inventoryApprovalPanelRef,
       handleResubmitOutbound,

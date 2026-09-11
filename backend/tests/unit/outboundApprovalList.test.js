@@ -109,8 +109,8 @@ describe('outbound approval list, detail and export', () => {
     const { data } = res.json.mock.calls[0][0];
     expect(data.total).toBe(23);
     expect(data.list).toEqual([
-      expect.objectContaining({ id: 1, status: 'completed', statusText: '已审核', financeStatus: 'approved', totalQuantity: 8 }),
-      expect.objectContaining({ id: 2, status: 'partial_completed', statusText: '已审核', financeStatus: 'approved' }),
+      expect.objectContaining({ id: 1, status: 'completed', statusText: '财务已审', financeStatus: 'approved', totalQuantity: 8 }),
+      expect.objectContaining({ id: 2, status: 'partial_completed', statusText: '财务已审', financeStatus: 'approved' }),
       expect.objectContaining({ id: 3, status: 'draft', financeStatus: null }),
       expect.objectContaining({ id: 4, status: 'reversed', statusText: '已冲销', financeStatus: 'approved' }),
       expect.objectContaining({ id: 5, status: 'cancelled', statusText: '已取消', financeStatus: 'approved' }),
@@ -189,7 +189,7 @@ describe('outbound approval list, detail and export', () => {
     expect(res.json.mock.calls[0][0].data).toEqual(expect.objectContaining({
       id: 9,
       status: 'completed',
-      statusText: '已审核',
+      statusText: '财务已审',
       financeStatus: 'approved',
     }));
     expectLatestMovementJoin(connection.execute.mock.calls[0][0]);
@@ -234,11 +234,11 @@ describe('outbound approval list, detail and export', () => {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(res.send.mock.calls[0][0]);
     const sheet = workbook.getWorksheet('出库单');
-    expect(sheet.getCell('C2').value).toBe('已审核');
-    expect(sheet.getCell('C3').value).toBe('已审核');
+    expect(sheet.getCell('C2').value).toBe('财务已审');
+    expect(sheet.getCell('C3').value).toBe('财务已审');
     if (!status) {
-      expect(sheet.getCell('C4').value).toBe('已完成');
-      expect(sheet.getCell('C5').value).toBe('已完成');
+      expect(sheet.getCell('C4').value).toBe('待财务审');
+      expect(sheet.getCell('C5').value).toBe('财务驳回');
       expect(sheet.getCell('C6').value).toBe('草稿');
       expect(sheet.getCell('C7').value).toBe('已冲销');
       expect(sheet.getCell('C8').value).toBe('已冲销');
@@ -262,7 +262,7 @@ describe('outbound approval list, detail and export', () => {
     await workbook.xlsx.load(res.send.mock.calls[0][0]);
     const sheet = workbook.getWorksheet('出库单');
     expect(sheet.rowCount).toBe(3);
-    expect(sheet.getCell('C2').value).toBe('已完成');
+    expect(sheet.getCell('C2').value).toBe('待财务审');
     expect(sheet.getCell('C3').value).toBe('已完成');
   });
 });
