@@ -23,12 +23,8 @@ const collectVueFiles = (directory) => {
 export function validateOperationColumnSource({ main, router }) {
   const errors = []
 
-  if (!/import\s+\{\s*startOperationColumnAutoWidth\s*\}\s+from\s+['"]@\/plugins\/operationColumnAutoWidth['"]/.test(main)) {
-    errors.push('main.js must import startOperationColumnAutoWidth from the shared plugin')
-  }
-
-  if (!/app\.mount\(['"]#app['"]\)\s*\n\s*startOperationColumnAutoWidth\(document\.body\)/.test(main)) {
-    errors.push('main.js must start operation-column sizing immediately after app.mount')
+  if (/operationColumnAutoWidth|startOperationColumnAutoWidth/.test(main)) {
+    errors.push('main.js must not install a global operation-column observer')
   }
 
   if (/operationColumnAutoWidth|startOperationColumnAutoWidth/.test(router)) {
@@ -56,6 +52,9 @@ export function validateOperationColumnMarkers(root = frontendRoot) {
       }
       if (!/\bheader-class-name\s*=\s*['"]operation-column-header['"]/.test(tag)) {
         errors.push(`${path.relative(root, filePath)} operation column must use header-class-name="operation-column-header"`)
+      }
+      if (!/\b(?:width|min-width)\s*=/.test(tag)) {
+        errors.push(`${path.relative(root, filePath)} operation column must declare width or min-width`)
       }
     }
   }
