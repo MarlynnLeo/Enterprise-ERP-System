@@ -6,77 +6,70 @@
  */
 
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, shallowRef } from 'vue'
 import { getBrowserLanguage } from '@/utils/language'
-import { ElMessage } from 'element-plus/es/components/message/index'
-import 'element-plus/es/components/message/style/css'
 
-// Element Plus 语言包
+// Chinese is the default locale. Other Element Plus locale bundles are only
+// downloaded when the user selects them.
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
-import en from 'element-plus/dist/locale/en.mjs'
-import ko from 'element-plus/dist/locale/ko.mjs'
+
+const elementLocaleLoaders = {
+  'zh-CN': () => Promise.resolve(zhCn),
+  en: () => import('element-plus/dist/locale/en.mjs').then((module) => module.default),
+  ko: () => import('element-plus/dist/locale/ko.mjs').then((module) => module.default)
+}
+
+const elementLocaleCache = new Map([['zh-CN', zhCn]])
+
+const loadElementLocale = async (langCode) => {
+  if (elementLocaleCache.has(langCode)) return elementLocaleCache.get(langCode)
+
+  const locale = await elementLocaleLoaders[langCode]()
+  elementLocaleCache.set(langCode, locale)
+  return locale
+}
 
 export const useLanguageStore = defineStore('language', () => {
   // 当前语言
   const currentLanguage = ref(localStorage.getItem('language') || 'zh-CN')
 
   // Element Plus 语言配置
-  const elementLocale = ref(zhCn)
+  const elementLocale = shallowRef(zhCn)
 
   // 支持的语言列表
   const supportedLanguages = [
     {
       code: 'zh-CN',
-      name: '中文',
-      elementLocale: zhCn
+      name: '中文'
     },
     {
       code: 'en',
-      name: 'English',
-      elementLocale: en
+      name: 'English'
     },
     {
       code: 'ko',
-      name: '한국어',
-      elementLocale: ko
+      name: '한국어'
     }
   ]
 
   // 初始化语言设置
   const initLanguage = () => {
     const savedLanguage = localStorage.getItem('language')
-    if (!savedLanguage) {
-      const browserLang = getBrowserLanguage()
-      setLanguage(browserLang)
-    } else {
-      setLanguage(savedLanguage)
-    }
+    return setLanguage(savedLanguage || getBrowserLanguage())
   }
 
   // 设置语言
-  const setLanguage = (langCode) => {
+  const setLanguage = async (langCode) => {
     const language = supportedLanguages.find(lang => lang.code === langCode)
-    if (language) {
-      currentLanguage.value = langCode
-      elementLocale.value = language.elementLocale
-      localStorage.setItem('language', langCode)
+    if (!language) return false
 
-      // 更新 HTML lang 属性
-      document.documentElement.lang = langCode
-    }
-  }
+    elementLocale.value = await loadElementLocale(langCode)
+    currentLanguage.value = langCode
+    localStorage.setItem('language', langCode)
 
-  // 切换语言
-  const switchLanguage = (langCode) => {
-    setLanguage(langCode)
-
-    // 显示切换成功消息 - 使用固定文本，因为在store中无法使用useI18n
-    const messages = {
-      'zh-CN': '语言切换成功',
-      'en': 'Language switched successfully',
-      'ko': '언어가 성공적으로 변경되었습니다'
-    }
-    ElMessage.success(messages[langCode] || messages['zh-CN'])
+    // 更新 HTML lang 属性
+    document.documentElement.lang = langCode
+    return true
   }
 
   // 获取当前语言信息
@@ -96,7 +89,6 @@ export const useLanguageStore = defineStore('language', () => {
     supportedLanguages,
     initLanguage,
     setLanguage,
-    switchLanguage,
     getCurrentLanguageInfo,
     getLanguageName
   }

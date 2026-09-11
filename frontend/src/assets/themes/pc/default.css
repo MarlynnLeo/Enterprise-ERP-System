@@ -268,7 +268,7 @@
 /* 加载遮罩 */
 :root[data-theme="default"] .el-loading-mask {
   background-color: color-mix(in srgb, var(--ds-white, #fff) 90%, transparent);
-  backdrop-filter: blur(8px);
+  backdrop-filter: none;
 }
 
 :root[data-theme="default"] .el-loading-spinner .circular {

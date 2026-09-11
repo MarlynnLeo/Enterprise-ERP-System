@@ -316,8 +316,9 @@ const handleAvatarFrame = () => {
   router.push('/profile?tab=avatar-frame')
 }
 // 语言切换
-const switchLanguage = (langCode) => {
-  languageStore.setLanguage(langCode)
+const switchLanguage = async (langCode) => {
+  const changed = await languageStore.setLanguage(langCode)
+  if (!changed) return
   // 更新i18n的locale
   locale.value = langCode
   // 显示切换成功消息

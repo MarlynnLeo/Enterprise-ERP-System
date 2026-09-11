@@ -221,7 +221,7 @@ html.dark[data-theme] .el-loading-mask,
 [data-theme="tech"] .el-loading-mask,
 [data-theme="premium"] .el-loading-mask {
   background-color: color-mix(in srgb, var(--color-bg-page) 88%, transparent) !important;
-  backdrop-filter: blur(4px);
+  backdrop-filter: none;
 }
 
 html.dark[data-theme] .el-loading-spinner .circular,

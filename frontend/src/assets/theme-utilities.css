@@ -776,9 +776,9 @@ html.perf-low-end {
   --shadow-xl: 0 2px 8px color-mix(in srgb, var(--color-text-primary) 12%, transparent);
   --theme-dialog-shadow: 0 4px 16px color-mix(in srgb, var(--color-text-primary) 12%, transparent);
   --theme-status-shadow: none;
-  --transition-fast: 0.1s ease;
-  --transition-base: 0.14s ease;
-  --transition-slow: 0.18s ease;
+  --transition-fast: 0.1s;
+  --transition-base: 0.14s;
+  --transition-slow: 0.18s;
 }
 
 html.perf-low-end *,

@@ -143,6 +143,8 @@ describe('theme system', () => {
   test('startup mounts even when theme initialization rejects', () => {
     const main = readFileSync(resolve(process.cwd(), 'src/main.js'), 'utf8')
 
+    expect(main).toMatch(/languageReady\.catch\(/)
     expect(main).toMatch(/themeReady\s*\.catch\([\s\S]*?\)\s*\.finally\(/)
+    expect(main).toMatch(/\.finally\(\(\)\s*=>\s*\{\s*app\.mount\(['"]#app['"]\)/)
   })
 })

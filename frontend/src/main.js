@@ -97,7 +97,7 @@ app.use(i18n)
 app.use(router)
 
 const languageStore = useLanguageStore(pinia)
-languageStore.initLanguage()
+const languageReady = languageStore.initLanguage()
 
 const themeStore = useThemeStore(pinia)
 const themeReady = themeStore.initTheme()
@@ -123,6 +123,10 @@ app.component('FinanceQueryCard', defineAsyncComponent(() => import('./component
 app.component('PageHeader', defineAsyncComponent(() => import('./components/ui/PageHeader.vue')))
 app.component('EmptyState', defineAsyncComponent(() => import('./components/ui/EmptyState.vue')))
 app.component('AppDialog', defineAsyncComponent(() => import('./components/ui/AppDialog.vue')))
+
+languageReady.catch((error) => {
+  console.error('Language initialization failed:', error)
+})
 
 themeReady
   .catch((error) => {

@@ -123,11 +123,12 @@
   --shadow-glow-warning: 0 2px 10px rgba(217, 119, 6, 0.2);
   --shadow-glow-danger: 0 2px 10px rgba(220, 38, 38, 0.2);
 
-  /* KACON 玻璃层：低透明度和低模糊，避免 ERP 页面发灰、掉帧 */
+  /* KACON surfaces stay translucent without compositor blur. Large persistent
+     backdrop filters repaint the full sidebar/header on every menu update. */
   --kacon-glass-bg: rgba(255, 255, 255, 0.9);
   --kacon-glass-bg-strong: rgba(255, 255, 255, 0.97);
   --kacon-glass-border: color-mix(in srgb, var(--color-border-base) 78%, transparent);
-  --kacon-glass-filter: blur(10px) saturate(1.08);
+  --kacon-glass-filter: none;
 
   /* ========== 过渡系统 ========== */
   --transition-fast: 0.15s;
@@ -552,8 +553,8 @@
 
 [data-theme="kacon"] .el-loading-mask {
   background-color: rgba(255, 255, 255, 0.72) !important;
-  backdrop-filter: blur(8px) !important;
-  -webkit-backdrop-filter: blur(8px) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 

@@ -15,7 +15,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@element-plus/icons-vue": "^2.3.2",
+    "@element-plus/icons-vue": "2.3.2",
     "@vue-office/docx": "^1.6.3",
     "@vue-office/excel": "^1.7.14",
     "axios": "^1.17.0",
@@ -23,7 +23,7 @@
     "dayjs": "^1.11.10",
     "dompurify": "^3.4.13",
     "echarts": "^6.1.0",
-    "element-plus": "^2.4.2",
+    "element-plus": "2.14.5",
     "exceljs": "^4.4.0",
     "handlebars": "^4.7.8",
     "html2pdf.js": "^0.14.0",
