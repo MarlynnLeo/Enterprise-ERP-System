@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ "${ALLOW_DIRECT_SOURCE_DEPLOY:-}" != "1" ]]; then
+  echo "Direct server-source deployment is disabled. Use scripts/deploy_to_server.js from the canonical Git workspace." >&2
+  echo "For an explicit emergency release, rerun with ALLOW_DIRECT_SOURCE_DEPLOY=1." >&2
+  exit 24
+fi
+
 PROJECT_DIR="${PROJECT_DIR:-/opt/1panel/docker/compose/KACON-ERP}"
 PUBLIC_URL="${PUBLIC_URL:-https://erp.kacon.ai}"
 
