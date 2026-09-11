@@ -388,6 +388,14 @@
 }
 
 /* Compact, theme-aware table operation buttons. */
+.operation-column .el-button,
+.operation-column .el-link,
+.operation-column .el-dropdown {
+  /* Preserve intrinsic action widths so the shared sizing service can read
+     the live row once, without inserting a hidden copy of every button. */
+  flex-shrink: 0;
+}
+
 .table-actions,
 .operation-buttons,
 .operation-btns,

@@ -101,10 +101,7 @@ html.dark .app-shell {
 .logo-container .title,
 .app-menu .app-menu-label,
 .app-menu .app-menu-arrow {
-  transition:
-    opacity 120ms ease,
-    transform 120ms ease,
-    color 150ms ease;
+  transition: color 150ms ease;
 }
 .sidebar-menu {
   flex: 1 1 auto;
@@ -215,7 +212,7 @@ html.dark .app-shell {
   margin-left: 4px;
   color: var(--el-text-color-secondary);
   font-size: 12px;
-  transition: transform 120ms ease;
+  transition: none;
 }
 .app-menu-title.is-opened .app-menu-arrow {
   transform: rotate(90deg);
@@ -438,19 +435,6 @@ html.dark .app-shell {
 html.perf-low-end .sidebar,
 html.perf-reduced-motion .sidebar {
   transition: none !important;
-}
-/* Width changes now happen in one layout pass; only text/icon opacity is
-   animated. This prevents a 180 ms full-page reflow on weak clients. */
-html .sidebar.is-resizing,
-html .app-sidebar.is-resizing {
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  box-shadow: none !important;
-}
-.sidebar.is-resizing .logo-container .title,
-.sidebar.is-resizing .app-menu .app-menu-label,
-.sidebar.is-resizing .app-menu .app-menu-arrow {
-  transition-property: opacity, transform, color !important;
 }
 .sidebar.is-mini .sidebar-menu {
   width: 100%;

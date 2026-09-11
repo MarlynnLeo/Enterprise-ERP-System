@@ -23,31 +23,40 @@ export const createReleaseReloader = ({
   now = () => Date.now(),
   cooldownMs = DEFAULT_RELOAD_COOLDOWN_MS
 }) => {
+  let lastReloadAt = 0
   return () => {
     const timestamp = now()
+    if (lastReloadAt > 0 && timestamp - lastReloadAt < cooldownMs) return false
 
     try {
       const previous = Number(storage?.getItem(RELOAD_STORAGE_KEY) || 0)
       if (previous > 0 && timestamp - previous < cooldownMs) return false
       storage?.setItem(RELOAD_STORAGE_KEY, String(timestamp))
     } catch {
-      // Storage can be unavailable in restricted browser modes. Reload once anyway.
+      // Keep the in-memory cooldown even if storage is unavailable.
     }
 
+    lastReloadAt = timestamp
     reload()
     return true
   }
 }
 
-export const fetchReleaseVersion = async ({ fetchImpl, cacheBust = Date.now() }) => {
-  const response = await fetchImpl(`/version.json?v=${cacheBust}`, {
-    cache: 'no-store',
-    credentials: 'same-origin'
-  })
-  if (!response.ok) return null
-
-  const payload = await response.json()
-  return typeof payload?.buildId === 'string' ? payload.buildId : null
+export const fetchReleaseVersion = async ({ fetchImpl, cacheBust = Date.now(), timeoutMs = 8000 }) => {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const response = await fetchImpl(`/version.json?v=${cacheBust}`, {
+      cache: 'no-store',
+      credentials: 'same-origin',
+      signal: controller.signal
+    })
+    if (!response.ok) return null
+    const payload = await response.json()
+    return typeof payload?.buildId === 'string' && payload.buildId.trim() ? payload.buildId : null
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 export const setupReleaseRecovery = ({
@@ -57,7 +66,10 @@ export const setupReleaseRecovery = ({
   documentRef = typeof document === 'undefined' ? null : document,
   fetchImpl = typeof fetch === 'undefined' ? null : fetch
 } = {}) => {
-  if (!windowRef || !documentRef || !fetchImpl) return () => {}
+  if (!windowRef || !documentRef || !fetchImpl || buildId === 'development') return () => {}
+
+  let pendingCheck = null
+  let disposed = false
 
   let storage = null
   try {
@@ -71,15 +83,18 @@ export const setupReleaseRecovery = ({
     reload: () => windowRef.location.reload()
   })
 
-  const checkVersion = async () => {
-    if (documentRef.visibilityState === 'hidden') return
-
-    try {
-      const latestBuildId = await fetchReleaseVersion({ fetchImpl })
-      if (latestBuildId && latestBuildId !== buildId) reloadLatest()
-    } catch {
-      // A transient network failure must not interrupt normal ERP usage.
-    }
+  const checkVersion = () => {
+    if (disposed || documentRef.visibilityState === 'hidden') return Promise.resolve()
+    if (pendingCheck) return pendingCheck
+    pendingCheck = fetchReleaseVersion({ fetchImpl })
+      .then((latestBuildId) => {
+        if (!disposed && latestBuildId && latestBuildId !== buildId) reloadLatest()
+      })
+      .catch(() => {
+        // A transient network failure must not interrupt normal ERP usage.
+      })
+      .finally(() => { pendingCheck = null })
+    return pendingCheck
   }
 
   const handlePreloadError = (event) => {
@@ -103,8 +118,12 @@ export const setupReleaseRecovery = ({
   documentRef.addEventListener('visibilitychange', handleVisibilityChange)
 
   const timer = windowRef.setInterval(checkVersion, checkIntervalMs)
+  // An already-focused tab loading cached HTML otherwise kept old code for
+  // five minutes, until a focus change or the first interval tick.
+  void checkVersion()
 
   return () => {
+    disposed = true
     windowRef.removeEventListener('vite:preloadError', handlePreloadError)
     windowRef.removeEventListener('unhandledrejection', handleUnhandledRejection)
     windowRef.removeEventListener('focus', checkVersion)

@@ -14,8 +14,7 @@
       class="sidebar app-sidebar"
       :class="{
         collapsed: sidebarCollapsed,
-        'is-mini': isSidebarMenuCollapsed,
-        'is-resizing': sidebarResizing
+        'is-mini': isSidebarMenuCollapsed
       }"
     >
       <div class="logo-container">
@@ -31,10 +30,10 @@
         <sidebar-menu
           v-if="dynamicMenuTree.length > 0"
           :menus="dynamicMenuTree"
-          :open-chain="openMenuChain"
+          :open-chain="defaultOpeneds"
           :active-path="activeMenu"
           :mini="isSidebarMenuCollapsed"
-          @toggle="toggleMenuBranch"
+          @expand="expandSidebar"
           @navigate="navigateToMenu"
         />
       </nav>
@@ -133,14 +132,12 @@
       </el-header>
 
       <!-- 内容区 -->
-      <el-main class="main-content">
-        <router-view />
-      </el-main>
+      <LayoutContent />
     </el-container>
   </el-container>
 </template>
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../stores/auth'
@@ -152,6 +149,7 @@ import ThemeSelector from '../components/common/ThemeSelector.vue'
 import NotificationCenter from '../components/NotificationCenter.vue'
 import MenuSearch from '../components/common/MenuSearch.vue'
 import SidebarMenu from '../components/layout/SidebarMenu.vue'
+import LayoutContent from '../components/layout/LayoutContent.vue'
 import DecorativeAvatarFrame from './auth/components/DecorativeAvatarFrame.vue'
 import { usePermissionStore } from '../stores/permissionStore'
 import { userApi } from '../api/user'
@@ -174,12 +172,8 @@ const { t, locale } = useI18n()
 const authStore = useAuthStore()
 const languageStore = useLanguageStore()
 const permissionStore = usePermissionStore()
-const sidebarCollapsed = ref(false)
-const sidebarMini = ref(false)
-const sidebarResizing = ref(false)
-const isMobile = ref(false)
-let sidebarResizeTimer = null
-let sidebarToggleFrame = 0
+const isMobile = ref(window.innerWidth <= 768)
+const sidebarCollapsed = ref(isMobile.value)
 // 动态菜单树
 const dynamicMenuTree = computed(() => permissionStore.preparedMenuTree)
 // 加载动态菜单（使用新的用户菜单API，返回已过滤的树形结构）
@@ -209,24 +203,10 @@ const activeMenu = computed(() => {
 const defaultOpeneds = computed(() => {
   return menuNavigationState.value.openeds || []
 })
-const openMenuChain = ref([])
-const isSidebarMenuCollapsed = computed(() => !isMobile.value && sidebarMini.value)
-const syncRouteOpenMenus = () => {
-  if (isSidebarMenuCollapsed.value) return
-  openMenuChain.value = defaultOpeneds.value.slice()
-}
-watch(
-  () => [route.path, dynamicMenuTree.value, isSidebarMenuCollapsed.value],
-  syncRouteOpenMenus,
-  { flush: 'post' }
-)
-const toggleMenuBranch = (index, parentChain = []) => {
-  const current = openMenuChain.value
-  const position = current.indexOf(index)
-  openMenuChain.value = position >= 0 ? current.slice(0, position) : [...parentChain, index]
-}
+const isSidebarMenuCollapsed = computed(() => !isMobile.value && sidebarCollapsed.value)
 const navigateToMenu = (path) => {
   if (path && path !== route.path) router.push(path).catch(() => {})
+  if (isMobile.value) sidebarCollapsed.value = true
 }
 
 // 用户信息
@@ -243,70 +223,19 @@ const activeAvatarFrame = computed(() => {
 const handleAvatarError = (failedAvatar) => {
   authStore.clearInvalidAvatar(failedAvatar)
 }
-const clearSidebarToggleSchedule = () => {
-  if (sidebarResizeTimer) {
-    window.clearTimeout(sidebarResizeTimer)
-    sidebarResizeTimer = null
-  }
-  if (sidebarToggleFrame) {
-    window.cancelAnimationFrame(sidebarToggleFrame)
-    sidebarToggleFrame = 0
-  }
-}
-const scheduleSidebarFrame = (callback) => {
-  if (sidebarToggleFrame) {
-    window.cancelAnimationFrame(sidebarToggleFrame)
-  }
-  sidebarToggleFrame = window.requestAnimationFrame(() => {
-    sidebarToggleFrame = 0
-    callback()
-  })
-}
 const syncMobileLayout = () => {
-  isMobile.value = window.innerWidth <= 768
-  if (isMobile.value) {
-    clearSidebarToggleSchedule()
-    sidebarCollapsed.value = true
-    sidebarMini.value = false
-    sidebarResizing.value = false
-  } else if (sidebarCollapsed.value) {
-    sidebarMini.value = true
-  } else {
-    sidebarMini.value = false
-  }
+  const mobile = window.innerWidth <= 768
+  if (mobile === isMobile.value) return
+  isMobile.value = mobile
+  sidebarCollapsed.value = mobile
 }
-const endSidebarToggle = () => {
-  sidebarResizeTimer = null
-  sidebarResizing.value = false
-}
-const scheduleSidebarToggleEnd = (delay = 140) => {
-  if (sidebarResizeTimer) {
-    window.clearTimeout(sidebarResizeTimer)
-  }
-  sidebarResizeTimer = window.setTimeout(endSidebarToggle, delay)
-}
-// 切换侧边栏
+// Native menu geometry changes in a single Vue update. The old frame/timer
+// sequence was needed by the removed Element Plus menu and repainted twice.
 const toggleSidebar = () => {
-  if (isMobile.value) {
-    sidebarCollapsed.value = !sidebarCollapsed.value
-    return
-  }
-
-  clearSidebarToggleSchedule()
-  sidebarResizing.value = true
-
-  if (sidebarCollapsed.value) {
-    sidebarCollapsed.value = false
-    scheduleSidebarFrame(() => {
-      sidebarMini.value = false
-    })
-    scheduleSidebarToggleEnd(220)
-    return
-  }
-
-  sidebarMini.value = true
-  sidebarCollapsed.value = true
-  scheduleSidebarToggleEnd(220)
+  sidebarCollapsed.value = !sidebarCollapsed.value
+}
+const expandSidebar = () => {
+  if (sidebarCollapsed.value) toggleSidebar()
 }
 // 用户操作
 const handleProfile = () => {
@@ -343,14 +272,13 @@ const handleLogout = () => {
 // 确保在组件挂载时加载用户信息和权限
 onMounted(async () => {
   syncMobileLayout()
-  window.addEventListener('resize', syncMobileLayout)
+  window.addEventListener('resize', syncMobileLayout, { passive: true })
 
   // 权限与用户信息已由路由守卫统一预加载，此处仅按需挂载动态菜单
   await loadDynamicMenus()
 })
 onBeforeUnmount(() => {
   window.removeEventListener('resize', syncMobileLayout)
-  clearSidebarToggleSchedule()
 })
 </script>
 <style scoped>

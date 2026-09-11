@@ -155,11 +155,31 @@ cp .env.docker.example .env
 ```powershell
 $env:DEPLOY_SERVER_HOST='192.168.1.251'
 $env:DEPLOY_SERVER_USER='guiyi'
-$env:DEPLOY_SSH_PRIVATE_KEY=(Get-Content $env:USERPROFILE\.ssh\id_ed25519_deploy -Raw)
+$env:DEPLOY_SSH_KEY_PATH="$env:USERPROFILE\.ssh\id_ed25519_deploy"
+node scripts/deploy_to_server.js --dry-run
 node scripts/deploy_to_server.js
 ```
 
-部署脚本会构建候选镜像、执行迁移、原子更新发布标签并验证容器健康状态。
+部署归档只从 Git 提交生成，构建期间的工作区修改不会混入发布。默认要求发布目录干净；
+若工作区还有其他未完成工作，可以明确使用 `--ref=<已审核提交>`，只发布该提交。
+`--allow-dirty` 和服务器直接源码构建入口已停用。
+
+每次发布会校验归档 SHA-256、服务器当前版本与 Git 祖先关系；旧提交、分叉提交、
+并发发布和预检后服务器版本发生变化的发布会被拒绝。同一发布号的镜像只构建一次，
+再次执行会复用已校验镜像。前端构建必须通过菜单、列宽和缓存恢复的回归测试。
+
+所有候选镜像验证通过后才切换源码和发布标签。切换过程中的迁移、容器启动、健康检查
+或版本核验失败，会恢复上一次源码、环境文件、发布清单和原镜像，并记录失败阶段。
+数据库迁移仍遵循向前兼容规则，不自动逆向迁移业务数据。
+
+服务器状态文件：
+
+- `.deployed-release.json`：已成功发布的 Git 提交、源码指纹和构建号。
+- `.last-deployment.json`：最近一次发布的结果、失败阶段和恢复结果。
+- `.deploy-backups/<运行号>/`：失败后保留的恢复资料，目录仅部署用户可读。
+
+GitHub CD 只发布明确版本的镜像，不再写入会被较慢旧流水线覆盖的 `latest` 标签。
+HTML 和版本清单禁止缓存，带哈希的资源继续长期缓存。
 
 ### 3. 执行迁移
 
@@ -184,11 +204,17 @@ curl http://127.0.0.1:18081/api/health
 }
 ```
 
-1Panel 场景可参考 `scripts/deploy_1panel.sh`，项目目录通常为：
+1Panel 的正式项目目录固定为：
 
 ```text
 /opt/1panel/docker/compose/KACON-ERP
 ```
+
+`scripts/deploy_1panel.sh` 只保留停用提示，不能再从服务器上的旧源码重建镜像。
+重启服务应保持当前 `ERP_RELEASE_TAG`；更新代码统一使用本地 Git 快照发布入口。
+
+发布工具回归测试：`npm run test:release`。它在临时目录中模拟失败与恢复，不连接业务服务。
+Windows 可通过 `ERP_TEST_PYTHON` 指定 Python 3 可执行文件，`ERP_TEST_BASH` 指定 Git Bash。
 
 ---
 

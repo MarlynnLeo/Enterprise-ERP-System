@@ -80,7 +80,7 @@ const releaseVersion = (buildId) => ({
     this.emitFile({
       type: 'asset',
       fileName: 'version.json',
-      source: JSON.stringify({ buildId })
+      source: JSON.stringify({ buildId, performanceContract: 2 })
     })
   }
 })
@@ -113,7 +113,9 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const apiTarget = env.VITE_API_TARGET || 'http://localhost:8080'
   const enableLegacy = mode === 'legacy' || env.VITE_LEGACY_BUILD === 'true'
-  const buildId = process.env.APP_BUILD_ID || env.APP_BUILD_ID || new Date().toISOString()
+  const buildId = mode === 'development'
+    ? 'development'
+    : process.env.APP_BUILD_ID || env.APP_BUILD_ID || new Date().toISOString()
 
   return {
     plugins: [

@@ -27,6 +27,10 @@ export function validateMenuSource({ sidebarMenu, layout }) {
     errors.push('SidebarMenu.vue must render the native app-menu-list tree')
   }
 
+  if (!/data-sidebar-performance=["']2["']/.test(sidebarMenu)) {
+    errors.push('SidebarMenu.vue must declare the verified sidebar performance contract (version 2)')
+  }
+
   const files = [
     ['SidebarMenu.vue', sidebarMenu],
     ['Layout.vue', layout]
@@ -74,6 +78,10 @@ export function validateMenuBuild(distDir) {
 
   if (!contents.some(({ content }) => /\bapp-menu-list\b/.test(content))) {
     errors.push('Build output does not contain the native app-menu-list marker')
+  }
+
+  if (!contents.some(({ content }) => /data-sidebar-performance/.test(content))) {
+    errors.push('Build output is missing the verified sidebar performance contract')
   }
 
   for (const { filePath, content } of contents) {

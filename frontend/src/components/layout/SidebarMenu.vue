@@ -5,11 +5,11 @@
     that have been opened in the DOM and only toggle their `hidden` state;
     repeat expand/collapse operations therefore reuse the same VNodes.
   -->
-  <ul class="app-menu-list" role="menu">
+  <ul class="app-menu-list" role="menu" data-sidebar-performance="2">
     <li
       v-for="item in renderedItems"
       :key="item.key"
-      v-memo="[item.key, item.open, item.active, item.activePath, item.visible, item.label, item.icon, mini]"
+      v-memo="[item.menu, item.open, item.active, item.activePath, item.visible, item.label, item.icon, mini]"
       class="app-menu-node"
       :class="{
         'is-branch': item.menu.hasChildren,
@@ -72,11 +72,14 @@ const props = defineProps({
   mini: { type: Boolean, default: false }
 })
 
-const emit = defineEmits(['toggle', 'navigate'])
+const emit = defineEmits(['expand', 'navigate'])
 const { t } = useI18n()
 
 const arrowIcon = getIconComponent('icon-arrow-right')
 const mountedBranches = shallowRef(new Set())
+// Branch clicks belong to this component. Updating Layout's state here used
+// to invalidate its Element Plus slots and update the current business page.
+const localOpenChain = shallowRef([])
 
 const pathToI18nKey = {
   '/production': 'menu.production',
@@ -260,7 +263,7 @@ const getMenuLabel = (menu) => {
   return permissionKey ? t(permissionKey) : menu.name
 }
 
-const openSet = computed(() => new Set(props.openChain))
+const openSet = computed(() => new Set(localOpenChain.value))
 
 const branchIndexes = computed(() => {
   const indexes = new Set()
@@ -296,7 +299,7 @@ const allBranchIndexes = computed(() => {
   return indexes
 })
 
-const syncMountedBranches = (chain = props.openChain) => {
+const syncMountedBranches = (chain = localOpenChain.value) => {
   const validIndexes = allBranchIndexes.value
   const next = new Set(
     [...mountedBranches.value].filter((index) => validIndexes.has(index))
@@ -304,62 +307,65 @@ const syncMountedBranches = (chain = props.openChain) => {
   for (const index of chain || []) {
     if (validIndexes.has(index)) next.add(index)
   }
-  mountedBranches.value = next
+  if (next.size !== mountedBranches.value.size || [...next].some((index) => !mountedBranches.value.has(index))) {
+    mountedBranches.value = next
+  }
 }
 
-watch(() => props.menus, () => syncMountedBranches(), { immediate: true })
-watch(() => props.openChain.join('\u0000'), () => syncMountedBranches())
+watch(
+  () => [props.menus, props.openChain],
+  () => {
+    localOpenChain.value = props.openChain.filter((index) => allBranchIndexes.value.has(index))
+    syncMountedBranches()
+  },
+  { immediate: true }
+)
 
-const renderedItems = computed(() => {
+// Translate labels and resolve icons only when menu data or locale changes,
+// not on every expand/collapse or sidebar-width change.
+const indexedItems = computed(() => {
   const items = []
-  const opened = openSet.value
-  const mounted = mountedBranches.value
-  const activeBranches = branchIndexes.value
-
-  const walk = (nodes, depth, parentChain, parentVisible) => {
+  const walk = (nodes, depth, parentChain) => {
     for (const menu of nodes || []) {
-      const isBranch = Boolean(menu.hasChildren)
-      const isOpen = isBranch && opened.has(menu.menuIndex)
-      const active = Boolean(menu.path && menu.path === props.activePath)
-      const activePath = isBranch && activeBranches.has(menu.menuIndex)
-
       items.push({
         key: `${menu.menuIndex}:${menu.id ?? depth}`,
         menu,
         depth,
         parentChain,
-        open: isOpen,
-        active,
-        activePath,
-        visible: parentVisible,
         label: getMenuLabel(menu),
         icon: menu.icon ? getIconComponent(menu.icon) : null
       })
-
-      // Keep a previously opened subtree mounted. `hidden` removes it from
-      // layout and accessibility while preserving its VNodes for next time.
-      if (isBranch && (isOpen || mounted.has(menu.menuIndex))) {
-        walk(
-          menu.children,
-          depth + 1,
-          parentChain.concat(menu.menuIndex),
-          parentVisible && isOpen && !props.mini
-        )
+      if (menu.hasChildren) {
+        walk(menu.children, depth + 1, parentChain.concat(menu.menuIndex))
       }
     }
   }
-
-  walk(props.menus, 0, [], true)
+  walk(props.menus, 0, [])
   return items
 })
 
+const renderedItems = computed(() => {
+  const opened = openSet.value
+  const mounted = mountedBranches.value
+  const activeBranches = branchIndexes.value
+  return indexedItems.value
+    .filter((item) => item.parentChain.every((index) => mounted.has(index)))
+    .map((item) => ({
+      ...item,
+      open: item.menu.hasChildren && opened.has(item.menu.menuIndex),
+      active: Boolean(item.menu.path && item.menu.path === props.activePath),
+      activePath: item.menu.hasChildren && activeBranches.has(item.menu.menuIndex),
+      visible: (!props.mini || item.depth === 0) && item.parentChain.every((index) => opened.has(index))
+    }))
+})
+
 const toggleMenu = (item) => {
-  if (item.menu.hasChildren && !item.open) {
-    const next = new Set(mountedBranches.value)
-    next.add(item.menu.menuIndex)
-    mountedBranches.value = next
-  }
-  emit('toggle', item.menu.menuIndex, item.parentChain)
+  const position = localOpenChain.value.indexOf(item.menu.menuIndex)
+  localOpenChain.value = position >= 0 && !props.mini
+    ? localOpenChain.value.slice(0, position)
+    : [...item.parentChain, item.menu.menuIndex]
+  syncMountedBranches()
+  if (props.mini) emit('expand')
 }
 
 const navigate = (path) => {

@@ -46,8 +46,27 @@ describe('release recovery', () => {
     await expect(fetchReleaseVersion({ fetchImpl, cacheBust: 123 })).resolves.toBe('release-2')
     expect(fetchImpl).toHaveBeenCalledWith('/version.json?v=123', {
       cache: 'no-store',
-      credentials: 'same-origin'
+      credentials: 'same-origin',
+      signal: expect.any(AbortSignal)
     })
+  })
+
+  test('keeps a cooldown when the browser blocks session storage', () => {
+    const reload = vi.fn()
+    const requestReload = createReleaseReloader({
+      storage: { getItem() { throw new Error('blocked') } }, reload, now: () => 100_000
+    })
+    expect(requestReload()).toBe(true)
+    expect(requestReload()).toBe(false)
+    expect(reload).toHaveBeenCalledOnce()
+  })
+
+  test('does not poll or reload development builds', () => {
+    const fetchImpl = vi.fn()
+    const windowRef = { addEventListener: vi.fn() }
+    setupReleaseRecovery({ buildId: 'development', windowRef, documentRef: {}, fetchImpl })()
+    expect(fetchImpl).not.toHaveBeenCalled()
+    expect(windowRef.addEventListener).not.toHaveBeenCalled()
   })
 
   test('reloads a visible page when focus detects a newer release', async () => {

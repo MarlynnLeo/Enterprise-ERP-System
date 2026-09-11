@@ -13,6 +13,7 @@
     "lint:fix:mobile": "cd mobile && npm run lint:fix",
     "build:frontend": "cd frontend && npm run build",
     "build:mobile": "cd mobile && npm run build",
+    "test:release": "node --test scripts/tests/releaseSnapshot.test.js scripts/tests/deployTransaction.test.js",
     "format": "prettier --write \"backend/src/**/*.js\"",
     "format:check": "prettier --check \"backend/src/**/*.js\""
   },

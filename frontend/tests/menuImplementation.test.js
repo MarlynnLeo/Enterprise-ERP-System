@@ -2,13 +2,17 @@ import { describe, expect, test } from 'vitest'
 import { validateMenuBuild, validateMenuSource } from '../scripts/validate-menu-implementation.mjs'
 
 describe('menu implementation guard', () => {
-  test('accepts the native recursive menu', () => {
+  test('accepts the verified native menu', () => {
     const result = validateMenuSource({
-      sidebarMenu: '<ul class="app-menu-list"><li>Menu</li></ul>',
+      sidebarMenu: '<ul class="app-menu-list" data-sidebar-performance="2"><li>Menu</li></ul>',
       layout: '<sidebar-menu />'
     })
 
     expect(result).toEqual({ valid: true, errors: [] })
+  })
+
+  test('rejects older native menus that predate the performance fix', () => {
+    expect(validateMenuSource({ sidebarMenu: '<ul class="app-menu-list"></ul>', layout: '<sidebar-menu />' }).valid).toBe(false)
   })
 
   test('rejects the legacy Element Plus menu implementation', () => {
