@@ -1,7 +1,7 @@
 const COMPLETED_OUTBOUND_STATUSES = new Set(['completed', 'partial_completed'])
 
 const FINANCE_STATUS_DISPLAY = Object.freeze({
-  approved: { text: '财务已审', type: 'success' },
+  approved: { text: '已审核', type: 'success' },
   pending: { text: '待财务审', type: 'warning' },
   rejected: { text: '财务驳回', type: 'danger' },
 })

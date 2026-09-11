@@ -12,7 +12,7 @@ describe('outbound display status', () => {
   test.each([
     [{ status: 'completed', financeStatus: 'pending' }, { text: '待财务审', type: 'warning' }],
     [{ status: 'partial_completed', financeStatus: 'pending' }, { text: '待财务审', type: 'warning' }],
-    [{ status: 'completed', financeStatus: 'approved' }, { text: '财务已审', type: 'success' }],
+    [{ status: 'completed', financeStatus: 'approved' }, { text: '已审核', type: 'success' }],
     [{ status: 'completed', financeStatus: 'rejected' }, { text: '财务驳回', type: 'danger' }],
   ])('uses one finance status for completed outbound rows: %#', (row, expected) => {
     expect(getOutboundDisplayStatus(row, getBusinessStatusDisplay)).toEqual(expected)

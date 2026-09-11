@@ -232,7 +232,7 @@ const financeStepDescription = computed(() => {
 
 const statusLabel = (status) => ({
   pending: '待财务审核',
-  approved: '财务已审核',
+  approved: '已审核',
   rejected: '已驳回',
   reversed: '已反审核',
 }[status] || status || '-')

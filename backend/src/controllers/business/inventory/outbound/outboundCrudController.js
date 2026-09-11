@@ -51,7 +51,7 @@ const OUTBOUND_DISPLAY_STATUS_SQL = `CASE
 END`;
 
 const OUTBOUND_FINANCE_STATUS_TEXT = Object.freeze({
-  approved: '财务已审',
+  approved: '已审核',
   pending: '待财务审',
   rejected: '财务驳回',
 });
