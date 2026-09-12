@@ -13,6 +13,17 @@ const unitService = require('./unitService');
 const locationService = require('./locationService');
 const { pool } = require('../config/db');
 
+const normalizeBomIds = (rawIds) => {
+  const values = Array.isArray(rawIds) ? rawIds : String(rawIds || '').split(',');
+  return [
+    ...new Set(
+      values
+        .map((value) => Number(value))
+        .filter((value) => Number.isInteger(value) && value > 0)
+    ),
+  ];
+};
+
 class ImportExportService {
   /**
    * 下载分类导入模板
@@ -399,18 +410,25 @@ class ImportExportService {
   static async exportBoms(filters = {}) {
     const result = await bomService.getAllBoms(1, null, filters);
 
-    const boms = result.items || result.data || [];
+    const selectedBomIds = normalizeBomIds(filters.ids || filters.bom_ids || filters.bomIds);
+    const allBoms = result.items || result.data || [];
+    const selectedBomIdSet = new Set(selectedBomIds);
+    const boms = selectedBomIds.length
+      ? allBoms.filter((bom) => selectedBomIdSet.has(Number(bom.id)))
+      : allBoms;
     if (boms.length === 0) {
       throw new Error('没有可导出的数据');
     }
 
     const columns = [
-      { header: 'BOM编码', key: 'code', width: 20 },
       { header: '产品编码', key: 'product_code', width: 20 },
       { header: '产品名称', key: 'product_name', width: 25 },
+      { header: '产品规格型号', key: 'product_specs', width: 20 },
       { header: '版本号', key: 'version', width: 12 },
+      { header: '结构', key: 'wbs', width: 18 },
       { header: '物料编码', key: 'material_code', width: 20 },
       { header: '物料名称', key: 'material_name', width: 25 },
+      { header: '规格型号', key: 'material_specs', width: 20 },
       { header: '用量', key: 'quantity', width: 12 },
       { header: '基数', key: 'base_quantity', width: 12 },
       { header: '是否关键件', key: 'is_critical', width: 12 },
@@ -421,18 +439,30 @@ class ImportExportService {
 
     const exportData = [];
 
-    // 展开BOM明细
+    // 与详情页使用同一棵树，展开直属层级及引用子 BOM，并让子件紧跟父件。
     for (const bom of boms) {
-      if (bom.details && bom.details.length > 0) {
-        for (const detail of bom.details) {
+      const detailsTree = await bomService.buildReferencedBomTree(bom.details, bom.id);
+      const appendDetails = (details, prefix = '') => {
+        const sortedDetails = [...details].sort((a, b) =>
+          String(a.material_code || '').trim().localeCompare(
+            String(b.material_code || '').trim(),
+            undefined,
+            { numeric: true, sensitivity: 'base' }
+          )
+        );
+        sortedDetails.forEach((detail, index) => {
+          const wbs = prefix ? `${prefix}.${index + 1}` : `${index + 1}`;
           const isCritical = Number(detail.is_critical || detail.isCritical) === 1 ? '是' : '否';
           exportData.push({
-            code: bom.code,
             product_code: bom.product_code,
             product_name: bom.product_name,
+            product_specs: bom.product_specs || bom.productSpecs || bom.specs || '',
             version: bom.version || 'V1.0',
+            wbs,
             material_code: detail.material_code,
             material_name: detail.material_name,
+            material_specs:
+              detail.material_specs || detail.materialSpecs || detail.specification || detail.specs || '',
             quantity: detail.quantity,
             base_quantity: detail.base_quantity || detail.baseQuantity || 1,
             is_critical: isCritical,
@@ -440,8 +470,10 @@ class ImportExportService {
             position: detail.position || '',
             remarks: detail.remarks || detail.remark || '',
           });
-        }
-      }
+          appendDetails(detail.children || [], wbs);
+        });
+      };
+      appendDetails(detailsTree);
     }
 
     return ExcelHelper.exportData(exportData, columns, 'BOM列表');
@@ -626,10 +658,11 @@ class ImportExportService {
   }
 
   /**
-   * 导出工序模板
+   * 导出产品工艺路线，保留版本、单件定额和执行要求。
    */
   static async exportProcessTemplates(filters = {}) {
     const processTemplateService = require('./processTemplateService');
+    const { jsonArray } = require('../utils/productProcessDefinition');
     const result = await processTemplateService.getAll(1, null, filters);
 
     if (!result.list || result.list.length === 0) {
@@ -637,55 +670,59 @@ class ImportExportService {
     }
 
     const columns = [
-      { header: '模板编码', key: 'code', width: 20 },
-      { header: '模板名称', key: 'name', width: 25 },
+      { header: '工艺编码', key: 'code', width: 20 },
+      { header: '工艺名称', key: 'name', width: 25 },
+      { header: '版本', key: 'version', width: 16 },
       { header: '产品编码', key: 'product_code', width: 20 },
       { header: '产品名称', key: 'product_name', width: 25 },
+      { header: '工艺说明', key: 'route_description', width: 30 },
+      { header: '工序编号', key: 'step_code', width: 16 },
       { header: '工序名称', key: 'process_name', width: 20 },
       { header: '工序序号', key: 'order_num', width: 10 },
-      { header: '标准工时(h)', key: 'standard_hours', width: 12 },
+      { header: '标准工时(h/件)', key: 'standard_hours', width: 18 },
       { header: '部门', key: 'department', width: 15 },
+      { header: '工位', key: 'station_name', width: 20 },
       { header: '工序描述', key: 'description', width: 30 },
+      { header: 'SOP作业要求', key: 'sop_content', width: 45 },
+      { header: '工序物料及单件用量', key: 'materials', width: 50 },
+      { header: '作业指导书', key: 'instruction_docs', width: 45 },
+      { header: 'SOP图片', key: 'sop_images', width: 40 },
+      { header: '工序备注', key: 'remark', width: 30 },
       { header: '状态', key: 'status_text', width: 10 },
     ];
 
     const exportData = [];
 
-    // 展开工序模板详情
+    // 每道工序一行；尚未配置工序的草稿也保留在导出结果中。
     for (const template of result.list) {
-      if (template.details && template.details.length > 0) {
-        for (const detail of template.details) {
-          exportData.push({
-            code: template.code || '',
-            name: template.name,
-            product_code: template.product_code || '',
-            product_name: template.product_name || '',
-            process_name: detail.name,
-            order_num: detail.order_num,
-            standard_hours: detail.standard_hours || 0,
-            department: detail.department || '',
-            description: detail.description || '',
-            status_text: template.status === 1 ? '启用' : '禁用',
-          });
-        }
-      } else {
-        // 无详情的模板也输出一行
+      for (const detail of template.details?.length ? template.details : [{}]) {
         exportData.push({
           code: template.code || '',
           name: template.name,
+          version: template.version || '',
           product_code: template.product_code || '',
           product_name: template.product_name || '',
-          process_name: '(无工序)',
-          order_num: 0,
-          standard_hours: 0,
-          department: '',
-          description: template.description || '',
-          status_text: template.status === 1 ? '启用' : '禁用',
+          route_description: template.description || '',
+          step_code: detail.step_code || '',
+          process_name: detail.name || '(无工序)',
+          order_num: detail.order_num || 0,
+          standard_hours: Number(detail.standard_hours) || 0,
+          department: detail.department || '',
+          station_name: detail.station_name || '',
+          description: detail.description || '',
+          sop_content: detail.sop_content || '',
+          materials: jsonArray(detail.materials).map(material =>
+            `${material.material_code || material.material_id} ${material.material_name || ''} × ${material.quantity}${Number(material.is_scan_required) === 1 ? '（需扫码）' : ''}`
+          ).join('\n'),
+          instruction_docs: jsonArray(detail.instruction_docs).map(doc => `${doc.name}: ${doc.url}`).join('\n'),
+          sop_images: jsonArray(detail.sop_images).join('\n'),
+          remark: detail.remark || '',
+          status_text: Number(template.status) === 1 ? '启用' : template.published_at ? '停用' : '草稿',
         });
       }
     }
 
-    return ExcelHelper.exportData(exportData, columns, '工序模板列表');
+    return ExcelHelper.exportData(exportData, columns, '产品工艺路线');
   }
 }
 

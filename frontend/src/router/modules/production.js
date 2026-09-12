@@ -139,11 +139,11 @@ export default [
     {
         path: 'production/process-routes',
         name: 'processRoutes',
-        component: () => import('../../views/production/ProcessRoutes.vue'),
+        redirect: to => ({ path: '/basedata/process-templates', query: to.query }),
         meta: {
             requiresAuth: true,
             permission: 'production:routes',
-            title: '工序路线'
+            title: '产品工艺路线'
         }
     },
     {

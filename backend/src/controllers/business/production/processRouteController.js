@@ -5,6 +5,7 @@
 const ProcessRouteService = require('../../../services/business/ProcessRouteService');
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
+const BusinessError = require('../../../utils/BusinessError');
 
 module.exports = {
   async getList(req, res) {
@@ -13,7 +14,7 @@ module.exports = {
       ResponseHandler.paginated(res, result.list, result.total, result.page, result.pageSize);
     } catch (error) {
       logger.error('获取工序路线列表失败:', error);
-      ResponseHandler.error(res, error.message || '获取工序路线列表失败');
+      BusinessError.handleError(res, error, '获取工序路线列表失败', ResponseHandler);
     }
   },
 
@@ -24,7 +25,7 @@ module.exports = {
       ResponseHandler.success(res, data);
     } catch (error) {
       logger.error('获取工序路线详情失败:', error);
-      ResponseHandler.error(res, error.message || '获取工序路线详情失败');
+      BusinessError.handleError(res, error, '获取工序路线详情失败', ResponseHandler);
     }
   },
 
@@ -34,7 +35,7 @@ module.exports = {
       ResponseHandler.success(res, data, '工序路线创建成功');
     } catch (error) {
       logger.error('创建工序路线失败:', error);
-      ResponseHandler.error(res, error.message || '创建工序路线失败');
+      BusinessError.handleError(res, error, '创建工序路线失败', ResponseHandler);
     }
   },
 
@@ -44,7 +45,7 @@ module.exports = {
       ResponseHandler.success(res, data, '工序路线更新成功');
     } catch (error) {
       logger.error('更新工序路线失败:', error);
-      ResponseHandler.error(res, error.message || '更新工序路线失败');
+      BusinessError.handleError(res, error, '更新工序路线失败', ResponseHandler);
     }
   },
 
@@ -54,7 +55,7 @@ module.exports = {
       ResponseHandler.success(res, null, '工序路线删除成功');
     } catch (error) {
       logger.error('删除工序路线失败:', error);
-      ResponseHandler.error(res, error.message || '删除工序路线失败');
+      BusinessError.handleError(res, error, '删除工序路线失败', ResponseHandler);
     }
   },
 
@@ -64,7 +65,7 @@ module.exports = {
       ResponseHandler.success(res, data);
     } catch (error) {
       logger.error('获取产品工序路线失败:', error);
-      ResponseHandler.error(res, error.message || '获取产品工序路线失败');
+      BusinessError.handleError(res, error, '获取产品工序路线失败', ResponseHandler);
     }
   },
 
@@ -74,7 +75,7 @@ module.exports = {
       ResponseHandler.success(res, data);
     } catch (error) {
       logger.error('获取BOM物料建议失败:', error);
-      ResponseHandler.error(res, error.message || '获取BOM物料建议失败');
+      BusinessError.handleError(res, error, '获取BOM物料建议失败', ResponseHandler);
     }
   },
 };

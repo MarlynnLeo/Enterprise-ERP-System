@@ -109,7 +109,7 @@ export default {
     productionCalendar: '生产日历',
     productionAnomaly: '异常上报',
     workStations: '工位管理',
-    processRoutes: '工序路线',
+    processRoutes: '产品工艺路线',
     assemblyBoard: '装配看板',
 
     // 基础数据
@@ -121,7 +121,7 @@ export default {
     categories: '产品大类',
     units: '单位管理',
     locations: '库位管理',
-    processTemplates: '工序模板',
+    processTemplates: '产品工艺路线',
     productCategories: '产品分类',
     ecnManagement: 'ECN变更管理',
 

@@ -8,6 +8,14 @@
       </template>
     </PageHeader>
 
+    <el-card class="data-card mb-20">
+      <div class="flex-row gap-12">
+        <el-select v-model="selectedTaskId" filterable remote :remote-method="loadSelectableTasks" placeholder="按任务编号或产品搜索" class="task-selector">
+          <el-option v-for="task in selectableTasks" :key="task.id" :value="task.id" :label="task.code + ' · ' + task.productName" />
+        </el-select>
+        <el-button type="primary" :disabled="!selectedTaskId" @click="viewTaskSteps(selectedTaskId)">查看任务工序</el-button>
+      </div>
+    </el-card>
     <!-- 工位状态看板 -->
     <el-card class="data-card" v-loading="loading">
       <h3 class="mb-md">工位实时状态</h3>
@@ -26,11 +34,11 @@
             <el-divider class="divider-tight" />
             <div class="bs-task">
               <div class="bs-label">任务</div>
-              <div class="bs-value">{{ s.task_code }}</div>
+              <div class="bs-value">{{ s.taskCode }}</div>
             </div>
             <div class="bs-task">
               <div class="bs-label">工序</div>
-              <div class="bs-value highlight">{{ s.current_step }}</div>
+              <div class="bs-value highlight">{{ s.currentStep }}</div>
             </div>
             <div class="bs-task">
               <div class="bs-label">操作人</div>
@@ -40,9 +48,9 @@
               <div class="bs-label">产品</div>
               <div class="bs-value">{{ s.productName || '-' }}</div>
             </div>
-            <div class="bs-task" v-if="s.started_at">
+            <div class="bs-task" v-if="s.startedAt">
               <div class="bs-label">已用时</div>
-              <div class="bs-value timer">{{ formatElapsed(s.started_at) }}</div>
+              <div class="bs-value timer">{{ formatElapsed(s.startedAt) }}</div>
             </div>
           </template>
         </div>
@@ -83,12 +91,12 @@
     <!-- 任务工序详情弹窗 -->
     <AppDialog
       v-model="stepsVisible"
-      title="装配工序详情"
+      title="任务工序执行"
       mode="view"
       content-width="wide"
     >
       <el-steps :active="activeStepIndex" align-center finish-status="success" v-if="taskSteps.length" class="mb-24">
-        <el-step v-for="s in taskSteps" :key="s.id" :title="s.step_name"
+        <el-step v-for="s in taskSteps" :key="s.id" :title="s.stepName"
           :status="s.status === 'completed' ? 'finish' : s.status === 'in_progress' ? 'process' : s.status === 'skipped' ? 'error' : 'wait'" />
       </el-steps>
 
@@ -106,9 +114,9 @@
             <el-tag :type="statusType[row.status]" size="small">{{ statusText[row.status] }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="标准/实际工时" width="130">
+        <el-table-column label="标准(批)/实际 (分钟)" width="180">
           <template #default="{ row }">
-            <span>{{ row.standardMinutes || '-' }} / {{ row.actualMinutes || '-' }} 分</span>
+            <span>{{ row.standardTaskMinutes ?? '-' }} / {{ row.actualMinutes || '-' }} 分</span>
           </template>
         </el-table-column>
         <el-table-column label="开始时间" width="160">
@@ -117,20 +125,107 @@
         <el-table-column label="完成时间" width="160">
           <template #default="{ row }">{{ row.completedAt || '-' }}</template>
         </el-table-column>
+        <el-table-column label="操作" min-width="290" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+          <template #default="{ row }">
+            <TableRowActions>
+              <el-button size="small" @click="showStep(row)">作业要求</el-button>
+              <el-button v-if="canExecute && row.status === 'pending'" size="small" type="primary" :loading="executingId === row.id" @click="executeStep(row, 'start')">开始</el-button>
+              <el-button v-if="canExecute && row.status === 'in_progress'" size="small" type="success" :loading="executingId === row.id" @click="executeStep(row, 'complete')">完成</el-button>
+              <el-button v-if="canExecute && row.status === 'pending'" size="small" type="warning" @click="skipStep(row)">跳过</el-button>
+            </TableRowActions>
+          </template>
+        </el-table-column>
       </el-table>
+      <div v-if="!taskSteps.length" class="mt-md"><EmptyState description="此任务尚无工序" /><el-button v-if="canExecute" @click="generateSteps">生成任务工序</el-button></div>
     </AppDialog>
+    <AppDialog v-model="stepInfoVisible" title="工序作业要求" mode="view" content-width="wide">
+      <template v-if="currentStep">
+        <h3>{{ currentStep.stepName }}</h3>
+        <pre class="sop-content">{{ currentStep.sopContent || currentStep.description || '未配置文字作业要求' }}</pre>
+        <div class="file-list">
+          <el-button v-for="doc in currentStep.instructionDocs" :key="doc.url" size="small" @click="preview(doc)">{{ doc.name }}</el-button>
+          <el-button v-for="(url, index) in currentStep.sopImages" :key="url" size="small" @click="preview({ url, name: url.split('/').pop() })">SOP图片 {{ index + 1 }}</el-button>
+        </div>
+        <el-table :data="currentStep.materials" border>
+          <el-table-column prop="materialCode" label="物料编码" /><el-table-column prop="materialName" label="物料名称" />
+          <el-table-column prop="quantity" label="单件用量" />
+          <el-table-column label="完成前扫码"><template #default="{ row }">{{ Number(row.isScanRequired) === 1 ? '需要' : '不需要' }}</template></el-table-column>
+        </el-table>
+        <div v-if="canExecute && currentStep.status === 'in_progress'" class="flex-row gap-12 mt-md">
+          <el-input v-model="scannedBarcode" placeholder="扫描或输入物料编码" @keyup.enter="verifyMaterial" />
+          <el-button type="primary" :loading="verifying" @click="verifyMaterial">验证物料</el-button>
+        </div>
+      </template>
+    </AppDialog>
+    <ProcessTemplatePreviewDialog v-model="previewVisible" :doc="previewDoc" />
   </div>
 </template>
 
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
+import { productionApi } from '@/api/production'
+import { productionAssistApi } from '@/api/productionAssist'
+import { parseListData } from '@/utils/responseParser'
+import { useAuthStore } from '@/stores/auth'
+import TableRowActions from '@/components/common/TableRowActions.vue'
 import { Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { assemblyExecutionApi } from '../../api/assembly'
 
 const statusType = { pending: 'info', in_progress: 'warning', completed: 'success', skipped: 'danger' }
 const statusText = { pending: '待执行', in_progress: '执行中', completed: '已完成', skipped: '已跳过' }
+
+const ProcessTemplatePreviewDialog = defineAsyncComponent(() => import('../baseData/components/ProcessTemplatePreviewDialog.vue'))
+const auth = useAuthStore()
+const canExecute = computed(() => ['production:assembly:execute', 'production:process:update', 'production:tasks:update'].some(code => auth.hasPermission(code)))
+const selectedTaskId = ref(null), selectableTasks = ref([]), executingId = ref(null)
+const stepInfoVisible = ref(false), currentStep = ref(null), scannedBarcode = ref(''), verifying = ref(false)
+const previewVisible = ref(false), previewDoc = ref(null)
+const loadSelectableTasks = async (keyword = '') => {
+  try { selectableTasks.value = parseListData(await productionApi.getProductionTasks({ keyword, pageSize: 100 })) }
+  catch (error) { ElMessage.error(error.response?.data?.message || '加载任务失败') }
+}
+const preview = doc => { previewDoc.value = doc; previewVisible.value = true }
+const showStep = row => { currentStep.value = row; scannedBarcode.value = ''; stepInfoVisible.value = true }
+const verifyMaterial = async () => {
+  if (!scannedBarcode.value.trim() || verifying.value) return
+  verifying.value = true
+  try {
+    const { data } = await productionAssistApi.scanVerify({ taskId: currentStep.value.taskId, processId: currentStep.value.id, scannedBarcode: scannedBarcode.value.trim() })
+    if (data.result === 'pass') { ElMessage.success('物料验证通过'); scannedBarcode.value = '' }
+    else ElMessage.warning(data.reason || '物料验证未通过')
+  } catch (error) { ElMessage.error(error.response?.data?.message || '扫码验证失败') }
+  finally { verifying.value = false }
+}
+const executeStep = async (row, action) => {
+  if (executingId.value) return
+  executingId.value = row.id
+  try {
+    const { data } = action === 'start'
+      ? await assemblyExecutionApi.startStep(row.id, {})
+      : await assemblyExecutionApi.completeStep(row.id, {})
+    if (data.warnings?.length) ElMessage.warning(data.warnings.join('；'))
+    else ElMessage.success(action === 'start' ? '工序已开始' : '工序已完成')
+    await viewTaskSteps(row.taskId)
+    await loadBoard()
+  } catch (error) { ElMessage.error(error.response?.data?.message || '工序操作失败') }
+  finally { executingId.value = null }
+}
+const skipStep = async row => {
+  try {
+    const { value } = await ElMessageBox.prompt('请输入跳过该工序的原因', '跳过工序', { inputValidator: value => Boolean(value?.trim()) || '请填写原因' })
+    const { data } = await assemblyExecutionApi.skipStep(row.id, { reason: value.trim() })
+    if (data.warnings?.length) ElMessage.warning(data.warnings.join('；'))
+    await viewTaskSteps(row.taskId)
+    await loadBoard()
+  } catch (error) { if (error !== 'cancel' && error !== 'close') ElMessage.error(error.response?.data?.message || '跳过失败') }
+}
+const generateSteps = async () => {
+  try { await assemblyExecutionApi.generateSteps(selectedTaskId.value); await viewTaskSteps(selectedTaskId.value); await loadBoard() }
+  catch (error) { ElMessage.error(error.response?.data?.message || '生成工序失败') }
+}
 
 const loading = ref(false)
 const boardData = ref({ stations: [], taskProgress: [] })
@@ -146,7 +241,7 @@ const loadBoard = async () => {
   loading.value = true
   try {
     const { data } = await assemblyExecutionApi.getBoard()
-    boardData.value = data?.data || { stations: [], taskProgress: [] }
+    boardData.value = data || { stations: [], taskProgress: [] }
   } catch {
     ElMessage.error('加载看板失败')
   } finally {
@@ -157,7 +252,8 @@ const loadBoard = async () => {
 const viewTaskSteps = async (taskId) => {
   try {
     const { data } = await assemblyExecutionApi.getTaskSteps(taskId)
-    taskSteps.value = data?.data?.steps || []
+    selectedTaskId.value = taskId
+    taskSteps.value = data?.steps || []
     stepsVisible.value = true
   } catch {
     ElMessage.error('加载详情失败')
@@ -174,6 +270,7 @@ const formatElapsed = (startedAt) => {
 
 let timer = null
 onMounted(() => {
+  loadSelectableTasks()
   loadBoard()
   timer = setInterval(loadBoard, 30000) // 每30秒刷新
 })
@@ -183,6 +280,10 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.task-selector { width: min(440px, 65%); }
+.sop-content { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
+.file-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+
 .board-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));

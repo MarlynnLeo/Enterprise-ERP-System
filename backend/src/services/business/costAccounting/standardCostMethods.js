@@ -169,7 +169,7 @@ module.exports = {
      * @returns {Object} 标准成本信息
      */
     async calculateStandardCost(productId, quantity = 1, options = {}) {
-      const { multiLevel = false, maxBomDepth = 10 } = options;
+      const { multiLevel = false, maxBomDepth = 10, taskId = null, connection = db.pool } = options;
   
       try {
         // 获取成本配置
@@ -194,7 +194,7 @@ module.exports = {
           // 使用单级BOM计算（原有逻辑）
           let bomItems = [];
           try {
-            const [bomMaster] = await db.pool.execute(
+            const [bomMaster] = await connection.execute(
               'SELECT id FROM bom_masters WHERE product_id = ? AND status = 1 AND deleted_at IS NULL LIMIT 1',
               [productId]
             );
@@ -202,7 +202,7 @@ module.exports = {
             if (bomMaster.length > 0) {
               const bomId = bomMaster[0].id;
               // 价格优先级: standard_costs表 > cost_price(采购成本)
-              const [items] = await db.pool.execute(
+              const [items] = await connection.execute(
                 `SELECT bd.material_id, bd.quantity, bd.base_quantity,
                         m.code as material_code, m.name as material_name,
                         COALESCE(
@@ -248,9 +248,18 @@ module.exports = {
   
         // ========== 获取工序人工成本 ==========
         let processSteps = [];
-        try {
+        if (taskId) {
+          const [tasks] = await connection.execute('SELECT id FROM production_tasks WHERE id = ? AND product_id = ? AND deleted_at IS NULL', [taskId, productId]);
+          if (!tasks.length) throw new Error('成本核算任务与产品不匹配');
+          const [steps] = await connection.execute(
+            `SELECT id, process_name AS step_name, description, standard_hours,
+                    JSON_UNQUOTE(JSON_EXTRACT(process_snapshot, '$.department')) AS department
+             FROM production_processes WHERE task_id = ? AND status <> 'cancelled' ORDER BY sequence, id`, [taskId]
+          );
+          processSteps = steps;
+        } else try {
           // 获取产品关联的工序模板明细（只取启用状态的模板）
-          const [steps] = await db.pool.execute(
+          const [steps] = await connection.execute(
             `SELECT ptd.id, ptd.name as step_name, ptd.description,
                     ptd.standard_hours, ptd.department,
                     pt.name as template_name
@@ -292,7 +301,7 @@ module.exports = {
         let allocationRules = [];
         try {
           const calcDate = currentDateString();
-          const [configs] = await db.pool.execute(
+          const [configs] = await connection.execute(
             `SELECT id, name, allocation_base, rate, cost_center_id, product_id, product_category, effective_date, expiry_date, priority, is_active, created_at, updated_at, deleted_at FROM overhead_allocation_config
               WHERE is_active = 1
                 AND effective_date <= ?
@@ -521,7 +530,8 @@ module.exports = {
      * @param {number} quantity 数量
      * @returns {Object} 标准成本对象 { materialCost, laborCost, overheadCost, totalCost }
      */
-    async ensureStandardCost(productId, quantity = 1) {
+    async ensureStandardCost(productId, quantity = 1, options = {}) {
+      const connection = options.connection || db.pool;
       const defaultResult = {
         materialCost: 0,
         laborCost: 0,
@@ -533,7 +543,7 @@ module.exports = {
   
       try {
         // 1. 优先从 standard_costs 表获取
-        const [psc] = await db.pool.execute(
+        const [psc] = await connection.execute(
           `SELECT
              SUM(CASE WHEN cost_element = 'material' THEN standard_price ELSE 0 END) as material_cost,
              SUM(CASE WHEN cost_element = 'labor' THEN standard_price ELSE 0 END) as labor_cost,
@@ -555,7 +565,7 @@ module.exports = {
         }
   
         // 2. 如果表里没有，尝试动态计算
-        const stdResult = await this.calculateStandardCost(productId, 1);
+        const stdResult = await this.calculateStandardCost(productId, 1, options);
         if (stdResult && stdResult.standardCost && stdResult.standardCost.totalCost > 0) {
           return {
             materialCost: (stdResult.standardCost.materialCost || 0) * quantity,
@@ -571,7 +581,7 @@ module.exports = {
         const laborRatio = costSettings.fallbackLaborRatio;
         const overheadRatio = costSettings.fallbackOverheadRatio;
   
-        const [product] = await db.pool.execute('SELECT price FROM materials WHERE id = ? AND deleted_at IS NULL', [
+        const [product] = await connection.execute('SELECT price FROM materials WHERE id = ? AND deleted_at IS NULL', [
           productId,
         ]);
         if (product.length > 0 && product[0].price > 0) {

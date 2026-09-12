@@ -121,7 +121,7 @@ export default {
     categories: 'Categories',
     units: 'Units',
     locations: 'Locations',
-    processTemplates: 'Process Templates',
+    processTemplates: 'Product Process Routes',
     productCategories: 'Product Categories',
     ecnManagement: 'ECN Management',
 

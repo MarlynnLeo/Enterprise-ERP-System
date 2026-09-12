@@ -130,6 +130,7 @@ export const baseDataApi = {
     getMaterialSubBom: (materialId) => api.get(`/base-data/materials/${materialId}/sub-bom`),
 
     getProcessTemplates: (params) => api.get('/base-data/process-templates', { params }),
+    getProcessMaterialOptions: (params) => api.get('/base-data/process-templates/material-options', { params }),
     getProcessTemplate: (id) => api.get(`/base-data/process-templates/${id}`),
     createProcessTemplate: (data) => api.post('/base-data/process-templates', data),
     updateProcessTemplate: (id, data) => api.put(`/base-data/process-templates/${id}`, data),

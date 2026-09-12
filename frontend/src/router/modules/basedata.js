@@ -75,7 +75,8 @@ export default {
             component: () => import('../../views/baseData/ProcessTemplates.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'basedata:processtemplates'
+                permission: 'basedata:processtemplates',
+                title: '产品工艺路线'
             }
         },
         {

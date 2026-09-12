@@ -26,12 +26,12 @@ const FILE_OBJECT_POLICIES = Object.freeze({
   process_template: Object.freeze({
     table: 'process_templates',
     deletedAtColumn: 'deleted_at',
-    viewPermissions: ['basedata:processtemplates:view', 'basedata:process-templates:view'],
+    viewPermissions: ['basedata:processtemplates:view', 'basedata:process-templates:view', 'production:routes:view', 'production:process:view', 'production:assembly:view'],
   }),
   process_template_detail: Object.freeze({
     table: 'process_template_details',
     deletedAtColumn: false,
-    viewPermissions: ['basedata:processtemplates:view', 'basedata:process-templates:view'],
+    viewPermissions: ['basedata:processtemplates:view', 'basedata:process-templates:view', 'production:routes:view', 'production:process:view', 'production:assembly:view'],
   }),
   purchase_requisition: Object.freeze({ scopePolicy: 'purchase_requisition' }),
   purchase_order: Object.freeze({ scopePolicy: 'purchase_order' }),

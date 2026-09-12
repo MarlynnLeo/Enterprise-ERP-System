@@ -6,6 +6,7 @@
 const QualityInspection = require('../../models/qualityInspection');
 const { generateBatchNo } = require('./TaskLifecycleService');
 const { QUALITY_INSPECTION_TYPES } = require('../../constants/documentReferences');
+const { resolveTemplateData } = require('./ProductionQualityInspectionService');
 
 class FinalInspectionService {
   /**
@@ -49,6 +50,12 @@ class FinalInspectionService {
       throw new Error(`生产任务不存在: ${taskId}`);
     }
     const task = tasks[0];
+    const templateData = await resolveTemplateData(
+      connection,
+      QUALITY_INSPECTION_TYPES.FINAL,
+      task.product_id,
+      null
+    );
 
     const created = await QualityInspection.createInspection(
       {
@@ -63,6 +70,8 @@ class FinalInspectionService {
         unit: task.unit_name || null,
         planned_date: new Date(),
         status: 'pending',
+        template_id: templateData.templateId,
+        items: templateData.items,
         note: options.note || null,
       },
       connection

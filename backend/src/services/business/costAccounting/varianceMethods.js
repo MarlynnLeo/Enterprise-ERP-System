@@ -31,7 +31,7 @@ module.exports = {
         const order = orderInfo[0];
   
         // 计算标准成本
-        const standardCost = await this.calculateStandardCost(order.product_id, order.quantity);
+        const standardCost = await this.calculateStandardCost(order.product_id, order.quantity, { taskId: productionOrderId });
   
         // 获取实际成本
         const [actualCostRecord] = await db.pool.execute(

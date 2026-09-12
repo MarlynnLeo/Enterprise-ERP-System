@@ -24,11 +24,11 @@ const { FileUploadMiddlewares } = require('../middleware/unifiedFileUpload');
 
 const perms = {
   processTemplates: {
-    view: ['basedata:processtemplates:view', 'basedata:process-templates:view'],
-    create: ['basedata:processtemplates:create', 'basedata:process-templates:create'],
-    update: ['basedata:processtemplates:update', 'basedata:process-templates:update'],
-    delete: ['basedata:processtemplates:delete', 'basedata:process-templates:delete'],
-    export: ['basedata:processtemplates:export', 'basedata:process-templates:export'],
+    view: ['basedata:processtemplates:view', 'basedata:process-templates:view', 'production:routes:view'],
+    create: ['basedata:processtemplates:create', 'basedata:process-templates:create', 'production:routes:create'],
+    update: ['basedata:processtemplates:update', 'basedata:process-templates:update', 'production:routes:update'],
+    delete: ['basedata:processtemplates:delete', 'basedata:process-templates:delete', 'production:routes:delete'],
+    export: ['basedata:processtemplates:export', 'basedata:process-templates:export', 'production:routes:export'],
   },
   productCategories: {
     view: ['basedata:productcategories:view', 'basedata:product-categories:view', 'basedata:materials:view'],
@@ -348,6 +348,9 @@ router.get(
 );
 
 // 工序模板管理路由
+router.get('/process-templates/material-options', authenticateToken,
+  requirePermission([...perms.processTemplates.view, ...perms.processTemplates.create, ...perms.processTemplates.update]),
+  baseDataController.getProcessMaterialOptions);
 router.get('/process-templates', authenticateToken, requirePermission(perms.processTemplates.view), baseDataController.getAllProcessTemplates);
 // 工序模板导出（必须在:id路由之前）
 router.post('/process-templates/export', authenticateToken, requirePermission(perms.processTemplates.export), baseDataController.exportProcessTemplates);

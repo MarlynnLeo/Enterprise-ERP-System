@@ -118,7 +118,7 @@ module.exports = {
       const result = await SchedulingService.getProductStandardHours(safeParseId(req.params.productId));
       ResponseHandler.success(res, result);
     } catch (error) {
-      ResponseHandler.error(res, error.message, 'ERROR', error.statusCode || 500, error);
+      ResponseHandler.error(res, error.message, 'ERROR', error.httpStatus || error.statusCode || 500, error);
     }
   },
 
@@ -127,18 +127,20 @@ module.exports = {
    */
   calculateSchedule: async (req, res) => {
     try {
-      const { productId, quantity, startTime } = req.body;
+      const { productId, quantity, startTime, processTemplateId, taskId } = req.body;
       if (!productId || !quantity || !startTime) {
         return ResponseHandler.error(res, '缺少必填参数: productId, quantity, startTime', 'VALIDATION_ERROR', 400);
       }
       const result = await SchedulingService.calculateSchedule({
         productId: parseInt(productId),
-        quantity: parseFloat(quantity),
+        quantity: Number(quantity),
+        processTemplateId: processTemplateId || null,
+        taskId: taskId || null,
         startTime,
       });
       ResponseHandler.success(res, result);
     } catch (error) {
-      ResponseHandler.error(res, error.message, 'ERROR', error.statusCode || 500, error);
+      ResponseHandler.error(res, error.message, 'ERROR', error.httpStatus || error.statusCode || 500, error);
     }
   },
 
@@ -156,7 +158,7 @@ module.exports = {
       });
       ResponseHandler.success(res, result);
     } catch (error) {
-      ResponseHandler.error(res, error.message, 'ERROR', error.statusCode || 500, error);
+      ResponseHandler.error(res, error.message, 'ERROR', error.httpStatus || error.statusCode || 500, error);
     }
   },
 
@@ -428,7 +430,7 @@ module.exports = {
       const impact = await SchedulingService.analyzeCalendarImpact(req.body || {});
       ResponseHandler.success(res, impact, '日历影响分析完成');
     } catch (error) {
-      ResponseHandler.error(res, error.message, 'ERROR', error.statusCode || 500, error);
+      ResponseHandler.error(res, error.message, 'ERROR', error.httpStatus || error.statusCode || 500, error);
     }
   },
 
@@ -445,7 +447,7 @@ module.exports = {
       const result = await SchedulingService.rescheduleCalendarImpact(criteria);
       ResponseHandler.success(res, result, '受影响任务已重排');
     } catch (error) {
-      ResponseHandler.error(res, error.message, 'ERROR', error.statusCode || 500, error);
+      ResponseHandler.error(res, error.message, 'ERROR', error.httpStatus || error.statusCode || 500, error);
     }
   },
 
@@ -478,7 +480,7 @@ module.exports = {
       });
       ResponseHandler.success(res, result);
     } catch (error) {
-      ResponseHandler.error(res, error.message, 'ERROR', error.statusCode || 500, error);
+      ResponseHandler.error(res, error.message, 'ERROR', error.httpStatus || error.statusCode || 500, error);
     }
   },
 
@@ -490,7 +492,7 @@ module.exports = {
       const data = await SchedulingService.getGanttData(req.query);
       return ResponseHandler.success(res, data);
     } catch (error) {
-      ResponseHandler.error(res, error.message, 'ERROR', error.statusCode || 500, error);
+      ResponseHandler.error(res, error.message, 'ERROR', error.httpStatus || error.statusCode || 500, error);
     }
   },
 };

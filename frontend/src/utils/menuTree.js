@@ -10,7 +10,7 @@
 const isFlagEnabled = (value) => value === undefined || value === null || Number(value) !== 0
 
 export const isMenuDisplayable = (menu) => {
-  return Boolean(menu) && Number(menu.type) !== 2 && isFlagEnabled(menu.visible) && isFlagEnabled(menu.status)
+  return Boolean(menu) && menu.path !== '/production/process-routes' && Number(menu.type) !== 2 && isFlagEnabled(menu.visible) && isFlagEnabled(menu.status)
 }
 
 /**

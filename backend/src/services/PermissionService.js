@@ -36,6 +36,7 @@ const cacheService = require('./cache/CacheManager');
 const PERMISSION_ALIASES = {
   'basedata:bom': 'basedata:boms',
   'basedata:process-templates': 'basedata:processtemplates',
+  'production:routes': 'basedata:processtemplates',
   'basedata:product-categories': 'basedata:productcategories',
   'basedata:material-sources': 'basedata:materialsources',
   'basedata:inspection-methods': 'basedata:inspectionmethods',

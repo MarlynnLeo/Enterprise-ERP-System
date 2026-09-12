@@ -10,6 +10,7 @@ const db = require('../../config/db');
 const NonconformingProduct = require('../../models/nonconformingProduct');
 const { validateTaskTransition } = require('./TaskLifecycleService');
 const CostAccountingService = require('./CostAccountingService');
+const ProductionLaborService = require('./ProductionLaborService');
 
 const DLQService = require('./DLQService');
 const AsyncTaskService = require('./AsyncTaskService');
@@ -106,6 +107,10 @@ class InboundTransactionService {
       if (!taskId) {
         throw new Error(`生产入库单 ${inboundData.inbound_no} 未关联生产任务，不能核算成品成本`);
       }
+
+      // Repair legacy auto-reports that were created with zero hours before
+      // calculating cost. This remains idempotent when a valid report exists.
+      await ProductionLaborService.ensureTaskReport(connection, taskId);
 
       // 入库确认阶段只预计算并保存成本，用于冻结过账快照；生产成本总账
       // 必须等该入库单完成财务审批后，由 INVENTORY_POSTING_APPROVED 事件生成。

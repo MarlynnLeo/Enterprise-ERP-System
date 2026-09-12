@@ -302,6 +302,7 @@
       content-width="wide"
     >
       <div v-loading="instructionDocsLoading">
+      <pre v-if="currentSopContent" class="process-sop-text">{{ currentSopContent }}</pre>
       <div v-if="currentInstructionDocs.length > 0">
         <el-table :data="currentInstructionDocs" border class="table-row-click w-full"
       @row-click="(row, column, event) => handleTableRowView(row, column, event, () => openInstructionDoc(row))">
@@ -313,7 +314,7 @@
           </el-table-column>
         </el-table>
       </div>
-      <EmptyState v-else description="暂无作业指导书" />
+      <EmptyState v-else-if="!currentSopContent" description="该任务工序未配置作业指导书" />
       </div>
       <template #footer>
         <el-button @click="instructionDocsVisible = false">关闭</el-button>
@@ -828,6 +829,7 @@
 
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
+import { processSnapshotInstructions } from '@/utils/productProcessRoute'
 import { defineAsyncComponent, ref, onMounted, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -1545,6 +1547,7 @@ const instructionDocsVisible = ref(false)
 const instructionDocsLoading = ref(false)
 const currentInstructionDocs = ref([])
 const currentProcessName = ref('')
+const currentSopContent = ref('')
 
 // 查看任务的所有工序指导书
 const allProcessInstructionDocs = ref([])
@@ -1556,54 +1559,28 @@ const allInstructionDocsLoading = ref(false)
  * @param {Object} taskOrProcess - 包含 product_id 或 productId 的对象
  * @returns {Array|null} 工序列表，失败返回 null
  */
-const fetchProcessTemplateProcesses = async (taskOrProcess) => {
-  const productId = taskOrProcess.productId
-  if (!productId) {
-    ElMessage.warning('无法获取产品信息')
-    return null
-  }
-
-  const response = await baseDataApi.getProcessTemplateByProductId(productId)
-  if (response.data?.processes) {
-    return response.data.processes
-  }
-
-  ElMessage.info('未找到工序模板信息')
-  return null
+const fetchProcessTemplateProcesses = async (task) => {
+  const response = await productionApi.getProductionProcesses({ taskId: task.id, pageSize: 100 })
+  return parseListData(response, { enableLog: false })
 }
 
-/**
- * 从工序模板中提取作业指导书文件列表
- * @param {Object} process - 工序模板对象
- * @returns {Array} 指导书文件列表
- */
 const extractInstructionDocs = (process) => {
-  if (!process || !process.instruction_docs) return []
-  return Array.isArray(process.instruction_docs) ? process.instruction_docs : []
+  const instructions = processSnapshotInstructions(process)
+  return [...instructions.instructionDocs, ...instructions.sopImages.map((url, index) => ({ url, name: 'SOP图片 ' + (index + 1) }))]
 }
 
-// 查看单个工序的作业指导书
-const viewInstructionDocs = async (process, task) => {
+const viewInstructionDocs = async (process) => {
   instructionDocsVisible.value = true
   instructionDocsLoading.value = true
   currentProcessName.value = process.processName || ''
   currentInstructionDocs.value = []
-
+  currentSopContent.value = ''
   try {
-    const processes = await fetchProcessTemplateProcesses(task)
-    if (!processes) return
-
-    const matchedProcess = processes.find(p => p.name === currentProcessName.value)
-    const docs = extractInstructionDocs(matchedProcess)
-
-    if (docs.length > 0) {
-      currentInstructionDocs.value = docs
-    } else {
-      ElMessage.info('该工序暂无作业指导书')
-    }
+    const { data } = await productionApi.getProductionProcess(process.id)
+    currentInstructionDocs.value = extractInstructionDocs(data)
+    currentSopContent.value = processSnapshotInstructions(data).sopContent
   } catch (error) {
-    console.error('获取作业指导书失败:', error)
-    ElMessage.info('该产品暂无作业指导书')
+    ElMessage.error(error.response?.data?.message || '读取任务作业要求失败')
   } finally {
     instructionDocsLoading.value = false
   }
@@ -1622,7 +1599,7 @@ const viewTaskInstructionDocs = async (task) => {
     processes.forEach(process => {
       const docs = extractInstructionDocs(process)
       docs.forEach(doc => {
-        allDocs.push({ processName: process.name, ...doc })
+        allDocs.push({ processName: process.processName, ...doc })
       })
     })
 
@@ -2072,6 +2049,8 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.process-sop-text { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
+
 .preview-fill {
   height: 100%;
 }

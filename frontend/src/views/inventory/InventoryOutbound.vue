@@ -85,31 +85,31 @@
           <EmptyState description="暂无出库单数据" />
         </template>
         <el-table-column type="selection" width="55" fixed="left"></el-table-column>
-        <el-table-column prop="outboundNo" label="出库单号" min-width="150" show-overflow-tooltip></el-table-column>
-        <el-table-column prop="productCode" label="物料编码" min-width="120" show-overflow-tooltip>
+        <el-table-column prop="outboundNo" label="出库单号" min-width="145" show-overflow-tooltip></el-table-column>
+        <el-table-column prop="productCode" label="物料编码" min-width="110" show-overflow-tooltip>
           <template #default="scope">
             {{ scope.row.productCode || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="productSpecs" label="型号规格" min-width="130" show-overflow-tooltip>
+        <el-table-column prop="productSpecs" label="型号规格" min-width="150" show-overflow-tooltip>
           <template #default="scope">
             {{ scope.row.productSpecs || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="outboundDate" label="出库日期" min-width="110" show-overflow-tooltip>
+        <el-table-column prop="outboundDate" label="出库日期" min-width="100" show-overflow-tooltip>
           <template #default="scope">
             {{ formatDate(scope.row.outboundDate) }}
           </template>
         </el-table-column>
 
-        <el-table-column prop="status" label="状态" min-width="100" show-overflow-tooltip>
+        <el-table-column prop="status" label="状态" min-width="98" show-overflow-tooltip>
           <template #default="scope">
             <el-tag :type="getOutboundStatusDisplay(scope.row).type" class="mr-xs">
               {{ getOutboundStatusDisplay(scope.row).text }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="类型" min-width="100" show-overflow-tooltip>
+        <el-table-column label="类型" min-width="92" show-overflow-tooltip>
           <template #default="scope">
             <el-tag size="small" :type="getOutboundTypeTag(scope.row)">
               {{ getOutboundTypeText(scope.row) }}
@@ -131,12 +131,12 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="生产组" min-width="100" show-overflow-tooltip>
+        <el-table-column label="生产组" min-width="90" show-overflow-tooltip>
           <template #default="scope">
             {{ scope.row.productionGroupName || scope.row.productionGroupNames || '-' }}
           </template>
         </el-table-column>
-        <el-table-column label="操作人" min-width="90" show-overflow-tooltip>
+        <el-table-column label="操作人" min-width="80" show-overflow-tooltip>
           <template #default="scope">
             {{ scope.row.operatorName || scope.row.operator }}
           </template>

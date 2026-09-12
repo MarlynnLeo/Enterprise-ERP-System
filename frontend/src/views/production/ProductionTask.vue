@@ -376,22 +376,23 @@
 
         <el-row :gutter="20" v-if="formData.productId">
           <el-col :span="24">
-            <el-form-item label="工序模板" prop="processTemplateId">
+            <el-form-item label="产品工艺" prop="processTemplateId">
               <el-select
                 v-model="formData.processTemplateId"
-                placeholder="选择工序模板"
+                placeholder="该产品暂无启用工艺"
                 class="w-full"
                 @change="handleProcessTemplateChange"
                 :loading="processTemplateLoading"
+                :disabled="Boolean(formData.id) && !['pending', 'allocated', 'preparing'].includes(formData.status)"
               >
                 <el-option
                   v-for="template in processTemplateList.filter(t => t && t.id)"
                   :key="template.id"
-                  :label="template.name"
+                  :label="routeOptionLabel(template)"
                   :value="template.id"
                 >
                   <div class="flex-between">
-                    <span>{{ template.name }}</span>
+                    <span>{{ routeOptionLabel(template) }}</span>
                     <span class="meta-md">{{ (template.details || []).length }}个工序</span>
                   </div>
                 </el-option>
@@ -750,6 +751,8 @@
 
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
+import { useProductProcessSelection } from '@/composables/useProductProcessSelection'
+import { routeOptionLabel } from '@/utils/productProcessRoute'
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
@@ -954,9 +957,7 @@ const submitShopRequest = async () => {
 }
 
 // 工序模板相关
-const processTemplateList = ref([])
-const processTemplateLoading = ref(false)
-const selectedTemplate = ref(null)  // 当前选中的工序模板
+const originalTaskProcess = ref({ taskId: null, productId: null, templateId: null })
 
 // ===== 排程相关状态 =====
 const scheduleInfo = ref({
@@ -1004,6 +1005,8 @@ const formData = ref({
   manager: '',
   remarks: ''
 })
+const { processTemplateList, processTemplateLoading, fetchProductProcessTemplates, selectProcessTemplate } = useProductProcessSelection(formData)
+
 const taskSubmitPermission = computed(() =>
   formData.value.id ? 'production:tasks:update' : 'production:tasks:create'
 )
@@ -1300,8 +1303,8 @@ const handleEdit = async (record) => {
     productName: record.productName || '',
     quantity: quantity,
     manager: record.manager || '',
-    startDate: record.startDate ? new Date(record.startDate) : null,
-    expectedEndDate: record.expectedEndDate ? new Date(record.expectedEndDate) : null,
+    startDate: record.plannedStartTime || record.startDate ? dayjs(record.plannedStartTime || record.startDate).format('YYYY-MM-DD HH:mm') : null,
+    expectedEndDate: record.expectedEndDate || null,
     remarks: record.remarks || ''
   }
 
@@ -1341,7 +1344,8 @@ const handleEdit = async (record) => {
   const productId = formData.value.productId;
   if (productId) {
     // 1. 加载工序模板（fetchProductProcessTemplates 会自动选择该产品的默认模板）
-    await fetchProductProcessTemplates(productId);
+    originalTaskProcess.value = { taskId: record.id, productId, templateId: record.processTemplateId || null }
+    await fetchProductProcessTemplates(productId, { preserveId: record.processTemplateId || null, preserveSelection: true });
     // 2. 加载生产组（fetchProductionGroupByProduct 会从物料设置自动获取并设置 manager）
     await fetchProductionGroupByProduct(productId);
     // 只有当任务已有有效负责人（非默认的"未分配"）时，才用任务记录的值覆盖
@@ -1397,7 +1401,7 @@ const handleModalOk = async () => {
     // 统计数据已在 fetchTaskList 中更新
   } catch (error) {
     console.error('提交表单失败:', error)
-    ElMessage.error('提交表单失败')
+    ElMessage.error(error.response?.data?.message || '提交表单失败')
   }
 }
 
@@ -1450,6 +1454,11 @@ const doScheduleCalculation = async () => {
       productId,
       quantity: parseFloat(quantity),
       startTime: startDate,
+      processTemplateId: formData.value.processTemplateId,
+      taskId: formData.value.id && originalTaskProcess.value.taskId === formData.value.id
+        && Number(originalTaskProcess.value.productId) === Number(productId)
+        && Number(originalTaskProcess.value.templateId || 0) === Number(formData.value.processTemplateId || 0)
+          ? formData.value.id : undefined,
     })
     const data = calcRes.data || calcRes
     if (data.warning) {
@@ -1644,48 +1653,9 @@ const handlePlanChange = async (planId) => {
 }
 
 // 获取产品关联的工序模板
-const fetchProductProcessTemplates = async (productId) => {
-  if (!productId) return
-
-  try {
-    processTemplateLoading.value = true
-    formData.value.processTemplateId = undefined
-
-    const response = await baseDataApi.getProcessTemplateByProductId(productId)
-
-    // 拦截器已解包，response.data 就是业务数据
-    if (response.data) {
-      // 如果有默认工序模板，直接使用
-      selectedTemplate.value = response.data
-      formData.value.processTemplateId = response.data.id
-    }
-
-    // 获取所有可用的工序模板
-    const allTemplatesResponse = await baseDataApi.getProcessTemplates({
-      productId,
-      pageSize: 50
-    })
-
-    // 拦截器已解包，response.data 就是业务数据
-    const templatesData = allTemplatesResponse.data?.list || allTemplatesResponse.data || [];
-    if (Array.isArray(templatesData)) {
-      processTemplateList.value = templatesData
-    } else {
-      processTemplateList.value = []
-    }
-  } catch (error) {
-    console.error('获取产品工序模板失败:', error)
-    ElMessage.warning('获取产品工序模板失败')
-    processTemplateList.value = []
-  } finally {
-    processTemplateLoading.value = false
-  }
-}
-
-// 处理工序模板选择变化
-const handleProcessTemplateChange = () => {
-  // 工序模板选择变化时的处理逻辑
-  // 当前仅用于记录选择，实际业务逻辑可在此扩展
+const handleProcessTemplateChange = (id) => {
+  selectProcessTemplate(id)
+  onScheduleParamsChange()
 }
 
 // 重置搜索方法

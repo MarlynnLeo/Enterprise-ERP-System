@@ -4,6 +4,8 @@
  */
 
 const { pool } = require('../../config/db');
+const BusinessError = require('../../utils/BusinessError');
+const { jsonArray } = require('../../utils/productProcessDefinition');
 
 class AssemblyVerificationService {
   /**
@@ -11,19 +13,19 @@ class AssemblyVerificationService {
    * @param {Object} data - { taskId, scannedBarcode, station }
    * @param {number} operatorId - 操作人ID
    */
-  static async verify(data, operatorId) {
-    const { taskId, scannedBarcode, station } = data;
+  static async verify(data, operatorId, connection = pool) {
+    const { taskId, processId, scannedBarcode, station } = data;
 
     // 1. 获取任务 + BOM
-    const [tasks] = await pool.query(
+    const [tasks] = await connection.query(
       'SELECT id, product_id, code FROM production_tasks WHERE id = ? AND deleted_at IS NULL',
       [taskId]
     );
     if (tasks.length === 0) throw new Error('生产任务不存在');
 
     // 2. 通过条码查找物料（按物料编码匹配）
-    const [materials] = await pool.query(
-      'SELECT id, code, name FROM materials WHERE code = ? LIMIT 1',
+    const [materials] = await connection.query(
+      'SELECT id, code, name FROM materials WHERE code = ? AND deleted_at IS NULL LIMIT 1',
       [scannedBarcode]
     );
 
@@ -34,30 +36,36 @@ class AssemblyVerificationService {
 
     const material = materials[0];
 
-    // 3. 检查该物料是否在任务的 BOM 中
-    const [bomCheck] = await pool.query(
-      `SELECT bd.id AS bom_detail_id, bd.quantity AS unit_quantity
-       FROM bom_details bd
-       INNER JOIN bom_masters bm ON bd.bom_id = bm.id
-       WHERE bm.product_id = ? AND bd.material_id = ?`,
-      [tasks[0].product_id, material.id]
-    );
+    let bomCheck;
+    if (processId) {
+      const [processes] = await connection.query('SELECT process_snapshot FROM production_processes WHERE id = ? AND task_id = ?', [processId, taskId]);
+      if (!processes.length) throw new BusinessError('工序不属于该生产任务', null, 'INVALID_VERIFICATION_PROCESS', 400);
+      const snapshot = typeof processes[0].process_snapshot === 'string' ? JSON.parse(processes[0].process_snapshot) : processes[0].process_snapshot;
+      const expected = jsonArray(snapshot?.materials).find(row => Number(row.material_id) === Number(material.id));
+      bomCheck = expected ? [{ bom_detail_id: null, unit_quantity: expected.quantity }] : [];
+    } else {
+      [bomCheck] = await connection.query(
+        'SELECT bd.id AS bom_detail_id, bd.quantity AS unit_quantity FROM bom_details bd JOIN bom_masters bm ON bm.id = bd.bom_id WHERE bm.product_id = ? AND bd.material_id = ? AND bm.status = 1 AND bm.deleted_at IS NULL',
+        [tasks[0].product_id, material.id]
+      );
+    }
 
     if (bomCheck.length === 0) {
       // 物料不在 BOM 中
       const log = await this._saveLog({
         taskId,
+        processId,
         materialId: material.id,
         scannedBarcode,
         expectedBarcode: material.code,
         result: 'fail',
-        failReason: `物料 ${material.code}(${material.name}) 不在该任务的 BOM 中`,
+        failReason: `物料 ${material.code}(${material.name}) 不在指定的工序用料中`,
         operatorId,
         station,
-      });
+      }, connection);
       return {
         result: 'fail',
-        reason: `物料 ${material.name} 不在 BOM 中`,
+        reason: `物料 ${material.name} 不在指定的工序用料中`,
         material: { id: material.id, code: material.code, name: material.name },
         log,
       };
@@ -66,6 +74,7 @@ class AssemblyVerificationService {
     // 4. 验证通过
     const log = await this._saveLog({
       taskId,
+      processId,
       materialId: material.id,
       scannedBarcode,
       expectedBarcode: material.code,
@@ -74,7 +83,7 @@ class AssemblyVerificationService {
       operatorId,
       station,
       bomDetailId: bomCheck[0].bom_detail_id,
-    });
+    }, connection);
 
     return {
       result: 'pass',
@@ -85,13 +94,14 @@ class AssemblyVerificationService {
   }
 
   /** 保存验证日志 */
-  static async _saveLog(data) {
-    const [result] = await pool.query(
+  static async _saveLog(data, connection = pool) {
+    const [result] = await connection.query(
       `INSERT INTO assembly_verification_logs
-       (task_id, bom_detail_id, material_id, scanned_barcode, expected_barcode, result, fail_reason, operator_id, station)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (task_id, process_id, bom_detail_id, material_id, scanned_barcode, expected_barcode, result, fail_reason, operator_id, station)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.taskId,
+        data.processId || null,
         data.bomDetailId || null,
         data.materialId,
         data.scannedBarcode,

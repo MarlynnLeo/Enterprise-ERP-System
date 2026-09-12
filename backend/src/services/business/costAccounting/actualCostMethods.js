@@ -323,7 +323,7 @@ module.exports = {
 
       // ========== 计算并保存成本差异 (Cost Variance) ==========
       try {
-        const stdCostResult = await this.ensureStandardCost(order.product_id, order.quantity);
+        const stdCostResult = await this.ensureStandardCost(order.product_id, order.quantity, { taskId: productionOrderId, connection });
         if (stdCostResult && stdCostResult.totalCost > 0) {
           const standardMaterialCost = stdCostResult.materialCost || 0;
           const standardLaborCost = stdCostResult.laborCost || 0;

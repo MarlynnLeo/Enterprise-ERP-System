@@ -21,6 +21,7 @@ const {
 const ScopeGuard = require('../../../authorization/ScopeGuard');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const { getCurrentUserName } = require('../../../utils/userHelper');
+const ProductProcessExecutionService = require('../../../services/business/ProductProcessExecutionService');
 
 // Old clients may send report_quantity or one of the two defect aliases.
 // Normalize once so create/update persist the same balanced quantities.
@@ -65,17 +66,6 @@ const PROC_STATUS = {
   IN_PROGRESS: 'in_progress',
   COMPLETED: 'completed',
 };
-
-const PROCESS_STATE_MACHINE = {
-  pending: ['in_progress', 'completed'],
-  in_progress: ['completed'],
-  completed: [],
-};
-
-function canTransitionProcess(current, target) {
-  if (current === target) return true;
-  return (PROCESS_STATE_MACHINE[current] || []).includes(target);
-}
 
 /**
  * 获取报工汇总
@@ -841,21 +831,18 @@ async function syncProgressAndStatus(connection, task_id, process_id) {
             : 0;
       if (procProgress > 100) procProgress = 100;
 
-      let desiredProcStatus =
-        procProgress >= 100
-          ? PROC_STATUS.COMPLETED
-          : totalProcReported > 0
-            ? PROC_STATUS.IN_PROGRESS
-            : PROC_STATUS.PENDING;
-
-      if (!canTransitionProcess(currentProcStatus, desiredProcStatus)) {
-        // 终态或非法跳转：只更新进度，不改状态
-        desiredProcStatus = currentProcStatus;
+      // Reporting uses the same sequence, timing and scan gates as both
+      // execution pages. It cannot complete a process by a direct status write.
+      if (totalProcReported > 0 && currentProcStatus === PROC_STATUS.PENDING) {
+        await ProductProcessExecutionService.update(connection, process_id, { status: PROC_STATUS.IN_PROGRESS });
+      }
+      if (procProgress >= 100 && [PROC_STATUS.PENDING, PROC_STATUS.IN_PROGRESS].includes(currentProcStatus)) {
+        await ProductProcessExecutionService.update(connection, process_id, { status: PROC_STATUS.COMPLETED });
       }
 
       await connection.query(
-        'UPDATE production_processes SET progress = ?, status = ? WHERE id = ?',
-        [procProgress, desiredProcStatus, process_id]
+        'UPDATE production_processes SET progress = ? WHERE id = ? AND status NOT IN (\'completed\', \'cancelled\')',
+        [procProgress, process_id]
       );
     }
   }

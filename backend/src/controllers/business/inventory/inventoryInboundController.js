@@ -1220,11 +1220,16 @@ const updateInboundStatus = async (req, res) => {
         continue;
       }
       logger.error('更新入库单状态失败:', error);
+      const businessStatus = Number(error?.httpStatus || error?.statusCode);
+      const responseStatus = Number.isInteger(businessStatus) && businessStatus >= 400 && businessStatus < 500
+        ? businessStatus
+        : 500;
+      const responseCode = error?.errorCode || error?.code || 'SERVER_ERROR';
       return ResponseHandler.error(
         res,
         error.message || '更新入库单状态失败',
-        error.code || 'SERVER_ERROR',
-        error.statusCode || 500,
+        responseCode,
+        responseStatus,
         error
       );
     } finally {
@@ -1233,11 +1238,15 @@ const updateInboundStatus = async (req, res) => {
   }
 
   logger.error('更新入库单状态失败(重试用尽):', lastError);
+  const businessStatus = Number(lastError?.httpStatus || lastError?.statusCode);
+  const responseStatus = Number.isInteger(businessStatus) && businessStatus >= 400 && businessStatus < 500
+    ? businessStatus
+    : 500;
   return ResponseHandler.error(
     res,
     lastError?.message || '更新入库单状态失败',
-    lastError?.code || 'SERVER_ERROR',
-    lastError?.statusCode || 500,
+    lastError?.errorCode || lastError?.code || 'SERVER_ERROR',
+    responseStatus,
     lastError
   );
 };

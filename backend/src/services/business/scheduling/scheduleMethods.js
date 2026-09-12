@@ -3,6 +3,8 @@
  */
 
 const runtime = require('./runtime');
+const ProductProcessTaskService = require('../ProductProcessTaskService');
+const BusinessError = require('../../../utils/BusinessError');
 const {
   pool,
   logger,
@@ -17,46 +19,24 @@ module.exports = {
      * @param {Object} [connection] - 可选数据库连接
      * @returns {Object} { totalMinutesPerUnit, processes: [{name, standardHours, sequence}] }
      */
-    async getProductStandardHours(productId, connection = null) {
+    async getProductStandardHours(productId, connection = null, { templateId = null, taskId = null } = {}) {
       const conn = connection || pool;
-  
-      // 通过产品ID找到激活的工序模板
-      const [templates] = await conn.query(
-        `SELECT id FROM process_templates
-         WHERE product_id = ? AND status = 1 AND deleted_at IS NULL
-         ORDER BY created_at DESC LIMIT 1`,
-        [productId]
-      );
-  
-      if (templates.length === 0) {
-        return { totalMinutesPerUnit: 0, processes: [], templateId: null };
+      let steps;
+      let selectedId;
+      if (taskId) {
+        const [tasks] = await conn.query('SELECT product_id, process_template_id FROM production_tasks WHERE id = ? AND deleted_at IS NULL', [taskId]);
+        if (!tasks.length || Number(tasks[0].product_id) !== Number(productId)) {
+          throw new BusinessError('排程任务与产品不匹配', null, 'INVALID_SCHEDULE_TASK', 400);
+        }
+        selectedId = tasks[0].process_template_id;
+        [steps] = await conn.query("SELECT process_name AS name, sequence AS order_num, standard_hours FROM production_processes WHERE task_id = ? AND status <> 'cancelled' ORDER BY sequence, id", [taskId]);
+      } else {
+        const route = await ProductProcessTaskService.resolveDefinition(conn, productId, templateId);
+        selectedId = route?.id || null;
+        steps = route?.details || [];
       }
-  
-      const templateId = templates[0].id;
-  
-      // 获取工序详情及标准工时
-      const [steps] = await conn.query(
-        `SELECT name, standard_hours, order_num
-         FROM process_template_details
-         WHERE template_id = ?
-         ORDER BY order_num`,
-        [templateId]
-      );
-  
-      let totalMinutesPerUnit = 0;
-      const processes = steps.map((s) => {
-        // standard_hours 存储的是「小时/件」，需要乘以 60 转换为分钟/件
-        // 例如：standard_hours = 0.20 表示每件需要 0.20 小时 = 12 分钟
-        const minutesPerUnit = (parseFloat(s.standard_hours) || 0) * 60;
-        totalMinutesPerUnit += minutesPerUnit;
-        return {
-          name: s.name,
-          standardHours: minutesPerUnit,  // 分钟/件（已从小时转换）
-          sequence: s.order_num,
-        };
-      });
-  
-      return { totalMinutesPerUnit, processes, templateId };
+      const processes = steps.map(step => ({ name: step.name, standardHours: Number(step.standard_hours || 0) * 60, sequence: step.order_num }));
+      return { totalMinutesPerUnit: processes.reduce((sum, step) => sum + step.standardHours, 0), processes, templateId: selectedId };
     },
 
   /**
@@ -67,8 +47,9 @@ module.exports = {
      * @param {string} params.startTime - 开始时间 'YYYY-MM-DD HH:mm'
      * @returns {Object} { totalMinutes, estimatedEndTime, processSchedule }
      */
-    async calculateSchedule({ productId, quantity, startTime }) {
+    async calculateSchedule({ productId, quantity, startTime, processTemplateId = null, taskId = null }) {
       const startDate = this._parseScheduleDateTime(startTime);
+      if (!Number.isFinite(Number(quantity)) || Number(quantity) <= 0) throw new BusinessError('生产数量必须大于0', null, 'INVALID_SCHEDULE_QUANTITY', 400);
       if (!startDate) {
         const error = new Error('Invalid startTime');
         error.statusCode = 400;
@@ -76,7 +57,7 @@ module.exports = {
       }
   
       const { totalMinutesPerUnit, processes, templateId } =
-        await this.getProductStandardHours(productId);
+        await this.getProductStandardHours(productId, null, { templateId: processTemplateId, taskId });
   
       if (totalMinutesPerUnit === 0) {
         return {
@@ -89,7 +70,7 @@ module.exports = {
       }
   
       // 总耗时 = 各工序工时之和 × 数量（串行工序）
-      const totalMinutes = Math.ceil(totalMinutesPerUnit * quantity);
+      const totalMinutes = processes.reduce((sum, proc) => sum + Math.ceil(proc.standardHours * quantity), 0);
   
       // 获取班次配置
       const calendar = await this.getDefaultCalendar();

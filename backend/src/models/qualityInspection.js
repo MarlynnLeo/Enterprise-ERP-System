@@ -1310,46 +1310,15 @@ class QualityInspection {
           const taskIdForPromote = inspection.task_id || inspection.reference_id;
           if (taskIdForPromote) {
             try {
-              const {
-                promoteTaskToInspection,
-              } = require('../services/business/TaskLifecycleService');
-              const [procStats] = await connection.query(
-                `SELECT
-                   COUNT(*) AS total,
-                   SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed,
-                   SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled
-                 FROM production_processes
-                 WHERE task_id = ?`,
-                [taskIdForPromote]
-              );
-              const total = Number(procStats[0]?.total || 0);
-              const completed = Number(procStats[0]?.completed || 0);
-              const cancelled = Number(procStats[0]?.cancelled || 0);
-              const allDone = total > 0 && completed === total - cancelled;
-              if (allDone) {
-                const promoteResult = await promoteTaskToInspection(connection, taskIdForPromote, {
-                  setCompletedQuantityToPlan: true,
-                  requireOpenInspectionClear: true,
-                });
-                if (promoteResult?.promoted || promoteResult?.status === 'inspection') {
-                  const FinalInspectionService = require('../services/business/FinalInspectionService');
-                  await FinalInspectionService.ensureForTask(connection, taskIdForPromote, {
-                    note: '首件/工序检验完成后自动创建终检',
-                  });
-                  logger.info(
-                    `首件/工序检验通过后任务 ${taskIdForPromote} 已推进待检并确保终检单`
-                  );
-                }
-              }
+              const execution = require('../services/business/ProductProcessExecutionService');
+              await execution.finishIfReady(connection, taskIdForPromote);
             } catch (promoteAfterInspectErr) {
               if (promoteAfterInspectErr.code === 'OPEN_INSPECTIONS') {
                 logger.info(
                   `首件/工序检验更新后仍有未关闭检验，暂不推进任务: ${promoteAfterInspectErr.message}`
                 );
               } else {
-                logger.warn(
-                  `首件/工序检验通过后推进任务失败: ${promoteAfterInspectErr.message}`
-                );
+                throw promoteAfterInspectErr;
               }
             }
           }

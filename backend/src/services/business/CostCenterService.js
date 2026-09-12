@@ -402,10 +402,9 @@ class CostCenterService {
                     cc.name as cost_center_name,
                     pt.quantity,
                     COALESCE(
-                        (SELECT SUM(ptd.standard_hours)
-                         FROM process_templates pt2
-                         JOIN process_template_details ptd ON pt2.id = ptd.template_id
-                         WHERE pt2.product_id = pt.product_id AND pt2.status = 1),
+                        (SELECT SUM(pp.standard_hours)
+                         FROM production_processes pp
+                         WHERE pp.task_id = pt.id AND pp.status <> 'cancelled'),
                         0
                     ) * pt.quantity as standard_hours,
                     COALESCE(

@@ -279,5 +279,7 @@
   "20260909000002_finance_salary_approval_menu.js": "8111f27213bf3883e6f31f46ef09835d3d742e81c231f157b9636fe89d289737",
   "20260909000003_remove_inventory_posting_workbench.js": "c9cf029912fe68c7006da7830b1b866cd02747bed08340b1597278dd1948a7a1",
   "20260909000004_finance_inventory_source_read_access.js": "36d97eaff1992b740777875b6e46418e3d2b34838cbb74adef2ac083b001df9b",
-  "20260909000005_finance_inventory_foundation_read_access.js": "9a97aefac53b7518455e3cdea325d29b01cde931155f40d8be60590ce7c408c8"
+  "20260909000005_finance_inventory_foundation_read_access.js": "9a97aefac53b7518455e3cdea325d29b01cde931155f40d8be60590ce7c408c8",
+  "20260911000001_unify_product_process_routes.js": "382201e179f56b0f3b366229541796f684e1ec3cab4a6e8b1dc7b86110ec31a9",
+  "20260911000002_scope_process_material_verification.js": "1c17d564292e710e7bdd20c2d4be2817244c0cca368e0bc530b9e9d80f089c27"
 }

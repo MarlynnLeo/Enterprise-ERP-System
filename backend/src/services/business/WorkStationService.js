@@ -143,7 +143,7 @@ class WorkStationService {
   static async delete(id) {
     // 检查是否有正在执行的装配任务使用此工位
     const [[{ count }]] = await pool.query(
-      `SELECT COUNT(*) as count FROM assembly_task_steps WHERE station_id = ? AND status IN ('pending', 'in_progress')`,
+      `SELECT COUNT(*) as count FROM production_processes WHERE station_id = ? AND status IN ('pending', 'in_progress')`,
       [id]
     );
     if (count > 0) {
@@ -176,10 +176,10 @@ class WorkStationService {
               CASE WHEN ats.id IS NOT NULL THEN 'busy' ELSE 'idle' END AS current_status,
               ats.task_id AS current_task_id,
               pt.code AS current_task_code,
-              ats.step_name AS current_step_name,
+              ats.process_name AS current_step_name,
               u.real_name AS current_operator
        FROM work_stations ws
-       LEFT JOIN assembly_task_steps ats ON ws.id = ats.station_id AND ats.status = 'in_progress'
+       LEFT JOIN production_processes ats ON ws.id = ats.station_id AND ats.status = 'in_progress'
        LEFT JOIN production_tasks pt ON ats.task_id = pt.id
        LEFT JOIN users u ON ats.operator_id = u.id
        WHERE ws.is_active = 1

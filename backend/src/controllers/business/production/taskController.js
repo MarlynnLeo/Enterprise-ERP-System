@@ -32,6 +32,13 @@ const {
 } = require('../../../services/business/TaskLifecycleService');
 const NotificationService = require('../../../services/NotificationService');
 const DomainEventService = require('../../../services/business/DomainEventService');
+const {
+  ensureTaskQualityInspections,
+  resolveTemplateData,
+} = require('../../../services/business/ProductionQualityInspectionService');
+const FinalInspectionService = require('../../../services/business/FinalInspectionService');
+const ProductionLaborService = require('../../../services/business/ProductionLaborService');
+const ProductProcessTaskService = require('../../../services/business/ProductProcessTaskService');
 
 // 状态常量（统一引用 businessConfig，消除硬编码）
 const TASK_STATUS = businessConfig.status.productionTask;
@@ -69,67 +76,6 @@ async function resolveCostCenterIdForProduct(connection, productId) {
   );
 
   return rows.length > 0 ? rows[0].cost_center_id : null;
-}
-
-async function loadActiveProcessTemplateSteps(connection, productId) {
-  if (!productId) return { templateId: null, steps: [] };
-
-  const [templates] = await connection.query(
-    'SELECT id FROM process_templates WHERE product_id = ? AND status = 1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1',
-    [productId]
-  );
-  if (templates.length === 0) {
-    return { templateId: null, steps: [] };
-  }
-
-  const templateId = templates[0].id;
-  const [steps] = await connection.query(
-    'SELECT id, template_id, order_num, name, description, standard_hours, department, remark, created_at, updated_at, instruction_docs FROM process_template_details WHERE template_id = ? ORDER BY order_num',
-    [templateId]
-  );
-  return { templateId, steps };
-}
-
-async function insertTaskProcessesFromSteps(connection, taskId, taskCode, taskQuantity, steps) {
-  for (const step of steps) {
-    await connection.query(
-      `
-      INSERT INTO production_processes
-      (task_id, process_name, sequence, quantity, progress, status, standard_hours, description, remarks)
-      VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?)
-    `,
-      [
-        taskId,
-        step.name,
-        step.order_num,
-        taskQuantity,
-        0,
-        step.standard_hours || 0,
-        step.description || '',
-        step.remark || '',
-      ]
-    );
-  }
-  logger.info(`任务 ${taskCode} 已加载 ${steps.length} 道工序`);
-}
-
-async function replaceTaskProcessesForProduct(
-  connection,
-  taskId,
-  taskCode,
-  productId,
-  taskQuantity
-) {
-  await connection.query('DELETE FROM production_processes WHERE task_id = ?', [taskId]);
-
-  const { templateId, steps } = await loadActiveProcessTemplateSteps(connection, productId);
-  if (!templateId) {
-    logger.warn(`任务 ${taskCode} 产品 ${productId} 未配置激活工序模板，已清空旧工序`);
-    return;
-  }
-
-  logger.info(`任务 ${taskCode} 重新关联工序模板: ${templateId}`);
-  await insertTaskProcessesFromSteps(connection, taskId, taskCode, taskQuantity, steps);
 }
 
 async function syncTaskProcessQuantity(connection, taskId, taskQuantity) {
@@ -235,6 +181,7 @@ exports.createProductionTask = async (req, res) => {
     // HTTP camel → snake
     const { productionTaskMap } = require('../../../utils/production/productionFieldMap');
     const mapped = productionTaskMap.fromApi(req.body || {});
+    const startTimeInput = req.body?.startDate ?? req.body?.start_date;
     const plan_id = mapped.plan_id;
     const product_id = mapped.product_id;
     const quantity = mapped.quantity;
@@ -339,47 +286,10 @@ exports.createProductionTask = async (req, res) => {
       );
     }
 
-    // 如果没有指定工序模板ID，尝试根据产品ID自动查找关联的工序模板
-    let effectiveTemplateId = process_template_id;
-    if (!effectiveTemplateId && product_id) {
-      const { templateId } = await TaskRepository.findActiveProcessTemplate(connection, product_id);
-      if (templateId) {
-        effectiveTemplateId = templateId;
-        logger.info(`任务 ${code} 自动关联工序模板: ${effectiveTemplateId}`);
-      }
-    }
-
-    if (effectiveTemplateId) {
-      const [templates] = await connection.query(
-        'SELECT id FROM process_templates WHERE id = ? AND deleted_at IS NULL',
-        [effectiveTemplateId]
-      );
-
-      if (templates.length === 0) {
-        logger.warn(`指定的工序模板 ${effectiveTemplateId} 不存在`);
-      } else {
-        // 使用显式的 templateId 重新加载步骤（覆盖前端指定模板和自动发现模板两种场景）
-        const [explicitSteps] = await connection.query(
-          'SELECT id, template_id, order_num, name, description, standard_hours, department, remark, created_at, updated_at, instruction_docs FROM process_template_details WHERE template_id = ? ORDER BY order_num',
-          [effectiveTemplateId]
-        );
-        await TaskRepository.insertProcesses(connection, taskId, taskQuantity, explicitSteps);
-        logger.info(`任务 ${code} 已加载 ${explicitSteps.length} 道工序`);
-
-        // ===== 自动排程：填充各工序的计划开始/结束时间 =====
-        if (start_date) {
-          try {
-            // 如果前端传的是纯日期，默认从上班时间开始
-            const startTime = await SchedulingService.resolveStartTime(start_date, connection);
-            await SchedulingService.rescheduleTask(taskId, startTime, taskQuantity, connection);
-            logger.info(`[排程] 任务 ${code} 工序计划时间已自动填充`);
-          } catch (schedErr) {
-            throw new Error(`任务 ${code} 工序时间填充失败: ${schedErr.message}`, {
-              cause: schedErr,
-            });
-          }
-        }
-      }
+    const processSnapshot = await ProductProcessTaskService.initializeTask(connection, taskId, { templateId: process_template_id });
+    if (start_date && processSnapshot.templateId) {
+      const startTime = await SchedulingService.resolveStartTime(startTimeInput, connection);
+      await SchedulingService.rescheduleTask(taskId, startTime, taskQuantity, connection);
     }
 
     if (plan_id) {
@@ -440,16 +350,19 @@ exports.updateProductionTask = async (req, res) => {
   const connection = await pool.getConnection();
   try {
     const { id } = req.params;
+    const { productionTaskMap } = require('../../../utils/production/productionFieldMap');
+    const startTimeInput = req.body?.startDate ?? req.body?.start_date;
     const {
       plan_id,
       product_id,
+      process_template_id,
       quantity,
       start_date,
       expected_end_date,
       manager,
       remarks,
       status,
-    } = mapKeysToSnake(req.body || {});
+    } = productionTaskMap.fromApi(req.body || {});
 
     const ScopeGuard = require('../../../authorization/ScopeGuard');
     if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'production_task', id, '无权修改该生产任务'))) {
@@ -459,7 +372,7 @@ exports.updateProductionTask = async (req, res) => {
     await connection.beginTransaction();
 
     const [taskCheck] = await connection.query(
-      'SELECT id, code, status, plan_id, product_id, quantity, manager FROM production_tasks WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      'SELECT id, code, status, plan_id, product_id, quantity, manager, process_template_id FROM production_tasks WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
       [id]
     );
 
@@ -494,7 +407,9 @@ exports.updateProductionTask = async (req, res) => {
     const nextProductId = product_id ? Number(product_id) : null;
     const currentQuantity = Number(currentTask.quantity) || 0;
     const preStartStatuses = [TASK_STATUS.PENDING, TASK_STATUS.ALLOCATED, TASK_STATUS.PREPARING];
+    const templateChanged = process_template_id !== undefined && Number(process_template_id || 0) !== Number(currentTask.process_template_id || 0);
     const trackedFieldsChanged =
+      templateChanged ||
       currentPlanId !== nextPlanId ||
       currentProductId !== nextProductId ||
       currentQuantity !== taskQuantity;
@@ -503,7 +418,7 @@ exports.updateProductionTask = async (req, res) => {
       await connection.rollback();
       return ResponseHandler.error(
         res,
-        '任务已进入执行流程，不能修改计划、产品或数量',
+        '任务已进入执行流程，不能修改计划、产品、数量或工艺版本',
         'VALIDATION_ERROR',
         400
       );
@@ -584,7 +499,10 @@ exports.updateProductionTask = async (req, res) => {
       // 使用 statusMapper 工具进行状态转换
       dbStatus = apiStatusToDbStatus(status, 'productionTask');
     }
-    const nextStatus = dbStatus || currentTask.status;
+    if (dbStatus && dbStatus !== currentTask.status) {
+      throw new BusinessError('请通过任务状态操作完成状态流转', null, 'TASK_STATUS_ACTION_REQUIRED', 409);
+    }
+    const nextStatus = currentTask.status;
 
     // 如果产品变更，同步更新成本中心
     const costCenterId = await resolveCostCenterIdForProduct(connection, product_id);
@@ -610,20 +528,14 @@ exports.updateProductionTask = async (req, res) => {
       ]
     );
 
-    if (currentProductId !== nextProductId) {
-      await replaceTaskProcessesForProduct(
-        connection,
-        id,
-        currentTask.code,
-        product_id,
-        taskQuantity
-      );
+    if (currentProductId !== nextProductId || templateChanged) {
+      await ProductProcessTaskService.initializeTask(connection, id, { templateId: process_template_id, replace: true });
     } else if (currentQuantity !== taskQuantity) {
       await syncTaskProcessQuantity(connection, id, taskQuantity);
     }
 
     if (start_date && preStartStatuses.includes(nextStatus)) {
-      const startTime = await SchedulingService.resolveStartTime(start_date, connection);
+      const startTime = await SchedulingService.resolveStartTime(startTimeInput, connection);
       await SchedulingService.rescheduleTask(id, startTime, taskQuantity, connection);
     }
 
@@ -945,205 +857,27 @@ exports.updateProductionTaskStatus = async (req, res) => {
     const taskData = taskCheck[0];
     const planId = taskData.plan_id;
 
-    // 任务状态更新为生产中时，自动创建首检单
+    // 任务状态更新为生产中时，自动创建首检/过程检单。
     if (status === TASK_STATUS.IN_PROGRESS) {
       try {
-        // 检查是否已经存在首检单
-        const [existingFirstArticle] = await connection.query(
-          'SELECT id FROM quality_inspections WHERE inspection_type = ? AND task_id = ? AND deleted_at IS NULL',
-          ['first_article', id]
-        );
-
-        if (existingFirstArticle.length === 0) {
-          // 获取产品的首检规则
-          const [rules] = await connection.query(
-            'SELECT id, product_id, first_article_qty, full_inspection_threshold, template_id, is_mandatory, inspection_items, note, created_at, updated_at FROM first_article_rules WHERE product_id = ?',
-            [taskData.product_id]
-          );
-
-          const rule = rules[0] || {
-            first_article_qty: 5,
-            full_inspection_threshold: 5,
-            template_id: null,
-          };
-
-          // 计算首检数量
-          const productionQty = taskData.quantity || 0;
-          const isFullInspection = productionQty < rule.full_inspection_threshold;
-          const firstArticleQty = isFullInspection ? productionQty : rule.first_article_qty;
-
-          // 获取产品信息
-          const [productInfo] = await connection.query(
-            `SELECT m.code, m.name, m.unit_id, u.name AS unit_name
-             FROM materials m
-             LEFT JOIN units u ON m.unit_id = u.id
-             WHERE m.id = ? AND m.deleted_at IS NULL`,
-            [taskData.product_id]
-          );
-          const product = productInfo[0] || {};
-
-          // 创建首检单，并通过统一模板解析器复制模板检验项
-          const firstArticleInspection = await QualityInspection.createInspection(
-            {
-              inspection_type: 'first_article',
-              task_id: id,
-              reference_id: id,
-              reference_no: taskData.code,
-              product_id: taskData.product_id,
-              product_code: product.code || '',
-              product_name: product.name || '',
-              batch_no: await generateBatchNo(taskData.code, connection),
-              quantity: firstArticleQty,
-              unit: product.unit_name || '个',
-              unit_id: product.unit_id || null,
-              planned_date: new Date(),
-              status: businessConfig.status.productionTask.PENDING,
-              is_first_article: true,
-              first_article_qty: firstArticleQty,
-              is_full_inspection: isFullInspection,
-              first_article_result: 'pending',
-              production_can_continue: false,
-              template_id: rule.template_id || null,
-              note: isFullInspection
-                ? 'Auto-created when production task started (full first-article inspection)'
-                : 'Auto-created when production task started (sample first-article inspection)',
-            },
-            connection
-          );
-
-          logger.info('自动创建首检单成功', {
-            taskId: id,
-            inspectionNo: firstArticleInspection.inspection_no,
-            firstArticleQty,
-            isFullInspection,
-          });
-        } else {
-          logger.info('首检单已存在，跳过创建', { taskId: id });
-        }
-      } catch (faError) {
-        logger.error('自动创建首检单失败:', faError);
-        throw faError;
-      }
-
-      // === 自动创建过程检验记录 ===
-      try {
-        // 检查是否已经存在过程检验记录
-        const [existingProcessInspection] = await connection.query(
-          'SELECT id FROM quality_inspections WHERE inspection_type = ? AND task_id = ? AND deleted_at IS NULL',
-          ['process', id]
-        );
-
-        if (existingProcessInspection.length === 0) {
-          // 获取产品的过程检验规则
-          const [processRules] = await connection.query(
-            'SELECT id, process_id, product_id, inspection_interval, sample_rate, punch_interval, template_id, is_enabled, note, created_at, updated_at FROM process_inspection_rules WHERE is_enabled = 1 AND (product_id = ? OR product_id IS NULL) ORDER BY product_id DESC LIMIT 1',
-            [taskData.product_id]
-          );
-
-          if (processRules.length === 0) {
-            throw new BusinessError('产品未配置过程检验规则，无法启动生产任务', {
-              route: '/quality/process-inspection',
-              buttonText: '配置过程检验规则',
-            });
-          }
-          const processRule = processRules[0];
-
-          // 获取生产任务的第一个工序名称
-          const [firstProcess] = await connection.query(
-            'SELECT id, process_name FROM production_processes WHERE task_id = ? ORDER BY sequence ASC LIMIT 1',
-            [id]
-          );
-          const processName = firstProcess[0]?.process_name || '生产过程';
-
-          // 创建过程检验记录
-          // 获取产品信息
-          const [productInfo] = await connection.query(
-            `SELECT m.code, m.name, m.unit_id, u.name AS unit_name
-             FROM materials m
-             LEFT JOIN units u ON m.unit_id = u.id
-             WHERE m.id = ? AND m.deleted_at IS NULL`,
-            [taskData.product_id]
-          );
-          const product = productInfo[0] || {};
-
-          // 计算抽检数量
-          const sampleRate = Number(processRule.sample_rate) || 100;
-          const sampleQty = Math.max(1, Math.ceil(taskData.quantity * (sampleRate / 100)));
-
-          const processInspection = await QualityInspection.createInspection(
-            {
-              inspection_type: 'process',
-              task_id: id,
-              reference_id: id,
-              reference_no: taskData.code,
-              product_id: taskData.product_id,
-              product_code: product.code || '',
-              product_name: product.name || '',
-              process_id: firstProcess[0]?.id || processRule.process_id || null,
-              process_name: processName,
-              batch_no: await generateBatchNo(taskData.code, connection),
-              quantity: sampleQty,
-              unit: product.unit_name || 'pcs',
-              unit_id: product.unit_id || null,
-              planned_date: new Date(),
-              status: businessConfig.status.productionTask.PENDING,
-              template_id: processRule.template_id || null,
-              note: `Auto-created when production task started (sample rate ${sampleRate}%)`,
-            },
-            connection
-          );
-
-          logger.info('自动创建过程检验记录成功', {
-            taskId: id,
-            inspectionNo: processInspection.inspection_no,
-            processName,
-            sampleQty,
-            sampleRate,
-          });
-        } else {
-          logger.info('过程检验记录已存在，跳过创建', { taskId: id });
-        }
-      } catch (processError) {
-        logger.error('自动创建过程检验记录失败:', processError);
-        throw processError;
+        const inspectionResult = await ensureTaskQualityInspections(connection, id);
+        logger.info('生产任务首检/过程检单已确保存在', { taskId: id, inspectionResult });
+      } catch (inspectionError) {
+        logger.error('自动创建首检/过程检验单失败:', inspectionError);
+        throw inspectionError;
       }
     }
 
     // 任务状态更新为待检验或完成时，在事务内创建检验单
     if (status === TASK_STATUS.INSPECTION || status === TASK_STATUS.COMPLETED) {
       try {
-        // 检查是否已经存在检验单（成品检验类型，reference_id为任务ID）
-        const [existingInspection] = await connection.query(
-          'SELECT id FROM quality_inspections WHERE inspection_type = ? AND reference_id = ? AND deleted_at IS NULL',
-          ['final', id]
-        );
-
-        // 如果不存在检验单，则创建
-        if (existingInspection.length === 0) {
-          // 直接使用模型创建检验单
-          await QualityInspection.createInspection(
-            {
-              inspection_type: 'final',
-              reference_id: id,
-              reference_no: taskData.code,
-              task_id: id,
-              product_id: taskData.product_id,
-              batch_no: await generateBatchNo(taskData.code, connection),
-              quantity: taskData.quantity || 0,
-              unit: '个',
-              planned_date: new Date(),
-              status: PROC_STATUS.PENDING,
-              note: '生产任务完成时自动创建',
-            },
-            connection
-          );
-          logger.info('自动创建检验单成功', { taskId: id });
-        } else {
-          logger.info('检验单已存在，跳过创建', {
-            taskId: id,
-            inspectionId: existingInspection[0].id,
-          });
-        }
+        const ensure = await FinalInspectionService.ensureForTask(connection, id, {
+          note: '生产任务完成时自动创建',
+        });
+        logger.info(ensure.created ? '自动创建终检单成功' : '终检单已存在，跳过创建', {
+          taskId: id,
+          inspectionId: ensure.inspectionId,
+        });
       } catch (inspError) {
         logger.error('自动创建检验单失败:', inspError);
         throw inspError;
@@ -1287,6 +1021,16 @@ exports.completeTask = async (req, res) => {
     const newCompletedQuantity = currentCompleted + Number(quantity);
     const isFullComplete = newCompletedQuantity >= totalQuantity;
 
+    if (isFullComplete) {
+      const [processes] = await connection.query('SELECT status FROM production_processes WHERE task_id = ? FOR UPDATE', [id]);
+      if (processes.length && (processes.some(row => !['completed', 'cancelled'].includes(row.status)) ||
+          !processes.some(row => row.status === 'completed'))) {
+        throw new BusinessError('请先完成生产工序，再确认全部完工', {
+          route: `/production/process?taskId=${id}`, buttonText: '去完成工序',
+        }, 'PRODUCTION_PROCESSES_REQUIRED', 409);
+      }
+    }
+
     // 先写完工数量；满产时经生命周期服务进入待检（状态机 + 首检/过程检守卫）
     await connection.query(
       'UPDATE production_tasks SET completed_quantity = ? WHERE id = ? AND deleted_at IS NULL',
@@ -1331,6 +1075,12 @@ exports.completeTask = async (req, res) => {
 
       if (taskDetails.length > 0) {
         const taskDetail = taskDetails[0];
+        const templateData = await resolveTemplateData(
+          connection,
+          'final',
+          taskDetail.product_id,
+          null
+        );
 
         // 使用 QualityInspection.createInspection 创建成品检验单
         await QualityInspection.createInspection(
@@ -1349,6 +1099,8 @@ exports.completeTask = async (req, res) => {
             planned_date: new Date(), // 计划检验日期（当天）
             inspection_date: new Date(), // 检验日期
             status: PROC_STATUS.PENDING, // 待检验状态
+            template_id: templateData.templateId,
+            items: templateData.items,
             remark:
               remark ||
               `生产任务 ${task.code} 完工 ${quantity} 件${isFullComplete ? '（全部完工）' : '（部分完工）'}`,
@@ -1363,80 +1115,30 @@ exports.completeTask = async (req, res) => {
       throw inspectionError;
     }
 
-    // ===== 自动创建报工记录 =====
+    // ===== 自动创建/修复报工记录 =====
     try {
-      const reportNo = await CodeGenerators.generateReportCode(connection);
-      // 尝试获取当前用户，如果不可用则使用默认值
-      const operatorId = getAuthenticatedUserId(req);
-      const operatorName = await getCurrentUserName(req);
-
-      // 多级智能回退获取标准工时合计（单件）
-      let hoursPerUnit = 0;
-      try {
-        // 1. 优先查本任务关联的具体工序表 production_processes
-        const [taskProcessRows] = await connection.query(
-          'SELECT COALESCE(SUM(standard_hours), 0) as total_hours FROM production_processes WHERE task_id = ?',
-          [id]
-        );
-        hoursPerUnit = parseFloat(taskProcessRows[0]?.total_hours) || 0;
-
-        // 2. 如果本任务工序未配置工时，尝试从该产品绑定的【工序模板】中获取
-        if (hoursPerUnit <= 0 && task.product_id) {
-          const [tplRows] = await connection.query(
-            `SELECT COALESCE(SUM(ptd.standard_hours), 0) as total_hours
-             FROM process_templates pt
-             JOIN process_template_details ptd ON pt.id = ptd.template_id
-             WHERE pt.product_id = ? AND pt.deleted_at IS NULL AND pt.status = 1`,
-            [task.product_id]
-          );
-          hoursPerUnit = parseFloat(tplRows[0]?.total_hours) || 0;
-        }
-
-        // 3. 如果仍为 0，尝试从该产品的【工艺路线】中获取 (分钟转小时)
-        if (hoursPerUnit <= 0 && task.product_id) {
-          const [routeRows] = await connection.query(
-            `SELECT COALESCE(SUM(prs.standard_minutes), 0) as total_minutes, pr.total_standard_minutes
-             FROM process_routes pr
-             LEFT JOIN process_route_steps prs ON pr.id = prs.route_id
-             WHERE pr.product_id = ? AND pr.deleted_at IS NULL AND pr.is_active = 1
-             GROUP BY pr.id, pr.total_standard_minutes
-             LIMIT 1`,
-            [task.product_id]
-          );
-          if (routeRows.length > 0) {
-            const minutes = parseFloat(routeRows[0].total_minutes) || parseFloat(routeRows[0].total_standard_minutes) || 0;
-            hoursPerUnit = minutes / 60;
-          }
-        }
-      } catch (phErr) {
-        logger.warn(`获取工序标准工时异常，将以 0 工时继续报工: ${phErr.message}`);
-      }
-
-      const estimatedHours = Number((hoursPerUnit * Number(quantity)).toFixed(2)) || 0;
-
-      await connection.query(
-        `INSERT INTO production_reports
-         (report_no, task_id, operator_id, operator_name, report_time, report_quantity,
-          completed_quantity, qualified_quantity, defective_quantity, unqualified_quantity,
-          work_hours, remarks, created_at)
-         VALUES (?, ?, ?, ?, NOW(), ?, ?, ?, 0, 0, ?, ?, NOW())`,
-        [
-          reportNo,
-          id,
-          operatorId,
-          operatorName,
-          quantity,
-          quantity,
-          quantity,
-          estimatedHours,
-          estimatedHours > 0
-            ? `自动完工生成: ${remark || ''}`
-            : `自动完工生成(未配置工时，工时记录为0): ${remark || ''}`,
-        ]
-      );
-      logger.info(`任务 ${task.code} 自动创建报工记录成功，工时: ${estimatedHours}h`);
+      const reportResult = await ProductionLaborService.ensureTaskReport(connection, id, {
+        quantity: newCompletedQuantity,
+        operatorId: getAuthenticatedUserId(req),
+        operatorName: await getCurrentUserName(req),
+        remarks: `自动完工生成${remark ? `: ${remark}` : ''}`,
+      });
+      logger.info(`任务 ${task.code} 自动报工已确保存在，工时: ${reportResult.workHours}h`, {
+        reportId: reportResult.reportId,
+        created: reportResult.created,
+        repaired: reportResult.repaired,
+        source: reportResult.source,
+      });
     } catch (reportError) {
-      logger.error('自动创建报工记录失败（不阻断完工流程）:', reportError);
+      // Partial completion can remain in production while the operator
+      // supplies a manual hour entry; full completion must have auditable
+      // labor hours before the task can proceed to inbound costing.
+      if (!isFullComplete && reportError.errorCode === 'PRODUCTION_LABOR_REQUIRED') {
+        warnings.push('本次完工已记录，但尚无可审计工时；全部完工前请维护工序定额或补录实际工时。');
+        logger.warn(`任务 ${task.code} 部分完工暂不生成自动报工: ${reportError.message}`);
+      } else {
+        throw reportError;
+      }
     }
     // ===== 报工记录结束 =====
 

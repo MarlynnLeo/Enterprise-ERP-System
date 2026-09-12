@@ -36,6 +36,12 @@ const { pool } = require('../../src/config/db');
 const cacheService = require('../../src/services/cache/CacheManager');
 
 describe('PermissionService', () => {
+  test('unifies legacy route permissions at the same action level', () => {
+    const fromLegacy = PermissionService.expandPermissionsWithAliases(['production:routes:view']);
+    expect(fromLegacy).toContain('basedata:processtemplates:view');
+    expect(fromLegacy).not.toContain('basedata:processtemplates:update');
+    expect(PermissionService.expandPermissionsWithAliases(['basedata:processtemplates:update'])).toContain('production:routes:update');
+  });
   beforeEach(() => {
     jest.clearAllMocks();
   });

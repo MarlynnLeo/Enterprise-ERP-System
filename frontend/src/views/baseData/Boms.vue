@@ -491,6 +491,9 @@ const handleMoreCommand = async (command) => {
   switch (command) {
     case 'toggleSelect':
       selectionMode.value = !selectionMode.value;
+      if (!selectionMode.value) {
+        selectedRows.value = [];
+      }
       break;
     case 'exportBom':
       await handleExportBom();
@@ -518,7 +521,22 @@ const handleMoreCommand = async (command) => {
 // 导出BOM
 const handleExportBom = async () => {
   try {
-    const response = await bomApi.exportBoms(searchForm);
+    const selectedIds = selectedRows.value
+      .map((row) => row.id)
+      .filter((id) => id !== undefined && id !== null && id !== '')
+      .join(',');
+
+    if (selectionMode.value && !selectedIds) {
+      ElMessage.warning('请先选择要导出的BOM');
+      return;
+    }
+
+    const exportParams = { ...searchForm };
+    if (selectedIds) {
+      exportParams.ids = selectedIds;
+    }
+
+    const response = await bomApi.exportBoms(exportParams);
     const blob = new Blob([response.data], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     });

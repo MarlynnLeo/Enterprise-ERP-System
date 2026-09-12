@@ -16,6 +16,7 @@ const { pool } = require('../config/db');
 const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
 const { softDelete } = require('../utils/softDelete');
 const { PRODUCTION_STATUS_KEYS } = require('../constants/systemConstants');
+const ProductProcessTaskService = require('../services/business/ProductProcessTaskService');
 
 class TaskRepository {
   // ======================== 查询类 ========================
@@ -32,7 +33,7 @@ class TaskRepository {
     const [rows] = await conn.query(
       `SELECT id, code, status, plan_id, product_id, quantity, manager,
               start_date, expected_end_date, actual_start_time, actual_end_date,
-              cost_center_id, remarks, created_at, updated_at
+              cost_center_id, remarks, created_at, updated_at, process_template_id, process_template_version, process_snapshot_at
        FROM production_tasks
        WHERE id = ? AND deleted_at IS NULL${lockClause}`,
       [id]
@@ -137,7 +138,7 @@ class TaskRepository {
       const placeholders = taskIds.map(() => '?').join(',');
       const [processes] = await pool.query(
         `SELECT pp.id, pp.task_id, pp.process_name, pp.sequence, pp.quantity,
-                pp.progress, pp.status, pp.standard_hours, pp.description, pp.remarks,
+                pp.progress, pp.status, pp.standard_hours, pp.description, pp.remarks, pp.process_snapshot, pp.station_id, pp.template_detail_id,
                 DATE_FORMAT(pp.planned_start_time, '%Y-%m-%d %H:%i:%s') as plannedStartTime,
                 DATE_FORMAT(pp.planned_end_time, '%Y-%m-%d %H:%i:%s') as plannedEndTime,
                 DATE_FORMAT(pp.actual_start_time, '%Y-%m-%d %H:%i:%s') as actualStartTime,
@@ -204,7 +205,7 @@ class TaskRepository {
       `SELECT id, task_id, process_name, sequence, quantity, planned_start_time,
               planned_end_time, actual_start_time, actual_end_time, progress,
               status, description, remarks, created_at, updated_at,
-              sequence_number, standard_hours, efficiency_rate
+              sequence_number, standard_hours, efficiency_rate, process_snapshot, station_id, template_detail_id
        FROM production_processes
        WHERE task_id = ?
        ORDER BY sequence`,
@@ -412,24 +413,8 @@ class TaskRepository {
    * @returns {Promise<{templateId: number|null, steps: Array}>}
    */
   static async findActiveProcessTemplate(conn, productId) {
-    if (!productId) return { templateId: null, steps: [] };
-
-    const [templates] = await conn.query(
-      'SELECT id FROM process_templates WHERE product_id = ? AND status = 1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1',
-      [productId]
-    );
-    if (templates.length === 0) return { templateId: null, steps: [] };
-
-    const templateId = templates[0].id;
-    const [steps] = await conn.query(
-      `SELECT id, template_id, order_num, name, description, standard_hours,
-              department, remark, created_at, updated_at, instruction_docs
-       FROM process_template_details
-       WHERE template_id = ?
-       ORDER BY order_num`,
-      [templateId]
-    );
-    return { templateId, steps };
+    const route = await ProductProcessTaskService.resolveDefinition(conn, productId);
+    return { templateId: route?.id || null, steps: route?.details || [] };
   }
 
   /**
@@ -440,23 +425,7 @@ class TaskRepository {
    * @param {Array} steps
    */
   static async insertProcesses(conn, taskId, taskQuantity, steps) {
-    for (const step of steps) {
-      await conn.query(
-        `INSERT INTO production_processes
-         (task_id, process_name, sequence, quantity, progress, status, standard_hours, description, remarks)
-         VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
-        [
-          taskId,
-          step.name,
-          step.order_num,
-          taskQuantity,
-          0,
-          step.standard_hours || 0,
-          step.description || '',
-          step.remark || '',
-        ]
-      );
-    }
+    return ProductProcessTaskService.insertProcesses(conn, taskId, taskQuantity, steps);
   }
 
   /**

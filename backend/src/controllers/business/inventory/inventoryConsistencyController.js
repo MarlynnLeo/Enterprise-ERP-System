@@ -237,45 +237,12 @@ const _syncProductionStatus = async (connection, outboundStatus, taskId) => {
       }
     }
 
-    // 出库完成：若任务尚无工序则从模板自动创建
+    // Reuse the task's fixed version after material issue.
     if (outboundStatus === 'completed') {
-      try {
-        const [existing] = await connection.execute(
-          'SELECT COUNT(*) as cnt FROM production_processes WHERE task_id = ?',
-          [taskId]
-        );
-        if (Number(existing[0].cnt) === 0) {
-          const [taskDetail] = await connection.execute(
-            'SELECT product_id, quantity FROM production_tasks WHERE id = ? AND deleted_at IS NULL',
-            [taskId]
-          );
-          if (taskDetail.length > 0) {
-            const { product_id: productId, quantity: taskQuantity } = taskDetail[0];
-            const [templates] = await connection.execute(
-              'SELECT id FROM process_templates WHERE product_id = ? AND status = 1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1',
-              [productId]
-            );
-            if (templates.length > 0) {
-              const [steps] = await connection.execute(
-                'SELECT id, template_id, order_num, name, description, standard_hours, department, remark, created_at, updated_at, instruction_docs FROM process_template_details WHERE template_id = ? ORDER BY order_num',
-                [templates[0].id]
-              );
-              for (const step of steps) {
-                await connection.execute(
-                  `INSERT INTO production_processes (task_id, process_name, sequence, quantity, progress, status, standard_hours, description, remarks)
-                   VALUES (?, ?, ?, ?, 0, 'pending', ?, ?, ?)`,
-                  [taskId, step.name, step.order_num, taskQuantity, step.standard_hours || 0, step.description || '', step.remark || '']
-                );
-              }
-              logger.info(`Production processes auto-generated after outbound completion: taskId=${taskId}, stepCount=${steps.length}`);
-            }
-          }
-        }
-      } catch (processErr) {
-        logger.error('出库完成后自动生成工序失败:', processErr);
-        throw processErr;
-      }
+      const ProductProcessTaskService = require('../../../services/business/ProductProcessTaskService');
+      await ProductProcessTaskService.initializeTask(connection, taskId);
     }
+
   } catch (err) {
     logger.error(`[_syncProductionStatus] 联动更新失败 outboundStatus=${outboundStatus} taskId=${taskId}:`, err);
     throw err;

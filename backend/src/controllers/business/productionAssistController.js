@@ -7,6 +7,7 @@ const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
 const { pool } = require('../../config/db');
 const ScopeGuard = require('../../authorization/ScopeGuard');
+const BusinessError = require('../../utils/BusinessError');
 
 async function assertTaskWriteAccess(req, taskId) {
   const normalized = Number(taskId);
@@ -54,7 +55,7 @@ module.exports = {
       ResponseHandler.success(res, result);
     } catch (error) {
       logger.error('扫码验证失败:', error);
-      ResponseHandler.error(res, error.message || '扫码验证失败', error.statusCode === 403 ? 'FORBIDDEN' : 'OPERATION_ERROR', error.statusCode || 500);
+      BusinessError.handleError(res, error, '扫码验证失败', ResponseHandler);
     }
   },
 

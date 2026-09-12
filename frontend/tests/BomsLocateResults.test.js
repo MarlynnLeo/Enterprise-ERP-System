@@ -13,6 +13,7 @@ vi.mock('@/constants/bom', () => ({
 const exportToExcel = vi.fn()
 const getBoms = vi.fn()
 const getBomStats = vi.fn()
+const exportBoms = vi.fn()
 
 vi.mock('@/composables/useExportExcel', () => ({
   useExportExcel: () => ({
@@ -34,6 +35,7 @@ vi.mock('@/api', () => ({
   bomApi: {
     getBoms: (...args) => getBoms(...args),
     getBomStats: (...args) => getBomStats(...args),
+    exportBoms: (...args) => exportBoms(...args),
     locatePart: vi.fn(),
   },
   commonApi: {
@@ -181,6 +183,10 @@ describe('BOM locate-results dialog contract', () => {
     exportToExcel.mockReset()
     getBoms.mockReset().mockResolvedValue({ data: [] })
     getBomStats.mockReset().mockResolvedValue({ data: {} })
+    exportBoms.mockReset().mockResolvedValue({ data: new Blob(['xlsx']) })
+    window.URL.createObjectURL = vi.fn(() => 'blob:test')
+    window.URL.revokeObjectURL = vi.fn()
+    HTMLAnchorElement.prototype.click = vi.fn()
   })
 
   test('uses the shared BOM width for locate, view, and edit dialogs', async () => {
@@ -246,5 +252,16 @@ describe('BOM locate-results dialog contract', () => {
       '用量',
       '单位',
     ])
+  })
+
+  test('passes selected BOM IDs to the BOM export request', async () => {
+    const wrapper = mount(Boms, { global: testGlobal })
+    await nextTick()
+
+    wrapper.vm.selectionMode = true
+    wrapper.vm.selectedRows = [{ id: 12 }, { id: 34 }]
+    await wrapper.vm.handleExportBom()
+
+    expect(exportBoms).toHaveBeenCalledWith(expect.objectContaining({ ids: '12,34' }))
   })
 })

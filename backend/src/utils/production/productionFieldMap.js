@@ -9,6 +9,9 @@ const productionTaskMap = {
   toApi(row) {
     if (row == null) return null;
     if (Array.isArray(row)) return row.map((r) => productionTaskMap.toApi(r));
+    const firstPlannedProcess = Array.isArray(row.processes)
+      ? row.processes.find((p) => p.status !== 'cancelled' && (p.planned_start_time || p.plannedStartTime))
+      : null;
     return {
       id: row.id,
       code: row.code ?? row.task_code ?? null,
@@ -21,6 +24,9 @@ const productionTaskMap = {
       productId: row.product_id ?? null,
       productName: row.productName ?? row.product_name ?? null,
       productCode: row.productCode ?? row.product_code ?? null,
+      processTemplateId: row.process_template_id ?? null,
+      processTemplateVersion: row.process_template_version ?? null,
+      processSnapshotAt: row.process_snapshot_at ?? null,
       specification: row.specification ?? row.specs ?? null,
       unit: row.unit ?? null,
       quantity: row.quantity != null ? toNumber(row.quantity, 0) : null,
@@ -30,6 +36,7 @@ const productionTaskMap = {
       manager: row.manager ?? row.operator_name ?? null,
       operatorName: row.operator_name ?? row.manager ?? null,
       startDate: formatDate(row.start_date ?? row.plan_start_time),
+      plannedStartTime: firstPlannedProcess?.planned_start_time ?? firstPlannedProcess?.plannedStartTime ?? null,
       expectedEndDate: formatDate(row.expected_end_date ?? row.plan_end_time),
       actualStartTime: row.actual_start_time ?? row.actual_start_time ?? null,
       actualEndDate: formatDate(row.actual_end_date ?? row.actual_end_time),
@@ -46,8 +53,20 @@ const productionTaskMap = {
             processName: p.process_name ?? p.name ?? null,
             sequence: p.sequence ?? p.sort_order ?? null,
             status: p.status ?? null,
+            quantity: p.quantity != null ? toNumber(p.quantity, 0) : null,
+            progress: p.progress != null ? toNumber(p.progress, 0) : 0,
+            standardHours: p.standard_hours != null ? toNumber(p.standard_hours, 0) : 0,
+            plannedStartTime: p.planned_start_time ?? p.plannedStartTime ?? null,
+            plannedEndTime: p.planned_end_time ?? p.plannedEndTime ?? null,
+            actualStartTime: p.actual_start_time ?? p.actualStartTime ?? null,
+            actualEndTime: p.actual_end_time ?? p.actualEndTime ?? null,
+            description: p.description ?? null,
+            remarks: p.remarks ?? null,
+            stationId: p.station_id ?? null,
+            templateDetailId: p.template_detail_id ?? null,
+            processSnapshot: p.process_snapshot ?? null,
             plannedQuantity:
-              p.planned_quantity != null ? toNumber(p.planned_quantity, 0) : null,
+              p.planned_quantity != null ? toNumber(p.planned_quantity, 0) : p.quantity != null ? toNumber(p.quantity, 0) : null,
             completedQuantity:
               p.completed_quantity != null ? toNumber(p.completed_quantity, 0) : null,
           }))

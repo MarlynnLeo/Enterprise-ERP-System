@@ -11,17 +11,17 @@ const { requirePermission } = require('../../middleware/requirePermission');
 
 router.use(authenticateToken);
 
-const STATION_VIEW_PERMISSIONS = ['production:stations', 'production:stations:view'];
+const STATION_VIEW_PERMISSIONS = ['production:stations', 'production:stations:view', 'basedata:processtemplates:view', 'production:routes:view'];
 const STATION_CREATE_PERMISSIONS = ['production:stations:create'];
 const STATION_UPDATE_PERMISSIONS = ['production:stations', 'production:stations:update'];
 const STATION_DELETE_PERMISSIONS = ['production:stations:delete'];
 
-const ROUTE_VIEW_PERMISSIONS = ['production:routes', 'production:routes:view'];
-const ROUTE_CREATE_PERMISSIONS = ['production:routes:create'];
-const ROUTE_UPDATE_PERMISSIONS = ['production:routes', 'production:routes:update'];
-const ROUTE_DELETE_PERMISSIONS = ['production:routes:delete'];
+const ROUTE_VIEW_PERMISSIONS = ['production:routes', 'production:routes:view', 'basedata:processtemplates:view'];
+const ROUTE_CREATE_PERMISSIONS = ['production:routes:create', 'basedata:processtemplates:create'];
+const ROUTE_UPDATE_PERMISSIONS = ['production:routes:update', 'basedata:processtemplates:update'];
+const ROUTE_DELETE_PERMISSIONS = ['production:routes:delete', 'basedata:processtemplates:delete'];
 
-const ASSEMBLY_VIEW_PERMISSIONS = ['production:assembly', 'production:assembly:view'];
+const ASSEMBLY_VIEW_PERMISSIONS = ['production:assembly', 'production:assembly:view', 'production:process:view'];
 const ASSEMBLY_EXECUTE_PERMISSIONS = [
   'production:assembly',
   'production:assembly:execute',

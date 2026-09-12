@@ -121,7 +121,7 @@ export default {
     categories: '카테고리 관리',
     units: '단위 관리',
     locations: '위치 관리',
-    processTemplates: '공정 템플릿',
+    processTemplates: '제품 공정 경로',
     productCategories: '제품 카테고리',
     ecnManagement: 'ECN 변경 관리',
 

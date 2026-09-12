@@ -104,7 +104,7 @@ export const basedataPerms = [
   {
     id: 38,
     parentId: 3,
-    name: '工序模板',
+    name: '产品工艺路线',
     path: '/basedata/process-templates',
     component: 'baseData/ProcessTemplates',
     icon: 'icon-set-up',
