@@ -5,6 +5,7 @@
 import { createApp, defineAsyncComponent } from 'vue'
 import { createPinia } from 'pinia'
 import { ElLoading } from 'element-plus/es/components/loading/index'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import 'element-plus/theme-chalk/el-loading.css'
 import 'element-plus/theme-chalk/el-message-box.css'
 import 'element-plus/theme-chalk/el-message.css'
@@ -45,6 +46,7 @@ import './assets/stat-cards.css'
 import permissionDirective from './directives/permission'
 import { setupErrorReporter } from '@/utils/errorReporter'
 import { setupReleaseRecovery } from '@/utils/releaseRecovery'
+import { installNavigationErrorHandler } from '@/utils/navigationError'
 import { startOperationColumnAutoWidth } from '@/plugins/operationColumnAutoWidth'
 
 setupReleaseRecovery()
@@ -65,9 +67,7 @@ app.config.warnHandler = (msg, _instance, trace) => {
   console.warn(warning)
 }
 
-router.onError((error) => {
-  console.error('路由错误:', error)
-})
+installNavigationErrorHandler(router, { notify: ElMessage.error })
 
 // 登录页不使用全局图标。进入受保护页面后在首帧完成、浏览器空闲时再
 // 注册兼容旧页面的全局图标，避免图标模块阻塞路由解析和首屏绘制。

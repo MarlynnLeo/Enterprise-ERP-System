@@ -141,14 +141,11 @@ export default defineConfig(({ mode }) => {
       include: [
         'dompurify',
         'dayjs',
-        'dayjs/plugin/advancedFormat.js',
-        'dayjs/plugin/customParseFormat.js',
-        'dayjs/plugin/dayOfYear.js',
-        'dayjs/plugin/isSameOrAfter.js',
-        'dayjs/plugin/isSameOrBefore.js',
-        'dayjs/plugin/localeData.js',
-        'dayjs/plugin/weekOfYear.js',
-        'dayjs/plugin/weekYear.js',
+        // Element Plus is excluded below, so Vite cannot discover its nested
+        // CommonJS plugins. A partial list broke every date-picker route when
+        // quarterOfYear was added upstream. Prebundle all plugin entry points;
+        // the browser still downloads only the plugins a visited page imports.
+        'dayjs/plugin/*.js',
         'echarts/core',
         'echarts/charts',
         'echarts/components',
