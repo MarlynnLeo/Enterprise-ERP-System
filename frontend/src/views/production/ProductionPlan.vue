@@ -289,9 +289,10 @@ const standardizeMaterialData = (material, materialInfo = null) => {
 
   return result;
 };
-// 获取生产计划列表 - 优化版本
-const fetchPlanList = async (force = false) => {
-  if (loading.value && !force) return // 防止重复请求，除非强制刷新
+// 加载期间也接受新的筛选/分页操作，只允许最后一次请求更新页面。
+let currentPlanRequestId = 0
+const fetchPlanList = async () => {
+  const requestId = ++currentPlanRequestId
   loading.value = true
   try {
     const params = {
@@ -307,6 +308,7 @@ const fetchPlanList = async (force = false) => {
       params.endDate = searchForm.value.dateRange[1]
     }
     const response = await productionApi.getProductionPlans(params)
+    if (requestId !== currentPlanRequestId) return
     // 使用统一解析器处理数据
     const plans = parseListData(response, { enableLog: false });
     // 处理计划列表数据
@@ -322,12 +324,13 @@ const fetchPlanList = async (force = false) => {
     // 更新统计数据（使用后端返回的统计信息）
     updatePlanStats(response.data?.statistics);
   } catch (error) {
+    if (requestId !== currentPlanRequestId) return
     console.error('获取计划列表失败:', error)
     ElMessage.error('获取计划列表失败')
     // 确保即使出错也有默认值
     pagination.total = 0;
   } finally {
-    loading.value = false
+    if (requestId === currentPlanRequestId) loading.value = false
   }
 }
 // ===== 产品搜索相关函数 =====
@@ -833,7 +836,7 @@ const handleModalOk = async () => {
     modalVisible.value = false
     // 重置loading状态，然后强制刷新列表
     modalLoading.value = false
-    await fetchPlanList(true)
+    await fetchPlanList()
         } catch (error) {
     console.error('保存生产计划失败:', error)
     console.error('错误详情:', error.response?.data)
@@ -914,7 +917,7 @@ const handleDelete = async (row) => {
   try {
     await productionApi.deleteProductionPlan(row.id)
     ElMessage.success('删除成功')
-    await fetchPlanList(true)
+    await fetchPlanList()
   } catch (error) {
     const msg = error.response?.data?.message || error.message || '删除失败'
     ElMessage.error(msg)
@@ -924,7 +927,7 @@ const handleCancelPlan = async (row) => {
   try {
     await productionApi.updateProductionPlanStatus(row.id, { status: PRODUCTION_STATUS_KEYS.CANCELLED })
     ElMessage.success('生产计划已取消')
-    await fetchPlanList(true)
+    await fetchPlanList()
   } catch (error) {
     const msg = error.response?.data?.message || error.message || '取消失败'
     ElMessage.error(msg)
@@ -1017,7 +1020,7 @@ const confirmPushDown = async () => {
       : `生产任务 ${taskCode} 生成成功（下推 ${taskQuantity}，剩余 ${newRemaining}）`;
     // 下推成功提示
     loading.value = false;
-    await fetchPlanList(true);
+    await fetchPlanList();
     ElMessage.success(message);
   } catch (error) {
     console.error('下推生成生产任务失败:', error);
