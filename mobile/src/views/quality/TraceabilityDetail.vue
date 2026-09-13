@@ -336,7 +336,7 @@
       font-size: 0.75rem;
       color: var(--text-secondary);
       margin-top: 2px;
-      font-family: 'SF Mono', 'Menlo', monospace;
+      font-family: var(--font-ui);
       word-break: break-all;
     }
   }
@@ -462,7 +462,7 @@
       color: var(--text-tertiary);
 
       .bom-batch {
-        font-family: 'SF Mono', 'Menlo', monospace;
+        font-family: var(--font-ui);
       }
     }
   }
@@ -610,7 +610,7 @@
       .tx-qty {
         font-size: 0.875rem;
         font-weight: 700;
-        font-family: 'SF Mono', 'Menlo', monospace;
+        font-family: var(--font-ui);
 
         &.qty-positive {
           color: var(--color-success);

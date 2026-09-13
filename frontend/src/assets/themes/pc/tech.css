@@ -97,9 +97,9 @@
   --spacing-xxl: 48px;
 
   /* ========== 字体系统 ========== */
-  --font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --font-family-chinese: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-  --font-family-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  --font-family-base: var(--font-ui);
+  --font-family-chinese: var(--font-ui);
+  --font-family-mono: var(--font-ui);
 
   --font-size-xs: 12px;
   --font-size-sm: 14px;
@@ -222,9 +222,6 @@
   z-index: 1;
 }
 
-[data-theme="tech"] .logo-container .title {
-  text-shadow: 0 0 10px color-mix(in srgb, var(--color-bg-overlay) 50%, transparent) !important;
-}
 
 [data-theme="tech"] .sidebar .app-menu-link,
 [data-theme="tech"] .sidebar .app-menu-title,

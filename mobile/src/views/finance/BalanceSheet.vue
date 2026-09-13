@@ -148,7 +148,7 @@
     font-weight: 600;
     color: var(--color-primary);
     cursor: pointer;
-    font-family: 'SF Mono', monospace;
+    font-family: var(--font-ui);
   }
 
   .metrics-card {
@@ -173,7 +173,7 @@
   .metric-value {
     font-size: 0.875rem;
     font-weight: 700;
-    font-family: 'SF Mono', monospace;
+    font-family: var(--font-ui);
     &.primary {
       color: var(--color-primary);
     }
@@ -217,7 +217,7 @@
   }
   .item-amount {
     color: var(--text-primary);
-    font-family: 'SF Mono', monospace;
+    font-family: var(--font-ui);
     font-weight: 500;
     &.bold {
       font-weight: 700;

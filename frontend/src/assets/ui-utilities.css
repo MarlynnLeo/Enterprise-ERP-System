@@ -703,12 +703,12 @@
 /* 打印/等宽字体区 */
 .mono-sm {
   margin-top: 8px;
-  font-family: var(--font-mono, 'Courier New', monospace);
+  font-family: var(--font-mono);
 }
 .mono-table {
   width: 100%;
   min-width: 600px;
-  font-family: var(--font-mono, 'Courier New', monospace);
+  font-family: var(--font-mono);
   font-size: 13px;
 }
 .vs-sep {

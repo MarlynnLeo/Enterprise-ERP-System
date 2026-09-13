@@ -66,14 +66,12 @@ export const setRequestCacheUserId = (userId) => {
 }
 
 const stableSerialize = (value) => {
-  if (value === undefined || value === null || value === '') return ''
-  if (typeof value !== 'object') return String(value)
-  if (Array.isArray(value)) return `[${value.map(stableSerialize).join(',')}]`
-
-  return Object.keys(value)
-    .sort()
-    .map((key) => `${key}:${stableSerialize(value[key])}`)
-    .join('|')
+  if (value === undefined) return '["undefined"]'
+  if (value === null || typeof value !== 'object') return JSON.stringify(value)
+  if (value instanceof Date) return JSON.stringify(['date', value.toISOString()])
+  if (value instanceof URLSearchParams) return JSON.stringify(['query', [...value.entries()]])
+  if (Array.isArray(value)) return JSON.stringify(['array', value.map(stableSerialize)])
+  return JSON.stringify(['object', Object.keys(value).sort().map(key => [key, stableSerialize(value[key])])])
 }
 
 const cloneData = (value) => {
@@ -175,6 +173,8 @@ export const applyRequestOptimizer = (apiInstance, axios, options = {}) => {
     const method = String(config.method || 'get').toLowerCase()
     if (!CACHEABLE_METHODS.has(method)) return false
     if (config.skipDedupe || config.dedupe === false) return false
+    // A caller's cancellation must not cancel another page's transport.
+    if (config.signal || config.cancelToken) return false
     if (DOWNLOAD_RESPONSE_TYPES.has(String(config.responseType || '').toLowerCase())) return false
     return true
   }

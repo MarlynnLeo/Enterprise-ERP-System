@@ -53,6 +53,8 @@
       >
         <List
           v-model:loading="loading"
+          v-model:error="error"
+          error-text="加载失败，点击重试"
           :finished="finished"
           finished-text="没有更多数据了"
           @load="loadMore"
@@ -123,7 +125,9 @@
                 size="small"
                 type="success"
                 plain
-                @click.stop="confirmOutbound(outbound)"
+                :loading="actionId === outbound.id"
+                :disabled="actionId !== null"
+                @click.stop="changeStatus(outbound, 'processing')"
               >
                 开始出库
               </Button>
@@ -133,7 +137,9 @@
                 size="small"
                 type="warning"
                 plain
-                @click.stop="shipOutbound(outbound)"
+                :loading="actionId === outbound.id"
+                :disabled="actionId !== null"
+                @click.stop="changeStatus(outbound, 'completed')"
               >
                 完成出库
               </Button>
@@ -161,6 +167,7 @@
     showConfirmDialog
   } from 'vant'
   import { salesApi } from '@/api'
+  import { changeSalesOutboundStatus, getSalesOutboundErrorMessage } from '@/utils/salesOutbound'
   import { usePagination } from '@/composables/usePagination'
   import { formatAmount, formatDate } from '@/utils/format'
   import { SALES_OUTBOUND_STATUS, getDictText } from '@/constants/dict'
@@ -173,6 +180,7 @@
   const displayAmount = (amount) => formatMaskedPrice(amount, canViewPrice.value, (value) => `¥${formatAmount(value)}`)
   const searchValue = ref('')
   const activeTab = ref(0)
+  const actionId = ref(null)
 
   // 状态标签
   const statusTabs = [
@@ -188,6 +196,7 @@
     list: outboundList,
     loading,
     finished,
+    error,
     refreshing,
     onLoad,
     onRefresh
@@ -202,7 +211,7 @@
   }
 
   const reloadData = () => {
-    onRefresh({
+    return onRefresh({
       search: searchValue.value || undefined,
       status: statusTabs[activeTab.value].value || undefined
     })
@@ -247,45 +256,31 @@
   // 查看出库单详情
   const viewOutboundDetail = (id) => router.push(`/sales/outbound/${id}`)
 
-  const buildStatusPayload = (outbound, status) => ({
-    status,
-    deliveryDate: outbound.deliveryDate || new Date().toISOString().slice(0, 10),
-    remarks: outbound.remarks
-  })
-
-  // 草稿 → 出库中
-  const confirmOutbound = async (outbound) => {
+  const changeStatus = async (outbound, status) => {
+    if (actionId.value !== null) return
+    actionId.value = outbound.id
+    const title = status === 'processing' ? '开始出库' : '完成出库'
     try {
       await showConfirmDialog({
-        title: '开始出库',
-        message: `确定开始处理出库单 ${outbound.outboundNo} 吗？`
+        title,
+        message: `确定${title}单 ${outbound.outboundNo} 吗？`
       })
-      await salesApi.updateSalesOutbound(outbound.id, buildStatusPayload(outbound, 'processing'))
-      showToast('已进入出库中')
-      outbound.status = 'processing'
-    } catch (error) {
-      if (error !== 'cancel') {
-        console.error('确认出库失败:', error)
-        showToast('确认出库失败')
-      }
-    }
-  }
-
-  // 出库中 → 已完成
-  const shipOutbound = async (outbound) => {
-    try {
-      await showConfirmDialog({
-        title: '完成出库',
-        message: `确定完成出库单 ${outbound.outboundNo} 吗？库存数量将相应扣减。`
+      const result = await changeSalesOutboundStatus({
+        outbound, status, updateSalesOutbound: salesApi.updateSalesOutbound
       })
-      await salesApi.updateSalesOutbound(outbound.id, buildStatusPayload(outbound, 'completed'))
-      showToast('出库完成')
-      outbound.status = 'completed'
-    } catch (error) {
-      if (error !== 'cancel') {
-        console.error('发货失败:', error)
-        showToast('发货失败')
+      if (result.changed) {
+        outbound.status = status
+        showToast(status === 'processing' ? '已进入出库中' : '出库完成')
+      } else {
+        showToast('单据状态已变化，请刷新后重试')
       }
+      await reloadData()
+    } catch (error) {
+      if (error !== 'cancel' && error !== 'close') {
+        showToast(getSalesOutboundErrorMessage(error, title + '失败'))
+      }
+    } finally {
+      actionId.value = null
     }
   }
 </script>

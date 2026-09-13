@@ -533,7 +533,7 @@
   .tx-qty {
     font-size: 1rem;
     font-weight: 800;
-    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+    font-family: var(--font-ui);
     flex-shrink: 0;
     &.qty-in {
       color: var(--color-success);
@@ -557,7 +557,7 @@
     .mat-code {
       font-size: 0.6875rem;
       color: var(--text-tertiary);
-      font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+      font-family: var(--font-ui);
       margin-left: 6px;
     }
   }
@@ -576,7 +576,7 @@
     font-size: 0.6875rem;
     color: var(--text-tertiary);
     &.mono {
-      font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+      font-family: var(--font-ui);
     }
   }
 
@@ -596,13 +596,13 @@
     .change-before {
       font-size: 0.75rem;
       color: var(--text-tertiary);
-      font-family: 'SF Mono', 'Menlo', monospace;
+      font-family: var(--font-ui);
     }
     .change-after {
       font-size: 0.75rem;
       font-weight: 600;
       color: var(--text-primary);
-      font-family: 'SF Mono', 'Menlo', monospace;
+      font-family: var(--font-ui);
     }
   }
 

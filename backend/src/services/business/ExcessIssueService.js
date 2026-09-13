@@ -1,5 +1,7 @@
 const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
+const Precision = require('../../utils/precision');
+const { roundQuantity } = require('../../utils/quantity');
 
 class ExcessIssueService {
   async _getPlanMaterialColumnSet() {
@@ -72,9 +74,9 @@ class ExcessIssueService {
 
     const planQuantity = parseFloat(task.plan_quantity) || 0;
     const taskQuantity = parseFloat(task.quantity) || 0;
-    const scale = planQuantity > 0 ? taskQuantity / planQuantity : 1;
-
-    return planIssueQuantity * scale;
+    return planQuantity > 0
+      ? Precision.decimal(planIssueQuantity).mul(taskQuantity).div(planQuantity).toNumber()
+      : planIssueQuantity;
   }
 
   async _getBomIssueQuantity(task, materialId) {
@@ -112,7 +114,7 @@ class ExcessIssueService {
     );
 
     const unitUsage = parseFloat(rows[0]?.unit_usage || 0);
-    return (parseFloat(task.quantity) || 0) * unitUsage;
+    return Precision.mul(parseFloat(task.quantity) || 0, unitUsage);
   }
 
   async _getIssuedQuantity(productionTaskId, materialId) {
@@ -137,7 +139,7 @@ class ExcessIssueService {
 
   async checkExcessIssue(productionTaskId, materialId, requestQty) {
     try {
-      const requestedQuantity = parseFloat(requestQty) || 0;
+      const requestedQuantity = roundQuantity(parseFloat(requestQty) || 0);
       const task = await this._getTaskContext(productionTaskId);
 
       if (!task) {
@@ -156,11 +158,12 @@ class ExcessIssueService {
         if (bomQty > 0) planQty = bomQty;
       }
 
-      const issuedQty = await this._getIssuedQuantity(productionTaskId, materialId);
-
-      const totalProvided = issuedQty + requestedQuantity;
-      const excessQty = totalProvided - planQty;
-      const remainingQty = Math.max(0, planQty - issuedQty);
+      // 先统一数量精度再比较，避免把 0.6000000000000001 误判为超过 0.6。
+      planQty = roundQuantity(planQty);
+      const issuedQty = roundQuantity(await this._getIssuedQuantity(productionTaskId, materialId));
+      const totalProvided = Precision.add(issuedQty, requestedQuantity);
+      const excessQty = roundQuantity(Precision.sub(totalProvided, planQty));
+      const remainingQty = Math.max(0, roundQuantity(Precision.sub(planQty, issuedQty)));
 
       if (planQty === 0 && requestedQuantity > 0) {
         return {
@@ -176,21 +179,19 @@ class ExcessIssueService {
       if (excessQty > 0) {
         return {
           isExcess: true,
-          planQty: parseFloat(planQty.toFixed(4)),
-          issuedQty: parseFloat(issuedQty.toFixed(4)),
-          remainingQty: parseFloat(remainingQty.toFixed(4)),
-          excessQty: parseFloat(excessQty.toFixed(4)),
-          message: `计划 ${parseFloat(planQty.toFixed(2))}，已发 ${parseFloat(
-            issuedQty.toFixed(2)
-          )}，本次 ${requestedQuantity}，将超额 ${parseFloat(excessQty.toFixed(2))}`,
+          planQty,
+          issuedQty,
+          remainingQty,
+          excessQty,
+          message: `计划 ${planQty}，已发 ${issuedQty}，本次 ${requestedQuantity}，将超额 ${excessQty}`,
         };
       }
 
       return {
         isExcess: false,
-        planQty: parseFloat(planQty.toFixed(4)),
-        issuedQty: parseFloat(issuedQty.toFixed(4)),
-        remainingQty: parseFloat(remainingQty.toFixed(4)),
+        planQty,
+        issuedQty,
+        remainingQty,
         excessQty: 0,
         message: '在计划范围内',
       };
@@ -203,11 +204,7 @@ class ExcessIssueService {
   async checkBatchExcess(productionTaskId, items) {
     const results = [];
     for (const item of items) {
-      const result = await this.checkExcessIssue(
-        productionTaskId,
-        item.materialId,
-        item.quantity
-      );
+      const result = await this.checkExcessIssue(productionTaskId, item.materialId, item.quantity);
       if (result.isExcess) {
         results.push({
           materialId: item.materialId,

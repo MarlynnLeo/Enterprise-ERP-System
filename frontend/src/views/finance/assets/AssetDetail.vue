@@ -466,7 +466,7 @@ onMounted(() => {
 }
 
 .amount-text {
-  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-family: var(--font-ui);
   font-weight: bold;
 }
 

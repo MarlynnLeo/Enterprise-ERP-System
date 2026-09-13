@@ -556,6 +556,8 @@ watch(() => currentDate.value, (newValue) => {
 /* 统计卡片样式 - Dashboard特定布局（横向：图标+内容，水平居中） */
 /* 覆盖全局的居中布局 */
 .stat-card {
+  position: relative;
+  gap: 12px;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -626,7 +628,7 @@ watch(() => currentDate.value, (newValue) => {
   display: flex;
   flex-direction: column;
   flex: 0 0 auto;
-  margin-left: 12px;
+  min-width: 0;
 }
 .purple {
   background-color: var(--color-info);
@@ -639,7 +641,6 @@ watch(() => currentDate.value, (newValue) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-right: 12px;
   position: relative;
 }
 .blue {
@@ -669,6 +670,7 @@ watch(() => currentDate.value, (newValue) => {
 .text {
   color: var(--color-text-regular);
   font-size: 14px;
+  white-space: nowrap;
 }
 /* 整合的个人信息与天气卡片 - 统一卡片风格 */
 .combined-info-card {

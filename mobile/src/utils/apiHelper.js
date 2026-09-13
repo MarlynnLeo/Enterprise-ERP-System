@@ -1,5 +1,5 @@
 export const extractApiData = (res, defaultValue = {}) => {
-  return res?.data?.data ?? res?.data ?? defaultValue
+  return res?.data?.data ?? res?.data ?? res ?? defaultValue
 }
 
 export const extractApiList = (res) => {

@@ -15,6 +15,7 @@ import {
   Title,
   Tooltip
 } from 'chart.js'
+import { getAppFontFamily } from './typography'
 
 Chart.register(
   ArcElement,
@@ -32,6 +33,8 @@ Chart.register(
   Title,
   Tooltip
 )
+
+Chart.defaults.font.family = getAppFontFamily()
 
 export { Chart }
 export default Chart

@@ -406,7 +406,7 @@ onMounted(async () => {
 .amount-cell {
   text-align: right;
   padding-right: 12px;
-  font-family: 'Courier New', monospace;
+  font-family: var(--font-ui);
 }
 .cash {
   background-color: var(--color-primary-light-9);

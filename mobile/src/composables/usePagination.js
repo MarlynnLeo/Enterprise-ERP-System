@@ -1,104 +1,87 @@
-/**
- * usePagination.js
- * @description Vue 3 Composable，用于处理标准的 Vant 列表分页和下拉刷新逻辑
- * @date 2026-04-15
- */
-import { ref } from 'vue'
+import { getCurrentScope, onScopeDispose, ref } from 'vue'
 import { showToast } from 'vant'
+import { extractApiPaginated } from '@/utils/apiHelper'
 
+/** One active query owns its pages, refresh, errors and completion state. */
 export function usePagination(fetchDataFn, options = {}) {
-  const { immediate = true, initPageSize = 20 } = options
-
+  const { immediate = true, initPageSize = 20, getItemKey = item => item?.id ?? item?._id } = options
   const list = ref([])
   const loading = ref(false)
   const finished = ref(false)
   const refreshing = ref(false)
+  const error = ref(false)
+  const initialized = ref(false)
   const page = ref(1)
   const pageSize = ref(initPageSize)
+  const total = ref(-1)
+  const payload = ref({})
+  let params = {}
+  let activeRequest = null
+  let disposed = false
 
-  const loadData = async (extraParams = {}) => {
-    try {
-      if (refreshing.value) {
-        list.value = []
-        refreshing.value = false
-      }
+  if (getCurrentScope()) onScopeDispose(() => { disposed = true; activeRequest = null })
 
-      const params = {
-        page: page.value,
-        limit: pageSize.value,
-        ...extraParams
-      }
-
-      const res = await fetchDataFn(params)
-
-      // 适配后端的响应结构 (有时数据在 res.data, 有时已经是裸数据数组, 需要兼容)
-      let newData = []
-      let total = 0
-
-      if (res && res.data && Array.isArray(res.data.items)) {
-        newData = res.data.items
-        total = res.data.total
-      } else if (res && res.data && Array.isArray(res.data.list)) {
-        newData = res.data.list
-        total = res.data.total
-      } else if (res && Array.isArray(res.data)) {
-        newData = res.data
-        total = res.data.length
-      } else if (res && Array.isArray(res.items)) {
-        newData = res.items
-        total = res.total
-      } else if (res && Array.isArray(res.list)) {
-        newData = res.list
-        total = res.total
-      } else if (Array.isArray(res)) {
-        newData = res
-        total = res.length
-      }
-
-      if (total === undefined || total === null) {
-        total = Number.POSITIVE_INFINITY
-      }
-
-      list.value = [...list.value, ...newData]
-
-      if (list.value.length >= total || newData.length < pageSize.value) {
-        finished.value = true
-      } else {
-        page.value++
-      }
-    } catch (error) {
-      console.error('加载列表失败:', error)
-      showToast('加载数据失败')
-      finished.value = true
-    } finally {
-      loading.value = false
+  const load = (extraParams, reset) => {
+    if (disposed) return Promise.resolve()
+    if (!reset && activeRequest) return activeRequest.promise
+    if (!reset && finished.value) { loading.value = false; return Promise.resolve() }
+    if (extraParams !== undefined) params = reset ? { ...extraParams } : { ...params, ...extraParams }
+    if (reset) {
+      page.value = 1
+      list.value = []
+      total.value = -1
+      payload.value = {}
+      finished.value = false
+      refreshing.value = true
     }
-  }
-
-  const onRefresh = async (extraParams = {}) => {
-    refreshing.value = true
-    finished.value = false
     loading.value = true
-    page.value = 1
-    await loadData(extraParams)
+    error.value = false
+    const request = { page: page.value, promise: null }
+    activeRequest = request
+    const isCurrent = () => !disposed && activeRequest === request
+    const query = { ...params, page: request.page, pageSize: pageSize.value, limit: pageSize.value }
+
+    request.promise = (async () => {
+      try {
+        const response = await fetchDataFn(query)
+        if (!isCurrent()) return
+        const parsed = extractApiPaginated(response, { totalFallback: -1 })
+        const previous = request.page === 1 ? [] : list.value
+        const keys = new Set(previous.map(getItemKey).filter(key => key !== undefined && key !== null))
+        const additions = parsed.list.filter(item => {
+          const key = getItemKey(item)
+          if (key === undefined || key === null) return true
+          if (keys.has(key)) return false
+          keys.add(key)
+          return true
+        })
+        list.value = [...previous, ...additions]
+        total.value = Number.isFinite(parsed.total) ? parsed.total : -1
+        payload.value = parsed.payload
+        const exhausted = parsed.list.length === 0 || (request.page > 1 && additions.length === 0)
+        finished.value = exhausted || (total.value >= 0
+          ? list.value.length >= total.value
+          : parsed.list.length < (Number(parsed.pageSize) || pageSize.value))
+        page.value = request.page + 1
+      } catch {
+        if (isCurrent()) {
+          error.value = true
+          showToast('加载失败，请重试')
+        }
+      } finally {
+        if (isCurrent()) {
+          activeRequest = null
+          loading.value = false
+          refreshing.value = false
+          initialized.value = true
+        }
+      }
+    })()
+    return request.promise
   }
 
-  const onLoad = async (extraParams = {}) => {
-    await loadData(extraParams)
-  }
-
-  if (immediate) {
-    onLoad()
-  }
-
-  return {
-    list,
-    loading,
-    finished,
-    refreshing,
-    page,
-    pageSize,
-    onLoad,
-    onRefresh
-  }
+  const onLoad = extraParams => load(extraParams, false)
+  const onRefresh = extraParams => load(extraParams, true)
+  if (immediate) void onLoad()
+  return { list, loading, finished, refreshing, error, initialized, page, pageSize, total, payload, onLoad, onRefresh }
 }

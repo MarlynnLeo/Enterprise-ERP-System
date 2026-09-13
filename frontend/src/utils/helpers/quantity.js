@@ -2,6 +2,18 @@
  * 数量相关的工具函数
  */
 
+const quantityNumberFormatter = new Intl.NumberFormat('zh-CN', {
+  useGrouping: false,
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 6,
+});
+
+/** Display stored quantities without units or loss of their six-decimal precision. */
+export const formatQuantityNumber = (value) => {
+  const number = Number(value ?? 0);
+  return Number.isFinite(number) ? quantityNumberFormatter.format(number) : '-';
+};
+
 /**
  * 解析数量值，将各种格式的数量统一转换为数字类型
  * @param {*} value - 要解析的数量值，可以是数字、字符串或null/undefined

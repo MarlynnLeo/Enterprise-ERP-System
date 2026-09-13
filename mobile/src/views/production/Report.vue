@@ -244,7 +244,7 @@
     font-weight: 500;
     color: var(--text-primary);
     &.mono {
-      font-family: 'SF Mono', monospace;
+      font-family: var(--font-ui);
     }
     &.highlight {
       color: var(--color-primary);

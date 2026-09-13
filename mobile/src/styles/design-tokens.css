@@ -87,9 +87,11 @@ body {
   font-family: var(--font-sans);
   letter-spacing: 0;
   -webkit-tap-highlight-color: transparent;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
   touch-action: manipulation;
+}
+
+button, input, select, textarea, optgroup, option, code, kbd, pre, samp {
+  font-family: inherit;
 }
 
 /* Accessibility only; no shared page UI styling here. */

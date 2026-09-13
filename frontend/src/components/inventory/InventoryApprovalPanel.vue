@@ -1,5 +1,5 @@
 <template>
-  <section v-if="canViewApproval && hasApprovalRecord" class="inventory-approval-panel" v-loading="loading">
+  <section v-if="showApprovalPanel" class="inventory-approval-panel" v-loading="loading">
     <div class="approval-panel__header">
       <div>
         <h4 class="approval-panel__title">财务审核</h4>
@@ -48,14 +48,12 @@
       </el-timeline>
     </div>
 
-    <div class="approval-panel__actions">
+    <div v-if="canApprove || canReverse || canResubmit" class="approval-panel__actions">
       <template v-if="canApprove">
         <el-button
           v-permission="'finance:inventory:approve'"
           type="success"
           :loading="actionLoading"
-          :disabled="approvalSeparationBlocked"
-          :title="approvalSeparationBlocked ? approvalSeparationMessage : ''"
           @click="approve"
         >
           财务审核通过
@@ -64,15 +62,10 @@
           v-permission="'finance:inventory:approve'"
           type="danger"
           :loading="actionLoading"
-          :disabled="approvalSeparationBlocked"
-          :title="approvalSeparationBlocked ? approvalSeparationMessage : ''"
           @click="reject"
         >
           驳回
         </el-button>
-        <span v-if="approvalSeparationBlocked" class="approval-panel__blocked-hint">
-          {{ approvalSeparationMessage }}
-        </span>
       </template>
       <el-button
         v-if="canReverse"
@@ -172,9 +165,6 @@ const displayStatus = computed(() => {
   if (approval.reversal?.financeStatus === 'approved') return 'reversed'
   return approval.movement?.financeStatus || 'pending'
 })
-const canApprove = computed(
-  () => authStore.canApproveInventoryApproval && activePosting.value?.financeStatus === 'pending'
-)
 const currentActorLabels = computed(() => [
   authStore.user?.realName,
   authStore.user?.name,
@@ -198,12 +188,16 @@ const approvalForbiddenActors = computed(() => {
   return { ids, labels }
 })
 const approvalSeparationBlocked = computed(() => {
-  if (!canApprove.value) return false
   const actorId = Number(authStore.user?.id || 0)
   const { ids, labels } = approvalForbiddenActors.value
   return (actorId > 0 && ids.includes(actorId)) || currentActorLabels.value.some((label) => labels.includes(label))
 })
-const approvalSeparationMessage = '当前用户已完成该单据的业务审核，需由其他财务审核人处理'
+const canReviewPosting = computed(() =>
+  authStore.canApproveInventoryApproval &&
+  activePosting.value?.financeStatus === 'pending' &&
+  !approvalSeparationBlocked.value
+)
+const canApprove = computed(() => canReviewPosting.value && !loading.value)
 const canReverse = computed(() =>
   authStore.canReverseInventoryApproval &&
   approval.movement?.financeStatus === 'approved' &&
@@ -213,6 +207,11 @@ const canResubmit = computed(() =>
   authStore.canApproveInventoryApproval &&
   approval.movement?.financeStatus === 'rejected' &&
   Boolean(props.resubmitStatus)
+)
+const showApprovalPanel = computed(() =>
+  canViewApproval.value &&
+  hasApprovalRecord.value &&
+  (canReviewPosting.value || canReverse.value || canResubmit.value)
 )
 const financeStepActive = computed(() => (approval.movement ? 1 : 0))
 const businessStepStatus = computed(() => (approval.movement ? 'success' : 'process'))
@@ -304,33 +303,31 @@ async function runAction(action, postingId, message, successMessage, data) {
 }
 
 async function approve() {
-  if (approvalSeparationBlocked.value) {
-    ElMessage.warning(approvalSeparationMessage)
-    return
-  }
+  if (!canApprove.value || actionLoading.value) return
+  const postingId = activePosting.value.id
   await ElMessageBox.confirm(
     isReversalPending.value ? '确认通过反审核申请？通过后将冲销原库存流水并更新业务单据。' : '确认通过财务审核？通过后确认存货成本并正式入账。',
     '财务审核确认'
   )
+  if (!canApprove.value || actionLoading.value || activePosting.value?.id !== postingId) return
   await runAction(
     financeApi.inventoryPostings.approve,
-    activePosting.value.id,
+    postingId,
     '审核失败',
     isReversalPending.value ? '反审核已通过，库存已冲销' : '财务审核通过，已确认入账'
   )
 }
 
 async function reject() {
-  if (approvalSeparationBlocked.value) {
-    ElMessage.warning(approvalSeparationMessage)
-    return
-  }
+  if (!canApprove.value || actionLoading.value) return
+  const postingId = activePosting.value.id
   const { value } = await ElMessageBox.prompt('请输入驳回原因', '驳回审批', {
     inputValidator: (value) => Boolean(String(value || '').trim()) || '驳回原因不能为空',
   })
+  if (!canApprove.value || actionLoading.value || activePosting.value?.id !== postingId) return
   await runAction(
     financeApi.inventoryPostings.reject,
-    activePosting.value.id,
+    postingId,
     '驳回失败',
     '审批已驳回',
     { remark: value }
@@ -372,11 +369,6 @@ defineExpose({ refresh: loadApproval })
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.approval-panel__blocked-hint {
-  color: var(--el-color-warning);
-  font-size: 13px;
 }
 
 .approval-panel__header {

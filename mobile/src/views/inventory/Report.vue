@@ -608,7 +608,7 @@
   .item-code {
     font-size: 0.6875rem;
     color: var(--text-tertiary);
-    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+    font-family: var(--font-ui);
     flex-shrink: 0;
   }
 
@@ -624,7 +624,7 @@
     font-size: 0.75rem;
     font-weight: 700;
     flex-shrink: 0;
-    font-family: 'SF Mono', 'Menlo', monospace;
+    font-family: var(--font-ui);
 
     &.accent-green {
       background: rgba(16, 185, 129, 0.12);

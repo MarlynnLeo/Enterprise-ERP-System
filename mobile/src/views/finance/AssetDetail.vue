@@ -192,7 +192,7 @@
     font-size: 0.75rem;
     color: var(--text-tertiary);
     margin-top: 2px;
-    font-family: 'SF Mono', monospace;
+    font-family: var(--font-ui);
   }
   .hero-status {
     padding: 4px 12px;
@@ -245,7 +245,7 @@
     font-size: 1rem;
     font-weight: 700;
     color: var(--text-primary);
-    font-family: 'SF Mono', monospace;
+    font-family: var(--font-ui);
     &.primary {
       color: var(--color-primary);
     }
@@ -294,7 +294,7 @@
     font-weight: 500;
     color: var(--text-primary);
     &.mono {
-      font-family: 'SF Mono', monospace;
+      font-family: var(--font-ui);
     }
   }
 

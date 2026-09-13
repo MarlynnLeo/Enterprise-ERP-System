@@ -225,7 +225,7 @@
     font-size: 1.25rem;
     font-weight: 800;
     color: var(--text-primary);
-    font-family: 'SF Mono', 'Consolas', monospace;
+    font-family: var(--font-ui);
   }
 
   .hero-type {
@@ -309,7 +309,7 @@
   .bal-value {
     font-size: 0.9375rem;
     font-weight: 700;
-    font-family: 'SF Mono', 'Consolas', monospace;
+    font-family: var(--font-ui);
     color: var(--text-primary);
     &.main {
       font-size: 1.375rem;
@@ -363,7 +363,7 @@
     font-weight: 500;
     color: var(--text-primary);
     &.mono {
-      font-family: 'SF Mono', 'Consolas', monospace;
+      font-family: var(--font-ui);
     }
   }
 

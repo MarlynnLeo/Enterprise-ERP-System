@@ -27,13 +27,13 @@
       <div class="progress-card">
         <div class="progress-header">
           <span class="progress-label">完成进度</span>
-          <span class="progress-value">{{ task.progress || 0 }}%</span>
+          <span class="progress-value">{{ taskProgress }}%</span>
         </div>
         <div class="progress-bar">
           <div
             class="progress-fill"
-            :class="getProgressClass(task.progress || 0)"
-            :style="{ width: (task.progress || 0) + '%' }"
+            :class="getProgressClass(taskProgress)"
+            :style="{ width: (taskProgress) + '%' }"
           ></div>
         </div>
         <div class="progress-meta">
@@ -234,6 +234,7 @@
 </template>
 
 <script setup>
+  import { getProductionTaskProgress } from '@/utils/productionTask'
   import { extractApiList } from '@/utils/apiHelper'
   import { ref, computed, onMounted } from 'vue'
   import { useRouter, useRoute } from 'vue-router'
@@ -261,6 +262,7 @@
   const loading = ref(true)
   const issueLoading = ref(false)
   const task = ref(null)
+  const taskProgress = computed(() => getProductionTaskProgress(task.value))
 
   const canIssueMaterials = computed(() =>
     authStore.hasPermission('inventory:outbound:create') &&
@@ -664,7 +666,7 @@
     font-size: 0.75rem;
     color: var(--text-tertiary);
     margin-top: 2px;
-    font-family: 'SF Mono', monospace;
+    font-family: var(--font-ui);
   }
   .hero-status {
     padding: 4px 12px;
@@ -718,7 +720,7 @@
     font-size: 1.125rem;
     font-weight: 800;
     color: var(--text-primary);
-    font-family: 'SF Mono', monospace;
+    font-family: var(--font-ui);
   }
   .progress-bar {
     height: 8px;
@@ -780,7 +782,7 @@
     font-weight: 500;
     color: var(--text-primary);
     &.mono {
-      font-family: 'SF Mono', monospace;
+      font-family: var(--font-ui);
     }
     &.highlight {
       color: var(--module-purple);

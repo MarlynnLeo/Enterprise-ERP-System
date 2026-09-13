@@ -1,12 +1,12 @@
 /**
- * Shared operation-column sizing.
+ * Shared operation-column sizing with opt-in content-fit columns.
  *
  * Read intrinsic action sizes in one phase, then write only changed widths.
  * No hidden DOM probes and no document-wide attribute observer: branch clicks
- * and ordinary data-cell changes must not trigger table measurement.
+ * and unmarked data-cell changes must not trigger table measurement.
  */
 
-const CELL_SELECTOR = '.el-table__cell.operation-column, .el-table__cell.operation-column-header'
+const CELL_SELECTOR = '.el-table__cell.operation-column, .el-table__cell.operation-column-header, .el-table__cell.content-fit-column'
 const ACTION_SELECTOR = '.el-button, .el-link, .el-dropdown'
 const CONTAINER_SELECTOR = '.table-actions, .operation-buttons, .operation-btns, .operation-column-actions, .flex-wrap, .row-actions'
 const COLUMN_ID_PATTERN = /el-table_\d+_column_\d+/g
@@ -18,6 +18,7 @@ const tableStyleSignature = (table) => table.className.replace(layoutClassPatter
 
 const tables = new Map()
 const pendingTables = new Map()
+const widthControllers = new WeakMap()
 let rootElement = null
 let discoveryObserver = null
 let themeObserver = null
@@ -54,6 +55,16 @@ const measureCell = (cell) => {
   if (!content || !isRendered(cell)) return 0
   const contentStyle = window.getComputedStyle(content)
   const padding = px(contentStyle.paddingLeft) + px(contentStyle.paddingRight)
+  if (cell.classList.contains('content-fit-column')) {
+    const tag = content.querySelector('.el-tag')
+    const cellStyle = window.getComputedStyle(cell)
+    const border = px(cellStyle.borderLeftWidth) + px(cellStyle.borderRightWidth)
+    if (!tag) return measurePlainText(content) + padding + border
+    const tagStyle = window.getComputedStyle(tag)
+    // Measure the complete label, even if the previous column width clipped it.
+    return measurePlainText(tag) + px(tagStyle.paddingLeft) + px(tagStyle.paddingRight) +
+      px(tagStyle.borderLeftWidth) + px(tagStyle.borderRightWidth) + padding + border
+  }
   const actions = [...content.querySelectorAll(ACTION_SELECTOR)].filter((action) => {
     const parentAction = action.parentElement?.closest(ACTION_SELECTOR)
     return (!parentAction || !content.contains(parentAction)) && isRendered(action)
@@ -82,7 +93,8 @@ const measureTable = (table) => {
     const measured = measureCell(cell)
     if (!measured) continue
     for (const id of getColumnIds(cell)) {
-      widths.set(id, Math.max(widths.get(id) || MIN_WIDTH, clamp(measured)))
+      const width = cell.classList.contains('content-fit-column') ? Math.ceil(measured) : clamp(measured)
+      widths.set(id, Math.max(widths.get(id) || 0, width))
     }
   }
   return widths
@@ -104,13 +116,19 @@ const setWidth = (element, width) => {
 }
 
 const applyWidths = ({ table, widths }) => {
+  const controller = widthControllers.get(table)
+  if (controller) {
+    controller(widths)
+    return
+  }
   for (const [id, width] of widths) {
     table.querySelectorAll('col[name="' + id + '"]').forEach((column) => {
       if (column.getAttribute('width') !== String(width)) column.setAttribute('width', String(width))
       setWidth(column, width)
     })
-    table.querySelectorAll('.' + id + '.operation-column, .' + id + '.operation-column-header')
-      .forEach((cell) => setWidth(cell, width))
+    table.querySelectorAll('.' + id).forEach((cell) => {
+      if (cell.matches(CELL_SELECTOR)) setWidth(cell, width)
+    })
   }
 }
 
@@ -176,6 +194,9 @@ const observeTable = (table) => {
         // Element Plus may replace a col's width during its resize layout.
         // Restore the cached value; never measure all rows for that event.
         if (target.matches('col') || (mutation.attributeName === 'style' && target.matches(CELL_SELECTOR))) {
+          // A registered Vue owner applies widths through column props. Its
+          // renderer owns the DOM, including resize and fixed-column layout.
+          if (widthControllers.has(table)) continue
           for (const id of getColumnIds(target)) {
             const width = state.widths.get(id)
             if (width && (!hasWidth(target, width) ||
@@ -230,6 +251,15 @@ const releaseDetachedTables = () => {
 
 const measureVisibleTables = () => {
   tables.forEach(({ table }) => scheduleTable(table))
+}
+
+/** Register during mount so measured widths have one owner: the table's Vue state. */
+export const registerTableWidthController = (table, controller) => {
+  widthControllers.set(table, controller)
+  scheduleTable(table)
+  return () => {
+    if (widthControllers.get(table) === controller) widthControllers.delete(table)
+  }
 }
 
 /** Start once after mount; teleported dialogs are included under body. */

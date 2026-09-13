@@ -17,7 +17,6 @@
       v-if="fileType === '.docx' || fileType === '.doc'"
       :src="fileUrl"
       class="preview-fill"
-      @rendered="handleDocRendered"
       @error="handleDocError"
     />
 
@@ -26,7 +25,6 @@
       v-else-if="fileType === '.xlsx' || fileType === '.xls'"
       :src="fileUrl"
       class="preview-fill"
-      @rendered="handleDocRendered"
       @error="handleDocError"
     />
 
@@ -82,7 +80,6 @@ const handleClose = () => {
   visible.value = false
 }
 
-const handleDocRendered = () => {}
 
 const handleDocError = (error) => {
   console.error('文档渲染失败:', error)

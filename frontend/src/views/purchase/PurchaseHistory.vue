@@ -282,21 +282,21 @@ onMounted(() => {
 }
 
 .price-highlight {
-  font-family: 'Consolas', monospace;
+  font-family: var(--font-ui);
   color: var(--color-warning);
   font-weight: bold;
   font-size: 14px;
 }
 
 .amount-highlight {
-  font-family: 'Consolas', monospace;
+  font-family: var(--font-ui);
   color: var(--color-danger);
   font-weight: bold;
   font-size: 14px;
 }
 
 .material-code {
-  font-family: 'Consolas', monospace;
+  font-family: var(--font-ui);
   color: var(--shell-accent-strong);
   background: color-mix(in srgb, var(--color-primary) 10%, transparent);
   padding: 2px 6px;

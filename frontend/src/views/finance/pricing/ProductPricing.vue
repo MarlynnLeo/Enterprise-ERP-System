@@ -571,7 +571,7 @@ onMounted(() => {
 .cost-value-row .amount {
   font-size: 32px;
   font-weight: bold;
-  font-family: DINAlternate, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-family: var(--font-ui);
   letter-spacing: 1px;
 }
 

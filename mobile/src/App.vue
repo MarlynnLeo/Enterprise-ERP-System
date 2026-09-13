@@ -136,8 +136,6 @@
     min-height: -webkit-fill-available;
     overflow: hidden;
     overscroll-behavior: none;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
     -webkit-text-size-adjust: 100%;
   }
 

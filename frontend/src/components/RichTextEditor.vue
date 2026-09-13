@@ -276,7 +276,7 @@ watch(() => props.modelValue, async (newValue) => {
   border-radius: var(--radius-sm);
   background-color: var(--color-bg-hover);
   color: var(--color-text-primary);
-  font-family: 'Courier New', monospace;
+  font-family: var(--font-ui);
 }
 
 .editor-surface :deep(a) {

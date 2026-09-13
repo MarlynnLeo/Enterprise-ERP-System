@@ -130,9 +130,9 @@
   --spacing-xxl: 48px;
 
   /* ==================== 字体系统 ==================== */
-  --font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --font-family-chinese: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-  --font-family-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  --font-family-base: var(--font-ui);
+  --font-family-chinese: var(--font-ui);
+  --font-family-mono: var(--font-ui);
 
   --font-size-xs: 12px;
   --font-size-sm: 14px;
@@ -275,7 +275,7 @@
 
 [data-theme="professional"] .stat-card .stat-value,
 [data-theme="professional"] .stat-card .card-value {
-  font-family: var(--font-family-mono, monospace);
+  font-family: var(--font-family-mono);
   font-variant-numeric: tabular-nums;
   font-weight: 700 !important;
   color: var(--color-text-primary) !important;

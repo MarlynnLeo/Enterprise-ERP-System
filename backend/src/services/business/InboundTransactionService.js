@@ -11,6 +11,7 @@ const NonconformingProduct = require('../../models/nonconformingProduct');
 const { validateTaskTransition } = require('./TaskLifecycleService');
 const CostAccountingService = require('./CostAccountingService');
 const ProductionLaborService = require('./ProductionLaborService');
+const ProductionBatchTraceabilityService = require('./ProductionBatchTraceabilityService');
 
 const DLQService = require('./DLQService');
 const AsyncTaskService = require('./AsyncTaskService');
@@ -44,33 +45,7 @@ class InboundTransactionService {
 
     const inspection_id = inboundInfo.length > 0 ? inboundInfo[0].inspection_id : null;
 
-    if (inspection_id) {
-      // 查询检验单，找到相关联的生产任务
-      const [inspectionInfo] = await connection.execute(
-        'SELECT reference_id, reference_no FROM quality_inspections WHERE id = ? AND deleted_at IS NULL',
-        [inspection_id]
-      );
-
-      if (inspectionInfo.length > 0 && inspectionInfo[0].reference_id) {
-        const taskId = inspectionInfo[0].reference_id;
-        const [taskInfo] = await connection.execute(
-          'SELECT plan_id FROM production_tasks WHERE id = ? AND deleted_at IS NULL',
-          [taskId]
-        );
-
-        if (taskInfo.length > 0 && taskInfo[0].plan_id) {
-          // 这里原有个巨大的坑，后来在Controller里被注释去掉了，此处同样留空保持原功能一致
-        }
-      }
-    }
-
-    // 查询明细补充项
-    const [items] = await connection.execute(
-      'SELECT id, material_id, quantity, unit_id, batch_number, location_id FROM inventory_inbound_items WHERE inbound_id = ?',
-      [inboundId]
-    );
-
-    if (items.length === 0) {
+    if (inboundItems.length === 0) {
       logger.error('入库单没有物料项, ID:', inboundId);
       throw new Error('入库单没有物料项');
     }
@@ -126,7 +101,7 @@ class InboundTransactionService {
 
     logger.info('入库交易类型:', { inbound_type: inboundType, transaction_type: transactionType });
 
-    for (const item of items) {
+    for (const item of inboundItems) {
       if (!item.material_id) {
         logger.error('物料ID为空');
         throw new Error('物料ID为空');
@@ -572,6 +547,26 @@ class InboundTransactionService {
     );
   }
 
+  static async createProductionBatchRelationships(inboundId, operator = null) {
+    const connection = await db.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const result = await ProductionBatchTraceabilityService.createForInbound(
+        connection,
+        inboundId,
+        operator
+      );
+      await connection.commit();
+      return result;
+    } catch (error) {
+      await connection.rollback();
+      logger.error('建立生产入库批次关系失败:', error);
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
   /**
    * 异步处理周边的副作用：如追溯链创建，及不良品NCP单自动生成
    */
@@ -645,132 +640,9 @@ class InboundTransactionService {
     // 建立原料→成品批次追溯关系；生产任务/计划状态已在主事务中同步完成
     if (inboundData.inbound_type === 'production' && inspection_id) {
       DLQService.runWithRetry(
-        `生产入库批次关系-${inboundData.inbound_no}`,
-        { inboundData, inspection_id },
-        async () => {
-          const connection = await db.pool.getConnection();
-          try {
-            // 查找绑定的成品质检单，获取关联的生产任务ID
-            const [inspections] = await connection.query(
-              "SELECT reference_id FROM quality_inspections WHERE id = ? AND inspection_type = 'final' AND deleted_at IS NULL",
-              [inspection_id]
-            );
-            if (inspections.length > 0 && inspections[0].reference_id) {
-              const taskId = inspections[0].reference_id;
-
-              // 查找生产任务和计划
-              const [taskResult] = await connection.query(
-                'SELECT id, plan_id, code FROM production_tasks WHERE id = ? AND deleted_at IS NULL',
-                [taskId]
-              );
-
-              if (taskResult.length > 0) {
-                const taskCode = taskResult[0].code;
-
-                // ✅ 建立原料 → 成品的 batch_relationships 追溯消耗关系
-                // 思路：生产入库时成品已有批次号，从 inventory_ledger 查该生产任务
-                //       对应的 production_outbound 台账，即可得到实际领用的原料批次
-                try {
-                  for (const inboundItem of inboundItems) {
-                    const productBatchNo = inboundItem.batch_number;
-                    if (!productBatchNo) continue;
-
-                    // 查询该生产任务下实际领用的原料批次（来自对应的生产出库单领料）
-                    // 1. 获取该生产任务对应的所有出库单号
-                    const [outbounds] = await connection.query(
-                      `SELECT outbound_no FROM inventory_outbound
-                     WHERE production_task_id = ? OR (reference_type = 'production_task' AND reference_id = ?)`,
-                      [taskId, taskId]
-                    );
-
-                    let consumedRows = [];
-                    if (outbounds.length > 0) {
-                      const outNos = outbounds.map((o) => o.outbound_no);
-                      const placeholders = outNos.map(() => '?').join(',');
-
-                      // 2. 查询这些出库单在台账中的扣减明细
-                      const [ledgerRows] = await connection.query(
-                        `SELECT
-                         il.material_id,
-                         il.batch_number    as raw_batch_number,
-                         m.code             as raw_material_code,
-                         ABS(SUM(il.quantity)) as consumed_quantity
-                       FROM inventory_ledger il
-                       JOIN materials m ON il.material_id = m.id
-                       WHERE il.transaction_type IN ('production_outbound', 'outbound')
-                         AND il.reference_no IN (${placeholders})
-                         AND il.quantity < 0
-                         AND il.batch_number IS NOT NULL
-                         AND il.batch_number != ''
-                       GROUP BY il.material_id, il.batch_number, m.code`,
-                        outNos
-                      );
-                      consumedRows = ledgerRows;
-                    }
-
-                    const producedQty = parseFloat(inboundItem.quantity) || 1;
-
-                    for (const raw of consumedRows) {
-                      // 避免重复写入（幂等保护）
-                      const [existing] = await connection.query(
-                        `SELECT id FROM batch_relationships
-                       WHERE parent_batch_number = ? AND child_batch_number = ?
-                         AND parent_material_code = ? AND relationship_type = 'consume'
-                       LIMIT 1`,
-                        [raw.raw_batch_number, productBatchNo, raw.raw_material_code]
-                      );
-                      if (existing.length > 0) continue;
-
-                      await connection.execute(
-                        `INSERT INTO batch_relationships (
-                         parent_batch_id, child_batch_id,
-                         parent_material_code, child_material_code,
-                         parent_batch_number,  child_batch_number,
-                         relationship_type,    consumed_quantity, produced_quantity,
-                         conversion_ratio,     process_type,
-                         reference_type,       reference_id,  reference_no,
-                         operator,             remarks,       created_at
-                       ) VALUES (NULL, NULL, ?, ?, ?, ?, 'consume', ?, ?, ?, 'production',
-                                 'production_task', ?, ?, ?, ?, NOW())`,
-                        [
-                          raw.raw_material_code,
-                          inboundItem.material_code || '',
-                          raw.raw_batch_number,
-                          productBatchNo,
-                          parseFloat(raw.consumed_quantity),
-                          producedQty,
-                          producedQty > 0 ? parseFloat(raw.consumed_quantity) / producedQty : 1,
-                          taskId,
-                          taskCode || inboundData.inbound_no,
-                          await resolveActorLabel(null, inboundData.operator, operator),
-                          `生产任务 ${taskCode || taskId} 原料消耗追溯`,
-                        ]
-                      );
-                    }
-
-                    if (consumedRows.length > 0) {
-                      logger.info(
-                        `[追溯] 成品批次 ${productBatchNo} 已建立 ${consumedRows.length} 条原料消耗关系`
-                      );
-                    } else {
-                      throw new Error(
-                        `生产任务 ${taskId}(${taskCode}) 未找到对应的原料领用台账，不能建立成品批次 ${productBatchNo} 的消耗追溯关系`
-                      );
-                    }
-                  }
-                } catch (traceErr) {
-                  logger.error('建立生产批次消耗追溯关系失败:', traceErr);
-                  throw traceErr;
-                }
-              }
-            }
-          } catch (err) {
-            logger.error('异步建立生产入库批次关系失败:', err);
-            throw err;
-          } finally {
-            connection.release();
-          }
-        }
+        'Inventory:ProductionBatchRelationships',
+        { inboundId, inbound_no: inboundData.inbound_no, operator },
+        () => this.createProductionBatchRelationships(inboundId, operator)
       );
     }
 
@@ -891,5 +763,9 @@ class InboundTransactionService {
     );
   }
 }
+
+DLQService.registerHandler('Inventory:ProductionBatchRelationships', ({ inboundId, operator }) =>
+  InboundTransactionService.createProductionBatchRelationships(inboundId, operator)
+);
 
 module.exports = InboundTransactionService;

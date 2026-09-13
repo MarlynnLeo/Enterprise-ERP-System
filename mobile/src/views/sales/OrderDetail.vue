@@ -347,7 +347,7 @@ onMounted(() => {
 
 .highlight-money {
     color: var(--color-warning);
-    font-family: monospace;
+    font-family: var(--font-ui);
     font-weight: 600;
 }
 

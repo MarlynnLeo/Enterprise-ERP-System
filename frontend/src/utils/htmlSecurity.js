@@ -1,4 +1,5 @@
 import DOMPurify from 'dompurify';
+import { applyPrintTypography } from './typography';
 
 const ENTITY_MAP = {
   amp: '&',
@@ -68,5 +69,6 @@ export function writeSafeHtmlDocument(targetWindow, html) {
   targetWindow.document.open();
   targetWindow.document.write(safeHtml);
   targetWindow.document.close();
+  applyPrintTypography(targetWindow.document);
   return targetWindow;
 }

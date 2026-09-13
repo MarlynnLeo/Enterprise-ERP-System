@@ -7,16 +7,19 @@
  */
 -->
 <script setup>
-import { ref, onMounted, reactive } from 'vue'
+import { ref, onMounted, computed } from 'vue'
+import { usePaginatedFetching } from '@/composables/useDataFetching'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { getProductionStatusText, getProductionStatusColor } from '@/constants/systemConstants'
 import { productionApi, purchaseApi } from '@/api'
 import { formatQuantity } from '@/utils/helpers/quantity'
-import { parseApiResponse, parsePaginatedData } from '@/utils/responseParser'
+import { parseApiResponse } from '@/utils/responseParser'
 import dayjs from 'dayjs'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { Download, ShoppingCart, Select, Close, InfoFilled } from '@element-plus/icons-vue'
 import { loadExcelJS } from '@/utils/lazyVendors'
+const router = useRouter()
 const props = defineProps({
   pageTitle: {
     type: String,
@@ -28,24 +31,19 @@ const props = defineProps({
   }
 })
 
-// 数据定义
-const loading = ref(false)
-const shortageList = ref([])
-const statistics = ref({
-  affectedPlans: 0,
-  shortageMaterials: 0,
-  totalShortage: 0
-})
-// 添加响应式分页对象
-const pagination = reactive({
-  currentPage: 1,
-  pageSize: 10,
-  total: 0
-})
 // 搜索表单
 const searchForm = ref({
   material: '',
   purchaseStatus: '' // 采购状态：'' 全部，'pending' 待申请，'requested' 已申请
+})
+const {
+  loading, data: shortageList, pagination, statistics: shortageStatistics,
+  fetchData, handleSizeChange, handlePageChange: handleCurrentChange,
+} = usePaginatedFetching(params => productionApi.getMaterialShortageSummary({
+  ...params, ...searchForm.value,
+}), { errorMessage: '获取缺料统计失败' })
+const statistics = computed(() => shortageStatistics.value || {
+  affectedPlans: 0, shortageMaterials: 0, totalShortage: 0,
 })
 // 批量选择相关
 const shortageTableRef = ref(null)
@@ -61,37 +59,10 @@ const _getStatusType = (status) => getProductionStatusColor(status)
 // 格式化日期
 // formatDate 已统一引用公共实现
 // 获取缺料统计数据
-const fetchShortageData = async (force = false) => {
-  // 防止重复请求，除非强制刷新
-  if (loading.value && !force) return
-  loading.value = true
-  try {
-    const params = {
-      page: pagination.currentPage,
-      pageSize: pagination.pageSize
-    }
-    if (searchForm.value.material) params.material = searchForm.value.material
-    if (searchForm.value.purchaseStatus) params.purchaseStatus = searchForm.value.purchaseStatus
-    const response = await productionApi.getMaterialShortageSummary(params)
-    // 使用统一解析器处理分页数据
-    const { list, total, statistics: stats } = parsePaginatedData(response, { enableLog: false })
-    shortageList.value = list
-    pagination.total = Number(total) || 0
-    statistics.value = stats || {
-      affectedPlans: 0,
-      shortageMaterials: 0,
-      totalShortage: 0
-    }
-  } catch (error) {
-    console.error('获取缺料统计失败:', error)
-    ElMessage.error('获取缺料统计失败: ' + (error.response?.data?.message || error.message))
-  } finally {
-    loading.value = false
-  }
-}
+const fetchShortageData = (force = false) => fetchData({}, true, { force })
 // 搜索
 const handleSearch = () => {
-  pagination.currentPage = 1
+  pagination.current = 1
   fetchShortageData()
 }
 // 重置搜索
@@ -100,7 +71,7 @@ const handleReset = () => {
     material: '',
     purchaseStatus: ''
   }
-  pagination.currentPage = 1
+  pagination.current = 1
   fetchShortageData()
 }
 // 导出数据
@@ -170,19 +141,9 @@ const handleExport = async () => {
     ElMessage.error('导出失败: ' + (error.message || '未知错误'))
   }
 }
-// 分页处理
-const handleSizeChange = (val) => {
-  pagination.pageSize = val
-  fetchShortageData()
-}
-const handleCurrentChange = (val) => {
-  pagination.currentPage = val
-  fetchShortageData()
-}
 // 跳转到生产计划详情
 const viewPlanDetail = (planId) => {
-  // 这里可以实现跳转到生产计划详情页面的逻辑
-  ElMessage.info(`跳转到生产计划详情 ID: ${planId}`)
+  return router.push({ name: 'productionPlan', query: { id: planId } })
 }
 // 批量选择相关方法
 const handleSelectionChange = (selection) => {
@@ -527,7 +488,7 @@ onMounted(() => {
         <el-pagination
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
-          :current-page="pagination.currentPage"
+          :current-page="pagination.current"
           :page-sizes="[10, 20, 50, 100]"
           :page-size="pagination.pageSize"
           :small="false"

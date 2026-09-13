@@ -344,7 +344,7 @@ onUnmounted(() => {
   padding: 2px 6px;
   border-radius: var(--shell-radius-sm, var(--radius-sm));
   box-shadow: var(--shadow-xs, none);
-  font-family: monospace;
+  font-family: var(--font-ui);
   min-width: 16px;
   text-align: center;
 }

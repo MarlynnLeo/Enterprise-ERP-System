@@ -11,7 +11,8 @@ import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
 import dayjs from 'dayjs'
 import { formatDate } from '@/utils/helpers/dateUtils'
-import { ref, onMounted, reactive, nextTick } from 'vue'
+import { ref, onMounted, reactive, nextTick, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { productionApi, purchaseApi, baseDataApi, systemApi } from '@/api'
 import { loadDepartmentOptions } from '@/utils/optionLoaders'
@@ -25,6 +26,7 @@ import { useFormKeyboardNav } from '@/composables/useFormKeyboardNav'
 // ✅ 键盘导航：Enter 跳转下一字段，最后一个字段按 Enter 自动提交
 const { onFormKeydown: planFormKeydown } = useFormKeyboardNav(() => handleModalOk())
 const authStore = useAuthStore()
+const route = useRoute()
 const departmentOptions = ref([])
 const BATCH_MATERIAL_QUERY_LIMIT = 100
 const chunkArray = (items, size) => {
@@ -564,6 +566,7 @@ const loadPurchaseRequestStatus = async (planId) => {
 const viewPlanDetail = async (row) => {
   planDetailVisible.value = true;
   planDetailLoading.value = true;
+  currentPlan.value = null;
   try {
     // 性能监控
 
@@ -1278,6 +1281,19 @@ const formatMaterialForDisplay = (material) => {
     unit: material.unit || material.unitName || ''
   };
 };
+
+// 缺料统计、仪表盘等入口可通过计划 ID 直接打开详情，无需等待列表加载。
+watch(
+  () => route.query.id,
+  (planId) => {
+    if (typeof planId === 'string' && /^[1-9]\d*$/.test(planId)) {
+      viewPlanDetail({ id: planId })
+    } else {
+      planDetailVisible.value = false
+    }
+  },
+  { immediate: true }
+)
 </script>
 <template>
   <div class="module-page production-plan-container">

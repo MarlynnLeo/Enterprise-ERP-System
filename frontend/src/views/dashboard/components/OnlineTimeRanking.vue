@@ -455,11 +455,13 @@ function isSameUser(left, right) {
 }
 
 .runner-info strong {
+  max-width: 100%;
   color: var(--color-text-primary);
   font-size: 13px;
 }
 
 .runner-info span {
+  max-width: 100%;
   color: var(--color-text-secondary);
   font-size: 12px;
 }

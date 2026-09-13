@@ -408,7 +408,7 @@
   .item-code {
     font-size: 0.6875rem;
     color: var(--text-tertiary);
-    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+    font-family: var(--font-ui);
     flex-shrink: 0;
   }
   .qty-badge {
@@ -417,7 +417,7 @@
     font-size: 0.75rem;
     font-weight: 700;
     flex-shrink: 0;
-    font-family: 'SF Mono', 'Menlo', monospace;
+    font-family: var(--font-ui);
     &.badge-green {
       background: rgba(16, 185, 129, 0.12);
       color: var(--color-success);
@@ -484,7 +484,7 @@
     text-align: right;
     flex: 1;
     &.mono {
-      font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+      font-family: var(--font-ui);
     }
     &.highlight {
       color: var(--color-primary);

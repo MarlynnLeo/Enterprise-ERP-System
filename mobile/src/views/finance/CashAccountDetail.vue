@@ -208,7 +208,7 @@
     font-size: 1.75rem;
     font-weight: 800;
     margin: 6px 0 14px;
-    font-family: 'SF Mono', monospace;
+    font-family: var(--font-ui);
   }
   .balance-row {
     display: flex;
@@ -226,7 +226,7 @@
   .balance-sub-value {
     font-size: 0.875rem;
     font-weight: 600;
-    font-family: 'SF Mono', monospace;
+    font-family: var(--font-ui);
   }
 
   .info-section {
@@ -263,7 +263,7 @@
     font-weight: 500;
     color: var(--text-primary);
     &.mono {
-      font-family: 'SF Mono', monospace;
+      font-family: var(--font-ui);
       letter-spacing: 0.5px;
     }
   }

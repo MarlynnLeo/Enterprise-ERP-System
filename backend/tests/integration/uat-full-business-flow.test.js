@@ -491,6 +491,19 @@ describeLiveUat('UAT full business flow', () => {
       .send({ status: 'in_progress' });
     expectHttp(startTaskRes, 200, 'start production task');
 
+    const prematureCompletion = await api.post(`/api/production/tasks/${context.productionTaskId}/complete`)
+      .send({ quantity: context.productionQty });
+    expectHttp(prematureCompletion, 409, 'prevent completion before task processes');
+    expect(prematureCompletion.body.errorCode).toBe('PRODUCTION_PROCESSES_REQUIRED');
+    const stepsResponse = await api.get(`/api/production/assembly/tasks/${context.productionTaskId}/steps`);
+    expectHttp(stepsResponse, 200, 'load production process snapshots');
+    const steps = dataOf(stepsResponse).steps;
+    expect(steps.length).toBeGreaterThan(0);
+    for (const step of steps) {
+      expectHttp(await api.post(`/api/production/assembly/steps/${step.id}/start`).send({}), 200, 'start production process');
+      expectHttp(await api.post(`/api/production/assembly/steps/${step.id}/complete`).send({}), 200, 'complete production process');
+    }
+
     const [preCompletionInspections] = await db.pool.query(
       `SELECT id, inspection_no, inspection_type, quantity, status
        FROM quality_inspections
@@ -508,10 +521,9 @@ describeLiveUat('UAT full business flow', () => {
       await passInspection(inspection);
     }
 
-    const completeTaskRes = await api
-      .post(`/api/production/tasks/${context.productionTaskId}/complete`)
-      .send({ quantity: context.productionQty, remark: 'UAT production complete' });
-    expectHttp(completeTaskRes, 200, 'complete production task');
+    const completedTask = await scalar('SELECT status, completed_quantity FROM production_tasks WHERE id = ?', [context.productionTaskId]);
+    expect(completedTask.status).toBe('inspection');
+    expect(Number(completedTask.completed_quantity)).toBe(context.productionQty);
 
     const [finalInspections] = await db.pool.query(
       `SELECT id, inspection_no, inspection_type, product_id, quantity, unit_id, status
@@ -773,6 +785,13 @@ describeLiveUat('UAT full business flow', () => {
       ]
     );
     expect(Number(documentLinks.count)).toBeGreaterThanOrEqual(3);
+    const trace = await waitFor(async () => {
+      const row = await scalar(`SELECT SUM(consumed_quantity) AS consumed, SUM(produced_quantity) AS produced
+        FROM batch_relationships WHERE relationship_type = 'consume' AND reference_type = 'production_task' AND reference_id = ?`, [context.productionTaskId]);
+      return Number(row.consumed) > 0 ? row : null;
+    }, 'raw-material to finished-batch traceability');
+    expect(Number(trace.consumed)).toBeCloseTo(context.rawUsageQty, 4);
+    expect(Number(trace.produced)).toBeCloseTo(context.productionQty, 4);
   });
 
   it('rolls back the budget header and earlier lines after a real database detail failure', async () => {

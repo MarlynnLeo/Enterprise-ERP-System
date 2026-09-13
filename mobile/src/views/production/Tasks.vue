@@ -18,7 +18,7 @@
       <!-- 统计概览 -->
       <div class="stats-banner">
         <div class="stat-item">
-          <span class="stat-num">{{ taskList.length }}</span>
+          <span class="stat-num">{{ totalTaskCount }}</span>
           <span class="stat-label">全部任务</span>
         </div>
         <div class="stat-divider"></div>
@@ -51,7 +51,7 @@
             :key="tab.value"
             class="filter-chip"
             :class="{ active: activeStatus === tab.value }"
-            @click="activeStatus = tab.value"
+            @click="switchStatus(tab.value)"
           >
             <SvgIcon :name="tab.icon" size="0.875rem" />
             <span class="chip-text">{{ tab.label }}</span>
@@ -65,19 +65,20 @@
       <!-- 任务列表 -->
       <div class="tasks-list">
         <PullRefresh v-model="refreshing" @refresh="onRefresh">
-          <Empty v-if="filteredTasks.length === 0 && !loading" description="暂无任务数据" />
+          <Empty v-if="taskList.length === 0 && !loading" description="暂无任务数据" />
 
           <List
             v-model:loading="loading"
+            v-model:error="error"
+            error-text="加载失败，点击重试"
             :finished="finished"
             finished-text="没有更多了"
             @load="onLoad"
           >
             <div
-              v-for="(task, index) in filteredTasks"
+              v-for="task in taskList"
               :key="task.id"
               class="task-card"
-              :style="{ animationDelay: `${index * 0.03}s` }"
               @click="viewTaskDetail(task.id)"
             >
               <!-- 左侧色条 -->
@@ -195,7 +196,7 @@
 </template>
 
 <script setup>
-  import { ref, computed, reactive, onMounted } from 'vue'
+  import { ref, computed, reactive } from 'vue'
   import { useRouter } from 'vue-router'
   import {
     NavBar,
@@ -212,14 +213,12 @@
   import SvgIcon from '@/components/icons/index.vue'
   import { productionApi } from '@/api'
   import dayjs from 'dayjs'
+  import { usePagination } from '@/composables/usePagination'
+  import { getProductionTaskProgress } from '@/utils/productionTask'
 
   const router = useRouter()
 
   // 响应式数据
-  const taskList = ref([])
-  const loading = ref(false)
-  const finished = ref(false)
-  const refreshing = ref(false)
   const searchValue = ref('')
   const activeStatus = ref('all')
   const showReportDialog = ref(false)
@@ -237,34 +236,44 @@
     { label: '已取消', value: 'cancelled', icon: 'shield' }
   ]
 
-  // 统计
-  const inProgressCount = computed(
-    () => taskList.value.filter((t) => t.status === 'in_progress').length
-  )
-  const completedCount = computed(
-    () => taskList.value.filter((t) => t.status === 'completed').length
-  )
-  const getStatusCount = (status) => {
-    if (!status || status === 'all') return taskList.value.length
-    return taskList.value.filter((t) => t.status === status).length
+  const {
+    list: rawTasks, payload, total, loading, finished, refreshing, error,
+    onLoad: loadPage, onRefresh: refreshPages
+  } = usePagination(productionApi.getProductionTasks)
+  const taskList = computed(() => rawTasks.value.map(task => ({
+    ...task,
+    code: task.code || task.taskCode || `TASK-${task.id}`,
+    productName: task.productName || '未知产品',
+    quantity: task.quantity || 0,
+    completedQuantity: task.completedQuantity || 0,
+    unit: task.unit || '件',
+    progressPercent: getProductionTaskProgress(task)
+  })))
+  const statistics = computed(() => payload.value.statistics || {})
+  const totalTaskCount = computed(() => Number(statistics.value.total ?? Math.max(total.value, 0)))
+  const inProgressCount = computed(() => Number(statistics.value.inProgress || 0))
+  const completedCount = computed(() => Number(statistics.value.completed || 0))
+  const getStatusCount = status => {
+    if (status === 'all') return totalTaskCount.value
+    const key = status === 'in_progress' ? 'inProgress' : status
+    return Number(statistics.value[key] || 0)
   }
-
-  // 前端筛选
-  const filteredTasks = computed(() => {
-    let result = taskList.value
-    if (activeStatus.value && activeStatus.value !== 'all') {
-      result = result.filter((t) => t.status === activeStatus.value)
-    }
-    if (searchValue.value) {
-      const kw = searchValue.value.toLowerCase()
-      result = result.filter(
-        (t) =>
-          (t.code || '').toLowerCase().includes(kw) ||
-          (t.productName || '').toLowerCase().includes(kw)
-      )
-    }
-    return result
+  const queryParams = () => ({
+    search: searchValue.value.trim() || undefined,
+    status: activeStatus.value === 'all' ? undefined : activeStatus.value
   })
+  const onLoad = () => loadPage(queryParams())
+  const onRefresh = () => refreshPages(queryParams())
+  const switchStatus = status => {
+    if (status === activeStatus.value) return
+    activeStatus.value = status
+    onRefresh()
+  }
+  const handleSearch = () => onRefresh()
+  const handleClear = () => {
+    searchValue.value = ''
+    onRefresh()
+  }
 
   // 获取状态色条类
   const getStatusAccent = (status) => {
@@ -312,81 +321,7 @@
     return 'fill-low'
   }
 
-  const calculateProgress = (task) => {
-    const planned = task.plannedQuantity || 0
-    const completed = task.completed_quantity || 0
-    if (planned === 0) return 0
-    return Math.min(Math.round((completed / planned) * 100), 100)
-  }
-
   const formatDate = (d) => (d ? dayjs(d).format('YYYY-MM-DD') : '')
-
-  // 加载任务
-  const loadTasks = async (isRefresh = false) => {
-    if (isRefresh) {
-      taskList.value = []
-      finished.value = false
-    }
-    try {
-      const params = {
-        page: Math.floor(taskList.value.length / 100) + 1,
-        pageSize: 100,
-        search: searchValue.value || undefined
-      }
-      const response = await productionApi.getProductionTasks(params)
-
-      let tasks = []
-      if (response.data?.list) tasks = response.data.list
-      else if (response.data?.items) tasks = response.data.items
-      else if (response.data && Array.isArray(response.data)) tasks = response.data
-      else if (response.items) tasks = response.items
-      else if (Array.isArray(response)) tasks = response
-
-      // 后端 productionTaskMap 已输出 camel
-      const mapped = tasks.map((task) => ({
-        id: task.id,
-        code: task.code || task.taskCode || `TASK-${task.id}`,
-        productName: task.productName || '未知产品',
-        quantity: task.quantity || 0,
-        unit: task.unit || '件',
-        planName: task.planName || '',
-        status: task.status || 'pending',
-        completedQuantity: task.completedQuantity || 0,
-        createdAt: task.createdAt,
-        progressPercent: calculateProgress(task)
-      }))
-
-      if (isRefresh) {
-        taskList.value = mapped
-      } else {
-        const existingIds = new Set(taskList.value.map((t) => t.id))
-        taskList.value.push(...mapped.filter((t) => !existingIds.has(t.id)))
-      }
-      finished.value = tasks.length < 100
-    } catch (error) {
-      console.error('加载任务列表失败:', error)
-      showToast('加载失败，请重试')
-    } finally {
-      loading.value = false
-      refreshing.value = false
-    }
-  }
-
-  const onLoad = () => {
-    loading.value = true
-    loadTasks()
-  }
-  const onRefresh = () => {
-    refreshing.value = true
-    loadTasks(true)
-  }
-  const handleSearch = () => {
-    loadTasks(true)
-  }
-  const handleClear = () => {
-    searchValue.value = ''
-    loadTasks(true)
-  }
 
   const createTask = () => router.push('/production/tasks/create')
   const viewTaskDetail = (id) => router.push(`/production/tasks/${id}`)
@@ -395,7 +330,7 @@
     try {
       await productionApi.startProductionTask(task.id)
       showToast('任务已开始')
-      loadTasks(true)
+      onRefresh()
     } catch (error) {
       console.error('开始任务失败:', error)
       showToast('操作失败')
@@ -424,7 +359,7 @@
       })
       showToast('报工成功')
       showReportDialog.value = false
-      loadTasks(true)
+      onRefresh()
     } catch (error) {
       console.error('报工失败:', error)
       showToast(error.response?.data?.message || error.message || '报工失败')
@@ -433,7 +368,6 @@
     }
   }
 
-  onMounted(() => loadTasks(true))
 </script>
 
 <style lang="scss" scoped>
@@ -637,7 +571,7 @@
     font-size: 0.875rem;
     font-weight: 700;
     color: var(--text-primary);
-    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+    font-family: var(--font-ui);
   }
 
   .status-tag {
@@ -679,7 +613,7 @@
     font-size: 0.75rem;
     font-weight: 600;
     color: var(--text-secondary);
-    font-family: 'SF Mono', monospace;
+    font-family: var(--font-ui);
     flex-shrink: 0;
     .qty-unit {
       font-size: 0.625rem;
@@ -735,7 +669,7 @@
     font-size: 0.6875rem;
     font-weight: 700;
     color: var(--text-secondary);
-    font-family: 'SF Mono', monospace;
+    font-family: var(--font-ui);
     min-width: 30px;
     text-align: right;
   }
@@ -839,7 +773,7 @@
     font-weight: 500;
     color: var(--text-primary);
     &.mono {
-      font-family: 'SF Mono', monospace;
+      font-family: var(--font-ui);
     }
   }
 

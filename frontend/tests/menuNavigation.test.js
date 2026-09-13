@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest'
 import {
-  buildMenuSearchOptions,
   prepareMenuTree,
   resolveMenuNavigationState
-} from '@/utils/menuNavigation'
+} from '@/utils/menuTree'
+import { buildMenuSearchOptions } from '@/utils/menuSearch'
 
 describe('menu navigation tree', () => {
   const rawTree = [

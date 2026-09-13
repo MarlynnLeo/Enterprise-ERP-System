@@ -525,7 +525,7 @@
     font-size: 0.8125rem;
     font-weight: 700;
     color: var(--text-primary);
-    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+    font-family: var(--font-ui);
   }
 
   // 严重程度标签
@@ -586,7 +586,7 @@
   .meta-time {
     font-size: 0.625rem;
     color: var(--text-disabled);
-    font-family: 'SF Mono', monospace;
+    font-family: var(--font-ui);
     flex-shrink: 0;
   }
 

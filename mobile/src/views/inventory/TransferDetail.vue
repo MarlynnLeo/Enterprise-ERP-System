@@ -318,13 +318,13 @@
   .order-date {
     font-size: 0.6875rem;
     color: var(--text-tertiary);
-    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+    font-family: var(--font-ui);
   }
   .order-no {
     font-size: 0.9375rem;
     font-weight: 700;
     color: var(--text-primary);
-    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+    font-family: var(--font-ui);
   }
 
   // 调拨路线卡片
@@ -475,7 +475,7 @@
   .material-code {
     font-size: 0.6875rem;
     color: var(--text-tertiary);
-    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+    font-family: var(--font-ui);
     flex-shrink: 0;
   }
   .material-qty {
@@ -483,7 +483,7 @@
     font-weight: 800;
     color: var(--module-purple);
     flex-shrink: 0;
-    font-family: 'SF Mono', 'Menlo', monospace;
+    font-family: var(--font-ui);
     .qty-unit {
       font-size: 0.625rem;
       font-weight: 500;

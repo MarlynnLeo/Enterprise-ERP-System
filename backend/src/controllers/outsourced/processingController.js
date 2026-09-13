@@ -1542,7 +1542,7 @@ const getReceipts = async (req, res) => {
                  FROM inventory_posting_documents d
                 WHERE d.source_type = 'outsourced_processing_receipt'
                   AND (d.source_id = outsourced_processing_receipts.id
-                       OR d.source_no = outsourced_processing_receipts.receipt_no)
+                       OR d.source_no COLLATE utf8mb4_unicode_ci = outsourced_processing_receipts.receipt_no COLLATE utf8mb4_unicode_ci)
                   AND d.posting_kind = 'movement'
                 ORDER BY d.posting_sequence DESC, d.id DESC
                 LIMIT 1
@@ -1552,7 +1552,7 @@ const getReceipts = async (req, res) => {
                  FROM inventory_posting_documents d
                 WHERE d.source_type = 'outsourced_processing_receipt'
                   AND (d.source_id = outsourced_processing_receipts.id
-                       OR d.source_no = outsourced_processing_receipts.receipt_no)
+                       OR d.source_no COLLATE utf8mb4_unicode_ci = outsourced_processing_receipts.receipt_no COLLATE utf8mb4_unicode_ci)
                   AND d.posting_kind = 'movement'
                 ORDER BY d.posting_sequence DESC, d.id DESC
                 LIMIT 1

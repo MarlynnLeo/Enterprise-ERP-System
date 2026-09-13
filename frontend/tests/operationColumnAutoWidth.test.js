@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
-import { startOperationColumnAutoWidth, destroyOperationColumnAutoWidth } from '../src/plugins/operationColumnAutoWidth.js'
+import { startOperationColumnAutoWidth, destroyOperationColumnAutoWidth, registerTableWidthController } from '../src/plugins/operationColumnAutoWidth.js'
 
 const action = (label, width = 48) => '<button class="el-button" data-size="' + width + '" style="border:0">' + label + '</button>'
 const row = (buttons = action('编辑') + action('删除')) => `
@@ -202,5 +202,53 @@ describe('operation column measurement and isolation', () => {
     startOperationColumnAutoWidth()
     await flush()
     expect(columnWidth()).toBe('500')
+  })
+
+  test.each([
+    ['待财务审', 99],
+    ['草稿', 71],
+  ])('fits %s using default padding while leaving the Vue owner in charge of layout', async (label, width) => {
+    document.body.innerHTML = table(`<tr>
+      <td class="el-table__cell content-fit-column el-table_1_column_1" style="border-right:1px solid">
+        <div class="cell" style="padding:0 12px">
+          <span class="el-tag" style="padding:0 8px;border:1px solid">${label}</span>
+        </div>
+      </td>
+    </tr>`)
+    const element = document.querySelector('.el-table')
+    const measured = vi.fn()
+    const unregister = registerTableWidthController(element, measured)
+    startOperationColumnAutoWidth()
+    await flush()
+
+    expect(columnWidth()).toBeNull()
+    expect(sequence).not.toContain('write')
+    expect(measured.mock.lastCall[0].get('el-table_1_column_1')).toBe(width)
+
+    document.querySelector('.el-tag').textContent = '待财务审核通过'
+    await flush()
+    expect(columnWidth()).toBeNull()
+    expect(measured.mock.lastCall[0].get('el-table_1_column_1')).toBe(141)
+    unregister()
+  })
+
+  test('does not overwrite native column widths or remeasure when a managed table resizes', async () => {
+    document.body.innerHTML = table()
+    const measured = vi.fn()
+    const element = document.querySelector('.el-table')
+    const unregister = registerTableWidthController(element, measured)
+    startOperationColumnAutoWidth()
+    await flush()
+    expect(measured.mock.lastCall[0].get('el-table_1_column_1')).toBe(130)
+
+    sequence.length = 0
+    document.querySelector('col').setAttribute('width', '130')
+    resizeCallback([{ target: element, contentRect: { width: 800, height: 300 } }])
+    await flush()
+    expect(columnWidth()).toBe('130')
+    expect(document.querySelector('col').style.width).toBe('')
+    expect(sequence).toEqual([])
+    expect(measured).toHaveBeenCalledTimes(1)
+    unregister()
   })
 })

@@ -1422,7 +1422,7 @@ const batchDeleteTransfers = async () => {
 
 /* 物料编码显示样式 */
 .material-code-display {
-  font-family: 'Courier New', monospace;
+  font-family: var(--font-ui);
   font-size: 12px;
   color: var(--color-text-regular);
   word-break: break-all;
@@ -1449,7 +1449,7 @@ const batchDeleteTransfers = async () => {
 .material-option .code {
   font-weight: bold;
   color: var(--color-primary);
-  font-family: 'Courier New', monospace;
+  font-family: var(--font-ui);
   font-size: 13px;
   min-width: 80px;
   flex-shrink: 0;

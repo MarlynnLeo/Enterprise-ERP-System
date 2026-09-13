@@ -31,7 +31,8 @@ class CodeGeneratorService {
     }
 
     // 2. 计算周期键
-    const periodKey = this._getPeriodKey(rule.reset_cycle, rule.date_format);
+    const now = dayjs();
+    const periodKey = this._getPeriodKey(rule.reset_cycle, now);
 
     // 3. 原子递增并独占读取自增后的值（用 LAST_INSERT_ID 绑定到本连接，消除"先自增后独立SELECT"的回读竞态）
     const [res] = await db.query(
@@ -41,18 +42,12 @@ class CodeGeneratorService {
       [businessType, periodKey, rule.initial_value, rule.step]
     );
 
-    // affectedRows === 1：首次插入，值即 initial_value；
-    // === 2：命中已存在行并自增，LAST_INSERT_ID() 返回本连接刚写入的新值（不受其他并发请求影响）
-    let currentVal;
-    if (res.affectedRows === 1) {
-      currentVal = rule.initial_value;
-    } else {
-      const [[seq]] = await db.query('SELECT LAST_INSERT_ID() AS current_value');
-      currentVal = Number(seq.current_value);
-    }
+    // 首次插入取起始值；更新时 OK 包的 insertId 就是 LAST_INSERT_ID 写入的流水号。
+    // 直接读取本次查询结果，避免连接池下一次查询切换连接后读到别人的流水号。
+    const currentVal = res.affectedRows === 1 ? rule.initial_value : Number(res.insertId);
 
     // 5. 组装编号
-    return this._formatCode(rule, currentVal);
+    return this._formatCode(rule, currentVal, now);
   }
 
   /**
@@ -65,19 +60,20 @@ class CodeGeneratorService {
     );
     if (!rule) return null;
 
-    const periodKey = this._getPeriodKey(rule.reset_cycle, rule.date_format);
+    const now = dayjs();
+    const periodKey = this._getPeriodKey(rule.reset_cycle, now);
     const [[seq]] = await pool.query(
       'SELECT current_value FROM coding_sequences WHERE business_type = ? AND period_key = ?',
       [businessType, periodKey]
     );
-    const nextVal = (seq?.current_value || 0) + rule.step;
-    return this._formatCode(rule, nextVal);
+    const nextVal = this._nextSequenceValue(rule, seq?.current_value);
+    return this._formatCode(rule, nextVal, now);
   }
 
   // ==================== 规则 CRUD ====================
 
   async getRules(params = {}) {
-    const { keyword, page = 1, pageSize = 50 } = params;
+    const { keyword, page = 1, page_size: pageSize = 50 } = params;
     const pagination = parsePagination(page, pageSize, { defaultPageSize: 50, maxPageSize: 100 });
     let where = 'WHERE 1=1';
     const values = [];
@@ -109,9 +105,10 @@ class CodeGeneratorService {
     const [rows] = await pool.query(listSql, values);
 
     // 在后端直接计算预览编号，前端无需再逐条请求
+    const now = dayjs();
     for (const rule of rows) {
-      const nextVal = (rule._seq_current || 0) + (rule.step || 1);
-      rule._preview = this._formatCode(rule, nextVal);
+      const nextVal = this._nextSequenceValue(rule, rule._seq_current);
+      rule.preview = this._formatCode(rule, nextVal, now);
     }
 
     return { list: rows, total, page: pagination.page, pageSize: pagination.pageSize };
@@ -125,9 +122,9 @@ class CodeGeneratorService {
   async updateRule(id, data) {
     await pool.query(
       'UPDATE coding_rules SET name = ?, prefix = ?, date_format = ?, `separator` = ?, sequence_length = ?, reset_cycle = ?, initial_value = ?, step = ?, description = ?, is_active = ? WHERE id = ?',
-      [data.name, data.prefix, data.date_format || '', data.separator || '-',
-       data.sequence_length || 4, data.reset_cycle || 'yearly',
-       data.initial_value || 1, data.step || 1, data.description || null,
+      [data.name, data.prefix, data.date_format ?? 'YYMMDD', data.separator ?? '',
+       data.sequence_length || 3, data.reset_cycle || 'daily',
+       data.initial_value ?? 1, data.step || 1, data.description || null,
        data.is_active ?? 1, id]
     );
     return this.getRuleById(id);
@@ -136,9 +133,9 @@ class CodeGeneratorService {
   async createRule(data) {
     const [result] = await pool.query(
       'INSERT INTO coding_rules (business_type, name, prefix, date_format, `separator`, sequence_length, reset_cycle, initial_value, step, description, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [data.business_type, data.name, data.prefix || '', data.date_format || '',
-       data.separator || '-', data.sequence_length || 4, data.reset_cycle || 'yearly',
-       data.initial_value || 1, data.step || 1, data.description || null, data.is_active ?? 1]
+      [data.business_type, data.name, data.prefix || '', data.date_format ?? 'YYMMDD',
+       data.separator ?? '', data.sequence_length || 3, data.reset_cycle || 'daily',
+       data.initial_value ?? 1, data.step || 1, data.description || null, data.is_active ?? 1]
     );
     return this.getRuleById(result.insertId);
   }
@@ -179,8 +176,13 @@ class CodeGeneratorService {
 
   // ==================== 内部方法 ====================
 
-  _getPeriodKey(resetCycle) {
-    const now = dayjs();
+  _nextSequenceValue(rule, currentValue) {
+    return currentValue == null
+      ? Number(rule.initial_value ?? 1)
+      : Number(currentValue) + Number(rule.step ?? 1);
+  }
+
+  _getPeriodKey(resetCycle, now = dayjs()) {
     switch (resetCycle) {
       case 'daily':   return now.format('YYYYMMDD');
       case 'monthly': return now.format('YYYYMM');
@@ -190,7 +192,7 @@ class CodeGeneratorService {
     }
   }
 
-  _formatCode(rule, sequenceValue) {
+  _formatCode(rule, sequenceValue, now = dayjs()) {
     const parts = [];
     const sep = rule.separator || '';
 
@@ -199,7 +201,6 @@ class CodeGeneratorService {
 
     // 日期部分
     if (rule.date_format) {
-      const now = dayjs();
       const dateStr = now.format(rule.date_format);
       parts.push(dateStr);
     }

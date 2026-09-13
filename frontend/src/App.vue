@@ -26,7 +26,7 @@ html, body {
   padding: 0;
   height: 100%;
   overflow: hidden; /* Prevent page-level scrollbar */
-  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif;
+  font-family: var(--font-ui);
 }
 
 #app {

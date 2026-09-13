@@ -17,6 +17,7 @@ const db = require('../../../config/db');
 const InventoryService = require('../../../services/InventoryService');
 const BusinessTypeService = require('../../../services/BusinessTypeService');
 const { getCurrentUserName } = require('../../../utils/userHelper');
+const { createImportBatchNumber } = require('../../../utils/inventoryImportBatch');
 
 // 统一库存查询子查询（基于 inventory_ledger 单表架构聚合计算当前库存）
 const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity, MAX(updated_at) as updated_at FROM inventory_stock_balances WHERE batch_number <> '__LOCATION_LOCK__' GROUP BY material_id, location_id)`;
@@ -1021,6 +1022,11 @@ const downloadStockTemplate = async (req, res) => {
       example: '100',
     });
     instructionSheet.addRow({
+      field: '批次号',
+      description: '可选；增加库存时留空，按导入时间自动生成批次号（北京时间）',
+      example: 'IMP-20260912160233967-1-1',
+    });
+    instructionSheet.addRow({
       field: '备注',
       description: '可选，库存调整的备注信息',
       example: '期初库存导入',
@@ -1046,6 +1052,7 @@ const downloadStockTemplate = async (req, res) => {
       { header: '物料编码', key: 'material_code', width: 15 },
       { header: '库位编码', key: 'location_code', width: 15 },
       { header: '库存数量', key: 'quantity', width: 12 },
+      { header: '批次号', key: 'batch_number', width: 38 },
       { header: '备注', key: 'remark', width: 20 },
     ];
     templateSheet.addRow({
@@ -1088,6 +1095,7 @@ const downloadStockTemplate = async (req, res) => {
 
 const importStock = async (req, res) => {
   const connection = await db.pool.getConnection();
+  const importedAt = new Date();
 
   try {
     if (!req.file) {
@@ -1135,6 +1143,7 @@ const importStock = async (req, res) => {
       material_code: row['物料编码'] || row['material_code'] || '',
       location_code: row['库位编码'] || row['location_code'] || '',
       quantity: parseFloat(row['库存数量'] || row['quantity'] || 0),
+      batchNumber: String(row['批次号'] || row['batch_number'] || row['batchNumber'] || '').trim(),
       remark: row['备注'] || row['remark'] || '库存导入',
       row: index + 2, // Excel行号（从第2行开始）
     }));
@@ -1301,10 +1310,12 @@ const importStock = async (req, res) => {
 
         // 生成调整单号
         const adjustmentNo = await CodeGenerators.generateAdjustmentCode(connection);
-        // 正数入库必须有可追溯批次；导入行只认 camel batchNumber
+        // 没有原始批次的导入库存，以本次导入时间建立批次；减少库存仍按原批次/FIFO扣减。
         const importBatch =
           stock.batchNumber ||
-          (adjustmentQuantity > 0 ? `IMP-${adjustmentNo}-${materialId}` : null);
+          (adjustmentQuantity > 0
+            ? createImportBatchNumber({ importedAt, materialId, locationId })
+            : '');
 
         // 使用统一的 InventoryService 更新库存
         const InventoryService = require('../../../services/InventoryService');
@@ -1334,6 +1345,7 @@ const importStock = async (req, res) => {
           location_name: locationName,
           quantity: newQuantity,
           adjustment: adjustmentQuantity,
+          batch_number: importBatch || null,
           action: adjustmentQuantity > 0 ? 'increased' : 'decreased',
         });
       } catch (itemError) {

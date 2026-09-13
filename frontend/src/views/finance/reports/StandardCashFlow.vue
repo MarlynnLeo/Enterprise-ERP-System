@@ -481,7 +481,7 @@ onMounted(async () => {
 
 .amount-cell {
   text-align: right;
-  font-family: 'Courier New', monospace;
+  font-family: var(--font-ui);
   color: var(--color-text-primary);
 }
 

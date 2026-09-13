@@ -40,6 +40,8 @@
       <PullRefresh v-model="refreshing" @refresh="onRefresh">
         <List
           v-model:loading="loading"
+          v-model:error="error"
+          error-text="加载失败，点击重试"
           :finished="finished"
           finished-text="没有更多数据了"
           @load="loadMore"
@@ -183,6 +185,7 @@
     list: returnList,
     loading,
     finished,
+    error,
     refreshing,
     onLoad,
     onRefresh

@@ -12,11 +12,13 @@ import {
   decodeHtmlEntities as decodeEntities,
   escapeHtml,
   sanitizePrintHtml,
+  writeSafeHtmlDocument,
 } from '@/utils/htmlSecurity'
 import { getCssTokenValue } from '@/utils/designTokens'
 import { parseResponseData } from '@/utils/responseParser'
 import { renderPrintTemplate } from '@/utils/cspSafePrintRenderer'
 import { autoFitPrintDocument } from '@/utils/printAutoFit'
+import { getAppFontFamily } from '@/utils/typography'
 
 const getPrintTokens = () => ({
   border: getCssTokenValue('textPrimary'),
@@ -296,7 +298,7 @@ const printService = {
             margin: 0;
           }
           body {
-            font-family: Arial, 'Microsoft YaHei', sans-serif;
+            font-family: ${getAppFontFamily()};
             font-size: 12pt;
             margin: 0;
             padding: ${mt}mm ${mr}mm ${mb}mm ${ml}mm;
@@ -373,7 +375,7 @@ const printService = {
             margin: 0;
           }
           body {
-            font-family: Arial, 'Microsoft YaHei', sans-serif;
+            font-family: ${getAppFontFamily()};
             font-size: 12pt;
             margin: 0;
             padding: ${mt}mm ${mr}mm ${mb}mm ${ml}mm;
@@ -465,9 +467,7 @@ const printService = {
       document.body.appendChild(iframe)
 
       const iframeDoc = iframe.contentDocument || iframe.contentWindow.document
-      iframeDoc.open()
-      iframeDoc.write(html)
-      iframeDoc.close()
+      writeSafeHtmlDocument(iframe.contentWindow, html)
 
       const fitPrintText = () => {
         try {

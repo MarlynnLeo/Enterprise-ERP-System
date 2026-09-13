@@ -96,20 +96,22 @@
             {{ scope.row.productSpecs || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="outboundDate" label="出库日期" min-width="100" show-overflow-tooltip>
+        <el-table-column prop="outboundDate" label="出库日期" min-width="110" show-overflow-tooltip>
           <template #default="scope">
             {{ formatDate(scope.row.outboundDate) }}
           </template>
         </el-table-column>
 
-        <el-table-column prop="status" label="状态" min-width="98" show-overflow-tooltip>
+        <el-table-column prop="status" label="状态" column-key="status" :width="outboundColumnWidths.status"
+          align="center" header-align="center" class-name="content-fit-column" header-class-name="content-fit-column">
           <template #default="scope">
-            <el-tag :type="getOutboundStatusDisplay(scope.row).type" class="mr-xs">
+            <el-tag :type="getOutboundStatusDisplay(scope.row).type">
               {{ getOutboundStatusDisplay(scope.row).text }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="类型" min-width="92" show-overflow-tooltip>
+        <el-table-column label="类型" column-key="type" :width="outboundColumnWidths.type"
+          align="center" header-align="center" class-name="content-fit-column" header-class-name="content-fit-column">
           <template #default="scope">
             <el-tag size="small" :type="getOutboundTypeTag(scope.row)">
               {{ getOutboundTypeText(scope.row) }}
@@ -118,17 +120,7 @@
         </el-table-column>
         <el-table-column label="数量" width="70" show-overflow-tooltip>
           <template #default="scope">
-            <!--
-              确定性判断（基于 outboundType 字段，零推断）：
-              bom_issue / batch_issue → 显示生产套数
-              其他类型 → 显示物料数量 + 单位
-            -->
-            <span v-if="(scope.row.outboundType === 'bom_issue' || scope.row.outboundType === 'batch_issue') && scope.row.productQuantity">
-              {{ Math.floor(scope.row.productQuantity) }} 套
-            </span>
-            <span v-else>
-              {{ Math.floor(scope.row.totalQuantity || 0) }}{{ scope.row.itemUnitName ? ' ' + scope.row.itemUnitName : '' }}
-            </span>
+            {{ formatOutboundQuantity(scope.row) }}
           </template>
         </el-table-column>
         <el-table-column label="生产组" min-width="90" show-overflow-tooltip>
@@ -141,7 +133,7 @@
             {{ scope.row.operatorName || scope.row.operator }}
           </template>
         </el-table-column>
-        <el-table-column prop="createdAtFormatted" label="创建时间" min-width="100" show-overflow-tooltip>
+        <el-table-column prop="createdAtFormatted" label="创建时间" min-width="110" show-overflow-tooltip>
           <template #default="scope">
             {{ formatDate(scope.row.createdAt) }}
           </template>
@@ -154,7 +146,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="remark" label="备注" min-width="200" show-overflow-tooltip></el-table-column>
-        <el-table-column label="操作" min-width="420" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+        <el-table-column label="操作" column-key="operations" :width="outboundColumnWidths.operations" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
       >
           <template #default="scope">
             <TableRowActions>
@@ -452,7 +444,7 @@
             <span v-else class="tree-indent">└</span>
           </template>
         </el-table-column>
-        <el-table-column label="物料编码" min-width="120" show-overflow-tooltip>
+        <el-table-column label="物料编码" width="110" show-overflow-tooltip>
           <template #default="scope">
             <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
               {{ scope.row.materialCode }}
@@ -474,17 +466,17 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="单位" min-width="70" show-overflow-tooltip>
+        <el-table-column label="单位" width="80" show-overflow-tooltip>
           <template #default="scope">
             <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
               {{ formatUnit(scope.row) }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="数量" min-width="100" show-overflow-tooltip>
+        <el-table-column label="数量" width="80" show-overflow-tooltip>
           <template #default="scope">
             <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
-              {{ Math.floor(scope.row.quantity || 0) }}
+              {{ formatQuantityNumber(scope.row.quantity) }}
             </span>
           </template>
         </el-table-column>
@@ -589,7 +581,7 @@
                 </td>
                 <td>{{ item.specification || '-' }}</td>
                 <td>{{ item.unitName || item.unit || '' }}</td>
-                <td>{{ Math.floor(item.quantity || 0) }}</td>
+                <td>{{ formatQuantityNumber(item.quantity) }}</td>
               </tr>
             </tbody>
           </table>
@@ -643,11 +635,13 @@
 
 <script>
 import { ref, reactive, onMounted, computed, nextTick, h } from 'vue'
+import { formatQuantityNumber } from '@/utils/helpers/quantity'
+import { formatOutboundQuantity } from '@/utils/inventory/outboundQuantity'
 const formatUnit = (row) => row?.unitName || row?.unit || ''
 const getTooltipContent = (row, selectedPlan) => {
-  const planQty = Math.floor(selectedPlan?.quantity || 0)
+  const planQty = formatQuantityNumber(selectedPlan?.quantity)
   const planUnit = selectedPlan?.unitName || ''
-  const bomQty = Math.floor(row?.bomQuantity || 0)
+  const bomQty = formatQuantityNumber(row?.bomQuantity)
   const bomUnit = row?.unitName || row?.unit || ''
   return `生产计划数量：${planQty} ${planUnit}，BOM用量：${bomQty} ${bomUnit}`
 }
@@ -655,6 +649,7 @@ import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
+import { useTableColumnWidths } from '@/composables/useTableColumnWidths'
 import {
   Search as SearchIcon,
   Plus,
@@ -757,6 +752,9 @@ export default {
 
     // 批量选择相关
     const outboundTableRef = ref(null)
+    const outboundColumnWidths = useTableColumnWidths(outboundTableRef, {
+      status: undefined, type: undefined, operations: 420,
+    })
     const selectedOutbounds = ref([])
 
     // 对话框控制
@@ -1401,7 +1399,7 @@ export default {
     const handleResubmitOutbound = async (status) => {
       if (!currentOutbound.id || !status) return
       try {
-        await inventoryApi.updateOutboundStatus(currentOutbound.id, { newStatus: status })
+        await inventoryApi.updateOutboundStatus(currentOutbound.id, status)
         ElMessage.success('已重新提交财务审核')
         await fetchOutboundList()
         await handleView(currentOutbound)
@@ -1986,10 +1984,10 @@ export default {
         materialName: item.materialName || '',
         specification: item.specification || '',
         unitName: item.unitName || item.unit || '',
-        plannedQuantity: parseFloat(item.plannedQuantity ?? item.quantity ?? 0).toFixed(2),
-        actualQuantity: parseFloat(item.actualQuantity ?? item.quantity ?? 0).toFixed(2),
-        shortageQuantity: parseFloat(item.shortageQuantity ?? 0).toFixed(2),
-        quantity: parseFloat(item.actualQuantity ?? item.quantity ?? 0).toFixed(2),
+        plannedQuantity: formatQuantityNumber(item.plannedQuantity ?? item.quantity),
+        actualQuantity: formatQuantityNumber(item.actualQuantity ?? item.quantity),
+        shortageQuantity: formatQuantityNumber(item.shortageQuantity),
+        quantity: formatQuantityNumber(item.actualQuantity ?? item.quantity),
         locationName: item.locationName || ''
       }))
     })
@@ -2348,6 +2346,8 @@ export default {
 
     return {
       formatUnit,
+      formatQuantityNumber,
+      formatOutboundQuantity,
       getTooltipContent,
       handleTableRowView,
       // 图标组件
@@ -2440,6 +2440,7 @@ export default {
       printExpandedTableData,
       // 批量选择相关
       outboundTableRef,
+      outboundColumnWidths,
       selectedOutbounds,
       handleSelectionChange,
       clearSelection,

@@ -19,6 +19,31 @@ const createClient = (adapter) => {
 afterEach(() => clearAllRequestCaches())
 
 describe('request optimizer mutation consistency', () => {
+  test('does not collide filter values with serialized parameter separators', async () => {
+    const adapter = vi.fn(async config => responseFor(config, config.params))
+    const client = createClient(adapter)
+    await client.get('/inventory', { params: { search: 'bolt|status:approved' } })
+    const filtered = await client.get('/inventory', { params: { search: 'bolt', status: 'approved' } })
+    expect(adapter).toHaveBeenCalledTimes(2)
+    expect(filtered.data).toEqual({ search: 'bolt', status: 'approved' })
+  })
+
+  test('does not reuse a cancelled request for a caller with its own signal', async () => {
+    const gate = deferred()
+    const adapter = vi.fn(async config => { await gate.promise; return responseFor(config, {ok:true}) })
+    const client = createClient(adapter)
+    const controller = new AbortController()
+    const cancelled = client.get('/inventory', {signal:controller.signal}).catch(error=>error)
+    await flushPromises()
+    const current = client.get('/inventory', {signal:new AbortController().signal})
+    await flushPromises()
+    controller.abort()
+    gate.resolve()
+    await cancelled
+    expect((await current).data).toEqual({ok:true})
+    expect(adapter).toHaveBeenCalledTimes(2)
+  })
+
   test('invalidates cached reads across API instances after a write', async () => {
     let quantity = 1
     const adapter = vi.fn(async (config) => responseFor(config, { quantity }))

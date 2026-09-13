@@ -1,3 +1,5 @@
+import { formatDate } from './format'
+
 export const SALES_OUTBOUND_STATUS_TRANSITIONS = {
   draft: ['processing', 'cancelled'],
   processing: ['completed', 'cancelled'],
@@ -13,23 +15,24 @@ export const buildSalesOutboundStatusPayload = (outbound = {}, status) => ({
   deliveryDate:
     outbound.deliveryDate ||
     outbound.outboundDate ||
-    new Date().toISOString().slice(0, 10),
+    formatDate(new Date(), 'YYYY-MM-DD'),
   remarks: outbound.remarks ?? outbound.remark
 })
 
 export const getSalesOutboundErrorMessage = (error, fallback = '操作失败') => {
   const data = error?.response?.data || {}
-  const message = data.message || data.error || error?.message || fallback
-  const materialCode = data.materialCode || data.materialCode
-  const materialName = data.materialName || data.materialName
+  const message = [data.message, data.error?.message, data.error, error?.message]
+    .find(value => typeof value === 'string' && value.trim()) || fallback
+  const details = data.error?.details || data.details || data.data || data
+  const { materialCode, materialName } = details
 
   if (
     (message.includes('库存不足') || message.includes('没有库存记录')) &&
     materialCode &&
     materialName
   ) {
-    if (data.required !== undefined && data.available !== undefined) {
-      return `物料 ${materialCode}(${materialName}) 库存不足，需要数量：${data.required}，可用库存：${data.available}`
+    if (details.required !== undefined && details.available !== undefined) {
+      return `物料 ${materialCode}(${materialName}) 库存不足，需要数量：${details.required}，可用库存：${details.available}`
     }
 
     return `物料 ${materialCode}(${materialName}) 没有库存记录，无法完成出库`

@@ -377,7 +377,7 @@ onMounted(() => {
   font-size: 0.6875rem;
   color: var(--text-tertiary);
   margin-bottom: 4px;
-  font-family: 'SF Mono', monospace;
+  font-family: var(--font-ui);
 }
 
 // 详情网格

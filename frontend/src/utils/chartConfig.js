@@ -4,6 +4,7 @@
 
 import { formatCurrency, formatPercentage } from './dashboardUtils';
 import { alphaColor, getChartPalette, getCssTokenValue } from './designTokens';
+import { getAppFontFamily } from './typography';
 
 const chartPalette = getChartPalette();
 
@@ -22,7 +23,7 @@ export const baseChartConfig = {
         padding: 24,
         font: {
           size: 13,
-          family: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+          family: getAppFontFamily(),
           weight: '500'
         },
         color: getCssTokenValue('textSecondary')
@@ -41,7 +42,7 @@ export const baseChartConfig = {
       displayColors: true,
       intersect: false,
       mode: 'index',
-      titleFont: { size: 14, weight: 'bold', family: "'Inter', sans-serif" },
+      titleFont: { size: 14, weight: 'bold', family: getAppFontFamily() },
       bodyFont: { size: 13 }
     }
   },

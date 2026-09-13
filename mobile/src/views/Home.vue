@@ -951,7 +951,7 @@
     font-size: 0.625rem;
     font-weight: 900;
     color: var(--text-tertiary);
-    font-family: ui-monospace, monospace;
+    font-family: var(--font-ui);
     background: var(--bg-tertiary);
     padding: 3px 8px;
     border-radius: 6px;

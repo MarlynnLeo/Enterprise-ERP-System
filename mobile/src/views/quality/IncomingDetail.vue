@@ -1021,7 +1021,7 @@
     font-size: 0.75rem;
     color: var(--text-secondary);
     margin-bottom: 8px;
-    font-family: 'SF Mono', monospace;
+    font-family: var(--font-ui);
   }
 
   .item-actions {

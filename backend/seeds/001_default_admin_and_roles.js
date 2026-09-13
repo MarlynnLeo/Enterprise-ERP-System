@@ -15,159 +15,7 @@ const CORE_ROLES = [
   { id: 9, name: '人事管理员', code: 'hr_manager', description: '人力资源模块管理角色' },
 ];
 
-const CORE_MENUS = [
-  { id: 1, name: '仪表盘', path: '/', component: 'dashboard/Dashboard', icon: 'Dashboard', permission: 'dashboard', type: 1, parent_id: null, sort_order: 1 },
-  { id: 2, name: '数据概览', path: '/dataoverview', component: '', icon: 'DataAnalysis', permission: 'dataoverview', type: 0, parent_id: null, sort_order: 2 },
-  { id: 201, name: '生产概览', path: '/dataoverview/production', component: 'dataOverview/ProductionDashboard', permission: 'dataoverview:production', parent_id: 2, sort_order: 1 },
-  { id: 202, name: '库存概览', path: '/dataoverview/inventory', component: 'dataOverview/InventoryDashboard', permission: 'dataoverview:inventory', parent_id: 2, sort_order: 2 },
-  { id: 203, name: '销售概览', path: '/dataoverview/sales', component: 'dataOverview/SalesDashboard', permission: 'dataoverview:sales', parent_id: 2, sort_order: 3 },
-  { id: 204, name: '财务概览', path: '/dataoverview/finance', component: 'dataOverview/FinanceDashboard', permission: 'dataoverview:finance', parent_id: 2, sort_order: 4 },
-  { id: 205, name: '质量概览', path: '/dataoverview/quality', component: 'dataOverview/QualityDashboard', permission: 'dataoverview:quality', parent_id: 2, sort_order: 5 },
-  { id: 206, name: '采购概览', path: '/dataoverview/purchase', component: 'dataOverview/PurchaseDashboard', permission: 'dataoverview:purchase', parent_id: 2, sort_order: 6 },
-  { id: 3, name: '生产管理', path: '/production', component: '', icon: 'SetUp', permission: 'production', type: 0, parent_id: null, sort_order: 3 },
-  { id: 4, name: '基础数据', path: '/basedata', component: '', icon: 'Collection', permission: 'basedata', type: 0, parent_id: null, sort_order: 4 },
-  { id: 5, name: '库存管理', path: '/inventory', component: '', icon: 'Box', permission: 'inventory', type: 0, parent_id: null, sort_order: 5 },
-  { id: 6, name: '采购管理', path: '/purchase', component: '', icon: 'ShoppingCart', permission: 'purchase', type: 0, parent_id: null, sort_order: 6 },
-  { id: 7, name: '销售管理', path: '/sales', component: '', icon: 'TrendCharts', permission: 'sales', type: 0, parent_id: null, sort_order: 7 },
-  { id: 8, name: '质量管理', path: '/quality', component: '', icon: 'CircleCheck', permission: 'quality', type: 0, parent_id: null, sort_order: 8 },
-  { id: 9, name: '财务管理', path: '/finance', component: '', icon: 'Money', permission: 'finance', type: 0, parent_id: null, sort_order: 9 },
-  { id: 10, name: '设备管理', path: '/equipment', component: '', icon: 'Monitor', permission: 'equipment', type: 0, parent_id: null, sort_order: 10 },
-  { id: 11, name: '人力资源', path: '/hr', component: '', icon: 'UserFilled', permission: 'hr', type: 0, parent_id: null, sort_order: 11 },
-  { id: 12, name: '系统管理', path: '/system', component: '', icon: 'Setting', permission: 'system', type: 0, parent_id: null, sort_order: 12 },
-
-  { id: 31, name: '生产计划', path: '/production/plan', component: 'production/ProductionPlan', permission: 'production:plans', parent_id: 3, sort_order: 1 },
-  { id: 32, name: '生产任务', path: '/production/task', component: 'production/ProductionTask', permission: 'production:tasks', parent_id: 3, sort_order: 2 },
-  { id: 33, name: '生产过程', path: '/production/process', component: 'production/ProductionProcess', permission: 'production:process', parent_id: 3, sort_order: 3 },
-  { id: 34, name: '生产报工', path: '/production/report', component: 'production/ProductionReport', permission: 'production:reports', parent_id: 3, sort_order: 4 },
-  { id: 35, name: '生产数据看板', path: '/production/data-view', component: 'production/ProductionDataView', permission: 'production:data-view', parent_id: 3, sort_order: 8 },
-  { id: 36, name: '缺料统计', path: '/production/material-shortage', component: 'production/MaterialShortage', permission: 'production:shortage', parent_id: 3, sort_order: 5 },
-  { id: 37, name: 'MRP计划', path: '/production/mrp', component: 'production/MRPPlanning', permission: 'production:mrp', parent_id: 3, sort_order: 7 },
-  { id: 38, name: '生产甘特图', path: '/production/gantt', component: 'production/ProductionGantt', permission: 'production:gantt', parent_id: 3, sort_order: 9 },
-  { id: 39, name: '设备监控', path: '/production/equipment-monitoring', component: 'production/EquipmentMonitoring', permission: 'production:equipment', parent_id: 3, sort_order: 6 },
-
-  { id: 41, name: '物料管理', path: '/basedata/materials', component: 'baseData/Materials', permission: 'basedata:materials', parent_id: 4, sort_order: 1 },
-  { id: 42, name: 'BOM管理', path: '/basedata/boms', component: 'baseData/Boms', permission: 'basedata:boms', parent_id: 4, sort_order: 2 },
-  { id: 43, name: '客户管理', path: '/basedata/customers', component: 'baseData/Customers', permission: 'basedata:customers', parent_id: 4, sort_order: 3 },
-  { id: 44, name: '供应商管理', path: '/basedata/suppliers', component: 'baseData/Suppliers', permission: 'basedata:suppliers', parent_id: 4, sort_order: 4 },
-  { id: 45, name: '产品大类', path: '/basedata/categories', component: 'baseData/Categories', permission: 'basedata:categories', parent_id: 4, sort_order: 5 },
-  { id: 46, name: '单位管理', path: '/basedata/units', component: 'baseData/Units', permission: 'basedata:units', parent_id: 4, sort_order: 6 },
-  { id: 47, name: '库位管理', path: '/basedata/locations', component: 'baseData/Locations', permission: 'basedata:locations', parent_id: 4, sort_order: 7 },
-  { id: 48, name: '工序模板', path: '/basedata/process-templates', component: 'baseData/ProcessTemplates', permission: 'basedata:processtemplates', parent_id: 4, sort_order: 8 },
-  { id: 49, name: '物料类型', path: '/basedata/product-categories', component: 'baseData/ProductCategories', permission: 'basedata:productcategories', parent_id: 4, sort_order: 9 },
-  { id: 410, name: '工程变更', path: '/basedata/ecn', component: 'baseData/ECNManagement', permission: 'basedata:ecn', parent_id: 4, sort_order: 10 },
-
-  { id: 51, name: '库存查询', path: '/inventory/stock', component: 'inventory/InventoryStock', permission: 'inventory:stock', parent_id: 5, sort_order: 1 },
-  { id: 52, name: '入库管理', path: '/inventory/inbound', component: 'inventory/InventoryInbound', permission: 'inventory:inbound', parent_id: 5, sort_order: 2 },
-  { id: 53, name: '出库管理', path: '/inventory/outbound', component: 'inventory/InventoryOutbound', permission: 'inventory:outbound', parent_id: 5, sort_order: 3 },
-  { id: 54, name: '库存调拨', path: '/inventory/transfer', component: 'inventory/InventoryTransfer', permission: 'inventory:transfer', parent_id: 5, sort_order: 4 },
-  { id: 55, name: '库存盘点', path: '/inventory/check', component: 'inventory/InventoryCheck', permission: 'inventory:check', parent_id: 5, sort_order: 5 },
-  { id: 56, name: '手工出入库', path: '/inventory/manual-transaction', component: 'inventory/ManualTransaction', permission: 'inventory:manual-transaction', parent_id: 5, sort_order: 6 },
-  { id: 57, name: '库存报表', path: '/inventory/report', component: 'inventory/InventoryReport', permission: 'inventory:report', parent_id: 5, sort_order: 7 },
-  { id: 58, name: '库存流水', path: '/inventory/transaction', component: 'inventory/InventoryTransaction', permission: 'inventory:transaction', parent_id: 5, sort_order: 8 },
-
-  { id: 61, name: '采购申请', path: '/purchase/requisitions', component: 'purchase/PurchaseRequisitions', permission: 'purchase:requisitions', parent_id: 6, sort_order: 1 },
-  { id: 62, name: '采购订单', path: '/purchase/orders', component: 'purchase/PurchaseOrders', permission: 'purchase:orders', parent_id: 6, sort_order: 2 },
-  { id: 63, name: '采购入库', path: '/purchase/receipts', component: 'purchase/PurchaseReceipts', permission: 'purchase:receipts', parent_id: 6, sort_order: 3 },
-  { id: 64, name: '采购退货', path: '/purchase/returns', component: 'purchase/PurchaseReturns', permission: 'purchase:returns', parent_id: 6, sort_order: 4 },
-  { id: 65, name: '委外加工', path: '/purchase/processing', component: 'purchase/OutsourcedProcessing', permission: 'purchase:processing', parent_id: 6, sort_order: 5 },
-  { id: 66, name: '委外入库', path: '/purchase/processing-receipts', component: 'purchase/OutsourcedReceipts', permission: 'purchase:processing-receipts', parent_id: 6, sort_order: 6 },
-  { id: 67, name: '采购历史', path: '/purchase/history', component: 'purchase/PurchaseHistory', permission: 'purchase:history', parent_id: 6, sort_order: 7 },
-
-  { id: 71, name: '销售订单', path: '/sales/orders', component: 'sales/SalesOrders', permission: 'sales:orders', parent_id: 7, sort_order: 1 },
-  { id: 72, name: '销售出库', path: '/sales/outbound', component: 'sales/SalesOutbound', permission: 'sales:outbound', parent_id: 7, sort_order: 2 },
-  { id: 73, name: '销售退货', path: '/sales/returns', component: 'sales/SalesReturns', permission: 'sales:returns', parent_id: 7, sort_order: 3 },
-  { id: 74, name: '销售换货', path: '/sales/exchanges', component: 'sales/SalesExchanges', permission: 'sales:exchanges', parent_id: 7, sort_order: 4 },
-  { id: 75, name: '报价单统计', path: '/sales/quotations', component: 'sales/SalesQuotations', permission: 'sales:quotations', parent_id: 7, sort_order: 5 },
-  { id: 76, name: '装箱单', path: '/sales/packing-lists', component: 'sales/PackingLists', permission: 'sales:packing-lists', parent_id: 7, sort_order: 6 },
-  { id: 77, name: '交付统计', path: '/sales/delivery-stats', component: 'sales/DeliveryStats', permission: 'sales:delivery-stats', parent_id: 7, sort_order: 7 },
-  { id: 78, name: '合同管理', path: '/sales/contracts', component: 'sales/ContractManagement', permission: 'contract:view', parent_id: 7, sort_order: 8 },
-
-  { id: 81, name: '来料检验', path: '/quality/incoming', component: 'quality/IncomingInspection', permission: 'quality:incoming', parent_id: 8, sort_order: 1 },
-  { id: 82, name: '过程检验', path: '/quality/process', component: 'quality/ProcessInspection', permission: 'quality:process', parent_id: 8, sort_order: 2 },
-  { id: 83, name: '成品检验', path: '/quality/final', component: 'quality/FinalInspection', permission: 'quality:final', parent_id: 8, sort_order: 3 },
-  { id: 84, name: '检验模板', path: '/quality/templates', component: 'quality/InspectionTemplates', permission: 'quality:templates', parent_id: 8, sort_order: 4 },
-  { id: 85, name: '不合格品', path: '/quality/nonconforming', component: 'quality/NonconformingProducts', permission: 'quality:nonconforming', parent_id: 8, sort_order: 5 },
-  { id: 86, name: '8D报告', path: '/quality/8d-reports', component: 'quality/EightDReport', permission: 'quality:8d', parent_id: 8, sort_order: 6 },
-  { id: 861, name: '查看8D报告', path: '', component: '', permission: 'quality:8d:view', type: 2, visible: 0, parent_id: 86, sort_order: 1 },
-  { id: 862, name: '创建8D报告', path: '', component: '', permission: 'quality:8d:create', type: 2, visible: 0, parent_id: 86, sort_order: 2 },
-  { id: 863, name: '维护8D报告', path: '', component: '', permission: 'quality:8d:update', type: 2, visible: 0, parent_id: 86, sort_order: 3 },
-  { id: 864, name: '删除8D报告', path: '', component: '', permission: 'quality:8d:delete', type: 2, visible: 0, parent_id: 86, sort_order: 4 },
-  { id: 87, name: '首件检验', path: '/quality/first-article', component: 'quality/FirstArticleInspection', permission: 'quality:first-article', parent_id: 8, sort_order: 2 },
-  { id: 88, name: '换货单', path: '/quality/replacement-orders', component: 'quality/ReplacementOrders', permission: 'quality:replacement', parent_id: 8, sort_order: 7 },
-  { id: 89, name: '返工任务', path: '/quality/rework-tasks', component: 'quality/ReworkTasks', permission: 'quality:rework', parent_id: 8, sort_order: 8 },
-  { id: 90, name: '报废记录', path: '/quality/scrap-records', component: 'quality/ScrapRecords', permission: 'quality:scrap', parent_id: 8, sort_order: 9 },
-  { id: 865, name: 'AQL标准', path: '/quality/aql-standards', component: 'quality/AQLStandards', permission: 'quality:aql', parent_id: 8, sort_order: 10 },
-  { id: 866, name: '质量统计', path: '/quality/statistics', component: 'quality/QualityStatistics', permission: 'quality:statistics', parent_id: 8, sort_order: 11 },
-  { id: 867, name: '批次追溯', path: '/quality/traceability', component: 'quality/components/UnifiedTraceability', permission: 'quality:traceability', parent_id: 8, sort_order: 12 },
-  { id: 868, name: '量具管理', path: '/quality/gauges', component: 'quality/GaugeManagement', permission: 'quality:gauges', parent_id: 8, sort_order: 13 },
-  { id: 869, name: 'SPC控制图', path: '/quality/spc', component: 'quality/SPCControlChart', permission: 'quality:spc', parent_id: 8, sort_order: 14 },
-  { id: 870, name: '供应商质量', path: '/quality/supplier-quality', component: 'quality/SupplierQualityScorecard', permission: 'quality:supplier-quality', parent_id: 8, sort_order: 15 },
-
-  { id: 91, name: '会计科目', path: '/finance/gl/accounts', component: 'finance/gl/Accounts', permission: 'finance:accounts:view', parent_id: 9, sort_order: 1 },
-  { id: 92, name: '会计凭证', path: '/finance/gl/entries', component: 'finance/gl/Entries', permission: 'finance:entries:view', parent_id: 9, sort_order: 2 },
-  { id: 93, name: '会计期间', path: '/finance/gl/periods', component: 'finance/gl/Periods', permission: 'finance:periods:view', parent_id: 9, sort_order: 3 },
-  { id: 94, name: '应收管理', path: '/finance/ar/invoices', component: 'finance/ar/Invoices', permission: 'finance:ar:view', parent_id: 9, sort_order: 4 },
-  { id: 941, name: '应收待结算', path: '/finance/ar/settlement', component: 'finance/ar/Settlement', permission: 'finance:ar:view', parent_id: 9, sort_order: 41 },
-  { id: 95, name: '应付管理', path: '/finance/ap/invoices', component: 'finance/ap/Invoices', permission: 'finance:ap:view', parent_id: 9, sort_order: 5 },
-  { id: 951, name: '应付待结算', path: '/finance/ap/settlement', component: 'finance/ap/Settlement', permission: 'finance:ap:view', parent_id: 9, sort_order: 51 },
-  { id: 96, name: '出纳管理', path: '/finance/cash/accounts', component: 'finance/cash/BankAccounts', permission: 'finance:cash:view', parent_id: 9, sort_order: 6 },
-  { id: 97, name: '固定资产', path: '/finance/assets/list', component: 'finance/assets/AssetsList', permission: 'finance:assets:view', parent_id: 9, sort_order: 7 },
-  { id: 98, name: '财务报表', path: '/finance/reports/balance-sheet', component: 'finance/reports/BalanceSheet', permission: 'finance:reports:view', parent_id: 9, sort_order: 8 },
-  { id: 99, name: '财务设置', path: '/finance/settings', component: 'finance/settings/FinanceSettings', permission: 'finance:settings:view', parent_id: 9, sort_order: 9 },
-  { id: 911, name: '期末结账', path: '/finance/gl/period-closing', component: 'finance/gl/PeriodClosing', permission: 'finance:closing:view', parent_id: 9, sort_order: 10 },
-  { id: 921, name: '收款凭证', path: '/finance/gl/entries/receipt', component: 'finance/gl/entries/ReceiptEntry', permission: 'finance:entries:create', parent_id: 92, sort_order: 1 },
-  { id: 922, name: '付款凭证', path: '/finance/gl/entries/payment', component: 'finance/gl/entries/PaymentEntry', permission: 'finance:entries:create', parent_id: 92, sort_order: 2 },
-  { id: 923, name: '转账凭证', path: '/finance/gl/entries/transfer', component: 'finance/gl/entries/TransferEntry', permission: 'finance:entries:create', parent_id: 92, sort_order: 3 },
-  { id: 924, name: '记账凭证', path: '/finance/gl/entries/general', component: 'finance/gl/entries/GeneralEntry', permission: 'finance:entries:create', parent_id: 92, sort_order: 4 },
-  // 新增凭证已并入会计凭证列表对话框，不再单独挂菜单
-  // { id: 925, name: '新增凭证', path: '/finance/gl/entries/create', ... }
-  { id: 961, name: '银行对账', path: '/finance/cash/reconciliation', component: 'finance/cash/Reconciliation', permission: 'finance:cash:reconcile', parent_id: 96, sort_order: 10 },
-  { id: 981, name: '标准现金流量表', path: '/finance/reports/standard-cash-flow', component: 'finance/reports/StandardCashFlow', permission: 'finance:reports:standard-cash-flow:view', parent_id: 98, sort_order: 10 },
-  { id: 991, name: '汇率设置', path: '/finance/settings/exchange-rates', component: 'finance/settings/ExchangeRates', permission: 'finance:exchange-rates:view', parent_id: 99, sort_order: 10 },
-  { id: 9101, name: '财务自动化', path: '/finance/settings?tab=automation', component: 'finance/settings/FinanceSettings', permission: 'finance:automation:view', parent_id: 9, sort_order: 11 },
-  { id: 9102, name: '税务发票', path: '/finance/tax/invoices', component: 'finance/tax/TaxInvoices', permission: 'finance:tax:view', parent_id: 9, sort_order: 12 },
-  { id: 9103, name: '预算列表', path: '/finance/budget/list', component: 'finance/budget/BudgetList', permission: 'finance:budgets:view', parent_id: 9, sort_order: 13 },
-  { id: 9104, name: '新增预算', path: '/finance/budget/edit', component: 'finance/budget/BudgetEdit', permission: 'finance:budgets:create', parent_id: 9, sort_order: 14 },
-  { id: 9105, name: '编辑预算', path: '/finance/budget/edit/:id', component: 'finance/budget/BudgetEdit', permission: 'finance:budgets:update', parent_id: 9, sort_order: 15 },
-  { id: 9106, name: '成本驾驶舱', path: '/finance/cost/dashboard', component: 'finance/cost/CostDashboard', permission: 'finance:cost:view', parent_id: 9, sort_order: 16 },
-  { id: 9107, name: '产品定价', path: '/finance/pricing', component: 'finance/pricing/ProductPricing', permission: 'finance:pricing:view', parent_id: 9, sort_order: 17 },
-  { id: 9108, name: '费用列表', path: '/finance/expenses', component: 'finance/expenses/Expenses', permission: 'finance:expenses:view', parent_id: 9, sort_order: 18 },
-  { id: 9001, name: '价格查看', path: '', component: '', permission: 'finance:price:view', type: 2, visible: 0, parent_id: 9, sort_order: 900 },
-  { id: 9002, name: '价格维护', path: '', component: '', permission: 'finance:price:update', type: 2, visible: 0, parent_id: 9, sort_order: 901 },
-  { id: 9003, name: '价格导出', path: '', component: '', permission: 'finance:price:export', type: 2, visible: 0, parent_id: 9, sort_order: 902 },
-  { id: 9004, name: '采购价格查看', path: '', component: '', permission: 'purchase:price:view', type: 2, visible: 0, parent_id: 6, sort_order: 900 },
-  { id: 9005, name: '采购价格维护', path: '', component: '', permission: 'purchase:price:update', type: 2, visible: 0, parent_id: 6, sort_order: 901 },
-  { id: 9006, name: '采购价格导出', path: '', component: '', permission: 'purchase:price:export', type: 2, visible: 0, parent_id: 6, sort_order: 902 },
-  { id: 9007, name: '销售价格查看', path: '', component: '', permission: 'sales:price:view', type: 2, visible: 0, parent_id: 7, sort_order: 900 },
-  { id: 9008, name: '销售价格维护', path: '', component: '', permission: 'sales:price:update', type: 2, visible: 0, parent_id: 7, sort_order: 901 },
-  { id: 9009, name: '销售价格导出', path: '', component: '', permission: 'sales:price:export', type: 2, visible: 0, parent_id: 7, sort_order: 902 },
-  { id: 9010, name: '库存金额查看', path: '', component: '', permission: 'inventory:value:view', type: 2, visible: 0, parent_id: 5, sort_order: 900 },
-  { id: 9011, name: '库存金额维护', path: '', component: '', permission: 'inventory:value:update', type: 2, visible: 0, parent_id: 5, sort_order: 901 },
-  { id: 9012, name: '库存金额导出', path: '', component: '', permission: 'inventory:value:export', type: 2, visible: 0, parent_id: 5, sort_order: 902 },
-
-  { id: 101, name: '设备台账', path: '/equipment/list', component: 'equipment/EquipmentList', permission: 'equipment:list', parent_id: 10, sort_order: 1 },
-  { id: 102, name: '设备维护', path: '/equipment/maintenance', component: 'equipment/Maintenance', permission: 'equipment:maintenance', parent_id: 10, sort_order: 2 },
-  { id: 103, name: '设备点检', path: '/equipment/inspection', component: 'equipment/Inspection', permission: 'equipment:inspection', parent_id: 10, sort_order: 3 },
-  { id: 104, name: '设备状态', path: '/equipment/status', component: 'equipment/Status', permission: 'equipment:status', parent_id: 10, sort_order: 4 },
-
-  { id: 111, name: '员工管理', path: '/hr/employees', component: 'hr/Employees', permission: 'hr:employees', parent_id: 11, sort_order: 1 },
-  { id: 112, name: '考勤管理', path: '/hr/attendance', component: 'hr/Attendance', permission: 'hr:attendance', parent_id: 11, sort_order: 2 },
-  { id: 113, name: '薪资管理', path: '/hr/salary', component: 'hr/Salary', permission: 'hr:salary', parent_id: 11, sort_order: 3 },
-  { id: 114, name: '绩效管理', path: '/hr/performance', component: 'hr/Performance', permission: 'hr:performance', parent_id: 11, sort_order: 4 },
-
-  { id: 121, name: '用户管理', path: '/system/users', component: 'system/Users', permission: 'system:users', parent_id: 12, sort_order: 1 },
-  { id: 122, name: '部门管理', path: '/system/departments', component: 'system/Departments', permission: 'system:departments', parent_id: 12, sort_order: 2 },
-  { id: 123, name: '权限设置', path: '/system/permissions', component: 'system/Permissions', permission: 'system:permissions', parent_id: 12, sort_order: 3 },
-  { id: 124, name: '通知中心', path: '/system/notifications', component: 'system/Notifications', permission: 'system:notifications', parent_id: 12, sort_order: 4 },
-  { id: 125, name: '业务类型', path: '/system/business-types', component: 'system/BusinessTypes', permission: 'system:business-types', parent_id: 12, sort_order: 5 },
-  { id: 126, name: '打印设置', path: '/system/print', component: 'system/Print', permission: 'system:print', parent_id: 12, sort_order: 6 },
-  { id: 127, name: '技术通讯', path: '/system/technical-communication', component: 'system/TechnicalCommunication', permission: 'system:tech-comm', parent_id: 12, sort_order: 7 },
-  { id: 128, name: '审批工作流', path: '/system/workflow', component: 'system/WorkflowManagement', permission: 'system:workflow', parent_id: 12, sort_order: 8 },
-  { id: 129, name: '编码规则', path: '/system/coding-rules', component: 'system/CodingRules', permission: 'system:settings', parent_id: 12, sort_order: 9 },
-  { id: 1210, name: '文档管理', path: '/system/documents', component: 'system/DocumentManagement', permission: 'system:documents', parent_id: 12, sort_order: 10 },
-  { id: 1211, name: '业务告警', path: '/system/business-alerts', component: 'system/BusinessAlerts', permission: 'system:business-alerts', parent_id: 12, sort_order: 11 },
-  { id: 1212, name: '通知规则', path: '/system/notification-rules', component: 'system/NotificationRules', permission: 'system:notification-rules', parent_id: 12, sort_order: 12 },
-];
+const { ensureCoreMenus } = require('../src/bootstrap/menus');
 
 const DEFAULT_APPROVAL_TEMPLATES = [
   ['purchase_order', 'DEFAULT_PURCHASE_ORDER_APPROVAL', 'Purchase order approval'],
@@ -209,41 +57,6 @@ async function ensureCoreRoles(knex) {
 
   if (created > 0) {
     console.log(`[Seed] Core roles initialized: ${created}`);
-  }
-}
-
-async function ensureCoreMenus(knex) {
-  let created = 0;
-  const preferredIdMap = new Map();
-
-  for (const menu of CORE_MENUS) {
-    const existing = await knex('menus')
-      .where(builder => {
-        builder.where({ permission: menu.permission });
-        if (menu.path) {
-          builder.orWhere({ path: menu.path });
-        }
-      })
-      .first();
-
-    if (existing) {
-      preferredIdMap.set(menu.id, existing.id);
-      continue;
-    }
-
-    const parentId = menu.parent_id ? preferredIdMap.get(menu.parent_id) || menu.parent_id : null;
-    const id = await insertWithPreferredId(knex, 'menus', {
-      ...menu,
-      parent_id: parentId,
-      type: menu.type ?? 1,
-      visible: menu.visible ?? 1,
-    });
-    preferredIdMap.set(menu.id, id);
-    created += 1;
-  }
-
-  if (created > 0) {
-    console.log(`[Seed] Core menus initialized: ${created}`);
   }
 }
 
@@ -522,6 +335,7 @@ exports.seed = async function seed(knex) {
   await grantAdminMenus(knex);
   await syncPermissionSsot(knex);
   await ensureDefaultApprovalTemplates(knex);
+  await require('../src/bootstrap/notificationRules').ensureNotificationRules(knex);
 
   const hasCostSettings = await knex.schema.hasTable('cost_settings');
   if (hasCostSettings) {

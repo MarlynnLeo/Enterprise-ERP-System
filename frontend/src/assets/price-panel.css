@@ -147,19 +147,15 @@
 /* 不同金属价格的颜色 */
 .price-card-gold .price-value {
   color: var(--ds-orange);
-  text-shadow: 0 2px 4px color-mix(in srgb, var(--ds-orange) 20%, transparent);
 }
 .price-card-silver .price-value {
   color: var(--color-text-regular);
-  text-shadow: 0 2px 4px color-mix(in srgb, var(--ds-gray) 20%, transparent);
 }
 .price-card-aluminum .price-value {
   color: var(--color-primary);
-  text-shadow: 0 2px 4px color-mix(in srgb, var(--color-primary) 20%, transparent);
 }
 .price-card-copper .price-value {
   color: var(--ds-orange);
-  text-shadow: 0 2px 4px color-mix(in srgb, var(--ds-orange) 20%, transparent);
 }
 .price-unit {
   font-size: 11px;

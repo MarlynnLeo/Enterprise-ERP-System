@@ -217,7 +217,7 @@
     font-size: 1.125rem;
     font-weight: 800;
     color: var(--text-primary);
-    font-family: 'SF Mono', 'Consolas', monospace;
+    font-family: var(--font-ui);
   }
 
   .entry-status {
@@ -279,7 +279,7 @@
   .amount-value {
     font-size: 1.0625rem;
     font-weight: 800;
-    font-family: 'SF Mono', 'Consolas', monospace;
+    font-family: var(--font-ui);
     color: var(--text-primary);
   }
 
@@ -339,7 +339,7 @@
   .account-code {
     font-size: 0.75rem;
     font-weight: 700;
-    font-family: 'SF Mono', 'Consolas', monospace;
+    font-family: var(--font-ui);
     color: var(--text-secondary);
   }
 
@@ -367,7 +367,7 @@
     gap: 4px;
     font-size: 0.8125rem;
     font-weight: 700;
-    font-family: 'SF Mono', 'Consolas', monospace;
+    font-family: var(--font-ui);
   }
 
   .amt-label {

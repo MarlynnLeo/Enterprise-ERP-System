@@ -1,570 +1,127 @@
-/**
- * 通用数据获取Composable - 优化版本
- * 统一处理数据获取、加载状态、错误处理和分页
- * 合并了原有的多个数据获取组合式函数的功能
- */
-import { ref, reactive, computed } from 'vue'
+import { computed, getCurrentScope, onScopeDispose, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
-import { parseListData, parsePaginatedData, parseResponseData } from '@/utils/responseParser'
-/**
- * 防抖函数
- */
-function debounce(func, delay) {
-  let timeoutId
-  return function (...args) {
-    clearTimeout(timeoutId)
-    timeoutId = setTimeout(() => func.apply(this, args), delay)
-  }
+import { parsePaginatedData } from '@/utils/responseParser'
+import { clearAllRequestCaches } from '@/utils/requestOptimizer'
+
+const errorText = (error, fallback) => {
+  const detail = error?.response?.data
+  return detail?.error?.message || (typeof detail?.error === 'string' && detail.error) ||
+    detail?.message || error?.message || fallback
 }
+
 /**
- * 重试函数
- * 仅对网络错误和 5xx 服务器错误进行重试
- * 4xx 客户端错误（除 408 超时 / 429 限流）直接抛出，不做无意义重试
+ * Owns one page's query state. Request caching/deduplication belongs to the API
+ * client, which sees the complete filters, authentication and cancellation data.
  */
-async function retryApiCall(apiFunction, retryCount = 1, delay = 1000) {
-  for (let i = 0; i < retryCount; i++) {
-    try {
-      return await apiFunction()
-    } catch (error) {
-      const status = error.response?.status
-      // 4xx 客户端错误不应重试（除 408 超时和 429 限流）
-      if (status && status >= 400 && status < 500 && status !== 408 && status !== 429) {
-        throw error
-      }
-      if (i === retryCount - 1) throw error
-      await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)))
-    }
-  }
-}
-/**
- * 统一数据获取Hook - 支持基础获取、分页、搜索等多种模式
- * @param {Function} apiFunction - API调用函数
- * @param {Object} options - 配置选项
- * @returns {Object} 数据获取相关的响应式数据和方法
- */
-export function useUnifiedDataFetching(apiFunction, options = {}) {
+export function usePaginatedFetching(apiFunction, options = {}) {
   const {
-    immediate = false,
-    defaultParams = {},
-    errorMessage = '数据获取失败',
-    successMessage = null,
-    transform = null,
-    // 分页相关
-    enablePagination = false,
-    pageSize = 10,
-    // 搜索相关
-    enableSearch = false,
-    debounceTime = 300,
-    minSearchLength = 0,
-    // 重试相关
-    retryCount = 1,
-    retryDelay = 1000,
-    // 缓存相关
-    enableCache = false,
-    cacheTimeout = 5 * 60 * 1000, // 5分钟
+    immediate = false, defaultParams = {}, pageSize = 10,
+    errorMessage = '数据获取失败', successMessage = null, transform,
   } = options
-  // 基础状态
   const loading = ref(false)
   const data = ref([])
   const error = ref(null)
+  const statistics = ref(null)
   const params = ref({ ...defaultParams })
   const lastUpdated = ref(null)
-  let activeRequestId = 0
-  let inFlightKey = ''
-  let inFlightPromise = null
-  // 分页状态
-  const pagination = enablePagination ? reactive({
-    current: 1,
-    pageSize: pageSize,
-    total: 0
-  }) : null
-  // 搜索状态
-  const searchQuery = enableSearch ? ref('') : null
-  const searchLoading = enableSearch ? ref(false) : null
-  // 缓存
-  const cache = enableCache ? new Map() : null
-  // 计算属性
-  const hasData = computed(() => Array.isArray(data.value) ? data.value.length > 0 : !!data.value)
-  const isEmpty = computed(() => !loading.value && !hasData.value)
-  /**
-   * 生成缓存key
-   */
-  const getCacheKey = (requestParams) => {
-    return JSON.stringify(requestParams)
-  }
-  /**
-   * 从缓存获取数据
-   */
-  const getFromCache = (key) => {
-    if (!enableCache || !cache) return null
-    const cached = cache.get(key)
-    if (cached && Date.now() - cached.timestamp < cacheTimeout) {
-      return cached.data
-    }
-    cache.delete(key)
-    return null
-  }
-  /**
-   * 设置缓存
-   */
-  const setCache = (key, data) => {
-    if (!enableCache || !cache) return
-    cache.set(key, {
-      data,
-      timestamp: Date.now()
-    })
-  }
-  /**
-   * 核心数据获取函数
-   */
-  /**
-   * @param {Object} customParams
-   * @param {boolean} showLoading
-   * @param {Object} [options]
-   * @param {boolean} [options.force=false] 强制重新请求（跳过 in-flight 复用与 composable 级缓存）
-   */
-  const fetchData = async (customParams = {}, showLoading = true, options = {}) => {
-    const force = options === true || options?.force === true
-    let finalParams = { ...params.value, ...customParams }
-    if (enablePagination && pagination) {
-      finalParams = {
-        ...finalParams,
-        page: pagination.current,
-        pageSize: pagination.pageSize
-      }
-    }
-    const cacheKey = getCacheKey(finalParams)
-    // 非强制时才复用 in-flight；写操作后的刷新必须 force，否则会吃到变更前的旧请求结果
-    if (!force && inFlightPromise && inFlightKey === cacheKey) {
-      return inFlightPromise
-    }
+  const pagination = reactive({ current: 1, pageSize, total: 0 })
+  let generation = 0
+  let disposed = false
 
-    const requestId = ++activeRequestId
-    if (showLoading) {
-      loading.value = true
+  if (getCurrentScope()) {
+    onScopeDispose(() => { disposed = true; generation += 1 })
+  }
+
+  const fetchData = async (customParams = {}, showLoading = true, requestOptions = {}) => {
+    if (disposed) return null
+    const request = ++generation
+    const current = () => !disposed && request === generation
+    if (requestOptions === true || requestOptions?.force) clearAllRequestCaches()
+    const query = {
+      ...params.value,
+      page: pagination.current, pageSize: pagination.pageSize, ...customParams,
     }
+    loading.value = showLoading
     error.value = null
     try {
-      // 检查缓存
-      if (!force) {
-        const cachedData = getFromCache(cacheKey)
-        if (cachedData) {
-          if (requestId === activeRequestId) {
-            updateData(cachedData)
-          }
-          return cachedData
-        }
-      } else if (enableCache && cache) {
-        cache.delete(cacheKey)
-      }
-      // API调用（带重试）
-      const apiCall = () => apiFunction(finalParams)
-      inFlightKey = cacheKey
-      inFlightPromise = retryApiCall(apiCall, retryCount, retryDelay).then((response) => {
-        if (transform && typeof transform === 'function') {
-          return transform(response)
-        }
-        return response
-      })
-      const result = await inFlightPromise
-      // 处理响应数据
-      // 更新数据和状态
-      if (requestId === activeRequestId) {
-        updateData(result)
-        lastUpdated.value = new Date()
-      }
-      // 设置缓存
-      setCache(cacheKey, result)
-      if (successMessage && requestId === activeRequestId) {
-        ElMessage.success(successMessage)
-      }
-      return result
-    } catch (err) {
-      error.value = err
-      console.error('数据获取失败:', err)
-      ElMessage.error(err.message || errorMessage)
-      throw err
-    } finally {
-      if (inFlightKey === cacheKey) {
-        inFlightKey = ''
-        inFlightPromise = null
-      }
-      if (showLoading && requestId === activeRequestId) {
-        loading.value = false
-      }
-    }
-  }
-  /**
-   * 更新数据状态
-   */
-  const updateData = (result) => {
-    if (enablePagination && pagination) {
-      if (Array.isArray(result)) {
-        data.value = result
-        pagination.total = result.length
-        return
-      }
-
+      // Invoke every logical query: the loader may read reactive filter values.
+      const response = await apiFunction(query)
+      const result = transform ? await transform(response) : response
+      if (!current()) return null
       const responseLike = result?.data !== undefined ? result : { data: result }
       const parsed = parsePaginatedData(responseLike, { enableLog: false })
-      const pageMeta = responseLike.data?.pagination || {}
-      const hasExplicitPageSize = Boolean(
-        responseLike.data?.pageSize ||
-        responseLike.data?.limit ||
-        responseLike.data?.size ||
-        pageMeta.pageSize ||
-        pageMeta.limit
-      )
-      data.value = parsed.list
-      pagination.total = parsed.total
-      if (hasExplicitPageSize) {
-        pagination.pageSize = parsed.pageSize || pagination.pageSize
+      data.value = Array.isArray(result) ? result : parsed.list
+      pagination.total = Array.isArray(result) ? result.length : parsed.total
+      statistics.value = parsed.statistics
+      lastUpdated.value = new Date()
+      if (successMessage) ElMessage.success(successMessage)
+      return result
+    } catch (failure) {
+      if (current()) {
+        error.value = failure
+        ElMessage.error(errorText(failure, errorMessage))
       }
-    } else {
-      if (Array.isArray(result)) {
-        data.value = result
-        return
-      }
-
-      const list = parseListData(result, { enableLog: false })
-      if (list.length > 0) {
-        data.value = list
-        return
-      }
-
-      data.value = parseResponseData(result, result)
+      return null
+    } finally {
+      if (current()) loading.value = false
     }
   }
-  /**
-   * 分页相关方法
-   */
-  const handlePageChange = enablePagination ? async (page) => {
-    pagination.current = page
-    await fetchData()
-  } : null
-  const handleSizeChange = enablePagination ? async (size) => {
+
+  const updateParams = (next) => {
+    const { page, pageSize: nextSize, ...filters } = next
+    params.value = { ...params.value, ...filters }
+    if (page !== undefined) pagination.current = page
+    if (nextSize !== undefined) pagination.pageSize = nextSize
+  }
+  const handlePageChange = (page) => { pagination.current = page; return fetchData() }
+  const handleSizeChange = (size) => {
     pagination.pageSize = size
     pagination.current = 1
-    await fetchData()
-  } : null
-  const resetPagination = enablePagination ? () => {
-    pagination.current = 1
-    pagination.total = 0
-  } : null
-  /**
-   * 搜索相关方法
-   */
-  const debouncedSearch = enableSearch ? debounce(async (query) => {
-    if (query.length < minSearchLength && query.length > 0) return
-    searchLoading.value = true
-    try {
-      await fetchData({ search: query })
-    } finally {
-      searchLoading.value = false
-    }
-  }, debounceTime) : null
-  const handleSearch = enableSearch ? (query) => {
-    searchQuery.value = query
-    debouncedSearch(query)
-  } : null
-  const clearSearch = enableSearch ? () => {
-    searchQuery.value = ''
-    fetchData()
-  } : null
-  /**
-   * 通用方法
-   */
+    return fetchData()
+  }
+  const resetPagination = () => { pagination.current = 1; pagination.total = 0 }
   const refresh = () => fetchData({}, true, { force: true })
-  const updateParams = (newParams) => {
-    params.value = { ...params.value, ...newParams }
-  }
-  const clearCache = () => {
-    if (enableCache && cache) {
-      cache.clear()
-    }
-  }
-  // 立即执行
-  if (immediate) {
-    fetchData()
-  }
-  // 返回对象 - 根据启用的功能返回相应的方法和状态
-  const returnObject = {
-    // 基础状态和方法
-    loading,
-    data,
-    error,
-    params,
-    hasData,
-    isEmpty,
-    lastUpdated,
-    fetchData,
-    refresh,
-    updateParams,
-    clearCache
-  }
-  // 分页相关
-  if (enablePagination) {
-    Object.assign(returnObject, {
-      pagination,
-      handlePageChange,
-      handleSizeChange,
-      resetPagination
-    })
-  }
-  // 搜索相关
-  if (enableSearch) {
-    Object.assign(returnObject, {
-      searchQuery,
-      searchLoading,
-      handleSearch,
-      clearSearch
-    })
-  }
-  return returnObject
-}
-/**
- * 基础数据获取Hook（向后兼容）
- */
-export function useDataFetching(apiFunction, options = {}) {
-  return useUnifiedDataFetching(apiFunction, {
-    ...options,
-    enablePagination: false,
-    enableSearch: false
-  })
-}
-/**
- * 分页数据获取Hook（向后兼容）
- */
-export function usePaginatedFetching(apiFunction, options = {}) {
-  return useUnifiedDataFetching(apiFunction, {
-    ...options,
-    enablePagination: true
-  })
-}
-/**
- * 搜索数据获取Hook（向后兼容）
- */
-export function useSearchFetching(apiFunction, options = {}) {
-  return useUnifiedDataFetching(apiFunction, {
-    ...options,
-    enableSearch: true
-  })
-}
-/**
- * 表格数据管理Hook（整合原usePageData功能）
- */
-export function useTableData(options = {}) {
-  const {
-    fetchApi,
-    createApi,
-    updateApi,
-    deleteApi,
-    moduleName = '记录',
-    ...otherOptions
-  } = options
-  // 使用统一数据获取
-  const {
-    loading,
-    data: tableData,
-    pagination,
-    searchQuery,
-    handlePageChange,
-    handleSizeChange,
-    handleSearch,
-    fetchData,
-    refresh
-  } = useUnifiedDataFetching(fetchApi, {
-    enablePagination: true,
-    enableSearch: true,
-    errorMessage: `获取${moduleName}列表失败`,
-    ...otherOptions
-  })
-  // 对话框状态
-  const dialogVisible = ref(false)
-  const dialogType = ref('create') // 'create' | 'edit' | 'view'
-  const currentRecord = ref(null)
-  const formLoading = ref(false)
-  // 搜索和筛选状态
-  const statusFilter = ref('')
-  const dateRange = ref([])
-  /**
-   * 对话框操作
-   */
-  const openCreateDialog = () => {
-    dialogType.value = 'create'
-    currentRecord.value = null
-    dialogVisible.value = true
-  }
-  const openEditDialog = (record) => {
-    dialogType.value = 'edit'
-    currentRecord.value = { ...record }
-    dialogVisible.value = true
-  }
-  const openViewDialog = (record) => {
-    dialogType.value = 'view'
-    currentRecord.value = record
-    dialogVisible.value = true
-  }
-  const closeDialog = () => {
-    dialogVisible.value = false
-    currentRecord.value = null
-  }
-  /**
-   * CRUD操作
-   */
-  const createRecord = async (data) => {
-    if (!createApi) throw new Error('创建API未配置')
-    formLoading.value = true
-    try {
-      await createApi(data)
-      ElMessage.success(`${moduleName}创建成功`)
-      closeDialog()
-      refresh()
-    } catch (error) {
-      ElMessage.error(`创建${moduleName}失败`)
-      throw error
-    } finally {
-      formLoading.value = false
-    }
-  }
-  const updateRecord = async (id, data) => {
-    if (!updateApi) throw new Error('更新API未配置')
-    formLoading.value = true
-    try {
-      await updateApi(id, data)
-      ElMessage.success(`${moduleName}更新成功`)
-      closeDialog()
-      refresh()
-    } catch (error) {
-      ElMessage.error(`更新${moduleName}失败`)
-      throw error
-    } finally {
-      formLoading.value = false
-    }
-  }
-  const deleteRecord = async (id) => {
-    if (!deleteApi) throw new Error('删除API未配置')
-    try {
-      await deleteApi(id)
-      ElMessage.success(`${moduleName}删除成功`)
-      refresh()
-    } catch (error) {
-      ElMessage.error(`删除${moduleName}失败`)
-      throw error
-    }
-  }
-  /**
-   * 高级搜索
-   */
-  const resetSearch = () => {
-    searchQuery.value = ''
-    statusFilter.value = ''
-    dateRange.value = []
-    refresh()
-  }
+
+  if (immediate) void fetchData()
   return {
-    // 数据状态
-    loading,
-    tableData,
-    pagination,
-    // 搜索状态
-    searchQuery,
-    statusFilter,
-    dateRange,
-    // 对话框状态
-    dialogVisible,
-    dialogType,
-    currentRecord,
-    formLoading,
-    // 数据操作
-    fetchData,
-    refresh,
-    handlePageChange,
-    handleSizeChange,
-    handleSearch,
-    resetSearch,
-    // 对话框操作
-    openCreateDialog,
-    openEditDialog,
-    openViewDialog,
-    closeDialog,
-    // CRUD操作
-    createRecord,
-    updateRecord,
-    deleteRecord
+    loading, data, error, params, pagination, statistics, lastUpdated,
+    hasData: computed(() => data.value.length > 0),
+    isEmpty: computed(() => !loading.value && data.value.length === 0),
+    fetchData, refresh, updateParams, handlePageChange, handleSizeChange, resetPagination,
   }
 }
-/**
- * 表单提交Hook（向后兼容）
- * @param {Function} submitFunction - 提交函数
- * @param {Object} options - 配置选项
- * @returns {Object} 表单提交相关的响应式数据和方法
- */
+
+/** One submission owns validation, the write and its success notification. */
 export function useFormSubmit(submitFunction, options = {}) {
-  const {
-    successMessage = '操作成功',
-    errorMessage = '操作失败',
-    onSuccess = null,
-    onError = null
-  } = options
+  const { successMessage = '操作成功', errorMessage = '操作失败', onSuccess, onError } = options
   const loading = ref(false)
   const error = ref(null)
   const submit = async (formData, formRef = null) => {
-    // 表单验证
-    if (formRef && formRef.validate) {
-      const valid = await new Promise((resolve) => {
-        formRef.validate((valid) => resolve(valid))
-      })
-      if (!valid) {
-        return false
-      }
-    }
+    if (loading.value) return false
     loading.value = true
     error.value = null
+    let result
     try {
-      const result = await submitFunction(formData)
-      ElMessage.success(successMessage)
-      if (onSuccess && typeof onSuccess === 'function') {
-        await onSuccess(result)
+      if (formRef?.validate) {
+        try {
+          if (await formRef.validate() === false) return false
+        } catch { return false }
+      }
+      try {
+        result = await submitFunction(formData)
+      } catch (failure) {
+        error.value = failure
+        ElMessage.error(errorText(failure, errorMessage))
+        await onError?.(failure)
+        throw failure
+      }
+      ElMessage.success(typeof successMessage === 'function' ? successMessage(result) : successMessage)
+      // A refresh failure must not tell the user that a committed write failed.
+      try { await onSuccess?.(result) } catch {
+        ElMessage.warning('操作已成功，列表刷新失败，请刷新页面')
       }
       return result
-    } catch (err) {
-      error.value = err
-      console.error('表单提交失败:', err)
-      // 提取后端返回的错误信息
-      let errorMsg = errorMessage
-      if (err.response?.data) {
-        errorMsg = err.response.data.error ||
-          err.response.data.message ||
-          err.response.data.msg ||
-          errorMessage
-      } else if (err.message) {
-        errorMsg = err.message
-      }
-      // 提取后端特定错误代码用于特殊处理（如 DUPLICATE_DRAFT_EXISTS）
-      const errorCode = err.response?.data?.code
-      // 如果是重复提交错误（409状态码），考虑使用 Alert 引起注意
-      if (err.response?.status === 409 || errorCode === 'DUPLICATE_DRAFT_EXISTS') {
-        import('element-plus/es/components/message-box/index').then(({ ElMessageBox }) => {
-          ElMessageBox.alert(errorMsg, '操作被限制', {
-            confirmButtonText: '我知道了',
-            type: 'warning'
-          }).catch(() => { })
-        })
-      } else {
-        ElMessage.error(errorMsg)
-      }
-      if (onError && typeof onError === 'function') {
-        await onError(err)
-      }
-      throw err
-    } finally {
-      loading.value = false
-    }
+    } finally { loading.value = false }
   }
-  return {
-    loading,
-    error,
-    submit
-  }
+  return { loading, error, submit }
 }

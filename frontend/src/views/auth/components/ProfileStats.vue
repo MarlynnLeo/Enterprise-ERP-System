@@ -256,7 +256,7 @@ const handleError = (failedAvatar) => {
 .time-value {
   color: var(--color-primary);
   font-weight: 800;
-  font-family: monospace;
+  font-family: var(--font-ui);
   font-size: 15px;
   white-space: nowrap;
 }

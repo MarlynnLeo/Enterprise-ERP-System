@@ -9,7 +9,9 @@ jest.mock('../../src/services/InventoryService', () => ({
 jest.mock('../../src/models/nonconformingProduct', () => ({}));
 jest.mock('../../src/services/business/CostAccountingService', () => ({}));
 jest.mock('../../src/services/business/TaskLifecycleService', () => ({ validateTaskTransition: jest.fn() }));
-jest.mock('../../src/services/business/DLQService', () => ({ runWithRetry: jest.fn() }));
+jest.mock('../../src/services/business/DLQService', () => ({
+  runWithRetry: jest.fn(), registerHandler: jest.fn(),
+}));
 jest.mock('../../src/services/business/AsyncTaskService', () => ({}));
 jest.mock('../../src/services/business/DocumentChainService', () => ({ afterInventoryInboundConfirmed: jest.fn() }));
 jest.mock('../../src/authorization/ScopeGuard', () => ({ denyUnlessAccess: jest.fn() }));

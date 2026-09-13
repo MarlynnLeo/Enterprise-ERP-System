@@ -9,6 +9,7 @@
   --app-text-color: var(--color-text-primary);
   --app-border-color: var(--color-border-base);
   --font-sans: var(--font-family-base);
+  --el-font-family: var(--font-ui);
   --spacing-base: var(--spacing-md);
 
   /* 全站 ERP 默认字号（主题文件可覆盖，但应保持 14px 密集表） */

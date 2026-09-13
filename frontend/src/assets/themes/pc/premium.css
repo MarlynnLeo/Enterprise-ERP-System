@@ -62,10 +62,10 @@
   --spacing-xl: 32px;
   --spacing-xxl: 48px;
 
-  --font-family-base: "SF Pro Display", -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", sans-serif;
-  --font-family-chinese: "PingFang SC", "Microsoft YaHei", sans-serif;
-  --font-family-mono: "SFMono-Regular", "Cascadia Code", Consolas, monospace;
-  --font-family-serif: "Playfair Display", Didot, Georgia, serif;
+  --font-family-base: var(--font-ui);
+  --font-family-chinese: var(--font-ui);
+  --font-family-mono: var(--font-ui);
+  --font-family-serif: var(--font-ui);
 
   --font-size-xs: 12px;
   --font-size-sm: 13px;

@@ -358,7 +358,7 @@ const resetForm = () => {
   border-radius: var(--radius-sm);
   min-width: 90px;
   text-align: center;
-  font-family: 'Courier New', monospace;
+  font-family: var(--font-ui);
   font-weight: 500;
 }
 .material-name {

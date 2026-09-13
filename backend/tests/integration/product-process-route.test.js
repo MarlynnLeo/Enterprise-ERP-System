@@ -26,16 +26,14 @@ describe('统一产品工艺、任务快照与生产闭环', () => {
 beforeAll(async () => {
   getApp();
   api = await authRequest();
-  const [[seed]] = await db.pool.query('SELECT * FROM materials WHERE deleted_at IS NULL LIMIT 1');
-  const [[unit]] = await db.pool.query('SELECT id FROM units WHERE deleted_at IS NULL LIMIT 1');
-  const [[location]] = await db.pool.query('SELECT id FROM locations WHERE deleted_at IS NULL LIMIT 1');
-  const [[actor]] = await db.pool.query('SELECT id FROM users WHERE status = 1 AND id <> 1 LIMIT 1');
-  fixture.unit = unit.id;
-  fixture.location = location.id;
-  fixture.financeActor = actor.id;
+  const [unit] = await db.pool.query('INSERT INTO units (code, name, status) VALUES (?, ?, 1)', [prefix, '件']);
+  const [location] = await db.pool.query("INSERT INTO locations (code, name, type, status) VALUES (?, ?, 'warehouse', 1)", [prefix, '工艺回归仓库']);
+  const [actor] = await db.pool.query("INSERT INTO users (username, password, real_name, role, status) VALUES (?, ?, ?, 'user', 1)", [prefix, 'login-disabled-test-fixture', '工艺测试财务']);
+  fixture.unit = unit.insertId;
+  fixture.location = location.insertId;
+  fixture.financeActor = actor.insertId;
   for (const suffix of ['product', 'material']) {
-    const material = { ...seed, code: `${prefix}-${suffix}`, name: `工艺回归-${suffix}`, unit_id: unit.id, location_id: location.id, cost_price: 5 };
-    delete material.id;
+    const material = { code: `${prefix}-${suffix}`, name: `工艺回归-${suffix}`, unit_id: fixture.unit, location_id: fixture.location, cost_price: 5, material_type: suffix === 'product' ? 'finished' : 'raw' };
     const [result] = await db.pool.query('INSERT INTO materials SET ?', [material]);
     fixture.materials.push(result.insertId);
   }
@@ -62,6 +60,9 @@ afterAll(async () => {
   }
   if (fixture.stationId) await db.pool.query('DELETE FROM work_stations WHERE id = ?', [fixture.stationId]);
   if (fixture.materials.length) await db.pool.query('DELETE FROM materials WHERE id IN (?)', [fixture.materials]);
+  if (fixture.location) await db.pool.query('DELETE FROM locations WHERE id = ?', [fixture.location]);
+  if (fixture.unit) await db.pool.query('DELETE FROM units WHERE id = ?', [fixture.unit]);
+  if (fixture.financeActor) await db.pool.query('DELETE FROM users WHERE id = ?', [fixture.financeActor]);
   clearCache();
 });
 

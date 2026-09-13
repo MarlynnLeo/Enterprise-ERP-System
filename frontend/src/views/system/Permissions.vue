@@ -2366,7 +2366,7 @@ onMounted(async () => {
 .perm-node__code {
   color: var(--color-text-secondary);
   font-size: 11px;
-  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-family: var(--font-ui);
   flex-shrink: 0;
 }
 .perm-node__select-all {

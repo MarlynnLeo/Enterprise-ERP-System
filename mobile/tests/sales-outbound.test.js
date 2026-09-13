@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from 'vitest'
 import {
-  buildSalesOutboundStatusPayload,
+  getSalesOutboundErrorMessage,
   canChangeSalesOutboundStatus,
   changeSalesOutboundStatus
 } from '@/utils/salesOutbound'
@@ -17,8 +17,8 @@ describe('mobile sales outbound workflow', () => {
     const outbound = {
       id: 42,
       status: 'processing',
-      outbound_date: '2026-07-15',
-      remark: 'mobile confirmation'
+      outboundDate: '2026-07-15',
+      remarks: 'mobile confirmation'
     }
 
     const result = await changeSalesOutboundStatus({
@@ -30,7 +30,7 @@ describe('mobile sales outbound workflow', () => {
     expect(result).toEqual({ changed: true })
     expect(updateSalesOutbound).toHaveBeenCalledWith(
       42,
-      buildSalesOutboundStatusPayload(outbound, 'completed')
+      { status: 'completed', deliveryDate: '2026-07-15', remarks: 'mobile confirmation' }
     )
   })
 
@@ -44,5 +44,13 @@ describe('mobile sales outbound workflow', () => {
 
     expect(result).toEqual({ changed: false, reason: 'invalid_transition' })
     expect(updateSalesOutbound).not.toHaveBeenCalled()
+  })
+
+  test('renders stock details and handles structured API errors without throwing', () => {
+    expect(getSalesOutboundErrorMessage({ response: { data: {
+      message: '库存不足', materialCode: 'M-1', materialName: '原料', required: 5, available: 0
+    } } })).toBe('物料 M-1(原料) 库存不足，需要数量：5，可用库存：0')
+    expect(getSalesOutboundErrorMessage({ response: { data: { error: { message: '当前状态不能完成' } } } })).toBe('当前状态不能完成')
+    expect(getSalesOutboundErrorMessage({ response: { data: { error: {} } } }, '完成失败')).toBe('完成失败')
   })
 })

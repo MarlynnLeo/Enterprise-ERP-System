@@ -12,6 +12,7 @@ vi.mock('@/api', () => ({
   purchaseApi: {}, systemApi: {}
 }))
 vi.mock('@/api/bom', () => ({ bomApi: {} }))
+vi.mock('vue-router', () => ({ useRoute: () => ({ query: {} }) }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ hasPermission: () => true }) }))
 vi.mock('@/utils/optionLoaders', () => ({ loadDepartmentOptions: async () => [] }))
 vi.mock('@/utils/commonHelpers', () => ({ debounce: (callback) => callback }))

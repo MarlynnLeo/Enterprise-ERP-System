@@ -27,7 +27,7 @@
         <el-table-column prop="productCode" label="产品编码" min-width="110" show-overflow-tooltip />
         <el-table-column prop="productName" label="产品名称" min-width="120" show-overflow-tooltip />
         <el-table-column prop="name" label="工艺名称" min-width="130" show-overflow-tooltip />
-        <el-table-column label="版本" width="96"><template #default="{ row }"><span>{{ row.version }}</span><small class="version-detail">{{ row.details?.length || 0 }} 道工序</small></template></el-table-column>
+        <el-table-column label="版本" width="96"><template #default="{ row }"><span>{{ row.version }}</span></template></el-table-column>
         <el-table-column label="标准工时 (h/件)" width="140" align="right"><template #default="{ row }">{{ formatStandardHours(totalStandardHours(row.details)) }}</template></el-table-column>
         <el-table-column label="状态" width="75"><template #default="{ row }"><el-tag :type="Number(row.status) === 1 ? 'success' : 'info'">{{ routeStatusLabel(row) }}</el-tag></template></el-table-column>
         <el-table-column label="操作" min-width="220" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
@@ -268,7 +268,6 @@ onMounted(async () => {
 .process-toolbar > :last-child { margin-left: auto; }
 .process-detail-card { margin-top: 16px; }
 .step-hours { float: right; color: var(--color-text-secondary); }
-.version-detail { display: block; color: var(--color-text-secondary); line-height: 1.5; }
 .file-list { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
 .sop-content { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; padding: 12px; background: var(--color-bg-page); border-radius: 4px; }
 </style>

@@ -78,10 +78,12 @@
         </div>
 
         <PullRefresh v-else v-model="refreshing" @refresh="onRefresh">
-          <Empty v-if="filteredItems.length === 0 && !loading" description="暂无数据" />
+          <Empty v-if="filteredItems.length === 0 && !loading && !error" description="暂无数据" />
 
           <List
             v-model:loading="loading"
+            v-model:error="error"
+            error-text="加载失败，点击重试"
             :finished="finished"
             finished-text="没有更多了"
             @load="onLoad"
@@ -90,7 +92,6 @@
               v-for="(item, index) in filteredItems"
               :key="getItemKey(item, index)"
               class="list-card"
-              :style="{ animationDelay: `${index * 0.03}s` }"
               @click="handleItemClick(item)"
             >
               <!-- 左侧色条 -->
@@ -169,7 +170,7 @@
   import SvgIcon from '@/components/icons/index.vue'
   import dayjs from 'dayjs'
   import { useDebouncedRef } from '@/composables/useDebounce'
-  import { extractApiPaginated } from '@/utils/apiHelper'
+  import { usePagination } from '@/composables/usePagination'
 
   const props = defineProps({
     config: { type: Object, required: true },
@@ -187,19 +188,15 @@
   const searchValue = ref('')
   const debouncedSearch = useDebouncedRef(searchValue, 300)  // 搜索防抖 300ms
   const activeTag = ref('all')
-  const loading = ref(false)
-  const finished = ref(false)
-  const refreshing = ref(false)
-  const items = ref([])
-  const statistics = ref({})
-  const initialLoading = ref(true)  // 骨架屏控制
-
-  // ==================== 分页状态 ====================
-  const PAGE_SIZE = 20
-  const currentPage = ref(1)
-  const totalCount = ref(0)
-  const requesting = ref(false)
-  const pendingRefresh = ref(false)
+  const {
+    list: items, loading, finished, refreshing, error, initialized,
+    total: totalCount, payload, onLoad: loadNextPage, onRefresh: refreshPage,
+  } = usePagination(params => props.apiFunction(params), {
+    immediate: false,
+    getItemKey: item => item?.[props.config.fields.id] ?? item?.id ?? item?._id,
+  })
+  const initialLoading = computed(() => !initialized.value)
+  const statistics = computed(() => calculateStatistics(items.value, payload.value))
 
   // 筛选标签 — 优先使用 config.filterTabs，其次 config.tags
   const filterTabs = computed(() => props.config.filterTabs || props.config.tags || [])
@@ -281,7 +278,7 @@
   const getItemKey = (item, index) => {
     const idField = props.config.fields.id
     const id = idField ? item?.[idField] : undefined
-    return id ?? item?.id ?? item?._id ?? `${currentPage.value}-${index}`
+    return id ?? item?.id ?? item?._id ?? index
   }
 
   // 获取图标名称
@@ -437,76 +434,16 @@
     return 'low'
   }
 
-  // ==================== 核心加载逻辑（支持无限滚动分页） ====================
-  const loadData = async (isRefresh = false) => {
-    if (requesting.value) {
-      if (isRefresh) pendingRefresh.value = true
-      return
-    }
-    requesting.value = true
-
-    if (isRefresh) {
-      items.value = []
-      currentPage.value = 1
-      totalCount.value = 0
-      finished.value = false
-    }
-
-    try {
-      // 同时传 pageSize 和 limit，兼容不同后端接口
-      const hasFilterAlias = !!props.config.filterAliases?.[activeTag.value]
-      const params = {
-        page: currentPage.value,
-        pageSize: PAGE_SIZE,
-        limit: PAGE_SIZE,
-        search: debouncedSearch.value || undefined,
-        status: activeTag.value !== 'all' && !hasFilterAlias ? activeTag.value : undefined
-      }
-
-      const response = await props.apiFunction(params)
-      const { list: data, total, payload: responseData } = extractApiPaginated(response, {
-        totalFallback: -1
-      })
-
-      if (isRefresh || currentPage.value === 1) {
-        // 首次加载或刷新：替换数据
-        items.value = data
-      } else {
-        // 加载更多：追加数据（去重）
-        const existingIds = new Set(items.value.map(i => i.id || i._id))
-        const newItems = data.filter(i => !existingIds.has(i.id || i._id))
-        items.value = [...items.value, ...newItems]
-      }
-
-      // 判断是否还有更多数据
-      if (total >= 0) {
-        totalCount.value = total
-        finished.value = items.value.length >= total
-      } else {
-        // 无法获取总数时，根据返回数据量判断
-        finished.value = data.length < PAGE_SIZE
-      }
-
-      // 页码+1 准备下次加载
-      currentPage.value++
-
-      // 更新统计数据
-      if (props.config.stats) statistics.value = calculateStatistics(items.value, responseData)
-    } catch (error) {
-      console.error('加载数据失败:', error)
-      showToast('加载失败，请重试')
-      finished.value = true  // 出错时停止继续加载
-    } finally {
-      requesting.value = false
-      loading.value = false
-      refreshing.value = false
-      initialLoading.value = false
-      if (pendingRefresh.value) {
-        pendingRefresh.value = false
-        loadData(true)
-      }
+  const queryParams = () => {
+    const hasFilterAlias = !!props.config.filterAliases?.[activeTag.value]
+    return {
+      search: debouncedSearch.value || undefined,
+      status: activeTag.value !== 'all' && !hasFilterAlias ? activeTag.value : undefined,
     }
   }
+  const loadData = (refresh = false) => refresh
+    ? refreshPage(queryParams())
+    : loadNextPage(queryParams())
 
   const calculateStatistics = (data, responseData = {}) => {
     const stats = {}
@@ -568,27 +505,9 @@
     emit('item-click', item)
   }
 
-  // Vant List 组件触发加载更多
-  const onLoad = () => {
-    if (finished.value || requesting.value) {
-      loading.value = false
-      return
-    }
-    loading.value = true
-    loadData()
-  }
-  // 下拉刷新
-  const onRefresh = () => {
-    if (requesting.value) {
-      pendingRefresh.value = true
-      refreshing.value = false
-      return
-    }
-    refreshing.value = true
-    loadData(true)
-  }
-
-  onMounted(() => loadData(true))
+  const onLoad = () => loadData()
+  const onRefresh = () => loadData(true)
+  onMounted(onRefresh)
 </script>
 
 <style lang="scss" scoped>
@@ -928,7 +847,7 @@
     font-size: 0.6875rem;
     color: var(--text-tertiary);
     margin-bottom: 4px;
-    font-family: 'SF Mono', monospace;
+    font-family: var(--font-ui);
   }
 
   // 进度条
@@ -963,7 +882,7 @@
     font-size: 0.6875rem;
     font-weight: 700;
     color: var(--text-secondary);
-    font-family: 'SF Mono', monospace;
+    font-family: var(--font-ui);
     min-width: 30px;
     text-align: right;
   }

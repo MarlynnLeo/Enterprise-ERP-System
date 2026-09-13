@@ -756,11 +756,12 @@ import { routeOptionLabel } from '@/utils/productProcessRoute'
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
-import { baseDataApi, financeApi, inventoryApi, productionApi, systemApi } from '@/api'
+import { baseDataApi, financeApi, inventoryApi, productionApi } from '@/api'
 import dayjs from 'dayjs'
 import { Plus, Clock, SetUp, WarningFilled } from '@element-plus/icons-vue'
 import { parseQuantity, formatQuantity, getQuantityFromRelatedItem } from '@/utils/helpers/quantity'
 import { parseDataObject, parseListData, parseResponseData } from '@/utils/responseParser'
+import { loadDepartmentOptions } from '@/utils/optionLoaders'
 import { useFormKeyboardNav } from '@/composables/useFormKeyboardNav'
 import printService from '@/services/printService'
 import { useAuthStore } from '@/stores/auth'
@@ -789,7 +790,7 @@ const planSearchLoading = ref(false)  // 搜索加载状态
 const modalVisible = ref(false)
 const modalTitle = ref('新建生产任务')
 const formRef = ref(null)
-const productionUsers = ref([]) // 添加生产部用户列表
+const productionUsers = ref([]) // 生产组选项，与物料的默认生产组分开维护
 
 // 发料对话框相关
 const materialIssueDialogVisible = ref(false)
@@ -1015,7 +1016,7 @@ const rules = {
   planId: [{ required: false, message: '请选择生产计划', trigger: 'change' }],
   startDate: [{ required: true, message: '请选择开始日期', trigger: 'change' }],
   expectedEndDate: [{ required: true, message: '请选择预计结束日期', trigger: 'change' }],
-  manager: [{ required: true, message: '请选择生产计划以自动设置生产组', trigger: 'blur' }]
+  manager: [{ required: true, message: '请选择生产组', trigger: 'change' }]
 }
 
 // 搜索表单
@@ -1280,6 +1281,9 @@ const showCreateModal = async () => {
     manager: '',
     remarks: ''
   }
+  if (productionUsers.value.length === 0) {
+    await fetchProductionUsers()
+  }
   modalVisible.value = true
 }
 
@@ -1340,19 +1344,14 @@ const handleEdit = async (record) => {
     }
   }
 
-  // 根据产品ID自动加载工序模板和生产组
+  // 根据产品ID加载工序模板，保留任务已固定的版本
   const productId = formData.value.productId;
   if (productId) {
-    // 1. 加载工序模板（fetchProductProcessTemplates 会自动选择该产品的默认模板）
     originalTaskProcess.value = { taskId: record.id, productId, templateId: record.processTemplateId || null }
     await fetchProductProcessTemplates(productId, { preserveId: record.processTemplateId || null, preserveSelection: true });
-    // 2. 加载生产组（fetchProductionGroupByProduct 会从物料设置自动获取并设置 manager）
-    await fetchProductionGroupByProduct(productId);
-    // 只有当任务已有有效负责人（非默认的"未分配"）时，才用任务记录的值覆盖
-    if (record.manager && record.manager !== '未分配') {
-      formData.value.manager = record.manager;
-    }
   }
+  // 优先回显任务已有生产组；未分配时才读取物料默认值
+  await fetchProductionGroupByProduct(productId, record.manager);
 
   modalVisible.value = true
 
@@ -1631,7 +1630,6 @@ const handlePlanChange = async (planId) => {
     formData.value.manager = ''
     processTemplateList.value = []
     formData.value.processTemplateId = undefined
-    productionUsers.value = []
     return
   }
 
@@ -1879,51 +1877,35 @@ const printTaskDetail = async () => {
 }
 
 // 根据产品ID获取物料的生产组信息
-const fetchProductionGroupByProduct = async (productId) => {
-  try {
-    if (!productId) {
-      productionUsers.value = [];
-      formData.value.manager = '';
-      return;
-    }
+const fetchProductionGroupByProduct = async (productId, assignedManager = '') => {
+  // 物料未配置默认组时，仍然保留完整选项供手动分配
+  if (productionUsers.value.length === 0) {
+    await fetchProductionUsers();
+  }
+  formData.value.manager = assignedManager && assignedManager !== '未分配' ? assignedManager : '';
+  if (!productId || formData.value.manager) return;
 
+  try {
     // 获取产品详情（产品数据存储在materials表中）
     const response = await baseDataApi.getMaterial(productId);
     const product = parseDataObject(response, { enableLog: false });
 
-    // 产品本身就是物料，直接使用其production_group_id
+    // 物料默认生产组只用于自动选中，不限制可选生产组
     if (product && product.productionGroupId) {
-      // 获取生产组（部门）信息
-      const deptResponse = await systemApi.getDepartments();
-      // 拦截器已解包，response.data 就是业务数据
-      let departments = [];
-
-      if (Array.isArray(deptResponse.data)) {
-        departments = deptResponse.data;
-      } else if (deptResponse.data && deptResponse.data.list) {
-        departments = deptResponse.data.list;
-      }
-
-      // 找到对应的生产组
-      const productionGroup = departments.find(dept => dept.id === product.productionGroupId);
+      const departments = await loadDepartmentOptions();
+      const productionGroup = departments.find(dept => String(dept.id) === String(product.productionGroupId));
 
       if (productionGroup) {
-        // 将生产组设置为选项，并自动选中
-        productionUsers.value = [productionGroup];
+        if (!productionUsers.value.some(group => String(group.id) === String(productionGroup.id))) {
+          productionUsers.value.push(productionGroup);
+        }
         formData.value.manager = productionGroup.name;
-      } else {
-        productionUsers.value = [];
-        formData.value.manager = '';
       }
     } else {
-      // 如果物料没有设置生产组，清空负责人
-      productionUsers.value = [];
-      formData.value.manager = '';
-      ElMessage.warning('该物料未设置生产组，请先在物料管理中设置');
+      ElMessage.warning('该物料未设置默认生产组，请手动选择生产组');
     }
   } catch {
-    productionUsers.value = [];
-    formData.value.manager = '';
+    ElMessage.warning('获取物料默认生产组失败，请手动选择生产组');
   }
 };
 
@@ -1931,34 +1913,22 @@ const fetchProductionGroupByProduct = async (productId) => {
 const fetchProductionUsers = async () => {
   try {
     // 获取所有部门
-    const response = await systemApi.getDepartments();
-
-    const departments = parseListData(response, { enableLog: false });
+    const departments = (await loadDepartmentOptions()).filter(dept => dept && dept.name);
 
     // 找到生产部（通常名称为"生产部"或"生产中心"）
     const productionDept = departments.find(dept =>
-      dept && (dept.name === '生产部' || dept.name === '生产中心' || dept.name.includes('生产'))
+      dept.name === '生产部' || dept.name === '生产中心' || dept.name.includes('生产')
     );
 
-    if (productionDept) {
-      // 获取生产部下的所有子部门作为生产组
-      productionUsers.value = departments.filter(dept =>
-        dept && dept.parentId === productionDept.id
-      ).map(dept => ({
-        id: dept.id,
-        name: dept.name,
-        code: dept.code || ''
-      }));
-    }
-
-    // 如果没有找到生产组子部门，显示所有部门作为备选
-    if (productionUsers.value.length === 0) {
-      productionUsers.value = departments.filter(dept => dept && dept.name).map(dept => ({
-        id: dept.id,
-        name: dept.name,
-        code: dept.code || ''
-      }));
-    }
+    // 获取生产部下的子部门；没有子部门时使用全部部门作为备选
+    const groups = productionDept
+      ? departments.filter(dept => String(dept.parentId) === String(productionDept.id))
+      : [];
+    productionUsers.value = (groups.length > 0 ? groups : departments).map(dept => ({
+      id: dept.id,
+      name: dept.name,
+      code: dept.code || ''
+    }));
   } catch (error) {
     console.error('获取生产组失败:', error);
     productionUsers.value = [];
@@ -1971,7 +1941,7 @@ onMounted(async () => {
     // 先获取所有计划列表，再获取任务列表
     await fetchPlanList();
     await fetchTaskList();
-    await fetchProductionUsers(); // 添加获取生产部用户
+    await fetchProductionUsers();
   } catch {
     ElMessage.error('加载数据失败，请刷新页面重试');
   } finally {

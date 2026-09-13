@@ -7,6 +7,7 @@
 
 import { PREVIEW_DATA } from '../../constants/printConstants';
 import { getCssTokenValue } from '@/utils/designTokens';
+import { getAppFontFamily } from '@/utils/typography';
 
 const templateTokens = {
   heading: getCssTokenValue('textPrimary'),
@@ -242,7 +243,7 @@ const BLANK_TEMPLATE = `<!DOCTYPE html>
   <title>打印模板</title>
   <style>
     body {
-      font-family: "Microsoft YaHei", Arial, sans-serif;
+      font-family: ${getAppFontFamily()};
       margin: 0;
       padding: 20px;
       font-size: 14px;

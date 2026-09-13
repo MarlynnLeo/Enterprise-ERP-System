@@ -154,7 +154,7 @@ const motivation = computed(() => {
   font-size: 18px;
   font-weight: 800;
   margin: 0 4px;
-  font-family: 'DIN Alternate', sans-serif;
+  font-family: var(--font-ui);
 }
 .motivation-desc {
   max-width: 440px;

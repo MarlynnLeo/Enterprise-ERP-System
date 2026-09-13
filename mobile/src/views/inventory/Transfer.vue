@@ -451,7 +451,7 @@
     font-size: 0.875rem;
     font-weight: 700;
     color: var(--text-primary);
-    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+    font-family: var(--font-ui);
   }
   .status-tag {
     display: inline-flex;

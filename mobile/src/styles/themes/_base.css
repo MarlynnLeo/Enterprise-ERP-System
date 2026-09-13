@@ -6,12 +6,13 @@
 
 :root {
   /* Typography */
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Noto Sans SC',
-    'Segoe UI', Roboto, 'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei',
-    sans-serif;
-  --font-mono: 'Cascadia Code', 'Fira Code', 'Consolas', 'Courier New',
-    monospace;
-  --font-display: 'DIN Alternate', 'Inter', var(--font-sans);
+  --font-ui: 'Microsoft YaHei', '微软雅黑', 'Microsoft YaHei UI',
+    'PingFang SC', 'Hiragino Sans GB', 'Noto Sans CJK SC', 'Noto Sans SC', sans-serif;
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-ui);
+  --font-display: var(--font-ui);
+  --van-base-font: var(--font-ui);
+  --van-price-font: var(--font-ui);
 
   /* Radius */
   --radius-sm: 0.5rem;

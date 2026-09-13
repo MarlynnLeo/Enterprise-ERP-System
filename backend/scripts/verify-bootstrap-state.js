@@ -2,6 +2,7 @@
 
 const knexFactory = require('knex');
 const environments = require('../knexfile');
+const { findMenuHierarchyRepairs } = require('../src/bootstrap/menus');
 
 const REQUIRED_APPROVAL_TYPES = [
   'purchase_order',
@@ -37,6 +38,13 @@ async function verify() {
     const systemMenu = await knex('menus').where({ path: '/system' }).first('id');
     assert(notificationMenu, 'Notification rules menu is missing');
     assert(systemMenu && notificationMenu.parent_id === systemMenu.id, 'Notification rules menu has an invalid parent');
+
+    const menus = await knex('menus').select('*');
+    const repairs = findMenuHierarchyRepairs(menus);
+    assert(repairs.length === 0, `Invalid navigation parents or detail links: ${repairs.map(menu => menu.id).join(', ')}`);
+    for (const route of ['/production/plan', '/production/task', '/finance/gl/accounts', '/finance/ar/settlement', '/finance/ap/settlement']) {
+      assert(menus.some(menu => menu.path === route), `Required navigation route is missing: ${route}`);
+    }
 
     const activeTemplates = await knex('workflow_templates')
       .whereIn('business_type', REQUIRED_APPROVAL_TYPES)

@@ -1,7 +1,7 @@
 ﻿<template>
   <div class="module-page page-container">
     <!-- 页面头部卡片 -->
-    <PageHeader title="编码规则管理" subtitle="配置各业务单据的自动编号规则，支持前缀、日期、流水号组合">
+    <PageHeader title="编码规则管理" subtitle="配置各业务单据的自动编号规则，默认采用两位年份和三位递增流水号">
       <template #actions>
 <el-button type="primary" :icon="Plus" v-permission="'system:settings:edit'" @click="openForm()">新增规则</el-button>
       </template>
@@ -42,10 +42,10 @@
           <template #default="{ row }">
             <div class="rule-pattern">
               <el-tag v-if="row.prefix" size="small" type="primary" class="rule-tag">{{ row.prefix }}</el-tag>
-              <span v-if="row.prefix && (row.dateFormat || true)" class="rule-sep">{{ row.separator || '' }}</span>
+              <span v-if="row.prefix" class="rule-sep">{{ row.separator || '' }}</span>
               <el-tag v-if="row.dateFormat" size="small" type="warning" class="rule-tag">{{ row.dateFormat }}</el-tag>
               <span v-if="row.dateFormat" class="rule-sep">{{ row.separator || '' }}</span>
-              <el-tag size="small" type="info" class="rule-tag">{{ '0'.repeat(row.sequenceLength || 4) }}</el-tag>
+              <el-tag size="small" type="info" class="rule-tag">{{ '0'.repeat(row.sequenceLength || 3) }}</el-tag>
             </div>
           </template>
         </el-table-column>
@@ -56,7 +56,7 @@
         </el-table-column>
         <el-table-column label="下一个编号" width="200">
           <template #default="{ row }">
-            <span class="preview-code">{{ row._preview || '--' }}</span>
+            <span class="preview-code">{{ row.preview || '--' }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="isActive" label="状态" width="75">
@@ -104,19 +104,17 @@
           </el-col>
           <el-col :span="8">
             <el-form-item label="日期格式">
-              <el-select v-model="form.dateFormat" class="w-full" clearable placeholder="选择格式">
+              <el-select v-model="form.dateFormat" :empty-values="[null, undefined]" :value-on-clear="''" class="w-full" clearable placeholder="选择格式">
                 <el-option label="无" value="" />
                 <el-option label="YYMMDD" value="YYMMDD" />
                 <el-option label="YYMM" value="YYMM" />
-                <el-option label="YYYYMMDD" value="YYYYMMDD" />
-                <el-option label="YYYYMM" value="YYYYMM" />
-                <el-option label="YYYY" value="YYYY" />
+                <el-option label="YY" value="YY" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item label="分隔符">
-              <el-select v-model="form.separator" class="w-full">
+              <el-select v-model="form.separator" :empty-values="[null, undefined]" class="w-full">
                 <el-option label="无" value="" />
                 <el-option label="-" value="-" />
                 <el-option label="_" value="_" />
@@ -199,7 +197,7 @@ import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Plus, Edit, Delete, List } from '@element-plus/icons-vue'
 import { codingRuleApi } from '@/api/enhanced'
-import 'dayjs'
+import dayjs from 'dayjs'
 const loading = ref(false)
 const saving = ref(false)
 const tableData = ref([])
@@ -232,9 +230,6 @@ const filteredData = computed(() => {
   return list
 })
 // 实时预览
-// 将编码规则中的日期格式转为 dayjs 兼容 token（YYMMDD → YYMMDDformat: 需要映射 YY→YY 但 dayjs 用小写 yy）
-const dayjsFormatMap = { YYMMDD: 'YYMMDD', YYMM: 'YYMM', YYYYMMDD: 'YYYYMMDD', YYYYMM: 'YYYYMM', YYYY: 'YYYY' }
-const _toDayjsFmt = (fmt) => (dayjsFormatMap[fmt] || fmt).replace(/\bYY(?!YY)/g, 'YY')
 const livePreview = computed(() => {
   const f = form.value
   if (!f.prefix) return '--'
@@ -242,16 +237,9 @@ const livePreview = computed(() => {
   const sep = f.separator || ''
   if (f.prefix) parts.push(f.prefix)
   if (f.dateFormat) {
-    // 手动生成日期字符串以匹配后端逻辑
-    const now = new Date()
-    const y4 = String(now.getFullYear())
-    const y2 = y4.slice(2)
-    const m = String(now.getMonth() + 1).padStart(2, '0')
-    const d = String(now.getDate()).padStart(2, '0')
-    const fmtMap = { YYYYMMDD: y4+m+d, YYYYMM: y4+m, YYYY: y4, YYMMDD: y2+m+d, YYMM: y2+m }
-    parts.push(fmtMap[f.dateFormat] || f.dateFormat)
+    parts.push(dayjs().format(f.dateFormat))
   }
-  parts.push('0'.repeat(f.sequenceLength || 4).slice(0, -1) + '1')
+  parts.push(String(f.initialValue ?? 1).padStart(f.sequenceLength || 3, '0'))
   return parts.join(sep)
 })
 const filterList = () => { /* computed 自动处理 */ }
@@ -262,10 +250,17 @@ const resetSearch = () => {
 const fetchList = async () => {
   loading.value = true
   try {
-    const res = await codingRuleApi.getList({ pageSize: 50 })
-    const d = res.data || res
-    const list = d.list || d || []
-    // 后端已通过 LEFT JOIN 一次性计算好 _preview，无需逐条请求
+    const list = []
+    let page = 1
+    while (true) {
+      const res = await codingRuleApi.getList({ page, pageSize: 100 })
+      const d = res.data || res
+      const rows = d.list || d || []
+      list.push(...rows)
+      if (!rows.length || list.length >= (d.total ?? rows.length)) break
+      page += 1
+    }
+    // 后端随列表返回预览；按页取齐所有规则后再筛选。
     tableData.value = list
   } catch { ElMessage.error('加载失败') }
   finally { loading.value = false }
@@ -274,8 +269,8 @@ const openForm = (row) => {
   form.value = row
     ? { ...row }
     : {
-        businessType: '', name: '', prefix: '', dateFormat: 'YYYYMMDD',
-        separator: '-', sequenceLength: 4, resetCycle: 'daily',
+        businessType: '', name: '', prefix: '', dateFormat: 'YYMMDD',
+        separator: '', sequenceLength: 3, resetCycle: 'daily',
         initialValue: 1, step: 1, isActive: 1, description: ''
       }
   formVis.value = true
@@ -336,7 +331,7 @@ onMounted(fetchList)
 </script>
 <style scoped>
 .code-text {
-  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-family: var(--font-ui);
   color: var(--color-text-regular);
   font-size: 13px;
 }
@@ -346,16 +341,16 @@ onMounted(fetchList)
   gap: 2px;
 }
 .rule-tag {
-  font-family: monospace;
+  font-family: var(--font-ui);
   letter-spacing: 0.5px;
 }
 .rule-sep {
   color: var(--color-text-secondary);
-  font-family: monospace;
+  font-family: var(--font-ui);
   margin: 0 1px;
 }
 .preview-code {
-  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-family: var(--font-ui);
   color: var(--color-primary);
   font-weight: 600;
   font-size: 13px;

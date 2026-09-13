@@ -729,7 +729,7 @@ function goToLogin() {
 .metric-row .val {
   color: var(--color-text-primary);
   font-weight: 600;
-  font-family: monospace;
+  font-family: var(--font-ui);
 }
 
 .text-success { color: var(--color-success) !important; }

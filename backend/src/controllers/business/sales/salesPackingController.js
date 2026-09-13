@@ -5,22 +5,17 @@
  */
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
-const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const { logger } = require('../../../utils/logger');
 
 const db = require('../../../config/db');
-const { softDelete } = require('../../../utils/softDelete');
+const PackingListService = require('../../../services/business/PackingListService');
+const BusinessError = require('../../../utils/BusinessError');
 const DocumentLinkService = require('../../../services/business/DocumentLinkService');
 const { DOCUMENT_LINK_TYPES: DocType } = require('../../../constants/documentLinkTypes');
-const { SALES_PACKING_TRANSITIONS } = require('../../../constants/statusRegistry');
 
 const { CodeGenerators } = require('../../../utils/codeGenerator');
 const { resolveActorLabel, getRequestActorLabel } = require('../../../utils/userUtils');
 const TaskRepository = require('../../../repositories/TaskRepository');
-
-async function generatePackingListNo(connection) {
-  return await CodeGenerators.generatePackingListCode(connection);
-}
 
 async function generatePurchaseRequisitionNo(connection) {
   return await CodeGenerators.generatePurchaseRequisitionCode(connection);
@@ -38,7 +33,7 @@ exports.getPackingLists = async (req, res) => {
       status = '',
       startDate = '',
       endDate = '',
-      customerId = '',
+      customerId = '', sort = 'packingListNo', order = 'desc',
     } = req.query;
 
     // 确保分页参数是有效的数字
@@ -52,9 +47,11 @@ exports.getPackingLists = async (req, res) => {
     // 搜索条件
     if (search) {
       whereConditions.push(
-        '(pl.packing_list_no LIKE ? OR pl.customer_name LIKE ? OR pl.sales_order_no LIKE ?)'
+        `(pl.packing_list_no LIKE ? OR pl.customer_name LIKE ? OR pl.sales_order_no LIKE ?
+          OR EXISTS (SELECT 1 FROM packing_list_details d WHERE d.packing_list_id = pl.id
+                     AND (d.product_name LIKE ? OR d.product_code LIKE ?)))`
       );
-      queryParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
+      queryParams.push(...Array(5).fill(`%${search}%`));
     }
 
     // 状态筛选
@@ -81,7 +78,9 @@ exports.getPackingLists = async (req, res) => {
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')} ` : '';
 
-    // 使用字符串拼接避免参数绑定问题
+    const sortColumn = { packingListNo: 'pl.packing_list_no', packingDate: 'pl.packing_date', createdAt: 'pl.created_at' }[sort] || 'pl.packing_list_no';
+    const direction = String(order).toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+    // Sort identifiers come only from the allowlist above.
     const sql = `
       SELECT
       pl.*,
@@ -89,7 +88,7 @@ exports.getPackingLists = async (req, res) => {
         COALESCE(pl.sales_order_no, '') as sales_order_no
       FROM packing_lists pl
       ${whereClause}
-      ORDER BY pl.created_at DESC
+      ORDER BY ${sortColumn} ${direction}, pl.id ${direction}
       LIMIT ${currentPageSize} OFFSET ${offset}
       `;
 
@@ -156,8 +155,8 @@ exports.getPackingList = async (req, res) => {
       `
       SELECT
       pl.*,
-        c.name as customer_name,
-        so.order_no as sales_order_no
+        c.name as customer_name, c.code as customer_code,
+        so.order_no as sales_order_no, so.total_amount AS order_amount
       FROM packing_lists pl
       LEFT JOIN customers c ON pl.customer_id = c.id
       LEFT JOIN sales_orders so ON pl.sales_order_id = so.id AND so.deleted_at IS NULL
@@ -177,7 +176,7 @@ exports.getPackingList = async (req, res) => {
       `
       SELECT
       pld.*,
-        u.name as unit_name
+        u.name as unit_name, u.code as unit_code
       FROM packing_list_details pld
       LEFT JOIN units u ON pld.unit_id = u.id
       WHERE pld.packing_list_id = ?
@@ -200,378 +199,31 @@ exports.getPackingList = async (req, res) => {
  */
 
 exports.createPackingList = async (req, res) => {
-  const connection = await db.pool.getConnection();
-
   try {
-    await connection.beginTransaction();
-
-    const { customer_id, sales_order_id, packing_date, remark, details = [] } = mapKeysToSnake(req.body || {});
-
-    // 验证必填字段
-    if (!customer_id) {
-      await connection.rollback();
-      return ResponseHandler.error(res, '客户ID不能为空', 'VALIDATION_ERROR', 400);
-    }
-    if (!packing_date) {
-      await connection.rollback();
-      return ResponseHandler.error(res, '装箱日期不能为空', 'VALIDATION_ERROR', 400);
-    }
-
-    // 获取客户信息
-    const [customerRows] = await connection.execute('SELECT id, name FROM customers WHERE id = ? AND deleted_at IS NULL', [
-      customer_id,
-    ]);
-    if (customerRows.length === 0) {
-      await connection.rollback();
-      return ResponseHandler.error(res, '客户不存在', 'VALIDATION_ERROR', 400);
-    }
-    const customer = customerRows[0];
-
-    // 获取销售订单信息（如果有）
-    let salesOrder = null;
-    if (sales_order_id) {
-      const [orderRows] = await connection.execute(
-        'SELECT id, order_no FROM sales_orders WHERE id = ? AND deleted_at IS NULL',
-        [sales_order_id]
-      );
-      if (orderRows.length > 0) {
-        salesOrder = orderRows[0];
-      } else {
-        await connection.rollback();
-        return ResponseHandler.error(res, 'Sales order not found', 'VALIDATION_ERROR', 400);
-      }
-    }
-
-    // 生成装箱单号
-    const packing_list_no = await generatePackingListNo(connection);
-
-    // 计算总数量和总箱数
-    const total_quantity = details.reduce(
-      (sum, detail) => sum + (parseFloat(detail.quantity) || 0),
-      0
-    );
-    const total_boxes = details.length; // 每个明细项算一箱
-
-    // 插入装箱单主表
-    const [result] = await connection.execute(
-      `
-      INSERT INTO packing_lists(
-            packing_list_no, customer_id, customer_name, sales_order_id, sales_order_no,
-            packing_date, total_boxes, total_quantity, remark, created_by, status
-          ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')
-            `,
-      [
-        packing_list_no,
-        customer_id,
-        customer.name,
-        sales_order_id || null,
-        salesOrder ? salesOrder.order_no : null,
-        packing_date,
-        total_boxes,
-        total_quantity,
-        remark || '',
-        getRequestActorLabel(req),
-      ]
-    );
-
-    const packingListId = result.insertId;
-
-    // 插入装箱单明细
-    if (details && details.length > 0) {
-      for (let i = 0; i < details.length; i++) {
-        const detail = details[i];
-
-        // 获取产品信息
-        let product = null;
-        if (detail.product_id) {
-          const [productRows] = await connection.execute(
-            'SELECT id, code, name, specs, unit_id FROM materials WHERE id = ?',
-            [detail.product_id]
-          );
-          if (productRows.length > 0) {
-            product = productRows[0];
-          }
-        }
-
-        // 获取单位信息
-        let unit = null;
-        const unitId = detail.unit_id || (product ? product.unit_id : null);
-        if (unitId) {
-          const [unitRows] = await connection.execute('SELECT id, name FROM units WHERE id = ?', [
-            unitId,
-          ]);
-          if (unitRows.length > 0) {
-            unit = unitRows[0];
-          }
-        }
-
-        await connection.execute(
-          `
-          INSERT INTO packing_list_details(
-              packing_list_id, product_id, product_code, product_name,
-              product_specs, quantity, unit_id, unit_name, item_no,
-              box_no, weight, volume, remark
-            ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-          [
-            packingListId,
-            detail.product_id || null,
-            detail.product_code || (product ? product.code : ''),
-            detail.product_name || (product ? product.name : ''),
-            detail.product_specs || (product ? product.specs : ''),
-            detail.quantity || 0,
-            unitId,
-            detail.unit_name || (unit ? unit.name : ''),
-            detail.item_no || '',
-            detail.box_no || `BOX${String(i + 1).padStart(3, '0')} `,
-            detail.weight || null,
-            detail.volume || null,
-            detail.remark || '',
-          ]
-        );
-      }
-    }
-
-    await connection.commit();
-
-    ResponseHandler.success(
-      res,
-      {
-        id: packingListId,
-        packing_list_no,
-        message: '装箱单创建成功',
-      },
-      '创建成功',
-      201
-    );
-  } catch (error) {
-    await connection.rollback();
-    logger.error('创建装箱单失败:', error);
-    ResponseHandler.error(res, '创建装箱单失败', 'SERVER_ERROR', 500, error);
-  } finally {
-    connection.release();
-  }
+    const result = await PackingListService.create(req.body, getRequestActorLabel(req));
+    return ResponseHandler.success(res, result, '装箱单创建成功', 201);
+  } catch (error) { return BusinessError.handleError(res, error, '创建装箱单失败', ResponseHandler); }
 };
-
-/**
- * 更新装箱单
- */
 
 exports.updatePackingList = async (req, res) => {
-  const connection = await db.pool.getConnection();
-
   try {
-    await connection.beginTransaction();
-
-    const { id } = req.params;
-    const { customer_id, sales_order_id, packing_date, status, remark, details = [] } = mapKeysToSnake(req.body || {});
-
-    const [packingRows] = await connection.execute(
-      'SELECT id, status FROM packing_lists WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
-      [id]
-    );
-
-    if (packingRows.length === 0) {
-      await connection.rollback();
-      return ResponseHandler.notFound(res, 'Packing list not found');
-    }
-
-    if (customer_id) {
-      const [customerRows] = await connection.execute(
-        'SELECT id FROM customers WHERE id = ? AND deleted_at IS NULL',
-        [customer_id]
-      );
-      if (customerRows.length === 0) {
-        await connection.rollback();
-        return ResponseHandler.error(res, 'Customer not found', 'VALIDATION_ERROR', 400);
-      }
-    }
-
-    if (sales_order_id) {
-      const [orderRows] = await connection.execute(
-        'SELECT id FROM sales_orders WHERE id = ? AND deleted_at IS NULL',
-        [sales_order_id]
-      );
-      if (orderRows.length === 0) {
-        await connection.rollback();
-        return ResponseHandler.error(res, 'Sales order not found', 'VALIDATION_ERROR', 400);
-      }
-    }
-
-    // 计算总箱数
-    const total_boxes = details.reduce((sum, detail) => sum + (parseInt(detail.quantity) || 0), 0);
-
-    // 更新装箱单主表
-    await connection.execute(
-      `
-      UPDATE packing_lists SET
-      customer_id = ?,
-        sales_order_id = ?,
-        packing_date = ?,
-        status = ?,
-        total_boxes = ?,
-        remark = ?,
-        updated_by = ?
-          WHERE id = ? AND deleted_at IS NULL
-            `,
-      [
-        customer_id,
-        sales_order_id || null,
-        packing_date,
-        status || packingRows[0].status,
-        total_boxes,
-        remark || '',
-        getRequestActorLabel(req),
-        id,
-      ]
-    );
-
-    // 删除原有明细
-    await connection.execute('DELETE FROM packing_list_details WHERE packing_list_id = ?', [id]);
-
-    // 插入新明细
-    if (details && details.length > 0) {
-      for (const detail of details) {
-        await connection.execute(
-          `
-          INSERT INTO packing_list_details(
-              packing_list_id, product_id, product_code, product_name,
-              product_specs, quantity, unit_id, item_no, remark
-            ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-          [
-            id,
-            detail.product_id,
-            detail.product_code || '',
-            detail.product_name || '',
-            detail.product_specs || '',
-            detail.quantity || 0,
-            detail.unit_id || null,
-            detail.item_no || '',
-            detail.remark || '',
-          ]
-        );
-      }
-    }
-
-    await connection.commit();
-
-    return ResponseHandler.success(res, {
-      id: parseInt(id),
-    }, '装箱单更新成功');
-  } catch (error) {
-    await connection.rollback();
-    logger.error('更新装箱单失败:', error);
-    ResponseHandler.error(res, '更新装箱单失败', 'SERVER_ERROR', 500, error);
-  } finally {
-    connection.release();
-  }
+    const result = await PackingListService.update(req.params.id, req.body, getRequestActorLabel(req));
+    return ResponseHandler.success(res, result, '装箱单更新成功');
+  } catch (error) { return BusinessError.handleError(res, error, '更新装箱单失败', ResponseHandler); }
 };
-
-/**
- * 删除装箱单
- */
 
 exports.deletePackingList = async (req, res) => {
-  const connection = await db.pool.getConnection();
-
   try {
-    await connection.beginTransaction();
-
-    const { id } = req.params;
-
-    // 检查装箱单是否存在
-    const [packingListRows] = await connection.execute(
-      'SELECT id, status FROM packing_lists WHERE id = ? AND deleted_at IS NULL',
-      [id]
-    );
-
-    if (packingListRows.length === 0) {
-      await connection.rollback();
-      return ResponseHandler.error(res, '装箱单不存在', 'NOT_FOUND', 404);
-    }
-
-    const packingList = packingListRows[0];
-
-    // 检查是否可以删除（只有草稿状态可以删除）
-    if (packingList.status !== 'draft') {
-      await connection.rollback();
-      return ResponseHandler.error(res, '只有草稿状态的装箱单可以删除', 'VALIDATION_ERROR', 400);
-    }
-
-    // 删除装箱单明细（由于外键约束，会自动删除）
-    await connection.execute('DELETE FROM packing_list_details WHERE packing_list_id = ?', [id]);
-
-    // ✅ 软删除装箱单主表
-    await softDelete(connection, 'packing_lists', 'id', id);
-
-    await connection.commit();
-
+    await PackingListService.delete(req.params.id);
     return ResponseHandler.success(res, null, '装箱单删除成功');
-  } catch (error) {
-    await connection.rollback();
-    logger.error('删除装箱单失败:', error);
-    ResponseHandler.error(res, '删除装箱单失败', 'SERVER_ERROR', 500, error);
-  } finally {
-    connection.release();
-  }
+  } catch (error) { return BusinessError.handleError(res, error, '删除装箱单失败', ResponseHandler); }
 };
-
-/**
- * 更新装箱单状态
- */
 
 exports.updatePackingListStatus = async (req, res) => {
   try {
-
-    const { id } = req.params;
-    const { status, remark } = req.body;
-
-    // 验证状态值
-    const validStatuses = ['draft', 'confirmed', 'packing', 'completed', 'cancelled'];
-    if (!validStatuses.includes(status)) {
-      return ResponseHandler.error(res, '无效的状态值', 'VALIDATION_ERROR', 400);
-    }
-
-    // 检查装箱单是否存在
-    const [packingListRows] = await db.pool.execute(
-      'SELECT id, status, packing_list_no FROM packing_lists WHERE id = ? AND deleted_at IS NULL',
-      [id]
-    );
-
-    if (packingListRows.length === 0) {
-      return ResponseHandler.error(res, '装箱单不存在', 'NOT_FOUND', 404);
-    }
-
-    const currentStatus = packingListRows[0].status;
-
-    // 状态转换验证（引用统一状态注册表）
-    const statusTransitions = SALES_PACKING_TRANSITIONS;
-
-    if (!statusTransitions[currentStatus].includes(status)) {
-      return ResponseHandler.error(res, `不能从状态 "${currentStatus}" 转换到 "${status}"`, 'VALIDATION_ERROR', 400);
-    }
-
-    // 更新状态
-    await db.pool.execute(
-      `
-      UPDATE packing_lists SET
-      status = ?,
-        remark = COALESCE(?, remark),
-        updated_by = ?
-          WHERE id = ? AND deleted_at IS NULL
-            `,
-      [status, remark, getRequestActorLabel(req), id]
-    );
-
-    return ResponseHandler.success(res, {
-      id: parseInt(id),
-      status,
-    }, '状态更新成功');
-  } catch (error) {
-    logger.error('更新装箱单状态失败:', error);
-    ResponseHandler.error(res, '更新装箱单状态失败', 'SERVER_ERROR', 500, error);
-  }
+    const result = await PackingListService.changeStatus(req.params.id, req.body.status, getRequestActorLabel(req), req.body.remark);
+    return ResponseHandler.success(res, result, '装箱单状态已更新');
+  } catch (error) { return BusinessError.handleError(res, error, '更新装箱单状态失败', ResponseHandler); }
 };
 
 /**

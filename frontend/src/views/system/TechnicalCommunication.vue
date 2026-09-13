@@ -957,7 +957,7 @@ onMounted(async () => {
   padding: 10px;
   border: 1px solid var(--el-border-color);
   border-radius: 4px;
-  font-family: monospace;
+  font-family: var(--font-ui);
   font-size: 14px;
   line-height: 1.6;
   resize: vertical;
@@ -1057,7 +1057,7 @@ onMounted(async () => {
   background-color: var(--el-fill-color-light);
   padding: 2px 6px;
   border-radius: 4px;
-  font-family: monospace;
+  font-family: var(--font-ui);
 }
 
 .view-body :deep(pre) {

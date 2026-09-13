@@ -1291,7 +1291,7 @@
     font-size: 0.875rem;
     font-weight: 700;
     color: var(--text-primary);
-    font-family: 'SF Mono', 'Menlo', monospace;
+    font-family: var(--font-ui);
   }
   .check-meta {
     font-size: 0.6875rem;

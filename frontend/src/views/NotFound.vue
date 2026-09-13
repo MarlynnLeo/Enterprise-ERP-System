@@ -118,6 +118,6 @@ const goBack = () => {
   padding: 0.2rem 0.6rem;
   border-radius: 4px;
   color: var(--theme-status-primary-color);
-  font-family: 'Courier New', monospace;
+  font-family: var(--font-ui);
 }
 </style>

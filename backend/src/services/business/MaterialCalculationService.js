@@ -7,6 +7,7 @@
 
 const { pool } = require('../../config/db');
 const { logger } = require('../../utils/logger');
+const { roundQuantity } = require('../../utils/quantity');
 const BomExplosionService = require('../BomExplosionService');
 const { PRODUCTION_STATUS_KEYS } = require('../../constants/systemConstants');
 
@@ -153,10 +154,10 @@ async function calculateMaterialRequirementsWithStock(productId, bomId, quantity
     };
     const bomPaths = trace.paths.length > 0 ? trace.paths : [info.code].filter(Boolean);
 
-    const plannedQuantity = Number(req.requiredQuantity) || 0;
-    const issueQuantity = Number(req.issueQuantity) || 0;
-    const shortageQuantity = Number(req.shortageQuantity) || 0;
-    const grossRequiredQuantity = Number(req.grossRequiredQuantity) || plannedQuantity;
+    const plannedQuantity = roundQuantity(Number(req.requiredQuantity) || 0);
+    const issueQuantity = roundQuantity(Number(req.issueQuantity) || 0);
+    const shortageQuantity = roundQuantity(Number(req.shortageQuantity) || 0);
+    const grossRequiredQuantity = roundQuantity(Number(req.grossRequiredQuantity) || plannedQuantity);
 
     // 只挑选要求数量严格大于零的数据汇入生产清单
     if (plannedQuantity > 0) {
@@ -178,8 +179,8 @@ async function calculateMaterialRequirementsWithStock(productId, bomId, quantity
         parentMaterialId: [...trace.parentMaterialIds][0] || null,
         sourceBomIds: [...trace.sourceBomIds],
         isLeaf: trace.isLeaf,
-        stockQuantity: stock.stockQuantity,
-        availableQuantity: stock.availableQuantity
+        stockQuantity: roundQuantity(stock.stockQuantity),
+        availableQuantity: roundQuantity(stock.availableQuantity)
       });
     }
   }

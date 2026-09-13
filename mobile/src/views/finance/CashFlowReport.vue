@@ -124,7 +124,7 @@
     font-size: 0.875rem;
     font-weight: 600;
     color: var(--color-primary);
-    font-family: 'SF Mono', monospace;
+    font-family: var(--font-ui);
   }
 
   .account-card {
@@ -161,7 +161,7 @@
     font-size: 0.8125rem;
     font-weight: 600;
     color: var(--text-primary);
-    font-family: 'SF Mono', monospace;
+    font-family: var(--font-ui);
     &.primary {
       color: var(--color-primary);
     }

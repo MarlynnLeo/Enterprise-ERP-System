@@ -380,6 +380,7 @@ import MarginInputs from '../../components/ui/print/MarginInputs.vue'
 import PaperSizeSelect from '../../components/ui/print/PaperSizeSelect.vue'
 import { sanitizeHtml, writeSafeHtmlDocument } from '@/utils/htmlSecurity'
 import { autoFitPrintDocument } from '@/utils/printAutoFit'
+import { getAppFontFamily } from '@/utils/typography'
 import { useAuthStore } from '@/stores/auth'
 import { getCssTokenValue } from '@/utils/designTokens'
 import printService, { normalizeSystemSettings } from '@/services/printService'
@@ -667,7 +668,7 @@ const previewTemplate = (template) => {
         <meta charset="UTF-8">
         <style>
           body {
-            font-family: Arial, sans-serif;
+            font-family: ${getAppFontFamily()};
             padding: 20px;
             margin: 0;
           }
@@ -912,7 +913,7 @@ watch(editMode, (newMode) => {
 
 /* 确保表格样式正常 */
 :deep(.el-table) {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: var(--font-ui);
   font-weight: normal;
   font-size: 14px;
 }
@@ -991,7 +992,7 @@ watch(editMode, (newMode) => {
   padding: 15px;
   border: none;
   outline: none;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-ui);
   font-size: 14px;
   line-height: 1.6;
   overflow-y: auto;
@@ -1022,7 +1023,7 @@ watch(editMode, (newMode) => {
   padding: 15px;
   overflow-y: auto;
   background: var(--color-bg-base);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-ui);
   font-size: 14px;
   line-height: 1.6;
 }
@@ -1032,7 +1033,7 @@ watch(editMode, (newMode) => {
   padding: 2px 4px !important;
   border-radius: 3px !important;
   border: 1px solid var(--ds-blue-strong) !important;
-  font-family: 'Courier New', monospace !important;
+  font-family: var(--font-ui) !important;
   font-size: 12px !important;
 }
 

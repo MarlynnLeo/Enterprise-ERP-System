@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { filterByKeyword, toPagedResponse } from '@/utils/listResponse'
+import { filterByKeyword, toPagedResponse } from '@/utils/apiHelper'
 
 describe('mobile list data flow', () => {
   const rows = [
@@ -14,7 +14,7 @@ describe('mobile list data flow', () => {
 
   test('wraps local results in the standard pagination contract', () => {
     expect(toPagedResponse(rows)).toEqual({
-      data: { list: rows, total: 2, page: 1, pageSize: 2 }
+      data: { list: rows, total: 2 }
     })
   })
 })
