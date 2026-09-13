@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import shutil
 import sys
+from urllib.parse import urlparse
 
 root = Path(os.environ['ERP_TEST_DIRECTORY']).resolve()
 target = root / 'target'
@@ -52,10 +53,20 @@ if mode == 'rsync':
     sys.exit(0)
 
 if mode == 'curl':
-    current = release if state['containers']['frontend'] == new_tag else state['oldBuild']
-    if scenario == 'version' and current == release:
+    url = args[-1]
+    port = urlparse(url).port
+    assert port in [18081, 18082], url
+    service = 'mobile' if port == 18082 else 'frontend'
+    state.setdefault('requests', []).append(url)
+    save()
+    current = image('kacon-erp-' + service + ':' + state['containers'][service]).get('buildId', state['oldBuild'])
+    if current == release and ((scenario == 'version' and service == 'frontend') or
+                               (scenario == 'mobile-version' and service == 'mobile')):
         current = 'wrong-version'
-    output(json.dumps(dict(buildId=current, performanceContract=2)))
+    version = dict(buildId=current)
+    if service == 'frontend':
+        version['performanceContract'] = 2
+    output(json.dumps(version))
     sys.exit(0)
 
 assert mode == 'docker'
@@ -99,7 +110,9 @@ elif args[0] == 'build':
     if scenario == 'build' and service == 'frontend':
         sys.exit(1)
     labels = dict(args[i + 1].split('=', 1) for i, v in enumerate(args) if v == '--label')
-    state['images'][tag] = dict(id='sha256:new-' + service, labels=labels)
+    build_args = dict(args[i + 1].split('=', 1) for i, v in enumerate(args) if v == '--build-arg')
+    state['images'][tag] = dict(id='sha256:new-' + service, labels=labels,
+                              buildId=build_args.get('APP_BUILD_ID', 'unspecified-build'))
     save()
 elif args[0] == 'tag':
     found = image(args[1])
@@ -107,8 +120,19 @@ elif args[0] == 'tag':
     state['images'][args[2]] = found
     save()
 elif args[0] == 'run':
-    if args[args.index('--entrypoint') + 1] == 'cat':
-        output(json.dumps(dict(buildId=release, performanceContract=2)))
+    entrypoint_index = args.index('--entrypoint')
+    if args[entrypoint_index + 1] == 'cat':
+        ref = args[entrypoint_index + 2]
+        found = image(ref)
+        assert found is not None, ref
+        current = found['buildId']
+        mobile = ref.startswith('kacon-erp-mobile:')
+        if mobile and scenario == 'mobile-candidate-version':
+            current = 'wrong-version'
+        version = dict(buildId=current)
+        if not mobile:
+            version['performanceContract'] = 2
+        output(json.dumps(version))
 elif args[0] == 'compose':
     command = next(value for value in args if value in ['config', 'run', 'up', 'ps'])
     if command == 'config' and '--images' in args:

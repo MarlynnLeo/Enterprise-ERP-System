@@ -200,7 +200,7 @@ build_image() {
     test "$(docker image inspect --format '{{index .Config.Labels "ai.kacon.erp.source-sha256"}}' "$image")" = "$SOURCE_HASH"
     test "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image")" = "$GIT_COMMIT"
     docker tag "$image" "$candidate"
-  elif [ "$service" = frontend ]; then
+  elif [ "$service" = frontend ] || [ "$service" = mobile ]; then
     docker build --pull --build-arg APP_BUILD_ID="$RELEASE_ID" \
       --label "org.opencontainers.image.revision=$GIT_COMMIT" \
       --label "ai.kacon.erp.source-sha256=$SOURCE_HASH" \
@@ -226,6 +226,10 @@ docker run --rm --entrypoint /bin/sh "kacon-erp-frontend:candidate-$RUN_ID" -c '
 '
 docker run --rm --entrypoint cat "kacon-erp-frontend:candidate-$RUN_ID" /usr/share/nginx/html/version.json |
   python3 -c 'import json,sys; v=json.load(sys.stdin); assert v["buildId"]==sys.argv[1] and v["performanceContract"]==2' "$RELEASE_ID"
+if [ "$RELEASE_SCOPE" != frontend ]; then
+  docker run --rm --entrypoint cat "kacon-erp-mobile:candidate-$RUN_ID" /usr/share/nginx/html/version.json |
+    python3 -c 'import json,sys; assert json.load(sys.stdin)["buildId"]==sys.argv[1]' "$RELEASE_ID"
+fi
 if [ "$RELEASE_SCOPE" = all ]; then
   docker run --rm --entrypoint node "kacon-erp-backend:candidate-$RUN_ID" -e "require('fs').accessSync('/app/src/index.js')"
   docker run --rm --entrypoint /bin/sh "kacon-erp-mobile:candidate-$RUN_ID" -c 'test -f /usr/share/nginx/html/index.html'
@@ -307,6 +311,10 @@ PHASE=version-verification
 record_state running
 curl -fsS --max-time 10 http://127.0.0.1:18081/version.json |
   python3 -c 'import json,sys; v=json.load(sys.stdin); assert v["buildId"]==sys.argv[1] and v["performanceContract"]==2' "$RELEASE_ID"
+if [ "$RELEASE_SCOPE" != frontend ]; then
+  curl -fsS --max-time 10 http://127.0.0.1:18082/version.json |
+    python3 -c 'import json,sys; assert json.load(sys.stdin)["buildId"]==sys.argv[1]' "$RELEASE_ID"
+fi
 for service in backend frontend mobile; do
   cid=$(compose ps -q "$service")
   expected_ref="kacon-erp-$service:$RELEASE_TAG"

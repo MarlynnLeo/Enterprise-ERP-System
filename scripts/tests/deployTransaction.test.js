@@ -36,6 +36,7 @@ function exercise(scenario) {
       if (scenario === 'retry') {
         state.images['kacon-erp-' + service + ':release-' + release] = {
           id: 'sha256:existing-' + service,
+          buildId: release,
           labels: { 'ai.kacon.erp.source-sha256': sourceHash, 'org.opencontainers.image.revision': commit }
         };
       }
@@ -108,13 +109,21 @@ function exercise(scenario) {
       assert.ok(finalState.commands.filter((args) => args[0] === 'compose' && args.includes('up'))
         .every((args) => args.includes('--no-deps') && args.at(-1) === 'frontend'));
     }
-    if (['migration', 'container', 'health', 'version', 'frontend-health'].includes(scenario)) {
+    if (['migration', 'container', 'health', 'version', 'mobile-version', 'frontend-health'].includes(scenario)) {
       const status = JSON.parse(fs.readFileSync(path.join(target, '.last-deployment.json'), 'utf8'));
       assert.equal(status.status, 'failed', result.stderr);
       assert.equal(status.rollback, 'completed', result.stderr);
       assert.equal(JSON.parse(fs.readFileSync(path.join(target, '.deployed-release.json'))).buildId, oldBuild);
       assert.ok(fs.existsSync(path.join(target, '.deploy-backups', runId, 'env')));
       assert.equal(fs.existsSync(path.join(target, 'frontend/src')), false);
+      if (scenario === 'mobile-version') assert.equal(status.phase, 'version-verification');
+    }
+    if (scenario === 'mobile-candidate-version') {
+      const status = JSON.parse(fs.readFileSync(path.join(target, '.last-deployment.json')));
+      assert.equal(status.phase, 'candidate-validation');
+      assert.equal(status.rollback, 'not-needed');
+      assert.equal(JSON.parse(fs.readFileSync(path.join(target, '.deployed-release.json'))).buildId, oldBuild);
+      assert.equal(finalState.commands.some((args) => args[0] === 'compose' && args.includes('up')), false);
     }
     if (scenario === 'retry') assert.equal(finalState.commands.some((args) => args[0] === 'build'), false);
     if (scenario === 'build') {
@@ -130,6 +139,9 @@ function exercise(scenario) {
     if (scenario === 'locked') assert.equal(result.status, 23, result.stderr);
     if (['stale', 'tampered', 'locked'].includes(scenario)) assert.equal(finalState.commands.some((args) => args[0] === 'build'), false);
     if (successful) {
+      assert.deepEqual(finalState.requests, frontendOnly
+        ? ['http://127.0.0.1:18081/version.json']
+        : ['http://127.0.0.1:18081/version.json', 'http://127.0.0.1:18082/version.json']);
       const manifest = JSON.parse(fs.readFileSync(path.join(target, '.deployed-release.json')));
       assert.equal(manifest.buildId, release);
       assert.equal(manifest.sourceHash, sourceHash);
@@ -149,6 +161,6 @@ function imageId(state, service) {
   return state.images['kacon-erp-' + service + ':' + state.containers[service]].id;
 }
 
-for (const scenario of ['success', 'retry', 'build', 'migration', 'container', 'health', 'version', 'stale', 'tampered', 'locked', 'missing-migrations', 'frontend', 'frontend-health', 'mixed-full']) {
+for (const scenario of ['success', 'retry', 'build', 'migration', 'container', 'health', 'version', 'mobile-version', 'mobile-candidate-version', 'stale', 'tampered', 'locked', 'missing-migrations', 'frontend', 'frontend-health', 'mixed-full']) {
   test('release transaction: ' + scenario, { timeout: 70_000 }, () => exercise(scenario));
 }

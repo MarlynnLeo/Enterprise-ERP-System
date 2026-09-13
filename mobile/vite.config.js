@@ -9,10 +9,17 @@ export default defineConfig(({ mode }) => {
   const devPort = Number.parseInt(env.VITE_DEV_PORT || '3001', 10);
   const apiTarget = env.VITE_API_TARGET || 'http://localhost:8080';
   const buildTime = env.VITE_BUILD_TIME || '';
+  const buildId = mode === 'development' ? 'development' : process.env.APP_BUILD_ID || env.APP_BUILD_ID || new Date().toISOString();
 
   return {
     plugins: [
       vue(),
+      {
+        name: 'release-version',
+        generateBundle() {
+          this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ buildId }) });
+        },
+      },
       mode === 'development' ? basicSsl() : null
     ].filter(Boolean),
     resolve: {
