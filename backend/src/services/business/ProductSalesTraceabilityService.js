@@ -7,15 +7,16 @@ const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
 const { resolveActorLabel } = require('../../utils/userUtils');
 
+const validationError = (message) => Object.assign(new Error(message), {
+  statusCode: 400,
+  code: 'VALIDATION_ERROR',
+});
+
 class ProductSalesTraceabilityService {
   static _toDbValue(value) {
     return value === undefined ? null : value;
   }
 
-  /**
-   * 处理成品销售出库时的追溯记录
-   * @param {Object} salesData - 销售出库数据
-   */
   /**
    * 处理成品销售出库时的追溯记录
    * @param {Object} salesData - 销售出库数据
@@ -34,44 +35,72 @@ class ProductSalesTraceabilityService {
         outbound_id,
         outbound_no,
         order_id,
-        customer_id,
         delivery_date,
         items, // 销售的产品明细
         operator,
+        operator_id,
       } = salesData;
 
-      logger.info(
-        `Processing product sales traceability: outboundNo=${outbound_no}, customerId=${customer_id}`
-      );
+      if (!Array.isArray(items) || items.length === 0) {
+        throw validationError('销售出库单没有明细，不能完成');
+      }
 
-      // 为每个销售的产品建立追溯关系（扣库 + 追溯）
-      for (const item of items) {
-        // 明细可能来自 FieldMap snake 或 HTTP camel
-        const productId =
-          item.productId ||
-          item.materialId ||
-          item.product_id ||
-          item.material_id;
-        const quantity =
-          item.quantity || item.actual_quantity || item.actualQuantity;
-        if (!productId) {
-          throw new Error('销售出库明细缺少产品物料ID，无法建立销售追溯');
+      const normalizedItems = items.map((item, index) => ({
+        ...item,
+        product_id: Number(item.productId ?? item.materialId ?? item.product_id ?? item.material_id),
+        quantity: Number(item.quantity ?? item.actual_quantity ?? item.actualQuantity),
+        source_order_id: Number(item.sourceOrderId ?? item.source_order_id ?? item.orderId ?? item.order_id ?? order_id),
+        trace_line_key: item.id != null ? `item:${item.id}` : `line:${index}`,
+      }));
+      for (const item of normalizedItems) {
+        if (!Number.isSafeInteger(item.product_id) || item.product_id <= 0 ||
+            !Number.isFinite(item.quantity) || item.quantity <= 0) {
+          throw validationError('销售出库明细缺少物料或有效数量');
         }
+        if (!Number.isSafeInteger(item.source_order_id) || item.source_order_id <= 0) {
+          throw validationError('销售出库明细缺少来源订单，请先补全关联订单');
+        }
+      }
+
+      // 在任何库存写入前，校验全部来源订单及其客户；多订单不能共用主表客户。
+      const orderIds = [...new Set(normalizedItems.map((item) => item.source_order_id))];
+      const [orders] = await connection.execute(
+        `SELECT so.id, so.customer_id, c.id AS active_customer_id
+         FROM sales_orders so
+         LEFT JOIN customers c ON c.id = so.customer_id AND c.deleted_at IS NULL
+         WHERE so.id IN (${orderIds.map(() => '?').join(',')}) AND so.deleted_at IS NULL`,
+        orderIds
+      );
+      const ordersById = new Map(orders.map((order) => [Number(order.id), order]));
+      for (const orderId of orderIds) {
+        const order = ordersById.get(orderId);
+        if (!order) throw validationError(`关联销售订单${orderId}不存在或已删除`);
+        if (!order.customer_id || !order.active_customer_id) {
+          throw validationError(`销售订单${orderId}缺少有效客户，无法完成出库`);
+        }
+      }
+
+      logger.info(`Processing product sales traceability: outboundNo=${outbound_no}, orderIds=${orderIds.join(',')}`);
+
+      for (const item of normalizedItems) {
+        const order = ordersById.get(item.source_order_id);
 
         await this.createProductSalesTraceability(connection, {
           outbound_id,
           outbound_no,
-          order_id,
-          customer_id,
+          order_id: item.source_order_id,
+          customer_id: order.customer_id,
           delivery_date,
-          product_id: productId,
-          quantity,
+          product_id: item.product_id,
+          quantity: item.quantity,
+          trace_line_key: item.trace_line_key,
           operator,
+          operator_id,
         });
       }
 
       // 扣库成功后，同事务核销销售订单预留（支持多订单 source_order_id）
-      await this.consumeSalesReservations(connection, order_id, items);
+      await this.consumeSalesReservations(connection, order_id, normalizedItems);
 
       if (shouldRelease) {
         await connection.commit();
@@ -136,8 +165,14 @@ class ProductSalesTraceabilityService {
         delivery_date,
         product_id,
         quantity,
+        trace_line_key,
         operator,
+        operator_id,
       } = data;
+
+      if (!Number.isSafeInteger(Number(customer_id)) || Number(customer_id) <= 0) {
+        throw validationError('销售出库缺少有效客户，请检查关联订单');
+      }
 
       // 1. 获取产品信息
       const [productResult] = await connection.execute(
@@ -161,7 +196,10 @@ class ProductSalesTraceabilityService {
         [customer_id]
       );
 
-      const customer = customerResult[0] || { name: '未知客户', contact_person: '' };
+      const customer = customerResult[0];
+      if (!customer) {
+        throw validationError(`销售出库关联的客户${customer_id}不存在或已删除`);
+      }
 
       // 3. 使用FIFO原则获取成品批次
       const usedBatches = await this.allocateProductBatchesFIFO(connection, product_id, quantity);
@@ -204,11 +242,15 @@ class ProductSalesTraceabilityService {
             transactionType: 'sales_outbound',
             referenceNo: outbound_no,
             referenceType: 'sales_outbound',
-            operator: await resolveActorLabel(null, operator),
+            operator: operator || await resolveActorLabel(connection, operator_id),
+            businessApprovedById: operator_id || null,
+            businessApprovedBy: operator || null,
             remark: `销售出库给客户: ${customer.name}`,
             batchNumber: batch.batch_number,
             transactionDate: delivery_date,
-            idempotencyKey: `sales_outbound:${outbound_no}:${product_id}:${batch.batch_number}:${batch.location_id}`,
+            idempotencyKey: `sales_outbound:${outbound_no}:${product_id}:${batch.batch_number}:${batch.location_id}:${trace_line_key ?? order_id}`,
+            sourceId: outbound_id,
+            sourceLineKey: `sales_outbound:${outbound_id}:${trace_line_key ?? `${order_id}:${product_id}`}`,
           },
           connection
         );
@@ -252,10 +294,18 @@ class ProductSalesTraceabilityService {
         `
         SELECT
           batch_number,
-          current_quantity as available_quantity,
+          current_quantity + COALESCE((
+            SELECT SUM(l.signed_quantity)
+            FROM inventory_posting_lines l
+            JOIN inventory_posting_documents d ON d.id = l.posting_document_id
+            WHERE l.material_id = v.material_id AND l.location_id = v.location_id
+              AND CONVERT(l.batch_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(v.batch_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
+              AND d.finance_status = 'pending' AND d.posting_kind = 'movement'
+              AND l.posted_quantity IS NULL
+          ), 0) as available_quantity,
           location_id,
           receipt_date
-        FROM v_batch_stock
+        FROM v_batch_stock v
         WHERE material_id = ?
           AND current_quantity > 0
         ORDER BY receipt_date ASC, batch_number ASC

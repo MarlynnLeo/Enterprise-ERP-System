@@ -96,7 +96,7 @@
       </el-descriptions>
       <el-table :data="balanceSheet.outstandingItems || []" border size="small" max-height="280">
         <template #empty>
-          <EmptyState description="无未对账流水" ::image-size="48" />
+          <EmptyState description="无未对账流水" :image-size="48" />
         </template>
         <el-table-column prop="date" label="日期" width="110" />
         <el-table-column prop="type" label="类型" width="90" />
@@ -118,11 +118,11 @@
         </el-card>
         <el-card class="stat-card" shadow="hover">
           <div class="stat-value">{{ formatCurrency(reconciliationStats.bankBalance) }}</div>
-          <div class="stat-label">银行余额</div>
+          <div class="stat-label">对账单余额</div>
         </el-card>
         <el-card class="stat-card" shadow="hover">
           <div class="stat-value">{{ formatCurrency(reconciliationStats.difference) }}</div>
-          <div class="stat-label">差异金额</div>
+          <div class="stat-label">调节后差异</div>
         </el-card>
         <el-card class="stat-card" shadow="hover">
           <div class="stat-value">{{ reconciliationStats.unreconciledItems }}</div>
@@ -131,9 +131,9 @@
       </div>
 
       <!-- 对账状态 -->
-      <el-card class="status-card" v-if="reconciliationStats.difference !== 0">
+      <el-card class="status-card" v-if="reconciliationStats.difference !== 0 || reconciliationStats.unreconciledItems > 0">
         <el-alert
-          title="账目不平衡"
+          title="对账尚未完成"
           type="warning"
           description="存在未核对明细，请检查以下数据。"
           show-icon
@@ -162,7 +162,7 @@
               <el-icon class="mr-1"><Check /></el-icon>
               批量对账 ({{ selectedUnreconciled.length }})
             </el-button>
-            <span class="tab-info">共 {{ unreconciledItems.length }} 条未对账</span>
+            <span class="tab-info">共 {{ unreconciledTotal }} 条未对账</span>
           </div>
           <el-table
             :data="unreconciledItems"
@@ -172,6 +172,7 @@
             @selection-change="handleUnreconciledSelect"
           >
             <el-table-column type="selection" width="55"></el-table-column>
+            <el-table-column prop="transactionNumber" label="交易编号" width="170" show-overflow-tooltip />
             <el-table-column prop="transactionDate" label="交易日期" width="110" show-overflow-tooltip></el-table-column>
             <el-table-column label="交易类型" width="90">
               <template #default="scope">
@@ -214,8 +215,8 @@
         </el-tab-pane>
 
         <el-tab-pane label="银行对账单" name="bank_statement">
-          <div v-if="importedStatement.length === 0" class="empty-statement">
-            <EmptyState description="尚未导入银行对账单" />
+          <div class="empty-statement">
+            <EmptyState v-if="importedStatement.length === 0" description="本期间尚无银行对账单" />
             <el-upload
               class="upload-area"
               action="#"
@@ -234,8 +235,9 @@
             </el-upload>
           </div>
 
-          <el-table v-else :data="importedStatement" border class="w-full">
+          <el-table v-if="importedStatement.length" :data="importedStatement" row-key="id" border class="w-full">
             <el-table-column type="selection" width="55"></el-table-column>
+            <el-table-column prop="referenceNumber" label="银行流水号" width="170" show-overflow-tooltip />
             <el-table-column prop="transactionDate" label="交易日期" width="120"></el-table-column>
             <el-table-column label="交易类型" width="100">
               <template #default="scope">
@@ -248,7 +250,7 @@
             </el-table-column>
             <el-table-column prop="amount" label="金额" width="120">
               <template #default="scope">
-                <span :class="[scope.row.type === 'income' ? 'positive-value' : 'negative-value']">
+                <span :class="getAmountClass(scope.row.type)">
                   {{ formatCurrency(scope.row.amount) }}
                 </span>
               </template>
@@ -279,10 +281,16 @@
               </template>
             </el-table-column>
           </el-table>
+          <el-pagination
+            v-if="statementTotal > 0" v-model:current-page="statementPage" v-model:page-size="statementPageSize"
+            :page-sizes="[10, 20, 50, 100]" :total="statementTotal" layout="total, sizes, prev, pager, next"
+            @current-change="searchReconciliation" @size-change="searchReconciliation"
+          />
         </el-tab-pane>
 
         <el-tab-pane label="已对账项目" name="reconciled">
           <el-table :data="reconciledItems" border class="w-full" v-loading="loading">
+            <el-table-column prop="transactionNumber" label="交易编号" width="170" show-overflow-tooltip />
             <el-table-column prop="transactionDate" label="交易日期" width="120"></el-table-column>
             <el-table-column label="交易类型" width="100">
               <template #default="scope">
@@ -295,7 +303,7 @@
             </el-table-column>
             <el-table-column prop="amount" label="金额" width="120">
               <template #default="scope">
-                <span :class="[scope.row.type === 'income' ? 'positive-value' : 'negative-value']">
+                <span :class="getAmountClass(scope.row.type)">
                   {{ formatCurrency(scope.row.amount) }}
                 </span>
               </template>
@@ -340,6 +348,7 @@
         <div class="bank-transaction-info">
           <h4>银行交易信息</h4>
           <el-descriptions :column="2" border>
+            <el-descriptions-item label="银行流水号">{{ selectedStatementItem.referenceNumber }}</el-descriptions-item>
             <el-descriptions-item label="交易日期">{{ selectedStatementItem.transactionDate }}</el-descriptions-item>
             <el-descriptions-item label="交易类型">{{ getTransactionTypeText(selectedStatementItem.type) }}</el-descriptions-item>
             <el-descriptions-item label="金额">{{ formatCurrency(selectedStatementItem.amount) }}</el-descriptions-item>
@@ -348,14 +357,15 @@
         </div>
 
         <div class="matching-transactions">
-          <h4>可匹配的账面交易</h4>
+          <h4>{{ selectedStatementItem.status === 'matched' ? '已匹配的账面交易' : '可匹配的账面交易' }}</h4>
           <el-table :data="matchingTransactions" border class="w-full" @selection-change="handleSelectionChange">
-            <el-table-column type="selection" width="55"></el-table-column>
+            <el-table-column v-if="selectedStatementItem.status !== 'matched'" type="selection" width="55"></el-table-column>
+            <el-table-column prop="transactionNumber" label="交易单号" min-width="200" show-overflow-tooltip />
             <el-table-column prop="transactionDate" label="交易日期" width="120"></el-table-column>
             <el-table-column label="交易类型" width="100">
               <template #default="scope">
                 <el-tag
-                  :type="scope.row.type === 'income' ? 'success' : 'danger'"
+                  :type="getTypeStyle(scope.row.type)"
                 >
                   {{ getTransactionTypeText(scope.row.type) }}
                 </el-tag>
@@ -375,8 +385,8 @@
       </div>
       <template #footer>
         <span class="dialog-footer">
-          <el-button @click="matchDialogVisible = false">取消</el-button>
-          <el-button v-permission="'finance:cash:reconcile'" type="primary" @click="confirmMatch" :disabled="selectedTransactions.length === 0">确认匹配</el-button>
+          <el-button @click="matchDialogVisible = false">{{ selectedStatementItem.status === 'matched' ? '关闭' : '取消' }}</el-button>
+          <el-button v-if="selectedStatementItem.status !== 'matched'" v-permission="'finance:cash:reconcile'" type="primary" @click="confirmMatch" :disabled="selectedTransactions.length === 0">确认匹配</el-button>
         </span>
       </template>
         </AppDialog>
@@ -426,6 +436,9 @@ const reconciledTotal = ref(0);
 // 导入对账单
 const fileList = ref([]);
 const importedStatement = ref([]);
+const statementPage = ref(1);
+const statementPageSize = ref(10);
+const statementTotal = ref(0);
 
 // 对账数据
 const unreconciledItems = ref([]);
@@ -522,6 +535,9 @@ const handleAccountChange = () => {
   reconciledItems.value = [];
   unreconciledPage.value = 1;
   reconciledPage.value = 1;
+  statementPage.value = 1;
+  statementTotal.value = 0;
+  balanceSheet.value = null;
 };
 
 const resetSearch = () => {
@@ -534,6 +550,9 @@ const resetSearch = () => {
   selectedUnreconciled.value = [];
   unreconciledPage.value = 1;
   reconciledPage.value = 1;
+  statementPage.value = 1;
+  statementTotal.value = 0;
+  balanceSheet.value = null;
 };
 
 // 搜索对账
@@ -550,6 +569,11 @@ const searchReconciliation = async () => {
       startDate: dateRange.value[0],
       endDate: dateRange.value[1]
     };
+    const statementsResponse = await financeApi.reconciliation.getStatementItems({
+      ...params, page: statementPage.value, pageSize: statementPageSize.value,
+    });
+    importedStatement.value = statementsResponse.data.list;
+    statementTotal.value = statementsResponse.data.total;
 
     // 加载未对账项目 - 使用bank-transactions API
     const unreconciledResponse = await financeApi.bankTransactions.getList({
@@ -563,6 +587,7 @@ const searchReconciliation = async () => {
     unreconciledTotal.value = unreconciledResponse.data?.pagination?.total || unreconciledResponse.data?.total || unreconciledData.length || 0;
     unreconciledItems.value = unreconciledData.map(item => ({
       id: item.id,
+      transactionNumber: item.transactionNumber,
       transactionDate: item.transactionDate?.split('T')[0] || item.transactionDate,
       type: item.transactionType,
       amount: parseFloat(item.amount),
@@ -582,6 +607,7 @@ const searchReconciliation = async () => {
     reconciledTotal.value = reconciledResponse.data?.pagination?.total || reconciledResponse.data?.total || reconciledData.length || 0;
     reconciledItems.value = reconciledData.map(item => ({
       id: item.id,
+      transactionNumber: item.transactionNumber,
       transactionDate: item.transactionDate?.split('T')[0] || item.transactionDate,
       type: item.transactionType,
       amount: parseFloat(item.amount),
@@ -591,28 +617,19 @@ const searchReconciliation = async () => {
       reconciliationDate: item.reconciliationDate?.split('T')[0] || ''
     }));
 
-    // 计算对账统计 —— 基于真实交易数据动态计算
-    const account = accountOptions.value.find(a => a.id === selectedAccount.value);
-    // 分别计算未对账和已对账的交易净额（收入为正，支出为负）
-    const calcNetAmount = (items) => items.reduce((sum, item) => {
-      const amt = parseFloat(item.amount) || 0;
-      const isIncome = ['存款', '转入', '利息', 'income'].includes(item.type);
-      return sum + (isIncome ? amt : -amt);
-    }, 0);
-
-    const unreconciledNet = calcNetAmount(unreconciledItems.value);
-    const reconciledNet = calcNetAmount(reconciledItems.value);
-    const bookBalance = account?.balance || (unreconciledNet + reconciledNet);
-
+    // 汇总全量已审核流水，余额使用实际导入的银行对账单。
+    const sheetResponse = await financeApi.getBankReconciliationBalanceSheet({
+      accountId: selectedAccount.value, asOfDate: dateRange.value[1],
+    });
+    const sheet = sheetResponse.data;
     Object.assign(reconciliationStats, {
-      bookBalance,
-      bankBalance: bookBalance - unreconciledNet, // 银行余额 = 账面余额 - 未对账净额
-      difference: unreconciledNet, // 差异 = 未对账交易净额
-      unreconciledItems: unreconciledItems.value.length
+      bookBalance: sheet.bookBalance,
+      bankBalance: sheet.statementBalance,
+      difference: sheet.difference,
+      unreconciledItems: unreconciledTotal.value,
     });
 
     isReconciling.value = true;
-    activeTab.value = 'unreconciled';
   } catch (error) {
     console.error('加载对账数据失败:', error);
     ElMessage.error('加载对账数据失败');
@@ -676,15 +693,11 @@ const uploadFile = async () => {
     const response = await financeApi.reconciliation.importStatement(formData);
 
     importedStatement.value = response.data || [];
+    statementPage.value = 1;
+    fileList.value = [];
     ElMessage.success('对账单导入成功');
 
-    // 更新对账统计
-    const statsResponse = await financeApi.reconciliation.getStats({
-      accountId: selectedAccount.value,
-      startDate: dateRange.value[0],
-      endDate: dateRange.value[1]
-    });
-    Object.assign(reconciliationStats, statsResponse.data);
+    await searchReconciliation();
   } catch (error) {
     console.error('导入对账单失败:', error);
     ElMessage.error('导入对账单失败');

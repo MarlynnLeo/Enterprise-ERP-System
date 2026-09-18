@@ -114,8 +114,8 @@ const printController = {
   // 打印模板管理
   async getAllPrintTemplates(req, res) {
     try {
-      const { page = 1, limit = 10, ...filters } = req.query;
-      const pagination = parsePagination(page, limit, {
+      const { page = 1, limit, page_size, ...filters } = mapKeysToSnake(req.query || {});
+      const pagination = parsePagination(page, page_size ?? limit, {
         defaultPageSize: 10,
         maxPageSize: 100,
       });

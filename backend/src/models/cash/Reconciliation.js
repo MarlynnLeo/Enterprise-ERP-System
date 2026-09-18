@@ -39,6 +39,27 @@ function isReconciledFlag(value) {
 }
 
 class ReconciliationModel {
+  static async getStatementItems(filters) {
+    const accountId = requirePositiveInteger(filters.accountId, 'accountId');
+    const { validateBusinessDate } = require('../../utils/finance/businessDate');
+    if (!filters.startDate || !filters.endDate) throw createReconciliationError('请选择对账期间');
+    const startDate = validateBusinessDate(filters.startDate, '开始日期');
+    const endDate = validateBusinessDate(filters.endDate, '结束日期');
+    if (startDate > endDate) throw createReconciliationError('开始日期不能晚于结束日期');
+    const pagination = parsePagination(filters.page, filters.pageSize);
+    const params = [accountId, startDate, endDate];
+    const where = 'WHERE bank_account_id = ? AND transaction_date BETWEEN ? AND ?';
+    const [[count]] = await db.pool.execute(`SELECT COUNT(*) AS total FROM bank_statement_items ${where}`, params);
+    const [list] = await db.pool.query(
+      `SELECT id, transaction_date, transaction_type AS type, amount, summary,
+              reference_number, counterparty, balance, status
+       FROM bank_statement_items ${where}
+       ORDER BY transaction_date DESC, id DESC LIMIT ${pagination.limit} OFFSET ${pagination.offset}`,
+      params
+    );
+    return { list, total: Number(count.total), page: pagination.page, pageSize: pagination.pageSize };
+  }
+
   static async cancelReconciliation(id) {
     const connection = await db.pool.getConnection();
     try {
@@ -94,6 +115,7 @@ class ReconciliationModel {
   static formatTransaction(row) {
     return {
       id: row.id,
+      transactionNumber: row.transaction_number,
       transactionDate: row.transaction_date,
       type: row.transaction_type,
       amount: parseFloat(row.amount) || 0,

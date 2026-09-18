@@ -136,7 +136,7 @@
             <div class="section-title">结转摘要</div>
             <el-descriptions :column="3" border>
               <el-descriptions-item label="会计期间">
-                {{ previewData.period?.period_name || '-' }}
+                {{ previewData.period?.periodName || selectedPeriodLabel || '-' }}
               </el-descriptions-item>
               <el-descriptions-item label="总收入">
                 {{ formatMoney(previewData.summary?.totalIncome) }}
@@ -415,7 +415,7 @@
 
     <AppDialog
       v-model="dateFixDialogVisible"
-      :title="dateFixEntry ? `修正日期：${dateFixEntry.entry_number}` : '修正日期'"
+      :title="dateFixEntry ? `修正日期：${dateFixEntry.entryNumber}` : '修正日期'"
       mode="form"
       width="520px"
       custom-class="dialog-max-vw"
@@ -425,7 +425,7 @@
         type="warning"
         :closable="false"
         class="mb-4"
-        :title="`所属期间：${dateFixEntry.period_name || '-'}（${formatDate(dateFixEntry.period_start_date)} 至 ${formatDate(dateFixEntry.period_end_date)}）`"
+        :title="`所属期间：${dateFixEntry.periodName || '-'}（${formatDate(dateFixEntry.periodStartDate)} 至 ${formatDate(dateFixEntry.periodEndDate)}）`"
         description="凭证日期和过账日期都必须落在所属会计期间内，否则不能过账，也不能关账。"
       />
       <el-form label-width="96px">
@@ -462,7 +462,7 @@
 
     <AppDialog
       v-model="entryDetailVisible"
-      :title="currentEntry ? `凭证明细：${currentEntry.entry_number}` : '凭证明细'"
+      :title="currentEntry ? `凭证明细：${currentEntry.entryNumber}` : '凭证明细'"
       mode="view"
       content-width="wide"
     >
@@ -492,12 +492,12 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onActivated, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { financeApi } from '@/api'
 import { formatCurrency, formatDate, formatDateTime } from '@/utils/format'
-import { periodLabel, selectDefaultOpenPeriod } from '@/utils/helpers/periodUtils'
+import { isClosedPeriod, periodLabel, selectDefaultOpenPeriod } from '@/utils/helpers/periodUtils'
 import { parseDataObject } from '@/utils/responseParser'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -542,7 +542,7 @@ const manualReconciledTransactions = ref([])
 const route = useRoute()
 const router = useRouter()
 
-const openPeriods = computed(() => periods.value.filter((period) => !period.is_closed))
+const openPeriods = computed(() => periods.value.filter((period) => !isClosedPeriod(period)))
 const selectedPeriodLabel = computed(() => {
   const period =
     openPeriods.value.find((p) => p.id === selectedPeriodId.value) ||
@@ -565,7 +565,8 @@ const fetchPeriods = async () => {
 
     const requestedPeriodId = Number.parseInt(route.query.periodId, 10)
     const requestedPeriod = periods.value.find(period => Number(period.id) === requestedPeriodId)
-    const defaultPeriod = requestedPeriod || selectDefaultOpenPeriod(periods.value)
+    const defaultPeriod = requestedPeriod && !isClosedPeriod(requestedPeriod)
+      ? requestedPeriod : selectDefaultOpenPeriod(periods.value)
     selectedPeriodId.value = defaultPeriod?.id || ''
 
     if (periods.value.length > 0) {
@@ -573,7 +574,7 @@ const fetchPeriods = async () => {
       await fetchHistory()
     }
 
-    if (requestedPeriod && !requestedPeriod.is_closed) {
+    if (requestedPeriod && !isClosedPeriod(requestedPeriod)) {
       await fetchPreview()
     }
   } catch (error) {
@@ -604,8 +605,8 @@ const normalizeEntryItem = item => ({
   accountName: item.accountName || '-',
   accountIssue: item.accountIssue || null,
   description: item.description || '-',
-  debitAmount: item.debitAmount ?? item.debitAmount ?? 0,
-  creditAmount: item.creditAmount ?? item.creditAmount ?? 0
+  debitAmount: item.debitAmount ?? 0,
+  creditAmount: item.creditAmount ?? 0
 })
 
 const fetchUnpostedEntries = async () => {
@@ -655,6 +656,7 @@ const openReconciliationDialog = async () => {
 }
 
 const goToBankReconciliation = () => {
+  reconciliationDialogVisible.value = false
   router.push({
     path: '/finance/cash/reconciliation',
     query: selectedPeriodId.value ? { periodId: selectedPeriodId.value } : undefined
@@ -710,14 +712,14 @@ const postSingleEntry = async (row) => {
 const postAllUnpostedEntries = async () => {
   if (unpostedEntries.value.length === 0) return
 
-  const invalidEntry = unpostedEntries.value.find(entry => !entry.posting_ready)
-  if (invalidEntry && !invalidEntry.date_valid) {
+  const invalidEntry = unpostedEntries.value.find(entry => !entry.postingReady)
+  if (invalidEntry && !invalidEntry.dateValid) {
     ElMessage.warning('存在日期异常凭证，请先修正日期')
     openDateFixDialog(invalidEntry, 'batch')
     return
   }
   if (invalidEntry) {
-    ElMessage.warning(invalidEntry.posting_issue || '存在暂不满足过账条件的凭证，请先处理')
+    ElMessage.warning(invalidEntry.postingIssue || '存在暂不满足过账条件的凭证，请先处理')
     await openEntryDetail(invalidEntry)
     return
   }
@@ -785,7 +787,7 @@ const syncPostingDate = () => {
 }
 
 const fillPeriodEndDate = () => {
-  const endDate = dateFixEntry.value?.period_end_date
+  const endDate = dateFixEntry.value?.periodEndDate
   if (!endDate) return
   dateFixForm.value.entry_date = endDate
   dateFixForm.value.posting_date = endDate
@@ -805,7 +807,7 @@ const saveEntryDates = async () => {
     await financeApi.glClosing.updateUnpostedEntryDates(fixedEntryId, {
       entry_date: dateFixForm.value.entry_date,
       posting_date: dateFixForm.value.posting_date,
-      period_id: selectedPeriodId.value || dateFixEntry.value.effective_period_id || dateFixEntry.value.period_id
+      period_id: selectedPeriodId.value || dateFixEntry.value.effectivePeriodId || dateFixEntry.value.periodId
     })
     ElMessage.success('凭证日期已修正')
     dateFixDialogVisible.value = false
@@ -890,6 +892,18 @@ const scrollToHistory = () => {
 
 onMounted(() => {
   fetchPeriods()
+})
+let activatedOnce = false
+onActivated(() => {
+  if (activatedOnce) {
+    resetWizard()
+    unpostedDialogVisible.value = false
+    reconciliationDialogVisible.value = false
+    entryDetailVisible.value = false
+    dateFixDialogVisible.value = false
+    fetchPeriods()
+  }
+  activatedOnce = true
 })
 </script>
 

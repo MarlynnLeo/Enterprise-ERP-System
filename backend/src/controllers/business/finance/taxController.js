@@ -47,6 +47,9 @@ async function generateTaxPaymentTransactionNumber(connection) {
 }
 
 function ensureTaxInvoiceCanChangeLink(invoice) {
+  if (invoice.original_tax_invoice_id) {
+    throw new Error('红字税票的原税票与退货单据关联不能修改或解除');
+  }
   if (invoice.status === '已作废') {
     throw new Error('已作废的发票不能变更关联单据');
   }
@@ -82,10 +85,10 @@ function getMonthRangeFromReturnPeriod(returnPeriod) {
   };
 }
 
-async function calculateVATReturnData(returnPeriod) {
+async function calculateVATReturnData(returnPeriod, connection = db.pool) {
   const { startDate, endDate } = getMonthRangeFromReturnPeriod(returnPeriod);
 
-  const [salesRows] = await db.pool.execute(
+  const [salesRows] = await connection.execute(
     `SELECT
        COALESCE(SUM(amount_excluding_tax), 0) AS sales_amount,
        COALESCE(SUM(tax_amount), 0) AS sales_output_tax
@@ -96,7 +99,7 @@ async function calculateVATReturnData(returnPeriod) {
     [startDate, endDate]
   );
 
-  const [purchaseRows] = await db.pool.execute(
+  const [purchaseRows] = await connection.execute(
     `SELECT
        COALESCE(SUM(amount_excluding_tax), 0) AS purchase_amount,
        COALESCE(SUM(tax_amount), 0) AS purchase_input_tax
@@ -107,7 +110,7 @@ async function calculateVATReturnData(returnPeriod) {
     [startDate, endDate]
   );
 
-  const [deductionRows] = await db.pool.execute(
+  const [deductionRows] = await connection.execute(
     `SELECT COALESCE(SUM(tax_amount), 0) AS input_tax_deduction
      FROM tax_invoices
      WHERE invoice_type = '进项'
@@ -141,9 +144,10 @@ const taxController = {
     let connection;
     try {
       const invoiceData = {
-        ...req.body,
+        ...mapKeysToSnake(req.body || {}),
         created_by: getAuthenticatedUserId(req),
       };
+      if (invoiceData.original_tax_invoice_id || Number(invoiceData.total_amount) < 0) return ResponseHandler.error(res, '请从退货红字业务发票开具红字税票', 'VALIDATION_ERROR', 400);
 
       // 验证必填字段
       const requiredFields = [
@@ -167,7 +171,7 @@ const taxController = {
         await connection.beginTransaction();
 
         const invoiceId = await taxModel.createTaxInvoice(invoiceData, connection);
-        const [invoices] = await connection.execute('SELECT id, invoice_type, invoice_number, invoice_code, invoice_date, supplier_id, customer_id, supplier_or_customer_name, supplier_tax_number, amount_excluding_tax, tax_rate, tax_amount, total_amount, status, certification_date, deduction_date, related_document_type, related_document_id, gl_entry_id, remark, created_by, created_at, updated_at FROM tax_invoices WHERE id = ?', [
+        const [invoices] = await connection.execute('SELECT id, invoice_type, invoice_number, invoice_code, invoice_date, supplier_id, customer_id, supplier_or_customer_name, supplier_tax_number, amount_excluding_tax, tax_rate, tax_amount, total_amount, status, certification_date, deduction_date, related_document_type, related_document_id, original_tax_invoice_id, gl_entry_id, remark, created_by, created_at, updated_at FROM tax_invoices WHERE id = ?', [
           invoiceId,
         ]);
         const invoice = invoices[0];
@@ -192,7 +196,7 @@ const taxController = {
         await connection.rollback();
       }
       logger.error('创建税务发票失败:', error);
-      const isBusinessError = BusinessError.is(error)
+      const isBusinessError = error.code === 'VALIDATION_ERROR' || BusinessError.is(error)
         || /未配置|会计科目|期间|分录|借贷|不存在/.test(error.message || '');
       return ResponseHandler.error(
         res,
@@ -270,7 +274,7 @@ const taxController = {
       await connection.beginTransaction();
 
       const [invoices] = await connection.execute(
-        'SELECT id, invoice_type, invoice_number, invoice_code, invoice_date, supplier_id, customer_id, supplier_or_customer_name, supplier_tax_number, amount_excluding_tax, tax_rate, tax_amount, total_amount, status, certification_date, deduction_date, related_document_type, related_document_id, gl_entry_id, remark, created_by, created_at, updated_at FROM tax_invoices WHERE id = ? FOR UPDATE',
+        'SELECT id, invoice_type, invoice_number, invoice_code, invoice_date, supplier_id, customer_id, supplier_or_customer_name, supplier_tax_number, amount_excluding_tax, tax_rate, tax_amount, total_amount, status, certification_date, deduction_date, related_document_type, related_document_id, original_tax_invoice_id, gl_entry_id, remark, created_by, created_at, updated_at FROM tax_invoices WHERE id = ? FOR UPDATE',
         [id]
       );
       const invoice = invoices[0];
@@ -345,7 +349,7 @@ const taxController = {
 
       await connection.beginTransaction();
       const [invoices] = await connection.execute(
-        'SELECT id, invoice_type, invoice_number, invoice_code, invoice_date, supplier_id, customer_id, supplier_or_customer_name, supplier_tax_number, amount_excluding_tax, tax_rate, tax_amount, total_amount, status, certification_date, deduction_date, related_document_type, related_document_id, gl_entry_id, remark, created_by, created_at, updated_at FROM tax_invoices WHERE id = ? FOR UPDATE',
+        'SELECT id, invoice_type, invoice_number, invoice_code, invoice_date, supplier_id, customer_id, supplier_or_customer_name, supplier_tax_number, amount_excluding_tax, tax_rate, tax_amount, total_amount, status, certification_date, deduction_date, related_document_type, related_document_id, original_tax_invoice_id, gl_entry_id, remark, created_by, created_at, updated_at FROM tax_invoices WHERE id = ? FOR UPDATE',
         [id]
       );
       const invoice = invoices[0];
@@ -391,7 +395,7 @@ const taxController = {
   createTaxReturn: async (req, res) => {
     try {
       const returnData = {
-        ...req.body,
+        ...mapKeysToSnake(req.body || {}),
         created_by: getAuthenticatedUserId(req),
       };
 
@@ -484,29 +488,59 @@ const taxController = {
    * POST /finance/tax/returns/:id/submit
    */
   submitTaxReturn: async (req, res) => {
+    const connection = await db.pool.getConnection();
     try {
       const id = safeParseId(req.params.id);
       const { declaration_date } = mapKeysToSnake(req.body || {});
 
       // 获取申报信息
-      const taxReturn = await taxModel.getTaxReturnById(id);
+      await connection.beginTransaction();
+      const [returns] = await connection.execute('SELECT * FROM tax_returns WHERE id = ? FOR UPDATE', [id]);
+      const taxReturn = returns[0];
 
       if (!taxReturn) {
+        await connection.rollback();
         return ResponseHandler.error(res, '税务申报不存在', 'NOT_FOUND', 404);
       }
 
       if (taxReturn.status !== '草稿') {
+        await connection.rollback();
         return ResponseHandler.error(res, '申报状态不正确，无法提交', 'VALIDATION_ERROR', 400);
       }
 
-      // 更新申报状态为"已申报"
-      await taxModel.updateTaxReturnStatus(id, '已申报', { declaration_date });
+      await TaxAccountingService.getCurrentPeriodId(`${taxReturn.return_period}-01`, connection);
+      if (taxReturn.return_type === '增值税') {
+        const amounts = await calculateVATReturnData(taxReturn.return_period, connection);
+        await connection.query('UPDATE tax_returns SET ? WHERE id = ?', [{ ...amounts, tax_balance: amounts.tax_payable }, id]);
+      }
+      await connection.execute('UPDATE tax_returns SET status = ?, declaration_date = ? WHERE id = ?', ['已申报', validateBusinessDate(declaration_date, '申报日期'), id]);
+      await connection.commit();
 
       return ResponseHandler.success(res, null, '税务申报提交成功');
     } catch (error) {
+      await connection.rollback();
       logger.error('提交税务申报失败:', error);
-      return ResponseHandler.error(res, '提交税务申报失败', 'SERVER_ERROR', 500, error);
-    }
+      return ResponseHandler.error(res, error.message || '提交税务申报失败', 'VALIDATION_ERROR', 400, error);
+    } finally { connection.release(); }
+  },
+
+  reopenTaxReturn: async (req, res) => {
+    const connection = await db.pool.getConnection();
+    try {
+      const id = safeParseId(req.params.id);
+      const reason = String(req.body.reason || '').trim();
+      if (!reason) throw new Error('请填写撤回原因');
+      await connection.beginTransaction();
+      const [rows] = await connection.execute('SELECT * FROM tax_returns WHERE id = ? FOR UPDATE', [id]);
+      const taxReturn = rows[0];
+      if (!taxReturn || taxReturn.status !== '已申报' || Number(taxReturn.tax_paid) !== 0 || taxReturn.gl_entry_id) throw new Error('仅未缴款的已申报记录可撤回；已缴款时请先作废缴款');
+      await TaxAccountingService.getCurrentPeriodId(`${taxReturn.return_period}-01`, connection);
+      const note = `${taxReturn.remark || ''}\n${currentDateString()} 用户${getAuthenticatedUserId(req)}撤回：${reason}`;
+      await connection.execute('UPDATE tax_returns SET status = ?, declaration_date = NULL, remark = ? WHERE id = ?', ['草稿', note, id]);
+      await connection.commit();
+      return ResponseHandler.success(res, null, '申报已撤回，再次提交时将重新计算税额');
+    } catch (error) { await connection.rollback(); return ResponseHandler.error(res, error.message, 'VALIDATION_ERROR', 400); }
+    finally { connection.release(); }
   },
 
   /**
@@ -730,7 +764,7 @@ const taxController = {
         );
         const reversalDate = currentDateString();
         const reversalNumber = `${bankTx.transaction_number}-VOID`;
-        await connection.execute(
+        const [reversalBankTransaction] = await connection.execute(
           `INSERT INTO bank_transactions
            (transaction_number, bank_account_id, transaction_date, transaction_type,
             amount, reference_number, description, is_reconciled, related_party, category,
@@ -761,7 +795,7 @@ const taxController = {
           throw new Error('未找到税款缴纳会计凭证，无法作废');
         }
         const financeModel = require('../../../models/finance');
-        await financeModel.reverseEntry(
+        const reversalEntryId = await financeModel.reverseEntry(
           entryIdToReverse,
           {
             entry_date: currentDateString(),
@@ -771,6 +805,7 @@ const taxController = {
           },
           connection
         );
+        await connection.execute('UPDATE bank_transactions SET gl_entry_id = ? WHERE id = ?', [reversalEntryId, reversalBankTransaction.insertId]);
       }
 
       const payableAmount =
@@ -1085,7 +1120,7 @@ const taxController = {
 
       await connection.beginTransaction();
       const [invoices] = await connection.execute(
-        'SELECT id, invoice_type, invoice_number, invoice_code, invoice_date, supplier_id, customer_id, supplier_or_customer_name, supplier_tax_number, amount_excluding_tax, tax_rate, tax_amount, total_amount, status, certification_date, deduction_date, related_document_type, related_document_id, gl_entry_id, remark, created_by, created_at, updated_at FROM tax_invoices WHERE id = ? FOR UPDATE',
+        'SELECT id, invoice_type, invoice_number, invoice_code, invoice_date, supplier_id, customer_id, supplier_or_customer_name, supplier_tax_number, amount_excluding_tax, tax_rate, tax_amount, total_amount, status, certification_date, deduction_date, related_document_type, related_document_id, original_tax_invoice_id, gl_entry_id, remark, created_by, created_at, updated_at FROM tax_invoices WHERE id = ? FOR UPDATE',
         [id]
       );
       const invoice = invoices[0];
@@ -1097,6 +1132,36 @@ const taxController = {
       if (invoice.status === '已作废') {
         await connection.rollback();
         return ResponseHandler.error(res, '发票已经作废', 'VALIDATION_ERROR', 400);
+      }
+      const taxDates = [...new Set([
+        invoice.invoice_date, invoice.certification_date, invoice.deduction_date,
+      ].filter(Boolean).map(value => toLocalDateString(value)))];
+      const [closedPeriods] = taxDates.length ? await connection.execute(
+        `SELECT id FROM gl_periods WHERE is_closed = 1 AND (${taxDates.map(() => '(start_date <= ? AND end_date >= ?)').join(' OR ')}) FOR UPDATE`,
+        taxDates.flatMap(date => [date, date])
+      ) : [[]];
+      if (closedPeriods.length) {
+        await connection.rollback();
+        return ResponseHandler.error(res, '税票所属会计期间已关闭，不能作废', 'VALIDATION_ERROR', 400);
+      }
+      const [redLetters] = await connection.execute("SELECT id FROM tax_invoices WHERE original_tax_invoice_id = ? AND status <> '已作废' FOR UPDATE", [id]);
+      if (redLetters.length) {
+        await connection.rollback();
+        return ResponseHandler.error(res, '原税票存在有效红字税票，请先处理红字税票', 'VALIDATION_ERROR', 400);
+      }
+
+      // Certification can share an AR/AP voucher. Voiding the tax document must
+      // not reverse the business invoice or its outstanding balance.
+      if (invoice.gl_entry_id) {
+        const [businessLinks] = await connection.execute(
+          "SELECT id FROM document_links WHERE target_type='finance_voucher' AND target_id=? AND source_type IN ('ar_invoice','ap_invoice') LIMIT 1",
+          [invoice.gl_entry_id]
+        );
+        if (businessLinks.length) {
+          await connection.execute('UPDATE tax_invoices SET status = ?, gl_entry_id = NULL WHERE id = ?', ['已作废', id]);
+          await connection.commit();
+          return ResponseHandler.success(res, null, '税务发票已作废，关联业务凭证保留');
+        }
       }
 
       // 已认证/已抵扣且已入账：冲销关联总账后再作废

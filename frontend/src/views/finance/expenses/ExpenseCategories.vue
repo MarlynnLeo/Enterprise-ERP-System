@@ -31,11 +31,13 @@
           </template>
         </el-table-column>
         <el-table-column prop="code" label="类型编码" width="150" />
+        <el-table-column prop="glAccountCode" label="记账科目" width="130" />
         <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
         <el-table-column prop="sortOrder" label="排序" width="80" />
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
             <el-switch
+              v-permission="'finance:expenses:update'"
               v-model="row.status"
               :active-value="1"
               :inactive-value="0"
@@ -103,6 +105,11 @@
         <el-form-item label="描述">
           <el-input v-model="categoryForm.description" type="textarea" :rows="2" placeholder="类型描述" />
         </el-form-item>
+        <el-form-item label="记账科目" prop="glAccountCode">
+          <el-select v-model="categoryForm.glAccountCode" filterable clearable placeholder="留空使用默认费用科目" class="w-full">
+            <el-option v-for="account in accountOptions" :key="account.id" :value="account.accountCode" :label="`${account.accountCode} - ${account.accountName}`" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="排序">
           <el-input-number v-model="categoryForm.sortOrder" :min="0" :max="999" />
         </el-form-item>
@@ -126,7 +133,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Plus, Edit, Delete } from '@element-plus/icons-vue'
@@ -136,6 +143,17 @@ import { parseListData } from '@/utils/responseParser'
 const loading = ref(false)
 const saving = ref(false)
 const categoryList = ref([])
+const accountOptions = ref([])
+const loadAccounts = async () => {
+  const rows = parseListData(await financeApi.accounts.getOptions(), { enableLog: false })
+  const byId = new Map(rows.map(account => [Number(account.id), account]))
+  const enabled = (account, visited = new Set()) => {
+    if (!account || !Number(account.isActive) || visited.has(Number(account.id))) return false
+    visited.add(Number(account.id))
+    return !account.parentId || enabled(byId.get(Number(account.parentId)), visited)
+  }
+  accountOptions.value = rows.filter(account => enabled(account) && /^(5|6)/.test(account.accountCode))
+}
 
 const dialogVisible = ref(false)
 const dialogMode = ref('add')
@@ -146,12 +164,13 @@ const categoryForm = reactive({
   name: '',
   parentId: null,
   description: '',
+  glAccountCode: '',
   sortOrder: 0,
   status: 1
 })
 
-const categoryRules = {
-  code: [
+const categoryRules = computed(() => ({
+  code: dialogMode.value === 'edit' ? [] : [
     { required: true, message: '请输入类型编码', trigger: 'blur' },
     {
       pattern: /^[A-Z][A-Z0-9_]*$/,
@@ -160,7 +179,7 @@ const categoryRules = {
     }
   ],
   name: [{ required: true, message: '请输入类型名称', trigger: 'blur' }]
-}
+}))
 
 const parentCategories = computed(() => categoryList.value.filter(cat => !cat.parentId))
 
@@ -171,6 +190,7 @@ const resetForm = (parentId = null) => {
     name: '',
     parentId: parentId,
     description: '',
+    glAccountCode: '',
     sortOrder: 0,
     status: 1
   })
@@ -179,11 +199,11 @@ const resetForm = (parentId = null) => {
 const fetchCategories = async () => {
   loading.value = true
   try {
-    const res = await financeApi.getExpenseCategories({ tree: 'true' })
+    const res = await financeApi.getExpenseCategories({ tree: 'true', includeInactive: 'true' })
     categoryList.value = parseListData(res, { enableLog: false })
   } catch (error) {
     console.error('获取费用类型失败:', error)
-    ElMessage.error(error.message || '获取费用类型失败')
+    ElMessage.error(error.response?.data?.message || error.message || '获取费用类型失败')
   } finally {
     loading.value = false
   }
@@ -203,20 +223,22 @@ const handleInit = async () => {
     await fetchCategories()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('初始化失败: ' + (error.message || '未知错误'))
+      ElMessage.error('初始化失败: ' + (error.response?.data?.message || error.message || '未知错误'))
     }
   } finally {
     loading.value = false
   }
 }
 
-const handleAdd = (parentId = null) => {
+const handleAdd = async (parentId = null) => {
   dialogMode.value = 'add'
   resetForm(parentId)
   dialogVisible.value = true
+  await nextTick()
+  categoryFormRef.value?.clearValidate()
 }
 
-const handleEdit = (row) => {
+const handleEdit = async (row) => {
   dialogMode.value = 'edit'
   Object.assign(categoryForm, {
     id: row.id,
@@ -224,10 +246,13 @@ const handleEdit = (row) => {
     name: row.name,
     parentId: row.parentId,
     description: row.description || '',
+    glAccountCode: row.glAccountCode || '',
     sortOrder: row.sortOrder || 0,
     status: Number(row.status ?? 1)
   })
   dialogVisible.value = true
+  await nextTick()
+  categoryFormRef.value?.clearValidate()
 }
 
 const buildPayload = () => ({
@@ -235,13 +260,15 @@ const buildPayload = () => ({
   name: categoryForm.name,
   parentId: categoryForm.parentId,
   description: categoryForm.description,
+  glAccountCode: categoryForm.glAccountCode || null,
   sortOrder: categoryForm.sortOrder,
   status: categoryForm.status
 })
 
 const handleSave = async () => {
+  if (saving.value || !categoryFormRef.value) return
   try {
-    await categoryFormRef.value.validate()
+    if (!(await categoryFormRef.value.validate().catch(() => false))) return
     saving.value = true
 
     if (dialogMode.value === 'add') {
@@ -255,7 +282,7 @@ const handleSave = async () => {
     await fetchCategories()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('保存失败: ' + (error.message || '未知错误'))
+      ElMessage.error('保存失败: ' + (error.response?.data?.message || error.message || '未知错误'))
     }
   } finally {
     saving.value = false
@@ -269,7 +296,7 @@ const handleToggleStatus = async (row) => {
     ElMessage.success(row.status === 1 ? '已启用' : '已禁用')
   } catch (error) {
     row.status = previousStatus
-    ElMessage.error('操作失败: ' + (error.message || '未知错误'))
+    ElMessage.error('操作失败: ' + (error.response?.data?.message || error.message || '未知错误'))
   }
 }
 
@@ -290,13 +317,14 @@ const handleDelete = async (row) => {
     await fetchCategories()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('删除失败: ' + (error.message || '未知错误'))
+      ElMessage.error('删除失败: ' + (error.response?.data?.message || error.message || '未知错误'))
     }
   }
 }
 
 onMounted(() => {
   fetchCategories()
+  loadAccounts().catch(error => ElMessage.error(error.response?.data?.message || error.message || '加载费用科目失败'))
 })
 </script>
 

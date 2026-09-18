@@ -11,7 +11,7 @@
     <PageHeader title="质量数据概览" subtitle="检验批次、合格率与不良分析" />
 
     <!-- 统计卡片 -->
-    <el-row :gutter="16" class="stats-row">
+    <el-row :gutter="16" class="stats-row" v-loading="statisticsLoading">
       <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card primary-card" shadow="hover">
           <div class="stat-value">{{ statistics.incoming?.total || 0 }}</div>
@@ -70,8 +70,9 @@
               </el-radio-group>
             </div>
           </template>
-          <div class="chart-container">
-            <canvas ref="passRateChart"></canvas>
+          <div class="chart-container" v-loading="passRateLoading">
+            <EmptyState v-if="passRateMessage" :description="passRateMessage" />
+            <canvas v-else ref="passRateChart"></canvas>
           </div>
         </el-card>
       </el-col>
@@ -83,8 +84,9 @@
               <span>不良原因分类</span>
             </div>
           </template>
-          <div class="chart-container">
-            <canvas ref="defectTypeChart"></canvas>
+          <div class="chart-container" v-loading="defectTypeLoading">
+            <EmptyState v-if="defectTypeMessage" :description="defectTypeMessage" />
+            <canvas v-else ref="defectTypeChart"></canvas>
           </div>
         </el-card>
       </el-col>
@@ -106,11 +108,17 @@
             </div>
           </template>
           <el-table
-            :data="filteredDefectItems"
+            :data="defectItems"
             class="table-row-click w-full"
             v-loading="loading"
             border
-            :empty-text="defectItems.length === 0 ? '暂无不合格项目' : '没有匹配的数据'"
+            :empty-text="
+              defectError
+                ? '不合格项目加载失败，请稍后重试'
+                : search.trim()
+                  ? '没有匹配的数据'
+                  : '暂无不合格项目'
+            "
             @row-click="
               (row, column, event) =>
                 handleTableRowView(row, column, event, () => viewInspection(row))
@@ -141,13 +149,13 @@
               </template>
             </el-table-column>
           </el-table>
-          <div class="pagination-container" v-if="defectItems.length > 0">
+          <div class="pagination-container" v-if="pagination.total > 0">
             <el-pagination
-              v-model:current-page="currentPage"
-              v-model:page-size="pageSize"
+              v-model:current-page="pagination.current"
+              v-model:page-size="pagination.pageSize"
               :page-sizes="[5, 10, 20, 50]"
               layout="total, sizes, prev, pager, next"
-              :total="defectItems.length"
+              :total="pagination.total"
               @size-change="handleSizeChange"
               @current-change="handleCurrentChange"
             />
@@ -163,12 +171,13 @@ import { getQualityInspectionTypeText } from '@/constants/systemConstants';
 import { handleTableRowView } from '@/utils/tableRowView';
 import { formatDate } from '@/utils/helpers/dateUtils';
 
-import { ref, computed, onMounted, onBeforeUnmount, reactive, watch } from 'vue';
+import { ref, nextTick, onMounted, onBeforeUnmount, reactive, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import Chart from '@/utils/chartCore';
 import { ElMessage } from 'element-plus/es/components/message/index';
 import { Search } from '@element-plus/icons-vue';
 import { qualityApi } from '@/api';
+import { usePaginatedFetching } from '@/composables/useDataFetching';
 import { createLineChartConfig, createPieChartConfig, chartColors } from '@/utils/chartConfig';
 import { alphaColor, getCssTokenValue } from '@/utils/designTokens';
 
@@ -180,11 +189,18 @@ const passRateChart = ref(null);
 const defectTypeChart = ref(null);
 let passRateChartInstance = null;
 let defectTypeChartInstance = null;
+let passRateRequest = 0;
+let disposed = false;
 
 // 图表配置
 const timeRange = ref('6');
+const passRateLoading = ref(false);
+const defectTypeLoading = ref(false);
+const passRateMessage = ref('');
+const defectTypeMessage = ref('');
 
 // 统计数据
+const statisticsLoading = ref(false);
 const statistics = reactive({
   incoming: { total: 0, passRate: '0%' },
   process: { total: 0, passRate: '0%' },
@@ -193,43 +209,27 @@ const statistics = reactive({
 });
 
 // 不良项目数据
-const defectItems = ref([]);
-const loading = ref(false);
 const search = ref('');
-const currentPage = ref(1);
-const pageSize = ref(10);
-
-// 筛选后的不良项目
-const filteredDefectItems = computed(() => {
-  const startIndex = (currentPage.value - 1) * pageSize.value;
-  const endIndex = startIndex + pageSize.value;
-
-  // 确保defectItems是数组
-  let items = Array.isArray(defectItems.value) ? defectItems.value : [];
-
-  if (search.value) {
-    const searchValue = search.value.toLowerCase();
-    items = items.filter(
-      (item) =>
-        (item.inspectionNo && item.inspectionNo.toLowerCase().includes(searchValue)) ||
-        (item.materialName && item.materialName.toLowerCase().includes(searchValue)) ||
-        (item.materialCode && item.materialCode.toLowerCase().includes(searchValue)) ||
-        (item.defectReason && item.defectReason.toLowerCase().includes(searchValue))
-    );
-  }
-
-  return items.slice(startIndex, endIndex);
+const {
+  data: defectItems,
+  loading,
+  error: defectError,
+  pagination,
+  fetchData: loadDefectItems,
+  updateParams,
+  handleSizeChange,
+  handlePageChange: handleCurrentChange,
+} = usePaginatedFetching((params) => qualityApi.getDefectItems(params), {
+  errorMessage: '获取不合格项目失败',
 });
 
-// 分页处理
-function handleSizeChange(size) {
-  pageSize.value = size;
-  currentPage.value = 1;
-}
-
-function handleCurrentChange(page) {
-  currentPage.value = page;
-}
+watch(search, (value, _previous, onCleanup) => {
+  const timer = setTimeout(() => {
+    updateParams({ keyword: value.trim() || undefined, page: 1 });
+    loadDefectItems();
+  }, 300);
+  onCleanup(() => clearTimeout(timer));
+});
 
 // 获取检验类型文本
 function getInspectionTypeText(type) {
@@ -273,6 +273,7 @@ function viewInspection(item) {
 
 // 生命周期钩子
 onBeforeUnmount(() => {
+  disposed = true;
   if (passRateChartInstance) {
     passRateChartInstance.destroy();
     passRateChartInstance = null;
@@ -283,25 +284,20 @@ onBeforeUnmount(() => {
   }
 });
 
-onMounted(async () => {
-  loading.value = true;
-  try {
-    await loadDashboardData();
-    initCharts();
-  } catch (error) {
-    console.error('加载仪表盘数据失败:', error);
-    ElMessage.error('加载仪表盘数据失败');
-    initCharts(); // 出错时保持空图表，避免展示伪造数据
-  } finally {
-    loading.value = false;
-  }
+onMounted(() => {
+  loadStatistics();
+  loadDefectItems();
+  initPassRateChart();
+  initDefectTypeChart();
 });
 
-// 加载仪表盘数据
-async function loadDashboardData() {
+// 各区域独立加载，避免一个请求失败清空其他区域的数据。
+async function loadStatistics() {
+  statisticsLoading.value = true;
   try {
-    // 获取质量统计数据 - axios拦截器已解包，返回的就是业务数据
-    const data = await qualityApi.getQualityStatistics();
+    // 拦截器解包业务响应后仍保留 AxiosResponse，业务数据在 response.data。
+    const { data } = await qualityApi.getQualityStatistics();
+    if (disposed) return;
 
     if (data) {
       // 更新统计数据
@@ -322,239 +318,179 @@ async function loadDashboardData() {
         types: data.defects?.types || 0,
       };
     }
-
-    // 获取不合格项目列表 - axios拦截器已解包
-    const defectData = await qualityApi.getDefectItems({
-      page: 1,
-      pageSize: 10,
-    });
-
-    // 处理分页数据结构
-    if (defectData) {
-      defectItems.value = defectData.list || defectData.items || defectData || [];
-    }
   } catch (error) {
+    if (disposed) return;
     console.error('获取质量统计数据失败:', error);
-    ElMessage.warning('部分质量数据加载失败，请稍后重试');
-
-    // 出错时只清空展示数据，避免伪造统计结果
-    statistics.incoming = { total: 0, passRate: '0%' };
-    statistics.process = { total: 0, passRate: '0%' };
-    statistics.final = { total: 0, passRate: '0%' };
-    statistics.defects = { total: 0, types: 0 };
-    defectItems.value = [];
+    ElMessage.error('获取质量统计数据失败，请稍后重试');
+  } finally {
+    if (!disposed) statisticsLoading.value = false;
   }
-}
-
-// 初始化图表
-function initCharts() {
-  initPassRateChart();
-  initDefectTypeChart();
 }
 
 // 初始化合格率趋势图表
 async function initPassRateChart() {
+  const request = ++passRateRequest;
+  const isCurrent = () => !disposed && request === passRateRequest;
+  passRateLoading.value = true;
+  passRateMessage.value = '';
   try {
-    if (passRateChartInstance) {
-      passRateChartInstance.destroy();
+    const monthCount = Number(timeRange.value) || 6;
+    const { data } = await qualityApi.getQualityTrends({ months: monthCount });
+    if (!isCurrent()) return;
+
+    const now = new Date();
+    const monthKeys = Array.from({ length: monthCount }, (_, index) => {
+      const month = new Date(now.getFullYear(), now.getMonth() - monthCount + index + 1, 1);
+      return `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`;
+    });
+    const trendMap = new Map();
+    for (const trend of data?.trends || []) {
+      trendMap.set(
+        `${trend.month}:${trend.inspectionType}`,
+        trend.total > 0 ? (trend.passed / trend.total) * 100 : null
+      );
     }
+    const seriesFor = (type) => monthKeys.map((month) => trendMap.get(`${month}:${type}`) ?? null);
+    const incomingData = seriesFor('incoming');
+    const processData = seriesFor('process');
+    const finalData = seriesFor('final');
 
-    if (passRateChart.value) {
-      const ctx = passRateChart.value.getContext('2d');
+    passRateChartInstance?.destroy();
+    passRateChartInstance = null;
+    if (![...incomingData, ...processData, ...finalData].some((value) => value !== null)) {
+      passRateMessage.value = '所选时段暂无检验数据';
+      return;
+    }
+    await nextTick();
+    if (!isCurrent() || !passRateChart.value) return;
 
-      // 使用当前月份作为标签
-      const months = [
-        '一月',
-        '二月',
-        '三月',
-        '四月',
-        '五月',
-        '六月',
-        '七月',
-        '八月',
-        '九月',
-        '十月',
-        '十一月',
-        '十二月',
-      ];
-      const currentMonth = new Date().getMonth();
-      const labels = [];
-
-      // 显示从当前月份往前N个月的数据
-      const monthCount = parseInt(timeRange.value) || 6;
-      for (let i = monthCount - 1; i >= 0; i--) {
-        const monthIndex = (currentMonth - i + 12) % 12;
-        labels.push(months[monthIndex]);
-      }
-
-      // 获取真实的趋势数据，初始化为 null 避免绘制假连线
-      const incomingData = Array(monthCount).fill(null);
-      const processData = Array(monthCount).fill(null);
-      const finalData = Array(monthCount).fill(null);
-
-      try {
-        const trendsResponse = await qualityApi.getQualityTrends({ months: monthCount });
-        // 拦截器已自动解包并移除了 success 取到了直辖业务数据
-        const trendsPayload = trendsResponse?.data || trendsResponse || {};
-        const trendsData = trendsPayload.data || trendsPayload;
-        if (Array.isArray(trendsData.trends)) {
-          const trends = trendsData.trends;
-
-          // 处理趋势数据
-          const trendMap = {};
-          trends.forEach((trend) => {
-            if (!trendMap[trend.month]) {
-              trendMap[trend.month] = {};
-            }
-            const passRate = trend.total > 0 ? (trend.passed / trend.total) * 100 : 0;
-            trendMap[trend.month][trend.inspection_type] = passRate;
-          });
-
-          // 填充数据数组
-          labels.forEach((label, index) => {
-            const monthKey = Object.keys(trendMap).find((key) => {
-              const date = new Date(key + '-01');
-              const monthName = months[date.getMonth()];
-              return monthName === label;
-            });
-
-            if (monthKey && trendMap[monthKey]) {
-              incomingData[index] =
-                trendMap[monthKey].incoming !== undefined ? trendMap[monthKey].incoming : null;
-              processData[index] =
-                trendMap[monthKey].process !== undefined ? trendMap[monthKey].process : null;
-              finalData[index] =
-                trendMap[monthKey].final !== undefined ? trendMap[monthKey].final : null;
-            }
-          });
+    const config = createLineChartConfig({
+      yAxisFormatter: function (value) {
+        return value + '%';
+      },
+      tooltipFormatter: function (context) {
+        let label = context.dataset.label || '';
+        if (label) {
+          label += ': ';
         }
-      } catch {}
+        label += context.raw == null ? '-' : `${Number(context.raw).toFixed(2)}%`;
+        return label;
+      },
+    });
+    config.scales.y.min = 0;
+    config.scales.y.max = 100;
+    // 单个月份有记录时也显示数据点，缺失月份仍保持断线。
+    config.elements.point.radius = 3;
 
-      const config = createLineChartConfig({
-        yAxisFormatter: function (value) {
-          return value + '%';
-        },
-        tooltipFormatter: function (context) {
-          let label = context.dataset.label || '';
-          if (label) {
-            label += ': ';
-          }
-          label += context.raw == null ? '-' : `${Number(context.raw).toFixed(2)}%`;
-          return label;
-        },
-      });
-      config.scales.y.min = 0;
-      config.scales.y.max = 100;
-
-      passRateChartInstance = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: labels,
-          datasets: [
-            {
-              label: '来料检验',
-              data: incomingData,
-              borderColor: chartColors.primary[0],
-              backgroundColor: alphaColor('primary', 0.1),
-              borderWidth: 2,
-              ...config.elements.line,
-              fill: false,
-            },
-            {
-              label: '过程检验',
-              data: processData,
-              borderColor: chartColors.success[0],
-              backgroundColor: alphaColor('success', 0.1),
-              borderWidth: 2,
-              ...config.elements.line,
-              fill: false,
-            },
-            {
-              label: '成品检验',
-              data: finalData,
-              borderColor: chartColors.warning[0],
-              backgroundColor: alphaColor('warning', 0.1),
-              borderWidth: 2,
-              ...config.elements.line,
-              fill: false,
-            },
-          ],
-        },
-        options: config,
-      });
-    }
+    passRateChartInstance = new Chart(passRateChart.value.getContext('2d'), {
+      type: 'line',
+      data: {
+        labels: monthKeys,
+        datasets: [
+          {
+            label: '来料检验',
+            data: incomingData,
+            borderColor: chartColors.primary[0],
+            backgroundColor: alphaColor('primary', 0.1),
+            borderWidth: 2,
+            ...config.elements.line,
+            fill: false,
+          },
+          {
+            label: '过程检验',
+            data: processData,
+            borderColor: chartColors.success[0],
+            backgroundColor: alphaColor('success', 0.1),
+            borderWidth: 2,
+            ...config.elements.line,
+            fill: false,
+          },
+          {
+            label: '成品检验',
+            data: finalData,
+            borderColor: chartColors.warning[0],
+            backgroundColor: alphaColor('warning', 0.1),
+            borderWidth: 2,
+            ...config.elements.line,
+            fill: false,
+          },
+        ],
+      },
+      options: config,
+    });
   } catch (error) {
+    if (!isCurrent()) return;
+    passRateChartInstance?.destroy();
+    passRateChartInstance = null;
     console.error('初始化合格率趋势图表失败:', error);
-    ElMessage.error('初始化合格率趋势图表失败');
+    passRateMessage.value = '合格率趋势加载失败，请稍后重试';
+    ElMessage.error(passRateMessage.value);
+  } finally {
+    if (isCurrent()) passRateLoading.value = false;
   }
 }
 
 // 初始化不良原因分类图表
 async function initDefectTypeChart() {
+  defectTypeLoading.value = true;
+  defectTypeMessage.value = '';
   try {
-    if (defectTypeChartInstance) {
-      defectTypeChartInstance.destroy();
+    const { data } = await qualityApi.getQualityTrends({ months: 6 });
+    if (disposed) return;
+    const defectTypes = data?.defectTypes || [];
+    defectTypeChartInstance?.destroy();
+    defectTypeChartInstance = null;
+    if (defectTypes.length === 0) {
+      defectTypeMessage.value = '近6个月暂无不良原因记录';
+      return;
     }
+    await nextTick();
+    if (disposed || !defectTypeChart.value) return;
 
-    if (defectTypeChart.value) {
-      const ctx = defectTypeChart.value.getContext('2d');
+    // 颜色配置重置为新版科幻组合
+    const backgroundColors = [
+      chartColors.primary[0],
+      chartColors.success[0],
+      chartColors.warning[0],
+      chartColors.primary[2],
+      chartColors.danger[0],
+      chartColors.info[0],
+    ];
 
-      let defectTypes = [];
-      let defectCounts = [];
+    const config = createPieChartConfig({
+      tooltipFormatter: function (context) {
+        const label = context.label || '';
+        const value = context.raw || 0;
+        const total = context.dataset.data.reduce((acc, val) => acc + val, 0);
+        const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+        return `${label}: ${value}个 (${percentage}%)`;
+      },
+    });
 
-      // 获取真实的不良原因分类数据
-      try {
-        const trendsResponse = await qualityApi.getQualityTrends({ months: 6 });
-        const trendsPayload = trendsResponse?.data || trendsResponse || {};
-        const trendsData = trendsPayload.data || trendsPayload;
-        if (Array.isArray(trendsData.defectTypes)) {
-          const realDefectTypes = trendsData.defectTypes;
-          if (realDefectTypes.length > 0) {
-            defectTypes = realDefectTypes.map((item) => item.defectType || '未知');
-            defectCounts = realDefectTypes.map((item) => item.count || 0);
-          }
-        }
-      } catch {}
-
-      // 颜色配置重置为新版科幻组合
-      const backgroundColors = [
-        chartColors.primary[0],
-        chartColors.success[0],
-        chartColors.warning[0],
-        chartColors.primary[2],
-        chartColors.danger[0],
-        chartColors.info[0],
-      ];
-
-      const config = createPieChartConfig({
-        tooltipFormatter: function (context) {
-          const label = context.label || '';
-          const value = context.raw || 0;
-          const total = context.dataset.data.reduce((acc, val) => acc + val, 0);
-          const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
-          return `${label}: ${value}个 (${percentage}%)`;
-        },
-      });
-
-      defectTypeChartInstance = new Chart(ctx, {
-        type: 'pie',
-        data: {
-          labels: defectTypes,
-          datasets: [
-            {
-              data: defectCounts,
-              backgroundColor: backgroundColors,
-              borderWidth: config.elements?.arc?.borderWidth || 2,
-              borderColor: config.elements?.arc?.borderColor || getCssTokenValue('surface'),
-            },
-          ],
-        },
-        options: config,
-      });
-    }
+    defectTypeChartInstance = new Chart(defectTypeChart.value.getContext('2d'), {
+      type: 'pie',
+      data: {
+        labels: defectTypes.map((item) => item.defectType || '未知'),
+        datasets: [
+          {
+            data: defectTypes.map((item) => Number(item.count) || 0),
+            backgroundColor: backgroundColors,
+            borderWidth: config.elements?.arc?.borderWidth || 2,
+            borderColor: config.elements?.arc?.borderColor || getCssTokenValue('surface'),
+          },
+        ],
+      },
+      options: config,
+    });
   } catch (error) {
+    if (disposed) return;
+    defectTypeChartInstance?.destroy();
+    defectTypeChartInstance = null;
     console.error('初始化不良原因分类图表失败:', error);
-    ElMessage.error('初始化不良原因分类图表失败');
+    defectTypeMessage.value = '不良原因分类加载失败，请稍后重试';
+    ElMessage.error(defectTypeMessage.value);
+  } finally {
+    if (!disposed) defectTypeLoading.value = false;
   }
 }
 

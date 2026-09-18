@@ -118,7 +118,7 @@
         </el-table-column>
         <el-table-column prop="status" label="状态" width="100">
           <template #default="scope">
-            <el-tag :type="getStatusType(scope.row.status)">{{ scope.row.status }}</el-tag>
+            <el-tag :type="getStatusType(scope.row.status)">{{ getStatusText(scope.row.status) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
@@ -127,7 +127,7 @@
             
             <!-- 待处理状态：可以开始处理 -->
             <el-button
-              v-if="scope.row.status === '待处理'"
+              v-if="scope.row.status === 'pending'"
               size="small"
               type="primary"
               v-permission="'sales:exchanges:update'"
@@ -136,7 +136,7 @@
               开始处理
             </el-button>
             <!-- 处理中状态：可以完成或拒绝 -->
-            <template v-if="scope.row.status === '处理中'">
+            <template v-if="scope.row.status === 'processing'">
               <el-button
                 size="small"
                 type="success"
@@ -156,7 +156,7 @@
             </template>
             <!-- 已拒绝状态：可以编辑 -->
             <el-button
-              v-if="scope.row.status === '已拒绝'"
+              v-if="scope.row.status === 'pending'"
               size="small"
               @click="handleEdit(scope.row)"
 
@@ -228,6 +228,7 @@
               <el-date-picker
                 v-model="exchangeForm.exchangeDate"
                 type="date"
+                value-format="YYYY-MM-DD"
                 placeholder="选择换货日期"
                 class="w-full"
               />
@@ -265,7 +266,7 @@
             <el-table-column prop="productCode" label="产品编码" width="120" />
             <el-table-column prop="productName" label="产品名称" min-width="150" />
             <el-table-column prop="specification" label="规格" min-width="120" />
-            <el-table-column prop="originalQuantity" label="已出库数量" width="120" />
+            <el-table-column prop="originalQuantity" label="可退换数量" width="120" />
             <el-table-column prop="returnQuantity" label="退回数量" width="120">
               <template #default="scope">
                 <el-input
@@ -279,9 +280,12 @@
                 <span class="text-muted">{{ formatCurrency(scope.row.unitPrice) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="金额" width="110">
+            <el-table-column label="税率" width="80">
+              <template #default="scope">{{ Number((Number(scope.row.taxPercent || 0) * 100).toFixed(4)) }}%</template>
+            </el-table-column>
+            <el-table-column label="含税金额" width="110">
               <template #default="scope">
-                <span class="text-success">{{ formatExchangeLineAmount(scope.row.returnQuantity, scope.row.unitPrice) }}</span>
+                <span class="text-success">{{ formatExchangeLineAmount(scope.row.returnQuantity, scope.row.unitPrice, scope.row.taxPercent) }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="returnReason" label="退回原因" min-width="150">
@@ -331,9 +335,12 @@
                 <span class="text-muted">{{ formatCurrency(scope.row.unitPrice) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="金额" width="110">
+            <el-table-column label="税率" width="80">
+              <template #default="scope">{{ Number((Number(scope.row.taxPercent || 0) * 100).toFixed(4)) }}%</template>
+            </el-table-column>
+            <el-table-column label="含税金额" width="110">
               <template #default="scope">
-                <span class="text-primary">{{ formatExchangeLineAmount(scope.row.newQuantity, scope.row.unitPrice) }}</span>
+                <span class="text-primary">{{ formatExchangeLineAmount(scope.row.newQuantity, scope.row.unitPrice, scope.row.taxPercent) }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="newReason" label="换出说明" min-width="150">
@@ -359,7 +366,7 @@
           </el-table>
         </el-form-item>
         <!-- 金额汇总 -->
-        <el-form-item label="金额汇总">
+        <el-form-item label="含税金额汇总">
           <div class="flex-gap-24">
             <span>退回总价: <span class="text-success font-weight-700">{{ formatCurrency(calcReturnTotal()) }}</span></span>
             <span>换出总价: <span class="text-primary font-weight-700">{{ formatCurrency(calcNewTotal()) }}</span></span>
@@ -407,7 +414,7 @@
         <el-descriptions-item label="换货日期">{{ formatDate(currentExchange.exchangeDate) }}</el-descriptions-item>
         <el-descriptions-item label="联系电话">{{ currentExchange.contactPhone || '-' }}</el-descriptions-item>
         <el-descriptions-item label="状态">
-          <el-tag :type="getStatusType(currentExchange.status)">{{ currentExchange.status }}</el-tag>
+          <el-tag :type="getStatusType(currentExchange.status)">{{ getStatusText(currentExchange.status) }}</el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="换货原因" :span="3">{{ currentExchange.exchangeReason || '-' }}</el-descriptions-item>
         <el-descriptions-item label="退回金额">
@@ -446,9 +453,9 @@
               {{ formatQuantity(scope.row.originalQuantity) }}
             </template>
           </el-table-column>
-          <el-table-column prop="exchangeQuantity" label="退回数量" width="100">
+          <el-table-column prop="quantity" label="退回数量" width="100">
             <template #default="scope">
-              <span class="return-quantity">{{ formatQuantity(scope.row.exchangeQuantity) }}</span>
+              <span class="return-quantity">{{ formatQuantity(scope.row.quantity) }}</span>
             </template>
           </el-table-column>
           <el-table-column label="单价" width="100">
@@ -456,12 +463,15 @@
               {{ formatCurrency(scope.row.unitPrice) }}
             </template>
           </el-table-column>
-          <el-table-column label="金额" width="110">
+          <el-table-column label="税额" width="100">
+            <template #default="scope">{{ formatCurrency(scope.row.taxAmount ?? 0) }}</template>
+          </el-table-column>
+          <el-table-column label="含税金额" width="110">
             <template #default="scope">
-              <span class="text-success">{{ formatCurrency(scope.row.amount) }}</span>
+              <span class="text-success">{{ formatCurrency(scope.row.totalAmount ?? scope.row.amount) }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="exchangeReason" label="退回原因" min-width="150" />
+          <el-table-column prop="reason" label="退回原因" min-width="150" />
           <el-table-column prop="unitName" label="单位" width="80" />
         </el-table>
       </div>
@@ -480,9 +490,9 @@
           <el-table-column prop="productCode" label="产品编码" width="120" />
           <el-table-column prop="productName" label="产品名称" min-width="150" />
           <el-table-column prop="specification" label="规格" min-width="120" />
-          <el-table-column prop="exchangeQuantity" label="换出数量" width="100">
+          <el-table-column prop="quantity" label="换出数量" width="100">
             <template #default="scope">
-              <span class="exchange-quantity">{{ formatQuantity(scope.row.exchangeQuantity) }}</span>
+              <span class="exchange-quantity">{{ formatQuantity(scope.row.quantity) }}</span>
             </template>
           </el-table-column>
           <el-table-column label="单价" width="100">
@@ -490,12 +500,15 @@
               {{ formatCurrency(scope.row.unitPrice) }}
             </template>
           </el-table-column>
-          <el-table-column label="金额" width="110">
+          <el-table-column label="税额" width="100">
+            <template #default="scope">{{ formatCurrency(scope.row.taxAmount ?? 0) }}</template>
+          </el-table-column>
+          <el-table-column label="含税金额" width="110">
             <template #default="scope">
-              <span class="text-primary">{{ formatCurrency(scope.row.amount) }}</span>
+              <span class="text-primary">{{ formatCurrency(scope.row.totalAmount ?? scope.row.amount) }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="exchangeReason" label="换出原因" min-width="150" />
+          <el-table-column prop="reason" label="换出原因" min-width="150" />
           <el-table-column prop="unitName" label="单位" width="80" />
         </el-table>
       </div>
@@ -541,7 +554,7 @@
         <el-table-column prop="specification" label="规格" min-width="140" />
         <el-table-column prop="unitName" label="单位" width="80" />
         <el-table-column prop="stockQuantity" label="库存数量" width="100">
-          <template #default>
+          <template #default="{ row }">
             <span :class="row.stockQuantity > 0 ? 'text-stock-ok' : 'text-stock-low'">
               {{ row.stockQuantity }}
             </span>
@@ -630,7 +643,7 @@ import 'dayjs'
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
-import { salesApi, inventoryApi, baseDataApi } from '@/api'
+import { salesApi, baseDataApi } from '@/api'
 import { Plus, Check, ArrowDown, ArrowUp } from '@element-plus/icons-vue'
 import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue'
 const loading = ref(false)
@@ -659,12 +672,16 @@ const formatSignedCurrency = (value) => {
   if (number === null) return '-'
   return `${number > 0 ? '+' : ''}${formatCurrency(number)}`
 }
-const formatExchangeLineAmount = (quantity, unitPrice) => {
+const exchangeTaxRate = value => Number(value) > 1 ? Number(value) / 100 : Number(value || 0)
+const exchangeLineTotal = (quantity, unitPrice, taxPercent = 0) => {
   const qty = toMoneyNumber(quantity)
   const price = toMoneyNumber(unitPrice)
-  if (qty === null || price === null) return '-'
-  return formatCurrency(qty * price)
+  if (qty === null || price === null) return 0
+  const rate = exchangeTaxRate(taxPercent)
+  const cents = Math.round((qty * price + Number.EPSILON) * 100)
+  return (cents + Math.round(cents * rate + Number.EPSILON)) / 100
 }
+const formatExchangeLineAmount = (quantity, unitPrice, taxPercent) => formatCurrency(exchangeLineTotal(quantity, unitPrice, taxPercent))
 // 对话框相关
 const dialogVisible = ref(false)
 const dialogLoading = ref(false)
@@ -693,6 +710,7 @@ const orderDialog = ref({
 const exchangeForm = ref({
   id: '',
   orderNo: '',
+  outboundId: null,
   customerName: '',
   contactPhone: '',
   exchangeDate: '',
@@ -728,38 +746,39 @@ const exchangeRules = {
 }
 // 换货单统计数据
 const exchangeStats = ref({
-  total: 2,
-  pending: 1,
+  total: 0,
+  pending: 0,
   processing: 0,
-  completed: 1,
+  completed: 0,
   rejected: 0
 })
-import { getSalesStatusColor, getSalesStatusText, SALES_EXCHANGE_STATUS_OPTIONS } from '@/constants/systemConstants'
+import { getSalesStatusColor, getSalesStatusText } from '@/constants/systemConstants'
 // 状态映射 - 动态绑定统一配置中心
-const exchangeStatuses = SALES_EXCHANGE_STATUS_OPTIONS
+const normalizeExchangeStatus = value => ({ 待处理: 'pending', 处理中: 'processing', 已完成: 'completed', 已拒绝: 'rejected' }[value] || value)
+const exchangeStatuses = [{ value: 'pending', label: '待处理' }, { value: 'processing', label: '处理中' }, { value: 'completed', label: '已完成' }, { value: 'rejected', label: '已拒绝' }]
 // 获取状态类型
 const getStatusType = (status) => {
   return getSalesStatusColor(status) || 'info'
 }
 // 获取状态文本
-const _getStatusText = (status) => {
+const getStatusText = (status) => {
   return getSalesStatusText(status) || status
 }
 // 计算退回商品总价
 const calcReturnTotal = () => {
   return (exchangeForm.value.returnItems || []).reduce((sum, item) => {
-    return sum + (toMoneyNumber(item.returnQuantity) || 0) * (toMoneyNumber(item.unitPrice) || 0)
-  }, 0)
+    return sum + Math.round(exchangeLineTotal(item.returnQuantity, item.unitPrice, item.taxPercent) * 100)
+  }, 0) / 100
 }
 // 计算换出商品总价
 const calcNewTotal = () => {
   return (exchangeForm.value.newItems || []).reduce((sum, item) => {
-    return sum + (toMoneyNumber(item.newQuantity) || 0) * (toMoneyNumber(item.unitPrice) || 0)
-  }, 0)
+    return sum + Math.round(exchangeLineTotal(item.newQuantity, item.unitPrice, item.taxPercent) * 100)
+  }, 0) / 100
 }
 // 计算差价
 const calcDifference = () => {
-  return calcNewTotal() - calcReturnTotal()
+  return Math.round((calcNewTotal() - calcReturnTotal()) * 100) / 100
 }
 // 计算统计数据
 const calculateExchangeStats = () => {
@@ -772,10 +791,10 @@ const calculateExchangeStats = () => {
   }
 
   exchangeRecords.value.forEach(record => {
-    if (record.status === '待处理') stats.pending++
-    else if (record.status === '处理中') stats.processing++
-    else if (record.status === '已完成') stats.completed++
-    else if (record.status === '已拒绝') stats.rejected++
+    if (record.status === 'pending') stats.pending++
+    else if (record.status === 'processing') stats.processing++
+    else if (record.status === 'completed') stats.completed++
+    else if (record.status === 'rejected') stats.rejected++
   })
 
   exchangeStats.value = stats
@@ -816,15 +835,20 @@ const fetchData = async () => {
         contactPhone: item.contactPhone,
         exchangeDate: item.exchangeDate,
         reason: item.exchangeReason || item.reason,
-        status: item.status,
+        status: normalizeExchangeStatus(item.status),
         remark: item.remarks || item.remark,
-        returnAmount: isBlankAmount(item.returnAmount ?? item.returnAmount) ? null : (item.returnAmount ?? item.returnAmount),
-        newAmount: isBlankAmount(item.newAmount ?? item.newAmount) ? null : (item.newAmount ?? item.newAmount),
-        differenceAmount: isBlankAmount(item.differenceAmount ?? item.differenceAmount) ? null : (item.differenceAmount ?? item.differenceAmount),
+        returnAmount: isBlankAmount(item.returnAmount) ? null : item.returnAmount,
+        newAmount: isBlankAmount(item.newAmount) ? null : item.newAmount,
+        differenceAmount: isBlankAmount(item.differenceAmount) ? null : item.differenceAmount,
         items: item.items || []
       }))
       total.value = response.data.total || exchangeRecords.value.length
       calculateExchangeStats()
+      if (response.data.statusStats) {
+        const stats = response.data.statusStats
+        exchangeStats.value = Object.fromEntries(['pending', 'processing', 'completed', 'rejected'].map(status => [status, Number(stats[status] || 0)]))
+        exchangeStats.value.total = ['pending', 'processing', 'completed', 'rejected', 'cancelled'].reduce((sum, status) => sum + Number(stats[status] || 0), 0)
+      }
     } else {
       throw new Error('API响应数据格式错误')
     }
@@ -864,6 +888,7 @@ const handleEdit = async (row) => {
     exchangeForm.value = {
       id: exchangeData.id,
       orderNo: exchangeData.orderNo,
+      outboundId: exchangeData.outboundId ?? null,
       customerName: exchangeData.customerName,
       contactPhone: exchangeData.contactPhone || '',
       exchangeDate: exchangeData.exchangeDate,
@@ -878,10 +903,12 @@ const handleEdit = async (row) => {
         productCode: item.productCode,
         productName: item.productName,
         specification: item.specification || '',
-        originalQuantity: item.originalQuantity || 0,
+        originalQuantity: item.returnableQuantity ?? item.originalQuantity ?? 0,
         returnQuantity: item.returnQuantity || item.quantity || 0,
-        returnReason: item.returnReason || '',
-        unitPrice: isBlankAmount(item.unitPrice ?? item.unitPrice ?? item.price) ? null : (item.unitPrice ?? item.unitPrice ?? item.price)
+        taxPercent: item.taxPercent ?? 0,
+        returnReason: item.reason || item.returnReason || '',
+        unitName: item.unitName || '',
+        unitPrice: isBlankAmount(item.unitPrice ?? item.price) ? null : (item.unitPrice ?? item.price)
       }))
     exchangeForm.value.newItems = (exchangeData.items || [])
       .filter(item => item.itemType === 'new')
@@ -890,8 +917,10 @@ const handleEdit = async (row) => {
         productName: item.productName,
         specification: item.specification || '',
         newQuantity: item.newQuantity || item.quantity || 0,
-        newReason: item.newReason || '',
-        unitPrice: isBlankAmount(item.unitPrice ?? item.unitPrice ?? item.price) ? null : (item.unitPrice ?? item.unitPrice ?? item.price)
+        taxPercent: item.taxPercent ?? 0,
+        newReason: item.reason || item.newReason || '',
+        unitName: item.unitName || '',
+        unitPrice: isBlankAmount(item.unitPrice ?? item.price) ? null : (item.unitPrice ?? item.price)
       }))
   } catch (error) {
     console.error('获取换货单详情失败:', error)
@@ -913,6 +942,7 @@ const handleView = async (row) => {
     // 直接使用后端返回的数据，同时保留驼峰命名的字段用于显示
     currentExchange.value = {
       ...exchangeData,
+      status: normalizeExchangeStatus(exchangeData.status),
       // 保留原始字段名
       exchangeNo: exchangeData.exchangeNo,
       orderNo: exchangeData.orderNo,
@@ -950,129 +980,52 @@ const exchangeViewNavigation = computed(() => ({
 }))
 // 处理换货单
 const handleProcess = (row) => {
-  ElMessageBox.confirm('确定要处理此换货单吗？', '提示', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    type: 'warning'
-  }).then(async () => {
-    try {
-      // 先获取完整的换货单数据（包括明细）
-      const response = await salesApi.getExchange(row.id)
-      const fullExchangeData = response.data || response
-      // 更新换货单状态为处理中，保留所有原有数据
-      const updatedData = {
-        orderNo: fullExchangeData.orderNo,
-        customerName: fullExchangeData.customerName,
-        contactPhone: fullExchangeData.contact_phone,
-        exchangeDate: fullExchangeData.exchange_date,
-        reason: fullExchangeData.exchange_reason,
-        remark: fullExchangeData.remarks,
-        status: '处理中',
-        items: (fullExchangeData.items || []).map(item => ({
-          productCode: item.productCode,
-          productName: item.productName,
-          specification: item.specification,
-          originalQuantity: item.originalQuantity,
-          exchangeQuantity: item.exchangeQuantity,
-          exchangeReason: item.exchangeReason,
-          unitName: item.unitName
-        }))
+  ElMessageBox.confirm('确定要处理此换货单吗？', '提示', { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' })
+    .then(async () => {
+      try {
+        await salesApi.updateExchangeStatus(row.id, 'processing')
+        ElMessage.success(`换货单 ${row.exchangeNo} 已开始处理`)
+        detailDialogVisible.value = false
+        await fetchData()
+      } catch (error) {
+        ElMessage.error(error.response?.data?.message || error.message || '处理失败')
       }
-      await salesApi.updateExchange(row.id, updatedData)
-      ElMessage.success(`换货单 ${row.exchangeNo || row.id} 已开始处理`)
-      // 刷新数据
-      await fetchData()
-      detailDialogVisible.value = false
-    } catch (error) {
-      console.error('处理失败:', error)
-      ElMessage.error('处理失败，请重试')
-    }
-  }).catch(() => {})
+    }).catch(() => {})
 }
 // 完成换货单
 const handleComplete = (row) => {
-  ElMessageBox.confirm('确认完成这个换货单吗？完成后将无法修改状态。', '确认完成', {
-    confirmButtonText: '确认完成',
-    cancelButtonText: '取消',
-    type: 'success'
-  }).then(async () => {
-    try {
-      // 先获取完整的换货单数据（包括明细）
-      const response = await salesApi.getExchange(row.id)
-      const fullExchangeData = response.data || response
-      // 更新换货单状态为已完成，保留所有原有数据
-      const updatedData = {
-        orderNo: fullExchangeData.orderNo,
-        customerName: fullExchangeData.customerName,
-        contactPhone: fullExchangeData.contact_phone,
-        exchangeDate: fullExchangeData.exchange_date,
-        reason: fullExchangeData.exchange_reason,
-        remark: fullExchangeData.remarks,
-        status: '已完成',
-        items: (fullExchangeData.items || []).map(item => ({
-          productCode: item.productCode,
-          productName: item.productName,
-          specification: item.specification,
-          originalQuantity: item.originalQuantity,
-          exchangeQuantity: item.exchangeQuantity,
-          exchangeReason: item.exchangeReason,
-          unitName: item.unitName
-        }))
+  ElMessageBox.confirm('确认完成这个换货单吗？完成后将无法修改。', '确认完成', { confirmButtonText: '确认完成', cancelButtonText: '取消', type: 'success' })
+    .then(async () => {
+      try {
+        await salesApi.updateExchangeStatus(row.id, 'completed')
+        ElMessage.success(`换货单 ${row.exchangeNo} 已完成`)
+        detailDialogVisible.value = false
+        await fetchData()
+      } catch (error) {
+        ElMessage.error(error.response?.data?.message || error.message || '完成失败')
       }
-      await salesApi.updateExchange(row.id, updatedData)
-      ElMessage.success(`换货单 ${row.exchangeNo || row.id} 已完成`)
-      await fetchData()
-    } catch (error) {
-      console.error('完成失败:', error)
-      ElMessage.error('完成失败，请重试')
-    }
-  }).catch(() => {})
+    }).catch(() => {})
 }
 // 拒绝换货单
 const handleReject = (row) => {
   ElMessageBox.prompt('请输入拒绝原因', '拒绝换货', {
-    confirmButtonText: '确认拒绝',
-    cancelButtonText: '取消',
-    inputPattern: /.+/,
-    inputErrorMessage: '拒绝原因不能为空'
-  }).then(async ({ value: rejectReason }) => {
+    confirmButtonText: '确认拒绝', cancelButtonText: '取消', inputPattern: /.+/, inputErrorMessage: '拒绝原因不能为空',
+  }).then(async ({ value }) => {
     try {
-      // 先获取完整的换货单数据（包括明细）
-      const response = await salesApi.getExchange(row.id)
-      const fullExchangeData = response.data || response
-      // 更新换货单状态为已拒绝，保留所有原有数据
-      const updatedData = {
-        orderNo: fullExchangeData.orderNo,
-        customerName: fullExchangeData.customerName,
-        contactPhone: fullExchangeData.contact_phone,
-        exchangeDate: fullExchangeData.exchange_date,
-        reason: fullExchangeData.exchange_reason,
-        remark: (fullExchangeData.remarks || '') + `\n拒绝原因：${rejectReason}`,
-        status: '已拒绝',
-        items: (fullExchangeData.items || []).map(item => ({
-          productCode: item.productCode,
-          productName: item.productName,
-          specification: item.specification,
-          originalQuantity: item.originalQuantity,
-          exchangeQuantity: item.exchangeQuantity,
-          exchangeReason: item.exchangeReason,
-          unitName: item.unitName
-        }))
-      }
-      await salesApi.updateExchange(row.id, updatedData)
-      ElMessage.success(`换货单 ${row.exchangeNo || row.id} 已拒绝`)
+      await salesApi.updateExchange(row.id, { status: 'rejected', remarks: `${row.remark || ''}\n拒绝原因：${value}` })
+      ElMessage.success('换货单已拒绝')
+      detailDialogVisible.value = false
       await fetchData()
     } catch (error) {
-      console.error('拒绝失败:', error)
-      ElMessage.error('拒绝失败，请重试')
+      ElMessage.error(error.response?.data?.message || error.message || '拒绝失败')
     }
   }).catch(() => {})
 }
-// 重置表单
 const resetForm = () => {
   exchangeForm.value = {
     id: '',
     orderNo: '',
+    outboundId: null,
     customerName: '',
     contactPhone: '',
     exchangeDate: '',
@@ -1111,22 +1064,22 @@ const loadCompletedOrders = async () => {
     }
     const response = await salesApi.getOutbounds(params)
     const data = response.data || {}
-    const items = Array.isArray(data.items) ? data.items : (Array.isArray(data) ? data : [])
+    const items = parseListData(response, { enableLog: false })
     // 从出库单中提取唯一的订单信息
     const uniqueOrders = new Map()
     items.forEach(outbound => {
-      const orderKey = outbound.orderNo || outbound.id
-      if (orderKey && !uniqueOrders.has(orderKey)) {
-        uniqueOrders.set(orderKey, {
-          id: outbound.id,
-          order_no: outbound.orderNo,
-          customer_name: outbound.customerName,
-          delivery_date: outbound.deliveryDate,
-          contact_phone: outbound.contactPhone,
-          outbound_id: outbound.id,
-          items: outbound.items || []
-        })
-      }
+      const sources = outbound.relatedOrderDetails?.length ? outbound.relatedOrderDetails : [{ id: outbound.orderId, orderNo: outbound.orderNo, customerName: outbound.customerName }]
+      sources.forEach(source => {
+        const orderKey = `${outbound.id}:${source.id}`
+        if (source.id && !uniqueOrders.has(orderKey)) {
+          uniqueOrders.set(orderKey, {
+            id: orderKey, orderId: Number(source.id), orderNo: source.orderNo,
+            customerName: source.customerName || outbound.customerName,
+            deliveryDate: outbound.deliveryDate, contactPhone: outbound.contactPhone,
+            outboundId: outbound.id,
+          })
+        }
+      })
     })
     orderDialog.value.list = Array.from(uniqueOrders.values())
     orderDialog.value.total = Number(data.total ?? orderDialog.value.list.length ?? 0)
@@ -1149,6 +1102,7 @@ const selectOrder = async (row) => {
   try {
     // 设置表单数据
     exchangeForm.value.orderNo = row.orderNo
+    exchangeForm.value.outboundId = row.outboundId ?? null
     exchangeForm.value.customerName = row.customerName
     exchangeForm.value.contactPhone = row.contactPhone
     // 设置选中的订单信息
@@ -1161,21 +1115,30 @@ const selectOrder = async (row) => {
       const response = await salesApi.getOutbound(row.outboundId)
       // 拦截器已解包，response.data 就是业务数据
       if (response.data?.items) {
-        exchangeForm.value.returnItems = response.data.items.map(item => ({
-          productCode: item.productCode || item.materialCode || item.productCode,
-          productName: item.productName || item.materialName || item.productName,
-          specification: item.specification || item.specs || '无规格信息',
-          originalQuantity: item.quantity || item.deliveredQuantity,
-          returnQuantity: 1,
-          returnReason: '',
-          unitName: item.unit || item.unitName || item.unitName,
-          unitPrice: isBlankAmount(item.unitPrice ?? item.price) ? null : (item.unitPrice ?? item.price)
+        exchangeForm.value.contactPhone = response.data.contactPhone || row.contactPhone || ''
+        const groups = new Map()
+        for (const item of response.data.items.filter(item => Number(item.sourceOrderId || response.data.orderId) === Number(row.orderId))) {
+          const productCode = item.productCode || item.materialCode
+          const group = groups.get(productCode) || {
+            productCode, productName: item.productName || item.materialName,
+            specification: item.specification || item.specs || '',
+            originalQuantity: 0, returnQuantity: 1, returnReason: '',
+            unitName: item.unit || item.unitName, taxPercent: item.taxPercent ?? 0,
+            shippedQuantity: 0, shippedAmount: 0,
+          }
+          group.originalQuantity += Number(item.returnableQuantity || 0)
+          group.shippedQuantity += Number(item.quantity || 0)
+          group.shippedAmount += Number(item.quantity || 0) * Number(item.unitPrice ?? item.price ?? 0)
+          groups.set(productCode, group)
+        }
+        exchangeForm.value.returnItems = [...groups.values()].filter(item => item.originalQuantity > 0).map(item => ({
+          ...item, unitPrice: Math.round(item.shippedAmount / item.shippedQuantity * 10000) / 10000,
         }))
       }
     }
     // 如果没有获取到商品信息，提示用户
     if (!exchangeForm.value.returnItems || exchangeForm.value.returnItems.length === 0) {
-      ElMessage.warning('该订单暂无商品信息，请手动添加商品')
+      ElMessage.warning('该订单已无可退换数量，请选择其他出库单')
       exchangeForm.value.returnItems = []
     }
     // 关闭对话框
@@ -1204,48 +1167,33 @@ const openProductDialog = () => {
 const loadProducts = async () => {
   const params = {
     page: productDialog.value.page,
-    limit: productDialog.value.pageSize,  // 后端使用 limit 参数
-    search: productDialog.value.keyword || undefined
+    pageSize: productDialog.value.pageSize,
+    search: productDialog.value.keyword || undefined,
+    status: 1
   }
   try {
-    // 使用库存API获取带库存信息的物料数据
-    const response = await inventoryApi.getStocks(params)
+    // 物料接口同时提供销售价和库存；库存列表的 unitPrice 是成本价。
+    const response = await baseDataApi.getMaterials(params)
     // 处理响应数据
     const data = response.data || {}
-    const items = data.items || data.data || []
+    const items = parseListData(response, { enableLog: false })
     productDialog.value.list = items.map(item => ({
       id: item.materialId || item.id,
       code: item.materialCode || item.code,
       name: item.materialName || item.name,
       specification: item.specification || item.specs || '',
-      unit_name: item.unitName || '个',
-      stock_quantity: item.quantity || item.stockQuantity || 0,
-      location_name: item.locationName || '',
-      price: isBlankAmount(item.price ?? item.unitPrice) ? null : (item.price ?? item.unitPrice)
+      unitName: item.unitName || '个',
+      stockQuantity: item.stockQuantity ?? 0,
+      locationName: item.locationName || '',
+      price: isBlankAmount(item.price) ? null : item.price,
+      taxPercent: exchangeTaxRate(item.taxRate ?? item.taxPercent),
     }))
     productDialog.value.total = parseInt(data.total) || items.length
   } catch (error) {
     console.error('加载商品列表失败:', error)
     ElMessage.error('加载商品列表失败')
-    // 如果API失败，使用基础物料API作为备选
-    try {
-      const response = await baseDataApi.getMaterials(params)
-      const data = response.data || {}
-      const items = data.items || []
-      productDialog.value.list = items.map(item => ({
-        id: item.id,
-        code: item.code,
-        name: item.name,
-        specification: item.specs || '',
-        unit_name: item.unitName || '个',
-        stock_quantity: 0, // 基础API没有库存信息
-        location_name: ''
-      }))
-      productDialog.value.total = parseInt(data.total) || items.length
-    } catch (fallbackError) {
-      console.error('备选API也失败:', fallbackError)
-      ElMessage.error('获取物料数据失败')
-    }
+    productDialog.value.list = []
+    productDialog.value.total = 0
   }
 }
 // 商品选择变化
@@ -1276,7 +1224,8 @@ const confirmProductSelection = () => {
         unitName: product.unitName,
         newQuantity: 1,
         newReason: '',
-        unitPrice: isBlankAmount(product.price) ? null : product.price
+        unitPrice: isBlankAmount(product.price) ? null : product.price,
+        taxPercent: product.taxPercent,
       })
     }
   })
@@ -1295,7 +1244,7 @@ const handleSubmit = async () => {
     }
     // 验证退回商品数量
     for (const item of exchangeForm.value.returnItems) {
-      if (!item.returnQuantity || parseFloat(item.returnQuantity) <= 0) {
+      if (!Number.isSafeInteger(Number(item.returnQuantity)) || Number(item.returnQuantity) <= 0) {
         ElMessage.error(`请输入有效的退回数量：${item.productName}`)
         return
       }
@@ -1311,7 +1260,7 @@ const handleSubmit = async () => {
     }
     // 验证换出商品数量
     for (const item of exchangeForm.value.newItems) {
-      if (!item.newQuantity || parseFloat(item.newQuantity) <= 0) {
+      if (!Number.isSafeInteger(Number(item.newQuantity)) || Number(item.newQuantity) <= 0) {
         ElMessage.error(`请输入有效的换出数量：${item.productName}`)
         return
       }
@@ -1337,7 +1286,7 @@ const handleSubmit = async () => {
       resetForm()
     } catch (apiError) {
       console.error('API调用失败:', apiError)
-      ElMessage.error('操作失败，请重试')
+      ElMessage.error(apiError.response?.data?.message || apiError.message || '操作失败')
     }
   } catch (error) {
     console.error('表单验证失败:', error)

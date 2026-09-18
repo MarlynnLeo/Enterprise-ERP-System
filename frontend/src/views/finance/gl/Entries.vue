@@ -863,7 +863,7 @@ const postEntry = (row) => {
       loadEntries();
     } catch (error) {
       console.error('过账凭证失败:', error);
-      ElMessage.error('过账凭证失败');
+      ElMessage.error(getApiErrorMessage(error, '过账凭证失败'));
     }
   }).catch(() => {});
 };

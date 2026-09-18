@@ -97,7 +97,7 @@
         <el-table-column prop="quotationNo" label="报价单号" width="150" />
         <el-table-column label="客户名称" min-width="150">
           <template #default="scope">
-            {{ getCustomerName(scope.row.customerId) }}
+            {{ scope.row.customerName || getCustomerName(scope.row.customerId) }}
           </template>
         </el-table-column>
         <el-table-column prop="totalAmount" label="总金额" width="120">
@@ -145,17 +145,13 @@
                   </el-button>
                 </template>
               </el-popconfirm>
-              <el-popconfirm
+              <el-button
                 v-if="scope.row.status === 'draft'"
-                title="确定要确认该报价单吗？确认后将无法再编辑。"
-                @confirm="handleConfirm(scope.row)"
+                size="small" type="success" v-permission="'sales:quotations:update'"
+                @click="handleConfirm(scope.row)"
               >
-                <template #reference>
-                  <el-button size="small" type="success" v-permission="'sales:quotations:update'">
-                    <el-icon><Check /></el-icon> 确认
-                  </el-button>
-                </template>
-              </el-popconfirm>
+                <el-icon><Check /></el-icon> 确认
+              </el-button>
               <el-button
                 v-if="scope.row.status === 'accepted' && !scope.row.orderId"
                 size="small"
@@ -217,7 +213,7 @@
 
         <el-form-item label="有效期至" prop="validityDate">
           <el-date-picker
-            v-model="quotationForm.validity_date"
+            v-model="quotationForm.validityDate"
             type="date"
             placeholder="选择有效期"
             :disabled="dialogType === 'view'"
@@ -396,9 +392,9 @@
     >
       <div v-loading="viewDialogLoading">
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="报价单号">{{ currentQuotation.quotation_no || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="报价单号">{{ currentQuotation.quotationNo || '-' }}</el-descriptions-item>
         <el-descriptions-item label="客户名称">{{ currentQuotation.customerName || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="有效期至">{{ formatDate(currentQuotation.validity_date) }}</el-descriptions-item>
+        <el-descriptions-item label="有效期至">{{ formatDate(currentQuotation.validityDate) }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="getStatusType(currentQuotation.status)">
             {{ getStatusText(currentQuotation.status) }}
@@ -426,7 +422,6 @@
 </template>
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
-import { formatLocalDate } from '@/utils/format';
 import { parseListData } from '@/utils/responseParser';
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 import { formatDate, formatDateTime } from '@/utils/helpers/dateUtils'
@@ -440,9 +435,9 @@ import { Plus, Edit, Delete, Check, Right } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import {
   loadCustomerOptions,
-  loadMaterialOptions,
+  loadMaterialPageOptions,
   searchCustomerOptions,
-  searchMaterialOptions,
+  searchMaterialPageOptions,
 } from '@/utils/optionLoaders'
 // 销售报价功能 - 完善版
 // 支持报价单的创建、编辑、查看、删除和转为订单功能
@@ -484,12 +479,12 @@ const quotationFormRef = ref(null)
 const viewDialogVisible = ref(false)
 const viewDialogLoading = ref(false)
 const currentQuotation = ref({
-  quotation_no: '',
-  customer_name: '',
-  validity_date: '',
+  quotationNo: '',
+  customerName: '',
+  validityDate: '',
   status: '',
-  total_amount: null,
-  created_at: '',
+  totalAmount: null,
+  createdAt: '',
   items: []
 })
 const isBlankAmount = (value) => value === null || value === undefined || value === ''
@@ -512,14 +507,14 @@ const selectedProductId = ref('') // 选中的产品ID
 const loadingBom = ref(false) // BOM加载状态
 // 表单数据
 const quotationForm = ref({
-  customer_id: '',
-  validity_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 默认30天有效期
+  customerId: '',
+  validityDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 默认30天有效期
   items: [
     {
-      product_id: '',
+      productId: '',
       specification: '',
       quantity: 1,
-      unit_price: 0,
+      unitPrice: 0,
       amount: 0
     }
   ],
@@ -527,10 +522,10 @@ const quotationForm = ref({
 })
 // 表单验证规则
 const rules = {
-  customer_id: [
+  customerId: [
     { required: true, message: '请选择客户', trigger: 'change' }
   ],
-  validity_date: [
+  validityDate: [
     { required: true, message: '请选择有效期', trigger: 'change' }
   ]
 }
@@ -566,7 +561,7 @@ const calculateQuotationStats = () => {
   quotations.value.forEach(quotation => {
     if (quotation.status === 'draft') stats.pending++
     else if (quotation.status === 'accepted') stats.confirmed++
-    else if (quotation.status === 'sent' && quotation.orderId) stats.converted++
+    else if (quotation.status === 'converted') stats.converted++
     else if (quotation.status === 'expired') stats.expired++
   })
 
@@ -636,6 +631,9 @@ const fetchQuotationStats = async () => {
       monthlyAmount.value = response.data.monthlyAmount || 0
       conversionRate.value = response.data.conversionRate ?
         (response.data.conversionRate * 100).toFixed(2) : 0
+      if (response.data.statusStats) {
+        quotationStats.value = Object.fromEntries(['total', 'pending', 'confirmed', 'converted', 'expired'].map(status => [status, Number(response.data.statusStats[status] || 0)]))
+      }
     }
   } catch (error) {
     console.error('获取报价单统计数据失败:', error)
@@ -688,29 +686,25 @@ const searchCustomers = async (query) => {
 }
 
 // 获取产品列表
-const fetchProducts = async () => {
-  productLoading.value = true
-  try {
-    products.value = (await loadMaterialOptions()).map(normalizeProductOption)
-  } catch (error) {
-    console.error('获取产品列表失败:', error)
-    products.value = []
-  } finally {
-    productLoading.value = false
-  }
-}
+const fetchProducts = () => searchProducts('')
 
+let productSearchSequence = 0
 const searchProducts = async (query) => {
+  const sequence = ++productSearchSequence
   const keyword = String(query || '').trim()
   productLoading.value = true
   try {
-    const list = keyword ? await searchMaterialOptions(keyword) : await loadMaterialOptions()
-    products.value = list.map(normalizeProductOption)
+    const list = keyword ? await searchMaterialPageOptions(keyword) : await loadMaterialPageOptions()
+    if (sequence !== productSearchSequence) return
+    const selectedIds = new Set(quotationForm.value.items.map(item => Number(item.productId)))
+    const selected = products.value.filter(product => selectedIds.has(Number(product.id)))
+    products.value = [...new Map([...selected, ...list.map(normalizeProductOption)].map(product => [Number(product.id), product])).values()]
   } catch (error) {
+    if (sequence !== productSearchSequence) return
     console.error('搜索产品失败:', error)
-    products.value = []
+    ElMessage.error('搜索产品失败，请重试')
   } finally {
-    productLoading.value = false
+    if (sequence === productSearchSequence) productLoading.value = false
   }
 }
 // 根据产品ID获取产品信息
@@ -723,6 +717,7 @@ const handleProductChange = (index) => {
   if (item.productId) {
     const product = getProductById(item.productId)
     if (product) {
+      item.productName = product.name
       item.specification = product.specs || ''
       item.unitPrice = isBlankAmount(product.sale_price ?? product.price) ? null : (product.sale_price ?? product.price)
       calculateItemAmount(index)
@@ -738,10 +733,10 @@ onMounted(() => {
 // 添加明细项
 const addItem = () => {
   quotationForm.value.items.push({
-    product_id: '',
+    productId: '',
     specification: '',
     quantity: 1,
-    unit_price: 0,
+    unitPrice: 0,
     amount: 0
   })
 }
@@ -771,14 +766,14 @@ const showCreateDialog = () => {
   dialogType.value = 'create'
   selectedProductId.value = '' // 重置选中的产品ID
   quotationForm.value = {
-    customer_id: '',
-    validity_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 默认30天有效期
+    customerId: '',
+    validityDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 默认30天有效期
     items: [
       {
-        product_id: '',
+        productId: '',
         specification: '',
         quantity: 1,
-        unit_price: 0,
+        unitPrice: 0,
         amount: 0
       }
     ],
@@ -810,17 +805,17 @@ const submitQuotation = async () => {
         // 构建提交数据
         const quotationData = {
           quotation: {
-            customer_id: quotationForm.value.customerId,
+            customerId: quotationForm.value.customerId,
             remarks: quotationForm.value.remarks,
-            total_amount: totalAmount,
-            validity_date: quotationForm.value.validity_date,
+            totalAmount: totalAmount,
+            validityDate: quotationForm.value.validityDate,
             status: 'draft'
           },
           items: quotationForm.value.items.map(item => ({
-            product_id: item.productId,
+            productId: item.productId,
             quantity: toMoneyNumber(item.quantity) || 0,
-            unit_price: toMoneyNumber(item.unitPrice),
-            total_price: (toMoneyNumber(item.quantity) || 0) * (toMoneyNumber(item.unitPrice) || 0)
+            unitPrice: toMoneyNumber(item.unitPrice),
+            totalPrice: (toMoneyNumber(item.quantity) || 0) * (toMoneyNumber(item.unitPrice) || 0)
           }))
         }
 
@@ -873,9 +868,9 @@ const handleConfirm = async (row) => {
       // 构建更新数据，保留所有原始字段，仅更新状态
       const updateData = {
         quotation: {
-          customer_id: currentQuotation.customerId,
-          total_amount: currentQuotation.totalAmount,
-          validity_date: currentQuotation.validity_date,
+          customerId: currentQuotation.customerId,
+          totalAmount: currentQuotation.totalAmount,
+          validityDate: currentQuotation.validityDate,
           remarks: currentQuotation.remarks || '',
           status: 'accepted'
         },
@@ -909,12 +904,12 @@ const handleView = async (row) => {
       const quotation = response.data
       // 设置查看数据
       currentQuotation.value = {
-        quotation_no: quotation.quotation_no || '-',
-        customer_name: quotation.customerName || '-',
-        validity_date: quotation.validity_date || '',
+        quotationNo: quotation.quotationNo || '-',
+        customerName: quotation.customerName || '-',
+        validityDate: quotation.validityDate || '',
         status: quotation.status || 'draft',
-        total_amount: isBlankAmount(quotation.totalAmount) ? null : quotation.totalAmount,
-        created_at: quotation.createdTime || new Date().toISOString(),
+        totalAmount: isBlankAmount(quotation.totalAmount) ? null : quotation.totalAmount,
+        createdAt: quotation.createdAt || quotation.createdTime || '',
         remarks: quotation.remarks || '',
         items: quotation.items || []
       }
@@ -956,19 +951,25 @@ const handleEdit = async (row) => {
       const quotationData = response.data
       quotationForm.value = {
         id: quotationData.id,
-        customer_id: quotationData.customerId,
-        validity_date: quotationData.validity_date ? new Date(quotationData.validity_date) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        customerId: quotationData.customerId,
+        validityDate: quotationData.validityDate ? new Date(quotationData.validityDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         items: quotationData.items && quotationData.items.length > 0 ? [...quotationData.items] : [
           {
-            product_id: '',
+            productId: '',
             specification: '',
             quantity: 1,
-            unit_price: 0,
+            unitPrice: 0,
             amount: 0
           }
         ],
         remarks: quotationData.remarks || ''
       }
+      customers.value = [...new Map([...customers.value, { id: quotationData.customerId, name: quotationData.customerName }].map(customer => [Number(customer.id), customer])).values()]
+      const selectedProducts = quotationForm.value.items.filter(item => item.productId).map(item => normalizeProductOption({
+        id: item.productId, name: item.productName, code: item.productCode,
+        specs: item.specification, price: item.unitPrice,
+      }))
+      products.value = [...new Map([...products.value, ...selectedProducts].map(product => [Number(product.id), product])).values()]
     }
   } catch (error) {
     console.error('获取报价单数据失败:', error)
@@ -986,63 +987,11 @@ const handleConvert = (row) => {
     type: 'warning'
   }).then(async () => {
     try {
-      // 首先获取完整的报价单数据
-      const quotationResponse = await salesApi.getQuotation(row.id)
-      if (!quotationResponse || !quotationResponse.data) {
-        throw new Error('获取报价单数据失败')
-      }
-
-      const quotationData = quotationResponse.data
-      const hasMaskedAmount = isBlankAmount(quotationData.totalAmount) ||
-        (quotationData.items || []).some(item => isBlankAmount(item.unitPrice))
-      if (hasMaskedAmount) {
-        throw new Error('报价金额或单价不可见，不能转换为销售订单')
-      }
-
-      // 构建销售订单数据
-      const orderData = {
-        customer_id: quotationData.customerId,
-        delivery_address: quotationData.address || '',
-        contact_person: quotationData.contact || '',
-        contact_phone: quotationData.phone || '',
-        delivery_date: formatDateToISOString(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)), // 默认7天后交货
-        order_date: formatDateToISOString(new Date()),
-        status: 'pending',
-        remarks: `由报价单 ${quotationData.quotation_no || row.quotationNo} 转换`,
-        total_amount: quotationData.totalAmount,
-        items: (quotationData.items || []).map(item => ({
-          material_id: item.productId,
-          quantity: toMoneyNumber(item.quantity) || 0,
-          unit_price: toMoneyNumber(item.unitPrice),
-          specification: item.specification || '',
-          notes: ''
-        }))
-      }
-
-      // 日期格式化辅助函数
-      function formatDateToISOString(date) {
-        return formatLocalDate(date);
-      }
-
-      // 创建销售订单
-      const orderResponse = await salesApi.createOrder(orderData)
-
-      if (!orderResponse || !orderResponse.data) {
-        throw new Error('创建销售订单失败')
-      }
-
-      // 更新报价单状态为已转订单
-      await salesApi.convertQuotationToOrder(row.id)
-
-        ElMessage.success(`报价单 ${row.quotationNo} 已成功转为销售订单`)
-
-      // 跳转到新创建的订单详情页
-      if (orderResponse.data.id) {
-        router.push(`/sales/orders?id=${orderResponse.data.id}`)
-      } else {
-        // 刷新报价单列表
-        fetchData()
-      }
+      const response = await salesApi.convertQuotationToOrder(row.id)
+      const order = response.data || response
+      ElMessage.success(`报价单 ${row.quotationNo} 已成功转为销售订单`)
+      await fetchData()
+      if (order.orderId) router.push(`/sales/orders?id=${order.orderId}`)
     } catch (error) {
       console.error('转换报价单失败:', error)
       ElMessage.error('转换报价单失败: ' + (error.message || '未知错误'))
@@ -1071,7 +1020,7 @@ const loadBomDetails = async () => {
 
     // 调用API获取产品的BOM详情 - 使用getBoms而不是getBom
     const response = await baseDataApi.getBoms({
-      product_id: selectedProductId.value,
+      productId: selectedProductId.value,
       status: 1 // 获取状态为活跃的BOM
     })
     const bomList = parseListData(response)
@@ -1095,11 +1044,11 @@ const loadBomDetails = async () => {
       const unitPrice = product ? (product.salePrice || 0) : 0;
 
       return {
-        product_id: detail.materialId,
+        productId: detail.materialId,
         material_id: detail.materialId,
         specification: detail.materialCode ? `${detail.materialCode} - ${detail.materialName}` : detail.materialName,
         quantity: parseFloat(detail.quantity) || 1,
-        unit_price: unitPrice, // 使用找到的产品价格
+        unitPrice: unitPrice, // 使用找到的产品价格
         amount: (parseFloat(detail.quantity) || 1) * unitPrice, // 计算金额
         // 添加额外信息
         material_code: detail.materialCode,

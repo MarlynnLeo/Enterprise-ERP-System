@@ -243,8 +243,10 @@ afterAll(async () => {
       expect(Number(cost.actual_cost)).toBeCloseTo(20 + Number(cost.labor_cost) * 1.1, 2);
       expect(cost.status).toBe('completed');
       const [[variance]] = await connection.query('SELECT standard_labor_cost, actual_labor_cost, labor_variance FROM cost_variance_records WHERE task_id = ?', [fixture.taskId]);
-      expect(Number(variance.standard_labor_cost)).toBe(60);
-      expect(Number(variance.actual_labor_cost)).toBe(60);
+      const [[costSettings]] = await connection.query('SELECT labor_rate FROM cost_settings WHERE is_active = 1 LIMIT 1');
+      const expectedLaborCost = Number((1.2 * Number(costSettings.labor_rate)).toFixed(2));
+      expect(Number(variance.standard_labor_cost)).toBe(expectedLaborCost);
+      expect(Number(variance.actual_labor_cost)).toBe(expectedLaborCost);
       expect(Number(variance.labor_variance)).toBe(0);
       expect(await stock(fixture.productId)).toBe(0);
       const [[pending]] = await connection.query('SELECT id FROM inventory_posting_documents WHERE source_no = ?', [inbound.inbound_no]);

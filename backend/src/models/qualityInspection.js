@@ -44,6 +44,7 @@ const READONLY_INSPECTION_UPDATE_FIELDS = new Set([
   'items',
   'attachments',
   'source_type',
+  'purchase_order_item_id',
   'created_at',
   'updated_at',
   'deleted_at',
@@ -775,7 +776,7 @@ class QualityInspection {
       const [result] = await connection.query(
         `
           INSERT INTO quality_inspections(
-          inspection_no, inspection_type, source_type, reference_id, reference_no,
+          inspection_no, inspection_type, source_type, reference_id, reference_no, purchase_order_item_id,
           material_id, supplier_id, product_id, product_name, product_code, process_id, process_name, task_id,
           batch_no, quantity, unit, unit_id, standard_type, standard_no,
           planned_date, actual_date, note, inspector_id, inspector_name, status,
@@ -783,7 +784,7 @@ class QualityInspection {
           is_aql, aql_level
         ) VALUES(
           ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
         )
           `,
         [
@@ -792,6 +793,7 @@ class QualityInspection {
           inspection.source_type,
           inspection.reference_id,
           inspection.reference_no,
+          inspection.purchase_order_item_id || null,
           inspection.material_id || null,
           inspection.supplier_id || null,
           inspection.product_id || null,
@@ -1034,7 +1036,7 @@ class QualityInspection {
       try {
         // 获取当前检验单的信息
         const [currentInspection] = await connection.query(
-          'SELECT id, inspection_no, inspection_type, source_type, reference_id, reference_no, material_id, supplier_id, product_id, product_name, product_code, process_id, process_name, batch_no, quantity, qualified_quantity, unqualified_quantity, unit, unit_id, status, planned_date, actual_date, inspector_id, inspector_name, punch_time, standard_type, standard_no, template_id, note, created_at, updated_at, traceability_id, traceability_batch, chain_id, chain_step_id, is_first_article, first_article_qty, is_full_inspection, first_article_result, production_can_continue, task_id, is_aql, aql_standard_id, aql_level, accept_limit, reject_limit, deleted_at FROM quality_inspections WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+          'SELECT id, inspection_no, inspection_type, source_type, reference_id, reference_no, purchase_order_item_id, material_id, supplier_id, product_id, product_name, product_code, process_id, process_name, batch_no, quantity, qualified_quantity, unqualified_quantity, unit, unit_id, status, planned_date, actual_date, inspector_id, inspector_name, punch_time, standard_type, standard_no, template_id, note, created_at, updated_at, traceability_id, traceability_batch, chain_id, chain_step_id, is_first_article, first_article_qty, is_full_inspection, first_article_result, production_can_continue, task_id, is_aql, aql_standard_id, aql_level, accept_limit, reject_limit, deleted_at FROM quality_inspections WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
           [id]
         );
 

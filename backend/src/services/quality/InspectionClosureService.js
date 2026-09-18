@@ -139,6 +139,7 @@ class InspectionClosureService {
       await PurchaseOrderStatusService.handleInspectionComplete(
         {
           inspection_id: inspection.id,
+          purchase_order_item_id: inspection.purchase_order_item_id,
           reference_type: 'purchase_order',
           reference_id: inspection.reference_id,
           material_id: inspection.material_id || inspection.product_id,

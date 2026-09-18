@@ -22,10 +22,10 @@
       @reset="resetSearch"
     >
       <template #basic>
-        <el-form-item label="物料名称">
+        <el-form-item label="关键字">
           <el-input
             v-model="searchForm.keyword"
-            placeholder="物料名称"
+            placeholder="申请单号、合同编码或物料"
             clearable
             @clear="loadRequisitions(1)"
             @keyup.enter="loadRequisitions(1)"
@@ -587,28 +587,15 @@ const loadRequisitions = async (page = pagination.page) => {
       params.startDate = searchForm.dateRange[0];
       params.endDate = searchForm.dateRange[1];
     }
-    let pageData;
-    try {
-      const response = await purchaseApi.getRequisitions(params);
-      pageData = parsePaginatedData(response, { enableLog: false });
-    } catch (err) {
-      console.error('API调用失败:', err);
-      // API调用失败时返回空数据
-      pageData = {
-        list: [],
-        total: 0,
-        page: 1,
-        pageSize: pagination.pageSize,
-        totalPages: 0
-      };
-    }
+    const response = await purchaseApi.getRequisitions(params);
+    const pageData = parsePaginatedData(response, { enableLog: false });
 
     requisitions.value = pageData.list;
     pagination.total = Number(pageData.total ?? 0);
     pagination.page = Number(pageData.page ?? 1);
     pagination.pageSize = Number(pageData.pageSize ?? pagination.pageSize);
 
-    await loadRequisitionStats();
+    requisitionStats.value = pageData.statistics || {};
   } catch (error) {
     console.error('加载采购申请列表失败:', error);
     if (error.response) {
@@ -620,6 +607,7 @@ const loadRequisitions = async (page = pagination.page) => {
     // 加载失败时设置空数据
     requisitions.value = [];
     pagination.total = 0;
+    requisitionStats.value = {};
   } finally {
     loading.value = false;
   }
@@ -1146,31 +1134,6 @@ const confirmDelete = (row) => {
 };
 // 格式化日期
 // formatDate: 使用公共实现
-// 加载申请单统计数据
-
-const loadRequisitionStats = async () => {
-  try {
-    // 从当前列表数据计算统计信息
-
-    const total = requisitions.value.length;
-    const draftCount = requisitions.value.filter(item => item.status === 'draft').length;
-    const submittedCount = requisitions.value.filter(item => item.status === 'submitted').length;
-    const approvedCount = requisitions.value.filter(item => item.status === 'approved').length;
-    const rejectedCount = requisitions.value.filter(item => item.status === 'rejected').length;
-
-    // 更新统计数据
-    requisitionStats.value = {
-      total,
-      draftCount,
-      submittedCount,
-      approvedCount,
-      rejectedCount
-    };
-  } catch (error) {
-    console.error('计算申请单统计数据失败:', error);
-    // 保持当前统计数据不变
-  }
-};
 // 页面加载时获取数据
 onMounted(async () => {
   // 立即显示加载状态
@@ -1179,7 +1142,6 @@ onMounted(async () => {
   try {
     await Promise.allSettled([
       loadRequisitions(1),
-      loadRequisitionStats(),
       loadOperators(),
       authStore.fetchUserProfile(false) // 不获取权限信息，提高速度
     ]);
@@ -1194,10 +1156,7 @@ onMounted(async () => {
 onActivated(async () => {
   // 刷新申请单列表和统计数据
   try {
-    await Promise.allSettled([
-      loadRequisitions(),
-      loadRequisitionStats()
-    ]);
+    await loadRequisitions();
   } catch (error) {
     console.error('页面激活刷新失败:', error);
   }

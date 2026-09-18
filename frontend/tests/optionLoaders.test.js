@@ -52,6 +52,8 @@ import {
   clearOptionLoaderCache,
   loadCustomerOptions,
   loadCustomerPageOptions,
+  loadMaterialPageOptions,
+  searchMaterialPageOptions,
   loadOutsourcedMaterialOptions,
   loadOutsourcedReceiptProcessingOptions,
   loadOutsourcedReceiptWarehouseOptions,
@@ -68,6 +70,18 @@ const paginatedResponse = (list) => ({
     page: 1,
     pageSize: 100,
   },
+})
+
+describe('quotation material options', () => {
+  beforeEach(() => { clearOptionLoaderCache(); vi.clearAllMocks() })
+  test('fetches one page and preserves the search term and sales price', async () => {
+    baseDataApi.getMaterials.mockResolvedValue({ data: { list: [{ id: 9, code: 'P-9', name: '商品', price: 30.1234, costPrice: 8 }], total: 17000 } })
+    const result = await searchMaterialPageOptions(' P-9 ')
+    expect(baseDataApi.getMaterials).toHaveBeenCalledExactlyOnceWith({ page: 1, pageSize: 50, status: 1, search: 'P-9' })
+    expect(result[0]).toMatchObject({ code: 'P-9', price: 30.1234 })
+    await loadMaterialPageOptions()
+    expect(baseDataApi.getMaterials).toHaveBeenCalledTimes(2)
+  })
 })
 
 describe('customer option status contract', () => {

@@ -20,7 +20,7 @@
     <!-- 搜索区域 -->
     <FinanceQueryCard
       :model="searchForm"
-      @search="loadTransactions"
+      @search="searchTransactions"
       @reset="resetSearch"
     >
       <template #basic>
@@ -153,6 +153,14 @@
               >
                 <el-icon><Check /></el-icon> 审核
               </el-button>
+              <el-button
+                v-if="scope.row.status === 'approved'"
+                v-permission="'finance:cash:approve'"
+                type="danger"
+                size="small"
+                :loading="voidingId === scope.row.id"
+                @click="voidTransaction(scope.row)"
+              >作废冲销</el-button>
               <el-popconfirm
                 v-if="['draft', 'rejected'].includes(scope.row.status || 'draft')"
                 title="确定要删除该交易记录吗？此操作不可恢复！"
@@ -204,8 +212,9 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="交易类型" prop="type">
-              <el-select v-model="transactionForm.type" placeholder="请选择">
-                <el-option v-for="item in dictStore.getOptions('cash_transaction_category')" :key="item.value" :label="item.label" :value="item.value" />
+              <el-select v-model="transactionForm.type" placeholder="请选择" @change="transactionForm.category = ''">
+                <el-option label="收入" value="income" />
+                <el-option label="支出" value="expense" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -368,12 +377,11 @@
 
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
-import { useDictionaryStore } from '@/stores/dictionary'
 import { formatDate } from '@/utils/helpers/dateUtils'
-import { getApprovalStatusColor, getApprovalStatusText, getCommonStatusText } from '@/constants/systemConstants'
+import { getApprovalStatusColor, getApprovalStatusText } from '@/constants/systemConstants'
 import { formatCurrency, formatLocalDate } from '@/utils/format'
 
-import { ref, reactive, onMounted, watch, computed } from 'vue';
+import { ref, reactive, onMounted, nextTick, computed } from 'vue';
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index';
@@ -381,11 +389,10 @@ import { UploadFilled, Plus, Edit, Promotion, Check, Delete } from '@element-plu
 import { financeApi } from '@/api/finance';
 import printService from '@/services/printService'
 
-const dictStore = useDictionaryStore()
-
 // 数据加载状态
 const loading = ref(false);
 const saveLoading = ref(false);
+const voidingId = ref(null);
 
 // 分页相关
 const total = ref(0);
@@ -465,11 +472,6 @@ const transactionRules = {
   ]
 };
 
-// 监听交易类型变化，重置分类
-watch(() => transactionForm.type, () => {
-  transactionForm.category = '';
-});
-
 // 格式化货币
 // formatCurrency 已统一引用公共实现;
 
@@ -477,7 +479,7 @@ watch(() => transactionForm.type, () => {
 // formatDate 已统一引用公共实现;
 
 // 获取交易类型文本
-const getTransactionTypeText = (type) => getCommonStatusText(type) || type;
+const getTransactionTypeText = (type) => ({ income: '收入', expense: '支出' })[type] || type;
 
 // 获取分类文本
 const getCategoryText = (category) => {
@@ -498,21 +500,28 @@ const getAuditStatusType = (status) => {
 };
 
 // 获取审核状态文本
-const getAuditStatusText = (status) => getApprovalStatusText(status) || '草稿';
+const getAuditStatusText = (status) => status === 'void' ? '已作废' : getApprovalStatusText(status) || '草稿';
+
+const searchTransactions = () => {
+  currentPage.value = 1;
+  loadTransactions();
+};
 
 // 重置搜索
 const resetSearch = () => {
   searchForm.dateRange = null;
   searchForm.type = '';
   searchForm.category = '';
-  loadTransactions();
+  searchTransactions();
 };
 
 // 显示新增对话框
-const showAddDialog = () => {
+const showAddDialog = async () => {
   dialogTitle.value = '新增现金交易';
   resetTransactionForm();
   dialogVisible.value = true;
+  await nextTick();
+  transactionFormRef.value?.clearValidate();
 };
 
 // 重置表单
@@ -529,13 +538,15 @@ const resetTransactionForm = () => {
 };
 
 // 编辑交易
-const editTransaction = (row) => {
+const editTransaction = async (row) => {
   dialogTitle.value = '编辑现金交易';
   Object.assign(transactionForm, {
     ...row,
     amount: parseFloat(row.amount) || 0  // 确保 amount 是数字类型
   });
   dialogVisible.value = true;
+  await nextTick();
+  transactionFormRef.value?.clearValidate();
 };
 
 // 查看交易详情
@@ -630,10 +641,11 @@ const handleAudit = (row) => {
 
 // 保存交易
 const saveTransaction = async () => {
-  if (!transactionFormRef.value) return;
+  if (!transactionFormRef.value || saveLoading.value) return;
+  const valid = await transactionFormRef.value.validate().catch(() => false);
+  if (!valid) return;
 
   try {
-    await transactionFormRef.value.validate();
     saveLoading.value = true;
 
     const data = { ...transactionForm };
@@ -653,6 +665,30 @@ const saveTransaction = async () => {
     ElMessage.error(`保存失败: ${error.response?.data?.message || error.message}`);
   } finally {
     saveLoading.value = false;
+  }
+};
+
+const voidTransaction = async (row) => {
+  if (voidingId.value) return;
+  try {
+    const { value } = await ElMessageBox.prompt(
+      `作废现金交易 ${row.transactionNumber} 将冲销关联凭证，请填写原因。`,
+      '作废现金交易',
+      {
+        confirmButtonText: '确认作废', cancelButtonText: '取消',
+        inputPlaceholder: '作废原因',
+        inputValidator: (reason) => String(reason || '').trim() ? true : '请填写作废原因',
+      }
+    );
+    voidingId.value = row.id;
+    await financeApi.cashTransactions.void(row.id, { reason: value.trim() });
+    ElMessage.success('现金交易已作废并冲销凭证');
+    await loadTransactions();
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return;
+    ElMessage.error(error.response?.data?.message || error.message || '作废失败');
+  } finally {
+    voidingId.value = null;
   }
 };
 

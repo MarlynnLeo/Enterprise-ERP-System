@@ -153,6 +153,13 @@ router.post(
   FinanceEnhancementController.generateARInvoiceFromSalesOutbound
 );
 
+router.post(
+  '/integration/ar-credit-note-from-return/:returnId',
+  requirePermission('finance:ar:create'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  FinanceEnhancementController.generateARCreditNoteFromSalesReturn
+);
+
 /** 闭环补齐：进项税 / 销项税 / 销售成本（force） */
 router.post(
   '/integration/tax-input/:receiptId',

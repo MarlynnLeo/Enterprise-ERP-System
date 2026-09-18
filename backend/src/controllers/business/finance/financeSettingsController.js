@@ -31,6 +31,19 @@ function pickBusinessOptions(config = {}) {
       defaultPaymentTermDays: config.invoice?.defaultPaymentTermDays || 30,
       pagination: config.invoice?.pagination || {},
     },
+    bank: {
+      transactionTypes: config.bank?.transactionTypes || [],
+      paymentMethods: config.bank?.paymentMethods || [],
+      transactionCategories: {
+        income: config.bank?.transactionCategories?.income || [],
+        expense: config.bank?.transactionCategories?.expense || [],
+        transfer: config.bank?.transactionCategories?.transfer || [],
+      },
+    },
+    gl: {
+      documentTypes: config.gl?.documentTypes || [],
+      entryStatuses: config.gl?.entryStatuses || [],
+    },
   };
 }
 

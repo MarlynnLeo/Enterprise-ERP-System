@@ -4,13 +4,12 @@
  * 覆盖：打印设置、打印模板、默认模板
  */
 
-const { authRequest, clearCache, getApp } = require('../testHelper');
+const { afterAll, beforeAll, describe, expect, test } = require('@jest/globals');
+const { authRequest, clearCache } = require('../testHelper');
 
-let app;
 let api;
 
 beforeAll(async () => {
-  app = getApp();
   api = await authRequest();
 });
 
@@ -93,9 +92,12 @@ describe('打印服务 - 打印模板 /api/print/templates', () => {
     const listRes = await api.get('/api/print/templates?isDefault=1&status=1&page=1&pageSize=1');
     expect(listRes.status).toBe(200);
     const { items } = extractList(listRes.body);
+    expect(items.length).toBeLessThanOrEqual(1);
 
     if (items.length > 0) {
       const template = items[0];
+      expect(Number(template.isDefault ?? template.is_default)).toBe(1);
+      expect(Number(template.status)).toBe(1);
       const templateType = template.templateType || template.template_type;
       const res = await api.get(
         `/api/print/templates/default?module=${template.module}&templateType=${templateType}`

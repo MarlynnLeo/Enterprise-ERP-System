@@ -435,7 +435,7 @@ const getMaterialsWithStock = async (req, res) => {
   try {
     const { keyword = '', codes = '' } = req.query;
     const materialCodes = typeof codes === 'string'
-      ? codes.split(',').map(code => code.trim()).filter(Boolean).slice(0, 100)
+      ? [...new Set(codes.split(',').map(code => code.trim()).filter(Boolean))].slice(0, 100)
       : [];
 
     // 构建查询，获取物料及其默认库位的库存信息
@@ -459,24 +459,24 @@ const getMaterialsWithStock = async (req, res) => {
         JOIN units u ON m.unit_id = u.id
         LEFT JOIN locations l ON m.location_id = l.id
         LEFT JOIN (
-          SELECT il.material_id, il.location_id, SUM(il.quantity) as quantity
+          SELECT il.material_id, SUM(il.quantity) as quantity
           FROM inventory_ledger il
           JOIN materials mat ON il.material_id = mat.id
           WHERE mat.location_id IS NULL OR il.location_id = mat.location_id
-          GROUP BY il.material_id, il.location_id
-        ) s ON m.id = s.material_id AND s.location_id = m.location_id
+          GROUP BY il.material_id
+        ) s ON m.id = s.material_id
       WHERE
-        m.status = 1
-        ${materialCodes.length > 0 ? 'AND m.code IN (?)' : keyword ? 'AND (m.code LIKE ? OR m.name LIKE ?)' : ''}
+        m.status = 1 AND m.deleted_at IS NULL
+        ${materialCodes.length > 0 ? `AND m.code IN (${materialCodes.map(() => '?').join(',')})` : keyword ? 'AND (m.code LIKE ? OR m.name LIKE ?)' : ''}
       ORDER BY
         m.code
-      LIMIT 50
+      LIMIT ${materialCodes.length || 50}
     `;
 
     // 构建参数数组
     const params = [];
     if (materialCodes.length > 0) {
-      params.push(materialCodes);
+      params.push(...materialCodes);
     } else if (keyword) {
       params.push(`%${keyword}%`, `%${keyword}%`);
     }

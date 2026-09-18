@@ -567,7 +567,7 @@ class ManualVoucherService {
        FROM purchase_receipt_items pri
        LEFT JOIN purchase_receipts pr ON pri.receipt_id = pr.id
        LEFT JOIN purchase_orders po ON pr.order_id = po.id
-       LEFT JOIN purchase_order_items poi ON po.id = poi.order_id AND pri.material_id = poi.material_id
+       LEFT JOIN purchase_order_items poi ON poi.id = pri.order_item_id AND po.id = poi.order_id
        LEFT JOIN materials m ON pri.material_id = m.id
        WHERE pri.receipt_id = ?`,
       [receiptId]

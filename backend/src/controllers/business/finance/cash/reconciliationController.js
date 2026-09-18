@@ -35,6 +35,14 @@ const {
 } = require('./helpers');
 
 const reconciliationController = {
+  getBankStatementItems: async (req, res) => {
+    try {
+      const result = await ReconciliationModel.getStatementItems(req.query);
+      return ResponseHandler.success(res, result, '获取银行对账单成功');
+    } catch (error) {
+      return sendCashBusinessError(res, error, '获取银行对账单失败');
+    }
+  },
   /**
    * 获取对账记录
    */

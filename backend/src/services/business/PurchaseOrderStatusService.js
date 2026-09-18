@@ -6,9 +6,10 @@
 
 const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
+const PurchaseOrderQuantityService = require('./PurchaseOrderQuantityService');
+const { purchaseValidationError, purchaseQuantity } = require('../../utils/purchase/purchaseValidation');
 
 const QUANTITY_EPSILON = 0.0001;
-const TERMINAL_INSPECTION_STATUSES = ['passed', 'failed', 'partial', 'completed'];
 
 class PurchaseOrderStatusService {
   /**
@@ -19,178 +20,27 @@ class PurchaseOrderStatusService {
    * @param {number} receivedQuantity - 收货数量
    * @param {Object} connection - 数据库连接（可选）
    */
-  static async updateOrderItemReceivedQuantity(
-    orderId,
-    materialId,
-    receivedQuantity,
-    connection = null
-  ) {
+  static async updateOrderItemReceivedQuantity(orderId, materialId, receivedQuantity, connection = null, orderItemId = null) {
     const client = connection || db.pool;
-
-    try {
-      logger.info(
-        `[PurchaseOrderStatusService] 更新收货数量：订单ID=${orderId}, 物料ID=${materialId}, 收货数量=${receivedQuantity}`
-      );
-
-      // ✅ 安全修复: 使用 FOR UPDATE 行级锁防止并发收货时校验被绕过
-      // 场景: 两个收货请求同时读取 received_quantity 后计算是否超量，
-      //        无锁情况下两个请求各自读到相同旧值，均通过校验导致超量收货
-      const [orderItem] = await client.execute(
-        'SELECT quantity, received_quantity FROM purchase_order_items WHERE order_id = ? AND material_id = ? FOR UPDATE',
-        [orderId, materialId]
-      );
-
-      if (orderItem.length === 0) {
-        throw new Error(`采购订单项目不存在: 订单ID=${orderId}, 物料ID=${materialId}`);
-      }
-
-      const orderQuantity = parseFloat(orderItem[0].quantity) || 0;
-      const currentReceived = parseFloat(orderItem[0].received_quantity) || 0;
-      const newReceivedQty = parseFloat(receivedQuantity) || 0;
-      const totalReceived = currentReceived + newReceivedQty;
-
-      // ✅ 检查是否超过订单数量
-      if (totalReceived > orderQuantity) {
-        const errorMsg = `收货数量超过订单数量: 订单数量=${orderQuantity}, 已收货=${currentReceived}, 本次收货=${newReceivedQty}, 总计=${totalReceived}`;
-        logger.error(`[PurchaseOrderStatusService] ${errorMsg}`);
-        throw new Error(errorMsg);
-      }
-
-      logger.info(
-        `[PurchaseOrderStatusService] 收货数量校验通过: 订单数量=${orderQuantity}, 已收货=${currentReceived}, 本次收货=${newReceivedQty}, 总计=${totalReceived}`
-      );
-
-      // ✅ 只更新received_quantity,不更新warehoused_quantity
-      // warehoused_quantity应该在入库完成时通过updateOrderItemWarehousingQuantity更新
-      const updateQuery = `
-        UPDATE purchase_order_items
-        SET
-          received_quantity = received_quantity + ?,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE order_id = ? AND material_id = ?
-      `;
-
-      const params = [newReceivedQty, orderId, materialId];
-
-      const [updateResult] = await client.execute(updateQuery, params);
-      if (!updateResult || updateResult.affectedRows === 0) {
-        throw new Error(`采购订单项目不存在: 订单ID=${orderId}, 物料ID=${materialId}`);
-      }
-
-      logger.info('[PurchaseOrderStatusService] 收货数量更新完成');
-
-      // 更新订单整体状态
-      await this.updateOrderStatus(orderId, client);
-    } catch (error) {
-      logger.error('更新采购订单项目收货数量失败:', error);
-      throw error;
+    const allocation = await PurchaseOrderQuantityService.read(client, orderId);
+    const line = allocation.resolve(materialId, orderItemId);
+    const quantity = purchaseQuantity(receivedQuantity, '本次到货数量');
+    if (line.reserved + quantity > Number(line.item.quantity) + QUANTITY_EPSILON) {
+      throw purchaseValidationError(`收货数量超过订单数量: 订单数量=${line.item.quantity}, 已占用=${line.reserved}, 本次收货=${quantity}`);
     }
+    await client.execute('UPDATE purchase_order_items SET received_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [Math.max(0, line.received) + quantity, line.item.id]);
+    await this.updateOrderStatus(orderId, client);
   }
 
-
-  /**
-   * 从所有已确认/完成的收货单全量同步收货数量（幂等）
-   * 替代累加模式，无论调用多少次结果都一致
-   * @param {number} orderId - 采购订单ID
-   * @param {number} materialId - 物料ID
-   * @param {Object} connection - 数据库连接（可选）
-   */
-  static async syncOrderItemReceivedFromReceipts(orderId, materialId, connection = null) {
+  static async syncOrderItemReceivedFromReceipts(orderId, materialId, connection = null, orderItemId = null) {
     const client = connection || db.pool;
-    const {
-      INCOMING_INSPECTION_COUNTED_STATUSES,
-      PURCHASE_RECEIPT_COUNTED_STATUSES,
-      sqlStringList,
-    } = require('../../constants/qualityReceipt');
-    const receiptStatusSql = sqlStringList(PURCHASE_RECEIPT_COUNTED_STATUSES);
-    const inspectionStatusSql = sqlStringList(INCOMING_INSPECTION_COUNTED_STATUSES);
-
-    try {
-      logger.info(
-        `[PurchaseOrderStatusService] Syncing received quantity from receipts: orderId=${orderId}, materialId=${materialId}`
-      );
-
-      // 收货汇总 − 非取消退货 = 净收货（SSOT，与 DataConsistencyRules 口径一致）
-      const [result] = await client.execute(
-        `SELECT GREATEST(0,
-           GREATEST(
-             COALESCE((
-               SELECT SUM(COALESCE(NULLIF(ri.received_quantity, 0), ri.quantity, ri.qualified_quantity, 0))
-               FROM purchase_receipt_items ri
-               JOIN purchase_receipts r ON ri.receipt_id = r.id
-               WHERE r.order_id = ?
-                 AND ri.material_id = ?
-                 AND r.status IN (${receiptStatusSql})
-                 AND r.deleted_at IS NULL
-             ), 0),
-             COALESCE((
-               SELECT SUM(COALESCE(NULLIF(qi.qualified_quantity, 0), qi.quantity, 0))
-               FROM quality_inspections qi
-               WHERE qi.reference_id = ?
-                 AND qi.material_id = ?
-                 AND qi.inspection_type = 'incoming'
-                 AND (qi.source_type IS NULL OR qi.source_type = '' OR qi.source_type = 'purchase_order')
-                 AND qi.deleted_at IS NULL
-                 AND qi.status IN (${inspectionStatusSql})
-             ), 0)
-           )
-           - COALESCE((
-               SELECT SUM(COALESCE(pri.return_quantity, pri.quantity, 0))
-               FROM purchase_return_items pri
-               JOIN purchase_returns pr ON pri.return_id = pr.id
-               JOIN purchase_receipts rc ON pr.receipt_id = rc.id
-               WHERE rc.order_id = ?
-                 AND pri.material_id = ?
-                 AND pr.deleted_at IS NULL
-                 AND rc.deleted_at IS NULL
-                 AND pr.status NOT IN ('cancelled', 'draft', 'rejected')
-             ), 0)
-         ) AS total_received`,
-        [orderId, materialId, orderId, materialId, orderId, materialId]
-      );
-
-      const totalReceived = parseFloat(result[0]?.total_received) || 0;
-
-      // 校验不超过订单数量
-      const [orderItem] = await client.execute(
-        'SELECT quantity FROM purchase_order_items WHERE order_id = ? AND material_id = ? FOR UPDATE',
-        [orderId, materialId]
-      );
-
-      if (orderItem.length === 0) {
-        logger.warn(`[PurchaseOrderStatusService] 采购订单项目不存在: 订单ID=${orderId}, 物料ID=${materialId}`);
-        return;
-      }
-
-      const orderQuantity = parseFloat(orderItem[0].quantity) || 0;
-      if (totalReceived > orderQuantity + QUANTITY_EPSILON) {
-        const error = new Error(
-          `收货单汇总量超过采购订单数量: 订单ID=${orderId}, 物料ID=${materialId}, 订单数量=${orderQuantity}, 收货汇总=${totalReceived}`
-        );
-        error.statusCode = 400;
-        error.code = 'VALIDATION_ERROR';
-        throw error;
-      }
-
-      // 直接SET，非累加，保证幂等
-      await client.execute(
-        `UPDATE purchase_order_items
-         SET received_quantity = ?,
-             updated_at = CURRENT_TIMESTAMP
-          WHERE order_id = ? AND material_id = ?`,
-        [totalReceived, orderId, materialId]
-      );
-
-      logger.info(
-        `[PurchaseOrderStatusService] Received quantity synchronized: orderId=${orderId}, materialId=${materialId}, totalReceived=${totalReceived}`
-      );
-
-      // 更新订单整体状态
-      await this.updateOrderStatus(orderId, client);
-    } catch (error) {
-      logger.error('Received quantity synchronization failed:', error);
-      throw error;
-    }
+    const allocation = await PurchaseOrderQuantityService.read(client, orderId);
+    const line = allocation.resolve(materialId, orderItemId);
+    if (line.received > Number(line.item.quantity) + QUANTITY_EPSILON) throw purchaseValidationError('收货单汇总量超过采购订单数量');
+    await client.execute('UPDATE purchase_order_items SET received_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [Math.max(0, line.received), line.item.id]);
+    await this.updateOrderStatus(orderId, client);
   }
 
   static async getOrderQuantityStats(orderId, connection = null) {
@@ -260,7 +110,7 @@ class PurchaseOrderStatusService {
       ? stats.receivedItems < stats.itemCount
       : stats.totalReceived + QUANTITY_EPSILON < stats.totalQuantity;
     if (hasOutstandingReceivedLine) {
-      return stats.totalReceived > 0 ? 'partial_received' : currentStatus;
+      return stats.totalReceived > 0 ? 'partial_received' : (['partial_received', 'received', 'inspecting', 'inspected', 'warehousing', 'completed'].includes(currentStatus) ? 'approved' : currentStatus);
     }
 
     if (stats.canComplete) {
@@ -403,138 +253,20 @@ class PurchaseOrderStatusService {
    * @param {number} unqualifiedQuantity - 不合格数量
    * @param {Object} connection - 数据库连接（可选）
    */
-  static async updateOrderItemInspectionQuantity(
-    orderId,
-    materialId,
-    inspectedQuantity,
-    qualifiedQuantity,
-    unqualifiedQuantity,
-    connection = null
-  ) {
+  static async syncOrderItemInspectionQuantityFromInspections(orderId, materialId, connection = null, orderItemId = null) {
     const client = connection || db.pool;
-
-    try {
-      logger.info(
-        `[PurchaseOrderStatusService] 更新检验数量：订单ID=${orderId}, 物料ID=${materialId}, 检验数量=${inspectedQuantity}, 合格=${qualifiedQuantity}, 不合格=${unqualifiedQuantity}`
-      );
-
-      // 更新采购订单项目的检验相关数量
-      const updateQuery = `
-        UPDATE purchase_order_items
-        SET
-          inspected_quantity = inspected_quantity + ?,
-          qualified_quantity = qualified_quantity + ?,
-          unqualified_quantity = unqualified_quantity + ?,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE order_id = ? AND material_id = ?
-      `;
-
-      const params = [
-        parseFloat(inspectedQuantity) || 0,
-        parseFloat(qualifiedQuantity) || 0,
-        parseFloat(unqualifiedQuantity) || 0,
-        orderId,
-        materialId,
-      ];
-
-      const [updateResult] = await client.execute(updateQuery, params);
-      if (!updateResult || updateResult.affectedRows === 0) {
-        throw new Error(`采购订单项目不存在: 订单ID=${orderId}, 物料ID=${materialId}`);
-      }
-
-      logger.info('[PurchaseOrderStatusService] 检验数量更新完成');
-
-      // 更新订单整体状态
-      await this.updateOrderStatus(orderId, client);
-    } catch (error) {
-      logger.error('更新采购订单项目检验数量失败:', error);
-      throw error;
-    }
-  }
-
-  static async syncOrderItemInspectionQuantityFromInspections(
-    orderId,
-    materialId,
-    connection = null
-  ) {
-    const client = connection || db.pool;
-
-    try {
-      const [orderItem] = await client.execute(
-        'SELECT quantity FROM purchase_order_items WHERE order_id = ? AND material_id = ? FOR UPDATE',
-        [orderId, materialId]
-      );
-
-      if (orderItem.length === 0) {
-        // 质检单关联了订单但物料不在订单行上时，不应阻断检验结案本身
-        logger.warn(
-          `采购订单项目不存在，跳过检验数量回写: 订单ID=${orderId}, 物料ID=${materialId}`
-        );
-        return {
-          skipped: true,
-          reason: 'order_item_missing',
-          orderId,
-          materialId,
-        };
-      }
-
-      const orderQuantity = parseFloat(orderItem[0].quantity) || 0;
-      const [inspectionRows] = await client.execute(
-        `SELECT
-           COALESCE(SUM(quantity), 0) AS inspected_quantity,
-           COALESCE(SUM(qualified_quantity), 0) AS qualified_quantity,
-           COALESCE(SUM(unqualified_quantity), 0) AS unqualified_quantity
-         FROM quality_inspections
-         WHERE deleted_at IS NULL
-           AND inspection_type = 'incoming'
-           AND (source_type IS NULL OR source_type = '' OR source_type = 'purchase_order')
-           AND reference_id = ?
-           AND material_id = ?
-           AND status IN (?, ?, ?, ?)`,
-        [orderId, materialId, ...TERMINAL_INSPECTION_STATUSES]
-      );
-
-      const stats = inspectionRows[0] || {};
-      const inspectedQuantity = parseFloat(stats.inspected_quantity) || 0;
-      const qualifiedQuantity = parseFloat(stats.qualified_quantity) || 0;
-      const unqualifiedQuantity = parseFloat(stats.unqualified_quantity) || 0;
-
-      if (inspectedQuantity > orderQuantity + QUANTITY_EPSILON) {
-        const error = new Error(
-          `检验数量超过采购订单数量: 订单数量=${orderQuantity}, 已终态检验=${inspectedQuantity}`
-        );
-        error.statusCode = 400;
-        error.code = 'INSPECTION_QTY_EXCEEDS_PO';
-        throw error;
-      }
-
-      const [updateResult] = await client.execute(
-        `UPDATE purchase_order_items
-         SET inspected_quantity = ?,
-             qualified_quantity = ?,
-             unqualified_quantity = ?,
-             updated_at = CURRENT_TIMESTAMP
-         WHERE order_id = ? AND material_id = ?`,
-        [inspectedQuantity, qualifiedQuantity, unqualifiedQuantity, orderId, materialId]
-      );
-
-      if (!updateResult || updateResult.affectedRows === 0) {
-        throw new Error(`采购订单项目不存在: 订单ID=${orderId}, 物料ID=${materialId}`);
-      }
-
-      await this.updateOrderStatus(orderId, client);
-
-      return {
-        orderId,
-        materialId,
-        inspectedQuantity,
-        qualifiedQuantity,
-        unqualifiedQuantity,
-      };
-    } catch (error) {
-      logger.error('同步采购订单项目检验数量失败:', error);
-      throw error;
-    }
+    const allocation = await PurchaseOrderQuantityService.read(client, orderId);
+    const line = allocation.resolve(materialId, orderItemId);
+    // Historical inspections include failed deliveries and replacements. Only
+    // the net accepted/reserved quantity is limited by the ordered quantity.
+    if (line.reserved > Number(line.item.quantity) + QUANTITY_EPSILON) throw purchaseValidationError('检验放行数量超过采购订单剩余数量');
+    await client.execute(
+      `UPDATE purchase_order_items SET inspected_quantity = ?, qualified_quantity = ?, unqualified_quantity = ?,
+        received_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [line.inspected, line.qualified, line.unqualified, Math.max(0, line.received), line.item.id]
+    );
+    await this.updateOrderStatus(orderId, client);
+    return { orderId, materialId, inspectedQuantity: line.inspected, qualifiedQuantity: line.qualified, unqualifiedQuantity: line.unqualified };
   }
 
   /**
@@ -550,8 +282,6 @@ class PurchaseOrderStatusService {
         const orderId = inspectionData.reference_id;
         const materialId = inspectionData.material_id || inspectionData.product_id;
         const inspectedQuantity = parseFloat(inspectionData.quantity) || 0;
-        const qualifiedQuantity = parseFloat(inspectionData.qualified_quantity) || 0;
-        const unqualifiedQuantity = parseFloat(inspectionData.unqualified_quantity) || 0;
 
         if (!materialId) {
           throw new Error(`质检单缺少物料ID，无法回写采购订单: 订单ID=${orderId}`);
@@ -561,22 +291,9 @@ class PurchaseOrderStatusService {
           throw new Error(`质检数量必须大于0，无法回写采购订单: 订单ID=${orderId}, 物料ID=${materialId}`);
         }
 
-        if (inspectionData.inspection_id) {
-          await this.syncOrderItemInspectionQuantityFromInspections(
-            orderId,
-            materialId,
-            connection
-          );
-        } else {
-          await this.updateOrderItemInspectionQuantity(
-            orderId,
-            materialId,
-            inspectedQuantity,
-            qualifiedQuantity,
-            unqualifiedQuantity,
-            connection
-          );
-        }
+        await this.syncOrderItemInspectionQuantityFromInspections(
+          orderId, materialId, connection, inspectionData.purchase_order_item_id || null
+        );
 
         logger.info(`[PurchaseOrderStatusService] 订单${orderId}物料${materialId}检验数量已更新`);
       } else if (inspectionData.reference_type === 'purchase_order') {
@@ -595,72 +312,15 @@ class PurchaseOrderStatusService {
    * @param {number} warehousingQuantity - 入库数量
    * @param {Object} connection - 数据库连接（可选）
    */
-  static async updateOrderItemWarehousingQuantity(
-    orderId,
-    materialId,
-    warehousingQuantity,
-    connection = null
-  ) {
+  static async updateOrderItemWarehousingQuantity(orderId, materialId, warehousingQuantity, connection = null, orderItemId = null) {
     const client = connection || db.pool;
-
-    try {
-      logger.info(
-        `[PurchaseOrderStatusService] 更新入库数量：订单ID=${orderId}, 物料ID=${materialId}, 入库数量=${warehousingQuantity}`
-      );
-
-      // [M-4] 入库数量上限校验：入库数量不能超过合格数量（或收货数量）
-      const [orderItem] = await client.execute(
-        'SELECT quantity, received_quantity, inspected_quantity, qualified_quantity, warehoused_quantity FROM purchase_order_items WHERE order_id = ? AND material_id = ? FOR UPDATE',
-        [orderId, materialId]
-      );
-
-      if (orderItem.length === 0) {
-        throw new Error(`采购订单项目不存在: 订单ID=${orderId}, 物料ID=${materialId}`);
-      }
-
-      const inspectedQuantity = parseFloat(orderItem[0].inspected_quantity) || 0;
-      const qualifiedQuantity = parseFloat(orderItem[0].qualified_quantity) || 0;
-      const receivedQuantity = parseFloat(orderItem[0].received_quantity) || 0;
-      const orderedQuantity = parseFloat(orderItem[0].quantity) || 0;
-      const maxAllowed = inspectedQuantity > 0
-        ? qualifiedQuantity
-        : (receivedQuantity > 0 ? receivedQuantity : orderedQuantity);
-      const currentWarehoused = parseFloat(orderItem[0].warehoused_quantity) || 0;
-      const newWarehousingQty = parseFloat(warehousingQuantity) || 0;
-
-      if (currentWarehoused + newWarehousingQty > maxAllowed + 0.001) {
-        const errorMsg = `入库数量超额: 允许上限=${maxAllowed}, 已入库=${currentWarehoused}, 本次入库=${newWarehousingQty}`;
-        logger.error(`[PurchaseOrderStatusService] ${errorMsg}`);
-        const error = new Error(errorMsg);
-        error.statusCode = 400;
-        error.code = 'VALIDATION_ERROR';
-        throw error;
-      }
-
-      // 更新采购订单项目的已入库数量
-      const updateQuery = `
-        UPDATE purchase_order_items
-        SET
-          warehoused_quantity = warehoused_quantity + ?,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE order_id = ? AND material_id = ?
-      `;
-
-      const params = [parseFloat(warehousingQuantity) || 0, orderId, materialId];
-
-      const [updateResult] = await client.execute(updateQuery, params);
-      if (!updateResult || updateResult.affectedRows === 0) {
-        throw new Error(`采购订单项目不存在: 订单ID=${orderId}, 物料ID=${materialId}`);
-      }
-
-      logger.info('[PurchaseOrderStatusService] Warehousing quantity updated');
-
-      // 更新订单整体状态
-      await this.updateOrderStatus(orderId, client);
-    } catch (error) {
-      logger.error('更新采购订单项目入库数量失败:', error);
-      throw error;
-    }
+    const allocation = await PurchaseOrderQuantityService.read(client, orderId);
+    const line = allocation.resolve(materialId, orderItemId);
+    const quantity = purchaseQuantity(warehousingQuantity, '本次入库数量');
+    const total = Number(line.item.warehoused_quantity || 0) + quantity;
+    if (total > Math.max(0, line.received) + QUANTITY_EPSILON) throw purchaseValidationError('入库数量超出已收货合格数量');
+    await client.execute('UPDATE purchase_order_items SET warehoused_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [total, line.item.id]);
+    await this.updateOrderStatus(orderId, client);
   }
 
   /**

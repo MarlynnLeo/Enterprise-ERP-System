@@ -64,7 +64,7 @@
         <div class="stat-label">资产原值合计</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value value-text">{{ formatCurrency(assetStats.totalNetValue) }}</div>
+        <div class="stat-value value-text">{{ formatCurrency(assetStats.netValue) }}</div>
         <div class="stat-label">资产净值合计</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
@@ -177,7 +177,7 @@
     >
       <el-form :model="assetForm" :rules="assetRules" ref="assetFormRef" label-width="100px">
         <el-form-item label="资产编号" prop="assetCode">
-          <el-input  v-model="assetForm.assetCode" placeholder="请输入资产编号，留空将自动生成" clearable >
+          <el-input v-model="assetForm.assetCode" :disabled="Boolean(assetForm.id)" placeholder="请输入资产编号，留空将自动生成" clearable>
             <template #append v-if="!assetForm.id">
               <el-button v-permission="'finance:assets:create'" @click="generateCode">自动获取</el-button>
             </template>
@@ -674,7 +674,7 @@ const departmentOptions = ref([]);
 const assetStats = reactive({
   total: 0,
   totalValue: 0,
-  totalNetValue: 0,
+  netValue: 0,
   inUseCount: 0,
   idleCount: 0,
   underRepairCount: 0
@@ -900,7 +900,7 @@ const showAddDialog = () => {
 const onCategoryChange = () => {
   if (!assetForm.id && assetForm.categoryId) {
     // 自动获取编号
-    generateCode();
+    if (!assetForm.assetCode) generateCode();
 
     // 同步类别默认设置
     const category = categoryOptions.value.find(c => c.id === assetForm.categoryId);

@@ -7,6 +7,8 @@
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
+const { normalizePurchaseDate, purchaseValidationError } = require('../../../utils/purchase/purchaseValidation');
+const PurchaseReceiptValidationService = require('../../../services/business/PurchaseReceiptValidationService');
 const crypto = require('crypto');
 
 const db = require('../../../config/db');
@@ -66,8 +68,8 @@ const getReceipts = async (req, res) => {
   try {
     const {
       page = 1,
-      limit = 10,
-      pageSize = 10,
+      limit,
+      pageSize,
       receiptNo,
       orderNo,
       supplierId,
@@ -77,7 +79,7 @@ const getReceipts = async (req, res) => {
     } = req.query;
 
     // 转换为数字类型
-    const actualPageSize = Math.min(Math.max(parseInt(limit || pageSize, 10) || 20, 1), 100);
+    const actualPageSize = Math.min(Math.max(parseInt(pageSize ?? limit ?? 10, 10) || 10, 1), 100);
     const actualPage = parseInt(page, 10);
     // 验证参数
     if (isNaN(actualPage) || isNaN(actualPageSize) || actualPage < 1 || actualPageSize < 1) {
@@ -132,7 +134,12 @@ const getReceipts = async (req, res) => {
     const connection = await db.pool.getConnection();
     try {
       // 1. 快速计数查询（只查主表，不走 JOIN）
-      const countQuery = `SELECT COUNT(*) as total FROM purchase_receipts r ${scopeClause.join} ${whereClause}`;
+      const countQuery = `SELECT COUNT(*) AS total,
+        COALESCE(SUM(r.status='draft'), 0) AS draftCount,
+        COALESCE(SUM(r.status='confirmed'), 0) AS confirmedCount,
+        COALESCE(SUM(r.status='completed'), 0) AS completedCount,
+        COALESCE(SUM(CASE WHEN r.status <> 'cancelled' THEN r.total_amount ELSE 0 END), 0) AS totalAmount
+        FROM purchase_receipts r ${scopeClause.join} ${whereClause}`;
       const [countResult] = await connection.query(countQuery, queryParams);
       const totalCount = countResult[0].total;
 
@@ -142,15 +149,17 @@ const getReceipts = async (req, res) => {
           po.order_no as joined_order_no,
           s.name as joined_supplier_name,
           l.name as joined_warehouse_name,
+          qi.inspection_no,
           u.real_name
         FROM purchase_receipts r
         LEFT JOIN purchase_orders po ON r.order_id = po.id
         LEFT JOIN suppliers s ON r.supplier_id = s.id
         LEFT JOIN locations l ON r.warehouse_id = l.id
+        LEFT JOIN quality_inspections qi ON r.inspection_id = qi.id
         LEFT JOIN users u ON u.username = r.operator
         ${scopeClause.join}
         ${whereClause}
-        ORDER BY r.created_at DESC LIMIT ${actualPageSize} OFFSET ${offset}
+        ORDER BY r.created_at DESC, r.id DESC LIMIT ${actualPageSize} OFFSET ${offset}
       `;
       const [result] = await connection.query(dataQuery, queryParams);
 
@@ -161,7 +170,7 @@ const getReceipts = async (req, res) => {
           order_no: row.joined_order_no || row.order_no || '',
           supplier_name: row.joined_supplier_name || row.supplier_name || '',
           warehouse_name: row.joined_warehouse_name || row.warehouse_name || '',
-          receiver: row.operator === 'system' ? '系统' : row.realName || row.operator || '',
+          receiver: row.operator === 'system' ? '系统' : row.real_name || row.operator || '',
         })
       );
 
@@ -177,6 +186,7 @@ const getReceipts = async (req, res) => {
         undefined,
         {
           items: desensitizedReceipts,
+          statistics: desensitizeData(countResult[0], hasPerm),
         }
       );
     } finally {
@@ -224,6 +234,7 @@ const getReceipt = async (req, res) => {
           po.order_no,
           s.name AS supplier_name,
           l.name AS warehouse_name,
+          qi.inspection_no,
           (SELECT u.real_name FROM users u WHERE u.username = pr.operator OR u.real_name = pr.operator LIMIT 1) as real_name
         FROM
           purchase_receipts pr
@@ -233,6 +244,8 @@ const getReceipt = async (req, res) => {
           suppliers s ON pr.supplier_id = s.id
         LEFT JOIN
           locations l ON pr.warehouse_id = l.id
+        LEFT JOIN
+          quality_inspections qi ON pr.inspection_id = qi.id
         WHERE
           pr.id = ? AND pr.deleted_at IS NULL
       `;
@@ -252,7 +265,11 @@ const getReceipt = async (req, res) => {
           m.name AS material_name,
           m.code AS material_code,
           m.specs,
-          u.name AS unit_name
+          u.name AS unit_name,
+          COALESCE((SELECT SUM(rti.return_quantity)
+            FROM purchase_return_items rti
+            JOIN purchase_returns rt ON rt.id = rti.return_id
+            WHERE rti.receipt_item_id = pri.id AND rt.deleted_at IS NULL AND rt.status <> 'cancelled'), 0) AS returned_quantity
         FROM
           purchase_receipt_items pri
         LEFT JOIN
@@ -277,6 +294,7 @@ const getReceipt = async (req, res) => {
         apiItem.unitName = item.unit_name ?? null;
         apiItem.orderedQuantity = toNumberSafe(item.ordered_quantity, 0);
         apiItem.receivedQuantity = toNumberSafe(item.received_quantity, 0);
+        apiItem.returnedQuantity = toNumberSafe(item.returned_quantity, 0);
         return apiItem;
       });
 
@@ -285,7 +303,7 @@ const getReceipt = async (req, res) => {
         order_no: receipt.order_no,
         supplier_name: receipt.supplier_name,
         warehouse_name: receipt.warehouse_name,
-        receiver: receipt.operator === 'system' ? '系统' : receipt.realName || receipt.operator,
+        receiver: receipt.operator === 'system' ? '系统' : receipt.real_name || receipt.operator,
         items: undefined,
       });
       response.items = formattedItems;
@@ -342,7 +360,7 @@ const createReceipt = async (req, res) => {
     const orderId = mapped.order_id ?? req.body?.orderId;
     const supplierId = mapped.supplier_id ?? req.body?.supplierId;
     const warehouseId = mapped.warehouse_id ?? req.body?.warehouseId;
-    const receiptDate = mapped.receipt_date ?? req.body?.receiptDate;
+    const receiptDate = normalizePurchaseDate(req.body?.receiptDate ?? mapped.receipt_date, '收货日期');
     const receiver = req.body?.receiver || '';
     const remarks = mapped.remarks ?? req.body?.remarks ?? '';
     const rawItems = mapped.items ?? req.body?.items ?? [];
@@ -353,6 +371,7 @@ const createReceipt = async (req, res) => {
     );
 
     const inspectionId = req.body?.inspectionId ?? null;
+    if (fromInspection && !inspectionId) throw purchaseValidationError('质检来源收货必须指定检验单');
     let inspectionContext = null;
 
     // 带 inspectionId 即按质检来源处理
@@ -486,7 +505,7 @@ const createReceipt = async (req, res) => {
       // 防重复的维度应该是：同一张检验单不能重复建单 / 手动建单防连击
       if (inspectionId) {
         const [inspectionRows] = await client.query(
-          `SELECT id, inspection_no, inspection_type, reference_id,
+          `SELECT id, inspection_no, inspection_type, source_type, reference_id,
                   COALESCE(material_id, product_id) AS material_id,
                   status, qualified_quantity, batch_no
            FROM quality_inspections
@@ -505,7 +524,7 @@ const createReceipt = async (req, res) => {
         const cleanOrderId = Number(orderId);
         const qualifiedQuantity = parseFloat(inspectionContext.qualified_quantity) || 0;
 
-        if (inspectionContext.inspection_type !== 'incoming') {
+        if (inspectionContext.inspection_type !== 'incoming' || inspectionContext.source_type === 'outsourced_receipt') {
           await client.rollback();
           return ResponseHandler.error(res, '只能引用来料检验单创建采购入库单', 'VALIDATION_ERROR', 400);
         }
@@ -594,6 +613,7 @@ const createReceipt = async (req, res) => {
     }
 
     const warehouseName = warehouseResult[0]?.name || '';
+    items = await PurchaseReceiptValidationService.validateItems(client, { orderId, supplierId, inspectionId, items });
 
     // 生成入库单号
 
@@ -975,7 +995,7 @@ const createReceipt = async (req, res) => {
             item.tax_rate ?? orderContext.taxRate,
             financeConfig.get('tax.defaultVATRate', 0.13)
           );
-          const amountExcludingTax = lineAmount(receiptQuantity, itemPrice);
+          const amountExcludingTax = lineAmount(qualifiedQuantity, itemPrice);
           const itemTaxAmount = calculateTaxAmount(amountExcludingTax, taxRate);
           const itemTotalAmount = roundMoney(amountExcludingTax + itemTaxAmount);
           receiptTaxAmount = roundMoney(receiptTaxAmount + itemTaxAmount);
@@ -1103,207 +1123,79 @@ const createReceipt = async (req, res) => {
 
 // 更新采购入库
 const updateReceipt = async (req, res) => {
-  {
-    const { id } = req.params;
-    if (id !== null && id !== undefined && id !== '') {
-      const ScopeGuard = require('../../../authorization/ScopeGuard');
-      if (!(await ScopeGuard.assertAccess(db.pool, req, 'purchase_receipt', id))) {
-        return ResponseHandler.forbidden(res, '无权修改该采购入库单');
-      }
-    }
+  const ScopeGuard = require('../../../authorization/ScopeGuard');
+  if (!(await ScopeGuard.assertAccess(db.pool, req, 'purchase_receipt', req.params.id))) {
+    return ResponseHandler.forbidden(res, '无权修改该采购入库单');
   }
-
-  const client = await db.getClient();
-
+  const connection = await db.pool.getConnection();
   try {
-    // 事务命令不支持预处理语句协议，使用普通查询
-    await client.query('BEGIN');
-
-    const { id } = req.params;
-    const {
-      receiptDate,
-      warehouseId,
-      remarks = '', // 默认为空字符串而不是undefined
-      items = [], // 默认为空数组而不是undefined
-    } = req.body;
-
-    // 验证必填字段
-    if (!id || !receiptDate) {
-      await client.query('ROLLBACK');
-      return ResponseHandler.error(res, '缺少必填字段', 'VALIDATION_ERROR', 400);
+    await connection.beginTransaction();
+    const id = Number(req.params.id);
+    const [[source]] = await connection.query('SELECT order_id FROM purchase_receipts WHERE id = ? AND deleted_at IS NULL', [id]);
+    if (!source) throw purchaseValidationError('采购入库单不存在', 404);
+    await connection.query('SELECT id FROM purchase_orders WHERE id = ? FOR UPDATE', [source.order_id]);
+    const [[receipt]] = await connection.query('SELECT * FROM purchase_receipts WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]);
+    if (!receipt || receipt.status !== 'draft') throw purchaseValidationError('只能编辑草稿状态的收货单');
+    if (req.body.orderId != null && Number(req.body.orderId) !== Number(receipt.order_id)) throw purchaseValidationError('不能修改收货单的来源采购订单');
+    if (req.body.supplierId != null && Number(req.body.supplierId) !== Number(receipt.supplier_id)) throw purchaseValidationError('不能修改收货单的来源供应商');
+    const receiptDate = normalizePurchaseDate(req.body.receiptDate ?? receipt.receipt_date, '收货日期');
+    const warehouseId = Number(req.body.warehouseId ?? receipt.warehouse_id);
+    const [[warehouse]] = await connection.query('SELECT id, name FROM locations WHERE id = ? AND deleted_at IS NULL AND status = 1', [warehouseId]);
+    if (!warehouse) throw purchaseValidationError('仓库不存在或已停用');
+    const [storedItems] = await connection.query('SELECT * FROM purchase_receipt_items WHERE receipt_id = ? ORDER BY id FOR UPDATE', [id]);
+    const itemsById = new Map(storedItems.map(item => [Number(item.id), item]));
+    if (req.body.items !== undefined) {
+      if (!Array.isArray(req.body.items) || !req.body.items.length) throw purchaseValidationError('收货明细不能为空');
+      const seen = new Set();
+      for (const input of req.body.items) {
+        const itemId = Number(input.id);
+        const stored = itemsById.get(itemId);
+        if (!stored || seen.has(itemId)) throw purchaseValidationError('收货明细ID不存在、重复或不属于当前收货单');
+        seen.add(itemId);
+        const mapped = purchaseReceiptItemMap.fromApi(input);
+        if (mapped.material_id != null && Number(mapped.material_id) !== Number(stored.material_id)) throw purchaseValidationError('不能更换收货单的来源物料');
+        if (mapped.order_item_id != null && Number(mapped.order_item_id) !== Number(stored.order_item_id)) throw purchaseValidationError('不能更换收货单的来源订单明细');
+        itemsById.set(itemId, { ...stored, ...mapped });
+      }
     }
-
-    // 检查入库单是否存在及其状态
-    let checkResult;
-    try {
-      const checkQuery = 'SELECT status, warehouse_id FROM purchase_receipts WHERE id = ? AND deleted_at IS NULL';
-      const result = await client.query(checkQuery, [id]);
-      // 安全地获取结果，适配不同格式
-      checkResult = Array.isArray(result) ? result : result && result.rows ? result.rows : [];
-
-      if (!checkResult || checkResult.length === 0) {
-        // 使用普通查询回滚事务
-        await client.query('ROLLBACK');
-        return ResponseHandler.notFound(res, '采购入库单不存在');
-      }
-
-      const currentItem = checkResult[0] || {};
-      const currentStatus = currentItem.status || null;
-
-      if (currentStatus !== 'draft') {
-        // 使用普通查询回滚事务
-        await client.query('ROLLBACK');
-        return ResponseHandler.error(res, '只能编辑草稿状态的收货单', 'VALIDATION_ERROR', 400);
-      }
-
-      // 如果更改了仓库，则需要获取新仓库的信息
-      if (warehouseId && warehouseId !== currentItem.warehouse_id) {
-        let warehouseResult;
-        try {
-          const warehouseQuery = 'SELECT name FROM locations WHERE id = ? AND deleted_at IS NULL';
-          const result = await client.query(warehouseQuery, [warehouseId]);
-          // 安全地获取结果，适配不同格式
-          warehouseResult = Array.isArray(result)
-            ? result
-            : result && result.rows
-              ? result.rows
-              : [];
-
-          if (!warehouseResult || warehouseResult.length === 0) {
-            // 使用普通查询回滚事务
-            await client.query('ROLLBACK');
-            logger.error(`仓库ID ${warehouseId} 不存在于locations表中`);
-            return ResponseHandler.notFound(res, '仓库不存在');
-          }
-
-        } catch (dbError) {
-          logger.error('查询仓库信息失败:', dbError);
-          await client.query('ROLLBACK');
-          return ResponseHandler.error(res, '数据库查询错误', 'SERVER_ERROR', 500, dbError);
-        }
-      }
-    } catch (checkError) {
-      logger.error('检查入库单状态失败:', checkError);
-      await client.query('ROLLBACK');
-      return ResponseHandler.error(res, '数据库查询错误', 'SERVER_ERROR', 500, checkError);
-    }
-
-    // 更新入库单基本信息
-    const updateQuery = `
-      UPDATE purchase_receipts
-      SET receipt_date = ?, remarks = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ? AND deleted_at IS NULL
-    `;
-    const queryParams = [receiptDate, remarks || '', id];
-
-    // 检查任何参数是否为undefined
-    if (queryParams.includes(undefined)) {
-      logger.error(
-        '更新采购入库单参数中包含undefined值:',
-        queryParams
-          .map((param, index) => (param === undefined ? index : null))
-          .filter((i) => i !== null)
-      );
-      await client.query('ROLLBACK');
-      return ResponseHandler.error(res, '数据处理错误：参数包含undefined值', 'SERVER_ERROR', 500);
-    }
-
-    await client.query(updateQuery, queryParams);
-
-    // 更新物料项目
-    if (items && Array.isArray(items) && items.length > 0) {
-      for (const item of items) {
-        // update 路径明细：优先 snake（已 map），兼容 HTTP camel actualQuantity/receivedQuantity
-        const receivedQty =
-          item.received_quantity ?? item.actualQuantity ?? item.receivedQuantity;
-        const qualifiedQty = item.qualified_quantity ?? item.qualifiedQuantity;
-
-        if (!item.id || receivedQty === undefined || receivedQty === null) {
-          throw new Error('采购入库单明细缺少ID或收货数量');
-        }
-
-        const updateItemQuery = `
-          UPDATE purchase_receipt_items
-          SET received_quantity = ?,
-              qualified_quantity = ?,
-              amount_excluding_tax = ROUND(? * COALESCE(price, 0), 2),
-              tax_amount = ROUND(
-                ROUND(? * COALESCE(price, 0), 2) *
-                (CASE WHEN COALESCE(tax_rate, 0) > 1 THEN COALESCE(tax_rate, 0) / 100 ELSE COALESCE(tax_rate, 0) END),
-                2
-              ),
-              total_amount = ROUND(? * COALESCE(price, 0), 2) + ROUND(
-                ROUND(? * COALESCE(price, 0), 2) *
-                (CASE WHEN COALESCE(tax_rate, 0) > 1 THEN COALESCE(tax_rate, 0) / 100 ELSE COALESCE(tax_rate, 0) END),
-                2
-              ),
-              updated_at = CURRENT_TIMESTAMP
-          WHERE receipt_id = ? AND id = ?
-        `;
-
-        const numericReceivedQty = parseFloat(receivedQty) || 0;
-        const itemParams = [
-          numericReceivedQty,
-          parseFloat(qualifiedQty) || 0,
-          numericReceivedQty,
-          numericReceivedQty,
-          numericReceivedQty,
-          numericReceivedQty,
-          id,
-          item.id,
-        ];
-
-        // 检查任何参数是否为undefined
-        if (itemParams.includes(undefined)) {
-          logger.error(
-            '更新物料项参数中包含undefined值:',
-            itemParams
-              .map((param, index) => (param === undefined ? index : null))
-              .filter((i) => i !== null)
-          );
-          throw new Error('采购入库单明细参数不完整');
-        }
-
-        await client.query(updateItemQuery, itemParams);
-      }
-
-      await client.query(
-        `UPDATE purchase_receipts pr
-         JOIN (
-           SELECT receipt_id,
-                  ROUND(SUM(COALESCE(total_amount, 0)), 2) AS total_amount,
-                  ROUND(SUM(COALESCE(tax_amount, 0)), 2) AS total_tax_amount
-           FROM purchase_receipt_items
-           WHERE receipt_id = ?
-           GROUP BY receipt_id
-         ) x ON x.receipt_id = pr.id
-         SET pr.total_amount = x.total_amount,
-             pr.total_tax_amount = x.total_tax_amount,
-             pr.updated_at = CURRENT_TIMESTAMP
-         WHERE pr.id = ? AND pr.deleted_at IS NULL`,
-        [id, id]
+    const items = await PurchaseReceiptValidationService.validateItems(connection, {
+      orderId: receipt.order_id, supplierId: receipt.supplier_id, inspectionId: receipt.inspection_id,
+      receiptId: id, items: [...itemsById.values()],
+    });
+    let totalAmount = 0;
+    let totalTaxAmount = 0;
+    for (const item of items) {
+      const amount = lineAmount(item.qualified_quantity, item.price);
+      const tax = calculateTaxAmount(amount, item.tax_rate);
+      const total = roundMoney(amount + tax);
+      totalAmount = roundMoney(totalAmount + total);
+      totalTaxAmount = roundMoney(totalTaxAmount + tax);
+      await connection.query(
+        `UPDATE purchase_receipt_items SET quantity = ?, received_quantity = ?, qualified_quantity = ?,
+          price = ?, tax_rate = ?, amount_excluding_tax = ?, tax_amount = ?, total_amount = ?, batch_number = ?, remarks = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE receipt_id = ? AND id = ?`,
+        [item.received_quantity, item.received_quantity, item.qualified_quantity, item.price, item.tax_rate, amount, tax, total, item.batch_number, item.remarks || '', id, item.id]
       );
     }
-
-    // 使用普通查询提交事务
-    await client.query('COMMIT');
-
-    ResponseHandler.success(res, null, '采购入库单更新成功');
+    const remarks = req.body.remarks ?? receipt.remarks ?? '';
+    await connection.query(
+      `UPDATE purchase_receipts SET receipt_date = ?, warehouse_id = ?, warehouse_name = ?, remarks = ?,
+        total_amount = ?, total_tax_amount = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [receiptDate, warehouse.id, warehouse.name, remarks, totalAmount, totalTaxAmount, id]
+    );
+    await connection.commit();
+    return ResponseHandler.success(res, { id }, '采购入库单更新成功');
   } catch (error) {
-    // 使用普通查询回滚事务
-    try {
-      await client.query('ROLLBACK');
-    } catch (rollbackError) {
-      logger.error('事务回滚失败:', rollbackError);
-    }
+    await connection.rollback();
     logger.error('更新采购入库单失败:', error);
-    ResponseHandler.error(res, '更新采购入库单失败', 'SERVER_ERROR', 500, error);
+    const statusCode = error.statusCode || 500;
+    return ResponseHandler.error(res, statusCode < 500 ? error.message : '更新采购入库单失败', error.code || 'OPERATION_ERROR', statusCode, error);
   } finally {
-    client.release();
+    connection.release();
   }
 };
 
-// 更新采购入库状态
+// 更新采购收货状态
 const updateReceiptStatus = async (req, res) => {
   {
     const { id } = req.params;
@@ -1337,6 +1229,9 @@ const updateReceiptStatus = async (req, res) => {
       await client.rollback();
       return ResponseHandler.error(res, '无效的状态值', 'VALIDATION_ERROR', 400);
     }
+
+    const [[sourceOrder]] = await client.query('SELECT order_id FROM purchase_receipts WHERE id = ? AND deleted_at IS NULL', [id]);
+    if (sourceOrder?.order_id) await client.query('SELECT id FROM purchase_orders WHERE id = ? FOR UPDATE', [sourceOrder.order_id]);
 
     // 检查入库单是否存在
     let currentStatus = null;
@@ -1377,6 +1272,16 @@ const updateReceiptStatus = async (req, res) => {
     `;
     const updateParams = [status, statusRemark, id];
 
+    if (['confirmed', 'completed'].includes(status)) {
+      const [[header]] = await client.query('SELECT order_id, supplier_id, inspection_id FROM purchase_receipts WHERE id = ?', [id]);
+      const [lines] = await client.query('SELECT * FROM purchase_receipt_items WHERE receipt_id = ? ORDER BY id FOR UPDATE', [id]);
+      const validated = await PurchaseReceiptValidationService.validateItems(client, {
+        orderId: header.order_id, supplierId: header.supplier_id, inspectionId: header.inspection_id,
+        receiptId: Number(id), items: lines,
+      });
+      if (status === 'completed' && validated.some(item => item.qualified_quantity <= 0)) throw purchaseValidationError('只有合格数量大于0的物料才能完成入库');
+    }
+
     // 检查任何参数是否为undefined
     if (updateParams.includes(undefined)) {
       logger.error(
@@ -1400,13 +1305,12 @@ const updateReceiptStatus = async (req, res) => {
     await client.query(updateQuery, updateParams);
 
     if (
-      currentStatus === STATUS.PURCHASE_RECEIPT.DRAFT &&
-      [STATUS.PURCHASE_RECEIPT.CONFIRMED, STATUS.PURCHASE_RECEIPT.COMPLETED].includes(status)
+      [STATUS.PURCHASE_RECEIPT.CONFIRMED, STATUS.PURCHASE_RECEIPT.COMPLETED, STATUS.PURCHASE_RECEIPT.CANCELLED].includes(status)
     ) {
       // ✅ 根源修复：使用全量同步替代累加，保证幂等性
       // 从所有已确认/完成的收货单汇总收货量，直接SET到采购订单项
       const [receivedItems] = await client.query(
-        `SELECT DISTINCT r.order_id, ri.material_id
+        `SELECT DISTINCT r.order_id, ri.material_id, ri.order_item_id
          FROM purchase_receipts r
          JOIN purchase_receipt_items ri ON r.id = ri.receipt_id
          WHERE r.id = ? AND r.deleted_at IS NULL`,
@@ -1418,7 +1322,8 @@ const updateReceiptStatus = async (req, res) => {
           await PurchaseOrderStatusService.syncOrderItemReceivedFromReceipts(
             item.order_id,
             item.material_id,
-            client
+            client,
+            item.order_item_id
           );
         }
       }
@@ -1439,7 +1344,7 @@ const updateReceiptStatus = async (req, res) => {
           JOIN materials m ON ri.material_id = m.id
           LEFT JOIN units u ON m.unit_id = u.id
           LEFT JOIN purchase_orders po ON r.order_id = po.id
-          LEFT JOIN purchase_order_items poi ON po.id = poi.order_id AND ri.material_id = poi.material_id
+          LEFT JOIN purchase_order_items poi ON poi.id = ri.order_item_id AND po.id = poi.order_id
           WHERE r.id = ? AND r.deleted_at IS NULL
         `;
 
@@ -1454,7 +1359,7 @@ const updateReceiptStatus = async (req, res) => {
               (item) => !item.batch_number || item.batch_number.trim() === ''
             );
             if (missingBatchItems.length > 0) {
-              throw new Error(
+              throw purchaseValidationError(
                 `采购收货单 ${receipt.receipt_no} 有 ${missingBatchItems.length} 条明细缺少批次号，不能完成入库`
               );
             }
@@ -1464,7 +1369,7 @@ const updateReceiptStatus = async (req, res) => {
                 material_code: item.material_code,
                 material_name: item.material_name,
                 batch_number: item.batch_number,
-                quantity: item.qualified_quantity || item.received_quantity,
+                quantity: item.qualified_quantity,
                 unit: item.unit,
                 supplier_id: receipt.supplier_id,
                 supplier_name: receipt.supplier_name,
@@ -1480,7 +1385,7 @@ const updateReceiptStatus = async (req, res) => {
 
             const invalidCostItem = batchItems.find((item) => !(Number(item.unit_cost) > 0));
             if (invalidCostItem) {
-              throw new Error(
+              throw purchaseValidationError(
                 `采购收货单 ${receipt.receipt_no} 的物料 ${invalidCostItem.material_code || invalidCostItem.material_id} 缺少大于0的采购成本，不能完成入库`
               );
             }
@@ -1560,7 +1465,8 @@ const updateReceiptStatus = async (req, res) => {
                     receipt.order_id,
                     item.material_id,
                     qualifiedQty,
-                    client
+                    client,
+                    item.order_item_id
                   );
 
                   logger.info(
@@ -1665,9 +1571,8 @@ const getReceiptStats = async (req, res) => {
         SUM(CASE WHEN pr.status = '${STATUS.PURCHASE_RECEIPT.CONFIRMED}' THEN 1 ELSE 0 END) as confirmed_count,
         SUM(CASE WHEN pr.status = '${STATUS.PURCHASE_RECEIPT.COMPLETED}' THEN 1 ELSE 0 END) as completed_count,
         SUM(CASE WHEN pr.status = '${STATUS.PURCHASE_RECEIPT.CANCELLED}' THEN 1 ELSE 0 END) as cancelled_count,
-        COALESCE(SUM(pri.received_quantity * COALESCE(pri.price, 0)), 0) as total_amount
+        COALESCE(SUM(CASE WHEN pr.status <> 'cancelled' THEN pr.total_amount ELSE 0 END), 0) as total_amount
       FROM purchase_receipts pr
-      LEFT JOIN purchase_receipt_items pri ON pr.id = pri.receipt_id
       WHERE pr.deleted_at IS NULL
     `;
 
@@ -1677,9 +1582,8 @@ const getReceiptStats = async (req, res) => {
     const monthlyQuery = `
       SELECT
         COUNT(DISTINCT pr.id) as monthly_count,
-        COALESCE(SUM(pri.received_quantity * COALESCE(pri.price, 0)), 0) as monthly_amount
+        COALESCE(SUM(CASE WHEN pr.status <> 'cancelled' THEN pr.total_amount ELSE 0 END), 0) as monthly_amount
       FROM purchase_receipts pr
-      LEFT JOIN purchase_receipt_items pri ON pr.id = pri.receipt_id
       WHERE pr.deleted_at IS NULL
         AND YEAR(pr.receipt_date) = YEAR(CURDATE())
         AND MONTH(pr.receipt_date) = MONTH(CURDATE())
@@ -1691,9 +1595,8 @@ const getReceiptStats = async (req, res) => {
     const dailyQuery = `
       SELECT
         COUNT(DISTINCT pr.id) as daily_count,
-        COALESCE(SUM(pri.received_quantity * COALESCE(pri.price, 0)), 0) as daily_amount
+        COALESCE(SUM(CASE WHEN pr.status <> 'cancelled' THEN pr.total_amount ELSE 0 END), 0) as daily_amount
       FROM purchase_receipts pr
-      LEFT JOIN purchase_receipt_items pri ON pr.id = pri.receipt_id
       WHERE pr.deleted_at IS NULL
         AND DATE(pr.receipt_date) = CURDATE()
     `;
@@ -1738,6 +1641,10 @@ const getReceiptStats = async (req, res) => {
  */
 const getMaterialPurchaseHistory = async (req, res) => {
   try {
+    const ScopeGuard = require('../../../authorization/ScopeGuard');
+    const scopeClause = await ScopeGuard.applyListScope(req, 'purchase_receipt', {
+      tableAlias: 'pr', ownerAlias: 'purchase_history_owner_scope', accessMode: 'read',
+    });
     const { materialId } = req.params;
     const { page = 1, pageSize = 10, startDate, endDate, supplierId } = req.query;
 
@@ -1785,12 +1692,15 @@ const getMaterialPurchaseHistory = async (req, res) => {
       // 只查询已完成的入库单
       whereClause += ' AND pr.status = ?';
       queryParams.push('completed');
+      whereClause += scopeClause.where || '';
+      queryParams.push(...(scopeClause.params || []));
 
       // 查询总数
       const countQuery = `
-        SELECT COUNT(DISTINCT pr.id) as total
+        SELECT COUNT(*) as total
         FROM purchase_receipts pr
         INNER JOIN purchase_receipt_items pri ON pr.id = pri.receipt_id
+        ${scopeClause.join}
         ${whereClause}
       `;
 
@@ -1820,22 +1730,28 @@ const getMaterialPurchaseHistory = async (req, res) => {
           pr.remarks,
           pr.status,
           pr.created_at,
+          pri.id as item_id,
           pri.material_id,
           pri.material_code,
           pri.material_name,
           pri.specification,
-          pri.unit,
+          COALESCE(NULLIF(pri.unit, ''), u.name, '') as unit,
           pri.ordered_quantity,
-          pri.quantity,
+          pri.qualified_quantity as quantity,
           pri.received_quantity,
           pri.qualified_quantity,
           pri.price as unit_price,
-          (pri.received_quantity * pri.price) as total_amount
+          pri.amount_excluding_tax,
+          pri.tax_amount,
+          pri.total_amount
         FROM purchase_receipts pr
         INNER JOIN purchase_receipt_items pri ON pr.id = pri.receipt_id
         LEFT JOIN suppliers s ON pr.supplier_id = s.id
+        LEFT JOIN materials m ON m.id = pri.material_id
+        LEFT JOIN units u ON u.id = COALESCE(NULLIF(pri.unit_id, 0), m.unit_id)
+        ${scopeClause.join}
         ${whereClause}
-        ORDER BY pr.receipt_date DESC, pr.created_at DESC
+        ORDER BY pr.receipt_date DESC, pr.id DESC, pri.id DESC
         LIMIT ${actualPageSize} OFFSET ${offset}
       `;
 
@@ -1866,6 +1782,7 @@ const getMaterialPurchaseHistory = async (req, res) => {
           ? dataResult.rows
           : [];
 
+      desensitizeData(dataRows, await hasFinancePermission(req.user));
       // 返回结果
       return ResponseHandler.paginated(
         res,
@@ -1890,6 +1807,10 @@ const getMaterialPurchaseHistory = async (req, res) => {
 // 获取通用的所有采购历史明细项目
 const getPurchaseHistoryItems = async (req, res) => {
   try {
+    const ScopeGuard = require('../../../authorization/ScopeGuard');
+    const scopeClause = await ScopeGuard.applyListScope(req, 'purchase_receipt', {
+      tableAlias: 'pr', ownerAlias: 'purchase_history_owner_scope', accessMode: 'read',
+    });
     const { page = 1, pageSize = 20, materialCode, materialName, supplierId, startDate, endDate } = req.query;
 
     const actualPage = Math.max(1, parseInt(page, 10) || 1);
@@ -1938,11 +1859,16 @@ const getPurchaseHistoryItems = async (req, res) => {
         countParams.push(endDate);
       }
 
+      whereClause += scopeClause.where || '';
+      queryParams.push(...(scopeClause.params || []));
+      countParams.push(...(scopeClause.params || []));
+
       // 查询总数
       const countQuery = `
         SELECT count(*) as total
         FROM purchase_receipts pr
         INNER JOIN purchase_receipt_items pri ON pr.id = pri.receipt_id
+        ${scopeClause.join}
         ${whereClause}
       `;
       const countResult = await client.query(countQuery, countParams);
@@ -1966,15 +1892,20 @@ const getPurchaseHistoryItems = async (req, res) => {
           pri.material_code,
           pri.material_name,
           pri.specification,
-          pri.unit,
+          COALESCE(NULLIF(pri.unit, ''), u.name, '') as unit,
           pri.qualified_quantity as quantity,
           pri.price as unit_price,
-          (pri.qualified_quantity * pri.price) as total_amount
+          pri.amount_excluding_tax,
+          pri.tax_amount,
+          pri.total_amount
         FROM purchase_receipts pr
         INNER JOIN purchase_receipt_items pri ON pr.id = pri.receipt_id
         LEFT JOIN suppliers s ON pr.supplier_id = s.id
+        LEFT JOIN materials m ON m.id = pri.material_id
+        LEFT JOIN units u ON u.id = COALESCE(NULLIF(pri.unit_id, 0), m.unit_id)
+        ${scopeClause.join}
         ${whereClause}
-        ORDER BY pr.receipt_date DESC, pr.id DESC
+        ORDER BY pr.receipt_date DESC, pr.id DESC, pri.id DESC
         LIMIT ${actualPageSize} OFFSET ${offset}
       `;
 
@@ -1985,6 +1916,7 @@ const getPurchaseHistoryItems = async (req, res) => {
           ? dataResult.rows
           : [];
 
+      desensitizeData(dataRows, await hasFinancePermission(req.user));
       return ResponseHandler.paginated(
         res,
         dataRows,

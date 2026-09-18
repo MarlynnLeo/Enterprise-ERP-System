@@ -263,6 +263,7 @@
             <el-form-item label="关联订单" prop="orderId">
               <el-select
                 v-model="receiptDialog.form.orderId"
+                :disabled="receiptDialog.isEdit"
                 placeholder="请选择订单"
                 filterable
                 class="w-full"
@@ -294,12 +295,13 @@
                 <el-tag type="success" size="large" class="mr-10">
                   <strong>{{ selectedSupplierName }}</strong>
                 </el-tag>
-                <el-button link @click="selectedSupplierName = null">
+                <el-button v-if="!receiptDialog.isEdit" link @click="selectedSupplierName = null">
                   <el-icon><Close /></el-icon>
                 </el-button>
               </div>
               <el-select
                 v-model="receiptDialog.form.supplierId"
+                :disabled="receiptDialog.isEdit"
                 placeholder="请选择供应商"
                 filterable
                 class="w-full"
@@ -365,10 +367,11 @@
               </div>
             </el-form-item>
           </el-col>
-          <el-col :span="24">
+          <el-col v-if="!receiptDialog.isEdit || receiptDialog.form.inspectionId" :span="24">
             <el-form-item label="来料检验单" prop="inspectionId">
               <el-select
                 v-model="receiptDialog.form.inspectionId"
+                :disabled="receiptDialog.isEdit"
                 placeholder="选择已检验合格/部分合格的来料单"
                 filterable
                 clearable
@@ -489,7 +492,7 @@ const receiptForm = ref(null);
 // 供应商选择状态
 const selectedSupplierName = ref(null);
 // 表单验证规则
-const receiptRules = {
+const receiptRules = computed(() => ({
   orderId: [
     { required: true, message: '请选择关联订单', trigger: 'change' }
   ],
@@ -506,9 +509,9 @@ const receiptRules = {
     { required: true, message: '请选择入库仓库', trigger: 'change' }
   ],
   inspectionId: [
-    { required: true, message: '请选择来料检验单', trigger: 'change' }
+    { required: !receiptDialog.isEdit, message: '请选择来料检验单', trigger: 'change' }
   ]
-};
+}));
 // 收货单数据
 const receipts = ref([]);
 const {
@@ -652,12 +655,13 @@ const loadQualifiedInspections = async () => {
 
     inspectionData.forEach(item => {
       if (!item?.id || uniqueInspections.has(Number(item.id))) return;
+      if (item.sourceType === 'outsourced_receipt') return;
       uniqueInspections.set(Number(item.id), {
         id: item.id,
-        inspection_no: item.inspectionNo,
-        item_name: item.itemName,
-        supplier_name: item.supplierName,
-        batch_no: item.batchNo,
+        inspectionNo: item.inspectionNo,
+        itemName: item.itemName,
+        supplierName: item.supplierName,
+        batchNo: item.batchNo,
         status: item.status
       });
     });
@@ -677,9 +681,9 @@ async function loadReceipts() {
   try {
     const params = {
       page: pagination.value.current,
-      limit: pagination.value.size,
-      receiptNumber: searchForm.receiptNo || undefined,
-      orderNumber: searchForm.orderNo || undefined,
+      pageSize: pagination.value.size,
+      receiptNo: searchForm.receiptNo || undefined,
+      orderNo: searchForm.orderNo || undefined,
       startDate: searchForm.startDate || undefined,
       endDate: searchForm.endDate || undefined
     };
@@ -694,11 +698,13 @@ async function loadReceipts() {
     // 直接使用列表数据，不再逐条拉取详情（消除 N+1 性能问题）
     receipts.value = receiptData || [];
 
-    await loadReceiptStats();
+    receiptStats.value = paginated.statistics || {};
   } catch (error) {
     console.error('加载收货单失败:', error);
     ElMessage.error('加载收货单失败: ' + (error.message || '未知错误'));
     receipts.value = []; // 确保在出错时receipts是一个数组
+    pagination.value.total = 0;
+    receiptStats.value = {};
   } finally {
     loading.value = false;
   }
@@ -1009,10 +1015,10 @@ const ensureInspectionInList = async (inspectionId, inspectionNo) => {
         // 添加到检验单列表中
         const inspectionItem = {
           id: inspection.id,
-          inspection_no: inspection.inspectionNo || inspectionNo,
-          item_name: inspection.itemName || '未知物料',
-          supplier_name: inspection.supplierName || '',
-          batch_no: inspection.batchNo || '',
+          inspectionNo: inspection.inspectionNo || inspectionNo,
+          itemName: inspection.itemName || '未知物料',
+          supplierName: inspection.supplierName || '',
+          batchNo: inspection.batchNo || '',
           status: inspection.status || 'passed'
         };
         qualifiedInspections.value.unshift(inspectionItem);
@@ -1022,10 +1028,10 @@ const ensureInspectionInList = async (inspectionId, inspectionNo) => {
       if (inspectionNo) {
         qualifiedInspections.value.unshift({
           id: inspectionId,
-          inspection_no: inspectionNo,
-          item_name: '未知物料',
-          supplier_name: '',
-          batch_no: '',
+          inspectionNo,
+          itemName: '未知物料',
+          supplierName: '',
+          batchNo: '',
           status: 'passed'
         });
       }
@@ -1034,6 +1040,17 @@ const ensureInspectionInList = async (inspectionId, inspectionNo) => {
 };
 // 方法：编辑收货单
 async function editReceipt(receipt) {
+  try {
+    const response = await purchaseApi.getReceipt(receipt.id);
+    receipt = parseResponseData(response);
+    if (!receipt?.id) throw new Error('收货单详情为空');
+  } catch (error) {
+    ElMessage.error('加载收货单详情失败: ' + (error.message || '未知错误'));
+    return;
+  }
+  if (!orders.value.some(order => Number(order.id) === Number(receipt.orderId))) {
+    orders.value.unshift({ id: receipt.orderId, orderNo: receipt.orderNo, orderNumber: receipt.orderNo });
+  }
   receiptDialog.isEdit = true;
   // 重置供应商显示状态
   selectedSupplierName.value = null;
@@ -1201,12 +1218,17 @@ function validateWarehouseId(warehouseId) {
 }
 // 方法：提交收货单
 const submitReceipt = async () => {
-  if (!receiptDialog.form.inspectionId) {
+  if (!receiptDialog.isEdit && !receiptDialog.form.inspectionId) {
     ElMessage.warning('请选择合格的来料检验单');
     return;
   }
   try {
     await receiptForm.value.validate();
+
+    if (!receiptDialog.form.items.length) {
+      ElMessage.warning('收货单必须包含物料明细');
+      return;
+    }
 
     // 验证必要字段
     if (!receiptDialog.form.orderId) {
@@ -1240,30 +1262,22 @@ const submitReceipt = async () => {
 
     // 准备提交数据
     const submitData = {
-      order_id: receiptDialog.form.orderId, // 添加必要的orderId字段
-      orderId: receiptDialog.form.orderId, // 添加驼峰命名格式
-      inspection_id: receiptDialog.form.inspectionId,
-      inspectionId: receiptDialog.form.inspectionId, // 添加驼峰命名格式
-      from_inspection: true,
-      fromInspection: true,
-      receipt_date: receiptDialog.form.receiptDate,
-      receiptDate: receiptDialog.form.receiptDate, // 添加驼峰命名格式
-      supplier_id: receiptDialog.form.supplierId,
-      supplierId: receiptDialog.form.supplierId, // 添加驼峰命名格式
+      orderId: receiptDialog.form.orderId,
+      inspectionId: receiptDialog.form.inspectionId,
+      fromInspection: Boolean(receiptDialog.form.inspectionId),
+      receiptDate: receiptDialog.form.receiptDate,
+      supplierId: receiptDialog.form.supplierId,
       receiver: receiptDialog.form.receiver,
-      warehouse_id: receiptDialog.form.warehouseId,
-      warehouseId: receiptDialog.form.warehouseId, // 添加驼峰命名格式
+      warehouseId: receiptDialog.form.warehouseId,
       remarks: receiptDialog.form.remarks,
       items: receiptDialog.form.items.map(item => ({
-        order_item_id: item.orderItemId,
         orderItemId: item.orderItemId,
-        id: item.id, // 添加物料项ID，编辑时必需
-        material_id: item.materialId,
-        materialId: item.materialId, // 添加驼峰命名格式
-        received_quantity: item.receivedQuantity,
-        receivedQuantity: item.receivedQuantity, // 添加驼峰命名格式
-        qualified_quantity: item.qualifiedQuantity,
-        qualifiedQuantity: item.qualifiedQuantity, // 添加驼峰命名格式
+        id: item.id,
+        materialId: item.materialId,
+        unitId: item.unitId,
+        receivedQuantity: item.receivedQuantity,
+        qualifiedQuantity: item.qualifiedQuantity,
+        batchNumber: item.batchNumber,
         remarks: item.remarks
       }))
     };
@@ -1301,43 +1315,11 @@ const cancelReceipt = async (receipt) => {
     });
     ElMessage.success('收货单已取消');
     loadReceipts();
-    loadReceiptStats();
   } catch (error) {
     console.error('取消收货单失败:', error);
     ElMessage.error('取消收货单失败: ' + (error.message || '未知错误'));
   } finally {
     updateStatusLoading.value = false;
-  }
-};
-// 加载收货单统计数据
-const loadReceiptStats = async () => {
-  try {
-    const response = await purchaseApi.getReceiptStats();
-
-    const statsData = parseResponseData(response);
-    if (statsData) {
-      receiptStats.value = statsData;
-    } else {
-      console.error('获取收货单统计数据失败: 响应格式不正确', response);
-      // 设置默认值
-      receiptStats.value = {
-        total: 0,
-        draftCount: 0,
-        confirmedCount: 0,
-        completedCount: 0,
-        totalAmount: null
-      };
-    }
-  } catch (error) {
-    console.error('获取收货单统计数据失败:', error);
-    // 设置默认值
-    receiptStats.value = {
-      total: 0,
-      draftCount: 0,
-      confirmedCount: 0,
-      completedCount: 0,
-      totalAmount: null
-    };
   }
 };
 // 方法：处理来料检验单选择变更
@@ -1360,6 +1342,11 @@ const handleInspectionChange = async (inspectionId) => {
     const inspection = response.data;
     if (!inspection) {
       throw new Error('无法获取检验单数据');
+    }
+    if (inspection.sourceType === 'outsourced_receipt') {
+      receiptDialog.form.inspectionId = null;
+      receiptDialog.form.items = [];
+      throw new Error('委外来料请在委外入库管理中办理');
     }
 
     // 变量定义
@@ -1711,7 +1698,6 @@ async function directCompleteReceipt(receipt) {
     });
     ElMessage.success('入库单已确认完成');
     loadReceipts();
-    loadReceiptStats();
   } catch (error) {
     console.error('确认入库失败:', error);
     let errorMessage = '确认入库失败';

@@ -607,11 +607,7 @@ class BankTransactionModel {
                  WHEN t.related_invoice_type = 'AP' THEN ap_inv.invoice_number
                  ELSE NULL
                END as related_invoice_number,
-               CASE
-                 WHEN t.transaction_type IN ('转入', '存款') THEN 'sales_income'
-                 WHEN t.transaction_type IN ('转出', '取款') THEN 'purchase_expense'
-                 ELSE 'sales_income'
-               END as transaction_category
+               t.category as transaction_category
         ${fromClause}
         ${whereClause}
         ORDER BY t.transaction_date DESC, t.id DESC

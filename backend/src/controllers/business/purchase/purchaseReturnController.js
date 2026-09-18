@@ -13,7 +13,8 @@ const db = require('../../../config/db');
 const pool = db.pool; // 正确引用连接池
 const purchaseModel = require('../../../models/purchase');
 const DomainEventService = require('../../../services/business/DomainEventService');
-const { lineAmount, sumMoney } = require('../../../utils/money');
+const { lineAmount, sumMoney, taxAmount, normalizeTaxRate, roundMoney } = require('../../../utils/money');
+const { purchaseQuantity, normalizePurchaseDate } = require('../../../utils/purchase/purchaseValidation');
 const { softDelete } = require('../../../utils/softDelete');
 const { PURCHASE_RETURN_TRANSITIONS } = require('../../../constants/statusRegistry');
 const { getRequestActorLabel } = require('../../../utils/userUtils');
@@ -40,12 +41,19 @@ const createValidationError = (message) => {
 };
 
 // HTTP 入参只认 camel；归一化为内部 snake 供后续 SQL 使用
-const normalizeReturnItems = (items = []) => (Array.isArray(items) ? items : [])
-  .map((item) => ({
-    receipt_item_id: Number(item.receiptItemId || item.id || 0),
-    return_quantity: parseFloat(item.returnQuantity ?? 0) || 0,
-  }))
-  .filter((item) => item.return_quantity > 0);
+const normalizeReturnItems = (items = []) => {
+  if (!Array.isArray(items) || !items.length) throw createValidationError('退货单必须包含至少一条有效明细');
+  const grouped = new Map();
+  const reasons = new Map();
+  for (const item of items) {
+    const id = Number(item?.receiptItemId || item?.id || 0);
+    if (!Number.isSafeInteger(id) || id <= 0) throw createValidationError('退货明细缺少有效的原入库单明细ID');
+    const quantity = purchaseQuantity(item.returnQuantity, '退货数量', { scale: 3 });
+    reasons.set(id, [...new Set([reasons.get(id), item.returnReason || item.remarks].filter(Boolean))].join('；'));
+    grouped.set(id, Math.round(((grouped.get(id) || 0) + quantity) * 1000) / 1000);
+  }
+  return [...grouped].sort(([a], [b]) => a - b).map(([receipt_item_id, return_quantity]) => ({ receipt_item_id, return_quantity, return_reason: reasons.get(receipt_item_id) || null }));
+};
 
 const validateReturnItemsAgainstReceipt = async (
   connection,
@@ -71,7 +79,7 @@ const validateReturnItemsAgainstReceipt = async (
     const [receiptItems] = await connection.query(
       `SELECT pri.id, pri.receipt_id, pri.material_id, pri.material_code, pri.material_name,
               pri.specification, COALESCE(u.name, pri.unit) AS unit, pri.unit_id,
-              pri.received_quantity, pri.qualified_quantity, pri.quantity, pri.price
+              pri.received_quantity, pri.qualified_quantity, pri.quantity, pri.price, pri.tax_rate
        FROM purchase_receipt_items pri
        LEFT JOIN units u ON pri.unit_id = u.id AND u.deleted_at IS NULL
        WHERE pri.id = ? AND pri.receipt_id = ?
@@ -84,11 +92,7 @@ const validateReturnItemsAgainstReceipt = async (
     }
 
     const receiptItem = receiptItems[0];
-    const maxReturnQuantity =
-      parseFloat(receiptItem.qualified_quantity) ||
-      parseFloat(receiptItem.received_quantity) ||
-      parseFloat(receiptItem.quantity) ||
-      0;
+    const maxReturnQuantity = Number(receiptItem.qualified_quantity ?? receiptItem.received_quantity ?? receiptItem.quantity ?? 0);
 
     const params = [receiptItemId];
     let excludeClause = '';
@@ -98,17 +102,17 @@ const validateReturnItemsAgainstReceipt = async (
     }
 
     const [returnedRows] = await connection.query(
-      `SELECT COALESCE(SUM(pri.return_quantity), 0) AS returned_quantity
+      `SELECT pri.return_quantity AS returned_quantity
        FROM purchase_return_items pri
        JOIN purchase_returns pr ON pr.id = pri.return_id
        WHERE pri.receipt_item_id = ?
          AND pr.deleted_at IS NULL
          AND pr.status != 'cancelled'
-         ${excludeClause}`,
+         ${excludeClause} FOR UPDATE`,
       params
     );
 
-    const returnedQuantity = parseFloat(returnedRows[0]?.returned_quantity) || 0;
+    const returnedQuantity = returnedRows.reduce((sum, row) => sum + Number(row.returned_quantity || 0), 0);
     if (returnedQuantity + returnQuantity > maxReturnQuantity + 0.0001) {
       throw createValidationError(
         `物料 ${receiptItem.material_name || receiptItemId} 退货数量超过可退数量: 可退=${maxReturnQuantity - returnedQuantity}, 本次=${returnQuantity}`
@@ -125,7 +129,9 @@ const validateReturnItemsAgainstReceipt = async (
       unit_id: receiptItem.unit_id || null,
       quantity: maxReturnQuantity,
       return_quantity: returnQuantity,
+      return_reason: item.return_reason,
       price: parseFloat(receiptItem.price) || 0,
+      tax_rate: normalizeTaxRate(receiptItem.tax_rate, 0),
     });
   }
 
@@ -136,7 +142,10 @@ const validateReturnItemsAgainstReceipt = async (
 const calculatePurchaseReturnTotal = (items = []) => {
   const amounts = (Array.isArray(items) ? items : [])
     .filter((item) => parseFloat(item.return_quantity ?? item.returnQuantity) > 0)
-    .map((item) => lineAmount(item.return_quantity ?? item.returnQuantity, item.price || 0));
+    .map((item) => {
+      const subtotal = lineAmount(item.return_quantity ?? item.returnQuantity, item.price || 0);
+      return roundMoney(subtotal + taxAmount(subtotal, item.tax_rate ?? item.taxRate ?? 0));
+    });
 
   return sumMoney(amounts);
 };
@@ -177,7 +186,12 @@ const getReturns = async (req, res) => {
     `;
 
     let countQuery = `
-      SELECT COUNT(*) as total_count
+      SELECT COUNT(*) AS total_count,
+        COALESCE(SUM(r.status='draft'), 0) AS draftCount,
+        COALESCE(SUM(r.status='confirmed'), 0) AS confirmedCount,
+        COALESCE(SUM(r.status='completed'), 0) AS completedCount,
+        COALESCE(SUM(r.status='cancelled'), 0) AS cancelledCount,
+        COALESCE(SUM(CASE WHEN r.status <> 'cancelled' THEN r.total_amount ELSE 0 END), 0) AS totalAmount
       FROM purchase_returns r
       ${scopeClause.join}
       WHERE r.deleted_at IS NULL
@@ -239,7 +253,7 @@ const getReturns = async (req, res) => {
     countQuery += scopeClause.where || '';
     queryParams.push(...(scopeClause.params || []));
     countParams.push(...(scopeClause.params || []));
-    dataQuery += ` ORDER BY r.created_at DESC LIMIT ${pagination.limit} OFFSET ${pagination.offset}`;
+    dataQuery += ` ORDER BY r.created_at DESC, r.id DESC LIMIT ${pagination.limit} OFFSET ${pagination.offset}`;
 
     // 执行数据查询
     const [result] = await pool.query(dataQuery, queryParams);
@@ -252,12 +266,13 @@ const getReturns = async (req, res) => {
     const returns = result.map((row) =>
       purchaseReturnMap.toApi({
         ...row,
-        operator_name: row.realName || row.operator || '',
+        operator_name: row.real_name || row.operator || '',
       })
     );
 
     return ResponseHandler.success(res, {
       data: returns,
+      statistics: { ...countResult[0], total: Number(totalCount) },
       pagination: {
         total: totalCount,
         current: pagination.page,
@@ -306,7 +321,7 @@ const getReturn = async (req, res) => {
     const returnData = result[0];
 
     // 处理操作人真实姓名
-    returnData.operator_name = returnData.realName || returnData.operator || '';
+    returnData.operator_name = returnData.real_name || returnData.operator || '';
 
     // 获取退货单物料（JOIN 物料表获取规格和单位）
     const itemsQuery = `
@@ -314,8 +329,10 @@ const getReturn = async (req, res) => {
         m.name as material_name,
         m.code as material_code,
         m.specs as specification,
-        u.name as unit
+        COALESCE(ri.unit, u.name) as unit,
+        source_item.tax_rate
       FROM purchase_return_items ri
+      LEFT JOIN purchase_receipt_items source_item ON source_item.id = ri.receipt_item_id
       LEFT JOIN materials m ON ri.material_id = m.id
       LEFT JOIN units u ON m.unit_id = u.id
       WHERE ri.return_id = ? ORDER BY ri.id
@@ -346,18 +363,19 @@ const createReturn = async (req, res) => {
 
     const {
       receiptId,
-      returnDate,
+      returnDate: rawReturnDate,
       reason,
       remarks,
       items,
       operator: operatorFromBody, // ✅ 接收前端传来的operator
     } = req.body;
+    const returnDate = normalizePurchaseDate(rawReturnDate, '退货日期');
 
     // 获取入库单信息
     const receiptQuery = `
       SELECT receipt_no, supplier_id, supplier_name, warehouse_id, warehouse_name
       FROM purchase_receipts
-      WHERE id = ? AND deleted_at IS NULL AND status = '${STATUS.PURCHASE_RETURN.COMPLETED}'
+      WHERE id = ? AND deleted_at IS NULL AND status = '${STATUS.PURCHASE_RETURN.COMPLETED}' FOR UPDATE
     `;
     const [receiptResult] = await connection.query(receiptQuery, [receiptId]);
 
@@ -424,8 +442,8 @@ const createReturn = async (req, res) => {
       const insertItemsQuery = `
         INSERT INTO purchase_return_items
         (return_id, receipt_item_id, material_id, material_code, material_name,
-         specification, unit, unit_id, quantity, return_quantity, price)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         specification, unit, unit_id, quantity, return_quantity, price, return_reason)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
       for (const item of validatedItems) {
@@ -441,6 +459,7 @@ const createReturn = async (req, res) => {
           item.quantity,
           item.return_quantity,
           item.price,
+          item.return_reason,
         ]);
       }
     }
@@ -482,12 +501,13 @@ const updateReturn = async (req, res) => {
 
     const { id } = req.params;
     const {
-      returnDate,
+      returnDate: rawReturnDate,
       reason,
       remarks,
       items,
       operator: operatorFromBody, // ✅ 接收前端传来的operator
     } = req.body;
+    const returnDate = normalizePurchaseDate(rawReturnDate, '退货日期');
 
     // 检查退货单是否存在及其状态
     const checkQuery = 'SELECT status, receipt_id FROM purchase_returns WHERE id = ? AND deleted_at IS NULL FOR UPDATE';
@@ -535,8 +555,8 @@ const updateReturn = async (req, res) => {
       const insertItemsQuery = `
         INSERT INTO purchase_return_items
         (return_id, receipt_item_id, material_id, material_code, material_name,
-         specification, unit, unit_id, quantity, return_quantity, price)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         specification, unit, unit_id, quantity, return_quantity, price, return_reason)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
       for (const item of validatedItems) {
@@ -552,6 +572,7 @@ const updateReturn = async (req, res) => {
           item.quantity,
           item.return_quantity,
           item.price,
+          item.return_reason,
         ]);
       }
     }
@@ -677,7 +698,7 @@ const updateReturnStatus = async (req, res) => {
     if (newStatus === STATUS.PURCHASE_RETURN.COMPLETED) {
       // 获取退货单基本信息,包括关联的入库单ID
       const returnQuery =
-        'SELECT return_no, warehouse_id, receipt_id, source_type FROM purchase_returns WHERE id = ? AND deleted_at IS NULL';
+        'SELECT return_no, return_date, warehouse_id, receipt_id, source_type FROM purchase_returns WHERE id = ? AND deleted_at IS NULL';
       const [returnResult] = await connection.query(returnQuery, [id]);
 
       if (returnResult.length === 0) {
@@ -709,11 +730,13 @@ const updateReturnStatus = async (req, res) => {
       }
 
       // 获取退货单物料
-      const itemsQuery = 'SELECT id, return_id, receipt_item_id, material_id, material_code, material_name, specification, unit, unit_id, quantity, return_quantity, price, price AS unit_price, return_reason, created_at, updated_at FROM purchase_return_items WHERE return_id = ?';
+      const itemsQuery = `SELECT ri.*, ri.price AS unit_price, source.batch_number, source.order_item_id
+        FROM purchase_return_items ri JOIN purchase_receipt_items source ON source.id = ri.receipt_item_id WHERE ri.return_id = ? ORDER BY ri.id`;
       const [itemsResult] = await connection.query(itemsQuery, [id]);
       if (!itemsResult || itemsResult.length === 0) {
         throw createValidationError('退货单没有明细，不能完成退货');
       }
+      await validateReturnItemsAgainstReceipt(connection, receiptId, itemsResult.map(item => ({ receiptItemId: item.receipt_item_id, returnQuantity: item.return_quantity })), Number(id));
 
       // 完成采购退货必须真实扣减库存；库存不足时直接回滚，不能标记为已完成。
       for (const item of itemsResult) {
@@ -756,6 +779,8 @@ const updateReturnStatus = async (req, res) => {
               remark: `采购退货：${returnNo}`,
               unitId,
               unitCost: item.unit_price, // 透传退货单价以保证存货账面精确相减
+              ...(item.batch_number ? { batchNumber: item.batch_number } : {}),
+              transactionDate: returnResult[0].return_date,
               idempotencyKey: `purchase_return:${returnNo}:${item.material_id}:${warehouseId}:${returnQuantity}:${item.id}`,
             },
             connection
@@ -779,9 +804,9 @@ const updateReturnStatus = async (req, res) => {
           const [orderItemRows] = await connection.query(
             `SELECT received_quantity, warehoused_quantity
              FROM purchase_order_items
-             WHERE order_id = ? AND material_id = ?
+             WHERE order_id = ? AND id = ?
              FOR UPDATE`,
-            [orderId, item.material_id]
+            [orderId, item.order_item_id]
           );
 
           if (!orderItemRows || orderItemRows.length === 0) {
@@ -809,14 +834,14 @@ const updateReturnStatus = async (req, res) => {
               received_quantity = received_quantity - ?,
               warehoused_quantity = warehoused_quantity - ?,
               updated_at = CURRENT_TIMESTAMP
-            WHERE order_id = ? AND material_id = ?
+            WHERE order_id = ? AND id = ?
           `;
 
           await connection.query(updateOrderItemQuery, [
             returnQty,
             returnQty,
             orderId,
-            item.material_id,
+            item.order_item_id,
           ]);
 
           logger.info(
@@ -902,15 +927,15 @@ const getReturnById = async (id) => {
   const returnData = result[0];
 
   // 处理操作人真实姓名
-  returnData.operator_name = returnData.realName || returnData.operator || '';
+  returnData.operator_name = returnData.real_name || returnData.operator || '';
 
   // 获取退货单物料
-  const itemsQuery = 'SELECT id, return_id, receipt_item_id, material_id, material_code, material_name, specification, unit, unit_id, quantity, return_quantity, price, return_reason, created_at, updated_at FROM purchase_return_items WHERE return_id = ? ORDER BY id';
+  const itemsQuery = 'SELECT ri.*, source_item.tax_rate FROM purchase_return_items ri LEFT JOIN purchase_receipt_items source_item ON source_item.id = ri.receipt_item_id WHERE ri.return_id = ? ORDER BY ri.id';
   const [itemsResult] = await pool.query(itemsQuery, [id]);
 
   returnData.items = itemsResult;
 
-  return returnData;
+  return purchaseReturnMap.toApi(returnData);
 };
 
 // 获取采购退货统计信息
@@ -923,7 +948,7 @@ const getReturnStats = async (req, res) => {
         COUNT(CASE WHEN status = '${STATUS.PURCHASE_RETURN.CONFIRMED}' THEN 1 ELSE NULL END) as confirmed_count,
         COUNT(CASE WHEN status = '${STATUS.PURCHASE_RETURN.COMPLETED}' THEN 1 ELSE NULL END) as completed_count,
         COUNT(CASE WHEN status = '${STATUS.PURCHASE_RETURN.CANCELLED}' THEN 1 ELSE NULL END) as cancelled_count,
-        IFNULL(SUM(total_amount), 0) as total_amount
+        IFNULL(SUM(CASE WHEN status <> 'cancelled' THEN total_amount ELSE 0 END), 0) as total_amount
       FROM purchase_returns
       WHERE deleted_at IS NULL
     `;
@@ -936,6 +961,7 @@ const getReturnStats = async (req, res) => {
       FROM purchase_returns
       WHERE return_date >= DATE_FORMAT(CURRENT_DATE, '%Y-%m-01')
         AND return_date < DATE_FORMAT(DATE_ADD(CURRENT_DATE, INTERVAL 1 MONTH), '%Y-%m-01')
+        AND status <> 'cancelled'
         AND deleted_at IS NULL
     `;
 
@@ -944,6 +970,7 @@ const getReturnStats = async (req, res) => {
       FROM purchase_returns
       WHERE return_date >= DATE_FORMAT(DATE_SUB(CURRENT_DATE, INTERVAL 1 MONTH), '%Y-%m-01')
         AND return_date < DATE_FORMAT(CURRENT_DATE, '%Y-%m-01')
+        AND status <> 'cancelled'
         AND deleted_at IS NULL
     `;
 

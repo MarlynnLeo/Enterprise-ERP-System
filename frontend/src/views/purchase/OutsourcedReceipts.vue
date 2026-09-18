@@ -292,7 +292,7 @@ import { formatDate } from '@/utils/helpers/dateUtils'
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { Plus } from '@element-plus/icons-vue'
-import { purchaseApi } from '@/api/purchase';
+import { purchaseApi, createIdempotencyKey } from '@/api/purchase';
 import { useAuthStore } from '@/stores/auth';
 
 import ReceiptDialog from './ReceiptDialog.vue';
@@ -355,6 +355,7 @@ const selectedProcessingId = ref(null);
 // 到货对话框
 const arrivalDialogVisible = ref(false);
 const arrivalDialogLoading = ref(false);
+let arrivalAttempt = null;
 const arrivalForm = reactive({
   receiptId: null,
   receiptNo: '',
@@ -411,22 +412,13 @@ const fetchReceiptList = async () => {
     }
 
     // 更新统计数据
-    updateStats();
+    Object.assign(receiptStats, response.data?.statistics || {});
   } catch (error) {
     console.error('获取委外入库列表失败:', error);
     ElMessage.error('获取委外入库列表失败');
   } finally {
     loading.value = false;
   }
-};
-
-// 更新统计数据
-const updateStats = () => {
-  receiptStats.total = pagination.total;
-  receiptStats.pendingCount = receiptList.value.filter(item => item.status === 'pending').length;
-  receiptStats.arrivedCount = receiptList.value.filter(item => item.status === 'arrived').length;
-  receiptStats.confirmedCount = receiptList.value.filter(item => item.status === 'confirmed').length;
-  receiptStats.cancelledCount = receiptList.value.filter(item => item.status === 'cancelled').length;
 };
 
 // 搜索处理
@@ -489,10 +481,11 @@ const handleArrivalQuantityChange = (row) => {
     quantity = Number(row.pendingQuantity || 0);
     ElMessage.warning(`到货数量不能超过待到货数量 ${formatQuantity(row.pendingQuantity)}`);
   }
-  row.receiveQuantity = Number(quantity.toFixed(4));
+  row.receiveQuantity = Number(quantity.toFixed(2));
 };
 
 const handleArrive = async (row) => {
+  arrivalAttempt = null;
   arrivalDialogVisible.value = true;
   arrivalDialogLoading.value = true;
   try {
@@ -511,7 +504,7 @@ const handleArrive = async (row) => {
         expectedQuantity,
         arrivedQuantity,
         pendingQuantity,
-        receiveQuantity: Number(pendingQuantity.toFixed(4))
+        receiveQuantity: Number(pendingQuantity.toFixed(2))
       };
     });
     if (!arrivalForm.items.some((item) => item.pendingQuantity > 0)) {
@@ -539,11 +532,16 @@ const confirmArrival = async () => {
     return;
   }
 
+  const payload = JSON.stringify({ receiptId: arrivalForm.receiptId, items });
+  if (arrivalAttempt?.payload !== payload) {
+    arrivalAttempt = { payload, key: createIdempotencyKey(`outsourced-arrival:${arrivalForm.receiptId}`) };
+  }
   arrivalDialogLoading.value = true;
   try {
     const response = await purchaseApi.outsourcedReceipts.receiveWithInspection(
       arrivalForm.receiptId,
-      items
+      items,
+      arrivalAttempt.key
     );
     const result = response.data || response || {};
     ElMessage.success(`到货成功，已生成 ${result.successCount || 0} 张来料检验单`);

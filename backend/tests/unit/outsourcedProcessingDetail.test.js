@@ -262,7 +262,7 @@ describe('outsourced processing detail', () => {
         product_code: '300300402024',
         product_name: '底座（钻孔）',
         actual_quantity: 2,
-        expected_quantity: 1,
+        expected_quantity: 2,
         unit_price: 20,
       },
     ])).rejects.toThrow('超过剩余应收数量 1');
@@ -311,8 +311,8 @@ describe('outsourced processing detail', () => {
   test('canonicalizes processing master data and recalculates line amount', async () => {
     const connection = {
       execute: jest.fn().mockResolvedValueOnce([[
-        { id: 11732, code: 'RAW-1', name: '原料', specs: '原料规格', unit_id: 1 },
-        { id: 11727, code: 'FG-1', name: '成品', specs: '成品规格', unit_id: 2 },
+        { id: 11732, code: 'RAW-1', name: '原料', specs: '原料规格', unit_id: 1, unit_name: '千克' },
+        { id: 11727, code: 'FG-1', name: '成品', specs: '成品规格', unit_id: 2, unit_name: '件' },
       ]]),
     };
 
@@ -325,11 +325,13 @@ describe('outsourced processing detail', () => {
     expect(result.materials[0]).toEqual(expect.objectContaining({
       material_code: 'RAW-1',
       material_name: '原料',
+      unit: '千克',
       quantity: 1,
     }));
     expect(result.products[0]).toEqual(expect.objectContaining({
       product_code: 'FG-1',
       product_name: '成品',
+      unit: '件',
       quantity: 3,
       unit_price: 1.235,
       total_price: 3.71,

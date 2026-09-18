@@ -818,8 +818,9 @@
 </template>
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
-import { ref, reactive, computed, onMounted, onActivated } from 'vue'
+import { ref, reactive, computed, onMounted, onActivated, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import BusinessApprovalDialog from '@/components/workflow/BusinessApprovalDialog.vue'
 import { useBusinessApproval } from '@/composables/useBusinessApproval'
 import { purchaseApi } from '@/api'
@@ -872,11 +873,11 @@ const {
   hasPurchaseOrderSupplier,
   viewOrder, viewRequisition, updateStatus, deleteOrder: _deleteOrder,
   openReceiveDialog, handleReceiveQuantityChange, confirmReceive,
-  printOrder, getOrderStats,
+  printOrder,
   handleSelectionChange, clearSelection, handleBatchSubmit
 } = usePurchaseOrderActions(loadOrders, orderList)
 // ========== 本地方法 ==========
-const DELETABLE_ORDER_STATUSES = ['draft', 'pending', 'rejected', 'cancelled']
+const DELETABLE_ORDER_STATUSES = ['draft', 'rejected', 'cancelled']
 const canDeleteOrder = (row) => DELETABLE_ORDER_STATUSES.includes(row?.status)
 const deleteOrder = _deleteOrder
 const isBlankAmount = (value) => value === null || value === undefined || value === ''
@@ -923,12 +924,16 @@ async function loadOrders() {
       })
       orderList.value = formattedOrders
       pagination.total = res.data.total || 0
+      orderStats.value = res.data.statistics || {}
     }
   } catch (error) {
     console.error('获取采购订单列表失败:', error)
+    ElMessage.error('获取采购订单列表失败')
+    orderList.value = []
+    pagination.total = 0
+    orderStats.value = {}
   } finally {
     loading.value = false
-    getOrderStats()
   }
 }
 // 加载操作人列表
@@ -942,7 +947,6 @@ const { approvalDialog, openApprovalDialog, handleApproval } = useBusinessApprov
   businessType: 'purchase_order',
   onSuccess: async () => {
     await loadOrders()
-    await getOrderStats()
   }
 })
 const orderApprovalSummary = computed(() => {
@@ -953,7 +957,7 @@ const orderApprovalSummary = computed(() => {
     { label: '备注', value: row.remarks || row.notes || '无' }
   ]
 })
-const handleSearch = async () => { pagination.current = 1; await loadOrders(); await getOrderStats() }
+const handleSearch = async () => { pagination.current = 1; await loadOrders() }
 const resetSearch = () => {
   searchForm.keyword = ''; searchForm.status = ''; searchForm.supplierId = ''; searchForm.operator = ''; searchForm.date_range = []
   pagination.current = 1; loadOrders()
@@ -963,6 +967,12 @@ const handleCurrentChange = (val) => { pagination.current = val; loadOrders() }
 // 到货数量相关
 const _checkItemSelectable = (row) => parseFloat(row.pendingQuantity || 0) > 0
 // ========== 生命周期 ==========
+watch([() => route.path, () => route.query.id], ([path, id]) => {
+  const orderId = Number(id)
+  if (path === '/purchase/orders' && Number.isInteger(orderId) && orderId > 0) {
+    viewOrder(orderId)
+  }
+}, { immediate: true })
 onMounted(async () => {
   loading.value = true
   try {
@@ -975,7 +985,7 @@ onMounted(async () => {
   finally { loading.value = false }
 })
 onActivated(async () => {
-  try { await Promise.allSettled([loadOrders(), getOrderStats()]) }
+  try { await loadOrders() }
   catch (error) { console.error('页面激活刷新失败:', error) }
 })
 </script>

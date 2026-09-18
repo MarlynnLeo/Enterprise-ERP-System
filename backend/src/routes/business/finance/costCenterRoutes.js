@@ -64,7 +64,7 @@ router.get('/', requirePermission('finance:cost:view'), async (req, res) => {
  * 获取成本中心选项（下拉框用）
  * GET /api/finance/cost-centers/options
  */
-router.get('/options', requirePermission('finance:cost:view'), async (req, res) => {
+router.get('/options', requirePermission(['finance:cost:view', 'finance:expenses:pay']), async (req, res) => {
   try {
     const data = await CostCenterService.getOptions();
     ResponseHandler.success(res, data);

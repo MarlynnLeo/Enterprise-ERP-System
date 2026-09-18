@@ -685,6 +685,19 @@ const fetchSalesOrders = async () => {
 // ====== 物料搜索相关 (开始) ======
 const loadingMaterials = ref(false);
 let currentSearchId = 0;
+const keepSelectedProducts = (products) => {
+  const options = new Map(products.map(product => [Number(product.id), product]));
+  for (const detail of form.details) {
+    if (detail.productId && !options.has(Number(detail.productId))) {
+      options.set(Number(detail.productId), {
+        id: detail.productId, code: detail.productCode, name: detail.productName,
+        specs: detail.productSpecs, unitId: detail.unitId,
+        unitCode: detail.unitCode, unitName: detail.unitName,
+      });
+    }
+  }
+  return [...options.values()];
+};
 // 防抖函数
 const debounce = (func, wait) => {
   let timeout;
@@ -708,7 +721,7 @@ const searchProducts = async (query) => {
         includeAll: true
       });
       if (searchId === currentSearchId) {
-        productOptions.value = mapMaterialData(defaultResults);
+        productOptions.value = keepSelectedProducts(mapMaterialData(defaultResults));
       }
       return;
     }
@@ -719,7 +732,7 @@ const searchProducts = async (query) => {
     });
 
     if (searchId === currentSearchId) {
-      productOptions.value = mapMaterialData(searchResults);
+      productOptions.value = keepSelectedProducts(mapMaterialData(searchResults));
     }
   } catch {
     if (searchId === currentSearchId) productOptions.value = [];
@@ -890,6 +903,7 @@ const handleEdit = async (row) => {
     if (unitOptions.value.length === 0) {
       await fetchUnits();
     }
+    productOptions.value = keepSelectedProducts(productOptions.value);
     dialogVisible.value = true;
   } catch (error) {
     console.error('获取装箱单详情失败:', error);
@@ -1017,13 +1031,13 @@ const handleProductChange = (productId, index) => {
     form.details[index].productName = product.name;
     form.details[index].productSpecs = product.specs || product.specification || '';
     form.details[index].productId = product.id; // 保存产品ID
-    // 设置默认单位
-    if (product.unitId) {
-      form.details[index].unitId = product.unitId;
-    }
-    if (product.unitName) {
-      form.details[index].unitName = product.unitName;
-    }
+    // Keep the unit identity, code and name together when changing a product.
+    const unit = unitOptions.value.find(item => Number(item.id) === Number(product.unitId));
+    Object.assign(form.details[index], {
+      unitId: product.unitId || '',
+      unitCode: product.unitCode || unit?.code || '',
+      unitName: product.unitName || unit?.name || '',
+    });
   }
   // 产品变更后自动更新编号
   updateNumbers();
@@ -1031,8 +1045,17 @@ const handleProductChange = (productId, index) => {
 // 单位变更处理
 const handleUnitCodeBlur = (event, index) => {
   const unitCode = event.target.value.trim();
+  // A product may provide a unit ID/name without a code. Blurring an empty
+  // optional code must not erase that valid unit.
+  if (!unitCode) return;
+  const detail = form.details[index];
+  if (unitCode === detail.unitCode && detail.unitId && detail.unitName) {
+    const selected = unitOptions.value.find(item => Number(item.id) === Number(detail.unitId));
+    if (selected?.code === unitCode) return;
+  }
   const unit = unitOptions.value.find(item => item.code === unitCode);
   if (unit) {
+    form.details[index].unitCode = unit.code;
     form.details[index].unitName = unit.name;
     form.details[index].unitId = unit.id; // 保存单位ID
   } else {

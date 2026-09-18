@@ -8,6 +8,7 @@
 const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
 const crypto = require('crypto');
+const BusinessError = require('../../utils/BusinessError');
 const { financeConfig } = require('../../config/financeConfig');
 const {
   currentDateString,
@@ -146,7 +147,7 @@ class GLService {
   static async _createEntryInternal(entryData, items, connection = null) {
     // 1. 数据完整性基本校验
     if (!items || items.length === 0) {
-      throw new Error('分录明细不能为空');
+      throw new BusinessError('分录明细不能为空');
     }
 
     const defaultDate = currentDateString();
@@ -165,7 +166,7 @@ class GLService {
 
     for (const [fieldName, value, maxLength] of lengthLimits) {
       if (value !== null && value !== undefined && String(value).length > maxLength) {
-        throw new Error(`${fieldName}长度不能超过${maxLength}个字符`);
+        throw new BusinessError(`${fieldName}长度不能超过${maxLength}个字符`);
       }
     }
 
@@ -181,19 +182,19 @@ class GLService {
       const normalizedItems = items.map((item, index) => {
         const accountId = Number.parseInt(item.account_id, 10);
         if (!Number.isInteger(accountId) || accountId <= 0) {
-          throw new Error(`第${index + 1}行分录科目不能为空`);
+          throw new BusinessError(`第${index + 1}行分录科目不能为空`);
         }
 
         const debitCents = Math.round((parseFloat(item.debit_amount) || 0) * 100);
         const creditCents = Math.round((parseFloat(item.credit_amount) || 0) * 100);
         if (debitCents < 0 || creditCents < 0) {
-          throw new Error(`第${index + 1}行借贷金额不能为负数`);
+          throw new BusinessError(`第${index + 1}行借贷金额不能为负数`);
         }
         if (debitCents > 0 && creditCents > 0) {
-          throw new Error(`第${index + 1}行不能同时填写借方和贷方金额`);
+          throw new BusinessError(`第${index + 1}行不能同时填写借方和贷方金额`);
         }
         if (debitCents === 0 && creditCents === 0) {
-          throw new Error(`第${index + 1}行借方和贷方金额不能同时为0`);
+          throw new BusinessError(`第${index + 1}行借方和贷方金额不能同时为0`);
         }
 
         const currencyCode = String(
@@ -201,12 +202,12 @@ class GLService {
         ).toUpperCase();
         const exchangeRate = Number(item.exchange_rate ?? 1);
         if (currencyCode !== 'CNY') {
-          throw new Error(
+          throw new BusinessError(
             `第${index + 1}行币种 ${currencyCode} 暂未启用本位币换算，禁止直接写入总账以免报表错计`
           );
         }
         if (!Number.isFinite(exchangeRate) || exchangeRate <= 0 || Math.abs(exchangeRate - 1) > 0.000001) {
-          throw new Error(`第${index + 1}行人民币汇率必须为1`);
+          throw new BusinessError(`第${index + 1}行人民币汇率必须为1`);
         }
 
         return {
@@ -232,7 +233,7 @@ class GLService {
       if (totalDebit !== totalCredit) {
         const debit = totalDebit / 100;
         const credit = totalCredit / 100;
-        throw new Error(`借贷不平衡: 借方 ${debit.toFixed(2)}, 贷方 ${credit.toFixed(2)}`);
+        throw new BusinessError(`借贷不平衡: 借方 ${debit.toFixed(2)}, 贷方 ${credit.toFixed(2)}`);
       }
 
       const accountIds = [...new Set(normalizedItems.map((item) => item.account_id))];
@@ -248,13 +249,13 @@ class GLService {
           [resolvedPeriodId]
         );
         if (periods.length === 0) {
-          throw new Error('Accounting period not found');
+          throw new BusinessError('Accounting period not found');
         }
         if (
           !isDateWithinPeriod(entryDate, periods[0]) ||
           !isDateWithinPeriod(postingDate, periods[0])
         ) {
-          throw new Error(
+          throw new BusinessError(
             `entry_date ${entryDate} or posting_date ${postingDate} is outside accounting period ${periods[0].period_name}`
           );
         }
@@ -262,10 +263,10 @@ class GLService {
           (Number(periods[0].is_locked) === 1 || periods[0].status === 'locked') &&
           !entryData.allow_closed_period
         ) {
-          throw new Error(`不能在已锁定的会计期间 [${periods[0].period_name}] 创建分录`);
+          throw new BusinessError(`不能在已锁定的会计期间 [${periods[0].period_name}] 创建分录`);
         }
         if (isClosedFlag(periods[0].is_closed) && !entryData.allow_closed_period) {
-          throw new Error(`不能在已关闭的会计期间 [${periods[0].period_name}] 创建分录`);
+          throw new BusinessError(`不能在已关闭的会计期间 [${periods[0].period_name}] 创建分录`);
         }
       }
 

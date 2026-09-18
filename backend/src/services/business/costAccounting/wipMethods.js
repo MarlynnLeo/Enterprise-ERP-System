@@ -577,6 +577,14 @@ module.exports = {
         );
   
         const totalWIP = Precision.round2(parseFloat(wipSummary[0]?.total_cost) || 0);
+
+        if (totalWIP <= 0) {
+          const [periodInfo] = await connection.execute("SELECT DATE_FORMAT(end_date, '%Y-%m-%d') as end_date FROM gl_periods WHERE id = ?", [periodId]);
+          const entryDate = toLocalDateString(periodInfo[0]?.end_date || currentDateString());
+          const repair = await this.releaseExistingWIPVoucherIfNeeded(connection, periodId, entryDate, 0, null, null);
+          await connection.commit();
+          return { skipped: true, reason: '无在制品成本', repair: repair || null };
+        }
   
         // 获取科目
       const { accountingConfig } = require('../../../config/accountingConfig');

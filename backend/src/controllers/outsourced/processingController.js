@@ -21,6 +21,7 @@ const QualityInspection = require('../../models/qualityInspection');
 const InspectionClosureService = require('../../services/quality/InspectionClosureService');
 const { safeString, safeNumber } = require('../../utils/typeHelper');
 const { roundMoney } = require('../../utils/money');
+const { normalizePurchaseDate, purchaseQuantity } = require('../../utils/purchase/purchaseValidation');
 const { parsePagination, appendPaginationSQL } = require('../../utils/safePagination');
 const { getRequestActorLabel, firstValidUserId } = require('../../utils/userUtils');
 const {
@@ -46,6 +47,10 @@ const getProcessingValidationError = ({
   if (!ISO_DATE_PATTERN.test(String(expected_delivery_date || ''))) {
     return '预计交期不能为空且必须为 YYYY-MM-DD 格式';
   }
+  try {
+    normalizePurchaseDate(processing_date, '加工日期');
+    normalizePurchaseDate(expected_delivery_date, '预计交期');
+  } catch (error) { return error.message; }
   if (!Array.isArray(materials) || materials.length === 0) {
     return '至少需要一条发料物料';
   }
@@ -58,9 +63,12 @@ const getProcessingValidationError = ({
     { lines: products, label: '加工成品', idKey: 'product_id' },
   ];
   for (const { lines, label, idKey } of lineChecks) {
+    const ids = new Set();
     for (const [index, line] of lines.entries()) {
       const id = Number(line?.[idKey]);
       const quantity = Number(line?.quantity);
+      if (ids.has(id)) return `${label}存在重复物料，请合并为一条明细`;
+      ids.add(id);
       if (!Number.isInteger(id) || id <= 0) {
         return `${label}第 ${index + 1} 行缺少有效物料ID`;
       }
@@ -89,7 +97,7 @@ const getValidSupplier = async (connection, supplierId) => {
   const normalizedSupplierId = safeNumber(supplierId);
   if (!Number.isInteger(normalizedSupplierId) || normalizedSupplierId <= 0) return null;
   const [rows] = await connection.execute(
-    'SELECT id, name, contact_person, contact_phone FROM suppliers WHERE id = ? AND status = 1',
+    'SELECT id, name, contact_person, contact_phone FROM suppliers WHERE id = ? AND status = 1 AND deleted_at IS NULL',
     [normalizedSupplierId]
   );
   return rows[0] || null;
@@ -141,9 +149,10 @@ const validateProcessingReferences = async (connection, materials, products) => 
   ];
   const placeholders = ids.map(() => '?').join(',');
   const [rows] = await connection.execute(
-    `SELECT id, code, name, specs, unit_id
-       FROM materials
-      WHERE id IN (${placeholders}) AND status = 1`,
+    `SELECT m.id, m.code, m.name, m.specs, m.unit_id, u.name AS unit_name
+       FROM materials m
+       LEFT JOIN units u ON u.id = m.unit_id
+      WHERE m.id IN (${placeholders}) AND m.status = 1`,
     ids
   );
   const materialById = new Map(rows.map((row) => [Number(row.id), row]));
@@ -157,6 +166,7 @@ const validateProcessingReferences = async (connection, materials, products) => 
     }
     const base = {
       ...line,
+      unit: safeString(line.unit || master.unit_name),
       ...(type === 'material'
         ? {
             material_id: id,
@@ -402,7 +412,13 @@ const getProcessings = async (req, res) => {
 
     // 获取总数
     const [countResult] = await db.pool.execute(
-      `SELECT COUNT(*) as total FROM (${query}) as countTable`,
+      `SELECT COUNT(*) AS total,
+        COALESCE(SUM(status='pending'), 0) AS pendingCount,
+        COALESCE(SUM(status='confirmed'), 0) AS confirmedCount,
+        COALESCE(SUM(status='in_progress'), 0) AS inProgressCount,
+        COALESCE(SUM(status='completed'), 0) AS completedCount,
+        COALESCE(SUM(status='cancelled'), 0) AS cancelledCount
+       FROM (${query}) AS countTable`,
       params
     );
 
@@ -425,7 +441,8 @@ const getProcessings = async (req, res) => {
       total,
       pageInt,
       actualPageSize,
-      '获取委外加工单列表成功'
+      '获取委外加工单列表成功',
+      { statistics: countResult[0] }
     );
   } catch (error) {
     logger.error('获取委外加工单列表失败:', error);
@@ -452,7 +469,14 @@ const getProcessing = async (req, res) => {
 
     // 获取发料信息
     const [materials] = await db.pool.execute(
-      'SELECT id, processing_id, material_id, material_code, material_name, specification, unit, unit_id, quantity, remark, created_at, updated_at FROM outsourced_processing_materials WHERE processing_id = ?',
+      `SELECT opm.id, opm.processing_id, opm.material_id, opm.material_code, opm.material_name,
+              COALESCE(NULLIF(opm.specification, ''), m.specs, '') AS specification,
+              COALESCE(NULLIF(opm.unit, ''), u.name, '') AS unit,
+              opm.unit_id, opm.quantity, opm.remark, opm.created_at, opm.updated_at
+         FROM outsourced_processing_materials opm
+         LEFT JOIN materials m ON m.id = opm.material_id
+         LEFT JOIN units u ON u.id = COALESCE(NULLIF(opm.unit_id, 0), m.unit_id)
+        WHERE opm.processing_id = ?`,
       [id]
     );
 
@@ -460,10 +484,12 @@ const getProcessing = async (req, res) => {
     const [products] = await db.pool.execute(
       `SELECT opp.id, opp.processing_id, opp.product_id, opp.product_code, opp.product_name,
               COALESCE(NULLIF(opp.specification, ''), m.specs, '') AS specification,
-              opp.unit, opp.unit_id, opp.quantity, opp.unit_price, opp.total_price,
+              COALESCE(NULLIF(opp.unit, ''), u.name, '') AS unit,
+              opp.unit_id, opp.quantity, opp.unit_price, opp.total_price,
               opp.remark, opp.created_at, opp.updated_at
          FROM outsourced_processing_products opp
          LEFT JOIN materials m ON m.id = opp.product_id
+         LEFT JOIN units u ON u.id = COALESCE(NULLIF(opp.unit_id, 0), m.unit_id)
         WHERE opp.processing_id = ?`,
       [id]
     );
@@ -511,8 +537,8 @@ const normalizeReceiptItems = (items) =>
     specification: safeString(item.specification),
     unit: safeString(item.unit),
     unit_id: safeNumber(item.unit_id),
-    expected_quantity: safeNumber(item.expected_quantity || 0),
-    actual_quantity: safeNumber(item.actual_quantity || 0),
+    expected_quantity: purchaseQuantity(item.expected_quantity ?? item.actual_quantity ?? 0, '应收数量', { allowZero: true }),
+    actual_quantity: purchaseQuantity(item.actual_quantity ?? 0, '实收数量', { allowZero: true }),
     unit_price: safeNumber(item.unit_price || 0),
   }));
 
@@ -572,9 +598,11 @@ const validateReceiptItems = async (
     }
 
     const productId = Number(item.product_id);
+    if (requestedByProductId.has(productId)) throw validationError('同一成品只能填写一条收货明细');
+    if (item.actual_quantity > item.expected_quantity) throw validationError('实收数量不能超过应收数量');
     requestedByProductId.set(
       productId,
-      (requestedByProductId.get(productId) || 0) + item.actual_quantity
+      (requestedByProductId.get(productId) || 0) + Math.max(item.actual_quantity, item.expected_quantity)
     );
     validatedItems.push({
       ...item,
@@ -829,11 +857,13 @@ const getOutsourcedReceiptProcessingDetail = async (req, res) => {
     const [products] = await db.pool.execute(
       `SELECT opp.id, opp.processing_id, opp.product_id, opp.product_code,
               opp.product_name, COALESCE(NULLIF(opp.specification, ''), m.specs, '') AS specification,
-              opp.unit, opp.unit_id, opp.quantity, opp.unit_price, opp.total_price,
+              COALESCE(NULLIF(opp.unit, ''), u.name, '') AS unit,
+              opp.unit_id, opp.quantity, opp.unit_price, opp.total_price,
               COALESCE(received.received_quantity, 0) AS received_quantity,
               GREATEST(opp.quantity - COALESCE(received.received_quantity, 0), 0) AS receivable_quantity
          FROM outsourced_processing_products opp
          LEFT JOIN materials m ON m.id = opp.product_id
+         LEFT JOIN units u ON u.id = COALESCE(NULLIF(opp.unit_id, 0), m.unit_id)
          LEFT JOIN (
            SELECT opri.product_id, SUM(opri.actual_quantity) AS received_quantity
              FROM outsourced_processing_receipt_items opri
@@ -1602,7 +1632,13 @@ const getReceipts = async (req, res) => {
 
     // 获取总数
     const [countResult] = await db.pool.execute(
-      `SELECT COUNT(*) as total FROM (${query}) as countTable`,
+      `SELECT COUNT(*) AS total,
+        COALESCE(SUM(status='pending'), 0) AS pendingCount,
+        COALESCE(SUM(status='arrived'), 0) AS arrivedCount,
+        COALESCE(SUM(status='confirmed'), 0) AS confirmedCount,
+        COALESCE(SUM(status='completed'), 0) AS completedCount,
+        COALESCE(SUM(status='cancelled'), 0) AS cancelledCount
+       FROM (${query}) AS countTable`,
       params
     );
 
@@ -1625,7 +1661,8 @@ const getReceipts = async (req, res) => {
       total,
       pageInt,
       actualPageSize,
-      '获取委外入库单列表成功'
+      '获取委外入库单列表成功',
+      { statistics: countResult[0] }
     );
   } catch (error) {
     logger.error('获取委外入库单列表失败:', error);
@@ -1654,10 +1691,12 @@ const getReceipt = async (req, res) => {
     const [items] = await db.pool.execute(
       `SELECT opri.id, opri.receipt_id, opri.product_id, opri.product_code, opri.product_name,
               COALESCE(NULLIF(opri.specification, ''), m.specs, '') AS specification,
-              opri.unit, opri.unit_id, opri.expected_quantity, opri.actual_quantity,
+              COALESCE(NULLIF(opri.unit, ''), u.name, '') AS unit,
+              opri.unit_id, opri.expected_quantity, opri.actual_quantity,
               opri.unit_price, opri.total_price, opri.created_at, opri.updated_at
          FROM outsourced_processing_receipt_items opri
          LEFT JOIN materials m ON m.id = opri.product_id
+         LEFT JOIN units u ON u.id = COALESCE(NULLIF(opri.unit_id, 0), m.unit_id)
         WHERE opri.receipt_id = ?`,
       [id]
     );
@@ -1694,17 +1733,15 @@ const receiveReceiptWithInspection = async (req, res) => {
     const requestedByProductId = new Map();
     const requestedMetaByProductId = new Map();
     for (const item of sourceItems) {
-      const productId = safeNumber(item.product_id);
-      const quantity = Number(
-        item.receive_quantity ?? item.receiveQuantity ?? item.quantity ?? 0
-      );
+      const productId = safeNumber(item?.product_id);
+      const quantity = purchaseQuantity(item?.receive_quantity ?? item?.quantity, '委外到货数量');
       if (
         !Number.isInteger(productId) ||
         productId <= 0 ||
         !Number.isFinite(quantity) ||
         !(quantity > 0)
       ) {
-        continue;
+        throw validationError('委外到货明细必须包含有效成品和正数数量');
       }
       requestedByProductId.set(
         productId,
@@ -1734,6 +1771,23 @@ const receiveReceiptWithInspection = async (req, res) => {
     }
 
     const receipt = receiptRows[0];
+    const fingerprint = crypto.createHash('sha256').update(JSON.stringify({ receiptId, items: sourceItems })).digest('hex');
+    const idempotencyKey = String(req.headers['x-idempotency-key'] || req.headers['idempotency-key'] || body.idempotency_key || `outsourced_arrival:${receiptId}:${fingerprint}`).trim();
+    if (!idempotencyKey || idempotencyKey.length > 191) throw validationError('到货幂等键无效');
+    const [priorRequests] = await connection.execute(
+      'SELECT payload_hash, result_json FROM outsourced_arrival_requests WHERE receipt_id = ? AND idempotency_key = ? FOR UPDATE',
+      [receiptId, idempotencyKey]
+    );
+    if (priorRequests.length) {
+      if (priorRequests[0].payload_hash !== fingerprint) throw Object.assign(validationError('相同到货幂等键不能用于不同的请求内容'), { statusCode: 409 });
+      const original = typeof priorRequests[0].result_json === 'string' ? JSON.parse(priorRequests[0].result_json) : priorRequests[0].result_json;
+      await connection.rollback();
+      return ResponseHandler.success(res, { ...original, idempotentReplay: true }, '委外入库到货请求已处理，返回原结果');
+    }
+    if (receipt.arrival_idempotency_key === idempotencyKey) {
+      throw Object.assign(validationError('此到货请求已处理，请刷新核对历史到货记录'), { statusCode: 409 });
+    }
+
     if (![STATUS.RECEIPT.PENDING, STATUS.RECEIPT.ARRIVED].includes(receipt.status)) {
       await connection.rollback();
       return ResponseHandler.error(
@@ -1778,51 +1832,6 @@ const receiveReceiptWithInspection = async (req, res) => {
       await connection.rollback();
       return ResponseHandler.error(res, '委外入库单没有明细，不能登记到货', 'VALIDATION_ERROR', 400);
     }
-
-    const requestedIdempotencyKey = String(
-      req.headers['x-idempotency-key'] || req.headers['idempotency-key'] || body.idempotency_key || ''
-    ).trim();
-    const fingerprint = crypto
-      .createHash('sha256')
-      .update(JSON.stringify({
-        receiptId,
-        items: sourceItems,
-        currentQuantities: receiptItems.map((item) => [item.id, item.actual_quantity]),
-      }))
-      .digest('hex');
-    const idempotencyKey = requestedIdempotencyKey || `outsourced_arrival:${receiptId}:${fingerprint}`;
-
-    if (receipt.arrival_idempotency_key === idempotencyKey) {
-      const [existingInspections] = await connection.execute(
-        `SELECT id, inspection_no, batch_no, status, quantity, material_id AS product_id,
-                product_name, is_exempt
-           FROM quality_inspections
-          WHERE source_type = 'outsourced_receipt' AND reference_id = ?
-          ORDER BY id DESC`,
-        [receiptId]
-      );
-      await connection.rollback();
-      return ResponseHandler.success(
-        res,
-        {
-          receiptId,
-          receiptNo: receipt.receipt_no,
-          successCount: existingInspections.length,
-          failedCount: 0,
-          inspections: existingInspections,
-          receiptStatus: receipt.status,
-          idempotentReplay: true,
-        },
-        '委外入库到货请求已处理，返回原结果'
-      );
-    }
-
-    await connection.execute(
-      `UPDATE outsourced_processing_receipts
-          SET arrival_idempotency_key = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?`,
-      [idempotencyKey, receiptId]
-    );
 
     const itemByProductId = new Map();
     for (const item of receiptItems) {
@@ -1947,19 +1956,13 @@ const receiveReceiptWithInspection = async (req, res) => {
       [STATUS.RECEIPT.ARRIVED, receiptId]
     );
 
+    const result = { receiptId, receiptNo: receipt.receipt_no, successCount: inspections.length,
+      failedCount: 0, inspections, receiptStatus: STATUS.RECEIPT.ARRIVED };
+    await connection.execute('INSERT INTO outsourced_arrival_requests (receipt_id, idempotency_key, payload_hash, result_json) VALUES (?, ?, ?, ?)',
+      [receiptId, idempotencyKey, fingerprint, JSON.stringify(result)]);
+    await connection.execute('UPDATE outsourced_processing_receipts SET arrival_idempotency_key = ? WHERE id = ?', [idempotencyKey, receiptId]);
     await connection.commit();
-    return ResponseHandler.success(
-      res,
-      {
-        receiptId,
-        receiptNo: receipt.receipt_no,
-        successCount: inspections.length,
-        failedCount: 0,
-        inspections,
-        receiptStatus: STATUS.RECEIPT.ARRIVED,
-      },
-      '委外入库到货成功，已生成来料检验单'
-    );
+    return ResponseHandler.success(res, result, '委外入库到货成功，已生成来料检验单');
   } catch (error) {
     await connection.rollback();
     logger.error('委外入库到货并生成来料检验失败:', error);
@@ -2533,6 +2536,13 @@ const updateReceiptStatus = async (req, res) => {
         receiptItems,
         currentStatus
       );
+      const qualifiedByItem = new Map(existingReceipt[0].itemsForPosting.map(item => [Number(item.id), Number(item.actual_quantity)]));
+      for (const item of receiptItems) {
+        const acceptedQuantity = qualifiedByItem.get(Number(item.id)) || 0;
+        if (acceptedQuantity === Number(item.actual_quantity)) continue;
+        await connection.execute('UPDATE outsourced_processing_receipt_items SET actual_quantity = ?, total_price = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+          [acceptedQuantity, roundMoney(acceptedQuantity * Number(item.unit_price || 0)), item.id]);
+      }
       existingReceipt[0].warehouseContext = await getMaterialWarehouseContext(
         connection,
         existingReceipt[0].itemsForPosting.map((item) => item.product_id)
@@ -2592,6 +2602,7 @@ const updateReceiptStatus = async (req, res) => {
               transactionType: 'outsourced_inbound',
               referenceNo: receiptNo,
               referenceType: 'outsourced_processing_receipt',
+              transactionDate: existingReceipt[0].receipt_date,
               sourceId: Number(id),
               operator: existingReceipt[0].operator || getRequestActorLabel(req),
               remark: `委外入库 ${receiptNo}`,

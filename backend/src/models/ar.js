@@ -25,7 +25,9 @@ const {
   toCents,
   fromCents,
   parseSettlementLine,
+  parseRefundLine,
   assertWithinBalance,
+  assertBankBalanceSufficient,
   invoiceStatusAfterSettlement,
   isTruthyFlag,
   assertInvoiceSettlementsEligible,
@@ -69,7 +71,7 @@ const assertInvoiceItemsMatchTotal = (items, totalAmount, invoiceData = {}) => {
     (sum, item) => sum + toCents(resolveInvoiceItemAmount(item)),
     0
   );
-  if (subtotalCents > 0 && taxCents > 0 && itemTotalCents === subtotalCents) {
+  if (itemTotalCents === subtotalCents && subtotalCents + taxCents === totalCents) {
     return;
   }
   if (itemTotalCents !== totalCents) {
@@ -941,6 +943,8 @@ const arModel = {
       }
 
       const paidAmount = parseFloat(currentInvoice.paid_amount || 0);
+      if (invoiceData.items?.length) invoiceData.tax_amount = undefined;
+      applyNormalizedInvoiceAmounts(invoiceData);
       const amountPolicy = normalizeInvoiceAmountPolicy(invoiceData);
       const totalAmount = amountPolicy.totalAmount;
       const balanceAmount = totalAmount - paidAmount;
@@ -1112,8 +1116,8 @@ const arModel = {
       const [result] = await connection.execute(
         `INSERT INTO ar_receipts
         (receipt_number, customer_id, receipt_date, total_amount,
-         payment_method, reference_number, bank_account_id, notes, created_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         payment_method, reference_number, bank_account_id, notes, created_by, refund_request_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           receiptData.receipt_number,
           receiptData.customer_id,
@@ -1124,6 +1128,7 @@ const arModel = {
           receiptData.bank_account_id || null,
           receiptData.notes || null,
           receiptData.created_by || null,
+          receiptData.refund_request_id || null,
         ]
       );
 
@@ -1172,8 +1177,10 @@ const arModel = {
         linkedInvoices.push({ id: invoice.id, invoice_number: invoice.invoice_number });
         assertInvoiceSettlementsEligible(invoice.status, `发票 ${invoice.invoice_number}`);
 
-        const line = parseSettlementLine(item);
-        assertWithinBalance(
+        const line = receiptData.is_refund
+          ? parseRefundLine(item, invoice, 'sales_return')
+          : parseSettlementLine(item);
+        if (!receiptData.is_refund) assertWithinBalance(
           line.settlementCents,
           toCents(invoice.balance_amount),
           `发票 ${invoice.invoice_number} 收款核销金额`
@@ -1187,7 +1194,7 @@ const arModel = {
         const paidAmountCents = toCents(invoice.paid_amount) + line.settlementCents;
         const totalAmountCents = toCents(invoice.total_amount);
         const newPaidAmount = fromCents(paidAmountCents);
-        const newBalanceAmount = fromCents(Math.max(0, totalAmountCents - paidAmountCents));
+        const newBalanceAmount = fromCents(totalAmountCents < 0 ? totalAmountCents - paidAmountCents : Math.max(0, totalAmountCents - paidAmountCents));
         const newStatus = invoiceStatusAfterSettlement(paidAmountCents, totalAmountCents);
 
         await connection.execute(
@@ -1205,7 +1212,7 @@ const arModel = {
       const totalDiscount = fromCents(totalDiscountCents);
 
       // 如果是银行类收款且有实际到账金额，更新银行账户余额并创建银行交易记录
-      if (BANK_BACKED_PAYMENT_METHODS.has(receiptData.payment_method) && totalCashCents > 0) {
+      if (BANK_BACKED_PAYMENT_METHODS.has(receiptData.payment_method) && totalCashCents !== 0) {
         const [bankAccounts] = await connection.execute(
           'SELECT id, account_number, account_name, bank_name, branch_name, currency_code, current_balance, opening_balance, account_type, is_active, contact_person, contact_phone, notes, created_at, updated_at, created_by, updated_by, last_transaction_date FROM bank_accounts WHERE id = ? FOR UPDATE',
           [receiptData.bank_account_id]
@@ -1225,6 +1232,8 @@ const arModel = {
           throw new Error(`银行账户 "${bankAccount.account_name}" 已被冻结，无法用于收款`);
         }
 
+        if (totalCashCents < 0) assertBankBalanceSufficient(toCents(bankAccount.current_balance), -totalCashCents);
+
         // 创建银行交易记录（仅实收金额，不含折扣）
         const [bankTransactionResult] = await connection.execute(
           `INSERT INTO bank_transactions
@@ -1236,10 +1245,10 @@ const arModel = {
             receiptData.receipt_number,
             receiptData.bank_account_id,
             receiptData.receipt_date,
-            '转入',
-            totalPaid,
+            totalPaid < 0 ? '转出' : '转入',
+            Math.abs(totalPaid),
             receiptData.reference_number || null,
-            `应收账款收款 - 客户: ${receiptData.customer_name || '未知客户'}` +
+            `${receiptData.is_refund ? '客户退货退款' : '应收账款收款'} - 客户: ${receiptData.customer_name || '未知客户'}` +
               (sortedReceiptItems.length > 1 ? ` (含${sortedReceiptItems.length}张发票)` : '') +
               (totalDiscountCents > 0 ? `；折扣 ${totalDiscount}` : ''),
             false,
@@ -1268,7 +1277,7 @@ const arModel = {
           document_type: DOCUMENT_TYPE_MAPPING.SALES_COLLECTION,
           document_number: receiptData.receipt_number,
           period_id: glEntry.period_id,
-          description: `客户 ${receiptData.customer_name} 收款`,
+          description: `客户 ${receiptData.customer_name} ${receiptData.is_refund ? "退款" : "收款"}`,
           created_by: glEntry.created_by,
           status: 'posted',
           is_posted: 1,
@@ -1276,7 +1285,7 @@ const arModel = {
 
         // 收款分录：借银行(实收) + 借财务费用(折扣) = 贷应收账款(核销额)
         const entryItems = [];
-        if (totalCashCents > 0) {
+        if (totalCashCents !== 0) {
           entryItems.push({
             account_id: glEntry.bank_account_id,
             debit_amount: totalPaid,
@@ -1305,6 +1314,13 @@ const arModel = {
           credit_amount: totalSettlement,
           description: `应收账款减少 - 收款单号: ${receiptData.receipt_number}`,
         });
+
+        // Refunds reverse the settlement direction; GL line amounts stay positive.
+        for (const item of entryItems) {
+          if (item.debit_amount < 0 || item.credit_amount < 0) {
+            [item.debit_amount, item.credit_amount] = [-item.credit_amount, -item.debit_amount];
+          }
+        }
 
         // 创建会计分录
         glEntryId = await financeModel.createEntry(entryData, entryItems, connection);
@@ -1668,14 +1684,16 @@ const arModel = {
         if (invoices.length === 0) continue;
 
         const invoice = invoices[0];
-        const settleBackCents = parseSettlementLine({
+        const settleBackCents = Number(item.item_amount) < 0 ? toCents(item.item_amount) : parseSettlementLine({
           amount: item.item_amount,
           discount_amount: item.item_discount_amount,
         }).settlementCents;
-        const paidAmountCents = Math.max(0, toCents(invoice.paid_amount) - settleBackCents);
+        const paidAmountCents = toCents(invoice.total_amount) < 0
+          ? Math.min(0, toCents(invoice.paid_amount) - settleBackCents)
+          : Math.max(0, toCents(invoice.paid_amount) - settleBackCents);
         const totalAmountCents = toCents(invoice.total_amount);
         const newPaidAmount = fromCents(paidAmountCents);
-        const newBalanceAmount = fromCents(Math.max(0, totalAmountCents - paidAmountCents));
+        const newBalanceAmount = fromCents(totalAmountCents < 0 ? totalAmountCents - paidAmountCents : Math.max(0, totalAmountCents - paidAmountCents));
         const newStatus = invoiceStatusAfterSettlement(paidAmountCents, totalAmountCents);
 
         await connection.execute(
@@ -1732,8 +1750,8 @@ const arModel = {
               reversalBankTransactionNumber,
               receipt.bank_account_id,
               reversalDate,
-              '转出',
-              receipt.total_amount,
+              Number(receipt.total_amount) < 0 ? '转入' : '转出',
+              Math.abs(Number(receipt.total_amount)),
               receipt.receipt_number,
               `冲销收款记录 - 原因: ${voidData.void_reason}`,
               false,

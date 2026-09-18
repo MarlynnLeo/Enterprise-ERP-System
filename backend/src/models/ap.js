@@ -27,6 +27,7 @@ const {
   toCents,
   fromCents,
   parseSettlementLine,
+  parseRefundLine,
   assertWithinBalance,
   assertBankBalanceSufficient,
   invoiceStatusAfterSettlement,
@@ -54,7 +55,7 @@ const assertInvoiceItemsMatchTotal = (items, totalAmount, invoiceData = {}) => {
     (sum, item) => sum + toCents(resolveInvoiceItemAmount(item)),
     0
   );
-  if (subtotalCents > 0 && taxCents > 0 && itemTotalCents === subtotalCents) {
+  if (itemTotalCents === subtotalCents && subtotalCents + taxCents === totalCents) {
     return;
   }
   if (itemTotalCents !== totalCents) {
@@ -924,6 +925,8 @@ const apModel = {
         return true;
       }
 
+      if (invoiceData.items?.length) invoiceData.tax_amount = undefined;
+      applyNormalizedInvoiceAmounts(invoiceData);
       const amountPolicy = normalizeInvoiceAmountPolicy(invoiceData);
       invoiceData.total_amount = amountPolicy.totalAmount;
       assertInvoiceItemsMatchTotal(invoiceData.items, invoiceData.total_amount, invoiceData);
@@ -963,10 +966,10 @@ const apModel = {
           // 批量插入新明细项（1次SQL替代N次）
           const itemValues = invoiceData.items.map((item) => [
             invoiceData.id,
-            item.materialId,
+            item.material_id,
             item.description || '',
             item.quantity,
-            item.unitPrice,
+            item.unit_price,
             item.amount,
           ]);
           await connection.query(
@@ -1048,7 +1051,7 @@ const apModel = {
       const payAmount = Array.isArray(paymentItems)
         ? paymentItems.reduce((s, it) => s + Number(it.amount || it.payment_amount || 0), 0)
         : Number(paymentData.amount || paymentData.total_amount || 0);
-      const paymentApproval = await PaymentApprovalGuard.assertPayable({
+      const paymentApproval = paymentData.is_refund ? { approvalId: null } : await PaymentApprovalGuard.assertPayable({
         amount: payAmount,
         approvalId: paymentData.approval_id || paymentData.approvalId,
         approvalNo: paymentData.approval_no || paymentData.approvalNo,
@@ -1096,8 +1099,8 @@ const apModel = {
       const [result] = await connection.execute(
         `INSERT INTO ap_payments
         (payment_number, supplier_id, payment_date, total_amount,
-         payment_method, reference_number, bank_account_id, notes, created_by, approval_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         payment_method, reference_number, bank_account_id, notes, created_by, approval_id, refund_request_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           paymentData.payment_number,
           paymentData.supplier_id,
@@ -1109,6 +1112,7 @@ const apModel = {
           paymentData.notes || null,
           paymentData.created_by || null,
           approvalId,
+          paymentData.refund_request_id || null,
         ]
       );
 
@@ -1157,8 +1161,10 @@ const apModel = {
         linkedInvoices.push({ id: invoice.id, invoice_number: invoice.invoice_number });
         assertInvoiceSettlementsEligible(invoice.status, `发票 ${invoice.invoice_number}`);
 
-        const line = parseSettlementLine(item);
-        assertWithinBalance(
+        const line = paymentData.is_refund
+          ? parseRefundLine(item, invoice, 'purchase_return')
+          : parseSettlementLine(item);
+        if (!paymentData.is_refund) assertWithinBalance(
           line.settlementCents,
           toCents(invoice.balance_amount),
           `发票 ${invoice.invoice_number} 付款核销金额`
@@ -1172,7 +1178,7 @@ const apModel = {
         const paidAmountCents = toCents(invoice.paid_amount) + line.settlementCents;
         const totalAmountCents = toCents(invoice.total_amount);
         const newPaidAmount = fromCents(paidAmountCents);
-        const newBalanceAmount = fromCents(Math.max(0, totalAmountCents - paidAmountCents));
+        const newBalanceAmount = fromCents(totalAmountCents < 0 ? totalAmountCents - paidAmountCents : Math.max(0, totalAmountCents - paidAmountCents));
         const newStatus = invoiceStatusAfterSettlement(paidAmountCents, totalAmountCents);
 
         await connection.execute(
@@ -1190,7 +1196,7 @@ const apModel = {
       const totalDiscount = fromCents(totalDiscountCents);
 
       // 如果是银行类付款且有实际出账金额，更新银行账户余额并创建银行交易记录
-      if (BANK_BACKED_PAYMENT_METHODS.has(paymentData.payment_method) && totalCashCents > 0) {
+      if (BANK_BACKED_PAYMENT_METHODS.has(paymentData.payment_method) && totalCashCents !== 0) {
         const [bankAccounts] = await connection.execute(
           'SELECT id, account_number, account_name, bank_name, branch_name, currency_code, current_balance, opening_balance, account_type, is_active, contact_person, contact_phone, notes, created_at, updated_at, created_by, updated_by, last_transaction_date FROM bank_accounts WHERE id = ? FOR UPDATE',
           [paymentData.bank_account_id]
@@ -1223,10 +1229,10 @@ const apModel = {
             paymentData.payment_number,
             paymentData.bank_account_id,
             paymentData.payment_date,
-            '转出',
-            totalPaid,
+            totalPaid < 0 ? '转入' : '转出',
+            Math.abs(totalPaid),
             paymentData.reference_number || null,
-            `应付账款付款 - 供应商: ${paymentData.supplier_name || '未知供应商'}` +
+            `${paymentData.is_refund ? '供应商退货退款' : '应付账款付款'} - 供应商: ${paymentData.supplier_name || '未知供应商'}` +
               (sortedPaymentItems.length > 1 ? ` (含${sortedPaymentItems.length}张发票)` : '') +
               (totalDiscountCents > 0 ? `；折扣 ${totalDiscount}` : ''),
             false,
@@ -1254,7 +1260,7 @@ const apModel = {
           document_type: DOCUMENT_TYPE_MAPPING.PURCHASE_PAYMENT,
           document_number: paymentData.payment_number,
           period_id: glEntry.period_id,
-          description: `供应商 ${paymentData.supplier_name} 付款`,
+          description: `供应商 ${paymentData.supplier_name} ${paymentData.is_refund ? "退款" : "付款"}`,
           created_by: glEntry.created_by,
           status: 'posted',
           is_posted: 1,
@@ -1269,7 +1275,7 @@ const apModel = {
             description: `应付账款减少 - 付款单号: ${paymentData.payment_number}`,
           },
         ];
-        if (totalCashCents > 0) {
+        if (totalCashCents !== 0) {
           entryItems.push({
             account_id: glEntry.bank_account_id,
             debit_amount: 0,
@@ -1291,6 +1297,13 @@ const apModel = {
             credit_amount: totalDiscount,
             description: `现金折扣 - 付款单号: ${paymentData.payment_number}`,
           });
+        }
+
+        // Refunds reverse the settlement direction; GL line amounts stay positive.
+        for (const item of entryItems) {
+          if (item.debit_amount < 0 || item.credit_amount < 0) {
+            [item.debit_amount, item.credit_amount] = [-item.credit_amount, -item.debit_amount];
+          }
         }
 
         // 创建会计分录
@@ -1660,14 +1673,16 @@ const apModel = {
         if (invoices.length === 0) continue;
 
         const invoice = invoices[0];
-        const settleBackCents = parseSettlementLine({
+        const settleBackCents = Number(item.item_amount) < 0 ? toCents(item.item_amount) : parseSettlementLine({
           amount: item.item_amount,
           discount_amount: item.item_discount_amount,
         }).settlementCents;
-        const paidAmountCents = Math.max(0, toCents(invoice.paid_amount) - settleBackCents);
+        const paidAmountCents = toCents(invoice.total_amount) < 0
+          ? Math.min(0, toCents(invoice.paid_amount) - settleBackCents)
+          : Math.max(0, toCents(invoice.paid_amount) - settleBackCents);
         const totalAmountCents = toCents(invoice.total_amount);
         const newPaidAmount = fromCents(paidAmountCents);
-        const newBalanceAmount = fromCents(Math.max(0, totalAmountCents - paidAmountCents));
+        const newBalanceAmount = fromCents(totalAmountCents < 0 ? totalAmountCents - paidAmountCents : Math.max(0, totalAmountCents - paidAmountCents));
         const newStatus = invoiceStatusAfterSettlement(paidAmountCents, totalAmountCents);
 
         await connection.execute(
@@ -1707,11 +1722,14 @@ const apModel = {
           reversalBankTransactionNumber = `${payment.payment_number}-VOID`;
 
           const [bankAccounts] = await connection.execute(
-            'SELECT id FROM bank_accounts WHERE id = ? FOR UPDATE',
+            'SELECT id, current_balance FROM bank_accounts WHERE id = ? FOR UPDATE',
             [payment.bank_account_id]
           );
           if (bankAccounts.length === 0) {
             throw new Error('付款账户不存在，无法冲销银行交易');
+          }
+          if (Number(payment.total_amount) < 0) {
+            assertBankBalanceSufficient(toCents(bankAccounts[0].current_balance), -toCents(payment.total_amount));
           }
 
           const [reversalBankTxResult] = await connection.execute(
@@ -1723,8 +1741,8 @@ const apModel = {
               reversalBankTransactionNumber,
               payment.bank_account_id,
               reversalDate,
-              '转入',
-              payment.total_amount,
+              Number(payment.total_amount) < 0 ? '转出' : '转入',
+              Math.abs(Number(payment.total_amount)),
               payment.payment_number,
               `冲销付款记录 - 原因: ${voidData.void_reason}`,
               false,

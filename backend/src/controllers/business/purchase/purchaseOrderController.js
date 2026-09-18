@@ -31,6 +31,7 @@ const { parsePagination } = require('../../../utils/safePagination');
 const { financeConfig } = require('../../../config/financeConfig');
 const ScopeGuard = require('../../../authorization/ScopeGuard');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
+const { purchaseValidationError, normalizePurchaseDate, purchaseQuantity, assertPurchaseLines } = require('../../../utils/purchase/purchaseValidation');
 const {
   purchaseOrderMap,
   purchaseOrderItemMap,
@@ -55,6 +56,7 @@ function hasProvidedUnitPrice(item) {
 }
 
 function assertPurchaseItemPrices(items = []) {
+  assertPurchaseLines(items, '采购订单');
   const invalidRows = items
     .map((item, index) => ({ item, index }))
     .filter(({ item }) => {
@@ -70,6 +72,7 @@ function assertPurchaseItemPrices(items = []) {
     error.statusCode = 400;
     throw error;
   }
+  items.forEach((item, index) => purchaseQuantity(resolveUnitPrice(item), `第${index + 1}行采购单价`));
 }
 
 // 获取采购订单列表
@@ -94,11 +97,6 @@ const getOrders = async (req, res) => {
     });
 
     let query = `
-      SELECT o.*, s.name as supplier_name, s.code as supplier_code,
-             s.contact_person as supplier_contact_person,
-             s.contact_phone as supplier_contact_phone,
-             NULL as operator_name,
-             COUNT(*) OVER() as total_count
       FROM purchase_orders o
       LEFT JOIN suppliers s ON o.supplier_id = s.id
       ${scopeClause.join}
@@ -178,10 +176,25 @@ const getOrders = async (req, res) => {
     // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
     const actualPageSize = pagination.limit;
     const actualOffset = pagination.offset;
-    query += ` ORDER BY o.created_at DESC LIMIT ${actualPageSize} OFFSET ${actualOffset}`;
-
-    // 使用正确的连接池查询方法
-    const [rows] = await pool.query(query, queryParams);
+    const [statisticsRows] = await pool.query(
+      `SELECT COUNT(*) AS total,
+        COALESCE(SUM(CASE WHEN o.status <> 'cancelled' THEN o.total_amount ELSE 0 END), 0) AS totalAmount,
+        COALESCE(SUM(o.status = 'pending'), 0) AS pendingCount,
+        COALESCE(SUM(o.status = 'approved'), 0) AS approvedCount,
+        COALESCE(SUM(o.status = 'completed'), 0) AS completedCount
+       ${query}`,
+      queryParams
+    );
+    const statistics = Object.fromEntries(
+      Object.entries(statisticsRows[0]).map(([key, value]) => [key, Number(value)])
+    );
+    const [rows] = await pool.query(
+      `SELECT o.*, s.name AS supplier_name, s.code AS supplier_code,
+        s.contact_person AS supplier_contact_person, s.contact_phone AS supplier_contact_phone,
+        NULL AS operator_name ${query}
+       ORDER BY o.created_at DESC, o.id DESC LIMIT ${actualPageSize} OFFSET ${actualOffset}`,
+      queryParams
+    );
 
     const items = [];
     if (rows.length > 0) {
@@ -226,8 +239,9 @@ const getOrders = async (req, res) => {
       return api;
     });
 
-    const totalCount = rows.length > 0 ? parseInt(rows[0].total_count, 10) : 0;
+    const totalCount = statistics.total;
     await desensitizeDataForUser(orders, req.user, 'view', req.userPermissions);
+    await desensitizeDataForUser(statistics, req.user, 'view', req.userPermissions);
 
     return ResponseHandler.paginated(
       res,
@@ -238,6 +252,7 @@ const getOrders = async (req, res) => {
       undefined,
       {
         items: orders,
+        statistics,
       }
     );
   } catch (error) {
@@ -291,6 +306,9 @@ const getOrder = async (req, res) => {
 const createOrder = async (req, res) => {
   try {
     const bodyIn = mapKeysToSnake(req.body || {});
+    if (bodyIn.status && bodyIn.status !== 'draft') throw purchaseValidationError('新建采购订单必须从草稿开始，请保存后提交审批');
+    bodyIn.order_date = normalizePurchaseDate(bodyIn.order_date, '采购日期');
+    bodyIn.expected_delivery_date = normalizePurchaseDate(bodyIn.expected_delivery_date, '预计交货日期', { optional: true });
     const {
       order_date: orderDate,
       supplier_id: supplierId,
@@ -300,7 +318,6 @@ const createOrder = async (req, res) => {
       remarks,
       total_amount: _totalAmount,
       requisition_id: requisitionId,
-      requisition_number: requisitionNumber,
       contract_code: contractCode,
       tax_rate: bodyTaxRate,
       items,
@@ -309,6 +326,13 @@ const createOrder = async (req, res) => {
 
     const createdOrder = await DBManager.executeTransaction(async (connection) => {
       const supplierName = await PurchaseOrderService.validateSupplier(connection, supplierId);
+      assertPurchaseItemPrices(items);
+      const requisition = await PurchaseOrderService.validateRequisitionAllocation(connection, requisitionId, items);
+
+      // Finance postings lock material rows before numbering. Acquire the same
+      // locks first so an order's foreign-key check cannot deadlock with GL numbering.
+      const materialIds = [...new Set(items.map(item => Number(item.material_id)))].sort((a, b) => a - b);
+      await connection.query('SELECT id FROM materials WHERE id IN (?) ORDER BY id FOR SHARE', [materialIds]);
 
       // 生成订单号（传入连接确保事务一致性）
       const orderNo = await purchaseModel.generateOrderNo(connection);
@@ -359,9 +383,9 @@ const createOrder = async (req, res) => {
         taxAmount,
         subtotal,
         remarks !== undefined ? remarks : bodyIn.notes !== undefined ? bodyIn.notes : null,
-        req.body.status || 'draft',
+        'draft',
         requisitionId || null,
-        requisitionNumber || null,
+        requisition?.requisition_number || null,
         createdBy,
       ]);
 
@@ -398,6 +422,8 @@ const updateOrder = async (req, res) => {
   try {
     const { id } = req.params;
     const bodyIn = mapKeysToSnake(req.body || {});
+    bodyIn.order_date = normalizePurchaseDate(bodyIn.order_date, '采购日期');
+    bodyIn.expected_delivery_date = normalizePurchaseDate(bodyIn.expected_delivery_date, '预计交货日期', { optional: true });
     const {
       order_date: orderDate,
       supplier_id: supplierId,
@@ -407,7 +433,6 @@ const updateOrder = async (req, res) => {
       remarks,
       total_amount: _totalAmount,
       requisition_id: requisitionId,
-      requisition_number: requisitionNumber,
       contract_code: contractCode,
       tax_rate: bodyTaxRate,
       items,
@@ -421,6 +446,7 @@ const updateOrder = async (req, res) => {
       const previousRequisitionId = currentOrder.requisition_id;
       const supplierName = await PurchaseOrderService.validateSupplier(connection, supplierId);
       assertPurchaseItemPrices(items || []);
+      const requisition = await PurchaseOrderService.validateRequisitionAllocation(connection, requisitionId, items, Number(id));
       const orderAmounts = calculateLines(items || [], {
         defaultTaxRate:
           bodyTaxRate !== undefined ? bodyTaxRate : financeConfig.get('tax.defaultVATRate', 0.13),
@@ -464,7 +490,7 @@ const updateOrder = async (req, res) => {
         orderAmounts.subtotal,
         remarks !== undefined ? remarks : bodyIn.notes !== undefined ? bodyIn.notes : null,
         requisitionId || null,
-        requisitionNumber || null,
+        requisition?.requisition_number || null,
         id,
       ]);
 
@@ -528,7 +554,7 @@ const deleteOrder = async (req, res) => {
       if (!(await canAccessPurchaseOrder(connection, req, id))) {
         throw forbiddenError('No permission to delete this purchase order');
       }
-      if (!['draft', 'pending', 'rejected', 'cancelled'].includes(orders[0].status)) {
+      if (!['draft', 'rejected', 'cancelled'].includes(orders[0].status)) {
         const err = new Error('current purchase order status cannot be deleted');
         err.statusCode = 400;
         throw err;
@@ -599,7 +625,7 @@ const updateOrderStatus = async (req, res) => {
 
       // approved 状态保留给工作流回调专用，前端不可直接设置
       if (newStatus === 'approved') {
-        throw new Error('approved 状态仅限工作流回调设置，请在订单列表中审批待审节点');
+        throw purchaseValidationError('approved 状态仅限工作流回调设置，请在订单列表中审批待审节点');
       }
 
       // 如果状态没有变化，直接返回（允许保持相同状态）
@@ -610,7 +636,7 @@ const updateOrderStatus = async (req, res) => {
             connection
           );
           if (normalizedStatus?.status !== PURCHASE_STATUS.COMPLETED) {
-            throw new Error(
+            throw purchaseValidationError(
               `采购订单尚未全部入库，不能设置为已完成。订单数量=${normalizedStatus?.totalQuantity || 0}, 已入库=${normalizedStatus?.totalWarehoused || 0}`
             );
           }
@@ -620,35 +646,14 @@ const updateOrderStatus = async (req, res) => {
       }
 
       if (!isValidStatusTransition(currentStatus, newStatus)) {
-        throw new Error(
+        throw purchaseValidationError(
           `无效的状态变更：${getStatusLabel(currentStatus)} -> ${getStatusLabel(newStatus)}`
         );
       }
 
       // 已有收货/入库数量时禁止取消（须先退货清零）
       if (newStatus === PURCHASE_STATUS.CANCELLED || newStatus === 'cancelled') {
-        const [qtyStats] = await connection.execute(
-          `SELECT COALESCE(SUM(received_quantity), 0) AS recv,
-                  COALESCE(SUM(warehoused_quantity), 0) AS wh
-           FROM purchase_order_items WHERE order_id = ?`,
-          [id]
-        );
-        const recv = parseFloat(qtyStats[0]?.recv) || 0;
-        const wh = parseFloat(qtyStats[0]?.wh) || 0;
-        if (recv > 0.0001 || wh > 0.0001) {
-          throw new Error(
-            `采购订单已有收货/入库数量(收货=${recv}, 入库=${wh})，请先完成退货清零后再取消`
-          );
-        }
-        const [openReceipts] = await connection.execute(
-          `SELECT COUNT(*) AS cnt FROM purchase_receipts
-           WHERE order_id = ? AND deleted_at IS NULL
-             AND status IN ('confirmed', 'completed', 'draft')`,
-          [id]
-        );
-        if (Number(openReceipts[0]?.cnt || 0) > 0) {
-          throw new Error('采购订单仍有关联收货单，请先处理收货单后再取消');
-        }
+        await PurchaseOrderService.assertOrderCanCancel(connection, id);
       }
 
       // 提交审批前必须已设置供应商，否则审批通过后无法到货
@@ -818,6 +823,15 @@ const batchUpdateOrderStatus = async (req, res) => {
             message: '提交审批前请先设置供应商',
           });
           continue;
+        }
+
+        if (newStatus === 'cancelled') {
+          try { await PurchaseOrderService.assertOrderCanCancel(connection, id); }
+          catch (error) {
+            if (!error.statusCode || error.statusCode >= 500) throw error;
+            failures.push({ id, order_no: order.order_no, message: error.message });
+            continue;
+          }
         }
 
         let finalStatus = newStatus;
@@ -1143,9 +1157,10 @@ const getRequisitions = async (req, res) => {
     if (rows.length > 0) {
       const requisitionIds = rows.map((row) => row.id);
       const itemsQuery = `
-        SELECT id, requisition_id, material_id, material_code, material_name, specification, unit, unit_id, quantity, estimated_price, created_at, updated_at FROM purchase_requisition_items
-        WHERE requisition_id IN (?)
-        ORDER BY id
+        SELECT ri.*, m.cost_price AS estimated_price
+        FROM purchase_requisition_items ri LEFT JOIN materials m ON m.id = ri.material_id
+        WHERE ri.requisition_id IN (?)
+        ORDER BY ri.id
       `;
       const [itemRows] = await pool.query(itemsQuery, [requisitionIds]);
       itemRows.forEach((item) => {
@@ -1206,7 +1221,7 @@ const getRequisitions = async (req, res) => {
         // 判断是否全部生成订单（所有物料都有采购订单，不管数量）
         is_fully_ordered:
           requisitionItems.length > 0 &&
-          requisitionItems.every((item) => item.ordered_quantity > 0),
+          requisitionItems.every((item) => item.ordered_quantity + 0.0001 >= Number(item.quantity)),
         // 判断是否部分生成订单（部分物料有订单，部分没有）
         is_partially_ordered: false, // 初始值，下面计算
       };
@@ -1311,8 +1326,12 @@ const getRequisition = async (req, res) => {
 const getPurchaseDashboardStats = async (req, res) => {
   try {
     const PurchaseDashboardService = require('../../../services/business/PurchaseDashboardService');
-    const dashboardData = await PurchaseDashboardService.getDashboardData();
-
+    const months = Number(req.query.months ?? 6);
+    if (![6, 12].includes(months)) {
+      return ResponseHandler.error(res, '统计范围仅支持6或12个月', 'VALIDATION_ERROR', 400);
+    }
+    const dashboardData = await PurchaseDashboardService.getDashboardData(req, { months });
+    await desensitizeDataForUser(dashboardData, req.user, 'view', req.userPermissions);
     return ResponseHandler.success(res, dashboardData);
   } catch (error) {
     logger.error('获取采购综合统计数据失败:', error);

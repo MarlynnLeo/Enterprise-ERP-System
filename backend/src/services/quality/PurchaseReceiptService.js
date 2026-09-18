@@ -94,7 +94,7 @@ class PurchaseReceiptService {
       }
 
       // 1. 一次 JOIN 查询获取完整订单上下文（订单、供应商、物料、采购价格）
-      const context = await this._getOrderContext(connection, orderId, materialId);
+      const context = await this._getOrderContext(connection, orderId, materialId, inspectionResult.purchase_order_item_id || originalInspection.purchase_order_item_id || null);
       const createdBy = firstValidUserId(
         inspectionResult.inspector_id,
         originalInspection.inspector_id,
@@ -212,7 +212,7 @@ class PurchaseReceiptService {
    * @param {number} materialId - 物料ID
    * @returns {Promise<object>} 订单上下文
    */
-  static async _getOrderContext(connection, orderId, materialId) {
+  static async _getOrderContext(connection, orderId, materialId, orderItemId = null) {
     const [rows] = await connection.query(
       `SELECT
         po.id        AS order_id,
@@ -233,15 +233,15 @@ class PurchaseReceiptService {
         LEFT JOIN materials m       ON m.id = ?
         LEFT JOIN purchase_order_items poi
           ON poi.order_id = po.id AND poi.material_id = ?
-      WHERE po.id = ?
-      LIMIT 1`,
-      [materialId, materialId, orderId]
+      WHERE po.id = ? AND (? IS NULL OR poi.id = ?)`,
+      [materialId, materialId, orderId, orderItemId, orderItemId]
     );
 
     if (!rows || rows.length === 0) {
       throw new Error(`采购订单 ${orderId} 不存在`);
     }
 
+    if (rows.length > 1) throw Object.assign(new Error('同物料存在多条采购明细，检验单必须关联具体订单行'), { statusCode: 400 });
     const row = rows[0];
     if (!row.order_item_id) {
       throw new Error(`采购订单 ${orderId} 中不存在物料 ${materialId}，无法创建入库单`);

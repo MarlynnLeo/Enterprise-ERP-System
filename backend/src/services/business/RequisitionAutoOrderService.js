@@ -53,9 +53,10 @@ async function generateOrdersFromRequisition(requisitionId, conn, actorId) {
       throw new Error('采购申请不存在');
     }
     const requisition = requisitionRows[0];
+    if (!['approved', 'completed'].includes(requisition.status)) throw Object.assign(new Error('采购申请尚未审批通过，不能自动转单'), { statusCode: 400 });
 
     // 获取采购申请的物料项，关联物料表获取供应商信息和价格
-    const [itemsRows] = await conn.execute(
+    let [itemsRows] = await conn.execute(
       `SELECT
         pri.id, pri.requisition_id, pri.material_id, pri.material_code,
         pri.material_name, pri.specification, pri.unit, pri.unit_id, pri.quantity,
@@ -131,6 +132,30 @@ async function generateOrdersFromRequisition(requisitionId, conn, actorId) {
       );
     }
 
+    // Workflow retries and manual partial conversions share the same requisition
+    // lock. Allocate only the unfulfilled quantity across its material lines.
+    const [activeOrderItems] = await conn.execute(
+      `SELECT poi.material_id, poi.quantity FROM purchase_order_items poi
+       JOIN purchase_orders po ON po.id = poi.order_id
+       WHERE po.requisition_id = ? AND po.deleted_at IS NULL AND po.status NOT IN ('cancelled', 'rejected')
+       ORDER BY po.id, poi.id FOR UPDATE`, [requisitionId]
+    );
+    const allocated = new Map();
+    for (const item of activeOrderItems) allocated.set(Number(item.material_id), (allocated.get(Number(item.material_id)) || 0) + Number(item.quantity));
+    itemsRows = itemsRows.map(item => {
+      const used = allocated.get(Number(item.material_id)) || 0;
+      const required = Number(item.quantity);
+      allocated.set(Number(item.material_id), Math.max(0, used - required));
+      return { ...item, quantity: Math.max(0, Math.round((required - used) * 100) / 100) };
+    }).filter(item => item.quantity > 0);
+    if (!itemsRows.length) {
+      await PurchaseOrderService.syncRequisitionStatusFromOrders(conn, requisitionId);
+      if (useOwnConn) await conn.commit();
+      return [];
+    }
+    const materialIds = [...new Set(itemsRows.map(item => Number(item.material_id)))].sort((a, b) => a - b);
+    await conn.query('SELECT id FROM materials WHERE id IN (?) ORDER BY id FOR SHARE', [materialIds]);
+
     const defaultTaxRate = normalizeTaxRate(financeConfig.get('tax.defaultVATRate', 0), 0);
     const resolvedPrices = await PurchasePriceService.resolvePurchasePrices(
       conn,
@@ -167,7 +192,7 @@ async function generateOrdersFromRequisition(requisitionId, conn, actorId) {
       item.resolved_supplier_contact_person = item.supplier_contact_person || supplierDetail?.contact_person || null;
       item.resolved_supplier_contact_phone = item.supplier_contact_phone || supplierDetail?.contact_phone || null;
       item.material_price = toNumber(priceInfo.price, 0);
-      item.tax_rate = resolvedTaxRate > 0 ? resolvedTaxRate : defaultTaxRate;
+      item.tax_rate = resolvedTaxRate;
       item.price_source = priceInfo.source || 'none';
     });
 

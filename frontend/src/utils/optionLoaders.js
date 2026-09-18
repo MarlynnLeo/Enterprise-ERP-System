@@ -291,6 +291,15 @@ export const searchMaterialOptions = (keyword = '', params = {}) => {
   })
 }
 
+/** 表单物料远程搜索只取一页，避免全量加载覆盖较新的搜索结果。 */
+export const loadMaterialPageOptions = (params = {}) =>
+  loadCachedList('materials:page', baseDataApi.getMaterials, normalizeKeywordSearch(params), {
+    defaults: { status: 1 },
+  }).then(materials => materials.map(normalizeMaterialOption))
+
+export const searchMaterialPageOptions = (keyword = '', params = {}) =>
+  loadMaterialPageOptions({ ...params, search: String(keyword || '').trim() || undefined })
+
 /**
  * 委外发料/成品是单据行角色，不等同于物料主数据类型。
  * 因此这里返回全部启用物料，不按 raw_material / finished_goods 强制过滤。

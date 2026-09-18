@@ -311,7 +311,7 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
   const addMaterialRow = () => {
     orderForm.items.push({
       materialId: null, materialCode: '', materialName: '', specification: '', specs: '',
-      unit: '', unitName: '', unitId: null, quantity: '', price: '', totalPrice: null,
+      unit: '', unitName: '', unitId: null, quantity: null, price: null, totalPrice: null,
       taxRate: defaultVATRate.value, taxAmount: 0, materialDisplay: ''
     })
   }
@@ -388,7 +388,7 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
         orderForm.items[index].metalPriceSchemeId = priceInfo.metalPriceSchemeId || null
         orderForm.items[index].metalPriceItemId = priceInfo.metalPriceItemId || null
         ElMessage({ message: getPurchasePriceMessage(priceInfo), type: 'success', duration: 2000 })
-      } else { orderForm.items[index].price = '' }
+      } else { orderForm.items[index].price = null }
     } catch (e) {
       console.error('获取实时指导价抛出异常，执行降级策略:', e)
       const defaultPrice = toNumberOrNull(item.costPrice)
@@ -681,7 +681,7 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
             recalculatePrice(orderForm.items[existingIndex])
           } else {
             const specs = item.materialSpecs || item.specification || item.specs || ''
-            orderForm.items.push({ materialId: item.materialId, materialCode: item.materialCode || '', materialName: item.materialName || '', specification: specs, specs, unit: item.unit, unitName: item.unit, unitId: item.unitId, quantity: parseFloat(item.quantity), price: item.latestPrice ?? '', taxRate: latestTaxRate, totalPrice: null })
+            orderForm.items.push({ materialId: item.materialId, materialCode: item.materialCode || '', materialName: item.materialName || '', specification: specs, specs, unit: item.unit, unitName: item.unit, unitId: item.unitId, quantity: parseFloat(item.quantity), price: item.latestPrice == null ? null : Number(item.latestPrice), taxRate: latestTaxRate, totalPrice: null })
             recalculatePrice(orderForm.items[orderForm.items.length - 1])
           }
           addedCount++

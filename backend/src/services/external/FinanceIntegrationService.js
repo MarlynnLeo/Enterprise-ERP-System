@@ -8,6 +8,8 @@ const { financeConfig } = require('../../config/financeConfig');
 const { resolveActorUserId } = require('../../utils/userUtils');
 const DocumentLinkService = require('../business/DocumentLinkService');
 const InventoryPostingService = require('../InventoryPostingService');
+const SalesReturnValuationService = require('../business/SalesReturnValuationService');
+const SalesOutboundValuationService = require('../business/SalesOutboundValuationService');
 const { DOCUMENT_LINK_TYPES: DocType } = require('../../constants/documentLinkTypes');
 const { logger } = require('../../utils/logger');
 const {
@@ -19,6 +21,7 @@ const {
   normalizeTaxRate,
   roundMoney,
   taxAmount: calculateTaxAmount,
+  calculateLines,
 } = require('../../utils/money');
 const {
   resolveUnitPrice,
@@ -434,6 +437,7 @@ class FinanceIntegrationService {
        FROM tax_invoices
        WHERE related_document_type IN (${placeholders})
          AND related_document_id = ?
+         AND COALESCE(status, '') <> '已作废'
        LIMIT 1
        FOR UPDATE`,
       [...types, relatedDocumentId]
@@ -801,27 +805,14 @@ class FinanceIntegrationService {
         }
       }
 
-      const [itemRows] = await connection.execute(
-        `SELECT sobi.product_id AS material_id,
-                sobi.quantity,
-                sobi.source_order_id,
-                sob.order_id AS header_order_id,
-                m.name AS material_name,
-                m.code AS material_code,
-                m.specs AS specs
-         FROM sales_outbound_items sobi
-         JOIN sales_outbound sob ON sob.id = sobi.outbound_id
-         LEFT JOIN materials m ON m.id = sobi.product_id
-         WHERE sobi.outbound_id = ?`,
-        [outboundId]
-      );
+      const itemRows = await SalesOutboundValuationService.getItems(connection, [outboundId]);
 
       if (!itemRows.length) {
         await connection.rollback();
         throw new Error(`出库单 ${outboundData.outbound_no || outboundId} 无明细，不能生成应收`);
       }
 
-      // 单价取自对应销售订单明细
+      // 使用实际出库成交价和各来源订单明细税率。
       const orderIds = [
         ...new Set(
           itemRows
@@ -833,44 +824,16 @@ class FinanceIntegrationService {
         orderList.forEach((o) => orderIds.push(Number(o.id)));
       }
 
-      const priceMap = new Map(); // `${orderId}:${materialId}` -> unit_price
-      let taxRate = 0;
-      if (orderIds.length) {
-        const ph = orderIds.map(() => '?').join(',');
-        const [priceRows] = await connection.execute(
-          `SELECT order_id, material_id, unit_price
-           FROM sales_order_items
-           WHERE order_id IN (${ph})`,
-          orderIds
-        );
-        priceRows.forEach((row) => {
-          priceMap.set(`${row.order_id}:${row.material_id}`, parseFloat(row.unit_price) || 0);
-        });
-        const [taxInfo] = await connection.execute(
-          `SELECT tax_rate FROM sales_orders WHERE id IN (${ph}) LIMIT 1`,
-          orderIds
-        );
-        taxRate = normalizeTaxRate(taxInfo[0]?.tax_rate, 0);
-      }
+      const valued = SalesOutboundValuationService.summarize(itemRows);
+      let taxRate = valued.subtotal > 0 ? normalizeTaxRate(valued.taxAmount / valued.subtotal) : 0;
+      let sourceTaxAmount = valued.taxAmount;
 
       const invoiceItems = [];
       let subtotalCents = 0;
       for (const row of itemRows) {
-        const orderId = Number(row.source_order_id || row.header_order_id) || orderIds[0] || null;
         const qty = parseFloat(row.quantity) || 0;
         if (qty <= 0) continue;
-        let unitPrice = priceMap.get(`${orderId}:${row.material_id}`);
-        if (unitPrice === undefined || unitPrice === null) {
-          // 回退：任意订单同物料价
-          for (const oid of orderIds) {
-            const p = priceMap.get(`${oid}:${row.material_id}`);
-            if (p !== undefined) {
-              unitPrice = p;
-              break;
-            }
-          }
-        }
-        unitPrice = parseFloat(unitPrice) || 0;
+        const unitPrice = Number(row.unit_price) || 0;
         if (unitPrice <= 0) {
           await connection.rollback();
           throw new Error(
@@ -886,6 +849,8 @@ class FinanceIntegrationService {
           quantity: qty,
           unit_price: unitPrice,
           amount: lineCents / 100,
+          tax_rate: row.tax_percent,
+          tax_amount: row.tax_amount,
         });
       }
 
@@ -898,11 +863,12 @@ class FinanceIntegrationService {
       const overrides =
         options.overrides && typeof options.overrides === 'object' ? options.overrides : null;
       if (Array.isArray(overrides?.items) && overrides.items.length) {
+        sourceTaxAmount = null;
         invoiceItems.length = 0;
         subtotalCents = 0;
         for (const raw of overrides.items) {
           const qty = parseFloat(raw.quantity) || 0;
-          const unitPrice = parseFloat(raw.unit_price ?? raw.price) || 0;
+          const unitPrice = parseFloat(raw.unit_price ?? raw.unitPrice ?? raw.price) || 0;
           if (qty <= 0 || unitPrice < 0) continue;
           const lineCents = Math.round(qty * unitPrice * 100);
           subtotalCents += lineCents;
@@ -929,12 +895,13 @@ class FinanceIntegrationService {
       }
       if (overrides?.taxRate != null && overrides.taxRate !== '') {
         taxRate = normalizeTaxRate(overrides.taxRate, taxRate);
+        sourceTaxAmount = null;
       }
 
       const subtotalAmount = subtotalCents / 100;
       const taxAmount = this.resolveTaxAmount(
         subtotalAmount,
-        overrides?.taxAmount ?? null,
+        overrides?.taxAmount ?? sourceTaxAmount,
         taxRate
       );
       const totalAmount = roundMoney(subtotalAmount + taxAmount);
@@ -1314,8 +1281,8 @@ class FinanceIntegrationService {
   /**
    * 生成销售红字发票
    */
-  static async generateARCreditNoteFromSalesReturn(salesReturn) {
-    const autoGenerate = await SystemConfigService.get('auto_generate_ar_credit_note', false);
+  static async generateARCreditNoteFromSalesReturn(salesReturn, options = {}) {
+    const autoGenerate = options.force === true || await SystemConfigService.get('auto_generate_ar_credit_note', false);
     if (!autoGenerate) return { skipped: true, message: '自动生成红字应收已关闭' };
 
     const connection = await db.pool.getConnection();
@@ -1382,18 +1349,8 @@ class FinanceIntegrationService {
 
       const invoiceNumber = await this.generateInvoiceNumber('AR', connection);
 
-      const [returnItems] = await connection.execute(
-        `SELECT sri.product_id as material_id, m.name as material_name, m.code as material_code,
-                m.specs as specs, sri.quantity as return_quantity,
-                COALESCE(soi.unit_price, m.price, 0) AS unit_price
-         FROM sales_return_items sri
-         LEFT JOIN materials m ON sri.product_id = m.id
-         LEFT JOIN sales_returns sr ON sri.return_id = sr.id
-         LEFT JOIN sales_orders so ON sr.order_id = so.id
-         LEFT JOIN sales_order_items soi ON so.id = soi.order_id AND sri.product_id = soi.material_id
-         WHERE sri.return_id = ?`,
-        [salesReturn.id]
-      );
+      const returnItems = (await SalesReturnValuationService.getItems(connection, [salesReturn.id]))
+        .map(item => ({ ...item, material_id: item.product_id, return_quantity: item.quantity }));
 
       if (returnItems.length === 0) {
         await connection.rollback();
@@ -1402,16 +1359,8 @@ class FinanceIntegrationService {
         );
       }
 
-      // ✅ 精度修复：整数运算
-      const totalAmount =
-        returnItems.reduce(
-          (sum, item) =>
-            sum +
-            Math.round(
-              parseFloat(item.return_quantity || 0) * parseFloat(item.unit_price || 0) * 100
-            ),
-          0
-        ) / 100;
+      const totalAmount = SalesReturnValuationService.total(returnItems);
+      const returnAmounts = calculateLines(returnItems);
       const creditNoteAmount = -Math.abs(totalAmount);
       if (totalAmount === 0) {
         await connection.rollback();
@@ -1434,6 +1383,9 @@ class FinanceIntegrationService {
         invoice_date: invoiceDateStr,
         due_date: invoiceDateStr,
         total_amount: creditNoteAmount,
+        amount_excluding_tax: -Math.abs(returnAmounts.subtotal),
+        tax_amount: -Math.abs(returnAmounts.taxAmount),
+        tax_rate: returnAmounts.subtotal > 0 ? normalizeTaxRate(returnAmounts.taxAmount / returnAmounts.subtotal) : 0,
         currency_code: financeConfig.get('invoice.defaultCurrency', 'CNY'),
         exchange_rate: 1.0,
         status: '已确认',
@@ -1446,6 +1398,7 @@ class FinanceIntegrationService {
           period_id: currentPeriod?.id ?? null,
           receivable_account_id: receivableAccountId,
           income_account_id: incomeAccountId,
+          output_tax_account_id: returnAmounts.taxAmount > 0 ? (await this.resolveAccountIds(['VAT_OUTPUT_TAX'])).VAT_OUTPUT_TAX : null,
           created_by: createdBy,
         },
         items: returnItems.map((item) => ({
@@ -1454,10 +1407,9 @@ class FinanceIntegrationService {
           description: `退货冲减 ${item.material_name || item.material_code}`,
           quantity: -parseFloat(item.return_quantity || 0),
           unit_price: parseFloat(item.unit_price || 0),
-          amount:
-            -Math.round(
-              parseFloat(item.return_quantity || 0) * parseFloat(item.unit_price || 0) * 100
-            ) / 100,
+          amount: -Math.abs(item.amount),
+          tax_rate: item.tax_percent,
+          tax_amount: -Math.abs(item.tax_amount),
         })),
       };
 
@@ -1515,7 +1467,7 @@ class FinanceIntegrationService {
          FROM purchase_receipt_items pri
          LEFT JOIN purchase_receipts pr ON pri.receipt_id = pr.id
          LEFT JOIN purchase_orders po ON pr.order_id = po.id
-         LEFT JOIN purchase_order_items poi ON po.id = poi.order_id AND pri.material_id = poi.material_id
+         LEFT JOIN purchase_order_items poi ON poi.id = pri.order_item_id AND po.id = poi.order_id
          LEFT JOIN materials m ON pri.material_id = m.id
          WHERE pri.receipt_id = ?`,
         [purchaseReceipt.id]
@@ -1529,6 +1481,11 @@ class FinanceIntegrationService {
       const expectedTotalAmount = roundMoney(expectedSubtotalAmount + expectedTaxAmount);
 
       const existingInvoice = await this.findExistingInvoiceBySource(
+        connection,
+        'ap_invoices',
+        'purchase_receipt',
+        purchaseReceipt.id
+      ) || await this.findExistingInvoiceBySource(
         connection,
         'ap_invoices',
         'inbound',
@@ -1594,7 +1551,7 @@ class FinanceIntegrationService {
          FROM purchase_receipt_items pri
          LEFT JOIN purchase_receipts pr ON pri.receipt_id = pr.id
          LEFT JOIN purchase_orders po ON pr.order_id = po.id
-         LEFT JOIN purchase_order_items poi ON po.id = poi.order_id AND pri.material_id = poi.material_id
+         LEFT JOIN purchase_order_items poi ON poi.id = pri.order_item_id AND po.id = poi.order_id
          LEFT JOIN materials m ON pri.material_id = m.id
          WHERE pri.receipt_id = ?`,
         [purchaseReceipt.id]
@@ -2101,6 +2058,7 @@ class FinanceIntegrationService {
                 COALESCE(pri.material_code, m.code) AS material_code,
                 m.specs as specs,
                 pri.return_quantity,
+                COALESCE(source_item.tax_rate, poi.tax_rate, po.tax_rate, 0) AS tax_rate,
                 COALESCE(
                   NULLIF(${sqlUnitPriceExpr('pri', 'purchase_return_items')}, 0),
                   NULLIF(${sqlUnitPriceExpr('poi', 'purchase_order_items')}, 0),
@@ -2116,8 +2074,9 @@ class FinanceIntegrationService {
          FROM purchase_return_items pri
          LEFT JOIN purchase_returns pr ON pri.return_id = pr.id
          LEFT JOIN purchase_receipts prec ON pr.receipt_id = prec.id
+         LEFT JOIN purchase_receipt_items source_item ON source_item.id = pri.receipt_item_id
          LEFT JOIN purchase_orders po ON prec.order_id = po.id
-         LEFT JOIN purchase_order_items poi ON po.id = poi.order_id AND pri.material_id = poi.material_id
+         LEFT JOIN purchase_order_items poi ON poi.id = source_item.order_item_id AND po.id = poi.order_id
          LEFT JOIN materials m ON pri.material_id = m.id
          WHERE pri.return_id = ?`,
         [purchaseReturn.id]
@@ -2131,12 +2090,8 @@ class FinanceIntegrationService {
       }
 
       // ✅ 精度修复：整数运算
-      const totalAmount =
-        returnItems.reduce(
-          (sum, item) =>
-            sum + Math.round(parseFloat(item.return_quantity || 0) * resolveUnitPrice(item) * 100),
-          0
-        ) / 100;
+      const amounts = calculateLines(returnItems.map(item => ({ ...item, quantity: item.return_quantity })), { defaultTaxRate: 0 });
+      const totalAmount = amounts.totalAmount;
       const creditNoteAmount = -Math.abs(totalAmount);
       if (totalAmount === 0) {
         if (!isExternalConn) await connection.rollback();
@@ -2159,6 +2114,9 @@ class FinanceIntegrationService {
         invoice_date: invoiceDateStr,
         due_date: invoiceDateStr,
         total_amount: creditNoteAmount,
+        amount_excluding_tax: -amounts.subtotal,
+        tax_amount: -amounts.taxAmount,
+        tax_rate: amounts.subtotal ? amounts.taxAmount / amounts.subtotal : 0,
         currency_code: financeConfig.get('invoice.defaultCurrency', 'CNY'),
         exchange_rate: 1.0,
         status: '已确认',
@@ -2455,43 +2413,13 @@ class FinanceIntegrationService {
 
       const invoiceNumber = await this.generateTaxInvoiceNumber(connection);
 
-      // 出库明细库列=price；售价回退销售订单 unit_price、物料 price
-      const [outboundItems] = await connection.execute(
-        `SELECT soi.quantity,
-                COALESCE(
-                  NULLIF(${sqlUnitPriceExpr('soi', 'sales_outbound_items')}, 0),
-                  NULLIF(${sqlUnitPriceExpr('soitm', 'sales_order_items')}, 0),
-                  NULLIF(m.price, 0),
-                  0
-                ) AS price,
-                COALESCE(
-                  NULLIF(${sqlUnitPriceExpr('soi', 'sales_outbound_items')}, 0),
-                  NULLIF(${sqlUnitPriceExpr('soitm', 'sales_order_items')}, 0),
-                  NULLIF(m.price, 0),
-                  0
-                ) AS unit_price
-         FROM sales_outbound_items soi
-         LEFT JOIN sales_outbound so ON soi.outbound_id = so.id
-         LEFT JOIN sales_order_items soitm
-           ON COALESCE(soi.source_order_id, so.order_id) = soitm.order_id
-          AND soi.product_id = soitm.material_id
-         LEFT JOIN materials m ON soi.product_id = m.id
-         WHERE soi.outbound_id = ?`,
-        [salesOutbound.id]
-      );
-
-      // ✅ 精度修复：整数运算
-      const amountExcludingTax =
-        outboundItems.reduce(
-          (sum, item) =>
-            sum + Math.round(parseFloat(item.quantity || 0) * resolveUnitPrice(item) * 100),
-          0
-        ) / 100;
-      // 从财务设置获取税率（前端设置的小数格式，如 0.13 = 13%）
+      const outboundItems = await SalesOutboundValuationService.getItems(connection, [salesOutbound.id]);
+      const amounts = SalesOutboundValuationService.summarize(outboundItems);
+      const amountExcludingTax = amounts.subtotal;
       await this.loadConfigurations();
-      const taxRate = normalizeTaxRate(financeConfig.get('tax.defaultVATRate', 0.13), 0.13);
+      const taxRate = amountExcludingTax > 0 ? normalizeTaxRate(amounts.taxAmount / amountExcludingTax) : 0;
       const taxRatePercent = roundMoney(taxRate * 100); // 税务发票表使用百分比制
-      const taxAmount = calculateTaxAmount(amountExcludingTax, taxRate);
+      const taxAmount = amounts.taxAmount;
       const totalAmount = roundMoney(amountExcludingTax + taxAmount);
       if (totalAmount <= 0) {
         await connection.rollback();
@@ -2504,7 +2432,7 @@ class FinanceIntegrationService {
         invoice_type: '销项',
         invoice_number: invoiceNumber,
         invoice_code: null,
-        invoice_date: toLocalDateString(salesOutbound.outbound_date || currentDateString()),
+        invoice_date: toLocalDateString(salesOutbound.outbound_date || salesOutbound.delivery_date || currentDateString()),
         customer_id: salesOutbound.customer_id || null,
         supplier_id: null,
         supplier_or_customer_name: salesOutbound.customer_name || null,
@@ -2606,7 +2534,7 @@ class FinanceIntegrationService {
          FROM purchase_receipt_items pri
          JOIN purchase_receipts pr ON pri.receipt_id = pr.id
          LEFT JOIN purchase_orders po ON pr.order_id = po.id
-         LEFT JOIN purchase_order_items poi ON po.id = poi.order_id AND pri.material_id = poi.material_id
+         LEFT JOIN purchase_order_items poi ON poi.id = pri.order_item_id AND po.id = poi.order_id
          LEFT JOIN materials m ON pri.material_id = m.id
          WHERE pri.receipt_id = ?`,
         [purchaseReceipt.id]
@@ -2689,7 +2617,11 @@ class FinanceIntegrationService {
     try {
       await connection.beginTransaction();
 
+      const [[storedExchange]] = await connection.query('SELECT * FROM sales_exchanges WHERE id=? AND deleted_at IS NULL FOR UPDATE', [salesExchange.id]);
+      if (!storedExchange || storedExchange.status !== 'completed') throw new Error('只有已完成的换货单可以生成差价凭证');
+      salesExchange = storedExchange;
       const exchangeNo = salesExchange.exchange_no;
+      await this.requireApprovedInventoryPosting(connection, 'sales_exchange', exchangeNo);
       const existingEntry = await this.findExistingActiveGlEntry(
         connection,
         'sales_exchange',
@@ -2715,11 +2647,18 @@ class FinanceIntegrationService {
         };
       }
 
-      // 查询差价金额（从主表获取）
-      const differenceAmount = parseFloat(salesExchange.difference_amount || 0);
+      // Separate revenue and VAT using the saved line snapshot, including refunds.
+      const [totals] = await connection.query(
+        'SELECT item_type,SUM(amount) AS subtotal,SUM(COALESCE(tax_amount,0)) AS tax_amount FROM sales_exchange_items WHERE exchange_id=? GROUP BY item_type', [salesExchange.id]
+      );
+      const amounts = type => totals.find(row => row.item_type === type) || {};
+      const revenueDifference = roundMoney(Number(amounts('new').subtotal || 0) - Number(amounts('return').subtotal || 0));
+      const taxDifference = roundMoney(Number(amounts('new').tax_amount || 0) - Number(amounts('return').tax_amount || 0));
+      const differenceAmount = roundMoney(revenueDifference + taxDifference);
+      if (differenceAmount !== roundMoney(salesExchange.difference_amount)) throw new Error('换货抬头差价与明细价税合计不一致');
 
-      // 等值换货无需生成凭证
-      if (differenceAmount === 0) {
+      // Equal gross values can still require a revenue/VAT reclassification.
+      if (revenueDifference === 0 && taxDifference === 0) {
         logger.info(`换货单 ${exchangeNo} 为等值换货（差价=0），无需生成财务分录`);
         await connection.rollback();
         return null;
@@ -2727,22 +2666,8 @@ class FinanceIntegrationService {
 
       const absDiff = Math.abs(differenceAmount);
 
-      // 批量解析科目ID（1次查询替代2次）
-      let description;
-      const accountIds = await this.resolveAccountIds(['ACCOUNTS_RECEIVABLE', 'SALES_REVENUE']);
-      let debitAccountId, creditAccountId;
-
-      if (differenceAmount > 0) {
-        // 换出更贵 → 客户应补差价
-        debitAccountId = accountIds.ACCOUNTS_RECEIVABLE;
-        creditAccountId = accountIds.SALES_REVENUE;
-        description = `销售换货补差价 - 换货单: ${exchangeNo}`;
-      } else {
-        // 退回更贵 → 应退客户差价
-        debitAccountId = accountIds.SALES_REVENUE;
-        creditAccountId = accountIds.ACCOUNTS_RECEIVABLE;
-        description = `销售换货退差价 - 换货单: ${exchangeNo}`;
-      }
+      const accountIds = await this.resolveAccountIds(['ACCOUNTS_RECEIVABLE', 'SALES_REVENUE', ...(taxDifference ? ['VAT_OUTPUT_TAX'] : [])]);
+      const description = `销售换货${differenceAmount > 0 ? '补差价' : differenceAmount < 0 ? '退差价' : '价税调整'} - 换货单: ${exchangeNo}`;
 
       // 获取会计期间
       const now = toLocalDateString(salesExchange.exchange_date || currentDateString());
@@ -2764,19 +2689,13 @@ class FinanceIntegrationService {
       };
 
       const entryItems = [
-        {
-          account_id: debitAccountId,
-          debit_amount: absDiff,
-          credit_amount: 0,
-          description: `借方 - ${description}`,
-        },
-        {
-          account_id: creditAccountId,
-          debit_amount: 0,
-          credit_amount: absDiff,
-          description: `贷方 - ${description}`,
-        },
-      ];
+        [accountIds.ACCOUNTS_RECEIVABLE, differenceAmount],
+        [accountIds.SALES_REVENUE, -revenueDifference],
+        [accountIds.VAT_OUTPUT_TAX, -taxDifference],
+      ].filter(([, balance]) => balance !== 0).map(([accountId, balance]) => ({
+        account_id: accountId, debit_amount: Math.max(balance, 0),
+        credit_amount: Math.max(-balance, 0), description,
+      }));
 
       const entryId = await financeModel.createEntry(entryData, entryItems, connection);
       const [entries] = await connection.execute(

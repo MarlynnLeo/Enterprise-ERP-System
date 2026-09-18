@@ -187,6 +187,9 @@ function toInvoiceApi(row, kind = 'ap') {
     relatedOrderNo: row.related_order_no ?? row.relatedOrderNo ?? null,
     createdBy: row.created_by ?? row.createdBy ?? null,
     updatedBy: row.updated_by ?? row.updatedBy ?? null,
+    approvedBy: row.approved_by ?? row.approvedBy ?? null,
+    approvedByName: row.approved_by_name ?? row.approvedByName ?? null,
+    approvedAt: row.approved_at ?? row.approvedAt ?? null,
     createdAt: formatDate(row.created_at ?? row.createdAt),
     updatedAt: formatDate(row.updated_at ?? row.updatedAt),
   };

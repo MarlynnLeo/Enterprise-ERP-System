@@ -61,7 +61,7 @@ class BudgetControlService {
    * @param {Date} date - 日期
    * @returns {Promise<Object>} 检查结果
    */
-  static async checkBudgetAvailability(accountId, departmentId, amount, date, connection = null) {
+  static async checkBudgetAvailability(accountId, departmentId, amount, date, connection = null, excludeEntryId = null) {
     try {
       const conn = connection || db.pool;
       const requestedAmount = Number.parseFloat(amount);
@@ -88,7 +88,7 @@ class BudgetControlService {
           bd.remaining_amount as cached_remaining_amount,
           bd.warning_threshold,
           ${departmentExpr} as effective_department_id,
-          ${budgetDetailActualAmountSql({ budgetAlias: 'b', detailAlias: 'bd' })} as actual_used,
+          ${budgetDetailActualAmountSql({ budgetAlias: 'b', detailAlias: 'bd', excludeEntryId })} as actual_used,
           COALESCE(
             (
               SELECT SUM(be.execution_amount)
@@ -110,12 +110,10 @@ class BudgetControlService {
       if (normalizedDepartmentId) {
         query += ` AND (${departmentExpr} = ? OR ${departmentExpr} IS NULL)`;
         params.push(normalizedDepartmentId);
-      } else {
-        query += ` AND ${departmentExpr} IS NULL`;
       }
 
       query += ` ORDER BY
-        CASE WHEN ${departmentExpr} IS NULL THEN 1 ELSE 0 END,
+        CASE WHEN ${departmentExpr} IS NULL THEN ${normalizedDepartmentId ? '1 ELSE 0' : '0 ELSE 1'} END,
         b.budget_year DESC
         LIMIT 1`;
       if (connection) {
@@ -133,6 +131,13 @@ class BudgetControlService {
       }
 
       const budget = budgets[0];
+      if (!normalizedDepartmentId && budget.effective_department_id) {
+        return {
+          available: false,
+          reason: '该科目存在部门预算，请选择费用归属成本中心',
+          budget,
+        };
+      }
       const budgetAmount = Number.parseFloat(budget.budget_amount) || 0;
       const usedAmount =
         (Number.parseFloat(budget.actual_used) || 0)
@@ -207,7 +212,8 @@ class BudgetControlService {
         departmentId,
         amount,
         date,
-        connection
+        connection,
+        glEntryId
       );
 
       if (!checkResult.available) {

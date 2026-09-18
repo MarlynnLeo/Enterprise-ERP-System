@@ -75,7 +75,7 @@
           <el-button v-if="row.status === 'draft'" type="primary" size="small" v-permission="'contract:edit'" @click="openForm(row)">
             <el-icon><Edit /></el-icon> 编辑
           </el-button>
-          <el-popconfirm title="确定删除此合同？" @confirm="handleDelete(row.id)">
+          <el-popconfirm v-if="['draft', 'rejected', 'cancelled'].includes(row.status)" title="确定删除此合同？" @confirm="handleDelete(row.id)">
             <template #reference>
               <el-button type="danger" size="small" v-permission="'contract:delete'">
                 <el-icon><Delete /></el-icon> 删除
@@ -305,7 +305,7 @@ const resetSearch = () => {
 }
 
 const openForm = (row) => {
-  formData.value = row ? { ...row } : { type: 'purchase', total_amount: 0 }
+  formData.value = row ? { ...row } : { type: 'purchase', totalAmount: 0 }
   formVisible.value = true
 }
 

@@ -38,8 +38,8 @@ function parsePositiveInteger(value, fallback, max = 100) {
 
 /** 统一错误响应（ManualVoucherService 抛出的业务错误带 statusCode/code） */
 function respondServiceError(res, error, fallbackMessage) {
-  const status = error.statusCode || 500;
-  const code = error.code || (status >= 500 ? 'SERVER_ERROR' : 'BAD_REQUEST');
+  const status = error.statusCode || error.httpStatus || 500;
+  const code = error.errorCode || error.code || (status >= 500 ? 'SERVER_ERROR' : 'BAD_REQUEST');
   if (status >= 500) {
     logger.error(fallbackMessage, error);
   }
@@ -263,6 +263,25 @@ class FinanceEnhancementController {
       );
     } catch (error) {
       return respondServiceError(res, error, '从销售出库单生成应收失败');
+    }
+  }
+
+  /** A completed, finance-approved return can be credited when automation is off. */
+  static async generateARCreditNoteFromSalesReturn(req, res) {
+    try {
+      const returnId = safeParseId(req.params.returnId);
+      const ScopeGuard = require('../../../authorization/ScopeGuard');
+      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'sales_return', returnId, '无权访问该销售退货单', { accessMode: 'read' }))) return;
+      const [[salesReturn]] = await db.pool.query(
+        'SELECT * FROM sales_returns WHERE id=? AND deleted_at IS NULL', [returnId]
+      );
+      if (!salesReturn) return ResponseHandler.notFound(res, '销售退货单不存在');
+      if (salesReturn.status !== 'completed') return ResponseHandler.error(res, '退货完成并经财务审核后才能生成红字应收', 'INVALID_STATUS', 400);
+      const FinanceIntegrationService = require('../../../services/external/FinanceIntegrationService');
+      const result = await FinanceIntegrationService.generateARCreditNoteFromSalesReturn(salesReturn, { force: true });
+      return respondGenerateResult(res, result, '红字应收与会计凭证生成成功', '该销售退货单已生成红字应收');
+    } catch (error) {
+      return respondServiceError(res, error, '从销售退货单生成红字应收失败');
     }
   }
 

@@ -54,7 +54,7 @@ async function main() {
      WHERE table_schema = DATABASE()
        AND INDEX_NAME IN (?, ?, ?)
      GROUP BY INDEX_NAME, TABLE_NAME`,
-    ['uk_ar_invoices_source', 'uk_ap_invoices_source', 'uk_tax_invoices_related_document']
+    ['uk_ar_invoices_source', 'uk_ap_invoices_source', 'uq_tax_active_source']
   );
   console.log('=== unique indexes ===');
   console.log(indexes);

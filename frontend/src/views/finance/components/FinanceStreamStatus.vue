@@ -1,5 +1,5 @@
 <!--
-  业财四流状态条：AP/AR / 税 / 成本GL / 三单匹配
+  采购收货业财状态条：应付 / 进项税 / 三单匹配
 -->
 <template>
   <div class="finance-stream-status" v-loading="loading">
@@ -46,7 +46,7 @@ import { ElMessage } from 'element-plus/es/components/message/index'
 import { financeApi } from '@/api/finance'
 
 const props = defineProps({
-  /** purchase_receipt | sales_outbound */
+  /** purchase_receipt */
   documentType: {
     type: String,
     required: true,
@@ -89,28 +89,7 @@ const chips = computed(() => {
       },
     ]
   }
-  return [
-    {
-      key: 'ar',
-      label: '应收发票',
-      ok: !!s.ar?.ok,
-      value: s.ar?.ok ? `${s.ar.number || ''} · ${s.ar.status || ''}` : '未生成',
-    },
-    {
-      key: 'tax',
-      label: '销项税票',
-      ok: !!s.tax?.ok,
-      value: s.tax?.ok ? `${s.tax.number || ''} · ${s.tax.status || ''}` : '未生成',
-    },
-    {
-      key: 'cost',
-      label: '成本凭证',
-      ok: !!s.costGl?.ok,
-      value: s.costGl?.ok
-        ? `${s.costGl.number || ''} · ${s.costGl.posted ? '已过账' : '未过账'}`
-        : '未生成',
-    },
-  ]
+  return []
 })
 
 const actions = computed(() => {
@@ -133,51 +112,20 @@ const actions = computed(() => {
         key: 'gen-tax',
         label: '生成进项税票',
         type: 'warning',
-        onClick: () => generateSide('tax-input'),
-      })
-    }
-  } else {
-    list.push({
-      key: 'ar',
-      label: '应收待结算',
-      type: 'primary',
-      onClick: () => router.push({ path: '/finance/ar/settlement' }),
-    })
-    if (!s.tax?.ok && props.documentId) {
-      list.push({
-        key: 'gen-tax',
-        label: '生成销项税票',
-        type: 'warning',
-        onClick: () => generateSide('tax-output'),
-      })
-    }
-    if (!s.costGl?.ok && props.documentId) {
-      list.push({
-        key: 'gen-cost',
-        label: '生成成本凭证',
-        type: 'warning',
-        onClick: () => generateSide('cost'),
+        onClick: generateInputTax,
       })
     }
   }
   return list
 })
 
-async function generateSide(kind) {
+async function generateInputTax() {
   const id = Number(props.documentId)
   if (!id) return
   loading.value = true
   try {
-    if (kind === 'tax-input') {
-      await financeApi.integration.generateInputTaxFromReceipt(id)
-      ElMessage.success('进项税票已生成')
-    } else if (kind === 'tax-output') {
-      await financeApi.integration.generateOutputTaxFromOutbound(id)
-      ElMessage.success('销项税票已生成')
-    } else if (kind === 'cost') {
-      await financeApi.integration.generateCostEntryFromOutbound(id)
-      ElMessage.success('成本凭证已生成')
-    }
+    await financeApi.integration.generateInputTaxFromReceipt(id)
+    ElMessage.success('进项税票已生成')
     await load()
   } catch (e) {
     ElMessage.error(e?.response?.data?.message || e.message || '生成失败')
@@ -188,17 +136,13 @@ async function generateSide(kind) {
 
 async function load() {
   const id = Number(props.documentId)
-  if (!id) {
+  if (!id || props.documentType !== 'purchase_receipt') {
     data.value = null
     return
   }
   loading.value = true
   try {
-    const api =
-      props.documentType === 'purchase_receipt'
-        ? financeApi.getPurchaseReceiptFinanceStatus
-        : financeApi.getSalesOutboundFinanceStatus
-    const res = await api(id)
+    const res = await financeApi.getPurchaseReceiptFinanceStatus(id)
     data.value = res?.data || res || null
   } catch (e) {
     data.value = null

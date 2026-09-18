@@ -131,7 +131,26 @@ const FALLBACK_DICTIONARY = {
     completed: { name: '已完成', color: 'success' },
     cancelled: { name: '已取消', color: 'danger' },
   },
+  sales_quotation_status: {
+    draft: { name: '待确认', color: 'info' },
+    sent: { name: '已发送', color: 'primary' },
+    accepted: { name: '已确认', color: 'success' },
+    converted: { name: '已转订单', color: 'success' },
+    rejected: { name: '已拒绝', color: 'danger' },
+    expired: { name: '已过期', color: 'warning' },
+    cancelled: { name: '已取消', color: 'info' },
+  },
+  sales_return_status: {
+    draft: { name: '草稿', color: 'info' },
+    pending: { name: '待审批', color: 'warning' },
+    approved: { name: '已审批', color: 'success' },
+    completed: { name: '已完成', color: 'success' },
+    rejected: { name: '已拒绝', color: 'danger' },
+    cancelled: { name: '已取消', color: 'info' },
+  },
   sales_status: {
+    reversed: { name: '已冲销', color: 'info' },
+    rejected: { name: '已拒绝', color: 'danger' },
     draft: { name: '草稿', color: 'info' },
     pending: { name: '待处理', color: 'warning' },
     confirmed: { name: '已确认', color: 'primary' },
@@ -154,11 +173,27 @@ const FALLBACK_DICTIONARY = {
     offline: { name: '离线', color: 'info' },
   },
   common_status: {
+    draft: { name: '草稿', color: 'info' },
+    pending: { name: '待处理', color: 'warning' },
+    confirmed: { name: '已确认', color: 'primary' },
+    processing: { name: '处理中', color: 'primary' },
+    in_production: { name: '生产中', color: 'primary' },
+    in_procurement: { name: '采购中', color: 'primary' },
+    shortage: { name: '缺料', color: 'danger' },
+    ready_to_ship: { name: '可发货', color: 'warning' },
+    unshipped: { name: '未发货', color: 'info' },
+    partial_shipped: { name: '部分发货', color: 'warning' },
+    fully_shipped: { name: '已全部发货', color: 'success' },
+    shipped: { name: '已发货', color: 'success' },
+    completed: { name: '已完成', color: 'success' },
+    cancelled: { name: '已取消', color: 'danger' },
+    reversed: { name: '已冲销', color: 'info' },
     active: { name: '启用', color: 'success' },
     inactive: { name: '禁用', color: 'danger' },
     enabled: { name: '启用', color: 'success' },
     disabled: { name: '禁用', color: 'danger' },
     normal: { name: '正常', color: 'success' },
+    void: { name: '已作废', color: 'info' },
     abnormal: { name: '异常', color: 'danger' },
     online: { name: '在线', color: 'success' },
     offline: { name: '离线', color: 'info' },
@@ -201,6 +236,7 @@ const FALLBACK_DICTIONARY = {
     completed: { name: '已完成', color: 'success' },
     terminated: { name: '已终止', color: 'danger' },
     expired: { name: '已过期', color: 'info' },
+    cancelled: { name: '已取消', color: 'info' },
   },
   contract_type: {
     purchase: { name: '采购合同', color: 'warning' },
@@ -664,6 +700,8 @@ export const getPurchaseReturnStatusText = (code) => getText('purchase_return_st
 export const getPurchaseReturnStatusColor = (code) => getColor('purchase_return_status', code);
 export const getSalesStatusText = (code) => getText('sales_status', code);
 export const getSalesStatusColor = (code) => getColor('sales_status', code);
+export const getSalesReturnStatusText = (code) => getText('sales_return_status', code);
+export const getSalesReturnStatusColor = (code) => getColor('sales_return_status', code);
 export const getSalesQuotationStatusText = (code) => getText('sales_quotation_status', code);
 export const getSalesQuotationStatusColor = (code) => getColor('sales_quotation_status', code);
 export const getOutsourcedStatusText = (code) => getText('outsourced_status', code);

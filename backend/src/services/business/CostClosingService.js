@@ -1,5 +1,6 @@
 const db = require('../../config/db');
 const CostAccountingService = require('./CostAccountingService');
+const { INCOMING_INSPECTION_COUNTED_STATUSES, PURCHASE_RECEIPT_COUNTED_STATUSES, sqlStringList } = require('../../constants/qualityReceipt');
 
 const CHECK_DEFINITIONS = [
   {
@@ -167,35 +168,42 @@ class CostClosingService {
           FROM purchase_order_items poi
           JOIN purchase_orders po ON po.id = poi.order_id
           LEFT JOIN (
-            SELECT pr.order_id, pri.material_id,
-                   SUM(COALESCE(NULLIF(pri.received_quantity, 0), pri.quantity, pri.qualified_quantity, 0))
-                     AS received_quantity
-              FROM purchase_receipt_items pri
-              JOIN purchase_receipts pr ON pr.id = pri.receipt_id
-             WHERE pr.deleted_at IS NULL
-               AND pr.status IN ('confirmed', 'completed')
-             GROUP BY pr.order_id, pri.material_id
-          ) receipts ON receipts.order_id = poi.order_id
-                    AND receipts.material_id = poi.material_id
-          LEFT JOIN (
-            SELECT qi.reference_id AS order_id, qi.material_id,
-                   SUM(COALESCE(NULLIF(qi.quantity, 0), qi.qualified_quantity, 0))
-                     AS inspected_quantity
+            SELECT deliveries.order_item_id, SUM(deliveries.quantity) AS quantity FROM (
+              SELECT COALESCE(qi.purchase_order_item_id, unique_line.id) AS order_item_id,
+                CASE WHEN qi.status IN (${sqlStringList(INCOMING_INSPECTION_COUNTED_STATUSES)})
+                  THEN COALESCE(qi.qualified_quantity, 0) ELSE qi.quantity END AS quantity
               FROM quality_inspections qi
-             WHERE qi.inspection_type = 'incoming'
-               AND qi.deleted_at IS NULL
-               AND qi.status NOT IN ('cancelled', 'rejected')
-             GROUP BY qi.reference_id, qi.material_id
-          ) inspections ON inspections.order_id = poi.order_id
-                       AND inspections.material_id = poi.material_id
+              LEFT JOIN (SELECT order_id, material_id, MIN(id) id FROM purchase_order_items
+                GROUP BY order_id, material_id HAVING COUNT(*) = 1) unique_line
+                ON unique_line.order_id = qi.reference_id AND unique_line.material_id = qi.material_id
+              WHERE qi.inspection_type = 'incoming' AND qi.deleted_at IS NULL
+                AND COALESCE(qi.source_type, 'purchase_order') IN ('', 'purchase_order')
+              UNION ALL
+              SELECT COALESCE(ri.order_item_id, unique_line.id), COALESCE(ri.qualified_quantity, ri.received_quantity, 0)
+              FROM purchase_receipt_items ri JOIN purchase_receipts r ON r.id = ri.receipt_id
+              LEFT JOIN (SELECT order_id, material_id, MIN(id) id FROM purchase_order_items
+                GROUP BY order_id, material_id HAVING COUNT(*) = 1) unique_line
+                ON unique_line.order_id = r.order_id AND unique_line.material_id = ri.material_id
+              WHERE r.deleted_at IS NULL AND r.status IN (${sqlStringList(PURCHASE_RECEIPT_COUNTED_STATUSES)})
+                AND NOT EXISTS (SELECT 1 FROM quality_inspections qi WHERE qi.id = r.inspection_id
+                  AND qi.reference_id = r.order_id AND qi.inspection_type = 'incoming' AND qi.deleted_at IS NULL
+                  AND COALESCE(qi.source_type, 'purchase_order') IN ('', 'purchase_order'))
+              UNION ALL
+              SELECT COALESCE(ri.order_item_id, unique_line.id), -rti.return_quantity
+              FROM purchase_return_items rti JOIN purchase_returns rt ON rt.id = rti.return_id
+              JOIN purchase_receipt_items ri ON ri.id = rti.receipt_item_id
+              JOIN purchase_receipts r ON r.id = ri.receipt_id
+              LEFT JOIN (SELECT order_id, material_id, MIN(id) id FROM purchase_order_items
+                GROUP BY order_id, material_id HAVING COUNT(*) = 1) unique_line
+                ON unique_line.order_id = r.order_id AND unique_line.material_id = ri.material_id
+              WHERE r.deleted_at IS NULL AND rt.deleted_at IS NULL AND rt.status = 'completed'
+            ) deliveries GROUP BY deliveries.order_item_id
+          ) source ON source.order_item_id = poi.id
          WHERE po.deleted_at IS NULL
            AND ${periodDateClause('po.order_date')}
            AND ABS(
              COALESCE(poi.received_quantity, 0)
-             - GREATEST(
-                 COALESCE(receipts.received_quantity, 0),
-                 COALESCE(inspections.inspected_quantity, 0)
-               )
+             - GREATEST(0, COALESCE(source.quantity, 0))
            )
                > 0.000001
       ) issues`;

@@ -741,6 +741,7 @@ class InventoryService {
       receiptId = null, // 原生批次身份证属性
       receiptNo = null, // 原生批次身份证属性
       idempotencyKey = null,
+      sourceLineKey = null,
       postingDocumentId = null,
       postingLineId = null,
       reversalOfLedgerId = null,
@@ -1065,7 +1066,9 @@ class InventoryService {
                 receiptNo,
                 remark,
                 allowEmptyBatch: emptyBatchAllowed,
-                sourceLineKey: `${transactionType}:${referenceType}:${referenceNo}:${materialId}:${locationId}:${ledgerBatchNumber || 'EMPTY'}`,
+                sourceLineKey: sourceLineKey
+                  ? `${sourceLineKey}:${locationId}:${ledgerBatchNumber || 'EMPTY'}`
+                  : `${transactionType}:${referenceType}:${referenceNo}:${materialId}:${locationId}:${ledgerBatchNumber || 'EMPTY'}`,
               },
             ]
           );

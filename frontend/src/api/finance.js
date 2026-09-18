@@ -168,6 +168,8 @@ export const financeApi = {
   // 注意：实际后端路由为 /finance/ar/invoices，不是 /finance/receivables
   getARInvoices: (params, config = {}) => api.get('/finance/ar/invoices', { ...config, params }),
   getARInvoice: (id) => api.get(`/finance/ar/invoices/${id}`),
+  generateARInvoiceNumber: () => api.get('/finance/ar/invoices/generate-number'),
+  generateAPInvoiceNumber: () => api.get('/finance/ap/invoices/generate-number'),
   createARInvoice: (data) => api.post('/finance/ar/invoices', data),
   updateARInvoice: (id, data) => api.put(`/finance/ar/invoices/${id}`, data),
   updateARInvoiceStatus: (id, data) => api.put(`/finance/ar/invoices/${id}/status`, data),
@@ -198,8 +200,6 @@ export const financeApi = {
     api.post(`/finance/integration/three-way-match/${id}/cancel`, data || {}),
   getPurchaseReceiptFinanceStatus: (receiptId) =>
     api.get(`/finance/integration/document-status/purchase-receipt/${receiptId}`),
-  getSalesOutboundFinanceStatus: (outboundId) =>
-    api.get(`/finance/integration/document-status/sales-outbound/${outboundId}`),
   getBankReconciliationBalanceSheet: (params) =>
     api.get('/finance/cash/bank-reconciliation-balance-sheet', { params }),
 
@@ -228,23 +228,22 @@ export const financeApi = {
       api.post(`/finance/integration/ap-invoice/${receiptId}`),
     generateARInvoiceFromSalesOutbound: (outboundId) =>
       api.post(`/finance/integration/ar-invoice-from-outbound/${outboundId}`),
+    generateARCreditNoteFromSalesReturn: (returnId) =>
+      api.post(`/finance/integration/ar-credit-note-from-return/${returnId}`),
     generateARInvoiceFromSalesOrder: (salesOrderId) =>
       api.post(`/finance/integration/ar-invoice/${salesOrderId}`),
     generateAPInvoiceFromPurchaseOrder: (purchaseOrderId) =>
       api.post(`/finance/integration/ap-invoice-from-po/${purchaseOrderId}`),
-    /** 闭环补齐：税票 / 成本凭证（force） */
+    /** 采购收货进项税票补齐 */
     generateInputTaxFromReceipt: (receiptId) =>
       api.post(`/finance/integration/tax-input/${receiptId}`),
-    generateOutputTaxFromOutbound: (outboundId) =>
-      api.post(`/finance/integration/tax-output/${outboundId}`),
-    generateCostEntryFromOutbound: (outboundId) =>
-      api.post(`/finance/integration/cost-entry/${outboundId}`),
   },
 
   // 收款记录
   getReceipts: (params) => api.get('/finance/ar/receipts', { params }),
   getReceipt: (id) => api.get(`/finance/ar/receipts/${id}`),
   createReceipt: (data) => api.post('/finance/ar/receipts', data),
+  createCreditNoteRefund: (kind, data) => api.post(`/finance/${kind}/refunds`, data),
   voidReceipt: (id, data) => api.post(`/finance/ar/receipts/${id}/void`, data),
   generateReceiptNumber: () => api.get('/finance/ar/receipts/generate-number'),
   getUnpaidReceiptInvoices: () => api.get('/finance/ar/receipts/unpaid-invoices'),
@@ -256,6 +255,8 @@ export const financeApi = {
   voidPayment: (id, data) => api.post(`/finance/ap/payments/${id}/void`, data),
 
   tax: {
+    getRedLetterOriginals: (params) => api.get('/finance/tax/red-letter-originals', { params }),
+    createRedLetter: (data) => api.post('/finance/tax/red-letter-invoices', data),
     getInvoices: (params) => api.get('/finance/tax/invoices', { params }),
     createInvoice: (data) => api.post('/finance/tax/invoices', data),
     certifyInvoice: (id, data) => api.post(`/finance/tax/invoices/${id}/certify`, data),
@@ -269,6 +270,7 @@ export const financeApi = {
     createReturn: (data) => api.post('/finance/tax/returns', data),
     getReturn: (id) => api.get(`/finance/tax/returns/${id}`),
     submitReturn: (id, data) => api.post(`/finance/tax/returns/${id}/submit`, data),
+    reopenReturn: (id, data) => api.post(`/finance/tax/returns/${id}/reopen`, data),
     payReturn: (id, data) => api.post(`/finance/tax/returns/${id}/pay`, data),
     voidReturnPayment: (id, data) => api.post(`/finance/tax/returns/${id}/void-payment`, data),
     deleteReturn: (id) => api.delete(`/finance/tax/returns/${id}`),
@@ -317,6 +319,7 @@ export const financeApi = {
     submit: (id) => api.put(`/finance/cash-transactions/${id}/submit`),
     approve: (id, data) => api.put(`/finance/cash-transactions/${id}/approve`, data),
     reject: (id, data) => api.put(`/finance/cash-transactions/${id}/reject`, data),
+    void: (id, data) => api.post(`/finance/cash-transactions/${id}/void`, data),
     export: (params) =>
       api.get('/finance/cash-transactions/export', { params, responseType: 'blob' }),
     import: (data) =>
@@ -327,6 +330,7 @@ export const financeApi = {
   },
 
   reconciliation: {
+    getStatementItems: (params) => api.get('/finance/cash/reconciliation/statement-items', { params }),
     importStatement: (data) =>
       api.post('/finance/cash/reconciliation/import-statement', data, {
         headers: { 'Content-Type': 'multipart/form-data' },

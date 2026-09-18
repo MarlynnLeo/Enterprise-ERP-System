@@ -15,7 +15,11 @@ function budgetDetailActualAmountSql({
   budgetAlias = 'b',
   detailAlias = 'bd',
   costCenterAlias = 'cc_budget',
+  excludeEntryId = null,
 } = {}) {
+  const excludedId = Number(excludeEntryId);
+  const excludeCurrentEntry = Number.isSafeInteger(excludedId) && excludedId > 0
+    ? `AND ge.id <> ${excludedId}` : '';
   return `COALESCE(
             (
               SELECT SUM(COALESCE(gei.debit_amount, 0) - COALESCE(gei.credit_amount, 0))
@@ -23,6 +27,7 @@ function budgetDetailActualAmountSql({
               JOIN gl_entries ge ON gei.entry_id = ge.id
               LEFT JOIN cost_centers ${costCenterAlias} ON ${costCenterAlias}.id = gei.cost_center_id
               WHERE gei.account_id = ${detailAlias}.account_id
+                ${excludeCurrentEntry}
                 AND ge.entry_date BETWEEN ${budgetAlias}.start_date AND ${budgetAlias}.end_date
                 AND ge.is_posted = 1
                 AND ${budgetDepartmentPredicate(budgetAlias, detailAlias, costCenterAlias)}

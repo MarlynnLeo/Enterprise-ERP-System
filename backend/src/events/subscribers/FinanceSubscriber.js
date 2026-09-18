@@ -479,6 +479,17 @@ class FinanceSubscriber {
       return;
     }
 
+    if (sourceType === 'sales_exchange') {
+      const [[exchange]] = await db.pool.execute(
+        "SELECT * FROM sales_exchanges WHERE exchange_no = ? AND deleted_at IS NULL AND status IN ('completed', '已完成') LIMIT 1",
+        [sourceNo]
+      );
+      if (!exchange) throw new Error(`已完成换货单不存在: ${sourceNo}`);
+      await FinanceIntegrationService.generateExchangeDifferenceEntry(exchange);
+      await this.replayInventoryPostingCosts(posting);
+      return;
+    }
+
     const isPurchaseReceiptPosting =
       ['inbound', 'purchase_receipt'].includes(sourceType) ||
       (sourceType === 'batch_create' &&
@@ -528,12 +539,12 @@ class FinanceSubscriber {
 
     if (sourceType === 'outsourced_processing_material') {
       const [outsourcedProcessing] = await db.pool.execute(
-        'SELECT id, processing_no FROM outsourced_processings WHERE processing_no = ? LIMIT 1',
+        'SELECT id, processing_no, processing_date FROM outsourced_processings WHERE processing_no = ? LIMIT 1',
         [sourceNo]
       );
       if (!outsourcedProcessing[0]) throw new Error(`委外加工单不存在: ${sourceNo}`);
       const [materials] = await db.pool.execute(
-        'SELECT id, material_id, material_name, quantity, unit_price FROM outsourced_processing_materials WHERE processing_id = ?',
+        'SELECT id, material_id, material_name, quantity FROM outsourced_processing_materials WHERE processing_id = ?',
         [outsourcedProcessing[0].id]
       );
       await FinanceIntegrationService.generateOutsourcedIssueEntry(
@@ -545,7 +556,7 @@ class FinanceSubscriber {
 
     if (['outsourced_processing_receipt', 'outsourced_receipt'].includes(sourceType)) {
       const [outsourcedReceipts] = await db.pool.execute(
-        `SELECT id, receipt_no, processing_id, operator, status
+        `SELECT id, receipt_no, processing_id, receipt_date, operator, status
            FROM outsourced_processing_receipts
           WHERE receipt_no = ?
             AND status <> 'cancelled'
@@ -914,10 +925,14 @@ class FinanceSubscriber {
         );
         return;
       }
-      await FinanceIntegrationService.generateARCreditNoteFromSalesReturn({
+      const result = await FinanceIntegrationService.generateARCreditNoteFromSalesReturn({
         ...salesReturn,
         created_by: salesReturn.created_by || currentUserId,
       });
+      if (result?.skipped) {
+        logger.info(`[FinanceSubscriber] 销售退货 ${salesReturn.return_no}: ${result.message}`);
+        return;
+      }
       logger.info(
         `[FinanceSubscriber] 销售退货红字发票自动生成成功 - 退货单: ${salesReturn.return_no}`
       );

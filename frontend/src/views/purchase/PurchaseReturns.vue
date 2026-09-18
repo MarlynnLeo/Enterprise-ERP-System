@@ -255,6 +255,7 @@
                 v-model="returnDialog.form.receiptId"
                 placeholder="请选择收货单"
                 filterable
+                :disabled="returnDialog.isEdit"
                 class="w-full"
                 @change="handleReceiptChange"
               >
@@ -313,12 +314,13 @@
                 {{ scope.row.receivedQuantity }}
               </template>
             </el-table-column>
+            <el-table-column label="可退数量" prop="returnableQuantity" min-width="100" />
             <el-table-column label="退货数量" min-width="120">
               <template #default="scope">
                 <el-input-number
                   v-model="scope.row.returnQuantity"
                   :min="0"
-                  :max="scope.row.receivedQuantity"
+                  :max="scope.row.returnableQuantity"
                   :precision="2"
                   :step="1"
                   controls-position="right"
@@ -326,17 +328,8 @@
                 ></el-input-number>
               </template>
             </el-table-column>
-            <el-table-column label="单价" min-width="130">
-              <template #default="scope">
-                <el-input-number
-                  v-model="scope.row.price"
-                  :min="0"
-                  :precision="2"
-                  :step="0.01"
-                  controls-position="right"
-                  size="small"
-                ></el-input-number>
-              </template>
+            <el-table-column label="单价" min-width="100">
+              <template #default="scope">{{ formatCurrency(scope.row.price) }}</template>
             </el-table-column>
             <el-table-column label="金额" min-width="100">
               <template #default="scope">
@@ -399,6 +392,7 @@
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
+import { buildPurchaseReturnItems, purchaseReturnLineAmount, purchaseReturnTotal } from '@/utils/purchaseReturns';
 import { parseListData, parsePaginatedData } from '@/utils/responseParser';
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus/es/components/message/index';
@@ -423,12 +417,7 @@ const toMoneyNumber = (value) => {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 };
-const formatReturnLineAmount = (row) => {
-  const quantity = toMoneyNumber(row?.returnQuantity);
-  const price = toMoneyNumber(row?.price);
-  if (quantity === null || price === null) return '-';
-  return formatCurrency(quantity * price);
-};
+const formatReturnLineAmount = (row) => formatCurrency(purchaseReturnLineAmount(row));
 // 表格列定义
 
 // 状态选项（使用统一常量）
@@ -509,39 +498,13 @@ const returnStats = ref({
   cancelledCount: 0,
   totalAmount: null
 });
+const returnForm = ref(null);
 // 提交状态
 const submitLoading = ref(false);
 // 表单验证规则
 const returnRules = {
   receiptId: [{ required: true, message: '请选择关联收货单', trigger: 'change' }],
   returnDate: [{ required: true, message: '请选择退货日期', trigger: 'change' }]
-};
-// 加载退货单统计数据
-const loadReturnStats = async () => {
-  try {
-    const response = await purchaseApi.getReturnStats();
-    const data = response.data;
-    // 映射后端字段到前端期望的字段
-    returnStats.value = {
-      total: data.totalCount ?? data.totalCount ?? 0,
-      draftCount: data.draftCount ?? data.draftCount ?? 0,
-      confirmedCount: data.confirmedCount ?? data.confirmedCount ?? 0,
-      completedCount: data.completedCount ?? data.completedCount ?? 0,
-      cancelledCount: data.cancelledCount ?? data.cancelledCount ?? 0,
-      totalAmount: isBlankAmount(data.totalAmount ?? data.totalAmount) ? null : (data.totalAmount ?? data.totalAmount)
-    };
-  } catch (error) {
-    console.error('获取退货单统计信息失败:', error);
-    // 设置默认值
-    returnStats.value = {
-      total: 0,
-      draftCount: 0,
-      confirmedCount: 0,
-      completedCount: 0,
-      cancelledCount: 0,
-      totalAmount: null
-    };
-  }
 };
 // 生命周期钩子
 onMounted(async () => {
@@ -568,6 +531,7 @@ async function loadReturns() {
 
     const response = await purchaseApi.getReturns(params);
     const paginated = parsePaginatedData(response);
+    returnStats.value = paginated.statistics || {};
 
     const returnsData = paginated.list || [];
     const paginationData = { total: paginated.total };
@@ -595,11 +559,12 @@ async function loadReturns() {
     ElMessage.error('加载退货单失败: ' + (error.message || '未知错误'));
     // 出错时设置为空数组，避免类型错误
     returnList.value = [];
+    pagination.value.total = 0;
+    returnStats.value = {};
   } finally {
     loading.value = false;
   }
 
-  await loadReturnStats();
 }
 // 方法：加载供应商列表
 async function loadSuppliers() {
@@ -732,6 +697,8 @@ async function viewReturn(returnItem) {
       // 映射退货物料字段
       items: (returnData.items || []).map(item => ({
         id: item.id,
+        receiptItemId: item.receiptItemId,
+        taxRate: item.taxRate,
         materialCode: item.materialCode || '',
         materialName: item.materialName,
         specification: item.specification || '',
@@ -778,14 +745,16 @@ async function editReturn(returnItem) {
     const returnData = response.data || response;
     returnDialog.form = {
       id: returnData.id,
-      receiptId: returnData.receipt_id,  // 使用数据库字段名
-      returnDate: returnData.return_date ? formatLocalDate(returnData.return_date) : formatLocalDate(new Date()),
+      receiptId: returnData.receiptId,
+      returnDate: returnData.returnDate,
       operator: returnData.operatorName || returnData.operator,
       warehouseId: returnData.warehouseId,  // 使用数据库字段名
-      warehouseName: returnData.warehouse_name || '',
+      warehouseName: returnData.warehouseName || '',
       reason: returnData.reason,
       items: [...(returnData.items || [])].map(item => ({
         id: item.id,
+        receiptItemId: item.receiptItemId,
+        taxRate: item.taxRate,
         materialId: item.materialId,
         materialCode: item.materialCode || '',
         materialName: item.materialName,
@@ -838,33 +807,21 @@ async function handleReceiptChange(receiptId) {
     // 在编辑模式下，保留已有的退货数量和原因
     const existingItems = returnDialog.isEdit ? returnDialog.form.items : [];
     // 清空现有物料并添加收货单中的物料
-    returnDialog.form.items = items.map(item => {
-      // 在编辑模式下，查找是否已有该物料的退货信息
-      const existingItem = existingItems.find(existing =>
-        existing.materialId === item.materialId
-      );
-      return {
-        materialId: item.materialId,
-        materialCode: item.materialCode || '',
-        materialName: item.materialName || '',
-        specification: item.specs || item.specification || '',
-        unitId: item.unitId,
-        unitName: item.unitName || '',
-        receivedQuantity: Number(item.receivedQuantity || item.quantity || 0),
-        returnQuantity: existingItem ? existingItem.returnQuantity : 0,
-        price: isBlankAmount(item.price) ? null : Number(item.price),
-        returnReason: existingItem ? existingItem.returnReason : ''
-      };
-    });
+    returnDialog.form.items = buildPurchaseReturnItems(items, existingItems);
     // ✅ 自动设置仓库信息(从收货单获取)
     returnDialog.form.warehouseId = receiptData.warehouseId;
-    returnDialog.form.warehouseName = receiptData.warehouse_name || '';
+    returnDialog.form.warehouseName = receiptData.warehouseName || '';
   } catch {
     ElMessage.error('获取收货单详情失败');
   }
 }
 // 方法：提交退货单
 async function submitReturn() {
+  try {
+    await returnForm.value.validate();
+  } catch {
+    return;
+  }
   // 检查是否有退货物料
   if (!hasReturnItems.value) {
     ElMessage.warning('请至少选择一种物料进行退货');
@@ -872,8 +829,8 @@ async function submitReturn() {
   }
   // 验证退货数量
   for (const item of returnDialog.form.items) {
-    if (item.returnQuantity < 0 || item.returnQuantity > item.receivedQuantity) {
-      ElMessage.warning(`物料 ${item.materialName} 的退货数量必须在0至收货数量之间`);
+    if (item.returnQuantity < 0 || item.returnQuantity > item.returnableQuantity) {
+      ElMessage.warning(`物料 ${item.materialName} 的退货数量必须在0至可退数量之间`);
       return;
     }
 
@@ -882,10 +839,7 @@ async function submitReturn() {
       return;
     }
 
-    if (item.returnQuantity > 0 && toMoneyNumber(item.price) === null) {
-      ElMessage.warning(`物料 ${item.materialName} 缺少可用单价，无法创建退货单`);
-      return;
-    }
+
   }
   try {
     submitLoading.value = true;
@@ -894,6 +848,8 @@ async function submitReturn() {
     const returnItems = returnDialog.form.items
       .filter(item => item.returnQuantity > 0)
       .map(item => ({
+        receiptItemId: item.receiptItemId,
+        taxRate: item.taxRate,
         materialId: item.materialId,
         materialCode: item.materialCode,
         materialName: item.materialName,
@@ -906,9 +862,7 @@ async function submitReturn() {
         returnReason: item.returnReason
       }));
     // 计算总金额
-    const totalAmount = returnItems.reduce((sum, item) => {
-      return sum + (item.returnQuantity * item.price);
-    }, 0);
+    const totalAmount = purchaseReturnTotal(returnItems);
     // ✅ 准备提交数据 - 使用operator字段而不是handler
     const returnData = {
       id: returnDialog.form.id,
@@ -1015,13 +969,7 @@ async function printReturn() {
   try {
     const currentReturn = viewDialog.return;
     const items = currentReturn.items || [];
-    const hasVisibleLineAmount = items.every(item => (
-      toMoneyNumber(item.returnQuantity ?? item.returnQuantity) === null ||
-      toMoneyNumber(item.price) !== null
-    ));
-    const totalAmount = hasVisibleLineAmount
-      ? items.reduce((sum, item) => sum + (toMoneyNumber(item.returnQuantity ?? item.returnQuantity) || 0) * (toMoneyNumber(item.price) || 0), 0)
-      : null;
+    const totalAmount = currentReturn.totalAmount ?? purchaseReturnTotal(items);
     const html = await printService.generateByDefaultTemplate('purchase', 'purchase_return', {
       return_no: currentReturn.returnNumber || currentReturn.returnNo || '',
       return_date: formatDate(currentReturn.returnDate),
@@ -1031,12 +979,10 @@ async function printReturn() {
       operator: currentReturn.operatorName || currentReturn.operator || '',
       status: getStatusText(currentReturn.status),
       reason: currentReturn.reason || '',
-      total_amount: formatCurrency(totalAmount ?? currentReturn.totalAmount ?? currentReturn.totalAmount),
+      total_amount: formatCurrency(totalAmount),
       print_time: new Date().toLocaleString(),
       items: items.map((item, index) => {
-        const quantity = toMoneyNumber(item.returnQuantity ?? item.returnQuantity);
-        const price = toMoneyNumber(item.price);
-        const amount = quantity === null || price === null ? null : quantity * price;
+        const amount = purchaseReturnLineAmount(item);
         return {
           index: index + 1,
           material_code: item.materialCode || '',

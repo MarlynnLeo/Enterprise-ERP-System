@@ -46,11 +46,12 @@ function validateTaxInvoiceAmounts(invoiceData) {
   const taxAmountCents = toCents(invoiceData.tax_amount);
   const totalAmountCents = toCents(invoiceData.total_amount);
 
-  if (amountExcludingTaxCents < 0 || taxAmountCents < 0 || totalAmountCents < 0) {
+  const redLetter = Boolean(invoiceData.original_tax_invoice_id);
+  if (!redLetter && (amountExcludingTaxCents < 0 || taxAmountCents < 0 || totalAmountCents < 0)) {
     throw validationError('发票金额不能为负数');
   }
 
-  if (totalAmountCents <= 0) {
+  if ((!redLetter && totalAmountCents <= 0) || (redLetter && (totalAmountCents >= 0 || amountExcludingTaxCents > 0 || taxAmountCents > 0))) {
     throw validationError('发票价税合计必须大于0');
   }
 
@@ -100,8 +101,8 @@ const taxModel = {
           invoice_type, invoice_number, invoice_code, invoice_date,
           supplier_id, customer_id, supplier_or_customer_name, supplier_tax_number,
           amount_excluding_tax, tax_rate, tax_amount, total_amount,
-          status, related_document_type, related_document_id, remark, created_by
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          status, related_document_type, related_document_id, remark, created_by, original_tax_invoice_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
         [
           invoice_type,
@@ -121,6 +122,7 @@ const taxModel = {
           related_document_id ?? null,
           remark ?? null,
           created_by,
+          invoiceData.original_tax_invoice_id || null,
         ]
       );
 
@@ -228,10 +230,18 @@ const taxModel = {
       // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
       const limitNum = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 100);
       const offsetNum = Math.max(parseInt(offset, 10) || 0, 0);
+      const [[summary]] = await db.pool.execute(
+        `SELECT COUNT(*) AS total,
+                COALESCE(SUM(ti.status = '未认证'), 0) AS pending,
+                COALESCE(SUM(CASE WHEN ti.invoice_type = '进项' AND ti.status <> '已作废' THEN ti.tax_amount ELSE 0 END), 0) AS input_tax,
+                COALESCE(SUM(CASE WHEN ti.invoice_type = '销项' AND ti.status <> '已作废' THEN ti.tax_amount ELSE 0 END), 0) AS output_tax
+         ${query.slice(query.indexOf('FROM tax_invoices ti'))}`,
+        params
+      );
       query += ` ORDER BY ti.invoice_date DESC, ti.id DESC LIMIT ${limitNum} OFFSET ${offsetNum}`;
 
       const [invoices] = await db.pool.execute(query, params);
-      return invoices;
+      return { list: invoices, total: Number(summary.total), stats: summary };
     } catch (error) {
       logger.error('获取税务发票列表失败:', error);
       throw error;
@@ -493,10 +503,14 @@ const taxModel = {
       // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
       const limitNum = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 100);
       const offsetNum = Math.max(parseInt(offset, 10) || 0, 0);
+      const [[summary]] = await db.pool.execute(
+        `SELECT COUNT(*) AS total ${query.slice(query.indexOf('FROM tax_returns tr'))}`,
+        params
+      );
       query += ` ORDER BY tr.return_period DESC, tr.id DESC LIMIT ${limitNum} OFFSET ${offsetNum}`;
 
       const [returns] = await db.pool.execute(query, params);
-      return returns;
+      return { list: returns, total: Number(summary.total) };
     } catch (error) {
       logger.error('获取税务申报列表失败:', error);
       throw error;

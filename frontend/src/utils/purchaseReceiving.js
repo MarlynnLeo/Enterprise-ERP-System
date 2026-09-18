@@ -12,6 +12,7 @@ export const normalizePurchaseReceivingItems = (items) => {
       const source = item && typeof item === 'object' ? item : {};
       return {
         materialId: source.materialId ?? source.material_id,
+        ...((source.orderItemId ?? source.order_item_id ?? source.id) != null ? { orderItemId: source.orderItemId ?? source.order_item_id ?? source.id } : {}),
         receiveQuantity: source.receiveQuantity ?? source.receive_quantity ?? source.quantity,
       };
     })

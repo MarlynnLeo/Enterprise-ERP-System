@@ -1104,23 +1104,13 @@ const fetchProcessingList = async () => {
     const response = await purchaseApi.outsourcedProcessing.getList(params);
     processingList.value = response.data?.list || response.data || [];
     pagination.total = Number(response.data?.total) || processingList.value.length;
-    updateStats();
+    Object.assign(processingStats, response.data?.statistics || {});
   } catch (error) {
     console.error('获取委外加工列表失败:', error);
     ElMessage.error('获取委外加工列表失败');
   } finally {
     loading.value = false;
   }
-};
-
-// 更新统计数据
-const updateStats = () => {
-  processingStats.total = pagination.total;
-  processingStats.pendingCount = processingList.value.filter(item => item.status === 'pending').length;
-  processingStats.confirmedCount = processingList.value.filter(item => item.status === 'confirmed').length;
-  processingStats.inProgressCount = processingList.value.filter(item => item.status === 'in_progress').length;
-  processingStats.completedCount = processingList.value.filter(item => item.status === 'completed').length;
-  processingStats.cancelledCount = processingList.value.filter(item => item.status === 'cancelled').length;
 };
 
 // 搜索处理
@@ -1177,7 +1167,7 @@ const updateProcessingStatus = async (row, status) => {
 // 发料出库操作
 const handleOutboundIssue = (row) => {
   ElMessageBox.confirm(
-    `确定对委外加工单【${row.processingNo}】执行发料出库吗？\n系统将自动从仓库扣减对应的原材料库存，在委外入库管理中生成入库单据，并将加工单状态置为加工中。`,
+    `确定对委外加工单【${row.processingNo}】执行发料出库吗？\n系统将生成待财务审核的发料记录和委外入库单，并将加工单状态置为加工中。财务审核通过后正式扣减原材料库存。`,
     '发料出库确认',
     {
       confirmButtonText: '确认出库',

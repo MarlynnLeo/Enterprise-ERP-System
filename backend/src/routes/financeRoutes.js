@@ -377,6 +377,7 @@ router.post(
 router.get('/ap/payments', requirePermission('finance:ap:view'), apController.getPayments);
 router.get('/ap/payments/:id', requirePermission('finance:ap:view'), apController.getPaymentById);
 router.post('/ap/payments', requirePermission('finance:ap:pay'), apController.createPayment);
+router.post('/ap/refunds', requirePermission('finance:ap:pay'), require('../controllers/business/finance/creditNoteController').refundAP);
 router.post('/ap/payments/:id/void', requirePermission('finance:ap:pay'), apController.voidPayment); // 作废付款与付款同级权限
 // 批量付款
 router.post(
@@ -460,6 +461,7 @@ router.get(
 router.get('/ar/receipts', requirePermission('finance:ar:view'), arController.getReceipts);
 router.get('/ar/receipts/:id', requirePermission('finance:ar:view'), arController.getReceiptById);
 router.post('/ar/receipts', requirePermission('finance:ar:receive'), arController.createReceipt);
+router.post('/ar/refunds', requirePermission('finance:ar:receive'), require('../controllers/business/finance/creditNoteController').refundAR);
 router.post(
   '/ar/receipts/:id/void',
   requirePermission('finance:ar:receive'),
@@ -914,6 +916,11 @@ router.get(
   '/cash/reconciliation/stats',
   requirePermission('finance:cash:reconcile'),
   cashController.getReconciliationStats
+);
+router.get(
+  '/cash/reconciliation/statement-items',
+  requirePermission('finance:cash:reconcile'),
+  cashController.getBankStatementItems
 );
 router.get(
   '/cash/reconciliation/matched-transaction',

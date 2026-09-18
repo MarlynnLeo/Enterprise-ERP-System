@@ -1,306 +1,119 @@
-/**
- * PurchaseDashboardService.js
- * @description 采购数据概览服务 - 提供采购模块仪表盘所需的统计数据 * @date 2026-02-03
- * @version 1.0.0
- */
+'use strict';
 
 const db = require('../../config/db');
-const { logger } = require('../../utils/logger');
+const ScopeGuard = require('../../authorization/ScopeGuard');
+
+const MODULES = {
+  requisitions: { table: 'purchase_requisitions', resource: 'purchase_requisition', pending: ['draft', 'submitted'], number: 'requisition_number', date: 'request_date', requester: 'real_name' },
+  orders: { table: 'purchase_orders', resource: 'purchase_order', pending: ['draft', 'pending'], number: 'order_no', date: 'order_date' },
+  receipts: { table: 'purchase_receipts', resource: 'purchase_receipt', pending: ['draft', 'confirmed'], number: 'receipt_no', date: 'receipt_date', requester: 'operator' },
+  returns: { table: 'purchase_returns', resource: 'purchase_return', pending: ['draft', 'confirmed'], number: 'return_no', date: 'return_date', requester: 'operator' },
+};
+const STATES = ['draft', 'submitted', 'pending', 'approved', 'confirmed', 'completed'];
 
 class PurchaseDashboardService {
   constructor() {
     this.pool = db.pool;
   }
 
-  /**
-   * 将值转换为数字
-   * @param {*} value - 输入值   * @returns {number} 转换后的数字
-   */
-  toNumber(value) {
-    return parseInt(value) || 0;
-  }
-
-  /**
-   * 获取采购申请统计
-   * @returns {Promise<Object>} 采购申请统计数据
-   */
-  async getRequisitionStats() {
-    const [rows] = await this.pool.query(`
-      SELECT
-        COUNT(*) as total,
-        COUNT(CASE WHEN status = 'draft' THEN 1 END) as draft,
-        COUNT(CASE WHEN status = 'submitted' THEN 1 END) as submitted,
-        COUNT(CASE WHEN status = 'approved' THEN 1 END) as approved,
-        COUNT(CASE WHEN status = 'rejected' THEN 1 END) as rejected,
-        COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed,
-        COUNT(CASE WHEN status = 'completed'
-          AND created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
-          AND created_at < DATE_ADD(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL 1 MONTH)
-        THEN 1 END) as completed_this_month
-      FROM purchase_requisitions
-    `);
-
+  async getStatistics(module, scope) {
+    const columns = STATES.map(state => `COALESCE(SUM(t.status = '${state}'), 0) AS ${state}`).join(', ');
+    const [[row]] = await this.pool.query(`
+      SELECT COUNT(*) AS total, ${columns},
+        COALESCE(SUM(t.status = 'completed'
+          AND t.created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+          AND t.created_at < DATE_ADD(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL 1 MONTH)), 0) AS completed_this_month
+      FROM ${module.table} t ${scope.join}
+      WHERE t.deleted_at IS NULL ${scope.where}`, scope.params);
+    const stats = Object.fromEntries(STATES.map(state => [state, Number(row[state])]));
     return {
-      total: this.toNumber(rows[0].total),
-      pending: this.toNumber(rows[0].draft) + this.toNumber(rows[0].submitted),
-      draft: this.toNumber(rows[0].draft),
-      submitted: this.toNumber(rows[0].submitted),
-      approved: this.toNumber(rows[0].approved),
-      completed: this.toNumber(rows[0].completed),
-      completedThisMonth: this.toNumber(rows[0].completed_this_month),
+      ...stats,
+      total: Number(row.total),
+      pending: module.pending.reduce((sum, state) => sum + Number(row[state]), 0),
+      completedThisMonth: Number(row.completed_this_month),
     };
   }
 
-  /**
-   * 获取采购订单统计
-   * @returns {Promise<Object>} 采购订单统计数据
-   */
-  async getOrderStats() {
+  async getTrendData(months, requisitions, orders) {
     const [rows] = await this.pool.query(`
-      SELECT
-        COUNT(*) as total,
-        COUNT(CASE WHEN status = 'draft' THEN 1 END) as draft,
-        COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending,
-        COUNT(CASE WHEN status = 'approved' THEN 1 END) as approved,
-        COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed,
-        COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled
-      FROM purchase_orders
-    `);
-
-    return {
-      total: this.toNumber(rows[0].total),
-      pending: this.toNumber(rows[0].draft) + this.toNumber(rows[0].pending),
-      draft: this.toNumber(rows[0].draft),
-      approved: this.toNumber(rows[0].approved),
-      completed: this.toNumber(rows[0].completed),
-    };
-  }
-
-  /**
-   * 获取采购收货统计
-   * @returns {Promise<Object>} 采购收货统计数据
-   */
-  async getReceiptStats() {
-    const [rows] = await this.pool.query(`
-      SELECT
-        COUNT(*) as total,
-        COUNT(CASE WHEN status = 'draft' THEN 1 END) as draft,
-        COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending,
-        COUNT(CASE WHEN status = 'confirmed' THEN 1 END) as confirmed,
-        COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed
-      FROM purchase_receipts
-    `);
-
-    return {
-      total: this.toNumber(rows[0].total),
-      pending: this.toNumber(rows[0].draft) + this.toNumber(rows[0].confirmed),
-      confirmed: this.toNumber(rows[0].confirmed),
-      completed: this.toNumber(rows[0].completed),
-    };
-  }
-
-  /**
-   * 获取采购退货统计   * @returns {Promise<Object>} 采购退货统计数据   */
-  async getReturnStats() {
-    const [rows] = await this.pool.query(`
-      SELECT
-        COUNT(*) as total,
-        COUNT(CASE WHEN status = 'draft' THEN 1 END) as draft,
-        COUNT(CASE WHEN status = 'confirmed' THEN 1 END) as confirmed,
-        COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed
-      FROM purchase_returns
-    `);
-
-    return {
-      total: this.toNumber(rows[0].total),
-      pending: this.toNumber(rows[0].draft) + this.toNumber(rows[0].confirmed),
-      confirmed: this.toNumber(rows[0].confirmed),
-      completed: this.toNumber(rows[0].completed),
-    };
-  }
-
-  /**
-   * 获取最近N个月的采购趋势数据   * @param {number} months - 月份数量，默认个月
-   * @returns {Promise<Array>} 趋势数据数组
-   */
-  async getTrendData(months = 6) {
-    const [rows] = await this.pool.query(
-      `
-      SELECT
-        month,
-        SUM(requisition_count) as requisition_count,
-        SUM(order_count) as order_count,
-        SUM(order_amount) as order_amount
+      SELECT month, SUM(requisition_count) AS requisition_count,
+        SUM(order_count) AS order_count, SUM(order_amount) AS order_amount
       FROM (
-        SELECT
-          DATE_FORMAT(created_at, '%Y-%m') as month,
-          1 as requisition_count,
-          0 as order_count,
-          0 as order_amount
-        FROM purchase_requisitions
-        WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL ? MONTH)
-
+        SELECT DATE_FORMAT(t.created_at, '%Y-%m') AS month,
+          1 AS requisition_count, 0 AS order_count, 0 AS order_amount
+        FROM purchase_requisitions t ${requisitions.join}
+        WHERE t.deleted_at IS NULL ${requisitions.where}
+          AND t.created_at >= DATE_SUB(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL ? MONTH)
+          AND t.created_at < DATE_ADD(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL 1 MONTH)
         UNION ALL
-
-        SELECT
-          DATE_FORMAT(created_at, '%Y-%m') as month,
-          0 as requisition_count,
-          1 as order_count,
-          COALESCE(total_amount, 0) as order_amount
-        FROM purchase_orders
-        WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL ? MONTH)
+        SELECT DATE_FORMAT(t.created_at, '%Y-%m') AS month,
+          0 AS requisition_count, 1 AS order_count,
+          CASE WHEN t.status <> 'cancelled' THEN COALESCE(t.total_amount, 0) ELSE 0 END AS order_amount
+        FROM purchase_orders t ${orders.join}
+        WHERE t.deleted_at IS NULL ${orders.where}
+          AND t.created_at >= DATE_SUB(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL ? MONTH)
+          AND t.created_at < DATE_ADD(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL 1 MONTH)
       ) combined
-      GROUP BY month
-      ORDER BY month ASC
-    `,
-      [months, months]
-    );
-
-    return rows.map((row) => ({
-      month: row.month,
-      requisitionCount: this.toNumber(row.requisition_count),
-      orderCount: this.toNumber(row.order_count),
-      orderAmount: parseFloat(row.order_amount) || 0,
+      GROUP BY month ORDER BY month ASC`,
+    [...requisitions.params, months - 1, ...orders.params, months - 1]);
+    return rows.map(row => ({
+      month: row.month, requisitionCount: Number(row.requisition_count),
+      orderCount: Number(row.order_count), orderAmount: Number(row.order_amount),
     }));
   }
 
-  /**
-   * 获取物料分类采购分布
-   * @param {number} months - 统计月份数，默认6个月
-   * @param {number} limit - 返回数量限制，默认个分类   * @returns {Promise<Array>} 分类分布数据
-   */
-  async getCategoryDistribution(months = 6, limit = 6) {
-    const [rows] = await this.pool.query(
-      `
-      SELECT
-        COALESCE(c.name, '未分类') as category_name,
-        COUNT(DISTINCT poi.order_id) as order_count,
-        COALESCE(SUM(poi.quantity * poi.price), 0) as total_amount
-      FROM purchase_order_items poi
+  async getCategoryDistribution(months, scope) {
+    const [rows] = await this.pool.query(`
+      SELECT COALESCE(c.name, '未分类') AS category_name,
+        COUNT(DISTINCT t.id) AS order_count,
+        COALESCE(SUM(COALESCE(poi.amount_excluding_tax, poi.total, 0) + COALESCE(poi.tax_amount, 0)), 0) AS total_amount
+      FROM purchase_orders t
+      INNER JOIN purchase_order_items poi ON poi.order_id = t.id
       LEFT JOIN materials m ON poi.material_id = m.id
       LEFT JOIN categories c ON m.category_id = c.id
-      LEFT JOIN purchase_orders po ON poi.order_id = po.id
-      WHERE po.created_at >= DATE_SUB(CURDATE(), INTERVAL ? MONTH)
-      GROUP BY c.id, c.name
-      ORDER BY total_amount DESC
-      LIMIT ?
-    `,
-      [months, limit]
-    );
-
-    return rows.map((row) => ({
-      categoryName: row.category_name,
-      orderCount: this.toNumber(row.order_count),
-      totalAmount: parseFloat(row.total_amount) || 0,
+      ${scope.join}
+      WHERE t.deleted_at IS NULL AND t.status <> 'cancelled' ${scope.where}
+        AND t.created_at >= DATE_SUB(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL ? MONTH)
+        AND t.created_at < DATE_ADD(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL 1 MONTH)
+      GROUP BY c.id, c.name ORDER BY total_amount DESC LIMIT 6`,
+    [...scope.params, months - 1]);
+    return rows.map(row => ({
+      categoryName: row.category_name, orderCount: Number(row.order_count), totalAmount: Number(row.total_amount),
     }));
   }
 
-  /**
-   * 获取待处理事项列表   * @param {number} limit - 返回数量限制，默认10条   * @returns {Promise<Array>} 待处理事项列表   */
-  async getPendingItems(limit = 20) {
-    const [rows] = await this.pool.query(
-      `
-      SELECT
-        'requisition' as type,
-        requisition_number as number,
-        request_date as date,
-        status,
-        real_name as requester,
-        null as supplier,
-        null as amount
-      FROM purchase_requisitions
-      WHERE status IN ('submitted', 'draft')
-
-      UNION ALL
-
-      SELECT
-        'order' as type,
-        order_no as number,
-        order_date as date,
-        status,
-        null as requester,
-        supplier_name as supplier,
-        total_amount as amount
-      FROM purchase_orders
-      WHERE status IN ('draft', 'pending')
-
-      UNION ALL
-
-      SELECT
-        'receipt' as type,
-        receipt_no as number,
-        receipt_date as date,
-        status,
-        operator as requester,
-        supplier_name as supplier,
-        null as amount
-      FROM purchase_receipts
-      WHERE status IN ('draft', 'confirmed')
-
-      UNION ALL
-
-      SELECT
-        'return' as type,
-        return_no as number,
-        return_date as date,
-        status,
-        operator as requester,
-        supplier_name as supplier,
-        null as amount
-      FROM purchase_returns
-      WHERE status IN ('draft', 'confirmed')
-
-      ORDER BY date DESC
-      LIMIT ?
-    `,
-      [limit]
-    );
-
+  async getPendingItems(scopes) {
+    const params = [];
+    const types = { requisitions: 'requisition', orders: 'order', receipts: 'receipt', returns: 'return' };
+    const queries = Object.entries(MODULES).map(([key, module]) => {
+      const scope = scopes[key];
+      params.push(...module.pending, ...scope.params);
+      return `SELECT '${types[key]}' AS type, t.${module.number} AS number, t.${module.date} AS date,
+        t.status, ${module.requester ? `t.${module.requester}` : 'NULL'} AS requester,
+        ${key === 'requisitions' ? 'NULL' : 't.supplier_name'} AS supplier,
+        ${key === 'orders' ? 't.total_amount' : 'NULL'} AS amount
+      FROM ${module.table} t ${scope.join}
+      WHERE t.deleted_at IS NULL AND t.status IN (?, ?) ${scope.where}`;
+    });
+    const [rows] = await this.pool.query(`${queries.join(' UNION ALL ')} ORDER BY date DESC, number DESC LIMIT 20`, params);
     return rows;
   }
 
-  /**
-   * 获取完整的仪表盘数据
-   * @returns {Promise<Object>} 仪表盘完整数据   */
-  async getDashboardData() {
-    try {
-      // 并行获取所有统计数据
-      const [
-        requisitionStats,
-        orderStats,
-        receiptStats,
-        returnStats,
-        trendData,
-        categoryDistribution,
-        pendingItems,
-      ] = await Promise.all([
-        this.getRequisitionStats(),
-        this.getOrderStats(),
-        this.getReceiptStats(),
-        this.getReturnStats(),
-        this.getTrendData(6),
-        this.getCategoryDistribution(6, 6),
-        this.getPendingItems(20),
-      ]);
-
-      return {
-        statistics: {
-          requisitions: requisitionStats,
-          orders: orderStats,
-          receipts: receiptStats,
-          returns: returnStats,
-        },
-        trendData,
-        categoryDistribution,
-        pendingItems,
-      };
-    } catch (error) {
-      logger.error('获取采购仪表盘数据失败', error);
-      throw error;
-    }
+  async getDashboardData(req, { months = 6 } = {}) {
+    const scopeEntries = await Promise.all(Object.entries(MODULES).map(async ([key, module]) => [
+      key, await ScopeGuard.applyListScope(req, module.resource, {
+        tableAlias: 't', ownerAlias: `${module.resource}_dashboard_owner_scope`, accessMode: 'read',
+      }),
+    ]));
+    const scopes = Object.fromEntries(scopeEntries);
+    const [statisticsEntries, trendData, categoryDistribution, pendingItems] = await Promise.all([
+      Promise.all(Object.entries(MODULES).map(async ([key, module]) => [key, await this.getStatistics(module, scopes[key])])),
+      this.getTrendData(months, scopes.requisitions, scopes.orders),
+      this.getCategoryDistribution(months, scopes.orders),
+      this.getPendingItems(scopes),
+    ]);
+    return { statistics: Object.fromEntries(statisticsEntries), months, trendData, categoryDistribution, pendingItems };
   }
 }
 
-// 导出单例
 module.exports = new PurchaseDashboardService();
-

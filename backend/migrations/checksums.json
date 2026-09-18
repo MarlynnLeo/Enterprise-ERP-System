@@ -284,5 +284,9 @@
   "20260911000002_scope_process_material_verification.js": "1c17d564292e710e7bdd20c2d4be2817244c0cca368e0bc530b9e9d80f089c27",
   "20260912000001_compact_document_coding_rules.js": "9f18c07a69522d0e0da746de7f2bc416b6f5127e9eda01568daacbe173d6c78f",
   "20260912000002_initialize_notification_owners.js": "4587f8667b8892b32eee1726f64b7a270addfcaa77162b09c5dadef664aabb5e",
-  "20260912000003_reconcile_navigation_bootstrap.js": "7d300475af03989bc4256057bf4763199350651cfb0a134365ba04ec048ea24c"
+  "20260912000003_reconcile_navigation_bootstrap.js": "7d300475af03989bc4256057bf4763199350651cfb0a134365ba04ec048ea24c",
+  "20260914000001_repair_sales_flow_contracts.js": "71a3484006071d1a5c6393dfbbf001f53a12833d55d6d870c67ec76dbd29296c",
+  "20260914000002_allow_tax_invoice_reissue.js": "9008ec8375d2b0fc5470bc60dd63b9eb78db5996d306b7fad34997166c63ff48",
+  "20260915000001_repair_purchase_flow_contracts.js": "25603bc6e723a9ae49fc229f7df5650744f767532b0317a5d473abdb2711d4fa",
+  "20260916000001_complete_finance_credit_settlements.js": "ef9115cdf8dc4cd1c643d4b990f69f2a68bf1e822685ee4cfd4a3bfa02e13ab8"
 }

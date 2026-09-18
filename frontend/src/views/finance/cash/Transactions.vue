@@ -179,6 +179,7 @@
         <template #empty>
           <EmptyState description="暂无交易数据" />
         </template>
+        <el-table-column prop="transactionNumber" label="交易单号" min-width="170" />
         <el-table-column prop="transactionDate" label="交易日期" width="110">
           <template #default="scope">
             {{ formatDate(scope.row.transactionDate) }}
@@ -233,7 +234,7 @@
         <el-table-column prop="description" label="交易描述" min-width="200"></el-table-column>
         <el-table-column label="交易分类" width="90">
           <template #default="scope">
-            {{ getCategoryDisplayText(scope.row.category || 'sales') }}
+            {{ getCategoryDisplayText(scope.row.category) }}
           </template>
         </el-table-column>
         <el-table-column label="支付方式" width="90">
@@ -351,6 +352,7 @@
               v-for="type in bankConfig.transactionTypes"
               :key="type.value"
               :value="type.value"
+              :disabled="Boolean(transactionForm.id) && type.value === 'transfer'"
               >{{ type.label }}</el-radio
             >
           </el-radio-group>
@@ -645,11 +647,10 @@
   </div>
 </template>
 <script setup>
-import { getCommonStatusText } from '@/constants/systemConstants';
 import { handleTableRowView } from '@/utils/tableRowView';
 import { formatLocalDate } from '@/utils/format';
 import { parsePaginatedData, parseListData, parseDataObject } from '@/utils/responseParser';
-import { ref, reactive, onMounted, watch, computed } from 'vue';
+import { ref, reactive, onMounted, nextTick, computed } from 'vue';
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
 import { ElMessage } from 'element-plus/es/components/message/index';
 import { ElMessageBox } from 'element-plus/es/components/message-box/index';
@@ -672,6 +673,7 @@ import { buildApiUrl } from '@/config/app';
 import { loadExcelJS } from '@/utils/lazyVendors';
 // 权限store
 const authStore = useAuthStore();
+const router = useRouter();
 const financeStore = useFinanceStore();
 const { bankConfig } = storeToRefs(financeStore);
 // 权限计算属性
@@ -752,18 +754,6 @@ const transactionRules = {
   paymentMethod: [{ required: true, message: '请选择支付方式', trigger: 'change' }],
   counterparty: [{ required: true, message: '请输入交易对方', trigger: 'blur' }],
 };
-// 监听交易类型变化，重置相关字段
-watch(
-  () => transactionForm.type,
-  (newType) => {
-    transactionForm.category = '';
-    if (newType === 'transfer') {
-      transactionForm.targetAccountId = null;
-    } else {
-      transactionForm.targetAccountId = undefined;
-    }
-  }
-);
 // 格式化货币
 // formatCurrency 已统一引用公共实现;
 // 金额格式化
@@ -774,7 +764,8 @@ const formatCurrency = (value) => {
   return num.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' });
 };
 // 获取交易类型文本
-const getTransactionTypeText = (type) => getCommonStatusText(type) || type;
+const getTransactionTypeText = (type) =>
+  bankConfig.value.transactionTypes.find((option) => option.value === type)?.label || type || '-';
 // 获取分类显示文本
 const getCategoryDisplayText = (category) => {
   const categoryMap = {
@@ -791,7 +782,10 @@ const getCategoryDisplayText = (category) => {
     internal_transfer: '内部转账',
     fund_allocation: '资金调拨',
   };
-  return categoryMap[category] || category || '';
+  const configured = Object.values(bankConfig.value.transactionCategories || {})
+    .flat()
+    .find((option) => option.value === category);
+  return configured?.label || categoryMap[category] || category || '-';
 };
 // 获取支付方式显示文本
 const getPaymentMethodDisplayText = (method) => {
@@ -801,8 +795,10 @@ const getPaymentMethodDisplayText = (method) => {
     check: '支票',
     credit_card: '信用卡',
     electronic_payment: '电子支付',
+    other: '其他',
   };
-  return methodMap[method] || method || '';
+  return bankConfig.value.paymentMethods.find((option) => option.value === method)?.label ||
+    methodMap[method] || method || '-';
 };
 // 格式化日期，只显示年月日
 // formatDate 已统一引用公共实现
@@ -842,6 +838,7 @@ const loadTransactions = async () => {
       }
       const result = {
         id: item.id,
+        transactionNumber: item.transactionNumber,
         transactionDate: formattedDate,
         accountName: item.accountName,
         accountId: item.bankAccountId,
@@ -850,8 +847,8 @@ const loadTransactions = async () => {
         counterparty: item.relatedParty || '',
         relatedParty: item.relatedParty || '',
         description: item.description || '',
-        category: item.transactionCategory || 'sales_income',
-        paymentMethod: getPaymentMethodFromDescription(item.description || '') || 'bank_transfer',
+        category: item.transactionCategory || '',
+        paymentMethod: item.paymentMethod || getPaymentMethodFromDescription(item.description || ''),
         referenceNumber: item.referenceNumber || '',
         isReconciled: item.isReconciled || false,
         relatedInvoiceId: item.relatedInvoiceId,
@@ -1023,10 +1020,12 @@ const resetSearch = () => {
   searchTransactions();
 };
 // 新增交易
-const showAddDialog = () => {
+const showAddDialog = async () => {
   dialogTitle.value = '新增交易';
   resetTransactionForm();
   dialogVisible.value = true;
+  await nextTick();
+  transactionFormRef.value?.clearValidate();
 };
 // 查看交易详情
 const handleView = (row) => {
@@ -1051,57 +1050,32 @@ const transactionViewNavigation = computed(() => ({
   next: handleViewNext,
 }));
 // 编辑交易
-const handleEdit = (row) => {
+const handleEdit = async (row) => {
   dialogTitle.value = '编辑交易';
   resetTransactionForm();
-  // 获取交易详情
-  financeApi.bankTransactions
-    .getDetail(row.id)
-    .then((response) => {
-      // 使用统一的响应解析工具
-      const transaction = parseDataObject(response, { enableLog: false });
-      if (transaction) {
-        // 填充表单数据
-        transactionForm.id = row.id;
-        transactionForm.type = row.type;
-        transactionForm.transactionDate = row.transactionDate;
-        transactionForm.accountId = row.accountId;
-        transactionForm.amount = row.amount;
-        transactionForm.category = row.category;
-        transactionForm.paymentMethod = row.paymentMethod;
-        transactionForm.counterparty = row.counterparty;
-        transactionForm.description = row.description;
-        transactionForm.referenceNumber = row.referenceNumber;
-        // 保存交易编号，用于更新操作
-        transactionForm.transactionNumber = transaction.transactionNumber;
-        dialogVisible.value = true;
-      } else {
-        ElMessage.warning('获取交易详情失败');
-      }
-    })
-    .catch((error) => {
-      console.error('获取交易详情失败:', error);
-
-      // 如果API不存在，仍然使用行数据填充表单
-      if (error.response && error.response.status === 404) {
-        // 填充表单数据
-        transactionForm.id = row.id;
-        transactionForm.type = row.type;
-        transactionForm.transactionDate = row.transactionDate;
-        transactionForm.accountId = row.accountId;
-        transactionForm.amount = row.amount;
-        transactionForm.category = row.category;
-        transactionForm.paymentMethod = row.paymentMethod;
-        transactionForm.counterparty = row.counterparty;
-        transactionForm.description = row.description;
-        transactionForm.referenceNumber = row.referenceNumber;
-        transactionForm.transactionNumber = row.transactionNumber || '';
-
-        dialogVisible.value = true;
-      } else {
-        ElMessage.error('获取交易详情失败');
-      }
+  try {
+    const response = await financeApi.bankTransactions.getDetail(row.id);
+    const transaction = parseDataObject(response, { enableLog: false });
+    if (!transaction?.id) throw new Error('交易记录不存在或已删除');
+    Object.assign(transactionForm, {
+      id: transaction.id,
+      type: mapTransactionTypeToFrontend(transaction.transactionType),
+      transactionDate: transaction.transactionDate,
+      accountId: transaction.bankAccountId,
+      amount: Number(transaction.amount),
+      category: transaction.transactionCategory || '',
+      paymentMethod: transaction.paymentMethod || getPaymentMethodFromDescription(transaction.description || ''),
+      counterparty: transaction.relatedParty || '',
+      description: transaction.description || '',
+      referenceNumber: transaction.referenceNumber || '',
+      transactionNumber: transaction.transactionNumber,
     });
+    dialogVisible.value = true;
+    await nextTick();
+    transactionFormRef.value?.clearValidate();
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || error.message || '获取交易详情失败');
+  }
 };
 // 重置交易表单
 const resetTransactionForm = () => {
@@ -1118,15 +1092,13 @@ const resetTransactionForm = () => {
   transactionForm.referenceNumber = '';
   transactionForm.transactionNumber = '';
 
-  // 清除校验
-  if (transactionFormRef.value) {
-    transactionFormRef.value.resetFields();
-  }
+  transactionFormRef.value?.clearValidate();
 };
 // 处理类型变化
 const handleTypeChange = () => {
   // 重置与交易类型相关的字段
   transactionForm.category = '';
+  transactionForm.targetAccountId = null;
 };
 // 删除交易
 const handleDelete = (row) => {
@@ -1149,124 +1121,49 @@ const handleDelete = (row) => {
 };
 // 保存交易
 const saveTransaction = async () => {
-  if (!transactionFormRef.value) return;
-
-  await transactionFormRef.value.validate(async (valid) => {
-    if (valid) {
-      saveLoading.value = true;
-      try {
-        // 生成交易编号（仅用于新交易）
-        let transactionNumber = '';
-        if (!transactionForm.id) {
-          const now = new Date();
-          transactionNumber = `TX${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
-        }
-
-        // 获取分类和支付方式的显示文本
-        const categoryText = getCategoryDisplayText(transactionForm.category);
-        const paymentMethodText = getPaymentMethodDisplayText(transactionForm.paymentMethod);
-
-        // 在描述中包含分类和支付方式信息，便于后续解析
-        let enhancedDescription = transactionForm.description || '';
-        if (categoryText && !enhancedDescription.includes(categoryText)) {
-          enhancedDescription = `${categoryText} - ${enhancedDescription}`;
-        }
-        if (paymentMethodText && !enhancedDescription.includes(paymentMethodText)) {
-          enhancedDescription = `${enhancedDescription} (${paymentMethodText})`;
-        }
-
-        // 确保日期格式正确 (YYYY-MM-DD)
-        let formattedDate = transactionForm.transactionDate;
-        if (typeof formattedDate === 'object' && formattedDate instanceof Date) {
-          formattedDate = formatLocalDate(formattedDate);
-        } else if (typeof formattedDate === 'string' && formattedDate.includes('T')) {
-          formattedDate = formattedDate.split('T')[0];
-        }
-
-        // 准备提交的数据（HTTP camel）
-        const data = {
-          bankAccountId: transactionForm.accountId,
-          transactionDate: formattedDate,
-          transactionType: mapTransactionType(transactionForm.type),
-          amount: parseFloat(transactionForm.amount),
-          description: enhancedDescription.trim(),
-          referenceNumber: transactionForm.referenceNumber || '',
-          relatedParty: transactionForm.counterparty || '',
-          isReconciled: false,
-          reconciliationDate: null,
-          category: transactionForm.category,
-          paymentMethod: transactionForm.paymentMethod,
-        };
-
-        // 对于编辑操作，保留原交易编号
-        if (transactionForm.id) {
-          try {
-            const response = await financeApi.bankTransactions.update(transactionForm.id, data);
-            const responseData = parseDataObject(response, { enableLog: false });
-            if (responseData && responseData.newBalance !== undefined) {
-              ElMessage.success('更新成功，待审核通过后入账');
-            } else {
-              ElMessage.success('更新成功');
-            }
-            dialogVisible.value = false;
-            loadTransactions();
-          } catch (updateError) {
-            console.error('更新交易失败:', updateError);
-            ElMessage.error(
-              `更新交易失败: ${updateError.response?.data?.message || updateError.message}`
-            );
-          }
-        } else {
-          // 新增交易
-          try {
-            // 确保日期格式正确 (YYYY-MM-DD)
-            const formattedDate = transactionForm.transactionDate;
-            if (typeof formattedDate === 'object' && formattedDate instanceof Date) {
-              data.transactionDate = formatLocalDate(formattedDate);
-            } else if (typeof formattedDate === 'string' && formattedDate.includes('T')) {
-              data.transactionDate = formattedDate.split('T')[0];
-            }
-
-            const response =
-              transactionForm.type === 'transfer'
-                ? await financeApi.bankTransactions.createTransfer({
-                    transactionNumber,
-                    fromAccountId: transactionForm.accountId,
-                    toAccountId: transactionForm.targetAccountId,
-                    transactionDate: data.transactionDate,
-                    amount: data.amount,
-                    description: enhancedDescription.trim(),
-                    referenceNumber: transactionForm.referenceNumber || '',
-                  })
-                : await financeApi.bankTransactions.create({
-                    ...data,
-                    transactionNumber,
-                  });
-            // 显示成功信息，包括新的余额
-            const responseData = parseDataObject(response, { enableLog: false });
-            if (responseData && responseData.newBalance !== undefined) {
-              ElMessage.success('添加成功，待审核通过后入账');
-            } else {
-              ElMessage.success('添加成功');
-            }
-            dialogVisible.value = false;
-            loadTransactions();
-          } catch (createError) {
-            console.error('创建交易失败:', createError);
-            ElMessage.error(
-              `创建交易失败: ${createError.response?.data?.message || createError.message}`
-            );
-          }
-        }
-      } catch (error) {
-        console.error('保存交易失败:', error);
-        console.error('错误详情:', error.response?.data || error.message);
-        ElMessage.error(`保存交易失败: ${error.response?.data?.message || error.message}`);
-      } finally {
-        saveLoading.value = false;
-      }
+  if (!transactionFormRef.value || saveLoading.value) return;
+  const valid = await transactionFormRef.value.validate().catch(() => false);
+  if (!valid) return;
+  saveLoading.value = true;
+  try {
+    if (!transactionForm.transactionNumber) {
+      transactionForm.transactionNumber = `TX${Date.now()}${crypto.randomUUID().slice(0, 8)}`;
     }
-  });
+    const data = {
+      bankAccountId: transactionForm.accountId,
+      transactionDate: formatDate(transactionForm.transactionDate),
+      transactionType: mapTransactionType(transactionForm.type),
+      transactionNumber: transactionForm.transactionNumber,
+      amount: Number(transactionForm.amount),
+      description: transactionForm.description.trim(),
+      referenceNumber: transactionForm.referenceNumber || '',
+      relatedParty: transactionForm.counterparty || '',
+      category: transactionForm.category,
+      paymentMethod: transactionForm.paymentMethod,
+    };
+    if (transactionForm.id) {
+      await financeApi.bankTransactions.update(transactionForm.id, data);
+    } else if (transactionForm.type === 'transfer') {
+      await financeApi.bankTransactions.createTransfer({
+        transactionNumber: data.transactionNumber,
+        fromAccountId: transactionForm.accountId,
+        toAccountId: transactionForm.targetAccountId,
+        transactionDate: data.transactionDate,
+        amount: data.amount,
+        description: data.description,
+        referenceNumber: data.referenceNumber,
+      });
+    } else {
+      await financeApi.bankTransactions.create(data);
+    }
+    ElMessage.success(transactionForm.type === 'transfer' ? '资金调拨已提交，待独立审核' : '保存成功，待审核通过后入账');
+    dialogVisible.value = false;
+    await Promise.all([loadTransactions(), loadTransferRequests()]);
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || error.message || '保存交易失败');
+  } finally {
+    saveLoading.value = false;
+  }
 };
 // 映射交易类型到后端支持的类型
 const mapTransactionType = (type) => {
@@ -1325,8 +1222,7 @@ const getPaymentMethodFromDescription = (description) => {
     }
   }
 
-  // 默认为银行转账
-  return 'bank_transfer';
+  return '';
 };
 // 标记交易为已对账
 // 取消交易对账
@@ -1366,9 +1262,9 @@ const submitForAudit = async (row) => {
     ElMessage.success('提交审核成功');
     loadTransactions();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (error !== 'cancel' && error !== 'close') {
       console.error('提交审核失败:', error);
-      ElMessage.error('提交审核失败');
+      ElMessage.error(error.response?.data?.message || error.message || '提交审核失败');
     }
   }
 };
@@ -1408,7 +1304,7 @@ const handleAudit = (row) => {
         done();
       } catch (error) {
         console.error('审核失败:', error);
-        ElMessage.error('审核操作失败');
+        ElMessage.error(error.response?.data?.message || error.message || '审核操作失败');
       } finally {
         instance.confirmButtonLoading = false;
         instance.cancelButtonLoading = false;
@@ -1622,7 +1518,6 @@ const jumpToInvoice = (row) => {
     return;
   }
 
-  const router = useRouter();
   if (row.relatedInvoiceType === 'AR') {
     // 跳转到应收发票页面
     router.push({

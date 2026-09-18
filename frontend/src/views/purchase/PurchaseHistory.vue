@@ -53,7 +53,7 @@
       <!-- 数据汇总统计 -->
       <div class="stats-overview" v-if="historyList.length > 0">
         <div class="stat-item">
-          <span class="label">本页合计金额：</span>
+          <span class="label">本页含税合计：</span>
           <span class="value success-text">{{ formatCurrency(currentTotalAmount) }}</span>
         </div>
         <div class="stat-item">
@@ -108,13 +108,13 @@
             </template>
           </el-table-column>
 
-          <el-table-column prop="unitPrice" label="实采单价(元)" width="140">
+          <el-table-column prop="unitPrice" label="未税单价(元)" width="140">
             <template #default="{ row }">
               <span class="price-highlight">{{ formatCurrency(row.unitPrice) }}</span>
             </template>
           </el-table-column>
 
-          <el-table-column prop="totalAmount" label="总金额(元)" width="140">
+          <el-table-column prop="totalAmount" label="含税金额(元)" width="140">
             <template #default="{ row }">
               <span class="amount-highlight">{{ formatCurrency(row.totalAmount) }}</span>
             </template>
@@ -127,7 +127,7 @@
         <el-pagination
           v-model:current-page="pagination.page"
           v-model:page-size="pagination.pageSize"
-          :page-sizes="[10, 20, 50, 100, 500]"
+          :page-sizes="[10, 20, 50, 100]"
           layout="total, sizes, prev, pager, next, jumper"
           :total="pagination.total"
           @size-change="handleSizeChange"

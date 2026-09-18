@@ -198,14 +198,14 @@
           <el-descriptions :column="3" border>
             <el-descriptions-item label="订单号">{{ orderDetails.orderInfo.orderNo }}</el-descriptions-item>
             <el-descriptions-item label="客户名称">{{ orderDetails.orderInfo.customerName }}</el-descriptions-item>
-            <el-descriptions-item label="订单日期">{{ formatDate(orderDetails.orderInfo.order_date) }}</el-descriptions-item>
-            <el-descriptions-item label="要求交期">{{ formatDate(orderDetails.orderInfo.delivery_date) }}</el-descriptions-item>
+            <el-descriptions-item label="订单日期">{{ formatDate(orderDetails.orderInfo.orderDate) }}</el-descriptions-item>
+            <el-descriptions-item label="要求交期">{{ formatDate(orderDetails.orderInfo.deliveryDate) }}</el-descriptions-item>
             <el-descriptions-item label="订单状态">
               <el-tag :type="getOrderStatusType(orderDetails.orderInfo.status)">
                 {{ getOrderStatusText(orderDetails.orderInfo.status) }}
               </el-tag>
             </el-descriptions-item>
-            <el-descriptions-item label="合同编码">{{ orderDetails.orderInfo.contract_code || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="合同编码">{{ orderDetails.orderInfo.contractCode || '-' }}</el-descriptions-item>
           </el-descriptions>
         </div>
         <div class="delivery-details mt-20">
@@ -508,8 +508,9 @@ const viewDeliveryDetails = async (orderId) => {
 }
 // 工具函数
 // formatDate: 使用公共实现
-const getStatusType = (status) => getCommonStatusColor(status) || 'info'
-const getStatusText = (status) => getCommonStatusText(status) || status
+const deliveryStatusCode = status => status === 'partial' ? 'partial_shipped' : status
+const getStatusType = (status) => getCommonStatusColor(deliveryStatusCode(status)) || 'info'
+const getStatusText = (status) => getCommonStatusText(deliveryStatusCode(status)) || status
 const getProgressColor = (percentage) => {
   if (percentage === 100) return 'var(--color-success)'
   if (percentage >= 50) return 'var(--color-warning)'
@@ -531,20 +532,21 @@ const handleExport = () => {
     // 准备导出数据
     const exportData = selectedRows.value.length > 0 ? selectedRows.value : tableData.value
     // 转换为CSV格式
-    const headers = ['订单号', '客户名称', '产品名称', '订单数量', '已发货数量', '未发货数量', '发货状态', '发货日期', '备注']
+    const headers = ['订单号', '客户名称', '产品名称', '订单数量', '已发货数量', '未发货数量', '发货状态', '要求交期', '备注']
+    const csvCell = value => `"${String(value ?? '').replace(/"/g, '""')}"`
     const csvContent = [
-      headers.join(','),
+      headers.map(csvCell).join(','),
       ...exportData.map(row => [
         row.orderNo || '',
         row.customerName || '',
-        row.productName || '',
-        row.orderQuantity || 0,
+        row.materialName || '',
+        row.orderedQuantity || 0,
         row.shippedQuantity || 0,
         row.unshippedQuantity || 0,
-        getStatusText(row.status),
+        getStatusText(row.deliveryStatus),
         row.deliveryDate || '',
-        (row.notes || '').replace(/,/g, '，') // 替换逗号避免CSV格式问题
-      ].join(','))
+        row.notes || row.remarks || ''
+      ].map(csvCell).join(','))
     ].join('\n')
     // 添加BOM头以支持中文
     const BOM = '\uFEFF'
@@ -610,7 +612,7 @@ const handleSingleShipping = (row) => {
   isBatchShipping.value = false
   shippingItems.value = [{
     ...row,
-    shipping_quantity: Math.min(row.unshippedQuantity, row.stockQuantity || 0)
+    shippingQuantity: Math.min(row.unshippedQuantity, row.stockQuantity || 0)
   }]
   shippingForm.outbound_date = new Date()
   shippingForm.remark = ''
@@ -632,7 +634,7 @@ const handleBatchShipping = () => {
   isBatchShipping.value = true
   shippingItems.value = selectedRows.value.map(row => ({
     ...row,
-    shipping_quantity: Math.min(row.unshippedQuantity, row.stockQuantity || 0)
+    shippingQuantity: Math.min(row.unshippedQuantity, row.stockQuantity || 0)
   }))
   shippingForm.outbound_date = new Date()
   shippingForm.remark = ''
@@ -699,15 +701,17 @@ const confirmShipping = async () => {
     // 构建出库单数据（批量和单个使用统一结构）
     const orderIds = [...new Set(validItems.map(item => item.orderId))]
     const outboundData = {
-      order_id: orderIds[0],
-      related_orders: orderIds.length > 1 ? orderIds.slice(1) : undefined,
-      is_multi_order: orderIds.length > 1,
-      delivery_date: formatDateForDB(shippingForm.outbound_date),
+      orderId: orderIds.length === 1 ? orderIds[0] : null,
+      relatedOrders: orderIds,
+      isMultiOrder: orderIds.length > 1,
+      deliveryDate: formatDateForDB(shippingForm.outbound_date),
       status: 'draft',
       remarks: shippingForm.remark,
       items: validItems.map(item => ({
-        product_id: item.materialId,
-        quantity: item.shippingQuantity
+        productId: item.materialId,
+        quantity: item.shippingQuantity,
+        sourceOrderId: item.orderId,
+        sourceOrderNo: item.orderNo
       }))
     }
     // 🔒 第三层防护：后端会进行幂等性检查（基于订单ID和时间窗口）
@@ -731,8 +735,8 @@ const confirmShipping = async () => {
     }
     console.error('创建出库单失败:', error)
     // 提取后端返回的错误信息
-    const errorMsg = error.response?.data?.error ||
-                     error.response?.data?.message ||
+    const errorMsg = error.response?.data?.message ||
+                     error.response?.data?.error?.message ||
                      error.message ||
                      '网络错误'
     // 如果是重复提交错误（409状态码），显示警告而不是错误

@@ -40,7 +40,7 @@ const expenseController = {
       const { status, parentId, tree } = req.query;
 
       if (tree === 'true') {
-        const data = await expenseModel.getExpenseCategoryTree();
+        const data = await expenseModel.getExpenseCategoryTree(req.query.includeInactive === 'true');
         return ResponseHandler.success(res, data, '获取费用类型树成功');
       }
 
@@ -63,7 +63,7 @@ const expenseController = {
     try {
       // HTTP camel → snake
       const body = mapKeysToSnake(req.body || {});
-      const { code, name, parent_id, description, status, sort_order } = body;
+      const { code, name, parent_id, description, status, sort_order, gl_account_code } = body;
 
       if (!code || !name) {
         return ResponseHandler.error(res, '编码和名称为必填项', 'VALIDATION_ERROR', 400);
@@ -76,11 +76,13 @@ const expenseController = {
         description,
         status,
         sort_order,
+        gl_account_code,
       });
 
       ResponseHandler.success(res, result, '费用类型创建成功');
     } catch (error) {
       logger.error('创建费用类型失败:', error);
+      if (error.code === 'VALIDATION_ERROR') return ResponseHandler.error(res, error.message, error.code, 400);
       if (error.code === 'ER_DUP_ENTRY') {
         return ResponseHandler.error(res, '类型编码已存在', 'VALIDATION_ERROR', 400);
       }
@@ -98,6 +100,7 @@ const expenseController = {
       ResponseHandler.success(res, result, '费用类型更新成功');
     } catch (error) {
       logger.error('更新费用类型失败:', error);
+      if (error.code === 'VALIDATION_ERROR') return ResponseHandler.error(res, error.message, error.code, 400);
       ResponseHandler.error(res, '更新费用类型失败', 'SERVER_ERROR', 500, error);
     }
   },

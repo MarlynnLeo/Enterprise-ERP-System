@@ -26,7 +26,7 @@
         <div class="stat-content">
           <div class="stat-icon total"><el-icon><Tickets /></el-icon></div>
           <div class="stat-info">
-            <div class="stat-value">{{ stats.total_count || 0 }}</div>
+            <div class="stat-value">{{ stats.totalCount || 0 }}</div>
             <div class="stat-label">总费用笔数</div>
           </div>
         </div>
@@ -35,7 +35,7 @@
         <div class="stat-content">
           <div class="stat-icon pending"><el-icon><Clock /></el-icon></div>
           <div class="stat-info">
-            <div class="stat-value">{{ stats.pending_count || 0 }}</div>
+            <div class="stat-value">{{ stats.pendingCount || 0 }}</div>
             <div class="stat-label">待审批</div>
           </div>
         </div>
@@ -44,7 +44,7 @@
         <div class="stat-content">
           <div class="stat-icon approved"><el-icon><Select /></el-icon></div>
           <div class="stat-info">
-            <div class="stat-value">{{ stats.approved_count || 0 }}</div>
+            <div class="stat-value">{{ stats.approvedCount || 0 }}</div>
             <div class="stat-label">已审批</div>
           </div>
         </div>
@@ -53,7 +53,7 @@
         <div class="stat-content">
           <div class="stat-icon paid"><el-icon><Money /></el-icon></div>
           <div class="stat-info">
-            <div class="stat-value">{{ formatMoney(stats.paid_amount) }}</div>
+            <div class="stat-value">{{ formatMoney(stats.paidAmount) }}</div>
             <div class="stat-label">已付款总额</div>
           </div>
         </div>
@@ -237,7 +237,7 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="费用编号">
-              <el-input v-model="expenseForm.expenseNumber" disabled placeholder="自动生成" />
+              <el-input v-model="expenseForm.expenseNumber" disabled placeholder="保存时自动生成" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -271,7 +271,7 @@
           <el-col :span="12">
             <el-form-item label="费用日期" prop="expenseDate">
               <el-date-picker
-                v-model="expenseForm.expense_date"
+                v-model="expenseForm.expenseDate"
                 type="date"
                 placeholder="选择日期"
                 value-format="YYYY-MM-DD"
@@ -288,7 +288,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="发票号码">
-              <el-input v-model="expenseForm.invoice_number" placeholder="相关发票号码" />
+              <el-input v-model="expenseForm.invoiceNumber" placeholder="相关发票号码" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -308,21 +308,21 @@
             <el-descriptions-item label="状态">
               <el-tag :type="getStatusType(expenseForm.status)">{{ getStatusText(expenseForm.status) }}</el-tag>
             </el-descriptions-item>
-            <el-descriptions-item label="提交人">{{ expenseForm.submitted_by_name || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="提交时间">{{ expenseForm.submitted_at || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="审批人">{{ expenseForm.approved_by_name || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="审批时间">{{ expenseForm.approved_at || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="审批备注">{{ expenseForm.approval_remark || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="提交人">{{ expenseForm.submittedByName || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="提交时间">{{ expenseForm.submittedAt || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="审批人">{{ expenseForm.approvedByName || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="审批时间">{{ expenseForm.approvedAt || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="审批备注">{{ expenseForm.approvalRemark || '-' }}</el-descriptions-item>
           </el-descriptions>
         </template>
 
         <template v-if="dialogMode === 'view' && expenseForm.status === 'paid'">
           <el-divider content-position="left">付款信息</el-divider>
           <el-descriptions :column="2" border>
-            <el-descriptions-item label="付款日期">{{ formatDate(expenseForm.paid_at) }}</el-descriptions-item>
-            <el-descriptions-item label="付款账户">{{ expenseForm.payment_bank_account_name || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="银行流水">{{ expenseForm.payment_transaction_number || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="总账凭证">{{ expenseForm.payment_voucher_number || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="付款日期">{{ formatDate(expenseForm.paidAt) }}</el-descriptions-item>
+            <el-descriptions-item label="付款账户">{{ expenseForm.paymentBankAccountName || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="银行流水">{{ expenseForm.paymentTransactionNumber || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="总账凭证">{{ expenseForm.paymentVoucherNumber || '-' }}</el-descriptions-item>
           </el-descriptions>
         </template>
       </el-form>
@@ -342,13 +342,13 @@
     >
       <el-form :model="approveForm" label-width="80px">
         <el-form-item label="费用编号">
-          <el-input :value="currentExpense?.expenseNumber" disabled />
+          <el-input :model-value="currentExpense?.expenseNumber" disabled />
         </el-form-item>
         <el-form-item label="费用标题">
-          <el-input :value="currentExpense?.title" disabled />
+          <el-input :model-value="currentExpense?.title" disabled />
         </el-form-item>
         <el-form-item label="金额">
-          <el-input :value="formatMoney(currentExpense?.amount)" disabled />
+          <el-input :model-value="formatMoney(currentExpense?.amount)" disabled />
         </el-form-item>
         <el-form-item label="审批意见">
           <el-input v-model="approveForm.remark" type="textarea" :rows="3" placeholder="请输入审批意见（可选）" />
@@ -370,10 +370,10 @@
     >
       <el-form :model="payForm" :rules="payRules" ref="payFormRef" label-width="100px">
         <el-form-item label="费用编号">
-          <el-input :value="currentExpense?.expenseNumber" disabled />
+          <el-input :model-value="currentExpense?.expenseNumber" disabled />
         </el-form-item>
         <el-form-item label="付款金额">
-          <el-input :value="formatMoney(currentExpense?.amount)" disabled />
+          <el-input :model-value="formatMoney(currentExpense?.amount)" disabled />
         </el-form-item>
         <el-form-item label="付款账户" prop="bankAccountId">
           <el-select v-model="payForm.bankAccountId" placeholder="选择付款账户" class="w-full">
@@ -385,9 +385,14 @@
             />
           </el-select>
         </el-form-item>
+        <el-form-item label="成本中心" prop="costCenterId">
+          <el-select v-model="payForm.costCenterId" placeholder="选择费用归属成本中心" clearable class="w-full">
+            <el-option v-for="center in costCenters" :key="center.id" :label="center.name" :value="center.id" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="付款日期" prop="paymentDate">
           <el-date-picker
-            v-model="payForm.payment_date"
+            v-model="payForm.paymentDate"
             type="date"
             value-format="YYYY-MM-DD"
             placeholder="选择付款日期"
@@ -406,7 +411,7 @@
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Plus, Tickets, Clock, Select, Money, Refresh, Edit, Promotion, Check, Wallet, CircleClose, Close, Delete } from '@element-plus/icons-vue'
@@ -426,6 +431,7 @@ const pageSize = ref(20)
 const showAdvancedSearch = ref(false)
 const categoryTree = ref([])
 const bankAccounts = ref([])
+const costCenters = ref([])
 const stats = ref({})
 
 // 搜索表单
@@ -446,9 +452,9 @@ const expenseForm = reactive({
   categoryId: null,
   title: '',
   amount: null,
-  expense_date: '',
+  expenseDate: '',
   payee: '',
-  invoice_number: '',
+  invoiceNumber: '',
   description: '',
   status: 'draft'
 })
@@ -460,7 +466,7 @@ const expenseRules = {
     { required: true, message: '请输入金额', trigger: 'blur' },
     { type: 'number', min: 0.01, message: '金额必须大于0', trigger: 'change' }
   ],
-  expense_date: [{ required: true, message: '请选择费用日期', trigger: 'change' }]
+  expenseDate: [{ required: true, message: '请选择费用日期', trigger: 'change' }]
 }
 
 // 审批对话框
@@ -475,11 +481,12 @@ const payDialogVisible = ref(false)
 const payFormRef = ref(null)
 const payForm = reactive({
   bankAccountId: null,
-  payment_date: formatLocalDate(new Date())
+  costCenterId: null,
+  paymentDate: formatLocalDate(new Date())
 })
 const payRules = {
   bankAccountId: [{ required: true, message: '请选择付款账户', trigger: 'change' }],
-  payment_date: [{ required: true, message: '请选择付款日期', trigger: 'change' }]
+  paymentDate: [{ required: true, message: '请选择付款日期', trigger: 'change' }]
 }
 
 // 格式化函数
@@ -610,21 +617,15 @@ const handleAdd = async () => {
     categoryId: null,
     title: '',
     amount: null,
-    expense_date: formatLocalDate(new Date()),
+    expenseDate: formatLocalDate(new Date()),
     payee: '',
-    invoice_number: '',
+    invoiceNumber: '',
     description: '',
     status: 'draft'
   })
-  // 获取新编号
-  try {
-    const res = await financeApi.generateExpenseNumber()
-    const data = parseDataObject(res, { enableLog: false }) || {}
-    expenseForm.expenseNumber = data.expenseNumber || ''
-  } catch (error) {
-    console.error('获取费用编号失败:', error)
-  }
   dialogVisible.value = true
+  await nextTick()
+  expenseFormRef.value?.clearValidate()
 }
 
 // 查看
@@ -637,9 +638,12 @@ const handleView = async (row) => {
     if (data.amount) data.amount = parseFloat(data.amount)
     Object.assign(expenseForm, data)
   } catch (error) {
-    console.error('获取费用详情失败:', error)
+    ElMessage.error(error.response?.data?.message || error.message || '获取费用详情失败')
+    return
   }
   dialogVisible.value = true
+  await nextTick()
+  expenseFormRef.value?.clearValidate()
 }
 
 // 编辑
@@ -652,24 +656,28 @@ const handleEdit = async (row) => {
     if (data.amount) data.amount = parseFloat(data.amount)
     Object.assign(expenseForm, data)
   } catch (error) {
-    console.error('获取费用详情失败:', error)
+    ElMessage.error(error.response?.data?.message || error.message || '获取费用详情失败')
+    return
   }
   dialogVisible.value = true
+  await nextTick()
+  expenseFormRef.value?.clearValidate()
 }
 
 // 保存
 const handleSave = async () => {
+  if (saving.value || !expenseFormRef.value) return
   try {
-    await expenseFormRef.value.validate()
+    if (!(await expenseFormRef.value.validate().catch(() => false))) return
     saving.value = true
 
     const data = {
       categoryId: expenseForm.categoryId,
       title: expenseForm.title,
       amount: expenseForm.amount,
-      expense_date: expenseForm.expense_date,
+      expenseDate: expenseForm.expenseDate,
       payee: expenseForm.payee,
-      invoice_number: expenseForm.invoice_number,
+      invoiceNumber: expenseForm.invoiceNumber,
       description: expenseForm.description
     }
 
@@ -685,7 +693,7 @@ const handleSave = async () => {
     fetchStats()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('保存失败: ' + (error.message || '未知错误'))
+      ElMessage.error('保存失败: ' + (error.response?.data?.message || error.message || '未知错误'))
     }
   } finally {
     saving.value = false
@@ -694,17 +702,18 @@ const handleSave = async () => {
 
 // 保存并提交
 const handleSaveAndSubmit = async () => {
+  if (saving.value || !expenseFormRef.value) return
   try {
-    await expenseFormRef.value.validate()
+    if (!(await expenseFormRef.value.validate().catch(() => false))) return
     saving.value = true
 
     const data = {
       categoryId: expenseForm.categoryId,
       title: expenseForm.title,
       amount: expenseForm.amount,
-      expense_date: expenseForm.expense_date,
+      expenseDate: expenseForm.expenseDate,
       payee: expenseForm.payee,
-      invoice_number: expenseForm.invoice_number,
+      invoiceNumber: expenseForm.invoiceNumber,
       description: expenseForm.description
     }
 
@@ -713,6 +722,11 @@ const handleSaveAndSubmit = async () => {
       const res = await financeApi.createExpense(data)
       const createdExpense = parseDataObject(res, { enableLog: false }) || {}
       expenseId = createdExpense.id
+      if (expenseId) {
+        expenseForm.id = expenseId
+        expenseForm.expenseNumber = createdExpense.expenseNumber || expenseForm.expenseNumber
+        dialogMode.value = 'edit'
+      }
     } else {
       await financeApi.updateExpense(expenseForm.id, data)
     }
@@ -729,7 +743,7 @@ const handleSaveAndSubmit = async () => {
     fetchStats()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('操作失败: ' + (error.message || '未知错误'))
+      ElMessage.error('操作失败: ' + (error.response?.data?.message || error.message || '未知错误'))
     }
   } finally {
     saving.value = false
@@ -751,7 +765,7 @@ const handleSubmit = async (row) => {
     fetchStats()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('提交失败: ' + (error.message || '未知错误'))
+      ElMessage.error('提交失败: ' + (error.response?.data?.message || error.message || '未知错误'))
     }
   }
 }
@@ -775,23 +789,34 @@ const handleApproveAction = async (action) => {
     fetchExpenses()
     fetchStats()
   } catch (error) {
-    ElMessage.error('操作失败: ' + (error.message || '未知错误'))
+    ElMessage.error('操作失败: ' + (error.response?.data?.message || error.message || '未知错误'))
   } finally {
     approving.value = false
   }
 }
 
 // 付款
-const handlePay = (row) => {
+const handlePay = async (row) => {
   currentExpense.value = row
   payForm.bankAccountId = null
-  payForm.payment_date = formatLocalDate(new Date())
+  payForm.costCenterId = null
+  payForm.paymentDate = formatLocalDate(new Date())
   payDialogVisible.value = true
+  await nextTick()
+  payFormRef.value?.clearValidate()
+  try {
+    const response = await financeApi.cost.getCostCenterOptions()
+    costCenters.value = parseListData(response, { enableLog: false })
+  } catch (error) {
+    costCenters.value = []
+    ElMessage.error(error.response?.data?.message || '获取成本中心失败')
+  }
 }
 
 const handlePayAction = async () => {
+  if (paying.value || !payFormRef.value) return
   try {
-    await payFormRef.value.validate()
+    if (!(await payFormRef.value.validate().catch(() => false))) return
     await ElMessageBox.confirm(
       `确认支付费用「${currentExpense.value.title || currentExpense.value.expenseNumber}」吗？`,
       '确认付款',
@@ -801,7 +826,8 @@ const handlePayAction = async () => {
 
     await financeApi.payExpense(currentExpense.value.id, {
       bankAccountId: payForm.bankAccountId,
-      payment_date: payForm.payment_date
+      costCenterId: payForm.costCenterId,
+      paymentDate: payForm.paymentDate
     })
     ElMessage.success('付款成功')
     payDialogVisible.value = false
@@ -809,7 +835,7 @@ const handlePayAction = async () => {
     fetchStats()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('付款失败: ' + (error.message || '未知错误'))
+      ElMessage.error('付款失败: ' + (error.response?.data?.message || error.message || '未知错误'))
     }
   } finally {
     paying.value = false
@@ -826,13 +852,13 @@ const handleVoidPayment = async (row) => {
       inputErrorMessage: '作废原因不能为空',
       type: 'warning',
     })
-    await financeApi.voidExpensePayment(row.id, { void_reason: value })
+    await financeApi.voidExpensePayment(row.id, { voidReason: value })
     ElMessage.success('费用付款已作废')
     fetchExpenses()
     fetchStats()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('作废失败: ' + (error.message || '未知错误'))
+      ElMessage.error('作废失败: ' + (error.response?.data?.message || error.message || '未知错误'))
     }
   }
 }
@@ -852,7 +878,7 @@ const handleCancelExpense = async (row) => {
     fetchStats()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('取消失败: ' + (error.message || '未知错误'))
+      ElMessage.error('取消失败: ' + (error.response?.data?.message || error.message || '未知错误'))
     }
   }
 }
@@ -872,7 +898,7 @@ const handleDelete = async (row) => {
     fetchStats()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('删除失败: ' + (error.message || '未知错误'))
+      ElMessage.error('删除失败: ' + (error.response?.data?.message || error.message || '未知错误'))
     }
   }
 }
@@ -887,7 +913,7 @@ const handleSyncDingtalk = async () => {
     fetchExpenses()
     fetchStats()
   } catch (error) {
-    ElMessage.error('同步失败: ' + (error.message || '未知错误'))
+    ElMessage.error('同步失败: ' + (error.response?.data?.message || error.message || '未知错误'))
   } finally {
     syncing.value = false
   }

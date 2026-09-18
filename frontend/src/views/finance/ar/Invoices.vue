@@ -148,6 +148,7 @@
             header-class-name="operation-column-header"
           >
             <template #default="scope">
+              <CreditNoteActions kind="ar" :invoice="scope.row" @changed="loadInvoices" />
               <el-button
                 v-if="scope.row.status === '草稿'"
                 type="primary"
@@ -221,13 +222,18 @@
       :form="invoiceForm"
       :customer-options="customerOptions"
       :product-options="productOptions"
+      :customer-loading="customerOptionsLoading"
+      :product-loading="productOptionsLoading"
       :save-loading="saveLoading"
       ref="invoiceFormDialogRef"
+      @customer-search="loadCustomerOptions"
+      @product-search="loadProductOptions"
       @save="saveInvoice"
     />
 
     <!-- 记录收款对话框 -->
     <PaymentDialog
+      ref="paymentDialogRef"
       v-model="paymentDialogVisible"
       :form="paymentForm"
       :bank-accounts="bankAccounts"
@@ -267,10 +273,10 @@ import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus/es/components/message/index';
 import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { Plus } from '@element-plus/icons-vue';
-import { baseDataApi } from '@/api';
 import { financeApi } from '@/api/finance';
 import { salesApi } from '@/api/sales';
 import { parseListData, parsePaginatedData, parseResponseData } from '@/utils/responseParser';
+import { searchCustomerPageOptions, searchMaterialPageOptions } from '@/utils/optionLoaders';
 import logger from '@/utils/logger';
 import { useFinanceStore } from '@/stores/finance';
 import { storeToRefs } from 'pinia';
@@ -279,6 +285,7 @@ import InvoiceFormDialog from './components/InvoiceFormDialog.vue';
 import PaymentDialog from './components/PaymentDialog.vue';
 import InvoiceDetailDialog from './components/InvoiceDetailDialog.vue';
 import RelatedOrderDialog from '../components/RelatedOrderDialog.vue';
+import CreditNoteActions from '../components/CreditNoteActions.vue';
 const financeStore = useFinanceStore();
 const { defaultVATRate } = storeToRefs(financeStore);
 const router = useRouter();
@@ -373,10 +380,9 @@ const showAdvancedSearch = ref(false);
 // 表单相关
 const dialogVisible = ref(false);
 const dialogTitle = ref('新增销售发票');
-const invoiceFormRef = ref(null);
 const invoiceFormDialogRef = ref(null);
 const paymentDialogVisible = ref(false);
-const paymentFormRef = ref(null);
+const paymentDialogRef = ref(null);
 const bankAccounts = ref([]);
 
 const detailsDialogVisible = ref(false);
@@ -405,6 +411,10 @@ const invoiceDetails = reactive({
 const invoiceList = ref([]);
 const customerOptions = ref([]);
 const productOptions = ref([]);
+const customerOptionsLoading = ref(false);
+const productOptionsLoading = ref(false);
+let customerSearchRequest = 0;
+let productSearchRequest = 0;
 // 搜索表单
 const searchForm = reactive({
   invoiceNumber: '',
@@ -490,41 +500,38 @@ const loadInvoices = async () => {
   }
 };
 // 加载客户选项
-const loadCustomerOptions = async () => {
+const loadCustomerOptions = async (keyword = '') => {
+  const requestId = ++customerSearchRequest;
+  customerOptionsLoading.value = true;
   try {
-    // 首先尝试使用baseData API
-    try {
-      const response = await baseDataApi.getCustomers({ pageSize: 50 });
-      const customers = parseListData(response, { enableLog: false });
-      if (customers.length > 0) {
-        customerOptions.value = customers;
-        return;
-      }
-    } catch {
-      // baseData API失败，尝试销售API
-    }
-    // 如果baseData API失败，尝试销售API
-    const salesResponse = await salesApi.getCustomersList();
-    customerOptions.value = salesResponse.data || [];
+    const customers = await searchCustomerPageOptions(keyword);
+    if (requestId !== customerSearchRequest) return;
+    const selected = customerOptions.value.filter(customer => customer.id === invoiceForm.customerId);
+    customerOptions.value = [...selected, ...customers.filter(customer => !selected.some(item => item.id === customer.id))];
   } catch (error) {
+    if (requestId !== customerSearchRequest) return;
     logger.error('加载客户列表失败:', error);
     ElMessage.error('加载客户列表失败');
-    customerOptions.value = [];
+  } finally {
+    if (requestId === customerSearchRequest) customerOptionsLoading.value = false;
   }
 };
 // 加载产品选项
-const loadProductOptions = async () => {
+const loadProductOptions = async (keyword = '') => {
+  const requestId = ++productSearchRequest;
+  productOptionsLoading.value = true;
   try {
-    // 使用物料API加载产品数据
-    const response = await baseDataApi.getMaterials({
-      pageSize: 50,
-      type: 'finished',
-    });
-    productOptions.value = parseListData(response, { enableLog: false });
+    const products = await searchMaterialPageOptions(keyword, { type: 'finished' });
+    if (requestId !== productSearchRequest) return;
+    const selectedIds = new Set(invoiceForm.items.map(item => item.productId));
+    const selected = productOptions.value.filter(product => selectedIds.has(product.id));
+    productOptions.value = [...selected, ...products.filter(product => !selected.some(item => item.id === product.id))];
   } catch (error) {
+    if (requestId !== productSearchRequest) return;
     logger.error('加载产品列表失败:', error);
     ElMessage.error('加载产品列表失败');
-    productOptions.value = [];
+  } finally {
+    if (requestId === productSearchRequest) productOptionsLoading.value = false;
   }
 };
 // 搜索发票
@@ -585,12 +592,21 @@ const handleEdit = async (row) => {
     invoiceForm.id = invoice.id;
     invoiceForm.invoiceNumber = invoice.invoiceNumber;
     invoiceForm.customerId = invoice.customerId != null ? parseInt(invoice.customerId, 10) : null;
+    if (invoiceForm.customerId && !customerOptions.value.some(customer => customer.id === invoiceForm.customerId)) {
+      customerOptions.value.push({ id: invoiceForm.customerId, name: invoice.customerName });
+    }
     invoiceForm.invoiceDate = invoice.invoiceDate;
     invoiceForm.dueDate = invoice.dueDate;
     invoiceForm.notes = invoice.notes || '';
     invoiceForm.taxRate = invoice.taxRate != null ? invoice.taxRate : defaultVATRate.value;
 
     if (invoice.items && Array.isArray(invoice.items)) {
+      for (const item of invoice.items) {
+        const id = Number(item.productId);
+        if (id && !productOptions.value.some(product => product.id === id)) {
+          productOptions.value.push({ id, code: item.productCode, name: item.productName, price: item.unitPrice });
+        }
+      }
       invoiceForm.items = invoice.items.map((item) => ({
         id: item.id,
         productId: item.productId != null ? parseInt(item.productId, 10) : null,
@@ -725,7 +741,7 @@ const handleRecordPayment = async (row) => {
 // 查看发票关联的收款记录
 // 保存发票
 const saveInvoice = async () => {
-  if (!invoiceFormRef.value) return;
+  if (!invoiceFormDialogRef.value || saveLoading.value) return;
 
   // 至少有一个明细项
   if (invoiceForm.items.length === 0) {
@@ -735,16 +751,22 @@ const saveInvoice = async () => {
 
   // 每个明细项都需要填写完整
   for (const item of invoiceForm.items) {
-    if (!item.productId || item.quantity <= 0 || item.unitPrice <= 0) {
+    if (!item.productId || !Number.isFinite(Number(item.quantity)) || Number(item.quantity) <= 0 ||
+      !Number.isFinite(Number(item.unitPrice)) || Number(item.unitPrice) <= 0) {
       ElMessage.warning('请确保所有明细项的产品、数量和单价都已填写完整');
       return;
     }
   }
 
-  await invoiceFormRef.value.validate(async (valid) => {
+  await invoiceFormDialogRef.value.validate(async (valid) => {
     if (valid) {
       saveLoading.value = true;
       try {
+        if (!invoiceForm.id && !invoiceForm.invoiceNumber) {
+          const response = await financeApi.generateARInvoiceNumber();
+          invoiceForm.invoiceNumber = parseResponseData(response, null)?.invoiceNumber || '';
+          if (!invoiceForm.invoiceNumber) throw new Error('生成发票编号失败');
+        }
         // 准备提交的数据
         // 对外契约：仅 camelCase（Controller fromInvoiceApi 入模）
         const data = {
@@ -781,7 +803,7 @@ const saveInvoice = async () => {
       } catch (error) {
         logger.error('保存发票失败:', error);
         ElMessage.error(
-          '保存发票失败: ' + (error.response?.data?.error || error.message || '未知错误')
+          '保存发票失败: ' + (error.response?.data?.message || error.response?.data?.error || error.message || '未知错误')
         );
       } finally {
         saveLoading.value = false;
@@ -791,9 +813,9 @@ const saveInvoice = async () => {
 };
 // 保存收款记录
 const savePayment = async () => {
-  if (!paymentFormRef.value) return;
+  if (!paymentDialogRef.value || savePaymentLoading.value) return;
 
-  await paymentFormRef.value.validate(async (valid) => {
+  await paymentDialogRef.value.validate(async (valid) => {
     if (valid) {
       savePaymentLoading.value = true;
       try {
@@ -841,9 +863,7 @@ const resetInvoiceForm = () => {
   invoiceForm.taxRate = defaultVATRate.value;
 
   // 清除校验
-  if (invoiceFormRef.value) {
-    invoiceFormRef.value.resetFields();
-  }
+  invoiceFormDialogRef.value?.clearValidate();
 };
 // 分页相关方法
 const handleSizeChange = (size) => {

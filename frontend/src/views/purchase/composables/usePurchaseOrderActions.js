@@ -224,7 +224,7 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
           requisitionNumber: data.requisitionNumber || '', items
         })
         const row = orderList.value.find((item) => String(item.id) === String(id))
-        if (row) setCurrentViewOrder(row)
+        setCurrentViewOrder(row || { id: data.id })
       } else { ElMessage.warning('获取不到订单详情') }
     } catch (error) { console.error('获取采购订单详情失败:', error); ElMessage.error('获取采购订单详情失败: ' + (error.message || '未知错误')) }
     finally { detailLoading.value = false }
@@ -375,7 +375,7 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
       await ElMessageBox.confirm(`确定要收货剩余的 ${totalPendingQty.toFixed(2)} 个物料吗？收货后将自动生成检验单并更新收货状态。`, '确认收货', { confirmButtonText: '确定收货', cancelButtonText: '取消', type: 'info' })
       const receivingItems = normalizePurchaseReceivingItems(pendingItems.map(item => {
         const pendingQty = parseFloat(item.quantity) - parseFloat(item.receivedQuantity || 0)
-        return { materialId: item.materialId ?? item.material_id, receiveQuantity: pendingQty }
+        return { materialId: item.materialId ?? item.material_id, orderItemId: item.orderItemId ?? item.id, receiveQuantity: pendingQty }
       }))
       const result = unwrapBusinessData(await purchaseApi.receiveOrderWithInspection(order.id, receivingItems))
       ElMessage.success(`收货成功！已为 ${result.successCount || 0} 个物料生成检验单，订单状态已更新为已收货`)
@@ -433,19 +433,6 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
   }
 
   // ========== 统计与批量 ==========
-  const getOrderStats = async () => {
-    try {
-      const total = orderList.value.length
-      const pendingCount = orderList.value.filter(item => item.status === 'pending').length
-      const approvedCount = orderList.value.filter(item => item.status === 'approved').length
-      const completedCount = orderList.value.filter(item => item.status === 'completed').length
-      const totalAmount = orderList.value.some(item => isBlankAmount(item.totalAmount))
-        ? null
-        : orderList.value.reduce((sum, item) => { const amount = parseFloat(item.totalAmount); return sum + (isNaN(amount) ? 0 : amount) }, 0)
-      orderStats.value = { total, totalAmount, pendingCount, approvedCount, completedCount }
-    } catch (error) { console.error('计算订单统计数据失败:', error) }
-  }
-
   const handleSelectionChange = (selection) => { selectedOrders.value = selection }
   const clearSelection = () => { if (orderTableRef.value) orderTableRef.value.clearSelection(); selectedOrders.value = [] }
 
@@ -478,7 +465,7 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
     hasPurchaseOrderSupplier,
     viewOrder, viewRequisition, updateStatus, deleteOrder,
     openReceiveDialog, handleReceiveQuantityChange, confirmReceive, updateReceiving,
-    printOrder, getOrderStats,
+    printOrder,
     handleSelectionChange, clearSelection, handleBatchSubmit
   }
 }

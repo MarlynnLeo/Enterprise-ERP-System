@@ -27,6 +27,8 @@ router.use(requirePriceMutationPermission('update'));
  * @access  Private
  */
 router.post('/invoices', requirePermission('finance:tax:create'), requirePermission(PRICE_UPDATE_PERMISSIONS), taxController.createTaxInvoice);
+router.get('/red-letter-originals', requirePermission('finance:tax:view'), require('../../../controllers/business/finance/creditNoteController').redLetterOriginals);
+router.post('/red-letter-invoices', requirePermission('finance:tax:create'), requirePermission(PRICE_UPDATE_PERMISSIONS), require('../../../controllers/business/finance/creditNoteController').createRedLetter);
 
 /**
  * @route   GET /finance/tax/invoices
@@ -99,6 +101,7 @@ router.get('/returns/:id', requirePermission('finance:tax:view'), taxController.
  * @access  Private
  */
 router.post('/returns/:id/submit', requirePermission('finance:tax:update'), taxController.submitTaxReturn);
+router.post('/returns/:id/reopen', requirePermission('finance:tax:update'), taxController.reopenTaxReturn);
 
 /**
  * @route   POST /finance/tax/returns/:id/pay

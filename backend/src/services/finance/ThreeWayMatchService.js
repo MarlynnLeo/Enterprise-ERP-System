@@ -8,6 +8,7 @@ const CodeGeneratorService = require('../business/CodeGeneratorService');
 const SystemConfigService = require('../system/SystemConfigService');
 const { logger } = require('../../utils/logger');
 const { roundMoney } = require('../../utils/money');
+const BusinessError = require('../../utils/BusinessError');
 
 function money(n) {
   return roundMoney(n || 0);
@@ -16,14 +17,14 @@ function money(n) {
 class ThreeWayMatchService {
   static async getTolerances() {
     const qtyPct = Number(
-      (await SystemConfigService.get('ap_match_qty_tolerance_pct', 0.02)) || 0.02
+      (await SystemConfigService.get('ap_match_qty_tolerance_pct', 0.02)) ?? 0.02
     );
     const amountTol = Number(
-      (await SystemConfigService.get('ap_match_amount_tolerance', 1)) || 1
+      (await SystemConfigService.get('ap_match_amount_tolerance', 1)) ?? 1
     );
     return {
-      qtyTolerancePct: Number.isFinite(qtyPct) ? qtyPct : 0.02,
-      amountTolerance: Number.isFinite(amountTol) ? amountTol : 1,
+      qtyTolerancePct: Number.isFinite(qtyPct) && qtyPct >= 0 ? qtyPct : 0.02,
+      amountTolerance: Number.isFinite(amountTol) && amountTol >= 0 ? amountTol : 1,
     };
   }
 
@@ -47,18 +48,26 @@ class ThreeWayMatchService {
          FOR UPDATE`,
         [receiptId]
       );
-      if (!receipts.length) throw new Error('采购入库单不存在');
+      if (!receipts.length) throw new BusinessError('采购入库单不存在', null, 'NOT_FOUND', 404);
       const receipt = receipts[0];
 
       const [items] = await connection.execute(
-        `SELECT pri.*, poi.price AS po_price, poi.quantity AS po_qty
+        `SELECT pri.*, poi.id AS po_item_id, poi.price AS po_price, poi.quantity AS po_qty
          FROM purchase_receipt_items pri
          LEFT JOIN purchase_order_items poi
            ON poi.order_id = ? AND poi.material_id = pri.material_id
-         WHERE pri.receipt_id = ?`,
+          AND (poi.id = pri.order_item_id OR
+               (pri.order_item_id IS NULL AND NOT EXISTS (
+                 SELECT 1 FROM purchase_order_items other
+                 WHERE other.order_id = poi.order_id AND other.material_id = poi.material_id AND other.id <> poi.id
+               )))
+         WHERE pri.receipt_id = ? ORDER BY pri.id`,
         [receipt.order_id, receiptId]
       );
-      if (!items.length) throw new Error('入库单无明细');
+      if (!items.length) throw new BusinessError('入库单无明细');
+      if (receipt.order_id && items.some(it => !it.po_item_id)) {
+        throw new BusinessError('收货明细缺少明确的采购订单行，请先补全来源明细后再进行三单匹配');
+      }
 
       const tol = await this.getTolerances();
       let matchNo;
@@ -69,10 +78,10 @@ class ThreeWayMatchService {
       }
 
       const lines = items.map((it) => {
-        const poQty = Number(it.po_qty || it.ordered_quantity || 0);
-        const poPrice = Number(it.po_price || it.price || 0);
-        const recQty = Number(it.qualified_quantity || it.received_quantity || it.quantity || 0);
-        const recPrice = Number(it.price || poPrice || 0);
+        const poQty = Number(it.po_qty ?? it.ordered_quantity ?? 0);
+        const poPrice = Number(it.po_price ?? it.price ?? 0);
+        const recQty = Number(it.qualified_quantity ?? it.received_quantity ?? it.quantity ?? 0);
+        const recPrice = Number(it.price ?? poPrice ?? 0);
         // 发票侧默认按收货填，后续可改
         const invQty = recQty;
         const invPrice = recPrice;
@@ -249,16 +258,16 @@ class ThreeWayMatchService {
          FROM ap_match_headers WHERE id = ? FOR UPDATE`,
         [matchId]
       );
-      if (!headers.length) throw new Error('匹配单不存在');
+      if (!headers.length) throw new BusinessError('匹配单不存在', null, 'NOT_FOUND', 404);
       const header = headers[0];
-      if (header.status === 'cancelled') throw new Error('匹配单已取消，不能修改');
+      if (header.status === 'cancelled') throw new BusinessError('匹配单已取消，不能修改');
       if (header.status === 'confirmed') {
-        throw new Error('匹配单已确认，不能修改发票量价；请先取消后重建');
+        throw new BusinessError('匹配单已确认，不能修改发票量价；请先取消后重建');
       }
 
       const tol = {
-        qtyTolerancePct: Number(header.qty_tolerance_pct) || 0.02,
-        amountTolerance: Number(header.amount_tolerance) || 1,
+        qtyTolerancePct: Number(header.qty_tolerance_pct ?? 0.02),
+        amountTolerance: Number(header.amount_tolerance ?? 1),
       };
 
       const [items] = await connection.execute(
@@ -269,7 +278,7 @@ class ThreeWayMatchService {
          FROM ap_match_items WHERE match_id = ? FOR UPDATE`,
         [matchId]
       );
-      if (!items.length) throw new Error('匹配单无明细');
+      if (!items.length) throw new BusinessError('匹配单无明细');
 
       const byId = new Map(items.map((it) => [Number(it.id), it]));
       const byMat = new Map(items.map((it) => [Number(it.material_id), it]));
@@ -279,15 +288,15 @@ class ThreeWayMatchService {
         if (line.id != null) target = byId.get(Number(line.id));
         if (!target && line.material_id != null) target = byMat.get(Number(line.material_id));
         if (!target) {
-          throw new Error(`找不到匹配明细 id=${line.id} material=${line.material_id}`);
+          throw new BusinessError(`找不到匹配明细 id=${line.id} material=${line.material_id}`);
         }
         const invQty = Number(line.invoice_qty);
         const invPrice = Number(line.invoice_price);
         if (!Number.isFinite(invQty) || invQty < 0) {
-          throw new Error(`发票数量无效 material=${target.material_code || target.id}`);
+          throw new BusinessError(`发票数量无效 material=${target.material_code || target.id}`);
         }
         if (!Number.isFinite(invPrice) || invPrice < 0) {
-          throw new Error(`发票单价无效 material=${target.material_code || target.id}`);
+          throw new BusinessError(`发票单价无效 material=${target.material_code || target.id}`);
         }
         const recQty = Number(target.receipt_qty || 0);
         const recPrice = Number(target.receipt_price || 0);
@@ -369,7 +378,7 @@ class ThreeWayMatchService {
          FROM ap_match_headers WHERE id = ? FOR UPDATE`,
         [matchId]
       );
-      if (!rows.length) throw new Error('匹配单不存在');
+      if (!rows.length) throw new BusinessError('匹配单不存在', null, 'NOT_FOUND', 404);
       if (rows[0].status === 'cancelled') {
         await connection.commit();
         return this.getById(matchId);
@@ -402,9 +411,9 @@ class ThreeWayMatchService {
          FROM ap_match_headers WHERE id = ? FOR UPDATE`,
         [matchId]
       );
-      if (!rows.length) throw new Error('匹配单不存在');
+      if (!rows.length) throw new BusinessError('匹配单不存在', null, 'NOT_FOUND', 404);
       const row = rows[0];
-      if (row.status === 'cancelled') throw new Error('匹配单已取消');
+      if (row.status === 'cancelled') throw new BusinessError('匹配单已取消');
       if (row.status === 'confirmed') {
         await connection.commit();
         return this.getById(matchId);
@@ -412,7 +421,7 @@ class ThreeWayMatchService {
       const overTolerance =
         row.status === 'variance' || row.match_result === 'over_tolerance';
       if (overTolerance && !options.forceVariance) {
-        throw new Error('差异超容差，不能确认匹配；请调整发票数量/单价，或使用强制确认（需权限）');
+        throw new BusinessError('差异超容差，不能确认匹配；请调整发票数量/单价，或使用强制确认（需权限）');
       }
       await connection.execute(
         `UPDATE ap_match_headers

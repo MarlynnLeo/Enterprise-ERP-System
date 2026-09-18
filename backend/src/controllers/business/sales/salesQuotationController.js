@@ -1,4 +1,3 @@
-const businessConfig = require('../../../config/businessConfig');
 /**
  * salesQuotationController.js
  * @description 销售报价控制器
@@ -16,6 +15,9 @@ const { getConnection, formatDateToMySQLDate } = require('./salesShared');
 const { CodeGenerators } = require('../../../utils/codeGenerator');
 const { calculateLines } = require('../../../utils/money');
 const { parsePagination } = require('../../../utils/safePagination');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
+const { SALES_QUOTATION_TRANSITIONS } = require('../../../constants/statusRegistry');
+const { validationError, assertSalesLineQuantities, assertActiveSalesMaterials } = require('../../../utils/sales/salesValidation');
 
 function assertQuotationItemPrices(items = []) {
   const invalidRows = items
@@ -51,8 +53,11 @@ exports.getSalesQuotations = async (req, res) => {
     let whereClause = '';
 
     if (search) {
-      whereClause += ' AND (q.quotation_no LIKE ? OR c.name LIKE ?)';
-      params.push(`%${search}%`, `%${search}%`);
+      whereClause += ` AND (q.quotation_no LIKE ? OR c.name LIKE ? OR EXISTS (
+        SELECT 1 FROM sales_quotation_items qi JOIN materials m ON m.id=qi.product_id
+        WHERE qi.quotation_id=q.id AND (m.code LIKE ? OR m.name LIKE ? OR m.specs LIKE ?)
+      ))`;
+      params.push(...Array(5).fill(`%${search}%`));
     }
 
     if (status) {
@@ -61,7 +66,7 @@ exports.getSalesQuotations = async (req, res) => {
     }
 
     if (startDate && endDate) {
-      whereClause += ' AND q.created_at BETWEEN ? AND ?';
+      whereClause += ' AND q.created_at >= ? AND q.created_at < DATE_ADD(?, INTERVAL 1 DAY)';
       params.push(startDate, endDate);
     }
 
@@ -98,7 +103,7 @@ exports.getSalesQuotations = async (req, res) => {
          LEFT JOIN users u ON q.created_by = u.id
          ${scopeClause.join}
          WHERE q.deleted_at IS NULL ${whereClause}${scopeClause.where}
-         ORDER BY q.created_at DESC
+         ORDER BY q.created_at DESC, q.id DESC
          LIMIT ${actualPageSize} OFFSET ${offset}`,
         [...params, ...(scopeClause.params || [])]
       );
@@ -154,40 +159,52 @@ exports.getSalesQuotationStatistics = async (req, res) => {
   try {
     // 获取当前月份
     const now = new Date();
-    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-
-    const firstDay = firstDayOfMonth.toISOString().split('T')[0];
-    const lastDay = lastDayOfMonth.toISOString().split('T')[0];
+    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const firstDay = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    const nextFirstDay = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}-01`;
+    const ScopeGuard = require('../../../authorization/ScopeGuard');
+    const scopeClause = await ScopeGuard.applyListScope(req, 'sales_quotation', {
+      tableAlias: 'q', ownerAlias: 'quotation_stats_owner', accessMode: 'read',
+    });
 
     // 查询当月报价单数量和金额
     const [monthlyData] = await conn.query(
-      `SELECT COUNT(*) as count, SUM(total_amount) as amount
-       FROM sales_quotations
-       WHERE deleted_at IS NULL
-         AND created_at BETWEEN ? AND ?`,
-      [firstDay, lastDay]
+      `SELECT COUNT(*) as count, SUM(q.total_amount) as amount
+       FROM sales_quotations q ${scopeClause.join}
+       WHERE q.deleted_at IS NULL
+         AND q.created_at >= ? AND q.created_at < ? ${scopeClause.where}`,
+      [firstDay, nextFirstDay, ...scopeClause.params]
     );
 
     // 查询转化为订单的报价单数量
     const [convertedData] = await conn.query(
       `SELECT COUNT(*) as count
-       FROM sales_quotations
-       WHERE status = '已转订单'
-         AND deleted_at IS NULL
-         AND created_at BETWEEN ? AND ?`,
-      [firstDay, lastDay]
+       FROM sales_quotations q ${scopeClause.join}
+       WHERE q.status = 'converted'
+         AND q.deleted_at IS NULL
+         AND q.created_at >= ? AND q.created_at < ? ${scopeClause.where}`,
+      [firstDay, nextFirstDay, ...scopeClause.params]
     );
 
     // 计算转化率
     const monthlyCount = monthlyData[0].count || 0;
     const convertedCount = convertedData[0].count || 0;
     const conversionRate = monthlyCount > 0 ? convertedCount / monthlyCount : 0;
+    const [statusCounts] = await conn.query(
+      `SELECT q.status, COUNT(*) AS count FROM sales_quotations q ${scopeClause.join}
+       WHERE q.deleted_at IS NULL ${scopeClause.where} GROUP BY q.status`, scopeClause.params
+    );
+    const counts = Object.fromEntries(statusCounts.map(row => [row.status, Number(row.count)]));
 
     return ResponseHandler.success(res, {
       monthly_count: monthlyCount,
       monthly_amount: monthlyData[0].amount || 0,
       conversion_rate: conversionRate,
+      statusStats: {
+        total: statusCounts.reduce((sum, row) => sum + Number(row.count), 0),
+        pending: counts.draft || 0, confirmed: counts.accepted || 0,
+        converted: counts.converted || 0, expired: counts.expired || 0,
+      },
     });
   } catch (error) {
     logger.error('Error getting quotation statistics:', error);
@@ -263,8 +280,12 @@ exports.createSalesQuotation = async (req, res) => {
     // 开始事务
     await conn.beginTransaction();
 
-    const { quotation, items } = req.body;
+    const { quotation = {}, items } = mapKeysToSnake(req.body || {});
     const quotationItems = Array.isArray(items) ? items : [];
+    assertSalesLineQuantities(quotationItems);
+    await assertActiveSalesMaterials(conn, quotationItems);
+    if (!quotation.customer_id) throw validationError('请选择客户');
+    if (quotation.status && !['draft', 'sent', 'accepted', '待确认'].includes(quotation.status)) throw validationError('新报价单状态无效');
     assertQuotationItemPrices(quotationItems);
     const quotationAmounts = calculateLines(quotationItems, {
       defaultTaxRate: quotation?.tax_rate ?? quotation?.taxRate ?? 0,
@@ -373,15 +394,17 @@ exports.updateSalesQuotation = async (req, res) => {
     await conn.beginTransaction();
 
     const { id } = req.params;
-    const { quotation, items } = req.body;
+    const { quotation = {}, items } = mapKeysToSnake(req.body || {});
     const quotationItems = Array.isArray(items) ? items : [];
+    assertSalesLineQuantities(quotationItems);
+    await assertActiveSalesMaterials(conn, quotationItems);
     assertQuotationItemPrices(quotationItems);
     const quotationAmounts = calculateLines(quotationItems, {
       defaultTaxRate: quotation?.tax_rate ?? quotation?.taxRate ?? 0,
     });
 
     const [existingRows] = await conn.query(
-      'SELECT id FROM sales_quotations WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      'SELECT id, status FROM sales_quotations WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
       [id]
     );
 
@@ -389,6 +412,14 @@ exports.updateSalesQuotation = async (req, res) => {
       await conn.rollback();
       return ResponseHandler.error(res, 'Quotation not found', 'NOT_FOUND', 404);
     }
+
+    const currentStatus = existingRows[0].status;
+    const nextStatus = quotation.status === '待确认' ? 'draft' : (quotation.status || currentStatus);
+    if (['converted','rejected','expired','cancelled'].includes(currentStatus)) throw validationError('已转换或已关闭的报价单不能修改');
+    if (nextStatus === 'converted' || (nextStatus !== currentStatus && !SALES_QUOTATION_TRANSITIONS[currentStatus]?.includes(nextStatus))) {
+      throw validationError('报价状态转换无效，转订单请使用专用转换操作');
+    }
+    quotation.status = nextStatus;
 
     // 更新报价单主表
     await conn.query(
@@ -570,6 +601,12 @@ exports.convertQuotationToOrder = async (req, res) => {
 
     const quotation = quotationRows[0];
 
+    const [[existingOrder]] = await conn.query('SELECT id, order_no FROM sales_orders WHERE quotation_id = ? ORDER BY id LIMIT 1 FOR UPDATE', [id]);
+    if (existingOrder) {
+      await conn.commit();
+      return ResponseHandler.success(res, { quotationId: Number(id), orderId: existingOrder.id, orderNo: existingOrder.order_no }, '该报价单已转换为订单');
+    }
+
     // 只允许转换"已确认"状态的报价单
     if (quotation.status !== 'accepted') {
       await conn.rollback();
@@ -589,6 +626,9 @@ exports.convertQuotationToOrder = async (req, res) => {
       await conn.rollback();
       return ResponseHandler.error(res, '报价单没有明细项目，无法转换为订单', 'VALIDATION_ERROR', 400);
     }
+
+    assertSalesLineQuantities(itemRows);
+    await assertActiveSalesMaterials(conn, itemRows);
 
     // ✅ 使用统一编码规则引擎生成销售订单号
     const orderAmounts = calculateLines(itemRows.map((item) => ({
@@ -610,7 +650,7 @@ exports.convertQuotationToOrder = async (req, res) => {
       subtotal: orderAmounts.subtotal,
       tax_amount: orderAmounts.taxAmount,
       tax_rate: orderAmounts.taxRate,
-      status: businessConfig.status.approval.PENDING,
+      status: 'draft',
       remarks: `由报价单 ${quotation.quotation_no} 转换生成`,
       created_by: getAuthenticatedUserId(req),
     };
@@ -653,11 +693,21 @@ exports.convertQuotationToOrder = async (req, res) => {
     // ✅ 安全修复：添加前置状态条件，防止 TOCTOU 竞态导致已关闭的报价单被重复转订单
     await conn.query(
       'UPDATE sales_quotations SET status = ? WHERE id = ? AND status = ? AND deleted_at IS NULL',
-      ['sent', id, 'accepted']
+      ['converted', id, 'accepted']
     );
 
     // 提交事务
     await conn.commit();
+
+    // 与手工销售订单使用同一备货、预留和后续计划流程。
+    try {
+      const { autoGenerateFollowUpDocuments } = require('./salesExchangeController');
+      const SalesDao = require('../../../database/salesDao');
+      const nextStatus = await autoGenerateFollowUpDocuments(orderId, orderAmounts.items, { ...req.user, id: getAuthenticatedUserId(req) });
+      if (nextStatus) await SalesDao.updateSalesOrderStatus(orderId, nextStatus);
+    } catch (error) {
+      logger.error('报价转换后的订单备货失败，订单保留草稿供重试:', error);
+    }
 
     return ResponseHandler.success(res, {
       message: 'Quotation converted to order successfully',
@@ -668,7 +718,7 @@ exports.convertQuotationToOrder = async (req, res) => {
   } catch (error) {
     await conn.rollback();
     logger.error('Error converting quotation to order:', error);
-    ResponseHandler.error(res, 'Error converting quotation to order', 'SERVER_ERROR', 500, error);
+    ResponseHandler.error(res, error.message || '报价单转换失败', error.code || 'SERVER_ERROR', error.statusCode || 500, error);
   } finally {
     conn.release();
   }

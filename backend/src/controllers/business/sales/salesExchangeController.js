@@ -13,10 +13,100 @@ const InventoryReservationService = require('../../../services/InventoryReservat
 const { getCurrentUserName } = require('../../../utils/userHelper');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const { generateProductionAndPurchasePlans } = require('./salesPackingController');
-const DLQService = require('../../../services/business/DLQService');
 const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 const { SALES_EXCHANGE_TRANSITIONS } = require('../../../constants/statusRegistry');
-const { getRequestActorLabel } = require('../../../utils/userUtils');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
+const { lockSalesOrders } = require('../../../utils/sales/salesOrderLocks');
+const { calculateLines, normalizeTaxRate, sumMoney, roundMoney } = require('../../../utils/money');
+const { normalizeStatus } = require('../../../constants/statusRegistry');
+const SalesReturnEligibilityService = require('../../../services/business/SalesReturnEligibilityService');
+const SalesOutboundValuationService = require('../../../services/business/SalesOutboundValuationService');
+const { validationError } = SalesReturnEligibilityService;
+const { normalizeSalesDate } = require('../../../utils/sales/salesValidation');
+
+async function prepareExchange(connection, body, exchangeId = null) {
+  const [[order]] = await connection.query(
+    'SELECT o.id, o.order_no, o.customer_id, c.name AS customer_name, COALESCE(c.contact_phone, c.phone) AS contact_phone FROM sales_orders o JOIN customers c ON c.id = o.customer_id AND c.deleted_at IS NULL WHERE o.order_no = ? AND o.deleted_at IS NULL FOR UPDATE',
+    [body.order_no || '']
+  );
+  if (!order) throw validationError('请选择有效的原销售订单');
+  const outboundId = body.outbound_id == null || body.outbound_id === '' ? null : Number(body.outbound_id);
+  if (outboundId !== null && (!Number.isSafeInteger(outboundId) || outboundId <= 0)) {
+    throw validationError('请选择有效的原销售出库单');
+  }
+  const shippedValues = await SalesOutboundValuationService.getShippedMaterialValues(connection, { orderId: order.id, outboundId });
+  let rawItems;
+  if (body.return_items !== undefined || body.new_items !== undefined) {
+    if (!Array.isArray(body.return_items) || !body.return_items.length || !Array.isArray(body.new_items) || !body.new_items.length) {
+      throw validationError('必须分别填写退回商品和换出商品');
+    }
+    rawItems = [
+      ...body.return_items.map(item => ({ ...item, item_type: 'return', quantity: item.return_quantity ?? item.quantity })),
+      ...body.new_items.map(item => ({ ...item, item_type: 'new', quantity: item.new_quantity ?? item.quantity })),
+    ];
+  } else {
+    rawItems = body.items;
+  }
+  if (!Array.isArray(rawItems) || !rawItems.some(i => i.item_type === 'return') || !rawItems.some(i => i.item_type === 'new')) {
+    throw validationError('换货单必须包含退回商品和换出商品');
+  }
+  const items = [];
+  for (const input of rawItems) {
+    const quantity = Number(input.quantity ?? input.exchange_quantity);
+    if (!['return', 'new'].includes(input.item_type) || !Number.isSafeInteger(quantity) || quantity <= 0) {
+      throw validationError('换货明细类型必须有效，数量必须为正整数');
+    }
+    const [[material]] = await connection.query(
+      'SELECT m.id, m.code, m.name, m.specs, m.price, m.tax_rate, u.name AS unit_name FROM materials m LEFT JOIN units u ON u.id=m.unit_id WHERE m.code=? AND m.deleted_at IS NULL',
+      [input.product_code || '']
+    );
+    if (!material) throw validationError(`商品 ${input.product_code || ''} 不存在或已删除`);
+    const [[sold]] = await connection.query(
+      'SELECT COALESCE(SUM(quantity),0) AS quantity, COALESCE(SUM(quantity * unit_price) / NULLIF(SUM(quantity),0),0) AS unit_price FROM sales_order_items WHERE order_id=? AND material_id=?',
+      [order.id, material.id]
+    );
+    const shipped = shippedValues.get(Number(material.id));
+    if (input.item_type === 'return' && !shipped) throw validationError(`商品 ${material.code} 在所选来源中没有已完成的销售出库`);
+    const price = input.item_type === 'return' ? Number(shipped.unit_price) : Number(input.unit_price ?? material.price ?? 0);
+    if (!Number.isFinite(price) || price < 0) throw validationError('换货单价必须为有效的非负金额');
+    const unitPrice = Math.round(price * 10000) / 10000;
+    const rawTaxRate = Number(input.item_type === 'return' ? shipped.tax_percent : (input.tax_percent ?? input.tax_rate ?? material.tax_rate ?? 0));
+    if (!Number.isFinite(rawTaxRate) || rawTaxRate < 0 || rawTaxRate > 100) throw validationError('换货税率必须在0%至100%之间');
+    items.push({
+      product_id: material.id, product_code: material.code, product_name: material.name,
+      specification: material.specs || '', unit_name: material.unit_name || '',
+      item_type: input.item_type, quantity, original_quantity: input.item_type === 'return' ? Number(sold.quantity) : 0,
+      unit_price: unitPrice, tax_percent: normalizeTaxRate(rawTaxRate),
+      reason: input.reason ?? input.return_reason ?? input.new_reason ?? input.exchange_reason ?? '',
+    });
+  }
+  await SalesReturnEligibilityService.assertReturnable(connection, {
+    orderId: order.id, outboundId, items: items.filter(item => item.item_type === 'return'), excludeExchangeId: exchangeId,
+  });
+  return { order, outboundId, items: calculateLines(items).items };
+}
+
+async function saveExchangeItems(connection, id, items, existingItems = null) {
+  if (existingItems) {
+    // Preserve line IDs used by inventory idempotency when normalizing old drafts.
+    for (let index = 0; index < items.length; index++) {
+      const item = items[index];
+      await connection.query('UPDATE sales_exchange_items SET unit_price=?,amount=?,tax_percent=?,tax_amount=? WHERE id=? AND exchange_id=?',
+        [item.unit_price,item.amount,item.tax_percent,item.tax_amount,existingItems[index].id,id]);
+    }
+  } else {
+    await connection.query(
+      'INSERT INTO sales_exchange_items (exchange_id,item_type,product_code,product_name,specification,original_quantity,quantity,unit_price,amount,tax_percent,tax_amount,reason,unit_name) VALUES ?',
+      [items.map(item => [id,item.item_type,item.product_code,item.product_name,item.specification,item.original_quantity,item.quantity,item.unit_price,item.amount,item.tax_percent,item.tax_amount,item.reason,item.unit_name])]
+    );
+  }
+  const returnAmount = sumMoney(items.filter(i => i.item_type === 'return').map(i => i.total_amount));
+  const newAmount = sumMoney(items.filter(i => i.item_type === 'new').map(i => i.total_amount));
+  await connection.query('UPDATE sales_exchanges SET return_amount=?, new_amount=?, difference_amount=? WHERE id=?',
+    [returnAmount, newAmount, roundMoney(newAmount-returnAmount), id]);
+}
+
+
 const {
   salesExchangeMap,
   salesExchangeItemMap,
@@ -93,13 +183,14 @@ exports.getSalesExchanges = async (req, res) => {
 
       // 统计不同状态的数量
       const statusQuery = `
-        SELECT status, COUNT(*) as count
-        FROM sales_exchanges
-        WHERE deleted_at IS NULL
-        GROUP BY status
+        SELECT se.status, COUNT(*) as count
+        FROM sales_exchanges se
+        ${scopeClause.join}
+        WHERE se.deleted_at IS NULL ${scopeClause.where || ''}
+        GROUP BY se.status
         `;
 
-      const [statusCounts] = await connection.query(statusQuery);
+      const [statusCounts] = await connection.query(statusQuery, scopeClause.params || []);
 
       // 格式化状态统计数据
       const statusStats = {
@@ -107,6 +198,7 @@ exports.getSalesExchanges = async (req, res) => {
         pending: 0,
         processing: 0,
         completed: 0,
+        rejected: 0,
         cancelled: 0,
       };
 
@@ -115,6 +207,7 @@ exports.getSalesExchanges = async (req, res) => {
         if (item.status === 'pending') statusStats.pending = count;
         if (item.status === 'processing') statusStats.processing = count;
         if (item.status === 'completed') statusStats.completed = count;
+        if (item.status === 'rejected') statusStats.rejected = count;
         if (item.status === 'cancelled') statusStats.cancelled = count;
       });
 
@@ -181,6 +274,15 @@ exports.getSalesExchangeById = async (req, res) => {
           `;
 
       const [detailsResults] = await connection.query(detailsQuery, [id]);
+      const availability = await SalesReturnEligibilityService.getAvailability(connection, {
+        orderId: exchange.order_id,
+        outboundId: exchange.outbound_id,
+        productIds: detailsResults.filter(item => item.item_type === 'return').map(item => item.material_id),
+        excludeExchangeId: Number(id),
+      });
+      for (const item of detailsResults) {
+        if (item.item_type === 'return') item.returnable_quantity = availability.get(Number(item.material_id))?.availableQuantity ?? 0;
+      }
 
       // 分离退回/换出明细，经 FieldMap 出 camel
       const returnItems = detailsResults
@@ -223,470 +325,95 @@ exports.getSalesExchangeById = async (req, res) => {
 exports.createSalesExchange = async (req, res) => {
   let connection;
   try {
-    const {
-      orderNo,
-      customerName,
-      contactPhone,
-      exchangeDate,
-      reason,
-      remark,
-      returnItems,
-      newItems,
-      items, // 支持新旧两种数据格式
-    } = req.body;
-
-    // 验证必要参数
-    if (!orderNo || !exchangeDate || !reason) {
-      return ResponseHandler.error(res, '缺少必要参数：订单号、换货日期、换货原因', 'VALIDATION_ERROR', 400);
-    }
-
-    // 支持新的数据结构（returnItems + newItems）或旧的数据结构（items）
-    const hasNewFormat = returnItems && newItems;
-    const hasOldFormat = items && Array.isArray(items) && items.length > 0;
-
-    if (!hasNewFormat && !hasOldFormat) {
-      return ResponseHandler.error(res, '至少需要退回商品和换出商品，或者换货项目', 'VALIDATION_ERROR', 400);
-    }
-
-    if (hasNewFormat) {
-      if (!Array.isArray(returnItems) || returnItems.length === 0) {
-        return ResponseHandler.error(res, '至少需要一个退回商品', 'VALIDATION_ERROR', 400);
-      }
-      if (!Array.isArray(newItems) || newItems.length === 0) {
-        return ResponseHandler.error(res, '至少需要一个换出商品', 'VALIDATION_ERROR', 400);
-      }
-    }
-
-    // 获取数据库连接并开启事务
+    const body = mapKeysToSnake(req.body || {});
+    const reason = body.reason ?? body.exchange_reason;
+    if (!reason) throw validationError('请填写换货原因');
+    body.exchange_date = normalizeSalesDate(body.exchange_date, '换货日期');
+    if (body.status && normalizeStatus('salesExchange', body.status) !== 'pending') throw validationError('新换货单只能为待处理状态');
     connection = await db.pool.getConnection();
     await connection.beginTransaction();
-
-    // 使用编码引擎生成换货单号
+    const { order, outboundId, items } = await prepareExchange(connection, body);
     const CodeGeneratorService = require('../../../services/business/CodeGeneratorService');
     const exchangeNo = await CodeGeneratorService.nextCode('sales_exchange', connection);
-
-    // 插入换货单主表（金额字段后续计算回填）
-    const insertQuery = `
-      INSERT INTO sales_exchanges(
-            exchange_no, order_no, customer_name, contact_phone, exchange_date,
-            exchange_reason, status, remarks, created_by, created_at,
-            return_amount, new_amount, difference_amount
-          ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), 0, 0, 0)
-            `;
-
-    const created_by = getAuthenticatedUserId(req);
-
-    // 格式化日期为MySQL DATE格式 (YYYY-MM-DD)
-    const formattedDate = new Date(exchangeDate).toISOString().split('T')[0];
-
-
-    const [result] = await connection.query(insertQuery, [
-      exchangeNo,
-      orderNo,
-      customerName,
-      contactPhone,
-      formattedDate,
-      reason,
-      '待处理',
-      remark,
-      created_by,
-    ]);
-
-    const exchangeId = result.insertId;
-
-    // 插入明细表 - 支持新旧两种数据格式
-    // 预加载物料价格映射（用于金额计算）
-    const materialPriceMap = {};
-    try {
-      const allCodes = [];
-      if (hasNewFormat) {
-        (returnItems || []).forEach(i => { if (i.productCode) allCodes.push(i.productCode); });
-        (newItems || []).forEach(i => { if (i.productCode) allCodes.push(i.productCode); });
-      } else if (hasOldFormat) {
-        items.forEach(i => { if (i.productCode) allCodes.push(i.productCode); });
-      }
-      if (allCodes.length > 0) {
-        const [mats] = await connection.query(
-          'SELECT code, price FROM materials WHERE code IN (?)', [allCodes]
-        );
-        mats.forEach(m => { materialPriceMap[m.code] = parseFloat(m.price) || 0; });
-      }
-    } catch (e) { logger.warn('预加载物料价格失败:', e.message); }
-
-    // 尝试从关联订单获取成交价（退回商品优先使用订单价格）
-    const orderPriceMap = {};
-    if (orderNo) {
-      try {
-        const [orderItems] = await connection.query(
-          `SELECT m.code, soi.unit_price
-           FROM sales_order_items soi
-           JOIN materials m ON soi.material_id = m.id
-           JOIN sales_orders so ON soi.order_id = so.id
-           WHERE so.order_no = ? AND so.deleted_at IS NULL`, [orderNo]
-        );
-        orderItems.forEach(oi => { orderPriceMap[oi.code] = parseFloat(oi.unit_price) || 0; });
-      } catch (e) { logger.warn('获取订单价格失败:', e.message); }
-    }
-
-    if (hasNewFormat) {
-      // 新格式：分别处理退回商品和换出商品
-      const detailQuery = `
-        INSERT INTO sales_exchange_items(
-              exchange_id, item_type, product_code, product_name, specification,
-              original_quantity, quantity, unit_price, amount, reason, unit_name
-            ) VALUES ?
-              `;
-
-      const allDetailValues = [];
-
-      // 插入退回商品（单价优先用订单成交价，其次物料基础价）
-      if (returnItems && returnItems.length > 0) {
-        const returnValues = returnItems.map((item) => {
-          const unitPrice = orderPriceMap[item.productCode] || materialPriceMap[item.productCode] || 0;
-          const qty = parseFloat(item.returnQuantity) || 0;
-          return [
-            exchangeId, 'return', item.productCode, item.productName,
-            item.specification || '', item.originalQuantity || 0, qty,
-            unitPrice, Math.round(qty * unitPrice * 100) / 100,
-            item.returnReason || '', item.unitName || '',
-          ];
-        });
-        allDetailValues.push(...returnValues);
-      }
-
-      // 插入换出商品（单价用物料基础售价）
-      if (newItems && newItems.length > 0) {
-        const newValues = newItems.map((item) => {
-          const unitPrice = materialPriceMap[item.productCode] || 0;
-          const qty = parseFloat(item.newQuantity) || 0;
-          return [
-            exchangeId, 'new', item.productCode, item.productName,
-            item.specification || '', 0, qty,
-            unitPrice, Math.round(qty * unitPrice * 100) / 100,
-            item.newReason || '', item.unitName || '',
-          ];
-        });
-        allDetailValues.push(...newValues);
-      }
-
-      if (allDetailValues.length > 0) {
-        await connection.query(detailQuery, [allDetailValues]);
-      }
-    } else if (hasOldFormat) {
-      // 旧格式：兼容原有的数据结构
-      const detailQuery = `
-        INSERT INTO sales_exchange_items(
-                exchange_id, item_type, product_code, product_name, specification,
-                original_quantity, quantity, unit_price, amount, reason, unit_name
-              ) VALUES ?
-                `;
-
-      const detailValues = items.map((item) => {
-        const unitPrice = orderPriceMap[item.productCode] || materialPriceMap[item.productCode] || 0;
-        const qty = parseFloat(item.exchangeQuantity) || 0;
-        return [
-          exchangeId,
-          'return', // 旧格式默认作为退回商品处理
-          item.productCode,
-          item.productName,
-          item.specification || '',
-          item.originalQuantity || 0,
-          qty,
-          unitPrice,
-          Math.round(qty * unitPrice * 100) / 100,
-          item.exchangeReason || '',
-          item.unitName || '',
-        ];
-      });
-
-      await connection.query(detailQuery, [detailValues]);
-    }
-
-    // 汇总明细金额并回填主表
-    const [retSum] = await connection.query(
-      'SELECT COALESCE(SUM(amount), 0) as s FROM sales_exchange_items WHERE exchange_id = ? AND item_type = ?',
-      [exchangeId, 'return']
+    const [result] = await connection.query(
+      'INSERT INTO sales_exchanges (exchange_no,order_id,order_no,outbound_id,customer_id,customer_name,contact_phone,exchange_date,exchange_reason,status,remarks,created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+      [exchangeNo,order.id,order.order_no,outboundId,order.customer_id,order.customer_name,body.contact_phone ?? order.contact_phone,
+        body.exchange_date,reason,'pending',body.remark ?? body.remarks ?? '',getAuthenticatedUserId(req)]
     );
-    const [newSum] = await connection.query(
-      'SELECT COALESCE(SUM(amount), 0) as s FROM sales_exchange_items WHERE exchange_id = ? AND item_type = ?',
-      [exchangeId, 'new']
-    );
-    const returnAmt = parseFloat(retSum[0].s);
-    const newAmt = parseFloat(newSum[0].s);
-    const diffAmt = Math.round((newAmt - returnAmt) * 100) / 100;
-    await connection.query(
-      'UPDATE sales_exchanges SET return_amount = ?, new_amount = ?, difference_amount = ? WHERE id = ?',
-      [returnAmt, newAmt, diffAmt, exchangeId]
-    );
-    logger.info(
-      `Sales exchange ${exchangeNo} amount calculated: return=${returnAmt}, replacement=${newAmt}, difference=${diffAmt}`
-    );
-
-    // 如果创建时状态就是"已完成"，立即处理库存操作
-    if (reason === '已完成' && (hasNewFormat || hasOldFormat)) {
-      await processExchangeInventory(connection, exchangeId, getRequestActorLabel(req));
-    }
-
+    await saveExchangeItems(connection, result.insertId, items);
     await connection.commit();
-
-    ResponseHandler.success(
-      res,
-      {
-        message: '销售换货单创建成功',
-        id: exchangeId,
-        exchange_no: exchangeNo,
-      },
-      '创建成功',
-      201
-    );
+    return ResponseHandler.success(res, { id: result.insertId, exchangeNo, status: 'pending' }, '创建成功', 201);
   } catch (error) {
-    if (connection) {
-      await connection.rollback();
-    }
+    if (connection) await connection.rollback();
     logger.error('创建销售换货单失败:', error);
-    ResponseHandler.error(res, '创建销售换货单失败', 'SERVER_ERROR', 500);
+    return ResponseHandler.error(res, error.message, error.code || 'SERVER_ERROR', error.statusCode || 500);
   } finally {
-    if (connection) {
-      connection.release();
-    }
+    if (connection) connection.release();
   }
 };
 
-
 exports.updateSalesExchange = async (req, res) => {
-  {
-    const { id } = req.params;
-    if (id !== null && id !== undefined && id !== '') {
-      const ScopeGuard = require('../../../authorization/ScopeGuard');
-      if (!(await ScopeGuard.assertAccess(db.pool, req, 'sales_exchange', id))) {
-        return ResponseHandler.forbidden(res, '无权修改该销售换货单');
-      }
-    }
-  }
-
   let connection;
   try {
     const { id } = req.params;
-
-    logger.debug('Sales exchange update payload', req.body);
-
-    const { orderNo, customerName, contactPhone, exchangeDate, reason, remark, items, status } =
-      req.body;
-
-    logger.debug('Sales exchange update fields parsed', {
-      orderNo,
-      customerName,
-      contactPhone,
-      exchangeDate,
-      reason,
-      remark,
-      status,
-      itemsCount: items ? items.length : 0,
-    });
-
+    const body = mapKeysToSnake(req.body || {});
+    const statusOnly = Object.keys(body).length === 1 && body.status !== undefined;
     connection = await db.pool.getConnection();
+    const ScopeGuard = require('../../../authorization/ScopeGuard');
+    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'sales_exchange', id, '无权修改该销售换货单'))) return;
     await connection.beginTransaction();
-
-    // 获取当前换货单状态（在更新之前）
-    const [currentExchange] = await connection.query(
-      'SELECT status FROM sales_exchanges WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
-      [id]
+    const [sources] = await connection.query(
+      'SELECT o.id FROM sales_orders o LEFT JOIN sales_exchanges e ON e.id=? WHERE o.id=e.order_id OR o.order_no COLLATE utf8mb4_unicode_ci=e.order_no COLLATE utf8mb4_unicode_ci OR o.order_no=?', [id, body.order_no || '']
     );
-
-    if (currentExchange.length === 0) {
+    const lockedOrderIds = await lockSalesOrders(connection, sources.map(order => order.id));
+    const [[current]] = await connection.query('SELECT * FROM sales_exchanges WHERE id=? AND deleted_at IS NULL FOR UPDATE', [id]);
+    if (!current) {
       await connection.rollback();
-      return ResponseHandler.notFound(res, 'Exchange order not found');
+      return ResponseHandler.notFound(res, '换货单不存在');
     }
-
-    const currentStatus = currentExchange[0]?.status;
-
-    // 更新主表
-    const updateQuery = `
-      UPDATE sales_exchanges SET
-      order_no = ?,
-        customer_name = ?,
-        contact_phone = ?,
-        exchange_date = ?,
-        exchange_reason = ?,
-        status = ?,
-        remarks = ?,
-        updated_at = NOW()
-      WHERE id = ? AND deleted_at IS NULL
-        `;
-
-    // 格式化日期为MySQL DATE格式 (YYYY-MM-DD)
-    const formattedDate = new Date(exchangeDate).toISOString().split('T')[0];
-
-    await connection.query(updateQuery, [
-      orderNo,
-      customerName,
-      contactPhone,
-      formattedDate,
-      reason,
-      status || currentStatus,
-      remark,
-      id,
-    ]);
-
-    // 删除原有明细
-    await connection.query('DELETE FROM sales_exchange_items WHERE exchange_id = ?', [id]);
-
-    // 插入新明细
-    if (items && items.length > 0) {
-      // 预加载物料价格映射
-      const materialPriceMap = {};
-      const orderPriceMap = {};
-      try {
-        // HTTP 明细只认 camel
-        const allCodes = items.map((i) => i.productCode).filter(Boolean);
-        if (allCodes.length > 0) {
-          const [mats] = await connection.query('SELECT code, price FROM materials WHERE code IN (?)', [allCodes]);
-          mats.forEach(m => { materialPriceMap[m.code] = parseFloat(m.price) || 0; });
-        }
-        if (orderNo) {
-          const [ois] = await connection.query(
-            `SELECT m.code, soi.unit_price FROM sales_order_items soi
-             JOIN materials m ON soi.material_id = m.id
-             JOIN sales_orders so ON soi.order_id = so.id
-             WHERE so.order_no = ? AND so.deleted_at IS NULL`, [orderNo]
-          );
-          ois.forEach(oi => { orderPriceMap[oi.code] = parseFloat(oi.unit_price) || 0; });
-        }
-      } catch (e) { logger.warn('预加载价格映射失败:', e.message); }
-
-      const detailQuery = `
-        INSERT INTO sales_exchange_items(
-          exchange_id, item_type, product_code, product_name, specification,
-          original_quantity, quantity, unit_price, amount, reason, unit_name
-        ) VALUES ?
-          `;
-
-      // 先计算退回商品的总数量，用于设置换出商品的默认数量
-      const returnItemsFiltered = items.filter((item) => parseFloat(item.originalQuantity || 0) > 0);
-      const totalReturnQuantity = returnItemsFiltered.reduce(
-        (sum, item) => sum + parseFloat(item.originalQuantity || 0),
-        0
+    const previousStatus = normalizeStatus('salesExchange', current.status);
+    const status = body.status ? normalizeStatus('salesExchange', body.status) : previousStatus;
+    if (!Object.hasOwn(SALES_EXCHANGE_TRANSITIONS, status)) throw validationError('无效的换货状态');
+    if (statusOnly && status === previousStatus) {
+      await connection.commit();
+      return ResponseHandler.success(res, { id: Number(id), status }, '换货单状态未变化');
+    }
+    if (['completed','rejected'].includes(previousStatus)) throw validationError('已完成或拒绝的换货单不可修改');
+    if (status !== previousStatus && !SALES_EXCHANGE_TRANSITIONS[previousStatus]?.includes(status)) {
+      throw validationError(`换货状态不允许从 ${previousStatus} 变为 ${status}`);
+    }
+    const [saved] = await connection.query('SELECT * FROM sales_exchange_items WHERE exchange_id=? ORDER BY id', [id]);
+    const hasItems = body.items !== undefined || body.return_items !== undefined || body.new_items !== undefined;
+    const merged = { ...current, ...body, items: hasItems ? body.items : saved };
+    const reason = body.reason ?? body.exchange_reason ?? current.exchange_reason;
+    if (!reason) throw validationError('换货原因不能为空');
+    merged.exchange_date = normalizeSalesDate(merged.exchange_date, '换货日期');
+    if (status !== 'rejected') {
+      const { order, outboundId, items } = await prepareExchange(connection, merged, id);
+      if (!lockedOrderIds.has(Number(order.id))) throw validationError('换货来源已变更，请刷新单据后重试');
+      await connection.query(
+        'UPDATE sales_exchanges SET order_id=?,order_no=?,outbound_id=?,customer_id=?,customer_name=?,contact_phone=?,exchange_date=?,exchange_reason=?,remarks=?,status=?,updated_at=NOW() WHERE id=?',
+        [order.id,order.order_no,outboundId,order.customer_id,order.customer_name,merged.contact_phone,merged.exchange_date,reason,
+          body.remark ?? body.remarks ?? current.remarks,status,id]
       );
-
-      const detailValues = items.map((item) => {
-        // HTTP 明细只认 camel
-        const productCode = item.productCode || '';
-        const productName = item.productName || '';
-        const specification = item.specification || '';
-        const originalQuantity = parseFloat(item.originalQuantity || 0);
-        // 对于换货，处理数量逻辑
-        let quantity = parseFloat(item.quantity || item.exchangeQuantity || 0);
-
-        if (quantity === 0) {
-          if (originalQuantity > 0) {
-            quantity = originalQuantity;
-          } else {
-            quantity = totalReturnQuantity;
-          }
-        }
-        const reason = item.reason || item.exchangeReason || '';
-        const unitName = item.unitName || '';
-
-        const itemType = item.itemType || (originalQuantity > 0 ? 'return' : 'new');
-
-        // 计算单价和金额
-        const unitPrice = (itemType === 'return')
-          ? (orderPriceMap[productCode] || materialPriceMap[productCode] || 0)
-          : (materialPriceMap[productCode] || 0);
-        const amount = Math.round(quantity * unitPrice * 100) / 100;
-
-        return [
-          id, itemType, productCode, productName, specification,
-          originalQuantity, quantity, unitPrice, amount, reason, unitName,
-        ];
-      });
-
-      await connection.query(detailQuery, [detailValues]);
-    }
-
-    // 汇总明细金额并回填主表
-    const [retSum] = await connection.query(
-      'SELECT COALESCE(SUM(amount), 0) as s FROM sales_exchange_items WHERE exchange_id = ? AND item_type = ?',
-      [id, 'return']
-    );
-    const [newSum] = await connection.query(
-      'SELECT COALESCE(SUM(amount), 0) as s FROM sales_exchange_items WHERE exchange_id = ? AND item_type = ?',
-      [id, 'new']
-    );
-    const returnAmt = parseFloat(retSum[0].s);
-    const newAmt = parseFloat(newSum[0].s);
-    const diffAmt = Math.round((newAmt - returnAmt) * 100) / 100;
-    await connection.query(
-      'UPDATE sales_exchanges SET return_amount = ?, new_amount = ?, difference_amount = ? WHERE id = ? AND deleted_at IS NULL',
-      [returnAmt, newAmt, diffAmt, id]
-    );
-    logger.info(
-      `Sales exchange amount updated: return=${returnAmt}, replacement=${newAmt}, difference=${diffAmt}`
-    );
-
-    // 如果状态变为"已完成"，处理库存操作
-    logger.debug('Sales exchange inventory processing check', {
-      status: status,
-      currentStatus: currentStatus,
-      condition: status === '已完成' && currentStatus !== '已完成',
-    });
-
-    // 缓存换货单信息，用于 commit 后异步生成差价分录
-    let pendingExchangeForFinance = null;
-
-    if (status === '已完成' && currentStatus !== '已完成') {
-      await processExchangeInventory(connection, id, getRequestActorLabel(req));
-
-      // 获取换货单信息用于生成差价分录
-      const [exchangeInfo] = await connection.query('SELECT id, exchange_no, order_id, order_no, customer_id, customer_name, contact_phone, exchange_date, exchange_reason, status, remarks, created_by, created_at, updated_at, return_amount, new_amount, difference_amount, deleted_at FROM sales_exchanges WHERE id = ? AND deleted_at IS NULL', [
-        id,
-      ]);
-
-      if (exchangeInfo.length > 0) {
-        pendingExchangeForFinance = exchangeInfo[0];
+      if (hasItems) {
+        await connection.query('DELETE FROM sales_exchange_items WHERE exchange_id=?', [id]);
+        await saveExchangeItems(connection, id, items);
+      } else if (Number(current.order_id) !== Number(order.id) || Number(current.outbound_id) !== Number(outboundId) || saved.some(item => item.tax_percent == null)) {
+        await saveExchangeItems(connection, id, items, saved);
       }
     } else {
-      logger.debug('Sales exchange inventory processing skipped', {
-        statusNotCompleted: status !== '已完成',
-        alreadyCompleted: currentStatus === '已完成',
-      });
+      await connection.query('UPDATE sales_exchanges SET status=?,remarks=?,updated_at=NOW() WHERE id=?', [status,body.remarks ?? body.remark ?? current.remarks,id]);
     }
-
+    if (status === 'completed') await processExchangeInventory(connection, id, await getCurrentUserName(req));
     await connection.commit();
-
-    // ✅ 时序修复：在事务 commit 之后再异步生成差价分录，确保读取到已提交的数据
-    if (pendingExchangeForFinance) {
-      setImmediate(async () => {
-        try {
-          const FinanceIntegrationService = require('../../../services/external/FinanceIntegrationService');
-          await FinanceIntegrationService.generateExchangeDifferenceEntry(pendingExchangeForFinance);
-          logger.info(
-            `Sales exchange difference entry generated: exchangeNo=${pendingExchangeForFinance.exchange_no}`
-          );
-        } catch (financeError) {
-          await DLQService.recordSideEffectFailure(
-            'FinanceIntegration:SalesExchangeDifferenceEntry',
-            { exchangeId: pendingExchangeForFinance.id, exchangeNo: pendingExchangeForFinance.exchange_no },
-            financeError
-          );
-        }
-      });
-    }
-
-    return ResponseHandler.success(res, {
-      message: '销售换货单更新成功',
-      id: parseInt(id),
-    });
+    return ResponseHandler.success(res, { id: Number(id), status, previousStatus }, '换货单更新成功');
   } catch (error) {
-    if (connection) {
-      await connection.rollback();
-    }
+    if (connection) await connection.rollback();
     logger.error('更新销售换货单失败:', error);
-    ResponseHandler.error(res, '更新销售换货单失败', 'SERVER_ERROR', 500, error);
+    return ResponseHandler.error(res, error.message, error.code || 'SERVER_ERROR', error.statusCode || 500);
   } finally {
-    if (connection) {
-      connection.release();
-    }
+    if (connection) connection.release();
   }
 };
 
@@ -751,279 +478,33 @@ exports.deleteSalesExchange = async (req, res) => {
 
 // 更新换货单状态（前端 salesApi.updateExchangeStatus 对应接口）
 
-exports.updateExchangeStatus = async (req, res) => {
-  {
-    const { id } = req.params;
-    if (id !== null && id !== undefined && id !== '') {
-      const ScopeGuard = require('../../../authorization/ScopeGuard');
-      if (!(await ScopeGuard.assertAccess(db.pool, req, 'sales_exchange', id))) {
-        return ResponseHandler.forbidden(res, '无权变更该销售换货单状态');
-      }
-    }
-  }
+exports.updateExchangeStatus = (req, res) => exports.updateSalesExchange({ ...req, body: { status: req.body?.status } }, res);
 
-  let connection;
-  try {
-    const { id } = req.params;
-    const { status } = req.body;
-
-    if (!status) {
-      return ResponseHandler.error(res, '缺少必要参数：status', 'VALIDATION_ERROR', 400);
-    }
-
-    // 允许的状态值
-    const allowedStatuses = ['pending', 'processing', 'completed', 'rejected'];
-    if (!allowedStatuses.includes(status)) {
-      return ResponseHandler.error(res, `无效的状态值: ${status}，允许值: ${allowedStatuses.join(', ')}`, 'VALIDATION_ERROR', 400);
-    }
-
-    connection = await db.pool.getConnection();
-    await connection.beginTransaction();
-
-    // 查询当前状态
-    const [currentResult] = await connection.query(
-      'SELECT id, status, exchange_no FROM sales_exchanges WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
-      [id]
-    );
-
-    if (currentResult.length === 0) {
-      await connection.rollback();
-      return ResponseHandler.notFound(res, '换货单不存在');
-    }
-
-    const currentExchange = currentResult[0];
-    const previousStatus = currentExchange.status;
-
-    // 状态流转检查（引用统一状态注册表，防止非法状态变更）
-    const validTransitions = SALES_EXCHANGE_TRANSITIONS;
-
-    const allowed = validTransitions[previousStatus];
-    if (allowed && !allowed.includes(status)) {
-      await connection.rollback();
-      return ResponseHandler.error(res, `状态"${previousStatus}"不允许变更为"${status}"。允许的目标状态: ${allowed.length > 0 ? allowed.join(', ') : '无（终态）'}`, 'VALIDATION_ERROR', 400);
-    }
-
-    // 更新状态
-    await connection.query(
-      'UPDATE sales_exchanges SET status = ?, updated_at = NOW() WHERE id = ? AND deleted_at IS NULL',
-      [status, id]
-    );
-
-    // 缓存换货单信息，用于 commit 后异步生成差价分录
-    let pendingExchangeForFinance = null;
-
-    // 如果状态变为 completed，处理换货库存操作
-    if (status === 'completed' && previousStatus !== 'completed') {
-      const operator = await getCurrentUserName(req);
-      await processExchangeInventory(connection, id, operator);
-      logger.info(`Sales exchange ${currentExchange.exchange_no} completed and inventory processed`);
-
-      // 获取换货单信息用于 commit 后异步生成差价分录
-      const [exchangeInfo] = await connection.query('SELECT id, exchange_no, order_id, order_no, customer_id, customer_name, contact_phone, exchange_date, exchange_reason, status, remarks, created_by, created_at, updated_at, return_amount, new_amount, difference_amount, deleted_at FROM sales_exchanges WHERE id = ? AND deleted_at IS NULL', [id]);
-      if (exchangeInfo.length > 0) {
-        pendingExchangeForFinance = exchangeInfo[0];
-      }
-    }
-
-    await connection.commit();
-
-    // ✅ 时序修复：在事务 commit 之后再异步生成差价分录
-    if (pendingExchangeForFinance) {
-      setImmediate(async () => {
-        try {
-          const FinanceIntegrationService = require('../../../services/external/FinanceIntegrationService');
-          await FinanceIntegrationService.generateExchangeDifferenceEntry(pendingExchangeForFinance);
-          logger.info(
-            `Sales exchange difference entry generated: exchangeNo=${pendingExchangeForFinance.exchange_no}`
-          );
-        } catch (financeError) {
-          await DLQService.recordSideEffectFailure(
-            'FinanceIntegration:SalesExchangeDifferenceEntry',
-            { exchangeId: pendingExchangeForFinance.id, exchangeNo: pendingExchangeForFinance.exchange_no },
-            financeError
-          );
-        }
-      });
-    }
-
-    return ResponseHandler.success(res, {
-      message: '换货单状态更新成功',
-      data: { id: parseInt(id), status, previousStatus },
-    });
-  } catch (error) {
-    if (connection) {
-      await connection.rollback();
-    }
-    logger.error('更新换货单状态失败:', error);
-    ResponseHandler.error(res, '更新换货单状态失败', 'SERVER_ERROR', 500, error);
-  } finally {
-    if (connection) {
-      connection.release();
-    }
-  }
-};
-
-// 辅助函数：将日期格式化为MySQL日期格式 YYYY-MM-DD
-
-
-// 处理换货库存操作
 async function processExchangeInventory(connection, exchangeId, operator) {
-  try {
-    // 获取换货单信息
-    const [exchangeInfo] = await connection.query(
-      'SELECT exchange_no FROM sales_exchanges WHERE id = ? AND deleted_at IS NULL',
-      [exchangeId]
-    );
-
-    if (exchangeInfo.length === 0) {
-      throw new Error(`换货单ID ${exchangeId} 不存在`);
-    }
-
-    const exchangeNo = exchangeInfo[0].exchange_no;
-
-    // 获取换货明细
-    const [exchangeItems] = await connection.query(
-      `
-      SELECT sei.*, m.id as material_id, m.location_id, m.unit_id, m.price
-      FROM sales_exchange_items sei
-      LEFT JOIN materials m ON sei.product_code COLLATE utf8mb4_unicode_ci = m.code COLLATE utf8mb4_unicode_ci
-      WHERE sei.exchange_id = ?
-        ORDER BY sei.item_type, sei.id
-          `,
-      [exchangeId]
-    );
-
-    if (exchangeItems.length === 0) {
-      return;
-    }
-
-    // 分别处理退回商品和换出商品
-    const returnItems = exchangeItems.filter((item) => item.item_type === 'return');
-    const newItems = exchangeItems.filter((item) => item.item_type === 'new');
-
-    // 处理退回商品 - 增加库存
-    for (const item of returnItems) {
-      if (!item.material_id) {
-        continue;
-      }
-
-      const locationId = item.location_id;
-      if (!locationId) {
-        throw new Error(`退回商品 ${item.material_id} 未能获取到归属仓库，操作终止。`);
-      }
-      logger.debug('退回商品数量:', {
-        product_code: item.product_code,
-        quantity: item.quantity,
-        type: typeof item.quantity,
-      });
-      const quantity = parseFloat(item.quantity);
-
-      // 获取当前库存
-      const [stockResult] = await connection.query(
-        `
-        SELECT COALESCE(SUM(
-            CASE
-            WHEN transaction_type IN('inbound', 'transfer_in', 'adjustment_in', 'sales_return') THEN quantity
-            WHEN transaction_type IN('outbound', 'transfer_out', 'adjustment_out', 'sales_outbound') THEN - quantity
-            ELSE 0
-          END
-          ), 0) as current_quantity
-        FROM inventory_ledger
-        WHERE material_id = ? AND location_id = ?
-        `,
-        [item.material_id, locationId]
-      );
-
-      const _beforeQuantity = parseFloat(stockResult[0]?.current_quantity || 0);
-
-
-      // 换货退回入库：强制可追溯批次，禁止空批次键
-      const InventoryService = require('../../../services/InventoryService');
-      await InventoryService.updateStock(
-        {
-          materialId: item.material_id,
-          locationId: locationId,
-          quantity: quantity, // 正数表示入库
-          transactionType: 'sales_exchange_return',
-          referenceNo: exchangeNo,
-          referenceType: 'sales_exchange',
-          operator: operator,
-          remark: `换货退回：${item.product_name} (${item.specification})`,
-          unitId: item.unit_id || null,
-          batchNumber: `EX-${exchangeNo}-${item.material_id}`,
-          idempotencyKey: `sales_exchange_return:${exchangeNo}:${item.material_id}:${locationId}:${item.id}`,
-        },
-        connection
-      );
-      logger.info(`Sales exchange return received: materialId=${item.material_id}, quantity=${quantity}`);
-    }
-
-    // 处理换出商品 - 减少库存
-    for (const item of newItems) {
-      if (!item.material_id) {
-        continue;
-      }
-
-      const locationId = item.location_id;
-      if (!locationId) {
-        throw new Error(`换出商品 ${item.material_id} 无法确定仓库起源，操作终止。`);
-      }
-      logger.debug('换出商品数量:', {
-        product_code: item.product_code,
-        quantity: item.quantity,
-        type: typeof item.quantity,
-      });
-      const quantity = parseFloat(item.quantity);
-
-      // 获取当前库存并检查是否充足
-      const [stockResult] = await connection.query(
-        `
-        SELECT COALESCE(SUM(
-          CASE
-            WHEN transaction_type IN('inbound', 'transfer_in', 'adjustment_in', 'sales_return') THEN quantity
-            WHEN transaction_type IN('outbound', 'transfer_out', 'adjustment_out', 'sales_outbound') THEN - quantity
-            ELSE 0
-          END
-        ), 0) as current_quantity
-        FROM inventory_ledger
-        WHERE material_id = ? AND location_id = ?
-        FOR UPDATE
-      `,
-        [item.material_id, locationId]
-      );
-
-      const _beforeQuantity = parseFloat(stockResult[0]?.current_quantity || 0);
-
-      if (_beforeQuantity < quantity) {
-        throw new Error(
-          `换出商品 ${item.product_code} 库存不足，需要 ${quantity}，当前库存 ${_beforeQuantity} `
-        );
-      }
-
-
-      // 换出不指定批次：由 InventoryService 按 FIFO 自动拆批写台账
-      const InventoryService = require('../../../services/InventoryService');
-      await InventoryService.updateStock(
-        {
-          materialId: item.material_id,
-          locationId: locationId,
-          quantity: -quantity, // 负数表示出库
-          transactionType: 'sales_exchange_out',
-          referenceNo: exchangeNo,
-          referenceType: 'sales_exchange',
-          operator: operator,
-          remark: `换货发出：${item.product_name} (${item.specification})`,
-          unitId: item.unit_id || null,
-          // 省略 batchNumber → FIFO；幂等键用明细主键 id（勿混用 product_code）
-          idempotencyKey: `sales_exchange_out:${exchangeNo}:${item.material_id}:${locationId}:${item.id}`,
-        },
-        connection
-      );
-      logger.info(`Sales exchange replacement issued: materialId=${item.material_id}, quantity=${-quantity}`);
-    }
-  } catch (error) {
-    logger.error('处理换货库存操作失败:', error);
-    throw error;
+  const [[exchange]] = await connection.query('SELECT exchange_no, exchange_date FROM sales_exchanges WHERE id=? AND deleted_at IS NULL', [exchangeId]);
+  if (!exchange) throw validationError('换货单不存在');
+  const [items] = await connection.query(
+    `SELECT i.*, m.id AS material_id, m.location_id, m.unit_id
+       FROM sales_exchange_items i
+       LEFT JOIN materials m ON CONVERT(i.product_code USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(m.code USING utf8mb4) COLLATE utf8mb4_unicode_ci AND m.deleted_at IS NULL
+      WHERE i.exchange_id=? ORDER BY (i.item_type='return') DESC, i.id`, [exchangeId]
+  );
+  if (!items.length) throw validationError('换货明细不能为空');
+  const InventoryService = require('../../../services/InventoryService');
+  for (const item of items) {
+    if (!item.material_id || !item.location_id) throw validationError(`商品 ${item.product_code} 不存在或未配置默认仓库`);
+    const isReturn = item.item_type === 'return';
+    await InventoryService.updateStock({
+      materialId: item.material_id, locationId: item.location_id,
+      quantity: (isReturn ? 1 : -1) * Number(item.quantity),
+      transactionType: isReturn ? 'sales_exchange_return' : 'sales_exchange_out',
+      referenceNo: exchange.exchange_no, referenceType: 'sales_exchange',
+      sourceId: Number(exchangeId), sourceLineKey: `sales_exchange:${exchangeId}:${item.id}`,
+      operator, remark: `${isReturn ? '换货退回' : '换货发出'}：${item.product_name}`, unitId: item.unit_id,
+      transactionDate: exchange.exchange_date,
+      batchNumber: isReturn ? `EX-${exchange.exchange_no}-${item.material_id}` : null,
+      idempotencyKey: `sales_exchange:${exchangeId}:${item.id}`,
+    }, connection);
   }
 }
 

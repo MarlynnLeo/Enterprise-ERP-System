@@ -33,6 +33,7 @@ class SalesOrderStatusService {
         FROM sales_order_items soi
         INNER JOIN materials m ON soi.material_id = m.id
         WHERE soi.order_id = ?
+        FOR UPDATE
       `,
         [orderId]
       );
@@ -48,28 +49,15 @@ class SalesOrderStatusService {
       const [shippedItems] = await client.query(
         `
         SELECT
-          soi.material_id,
+          sobi.product_id AS material_id,
           SUM(sobi.quantity) as shipped_quantity
-        FROM sales_order_items soi
-        INNER JOIN sales_outbound_items sobi ON soi.material_id = sobi.product_id
+        FROM sales_outbound_items sobi
         INNER JOIN sales_outbound sob ON sobi.outbound_id = sob.id
-        WHERE soi.order_id = ?
+        WHERE COALESCE(sobi.source_order_id, sob.order_id) = ?
+          AND sob.deleted_at IS NULL
           AND sob.status IN (?, ?)
-          AND (
-            -- 单订单出库：直接匹配 order_id
-            (COALESCE(sob.is_multi_order, 0) = 0 AND sob.order_id = soi.order_id)
-            OR
-            -- 多订单出库：优先按明细来源订单匹配，避免同物料被所有关联订单重复计数
-            (sob.is_multi_order = 1 AND sobi.source_order_id = soi.order_id)
-            OR
-            -- 兼容旧数据：没有 source_order_id 时再回退到 related_orders
-            (sob.is_multi_order = 1 AND sobi.source_order_id IS NULL AND sob.related_orders IS NOT NULL
-             AND (
-               JSON_CONTAINS(sob.related_orders, CAST(soi.order_id AS JSON))
-               OR sob.related_orders LIKE CONCAT('%', soi.order_id, '%')
-             ))
-          )
-        GROUP BY soi.material_id
+        GROUP BY sobi.product_id
+        FOR UPDATE
       `,
         [orderId, SALES_STATUS_KEYS.COMPLETED, SALES_STATUS_KEYS.PROCESSING]
       );
@@ -82,8 +70,9 @@ class SalesOrderStatusService {
         FROM sales_return_items sri
         INNER JOIN sales_returns sr ON sri.return_id = sr.id
         WHERE sr.order_id = ?
-          AND sr.status NOT IN ('rejected', 'cancelled', 'draft')
+          AND sr.deleted_at IS NULL AND sr.status = 'completed'
         GROUP BY sri.product_id
+        FOR UPDATE
       `,
         [orderId]
       );

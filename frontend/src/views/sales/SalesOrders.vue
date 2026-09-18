@@ -908,6 +908,7 @@ const handlePrintOrder = async () => {
       total_amount: formatPrintAmount(order.totalAmount),
       remark: order.remarks || '',
       operator: order.createdByRealName || order.createdByName || '',
+      print_time: new Date().toLocaleString(),
       items: (order.items || []).map((item, idx) => ({
         index: idx + 1,
         product_code: item.materialCode || item.code || '',

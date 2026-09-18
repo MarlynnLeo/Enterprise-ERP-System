@@ -104,8 +104,8 @@ const salesOrderMap = {
       createdBy: row.created_by ?? null,
       createdByName: row.created_by_name ?? null,
       createdByRealName: row.created_by_real_name ?? null,
-      createdAt: formatDate(row.created_at),
-      updatedAt: formatDate(row.updated_at),
+      createdAt: row.created_at ?? null,
+      updatedAt: row.updated_at ?? null,
       isLocked: row.is_locked != null ? Boolean(row.is_locked) : null,
       lockedAt: row.locked_at ? formatDate(row.locked_at) : row.locked_at ?? null,
       lockedBy: row.locked_by ?? null,
@@ -142,11 +142,12 @@ const salesOutboundItemMap = {
       'price'
     );
     const mid = body.productId ?? body.materialId ?? body.product_id ?? body.material_id;
+    const suppliedPrice = body.unitPrice ?? body.unit_price ?? body.price;
     const row = {
       id: body.id,
       product_id: mid != null ? toNumber(mid, mid) : undefined,
       quantity: line.quantity,
-      price: line.price,
+      price: suppliedPrice != null && suppliedPrice !== '' ? line.price : undefined,
       amount: line.amount,
       source_order_id:
         body.sourceOrderId != null
@@ -182,6 +183,9 @@ const salesOutboundItemMap = {
       quantity: toNumber(row.quantity, 0),
       unitPrice: toNumber(row.price ?? row.unitPrice ?? row.unit_price, 0),
       amount: toNumber(row.amount, 0),
+      taxPercent: toNumber(row.tax_percent ?? row.taxPercent, 0),
+      taxAmount: toNumber(row.tax_amount ?? row.taxAmount, 0),
+      totalAmount: toNumber(row.total_amount ?? row.totalAmount ?? row.amount, 0),
       sourceOrderId: row.source_order_id ?? row.sourceOrderId ?? null,
       sourceOrderNo: row.source_order_no ?? row.sourceOrderNo ?? null,
       remarks: row.remarks ?? null,
@@ -192,6 +196,9 @@ const salesOutboundItemMap = {
         row.returned_quantity != null ? toNumber(row.returned_quantity, 0) : null,
       returnableQuantity:
         row.returnable_quantity != null ? toNumber(row.returnable_quantity, 0) : null,
+      orderedQuantity: row.ordered_quantity != null ? toNumber(row.ordered_quantity, 0) : null,
+      shippedQuantity: row.shipped_quantity != null ? toNumber(row.shipped_quantity, 0) : null,
+      remainingQuantity: row.remaining_quantity != null ? toNumber(row.remaining_quantity, 0) : null,
     };
   },
 };
@@ -251,8 +258,8 @@ const salesOutboundMap = {
           }))
         : row.related_order_details ?? null,
       createdBy: row.created_by ?? null,
-      createdAt: formatDate(row.created_at),
-      updatedAt: formatDate(row.updated_at),
+      createdAt: row.created_at ?? null,
+      updatedAt: row.updated_at ?? null,
       contactPerson: row.contact_person ?? null,
       contactPhone: row.contact_phone ?? null,
     };
@@ -298,6 +305,14 @@ const salesReturnItemMap = {
       quantity: toNumber(row.quantity, 0),
       reason: row.reason ?? null,
       unitPrice: row.unit_price != null ? toNumber(row.unit_price, 0) : null,
+      productCode: row.material_code ?? row.product_code ?? null,
+      productName: row.material_name ?? row.product_name ?? null,
+      specification: row.specification ?? null,
+      unitName: row.unit_name ?? null,
+      amount: row.amount != null ? toNumber(row.amount, 0) : null,
+      taxPercent: toNumber(row.tax_percent, 0),
+      taxAmount: toNumber(row.tax_amount, 0),
+      totalAmount: toNumber(row.total_amount ?? row.amount, 0),
     };
   },
 };
@@ -334,11 +349,12 @@ const salesReturnMap = {
       outboundNo: row.outbound_no ?? null,
       customerName: row.customer_name ?? null,
       returnReason: row.return_reason ?? null,
+      totalAmount: row.total_amount != null ? toNumber(row.total_amount, 0) : null,
       status: row.status ?? null,
       remarks: row.remarks ?? null,
       createdBy: row.created_by ?? null,
-      createdAt: formatDate(row.created_at),
-      updatedAt: formatDate(row.updated_at),
+      createdAt: row.created_at ?? null,
+      updatedAt: row.updated_at ?? null,
     };
     if (Array.isArray(row.items)) {
       api.items = row.items.map((it) => salesReturnItemMap.toApi(it));
@@ -388,9 +404,13 @@ const salesExchangeItemMap = {
       specification: row.specification ?? null,
       originalQuantity:
         row.original_quantity != null ? toNumber(row.original_quantity, 0) : null,
+      returnableQuantity: row.returnable_quantity != null ? toNumber(row.returnable_quantity, 0) : null,
       quantity: toNumber(row.quantity, 0),
       unitPrice: row.unit_price != null ? toNumber(row.unit_price, 0) : null,
       amount: row.amount != null ? toNumber(row.amount, 0) : null,
+      taxPercent: toNumber(row.tax_percent, 0),
+      taxAmount: toNumber(row.tax_amount, 0),
+      totalAmount: roundMoney(toNumber(row.amount, 0) + toNumber(row.tax_amount, 0)),
       reason: row.reason ?? null,
       unitName: row.unit_name ?? null,
     };
@@ -431,8 +451,13 @@ const salesExchangeMap = {
       id: row.id,
       exchangeNo: row.exchange_no ?? null,
       exchangeDate: formatDate(row.exchange_date),
+      orderId: row.order_id ?? null,
+      outboundId: row.outbound_id ?? null,
       orderNo: row.order_no ?? null,
+      customerId: row.customer_id ?? null,
       customerName: row.customer_name ?? null,
+      contactPhone: row.contact_phone ?? null,
+      exchangeReason: row.exchange_reason ?? null,
       status: row.status ?? null,
       remarks: row.remarks ?? null,
       returnAmount: row.return_amount != null ? toNumber(row.return_amount, 0) : null,
@@ -440,8 +465,8 @@ const salesExchangeMap = {
       differenceAmount:
         row.difference_amount != null ? toNumber(row.difference_amount, 0) : null,
       createdBy: row.created_by ?? null,
-      createdAt: formatDate(row.created_at),
-      updatedAt: formatDate(row.updated_at),
+      createdAt: row.created_at ?? null,
+      updatedAt: row.updated_at ?? null,
     };
     if (Array.isArray(row.items)) {
       api.items = row.items.map((it) => salesExchangeItemMap.toApi(it));

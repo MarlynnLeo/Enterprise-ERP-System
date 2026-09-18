@@ -36,6 +36,11 @@ const isPaymentBusinessError = (error) =>
     error.message || ''
   );
 
+const hasInvalidMaterial = (items) => Array.isArray(items) && items.some(item => {
+  const materialId = item?.materialId ?? item?.material_id;
+  return !Number.isSafeInteger(Number(materialId)) || Number(materialId) <= 0;
+});
+
 /**
  * 应付账款控制器
  */
@@ -181,6 +186,9 @@ const apController = {
    */
   createInvoice: async (req, res) => {
     try {
+      if (hasInvalidMaterial(req.body.items)) {
+        return ResponseHandler.error(res, '每条发票明细都必须选择有效物料', 'VALIDATION_ERROR', 400);
+      }
       // HTTP camel → 模型 snake（唯一入参边界）
       const formattedData = {
         ...fromInvoiceApi(req.body, 'ap'),
@@ -341,6 +349,9 @@ const apController = {
         return ResponseHandler.error(res, '发票更新失败', 'SERVER_ERROR', 500);
       }
 
+      if (hasInvalidMaterial(invoiceData.items)) {
+        return ResponseHandler.error(res, '每条发票明细都必须选择有效物料', 'VALIDATION_ERROR', 400);
+      }
       const formattedData = {
         ...fromInvoiceApi(invoiceData, 'ap'),
         id: invoiceId,

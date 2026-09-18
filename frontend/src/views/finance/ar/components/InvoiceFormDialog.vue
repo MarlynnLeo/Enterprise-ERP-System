@@ -24,7 +24,7 @@
         </el-col>
         <el-col :span="12">
           <el-form-item label="客户" prop="customerId">
-            <el-select v-model="editableForm.customerId" placeholder="请选择客户" filterable class="w-full">
+            <el-select v-model="editableForm.customerId" placeholder="请选择客户" filterable remote :remote-method="query => $emit('customer-search', query)" :loading="customerLoading" class="w-full">
               <el-option
                 v-for="customer in customerOptions"
                 :key="customer.id"
@@ -71,11 +71,11 @@
           <el-table :data="editableForm.items" border size="small" class="w-full">
             <el-table-column label="商品/服务" width="140">
               <template #default="scope">
-                <el-select v-model="scope.row.productId" placeholder="选择" filterable size="small" class="w-full" @change="() => handleProductChange(scope.row)">
+                <el-select v-model="scope.row.productId" placeholder="输入商品编码或名称" filterable remote :remote-method="query => $emit('product-search', query)" :loading="productLoading" size="small" class="w-full" @change="() => handleProductChange(scope.row)">
                   <el-option
                     v-for="product in productOptions"
                     :key="product.id"
-                    :label="product.name"
+                    :label="[product.code, product.name].filter(Boolean).join(' - ')"
                     :value="product.id"
                   ></el-option>
                 </el-select>
@@ -173,7 +173,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { formatCurrency } from '@/utils/format'
 import { useFinanceStore } from '@/stores/finance'
 import { storeToRefs } from 'pinia'
@@ -202,21 +202,21 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
+  customerLoading: Boolean,
+  productLoading: Boolean,
   saveLoading: {
     type: Boolean,
     default: false
   }
 })
 
-defineEmits(['update:modelValue', 'save'])
+defineEmits(['update:modelValue', 'save', 'customer-search', 'product-search'])
 
 const editableForm = computed(() => props.form)
+const invoiceFormRef = ref(null)
 
 // 表单验证规则
 const invoiceRules = {
-  invoiceNumber: [
-    { required: true, message: '请输入发票编号', trigger: 'blur' }
-  ],
   customerId: [
     { required: true, message: '请选择客户', trigger: 'change' }
   ],
@@ -281,6 +281,8 @@ const removeInvoiceItem = (index) => {
 
 // 暴露方法和计算函数供父组件调用
 defineExpose({
+  validate: callback => invoiceFormRef.value?.validate(callback),
+  clearValidate: () => invoiceFormRef.value?.clearValidate(),
   calculateTotal,
   calculateSubtotal,
   calculateTax

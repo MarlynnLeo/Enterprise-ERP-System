@@ -127,7 +127,7 @@
             <el-col :span="8">
               <el-form-item label="记账日期" prop="entryDate">
                 <el-date-picker
-                  v-model="entryForm.entry_date"
+                  v-model="entryForm.entryDate"
                   type="date"
                   value-format="YYYY-MM-DD"
                   class="w-full"
@@ -136,7 +136,7 @@
             </el-col>
             <el-col :span="8">
               <el-form-item label="凭证字" prop="voucherWord">
-                <el-select v-model="entryForm.voucher_word" class="w-full">
+                <el-select v-model="entryForm.voucherWord" class="w-full">
                   <el-option label="记" value="记" />
                   <el-option label="收" value="收" />
                   <el-option label="付" value="付" />
@@ -146,7 +146,7 @@
             </el-col>
             <el-col :span="8">
               <el-form-item label="附单据数" prop="documentNumber">
-                <el-input-number v-model="entryForm.document_number" :min="0" class="w-full" />
+                <el-input-number v-model="entryForm.documentNumber" :min="0" class="w-full" />
               </el-form-item>
             </el-col>
           </el-row>
@@ -183,7 +183,7 @@
                 class="aux-area"
               >
                 <el-select
-                  v-if="row._accountAux.has_customer"
+                  v-if="row._accountAux.hasCustomer"
                   v-model="row.customerId"
                   placeholder="客户"
                   size="small"
@@ -197,7 +197,7 @@
                   />
                 </el-select>
                 <el-select
-                  v-if="row._accountAux.has_supplier"
+                  v-if="row._accountAux.hasSupplier"
                   v-model="row.supplierId"
                   placeholder="供应商"
                   size="small"
@@ -211,7 +211,7 @@
                   />
                 </el-select>
                 <el-select
-                  v-if="row._accountAux.has_employee"
+                  v-if="row._accountAux.hasEmployee"
                   v-model="row.employeeId"
                   placeholder="员工"
                   size="small"
@@ -225,7 +225,7 @@
                   />
                 </el-select>
                 <el-select
-                  v-if="row._accountAux.has_department"
+                  v-if="row._accountAux.hasDepartment"
                   v-model="row.costCenterId"
                   placeholder="部门"
                   size="small"
@@ -736,28 +736,28 @@ const optionsLoaded = ref(false)
 
 const createEmptyItem = () => ({
   description: '',
-  account_id: null,
-  debit_amount: 0,
-  credit_amount: 0,
-  customer_id: null,
-  supplier_id: null,
-  employee_id: null,
-  cost_center_id: null,
-  project_id: null,
+  accountId: null,
+  debitAmount: 0,
+  creditAmount: 0,
+  customerId: null,
+  supplierId: null,
+  employeeId: null,
+  costCenterId: null,
+  projectId: null,
   _accountAux: null,
 })
 
 const entryForm = reactive({
-  entry_date: formatLocalDate(new Date()),
-  voucher_word: '记',
-  document_number: 0,
+  entryDate: formatLocalDate(new Date()),
+  voucherWord: '记',
+  documentNumber: 0,
   description: '',
   items: [createEmptyItem(), createEmptyItem()],
 })
 
 const rules = {
-  entry_date: [{ required: true, message: '请选择记账日期', trigger: 'change' }],
-  voucher_word: [{ required: true, message: '请选择凭证字', trigger: 'change' }],
+  entryDate: [{ required: true, message: '请选择记账日期', trigger: 'change' }],
+  voucherWord: [{ required: true, message: '请选择凭证字', trigger: 'change' }],
 }
 
 const totalDebit = computed(() =>
@@ -794,9 +794,9 @@ function resetPreviewState() {
 }
 
 function resetManualForm() {
-  entryForm.entry_date = formatLocalDate(new Date())
-  entryForm.voucher_word = props.defaultVoucherWord || '记'
-  entryForm.document_number = 0
+  entryForm.entryDate = formatLocalDate(new Date())
+  entryForm.voucherWord = props.defaultVoucherWord || '记'
+  entryForm.documentNumber = 0
   entryForm.description = ''
   entryForm.items = [createEmptyItem(), createEmptyItem()]
 }
@@ -825,11 +825,11 @@ function voucherTabLabel(voucher, index) {
 }
 
 function previewDebit(voucher) {
-  return sumField(voucher.entryLines, 'debit_amount')
+  return sumField(voucher.entryLines, 'debitAmount')
 }
 
 function previewCredit(voucher) {
-  return sumField(voucher.entryLines, 'credit_amount')
+  return sumField(voucher.entryLines, 'creditAmount')
 }
 
 function isPreviewBalanced(voucher) {
@@ -840,8 +840,8 @@ function isPreviewBalanced(voucher) {
 
 function setLineAmounts(line, debit, credit) {
   if (!line) return
-  line.debit_amount = debit
-  line.credit_amount = credit
+  line.debitAmount = debit
+  line.creditAmount = credit
 }
 
 function syncEntryLinesAmounts(voucher) {
@@ -902,11 +902,11 @@ function recalcVoucherFromTax(voucher) {
 }
 
 function handlePreviewAccountChange(line, accountId) {
-  const account = flatAccounts.value.find((a) => a.id === accountId)
+  const account = flatAccounts.value.find((a) => Number(a.id) === Number(accountId))
   if (!account) return
-  line.account_code = account.account_code
-  line.account_name = account.account_name
-  line.account_label = `${account.account_code} - ${account.account_name}`
+  line.accountCode = account.accountCode
+  line.accountName = account.accountName
+  line.accountLabel = `${account.accountCode} - ${account.accountName}`
 }
 
 function normalizePreviewItem(item) {
@@ -914,10 +914,10 @@ function normalizePreviewItem(item) {
   const unitPrice = Number(item.unitPrice ?? item.price) || 0
   return {
     ...item,
-    source_id: item.sourceId || null,
-    source_doc_no: item.sourceDocNo || null,
+    sourceId: item.sourceId || null,
+    sourceDocNo: item.sourceDocNo || null,
     quantity,
-    unit_price: unitPrice,
+    unitPrice: unitPrice,
     amount: Number(item.amount) || round2(quantity * unitPrice),
   }
 }
@@ -948,9 +948,9 @@ function normalizePreviewVoucher(raw, index) {
     entryLines: (raw.entryLines || []).map((line) => ({
       ...line,
       role: line.role || '',
-      account_id: line.account_id || null,
-      debit_amount: Number(line.debit_amount) || 0,
-      credit_amount: Number(line.credit_amount) || 0,
+      accountId: line.accountId || null,
+      debitAmount: Number(line.debitAmount) || 0,
+      creditAmount: Number(line.creditAmount) || 0,
       description: line.description || '',
     })),
   }
@@ -994,7 +994,7 @@ function accountsFromEntryLines(entryLines = []) {
   const accounts = {}
   for (const line of entryLines) {
     const key = ROLE_ACCOUNT_KEY[line.role]
-    if (key && line.account_id) accounts[key] = line.account_id
+    if (key && line.accountId) accounts[key] = line.accountId
   }
   return accounts
 }
@@ -1024,7 +1024,7 @@ function buildOverridesFromPreview() {
           const name = it.materialName || it.productName || null
           return {
             source_id: it.sourceId || v.id,
-            source_doc_no: it.source_doc_no || null,
+            source_doc_no: it.sourceDocNo || null,
             material_id: materialId,
             product_id: materialId,
             material_name: name,
@@ -1039,10 +1039,10 @@ function buildOverridesFromPreview() {
         }),
         entryLines: (v.entryLines || []).map((line) => ({
           role: line.role,
-          account_id: line.account_id,
+          account_id: line.accountId,
           description: line.description,
-          debit_amount: Number(line.debit_amount) || 0,
-          credit_amount: Number(line.credit_amount) || 0,
+          debit_amount: Number(line.debitAmount) || 0,
+          credit_amount: Number(line.creditAmount) || 0,
           supplier_id: line.supplierId || null,
           customer_id: line.customerId || null,
         })),
@@ -1249,8 +1249,15 @@ async function loadManualOptions() {
   try {
     const accRes = await financeApi.accounts.getOptions()
     const accounts = parseListData(accRes, { enableLog: false })
+    const allAccounts = flattenAccounts(accounts)
+    const byId = new Map(allAccounts.map(account => [Number(account.id), account]))
+    const enabled = (account, visited = new Set()) => {
+      if (!account || !Number(account.isActive) || visited.has(Number(account.id))) return false
+      visited.add(Number(account.id))
+      return !account.parentId || enabled(byId.get(Number(account.parentId)), visited)
+    }
     const processAccounts = (list) =>
-      list.map((item) => {
+      list.filter(item => enabled(item)).map((item) => {
         const processed = {
           ...item,
           fullName: `${item.accountCode} - ${item.accountName}`,
@@ -1293,20 +1300,20 @@ async function loadManualOptions() {
 }
 
 function handleAccountChange(accountId, index) {
-  const account = flatAccounts.value.find((a) => a.id === accountId)
+  const account = flatAccounts.value.find((a) => Number(a.id) === Number(accountId))
   if (!account) return
   entryForm.items[index]._accountAux = {
-    has_customer: Boolean(account.has_customer),
-    has_supplier: Boolean(account.has_supplier),
-    has_employee: Boolean(account.has_employee),
-    has_department: Boolean(account.has_department),
-    has_project: Boolean(account.has_project),
+    hasCustomer: Boolean(account.hasCustomer),
+    hasSupplier: Boolean(account.hasSupplier),
+    hasEmployee: Boolean(account.hasEmployee),
+    hasDepartment: Boolean(account.hasDepartment),
+    hasProject: Boolean(account.hasProject),
   }
-  if (!account.has_customer) entryForm.items[index].customerId = null
-  if (!account.has_supplier) entryForm.items[index].supplierId = null
-  if (!account.has_employee) entryForm.items[index].employeeId = null
-  if (!account.has_department) entryForm.items[index].costCenterId = null
-  if (!account.has_project) entryForm.items[index].project_id = null
+  if (!account.hasCustomer) entryForm.items[index].customerId = null
+  if (!account.hasSupplier) entryForm.items[index].supplierId = null
+  if (!account.hasEmployee) entryForm.items[index].employeeId = null
+  if (!account.hasDepartment) entryForm.items[index].costCenterId = null
+  if (!account.hasProject) entryForm.items[index].projectId = null
 }
 
 function addItem() {
@@ -1318,9 +1325,9 @@ function removeItem(index) {
 }
 
 async function submitManualEntry() {
-  if (!formRef.value) return
+  if (submitting.value || !formRef.value) return
   try {
-    await formRef.value.validate()
+    if (!(await formRef.value.validate().catch(() => false))) return
   } catch {
     return
   }
@@ -1329,18 +1336,23 @@ async function submitManualEntry() {
     return
   }
 
+  if (entryForm.items.some(item => (Number(item.debitAmount) > 0 || Number(item.creditAmount) > 0) && !item.accountId)) {
+    ElMessage.warning('有金额的明细必须选择会计科目')
+    return
+  }
+
   const items = entryForm.items
-    .filter((i) => i.account_id && (i.debit_amount > 0 || i.credit_amount > 0))
+    .filter((i) => i.accountId && (i.debitAmount > 0 || i.creditAmount > 0))
     .map((i) => ({
-      account_id: i.account_id,
+      accountId: i.accountId,
       description: i.description || entryForm.description,
-      debit_amount: i.debit_amount,
-      credit_amount: i.credit_amount,
-      customer_id: i.customerId,
-      supplier_id: i.supplierId,
-      employee_id: i.employeeId,
-      cost_center_id: i.costCenterId,
-      project_id: i.project_id,
+      debitAmount: i.debitAmount,
+      creditAmount: i.creditAmount,
+      customerId: i.customerId,
+      supplierId: i.supplierId,
+      employeeId: i.employeeId,
+      costCenterId: i.costCenterId,
+      projectId: i.projectId,
     }))
 
   if (!items.length) {
@@ -1351,10 +1363,10 @@ async function submitManualEntry() {
   submitting.value = true
   try {
     await financeApi.createEntry({
-      entry_date: entryForm.entry_date,
-      posting_date: entryForm.entry_date,
-      voucher_word: entryForm.voucher_word,
-      document_number: entryForm.document_number,
+      entryDate: entryForm.entryDate,
+      postingDate: entryForm.entryDate,
+      voucherWord: entryForm.voucherWord,
+      documentNumber: entryForm.documentNumber,
       description: entryForm.description,
       items,
     })

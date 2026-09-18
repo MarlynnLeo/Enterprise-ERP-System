@@ -6,8 +6,9 @@
  */
 
 const { logger } = require('../utils/logger');
-const { lineAmount, normalizeTaxRate, roundMoney, taxAmount, toNumber } = require('../utils/money');
+const { lineAmount, normalizeTaxRate, roundMoney, taxAmount } = require('../utils/money');
 const { resolveUnitPrice } = require('../utils/unitPriceFields');
+const { purchaseQuantity } = require('../utils/purchase/purchaseValidation');
 
 function createBusinessError(message, statusCode = 400) {
   const error = new Error(message);
@@ -26,7 +27,7 @@ class PurchaseOrderService {
   static async getMaterialInfo(connection, materialId) {
     try {
       const [rows] = await connection.query(
-        'SELECT code, name, specs, unit_id FROM materials WHERE id = ? AND deleted_at IS NULL',
+        'SELECT code, name, specs, unit_id FROM materials WHERE id = ? AND deleted_at IS NULL AND status = 1',
         [materialId]
       );
       return rows[0] || null;
@@ -44,7 +45,7 @@ class PurchaseOrderService {
    */
   static async getSupplierInfo(connection, supplierId) {
     try {
-      const [rows] = await connection.query('SELECT name FROM suppliers WHERE id = ? AND deleted_at IS NULL', [
+      const [rows] = await connection.query('SELECT name FROM suppliers WHERE id = ? AND deleted_at IS NULL AND status = 1', [
         supplierId,
       ]);
       return rows[0] || null;
@@ -123,12 +124,13 @@ class PurchaseOrderService {
 
     let totalRequired = 0;
     let totalOrdered = 0;
-    const allOrdered = [...requiredQuantityByKey.entries()].every(([key, requiredQuantity]) => {
+    let allOrdered = true;
+    for (const [key, requiredQuantity] of requiredQuantityByKey) {
       const orderedQuantity = orderedQuantityByKey.get(key) || 0;
       totalRequired += requiredQuantity;
       totalOrdered += Math.min(orderedQuantity, requiredQuantity);
-      return orderedQuantity + 0.0001 >= requiredQuantity;
-    });
+      if (orderedQuantity + 0.0001 < requiredQuantity) allOrdered = false;
+    }
 
     const nextStatus = allOrdered ? 'completed' : 'approved';
     if (nextStatus !== currentStatus) {
@@ -169,6 +171,44 @@ class PurchaseOrderService {
     return null;
   }
 
+  static async validateRequisitionAllocation(connection, requisitionId, items, excludeOrderId = null) {
+    if (!requisitionId) return null;
+    const [requisitions] = await connection.query(
+      'SELECT id, requisition_number, status FROM purchase_requisitions WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [requisitionId]
+    );
+    const requisition = requisitions[0];
+    if (!requisition) throw createBusinessError('采购申请不存在', 404);
+    if (!['approved', 'completed'].includes(requisition.status)) throw createBusinessError('只能从已批准的采购申请生成订单');
+    const [requested] = await connection.query('SELECT material_id, quantity FROM purchase_requisition_items WHERE requisition_id = ? FOR UPDATE', [requisitionId]);
+    const [allocated] = await connection.query(
+      `SELECT poi.material_id, poi.quantity FROM purchase_order_items poi
+         JOIN purchase_orders po ON po.id = poi.order_id
+        WHERE po.requisition_id = ? AND po.deleted_at IS NULL AND po.status <> 'cancelled'
+          AND (? IS NULL OR po.id <> ?) FOR UPDATE`, [requisitionId, excludeOrderId, excludeOrderId]
+    );
+    const capacity = new Map();
+    for (const item of requested) capacity.set(Number(item.material_id), (capacity.get(Number(item.material_id)) || 0) + Number(item.quantity));
+    for (const item of allocated) capacity.set(Number(item.material_id), (capacity.get(Number(item.material_id)) || 0) - Number(item.quantity));
+    for (const item of items) {
+      const materialId = Number(item.material_id ?? item.materialId);
+      const remaining = capacity.get(materialId);
+      if (remaining === undefined) throw createBusinessError('采购订单包含不属于来源申请的物料');
+      const quantity = purchaseQuantity(item.quantity);
+      if (quantity > remaining + 0.0001) throw createBusinessError(`采购数量超过申请剩余可采购量：物料${materialId}，可采购${Math.max(remaining, 0)}，本次${quantity}`);
+      capacity.set(materialId, remaining - quantity);
+    }
+    return requisition;
+  }
+
+  static async assertOrderCanCancel(connection, orderId) {
+    const [items] = await connection.query('SELECT received_quantity, warehoused_quantity FROM purchase_order_items WHERE order_id = ? FOR UPDATE', [orderId]);
+    if (items.some(item => Number(item.received_quantity) > 0.0001 || Number(item.warehoused_quantity) > 0.0001)) {
+      throw createBusinessError('采购订单已有收货或入库数量，请先处理收货、退货后再取消');
+    }
+    const [receipts] = await connection.query("SELECT id FROM purchase_receipts WHERE order_id = ? AND deleted_at IS NULL AND status <> 'cancelled' LIMIT 1 FOR UPDATE", [orderId]);
+    if (receipts.length) throw createBusinessError('采购订单仍有关联收货单，请先处理收货单后再取消');
+  }
+
   /**
    * Backward-compatible entry point. Completion is derived from quantities
    * instead of being written directly by callers.
@@ -200,7 +240,6 @@ class PurchaseOrderService {
     const {
       material_id,
       material_code,
-      material_name,
       specification,
       unit_id,
       price,
@@ -215,10 +254,10 @@ class PurchaseOrderService {
       (unit_price !== null && unit_price !== undefined && unit_price !== '') ||
       (item.unitPrice !== null && item.unitPrice !== undefined && item.unitPrice !== '');
     if (!hasRaw) {
-      throw new Error(`物料 ${material_code || material_id} 的单价缺失，请先维护采购价格`);
+      throw createBusinessError(`物料 ${material_code || material_id} 的单价缺失，请先维护采购价格`);
     }
     const itemPrice = resolveUnitPrice(item, { fallback: Number.NaN });
-    const itemQuantity = toNumber(quantity, 0);
+    const itemQuantity = purchaseQuantity(quantity, `物料 ${material_code || material_id} 的数量`);
     const itemTaxRate = normalizeTaxRate(item.tax_rate ?? item.taxPercent ?? item.tax_percent, 0);
     const itemAmount = totalPrice !== undefined
       ? roundMoney(totalPrice)
@@ -227,34 +266,24 @@ class PurchaseOrderService {
       ? roundMoney(item.tax_amount ?? item.taxAmount)
       : taxAmount(itemAmount, itemTaxRate);
 
-    let itemCode = material_code;
-    // 如果缺少物料代码或物料名称，从数据库中查询补全
-    let itemName = material_name;
-    let itemSpec = specification || '';
-    let itemUnitId = unit_id;
-
-    if (!itemCode || !itemName) {
-      const materialInfo = await this.getMaterialInfo(connection, material_id);
-
-      if (materialInfo) {
-        itemCode = itemCode || materialInfo.code;
-        itemName = itemName || materialInfo.name;
-        itemSpec = itemSpec || materialInfo.specs || '';
-        itemUnitId = itemUnitId || materialInfo.unit_id;
-      }
-    }
+    const materialInfo = await this.getMaterialInfo(connection, material_id);
+    if (!materialInfo) throw createBusinessError(`物料不存在或已停用：${material_id}`);
+    const itemCode = materialInfo.code;
+    const itemName = materialInfo.name;
+    const itemSpec = specification || materialInfo.specs || '';
+    const itemUnitId = unit_id || materialInfo.unit_id;
 
     // 检查必须字段
     if (!itemCode || !itemName) {
-      throw new Error(`物料信息不完整，ID: ${material_id}, 编码: ${itemCode}, 名称: ${itemName}`);
+      throw createBusinessError(`物料信息不完整，ID: ${material_id}, 编码: ${itemCode}, 名称: ${itemName}`);
     }
 
     // 数据完整性校验：价格和数量必须为非负数
     if (itemQuantity <= 0) {
-      throw new Error(`物料 ${itemCode} 的数量必须大于0，当前值: ${quantity}`);
+      throw createBusinessError(`物料 ${itemCode} 的数量必须大于0，当前值: ${quantity}`);
     }
     if (!Number.isFinite(itemPrice) || itemPrice < 0) {
-      throw new Error(`物料 ${itemCode} 的单价不能为负数，当前值: ${itemPrice}`);
+      throw createBusinessError(`物料 ${itemCode} 的单价不能为负数，当前值: ${itemPrice}`);
     }
 
     return {
@@ -364,7 +393,7 @@ class PurchaseOrderService {
     const supplierInfo = await this.getSupplierInfo(connection, supplierId);
 
     if (!supplierInfo) {
-      throw new Error('供应商不存在');
+      throw createBusinessError('供应商不存在或已停用');
     }
 
     return supplierInfo.name;
@@ -383,12 +412,12 @@ class PurchaseOrderService {
     ]);
 
     if (checkRows.length === 0) {
-      throw new Error('purchase order not found');
+      throw createBusinessError('purchase order not found', 404);
     }
 
     const currentStatus = checkRows[0].status;
-    if (currentStatus !== 'pending' && currentStatus !== 'draft') {
-      throw new Error('只能编辑待处理或草稿状态的采购订单');
+    if (currentStatus !== 'draft') {
+      throw createBusinessError('只能编辑草稿状态的采购订单，审批中的订单请先撤回');
     }
 
     return checkRows[0];

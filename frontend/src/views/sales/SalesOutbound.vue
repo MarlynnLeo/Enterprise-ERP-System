@@ -256,12 +256,6 @@
           <el-descriptions-item label="创建时间" :span="2">{{ formatDate(currentOutbound.createdAt) }}</el-descriptions-item>
         </el-descriptions>
 
-        <FinanceStreamStatus
-          v-if="currentOutbound?.id"
-          document-type="sales_outbound"
-          :document-id="currentOutbound.id"
-        />
-
         <InventoryApprovalPanel
           v-if="currentOutbound?.id || currentOutbound?.outboundNo"
           source-type="sales_outbound"
@@ -388,7 +382,7 @@
         </el-form-item>
         <el-form-item label="出库日期" prop="deliveryDate">
           <el-date-picker
-            v-model="outboundForm.delivery_date"
+            v-model="outboundForm.deliveryDate"
             type="date"
             placeholder="选择出库日期"
             format="YYYY-MM-DD"
@@ -407,7 +401,7 @@
               class="w-full"
               table-layout="fixed"
               :header-cell-style="{ background: 'var(--color-bg-hover)', color: 'var(--color-text-regular)' }"
-              empty-text="该订单所有物料已完全发货，无需再次出库"
+              empty-text="请选择订单或客户产品，添加待发货明细"
             >
               <el-table-column type="selection" width="55" />
               <el-table-column label="来源订单" width="130">
@@ -484,8 +478,8 @@
               </el-table-column>
               <el-table-column label="库存" width="80">
                 <template #default="{ row }">
-                  <span :class="(row.stockQuantity || 0) > 0 ? 'text-stock-ok' : 'text-stock-low'">
-                    {{ row.stockQuantity || 0 }}
+                  <span :class="row.stockQuantity == null ? '' : row.stockQuantity > 0 ? 'text-stock-ok' : 'text-stock-low'">
+                    {{ row.stockQuantity ?? '-' }}
                   </span>
                 </template>
               </el-table-column>
@@ -658,7 +652,6 @@ import { usePaginatedFetching, useFormSubmit } from '@/composables/useDataFetchi
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 import printService from '@/services/printService'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
-import FinanceStreamStatus from '@/views/finance/components/FinanceStreamStatus.vue'
 import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue'
 import { getCommonStatusText } from '@/constants/systemConstants'
 // 状态变量
@@ -690,13 +683,13 @@ const customerOptions = ref([])
 const customerLoading = ref(false)
 // 表单数据
 const outboundForm = ref({
-  order_id: '', // 保留兼容性
-  customer_id: '',
+  orderId: '',
+  customerId: '',
   customerName: '',
   contact: '',
   phone: '',
   address: '',
-  delivery_date: '',
+  deliveryDate: '',
   status: 'draft',
   items: [],
   remarks: '',
@@ -706,10 +699,10 @@ const outboundForm = ref({
 const selectedOrderId = ref('')
 // 表单验证规则
 const rules = {
-  customer_id: [
+  customerId: [
     { required: true, message: '请选择客户', trigger: 'change' }
   ],
-  delivery_date: [
+  deliveryDate: [
     { required: true, message: '请选择出库日期', trigger: 'change' }
   ]
 }
@@ -816,7 +809,7 @@ const {
 } = useListDetailNavigation(outbounds)
 // 搜索方法
 const handleSearch = () => {
-  outboundPagination.page = 1
+  outboundPagination.current = 1
   fetchOutbounds()
 }
 // 重置搜索方法
@@ -824,7 +817,7 @@ const resetSearch = () => {
   searchQuery.value = ''
   statusFilter.value = ''
   dateRange.value = []
-  outboundPagination.page = 1
+  outboundPagination.current = 1
   fetchOutbounds()
 }
 // 获取订单列表
@@ -934,13 +927,13 @@ const showCreateDialog = () => {
 
   dialogType.value = 'create'
   outboundForm.value = {
-    order_id: '',
-    customer_id: '',
+    orderId: '',
+    customerId: '',
     customerName: '',
     contact: '',
     phone: '',
     address: '',
-    delivery_date: new Date(),
+    deliveryDate: dayjs().format('YYYY-MM-DD'),
     status: 'draft', // 默认为草稿状态，用户不可修改
     items: [],
     remarks: '',
@@ -952,128 +945,55 @@ const showCreateDialog = () => {
 
   dialogVisible.value = true
 }
+const fetchOutboundStock = async (items) => {
+  const stockInfo = new Map()
+  const codes = [...new Set(items.map(item => item.materialCode || item.productCode).filter(Boolean))]
+  try {
+    for (let offset = 0; offset < codes.length; offset += 100) {
+      const response = await inventoryApi.getMaterialsWithStock({ codes: codes.slice(offset, offset + 100).join(',') })
+      for (const material of parseResponseData(response, [])) {
+        stockInfo.set(Number(material.id || material.materialId), Number(material.stockQuantity ?? material.quantity ?? 0))
+      }
+    }
+  } catch { ElMessage.warning('库存查询失败，请在处理出库前核实库存') }
+  return stockInfo
+}
 // 显示编辑对话框
 const showEditDialog = async (row) => {
   dialogType.value = 'edit'
   dialogVisible.value = true
   dialogLoading.value = true
-
   try {
-    // 获取完整的出库单数据
     const response = await salesApi.getOutbound(row.id)
-    const fullOutboundData = response.data
-
-    // 确保表单数据完整
-    // 确保表单数据完整
-
-    // 1. 处理关联订单数据
-    let formRelatedOrders = []
-    // 尝试解析 related_orders 字段
-    if (fullOutboundData.relatedOrders) {
-      if (Array.isArray(fullOutboundData.relatedOrders)) {
-        formRelatedOrders = fullOutboundData.relatedOrders
-      } else if (typeof fullOutboundData.relatedOrders === 'string') {
-        try {
-          const parsed = JSON.parse(fullOutboundData.relatedOrders)
-          // 如果解析出来的是ID数组，需要转换成对象数组
-          if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] !== 'object') {
-             // 这种情况比较少见，通常后端会返回详情对象
-             // 如果这里无法恢复详情，可能需要额外请求。但通常后端getOutbound应该返回详情。
-             // 检查 fullOutboundData.related_order_details
-             if (fullOutboundData.related_order_details) {
-               formRelatedOrders = fullOutboundData.related_order_details
-             }
-          } else {
-             formRelatedOrders = parsed
-          }
-        } catch (e) {
-          console.error('解析关联订单失败', e)
-        }
-      }
-    }
-
-    // 如果上述解析没结果，检查 related_order_details
-    if (formRelatedOrders.length === 0 && fullOutboundData.related_order_details) {
-        formRelatedOrders = fullOutboundData.related_order_details
-    }
-
-    // 如果还是空，尝试从单订单字段构造（兼容旧数据）
-    if (formRelatedOrders.length === 0 && (fullOutboundData.orderId || row.orderId)) {
-       formRelatedOrders.push({
-         id: fullOutboundData.orderId || row.orderId,
-         orderNo: fullOutboundData.orderNo || row.orderNo,
-         customer: fullOutboundData.customerName || row.customerName,
-         customer_id: fullOutboundData.customerId || row.customerId
-       })
-    }
-    // 2. 处理出库明细项映射
-    const formItems = (fullOutboundData.items || []).map(item => {
-       // 解析 source_orders JSON
-       let sourceOrders = []
-       if (item.sourceOrders) {
-          if (Array.isArray(item.sourceOrders)) {
-             sourceOrders = item.sourceOrders
-          } else if (typeof item.sourceOrders === 'string') {
-             try {
-                sourceOrders = JSON.parse(item.sourceOrders)
-             } catch(e) { console.warn('解析 source_orders JSON 失败:', e.message) }
-          }
-       }
-
-       return {
-         ...item,
-         // 字段映射：后端 material_name -> 前端 product_name
-         product_name: item.materialName || item.productName,
-         // 确保物料编码存在
-         material_code: item.materialCode || item.productCode || item.code,
-         // 来源订单信息
-         sourceOrders: sourceOrders,
-         // 确保 order_no 存在：优先使用item里的，如果没有则使用主单的
-         orderNo: item.orderNo || item.sourceOrderNo || fullOutboundData.orderNo || row.orderNo,
-         // 如果 order_quantity 缺失，尝试用 total_order_quantity 或 quantity
-         order_quantity: item.orderQuantity || item.totalOrderQuantity || item.quantity,
-         // 确保数量是数字
-         quantity: Number(item.quantity) || 0
-       }
-    })
-    // 3. 预填充客户选项，确保回显
-    const currentCustomerId = fullOutboundData.customerId || row.customerId;
-    if (currentCustomerId) {
-       customerOptions.value = [{
-         id: Number(currentCustomerId), // 确保ID类型一致
-         name: fullOutboundData.customerName || row.customerName,
-         code: ''
-       }]
-
-       // 设置当前客户状态，以便可以进行产品查询
-       currentCustomer.value = {
-         id: Number(currentCustomerId),
-         name: fullOutboundData.customerName || row.customerName
-       }
+    const data = response.data || response
+    const stockInfo = await fetchOutboundStock(data.items || [])
+    const details = data.relatedOrderDetails || []
+    const relatedOrders = details.length
+      ? details.map(order => ({ ...order, id: Number(order.id), customer: order.customerName || data.customerName, customerId: data.customerId }))
+      : data.orderId ? [{ id: Number(data.orderId), orderNo: data.orderNo, customer: data.customerName, customerId: data.customerId }] : []
+    const items = (data.items || []).map(item => ({
+      ...item, materialId: item.materialId || item.productId,
+      orderId: item.sourceOrderId || data.orderId, sourceOrderId: item.sourceOrderId || data.orderId,
+      orderNo: item.sourceOrderNo || data.orderNo, orderQuantity: Number(item.orderedQuantity ?? item.quantity),
+      remainingQuantity: Number(item.remainingQuantity ?? item.quantity),
+      shippedQuantity: Number(item.shippedQuantity || 0),
+      quantity: Number(item.quantity), unitPrice: item.unitPrice,
+      stockQuantity: stockInfo.get(Number(item.materialId || item.productId)),
+    }))
+    if (data.customerId) {
+      customerOptions.value = [{ id: Number(data.customerId), name: data.customerName }]
+      currentCustomer.value = { id: Number(data.customerId), name: data.customerName }
     }
     outboundForm.value = {
-      id: row.id,
-      order_id: fullOutboundData.orderId || row.orderId,
-      customer_id: currentCustomerId ? Number(currentCustomerId) : '',
-      customerName: fullOutboundData.customerName || row.customerName,
-      contact: fullOutboundData.contact_person || row.contactName || fullOutboundData.contact || '',
-      phone: fullOutboundData.contact_phone || row.contactPhone || fullOutboundData.phone || '',
-      address: fullOutboundData.delivery_address || row.address || fullOutboundData.address || '',
-      delivery_date: fullOutboundData.delivery_date || row.deliveryDate,
-      status: fullOutboundData.status || row.status,
-      items: formItems,
-      remarks: fullOutboundData.remarks || row.remarks || '',
-      relatedOrders: formRelatedOrders
+      id: data.id, orderId: data.orderId, customerId: data.customerId || '',
+      customerName: data.customerName, contact: data.contactPerson || '', phone: data.contactPhone || '',
+      address: data.deliveryAddress || '', deliveryDate: data.deliveryDate, status: data.status,
+      remarks: data.remarks || '', relatedOrders, items,
     }
   } catch (error) {
-    console.error('获取出库单详情失败:', error)
-    ElMessage.error('获取出库单详情失败')
-
-    // 如果获取失败，使用行数据
-    outboundForm.value = { ...row }
-  } finally {
-    dialogLoading.value = false
-  }
+    ElMessage.error(error.response?.data?.message || error.message || '获取出库单详情失败')
+    dialogVisible.value = false
+  } finally { dialogLoading.value = false }
 }
 // 移除明细项
 const removeItem = (index) => {
@@ -1089,10 +1009,10 @@ const { loading: submittingOutbound, submit: submitOutboundForm } = useFormSubmi
     }
   },
   {
-    successMessage: dialogType.value === 'create' ? '出库单创建成功' : '出库单更新成功',
-    onSuccess: () => {
+    successMessage: () => dialogType.value === 'create' ? '出库单创建成功' : '出库单更新成功',
+    onSuccess: async () => {
       dialogVisible.value = false;
-      fetchOutbounds();
+      await Promise.all([fetchOutbounds(), fetchStats()]);
     }
   }
 );
@@ -1122,19 +1042,29 @@ const submitOutbound = async () => {
     return;
   }
 
-  // 验证发货数量不能超过订单数量
-  const invalidQuantityItems = validItems.filter(
-    (item) => item.quantity > (item.orderQuantity ?? item.orderQuantity)
-  );
-  if (invalidQuantityItems.length > 0) {
+  if (validItems.some(item => !Number.isSafeInteger(Number(item.quantity)))) {
+    ElMessage.warning('发货数量必须为正整数');
+    return;
+  }
+  // 同一来源订单的同一物料可能有多行，提交前合计验证。
+  const quantityGroups = new Map();
+  for (const item of validItems) {
+    const sourceId = item.sourceOrderId || item.orderId || outboundForm.value.relatedOrders[0]?.id;
+    const key = `${sourceId}:${item.materialId || item.productId}`;
+    const group = quantityGroups.get(key) || { quantity: 0, remaining: Number(item.remainingQuantity ?? item.orderQuantity), code: item.materialCode };
+    group.quantity += Number(item.quantity);
+    quantityGroups.set(key, group);
+  }
+  const excessiveGroups = [...quantityGroups.values()].filter(group => group.quantity > group.remaining);
+  if (excessiveGroups.length > 0) {
     ElMessage.warning(
-      `以下物料发货数量超过订单数量：${invalidQuantityItems.map((item) => item.materialCode).join(', ')}`
+      `同一订单物料的发货合计超过剩余数量：${excessiveGroups.map(group => group.code).join(', ')}`
     );
     return;
   }
   // 构建提交数据（仅 camel，与 salesOutboundMap.fromApi 对齐）
   const submitData = {
-    deliveryDate: outboundForm.value.deliveryDate || outboundForm.value.delivery_date,
+    deliveryDate: outboundForm.value.deliveryDate,
     orderId:
       outboundForm.value.relatedOrders.length === 1
         ? outboundForm.value.relatedOrders[0].id
@@ -1150,7 +1080,7 @@ const submitOutbound = async () => {
       quantity: item.quantity,
       unitPrice: item.unitPrice ?? 0,
       remarks: item.remarks || '',
-      sourceOrderId: item.orderId === 'multiple' ? null : item.orderId,
+      sourceOrderId: item.sourceOrderId || item.orderId || (outboundForm.value.relatedOrders.length === 1 ? outboundForm.value.relatedOrders[0].id : null),
       sourceOrderNo: item.orderNo
     }))
   };
@@ -1167,7 +1097,7 @@ const handleDelete = (row) => {
     try {
       await salesApi.deleteOutbound(row.id)
       ElMessage.success('删除成功')
-      fetchOutbounds()
+      await Promise.all([fetchOutbounds(), fetchStats()])
     } catch {
       ElMessage.error('删除出库单失败')
     }
@@ -1183,9 +1113,10 @@ const validateQuantity = (row, _index) => {
   }
 
   // 检查是否超过订单数量
-  if (row.quantity > row.orderQuantity) {
-    ElMessage.warning(`发货数量不能超过订单数量 ${row.orderQuantity}`)
-    row.quantity = row.orderQuantity
+  const remaining = row.remainingQuantity ?? row.orderQuantity
+  if (row.quantity > remaining) {
+    ElMessage.warning(`发货数量不能超过可发货数量 ${remaining}`)
+    row.quantity = remaining
   }
 
   // 检查库存（只在有库存信息时提醒）
@@ -1203,160 +1134,40 @@ const handleAddOrder = () => {
   }
 }
 const addOrderToOutbound = async () => {
-  if (!selectedOrderId.value) {
-    ElMessage.warning('请先选择要添加的订单')
-    return
-  }
-
-  // 检查订单是否已经添加
-  if (outboundForm.value.relatedOrders.find(order => order.id === selectedOrderId.value)) {
-    ElMessage.warning('该订单已经添加过了')
-    selectedOrderId.value = ''
-    return
-  }
-
+  const orderId = Number(selectedOrderId.value)
+  if (!orderId) return ElMessage.warning('请先选择要添加的订单')
+  if (outboundForm.value.relatedOrders.some(order => Number(order.id) === orderId)) return ElMessage.warning('该订单已经添加过了')
   try {
-    // 获取订单的未发货物料详情
-    const response = await salesApi.getOrderUnshippedItems(selectedOrderId.value)
-    // axios拦截器已自动解包ResponseHandler格式
-    const orderDetails = response.data
-
-    // 添加到关联订单列表
+    const response = await salesApi.getOrderUnshippedItems(orderId)
+    const order = response.data || response
+    if (!Array.isArray(order.items)) throw new Error('订单物料响应格式异常')
+    if (!order.items.length) return ElMessage.warning(`订单 ${order.orderNo} 已无待发货物料`)
+    if (outboundForm.value.relatedOrders.some(source => Number(source.customerId) !== Number(order.customerId))) {
+      return ElMessage.warning('同一出库单只能选择同一客户的订单')
+    }
+    const stockInfo = await fetchOutboundStock(order.items)
+    const lines = order.items.map(item => ({
+      materialId: item.materialId, productId: item.materialId, materialCode: item.materialCode, productName: item.materialName,
+      specification: item.specification, unitName: item.unitName, unitId: item.unitId,
+      orderQuantity: Number(item.orderedQuantity), shippedQuantity: Number(item.shippedQuantity || 0),
+      remainingQuantity: Number(item.remainingQuantity), quantity: Number(item.remainingQuantity),
+      unitPrice: item.unitPrice, stockQuantity: stockInfo.get(Number(item.materialId)) ?? item.stockQuantity,
+      orderId, sourceOrderId: orderId, orderNo: order.orderNo, shippingStatus: item.shippingStatus,
+    }))
     outboundForm.value.relatedOrders.push({
-      id: orderDetails.id,
-      orderNo: orderDetails.orderNo,
-      customer: orderDetails.customerName || orderDetails.customer,
-      customer_id: orderDetails.customerId,
-      contract_code: orderDetails.contract_code || '', // 添加合同编码
-      contact: orderDetails.contactPerson,
-      phone: orderDetails.contactPhone,
-      address: orderDetails.deliveryAddress
+      id: orderId, orderNo: order.orderNo, customer: order.customerName, customerId: order.customerId,
+      contractCode: order.contractCode || '', contact: order.contactPerson, phone: order.contactPhone, address: order.deliveryAddress,
     })
-
-    // 添加订单的物料项
-    if (orderDetails.items?.length > 0) {
-      // 使用专门的API获取物料库存信息
-      const stockInfo = {}
-      try {
-        // 使用带库存的物料API，传入物料编码进行搜索
-        const materialCodes = orderDetails.items
-          .filter(item => item.materialId || item.productId)
-          .map(item => item.code || item.materialCode)
-          .filter(code => code) // 过滤掉空的编码
-        if (materialCodes.length > 0) {
-          const stockResponse = await inventoryApi.getMaterialsWithStock({
-            codes: [...new Set(materialCodes)].join(','),
-            include_stock: true
-          })
-          const stockData = stockResponse.data || []
-          stockData.forEach(item => {
-            const materialId = item.id || item.materialId
-            const stock = item.stockQuantity || item.quantity || 0
-            if (materialId) {
-              stockInfo[materialId] = stock
-            }
-            stockInfo[item.code || item.materialCode] = stock
-          })
-        }
-      } catch {
-        ElMessage.warning('获取库存信息失败，库存显示可能不准确')
-      }
-
-      const newItems = orderDetails.items
-        .filter(item => item.materialId)
-        .map(item => {
-          const materialId = item.materialId
-          const materialCode = item.materialCode
-          // 优先使用物料ID查找库存，其次使用编码
-          const realStockQuantity = stockInfo[materialId] || stockInfo[materialCode] || item.stockQuantity || 0
-          return {
-            material_id: materialId,
-            product_name: item.materialName,
-            material_code: materialCode,
-            specification: item.specification,
-            order_quantity: item.orderedQuantity, // 原订单数量
-            shipped_quantity: item.shippedQuantity, // 已发货数量
-            remaining_quantity: item.remainingQuantity, // 剩余未发货数量
-            quantity: item.remainingQuantity, // 默认出库数量为剩余数量
-            unit_name: item.unitName,
-            unit_id: item.unitId,
-            unit_price: item.unitPrice,
-            stock_quantity: realStockQuantity, // 使用实时库存数据
-            shipping_status: item.shippingStatus, // 发货状态
-            orderNo: orderDetails.orderNo, // 标记来源订单
-            order_id: orderDetails.id
-          }
-        })
-
-      // 智能合并相同物料
-      newItems.forEach(newItem => {
-        const existingItemIndex = outboundForm.value.items.findIndex(
-          existingItem => existingItem.materialId === newItem.materialId
-        )
-
-                  if (existingItemIndex === -1) {
-            // 没有重复物料，直接添加
-            outboundForm.value.items.push({
-              ...newItem,
-              sourceOrders: [{ id: orderDetails.id, orderNo: orderDetails.orderNo, quantity: newItem.quantity }], // 记录来源订单
-              total_order_quantity: newItem.quantity // 总订单数量
-            })
-        } else {
-          // 有相同物料，合并数量和来源信息
-          const existingItem = outboundForm.value.items[existingItemIndex]
-
-          // 合并订单数量
-          existingItem.order_quantity = (existingItem.order_quantity || 0) + newItem.quantity
-          existingItem.quantity = (existingItem.quantity || 0) + newItem.quantity
-          existingItem.total_order_quantity = existingItem.order_quantity
-
-          // 记录多个来源订单
-          if (!existingItem.sourceOrders) {
-            existingItem.sourceOrders = [{
-              id: existingItem.orderId,
-              orderNo: existingItem.orderNo,
-              quantity: existingItem.order_quantity - newItem.quantity
-            }]
-          }
-          existingItem.sourceOrders.push({
-            id: orderDetails.id,
-            orderNo: orderDetails.orderNo,
-            quantity: newItem.quantity
-          })
-
-          // 更新订单号显示（显示多个订单）
-          const orderNos = existingItem.sourceOrders.map(order => order.orderNo)
-          existingItem.orderNo = orderNos.join(', ')
-          existingItem.orderId = 'multiple' // 标记为多订单物料
-        }
-      })
-    }
-
-    // 订单已添加，availableOrders 计算属性会自动更新
-
-    const itemsCount = orderDetails.items?.length || 0
-    const unshippedCount = orderDetails.unshipped_items_count || 0
-    const partialCount = orderDetails.partial_shipped_items_count || 0
-
-    if (itemsCount === 0) {
-      ElMessage.warning(`订单 ${orderDetails.orderNo} 的所有物料已完全发货，无需再次出库`)
-    } else {
-      let message = `已添加订单 ${orderDetails.orderNo}，包含 ${itemsCount} 个待发货物料`
-      if (unshippedCount > 0 && partialCount > 0) {
-        message += `（${unshippedCount}个未发货，${partialCount}个部分发货）`
-      } else if (unshippedCount > 0) {
-        message += `（${unshippedCount}个未发货）`
-      } else if (partialCount > 0) {
-        message += `（${partialCount}个部分发货）`
-      }
-      ElMessage.success(message)
-    }
+    outboundForm.value.items.push(...lines)
+    outboundForm.value.customerId = Number(order.customerId)
+    outboundForm.value.customerName = order.customerName
+    outboundForm.value.contact = order.contactPerson || ''
+    outboundForm.value.phone = order.contactPhone || ''
+    currentCustomer.value = { id: Number(order.customerId), name: order.customerName }
+    customerOptions.value = [currentCustomer.value]
     selectedOrderId.value = ''
-
-  } catch (error) {
-    console.error('添加订单失败:', error)
-    ElMessage.error('添加订单失败: ' + (error.message || '未知错误'))
-  }
+    ElMessage.success(`已添加订单 ${order.orderNo}，包含 ${lines.length} 个待发货物料`)
+  } catch (error) { ElMessage.error(error.response?.data?.message || error.message || '添加订单失败') }
 }
 // 计算属性：获取唯一客户数量
 const _uniqueCustomers = computed(() => {
@@ -1512,7 +1323,7 @@ const fetchCustomerProducts = async (searchKeyword = '') => {
     // 为每个产品添加选择数量字段，默认为剩余发货数量
     customerProducts.value = products.map(product => ({
       ...product,
-      selected_quantity: Number(product.remaining_quantity) || 0
+      selectedQuantity: Number(product.remainingQuantity) || 0
     }))
 
     const searchText = searchKeyword ? `（搜索："${searchKeyword}"）` : ''
@@ -1568,218 +1379,41 @@ const validateSelectedQuantity = (row) => {
   }
 }
 const addSelectedProductsToOutbound = async () => {
-  const validProducts = selectedProducts.value.filter(product => product.selected_quantity > 0)
-
-  if (validProducts.length === 0) {
-    ElMessage.warning('请选择产品并设置发货数量')
-    return
-  }
-  // 检查是否有重复产品
-  const duplicateProducts = []
-  const newProducts = []
-
-  validProducts.forEach(product => {
-    const existingItemIndex = outboundForm.value.items.findIndex(
-      item => item.materialId === product.materialId
-    )
-
-    if (existingItemIndex === -1) {
-      newProducts.push(product)
-    } else {
-      duplicateProducts.push({
-        product,
-        existingItem: outboundForm.value.items[existingItemIndex]
+  const products = selectedProducts.value.filter(product => Number(product.selectedQuantity) > 0)
+  if (!products.length) return ElMessage.warning('请选择产品并填写发货数量')
+  const nextItems = outboundForm.value.items.map(item => ({ ...item }))
+  const nextOrders = outboundForm.value.relatedOrders.map(order => ({ ...order }))
+  for (const product of products) {
+    let remaining = Number(product.selectedQuantity)
+    if (!Number.isSafeInteger(remaining) || remaining <= 0) return ElMessage.warning('发货数量必须为正整数')
+    for (const source of product.orderDetails || []) {
+      if (remaining <= 0) break
+      const orderId = Number(source.orderId)
+      const existing = nextItems.find(item => Number(item.materialId) === Number(product.materialId) && Number(item.sourceOrderId || item.orderId) === orderId)
+      const available = Math.max(0, Number(source.remainingQuantity) - Number(existing?.quantity || 0))
+      const quantity = Math.min(remaining, available)
+      if (!quantity) continue
+      if (existing) existing.quantity = Number(existing.quantity) + quantity
+      else nextItems.push({
+        materialId: product.materialId, productId: product.materialId,
+        materialCode: product.materialCode, productName: product.materialName, specification: product.specification,
+        orderQuantity: Number(source.orderedQuantity), remainingQuantity: Number(source.remainingQuantity),
+        shippedQuantity: Number(source.shippedQuantity || 0), quantity, unitId: product.unitId, unitName: product.unitName,
+        unitPrice: source.unitPrice, stockQuantity: product.stockQuantity, sourceOrderId: orderId, orderId, orderNo: source.orderNo,
       })
+      if (!nextOrders.some(order => Number(order.id) === orderId)) nextOrders.push({
+        id: orderId, orderNo: source.orderNo, customerId: currentCustomer.value.id,
+        customer: currentCustomer.value.name, contractCode: source.contractCode || '',
+      })
+      remaining -= quantity
     }
-  })
-  // 处理重复产品 - 改为智能合并模式
-  if (duplicateProducts.length > 0) {
-    const duplicateNames = duplicateProducts.map(item => item.product.materialName).join('、')
-
-    try {
-      await ElMessageBox.confirm(
-        `以下物料已存在于出库单中：${duplicateNames}。选择处理方式：`,
-        '物料重复',
-        {
-          confirmButtonText: '合并数量',
-          cancelButtonText: '替换数量',
-          distinguishCancelAndClose: true,
-          type: 'warning',
-        }
-      )
-
-      // 用户选择合并，累加数量
-      duplicateProducts.forEach(({ product, existingItem }) => {
-        existingItem.order_quantity = (existingItem.order_quantity || 0) + product.selected_quantity
-        existingItem.quantity = (existingItem.quantity || 0) + product.selected_quantity
-
-        // 更新来源订单信息
-        if (!existingItem.sourceOrders) {
-          existingItem.sourceOrders = []
-        }
-
-        // 添加新的来源订单信息
-        if (product.order_ids && product.orderNos) {
-          const orderIds = product.order_ids.split(',')
-          const orderNos = product.orderNos.split(', ')
-
-          orderIds.forEach((orderId, index) => {
-            const orderIdNum = parseInt(orderId.trim())
-            const orderNo = orderNos[index] ? orderNos[index].trim() : ''
-
-            // 检查是否已存在该订单信息
-            const existingSource = existingItem.sourceOrders.find(source => source.id === orderIdNum)
-            if (!existingSource) {
-              existingItem.sourceOrders.push({
-                id: orderIdNum,
-                orderNo: orderNo,
-                quantity: product.selected_quantity
-              })
-            } else {
-              // 更新数量
-              existingSource.quantity = (existingSource.quantity || 0) + product.selected_quantity
-            }
-          })
-        }
-      })
-
-      ElMessage.success('已合并相同物料的数量')
-    } catch (action) {
-      if (action === 'cancel') {
-        // 用户选择替换，更新重复产品的数量
-        duplicateProducts.forEach(({ product, existingItem }) => {
-          existingItem.order_quantity = product.selected_quantity
-          existingItem.quantity = product.selected_quantity
-
-          // 重置来源订单信息
-          existingItem.sourceOrders = []
-          if (product.order_ids && product.orderNos) {
-            const orderIds = product.order_ids.split(',')
-            const orderNos = product.orderNos.split(', ')
-
-            orderIds.forEach((orderId, index) => {
-              const orderIdNum = parseInt(orderId.trim())
-              const orderNo = orderNos[index] ? orderNos[index].trim() : ''
-
-              existingItem.sourceOrders.push({
-                id: orderIdNum,
-                orderNo: orderNo,
-                quantity: product.selected_quantity
-              })
-            })
-          }
-        })
-
-        ElMessage.success('已替换为新的数量')
-      } else {
-        // 用户关闭对话框，取消操作
-        ElMessage.info('已取消添加重复产品')
-        return
-      }
-    }
+    if (remaining > 0) return ElMessage.warning(`商品 ${product.materialCode} 可分配数量不足，请扣除出库单内已选数量`)
   }
-  // 添加新产品（处理多订单合并的情况）
-  for (const product of newProducts) {
-    // 确保订单被添加到关联订单列表中（处理多订单情况）
-    if (product.order_ids && product.orderNos) {
-      const orderIds = product.order_ids.split(',')
-      const orderNos = product.orderNos.split(', ')
-
-      // 为每个订单添加到关联订单列表
-      orderIds.forEach((orderId, index) => {
-        const orderIdNum = parseInt(orderId.trim())
-        const orderNo = orderNos[index] ? orderNos[index].trim() : ''
-
-        const existingOrder = outboundForm.value.relatedOrders.find(order => order.id === orderIdNum)
-        if (!existingOrder) {
-          outboundForm.value.relatedOrders.push({
-            id: orderIdNum,
-            orderNo: orderNo,
-            customer: currentCustomer.value.name,
-            customer_id: currentCustomer.value.id,
-            contract_code: product.contract_code || '',
-            status: product.shipping_status || 'unshipped'
-          })
-        }
-      })
-
-      // 如果是多订单合并的产品，按订单拆分成多个明细项
-      if (orderIds.length > 1 && product.order_details) {
-
-        // 按订单拆分成多个明细项，确保每个订单的状态都能正确更新
-        const totalRemaining = product.order_details.reduce((sum, order) => sum + parseFloat(order.remainingQuantity), 0)
-
-        product.order_details.forEach(orderDetail => {
-          if (parseFloat(orderDetail.remaining_quantity) > 0) {
-            // 按比例分配数量
-            const proportion = parseFloat(orderDetail.remaining_quantity) / totalRemaining
-            const allocatedQuantity = Math.round(product.selected_quantity * proportion * 100) / 100
-
-            outboundForm.value.items.push({
-              material_id: product.materialId,
-              product_name: product.materialName,
-              material_code: product.materialCode,
-              specification: product.specification,
-              order_quantity: allocatedQuantity,
-              quantity: allocatedQuantity,
-              unit_name: product.unitName,
-              unit_id: product.unitId,
-              unit_price: product.unitPrice || 0,
-              stock_quantity: product.stock_quantity,
-              orderNo: orderDetail.orderNo,
-              order_id: orderDetail.orderId,
-              sourceOrders: [{
-                id: orderDetail.orderId,
-                orderNo: orderDetail.orderNo,
-                quantity: allocatedQuantity
-              }]
-            })
-          }
-        })
-      } else {
-        // 单订单产品，直接添加
-        outboundForm.value.items.push({
-          material_id: product.materialId,
-          product_name: product.materialName,
-          material_code: product.materialCode,
-          specification: product.specification,
-          order_quantity: product.selected_quantity,
-          quantity: product.selected_quantity,
-          unit_name: product.unitName,
-          unit_id: product.unitId,
-          unit_price: product.unitPrice || 0,
-          stock_quantity: product.stock_quantity,
-          orderNo: product.orderNos || product.orderNo || '',
-          order_id: parseInt(product.order_ids) || product.orderId || ''
-        })
-      }
-    } else {
-      // 没有多订单信息，按原来的逻辑处理
-      outboundForm.value.items.push({
-        material_id: product.materialId,
-        product_name: product.materialName,
-        material_code: product.materialCode,
-        specification: product.specification,
-        order_quantity: product.selected_quantity,
-        quantity: product.selected_quantity,
-        unit_name: product.unitName,
-        unit_id: product.unitId,
-        unit_price: product.unitPrice || 0,
-        stock_quantity: product.stock_quantity,
-        orderNo: product.orderNo || '',
-        order_id: product.orderId || ''
-      })
-    }
-  }
-  const totalAdded = newProducts.length + duplicateProducts.length
-  ElMessage.success(`已处理 ${totalAdded} 个产品`)
-  customerProductsDialogVisible.value = false
-
-  // 清空选择
+  outboundForm.value.items = nextItems
+  outboundForm.value.relatedOrders = nextOrders
   selectedProducts.value = []
-  customerProducts.value.forEach(product => {
-    product.selected_quantity = Number(product.remaining_quantity) || 0
-  })
+  customerProductsDialogVisible.value = false
+  ElMessage.success('产品已按来源订单添加，成交价已保留')
 }
 // 在出库成功时记录追溯 (已移至后端由 InventoryTraceabilityService 自动接管)
 // 修改出库单状态函数
@@ -1815,15 +1449,7 @@ const handleStatusChange = async (row, status) => {
   }
   statusUpdating.value = true
   try {
-    // 构建更新数据 - 修复字段名匹配问题
-    const updateData = {
-      status: status,
-      delivery_date: row.deliveryDate,
-      order_id: row.orderId,
-      remarks: row.remarks || ''
-    }
-
-    const _response = await salesApi.updateOutbound(row.id, updateData)
+    await salesApi.updateOutbound(row.id, { status })
 
     // 如果状态为已完成，此时后端会自动接管新版的批次消耗追溯，前端无需再调旧版质量追溯接口
     // if (status === 'completed') {
@@ -1834,12 +1460,11 @@ const handleStatusChange = async (row, status) => {
     const index = outbounds.value.findIndex(item => item.id === row.id)
     if (index !== -1) {
       outbounds.value[index].status = status
-      calculateOutboundStats(outbounds.value)
     }
 
     ElMessage.success(`出库单状态已更新为${getStatusText(status)}`)
 
-    await fetchOutbounds()
+    await Promise.all([fetchOutbounds(), fetchStats()])
   } catch (error) {
     console.error('状态更新失败:', error)
     const errorData = error.response?.data
@@ -1904,7 +1529,7 @@ const printOutbound = async (row) => {
 
     const html = await printService.generateByDefaultTemplate('sales', 'sales_outbound', {
       ...outbound,
-      delivery_date: formatDate(outbound.delivery_date) || '',
+      delivery_date: formatDate(outbound.deliveryDate) || '',
       contact: outbound.contactPerson || '',
       phone: outbound.contactPhone || '',
       address: outbound.deliveryAddress || '',

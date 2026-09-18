@@ -30,6 +30,7 @@ const {
   assertSalesOrderEditable,
 } = require('../../../utils/sales/salesOrderEditPolicy');
 const { DOCUMENT_LINK_TYPES: DocType } = require('../../../constants/documentLinkTypes');
+const { assertSalesLineQuantities, assertActiveSalesMaterials } = require('../../../utils/sales/salesValidation');
 
 async function canAccessSalesOrder(connection, req, id, options = {}) {
   return ScopeGuard.assertAccess(connection, req, 'sales_order', id, options);
@@ -444,9 +445,12 @@ exports.getSalesOrder = async (req, res) => {
       // 查询订单主信息
       const [orderResults] = await connection.query(
         `
-        SELECT so.*, c.name as customer_name, c.contact_person, c.contact_phone
+        SELECT so.*, c.name as customer_name, c.contact_person, c.contact_phone,
+               c.address AS delivery_address,
+               COALESCE(NULLIF(TRIM(creator.real_name), ''), creator.username) AS created_by_name
         FROM sales_orders so
         LEFT JOIN customers c ON so.customer_id = c.id
+        LEFT JOIN users creator ON creator.id = so.created_by
         WHERE so.deleted_at IS NULL AND (so.id = ? OR so.order_no = ?)
       `,
         [id, id]
@@ -880,7 +884,11 @@ exports.createSalesOrder = async (req, res) => {
     const orderData = req.body || {};
     const itemsIn = mapped.items || orderData.items;
 
-    if (!itemsIn || !Array.isArray(itemsIn)) {
+    if (mapped.quotation_id) {
+      return ResponseHandler.error(res, '报价来源订单请使用报价单的转订单操作，避免重复生成', 'VALIDATION_ERROR', 400);
+    }
+
+    if (!itemsIn || !Array.isArray(itemsIn) || !itemsIn.length) {
       return ResponseHandler.error(res, '订单数据格式不正确', 'VALIDATION_ERROR', 400);
     }
 
@@ -925,6 +933,8 @@ exports.createSalesOrder = async (req, res) => {
         ? it
         : require('../../../utils/sales/salesFieldMap').salesOrderItemMap.fromApi(it)
     );
+    assertSalesLineQuantities(normalizedItems);
+    await assertActiveSalesMaterials(db.pool, normalizedItems);
 
     // 处理订单项 - 支持自动从物料获取销售价格
     // 批量预查所有缺少单价的物料价格（消除 N+1）
@@ -997,7 +1007,9 @@ exports.createSalesOrder = async (req, res) => {
       defaultTaxRate: order.taxRate || financeConfig.get('tax.defaultVATRate', 0),
     });
     items.splice(0, items.length, ...orderAmounts.items);
-    order.taxRate = normalizeTaxRate(order.taxRate, financeConfig.get('tax.defaultVATRate', 0));
+    order.taxRate = orderAmounts.subtotal > 0
+      ? normalizeTaxRate(orderAmounts.items.reduce((sum, item) => sum + item.amount * item.tax_percent, 0) / orderAmounts.subtotal)
+      : 0;
     order.subtotal = orderAmounts.subtotal;
     order.taxAmount = orderAmounts.taxAmount;
     order.totalAmount = orderAmounts.totalAmount;
@@ -1021,11 +1033,11 @@ exports.createSalesOrder = async (req, res) => {
       ResponseHandler.success(res, result, '创建成功', 201);
     } catch (error) {
       logger.error('数据库操作错误:', error);
-      ResponseHandler.error(res, error.message || '创建订单失败', 'SERVER_ERROR', error.statusCode || 500, error);
+      ResponseHandler.error(res, error.message || '创建订单失败', error.code || 'SERVER_ERROR', error.statusCode || 500, error);
     }
   } catch (error) {
     logger.error('创建销售订单时出错:', error);
-    ResponseHandler.error(res, error.message || '创建销售订单时出错', 'SERVER_ERROR', error.statusCode || 500, error);
+    ResponseHandler.error(res, error.message || '创建销售订单时出错', error.code || 'SERVER_ERROR', error.statusCode || 500, error);
   }
 };
 
@@ -1035,7 +1047,7 @@ exports.updateSalesOrder = async (req, res) => {
   let transactionStarted = false;
   try {
     const { id } = req.params;
-    const requestData = req.body;
+    const requestData = mapKeysToSnake(req.body || {});
 
     // 兼容两种数据格式：
     // 1. { order, items } - 旧格式
@@ -1082,6 +1094,7 @@ exports.updateSalesOrder = async (req, res) => {
     }
 
     assertSalesOrderItemPrices(items);
+    assertSalesLineQuantities(items);
 
     connection = await db.pool.getConnection();
     await connection.beginTransaction();
@@ -1108,6 +1121,7 @@ exports.updateSalesOrder = async (req, res) => {
     }
 
     assertSalesOrderEditable(currentOrder);
+    await assertActiveSalesMaterials(connection, items);
 
     // Any active outbound document makes the order detail immutable. This
     // includes draft outbounds because their lines would otherwise go stale.
@@ -1192,7 +1206,7 @@ exports.updateSalesOrder = async (req, res) => {
       await connection.rollback().catch(() => {});
     }
     logger.error('更新销售订单失败:', error);
-    ResponseHandler.error(res, error.message || '更新销售订单失败', 'SERVER_ERROR', error.statusCode || 500, error);
+    ResponseHandler.error(res, error.message || '更新销售订单失败', error.code || 'SERVER_ERROR', error.statusCode || 500, error);
   } finally {
     if (connection) connection.release();
   }
@@ -1700,8 +1714,8 @@ exports.importOrders = async (req, res) => {
 
           // 验证数量
           const quantity = parseFloat(row['数量']) || 0;
-          if (quantity <= 0) {
-            errors.push(`第${rowNum} 行: 数量必须大于0`);
+          if (!Number.isSafeInteger(quantity) || quantity <= 0) {
+            errors.push(`第${rowNum} 行: 数量必须为正整数`);
             errorCount++;
             continue;
           }
@@ -1744,7 +1758,7 @@ exports.importOrders = async (req, res) => {
             productSpecs: row['产品规格'] || '',
             quantity: quantity,
             unitPrice: unitPrice, // 可以为0
-            amount: quantity * unitPrice, // 如果单价为0，金额也为0
+            amount: require('../../../utils/money').lineAmount(quantity, unitPrice),
             remark: row['备注'] || '', // 添加产品级别的备注
             rowNum: rowNum,
           });
@@ -1776,7 +1790,7 @@ exports.importOrders = async (req, res) => {
           }
 
           // 计算订单总金额
-          const totalAmount = orderData.items.reduce((sum, item) => sum + item.amount, 0);
+          const totalAmount = require('../../../utils/money').sumMoney(orderData.items.map(item => item.amount));
 
           // 生成订单编号
           const orderNo = await generateSalesOrderNo(connection);
@@ -1786,14 +1800,15 @@ exports.importOrders = async (req, res) => {
             `
             INSERT INTO sales_orders(
           order_no, customer_id, contract_code, delivery_date,
-          total_amount, status, remarks, created_by, created_at
-        ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, NOW())
+          total_amount, subtotal, tax_amount, tax_rate, status, remarks, created_by, created_at
+        ) VALUES(?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, NOW())
           `,
             [
               orderNo,
               customers[0].id,
               orderData.contractCode,
               orderData.deliveryDate,
+              totalAmount,
               totalAmount,
               'draft',
               orderData.remarks,
@@ -2192,7 +2207,7 @@ exports.getOrderUnshippedItems = async (req, res) => {
   MIN(soi.id) as order_item_id,
     soi.material_id,
     SUM(soi.quantity) as ordered_quantity,
-    MAX(soi.unit_price) as unit_price,
+    ROUND(SUM(soi.quantity * soi.unit_price) / NULLIF(SUM(soi.quantity), 0), 4) as unit_price,
     SUM(soi.amount) as amount,
     m.code as material_code,
     m.name as material_name,
@@ -2213,28 +2228,14 @@ exports.getOrderUnshippedItems = async (req, res) => {
     const [shippedItems] = await connection.query(
       `
   SELECT
-  soi.material_id,
+    sobi.product_id as material_id,
     SUM(sobi.quantity) as shipped_quantity
-      FROM sales_order_items soi
-      INNER JOIN sales_outbound_items sobi ON soi.material_id = sobi.product_id
+      FROM sales_outbound_items sobi
       INNER JOIN sales_outbound sob ON sobi.outbound_id = sob.id
-      WHERE soi.order_id = ?
+      WHERE COALESCE(sobi.source_order_id, sob.order_id) = ?
     AND sob.deleted_at IS NULL
     AND sob.status IN('completed', 'processing')
-  AND(
-    --单订单出库：直接匹配order_id
-          (COALESCE(sob.is_multi_order, 0) = 0 AND sob.order_id = soi.order_id)
-          OR
-          --多订单出库：检查related_orders字段
-          (sob.is_multi_order = 1 AND sobi.source_order_id = soi.order_id)
-          OR
-    (sob.is_multi_order = 1 AND sobi.source_order_id IS NULL AND sob.related_orders IS NOT NULL
-           AND(
-      JSON_CONTAINS(sob.related_orders, CAST(soi.order_id AS JSON))
-             OR sob.related_orders LIKE CONCAT('%', soi.order_id, '%')
-    ))
-  )
-      GROUP BY soi.material_id
+      GROUP BY sobi.product_id
     `,
       [order.id]
     );

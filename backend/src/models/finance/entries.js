@@ -9,6 +9,7 @@ const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
 const { financeConfig } = require('../../config/financeConfig');
 const { parsePagination } = require('../../utils/safePagination');
+const BusinessError = require('../../utils/BusinessError');
 const {
   normalizeDateInput,
   isClosedFlag,
@@ -419,7 +420,7 @@ module.exports = {
   postEntry: async (id, userId) => {
     const normalizedUserId = Number.parseInt(userId, 10);
     if (!Number.isInteger(normalizedUserId) || normalizedUserId <= 0) {
-      throw new Error('无法识别当前过账用户');
+      throw new BusinessError('无法识别当前过账用户');
     }
     const connection = await db.pool.getConnection();
     try {
@@ -442,15 +443,15 @@ module.exports = {
       const entry = entries[0];
 
       if (entry.is_posted) {
-        throw new Error('凭证已过账，无需重复操作');
+        throw new BusinessError('凭证已过账，无需重复操作', null, 'INVALID_STATUS', 409);
       }
 
       if (entry.is_reversed) {
-        throw new Error('已冲销的凭证不能过账');
+        throw new BusinessError('已冲销的凭证不能过账', null, 'INVALID_STATUS', 409);
       }
 
       if (Number(entry.created_by) === normalizedUserId) {
-        throw new Error('制单人与过账人必须分离，不能过账自己创建的凭证');
+        throw new BusinessError('制单人与过账人必须分离，不能过账自己创建的凭证', null, 'SEPARATION_OF_DUTIES', 403);
       }
 
       const entryDate = normalizeDateInput(entry.entry_date, '记账日期');
@@ -472,7 +473,7 @@ module.exports = {
         );
 
         if (periods.length === 0) {
-          throw new Error(`凭证日期 ${entryDate} 和过账日期 ${postingDate} 未匹配到会计期间`);
+          throw new BusinessError(`凭证日期 ${entryDate} 和过账日期 ${postingDate} 未匹配到会计期间`);
         }
 
         if (resolvedPeriodId) {
@@ -487,10 +488,10 @@ module.exports = {
       }
 
       if (isClosedFlag(entry.is_closed)) {
-        throw new Error(`不能在已关闭的会计期间 [${entry.period_name}] 过账凭证`);
+        throw new BusinessError(`不能在已关闭的会计期间 [${entry.period_name}] 过账凭证`);
       }
       if (Number(entry.is_locked) === 1 || entry.is_locked === true) {
-        throw new Error(`不能在已锁定的会计期间 [${entry.period_name}] 过账凭证`);
+        throw new BusinessError(`不能在已锁定的会计期间 [${entry.period_name}] 过账凭证`);
       }
 
       await assertEntryCanBePosted(connection, id);

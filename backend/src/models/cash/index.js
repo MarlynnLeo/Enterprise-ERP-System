@@ -89,7 +89,7 @@ module.exports = {
   deleteBankTransaction: Transaction.deleteBankTransaction,
   transferFunds: Transfer.transferFunds,
   getFundTransferRequests: Transfer.getTransferRequests,
-  approveTransfer: Transfer.approveTransfer,
+  approveTransfer: Transfer.approveTransfer.bind(Transfer),
   rejectTransfer: Transfer.rejectTransfer,
   // 显式导出CashTransaction的审核/作废方法
   submitForAudit: CashTransaction.submitForAudit,

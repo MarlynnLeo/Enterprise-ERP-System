@@ -558,6 +558,11 @@ const assetsModel = {
       ];
 
       // 如果原值变化，同步更新acquisition_cost、current_value和accumulated_depreciation
+      if (assetData.acquisition_date !== undefined) {
+        sql += ', acquisition_date = ?';
+        params.push(toLocalDateString(assetData.acquisition_date));
+      }
+
       if (assetData.acquisition_cost !== undefined) {
         sql += `, acquisition_cost = ?, current_value = ?, net_value = ?, accumulated_depreciation = ?`;
         const nextCurrentValue = parseFloat(assetData.current_value || assetData.acquisition_cost);

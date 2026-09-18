@@ -87,6 +87,7 @@
         class="w-full"
         v-loading="loading"
         table-layout="fixed"
+        @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))"
       >
         <el-table-column type="expand" width="50">
           <template #default="props">
@@ -101,7 +102,7 @@
 
               <div class="products-title">退货物品</div>
               <el-table :data="props.row.items || []" border class="table-row-click w-full" table-layout="fixed"
-      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
+      @row-click="(_row, column, event) => handleTableRowView(props.row, column, event, () => handleView(props.row))">
                 <el-table-column prop="productCode" label="产品编码" width="120" />
                 <el-table-column prop="productName" label="产品名称" />
                 <el-table-column prop="specification" label="规格" />
@@ -164,6 +165,16 @@
             >
               完成
             </el-button>
+            <el-button
+              v-if="scope.row.status === 'completed'"
+              v-permission="'finance:ar:create'"
+              size="small"
+              type="primary"
+              :loading="creditNoteLoadingId === scope.row.id"
+              @click="handleGenerateCreditNote(scope.row)"
+            >
+              生成红字应收
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -216,6 +227,15 @@
           <el-table-column prop="specification" label="规格" min-width="140" />
           <el-table-column prop="unitName" label="单位" width="80" />
           <el-table-column prop="quantity" label="退货数量" width="100" />
+          <el-table-column label="未税金额" width="110">
+            <template #default="{ row }">{{ formatCurrency(row.amount) }}</template>
+          </el-table-column>
+          <el-table-column label="税额" width="100">
+            <template #default="{ row }">{{ formatCurrency(row.taxAmount) }}</template>
+          </el-table-column>
+          <el-table-column label="价税合计" width="110">
+            <template #default="{ row }">{{ formatCurrency(row.totalAmount) }}</template>
+          </el-table-column>
           <el-table-column prop="reason" label="明细原因" min-width="160" />
         </el-table>
 
@@ -248,18 +268,23 @@
             <span v-if="createForm.outbound.customerName">客户：{{ createForm.outbound.customerName }}</span>
           </div>
         </el-form-item>
+        <el-form-item v-if="createForm.sourceOrders.length > 1" label="来源订单" required>
+          <el-select v-model="createForm.orderId" placeholder="选择本次退货的订单">
+            <el-option v-for="order in createForm.sourceOrders" :key="order.id" :value="order.id" :label="order.orderNo" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="退货日期" required>
-          <el-date-picker v-model="createForm.return_date" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" />
+          <el-date-picker v-model="createForm.returnDate" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" />
         </el-form-item>
         <el-form-item label="退货原因" required>
-          <el-input v-model="createForm.return_reason" placeholder="请输入退货原因" />
+          <el-input v-model="createForm.returnReason" placeholder="请输入退货原因" />
         </el-form-item>
         <el-form-item label="备注">
           <el-input v-model="createForm.remarks" type="textarea" :rows="2" placeholder="备注（可选）" />
         </el-form-item>
 
         <el-divider content-position="center">退货明细</el-divider>
-        <el-table :data="createForm.items" border class="w-full">
+        <el-table :data="visibleReturnItems" border class="w-full">
           <el-table-column type="index" width="50" label="#" />
           <el-table-column prop="materialCode" label="产品编码" width="120" />
           <el-table-column prop="materialName" label="产品名称" min-width="140" />
@@ -353,6 +378,7 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { salesApi } from '@/api'
+import { financeApi } from '@/api/finance'
 import { Plus } from '@element-plus/icons-vue'
 import printService from '@/services/printService'
 import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue'
@@ -360,24 +386,41 @@ import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPane
 const detailsVisible = ref(false)
 const currentReturn = ref(null)
 const detailsLoading = ref(false)
+const creditNoteLoadingId = ref(null)
+
+const handleGenerateCreditNote = async (row) => {
+  if (creditNoteLoadingId.value !== null) return
+  creditNoteLoadingId.value = row.id
+  try {
+    const result = await financeApi.integration.generateARCreditNoteFromSalesReturn(row.id)
+    ElMessage.success(result.message || '红字应收与会计凭证生成成功')
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || '生成红字应收失败')
+  } finally {
+    creditNoteLoadingId.value = null
+  }
+}
 
 // 获取退货单状态类型（使用统一的销售状态颜色）
-const getReturnStatusType = (status) => getSalesStatusColor(status)
+const getReturnStatusType = (status) => getSalesReturnStatusColor(status)
 
 // 获取退货单状态文本（使用统一的销售状态文本）
-const getReturnStatusText = (status) => getSalesStatusText(status) || status
+const getReturnStatusText = (status) => getSalesReturnStatusText(status) || status
 
 const createDialog = reactive({ visible: false })
 const createFormRef = ref(null)
 const createForm = reactive({
-  outbound: { id: null, outbound_no: '', order_no: '', customer_name: '' },
-  return_date: dayjs().format('YYYY-MM-DD'),
-  return_reason: '',
+  outbound: { id: null, outboundNo: '', orderNo: '', customerName: '' },
+  orderId: null,
+  sourceOrders: [],
+  returnDate: dayjs().format('YYYY-MM-DD'),
+  returnReason: '',
   remarks: '',
   items: []
 })
+const visibleReturnItems = computed(() => createForm.items.filter(item => Number(item.sourceOrderId) === Number(createForm.orderId)))
 
-import { getSalesStatusText, getSalesStatusColor, SALES_RETURN_STATUS_OPTIONS } from '@/constants/systemConstants'
+import { getSalesStatusText, getSalesStatusColor, getSalesReturnStatusText, getSalesReturnStatusColor, SALES_RETURN_STATUS_OPTIONS } from '@/constants/systemConstants'
 import { parseResponseData } from '@/utils/responseParser'
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 const outboundDialog = reactive({
@@ -444,11 +487,13 @@ const calculateReturnStats = () => {
 // 打开新增对话框
 const openCreateDialog = () => {
   // 重置表单
-  createForm.outbound = { id: null, outbound_no: '', order_no: '', customer_name: '' }
-  createForm.return_date = dayjs().format('YYYY-MM-DD')
-  createForm.return_reason = ''
+  createForm.outbound = { id: null, outboundNo: '', orderNo: '', customerName: '' }
+  createForm.returnDate = dayjs().format('YYYY-MM-DD')
+  createForm.returnReason = ''
   createForm.remarks = ''
   createForm.items = []
+  createForm.orderId = null
+  createForm.sourceOrders = []
   createDialog.visible = true
 }
 
@@ -481,8 +526,7 @@ const validateReturnQuantity = (row) => {
     return
   }
 
-  // 保留两位小数
-  row.returnQuantity = Math.round(value * 100) / 100
+  row.returnQuantity = value
 }
 
 const loadOutbounds = async () => {
@@ -514,20 +558,24 @@ const selectOutbound = async (row) => {
     // 设置出库单信息
     createForm.outbound = {
       id: outboundData.id,
-      outbound_no: outboundData.outboundNo,
-      order_no: outboundData.orderNo || '',
-      customer_name: outboundData.customerName || ''
+      outboundNo: outboundData.outboundNo,
+      orderNo: outboundData.orderNo || '',
+      customerName: outboundData.customerName || ''
     }
 
     // 设置退货明细（基于出库明细）
+    createForm.sourceOrders = (outboundData.relatedOrderDetails || []).map(order => ({ ...order, id: Number(order.id) }))
+    if (!createForm.sourceOrders.length && outboundData.orderId) createForm.sourceOrders = [{ id: Number(outboundData.orderId), orderNo: outboundData.orderNo }]
+    createForm.orderId = createForm.sourceOrders[0]?.id || null
     createForm.items = (outboundData.items || []).map(item => ({
-      material_id: item.materialId || item.productId,
-      material_code: item.materialCode || item.productCode,
-      material_name: item.materialName || item.productName,
+      sourceOrderId: item.sourceOrderId || outboundData.orderId,
+      materialId: item.materialId || item.productId,
+      materialCode: item.materialCode || item.productCode,
+      materialName: item.materialName || item.productName,
       specification: item.specification || '',
-      unit_name: item.unitName || '个',
+      unitName: item.unitName || '个',
       quantity: item.returnableQuantity ?? item.quantity, // 可退数量（已扣减历史退货）
-      return_quantity: 0, // 退货数量，用户可编辑
+      returnQuantity: 0, // 退货数量，用户可编辑
       reason: '' // 明细退货原因
     }))
 
@@ -543,11 +591,11 @@ const selectOutbound = async (row) => {
 const submitCreate = async () => {
   try {
     if (!createForm.outbound.id) return ElMessage.warning('请选择出库单')
-    if (!createForm.return_date) return ElMessage.warning('请选择退货日期')
-    if (!createForm.return_reason) return ElMessage.warning('请输入退货原因')
+    if (!createForm.returnDate) return ElMessage.warning('请选择退货日期')
+    if (!createForm.returnReason) return ElMessage.warning('请输入退货原因')
 
     // 验证退货明细
-    const validItems = createForm.items.filter(i => Number(i.return_quantity) > 0)
+    const validItems = visibleReturnItems.value.filter(i => Number(i.returnQuantity) > 0)
     if (validItems.length === 0) return ElMessage.warning('请至少填写1条退货数量')
 
     // 验证退货数量不能超过原数量
@@ -558,23 +606,24 @@ const submitCreate = async () => {
         ElMessage.error(`商品 ${item.materialName} 的退货数量不能超过原数量`)
         return
       }
-      if (returnQty <= 0) {
-        ElMessage.error(`商品 ${item.materialName} 的退货数量必须大于0`)
+      if (!Number.isSafeInteger(returnQty) || returnQty <= 0) {
+        ElMessage.error(`商品 ${item.materialName} 的退货数量必须为正整数`)
         return
       }
     }
 
     const payload = {
-      outbound_id: createForm.outbound.id,
-      outbound_no: createForm.outbound.outboundNo,
-      order_no: createForm.outbound.orderNo,
-      customer_name: createForm.outbound.customerName,
-      return_date: createForm.return_date,
-      return_reason: createForm.return_reason,
+      outboundId: createForm.outbound.id,
+      orderId: createForm.orderId,
+      outboundNo: createForm.outbound.outboundNo,
+      orderNo: createForm.outbound.orderNo,
+      customerName: createForm.outbound.customerName,
+      returnDate: createForm.returnDate,
+      returnReason: createForm.returnReason,
       remarks: createForm.remarks,
       items: validItems.map(i => ({
-        product_id: i.materialId,
-        quantity: Number(i.return_quantity),
+        productId: i.materialId,
+        quantity: Number(i.returnQuantity),
         reason: i.reason || ''
       }))
     }
@@ -585,7 +634,7 @@ const submitCreate = async () => {
     await fetchData()
   } catch (e) {
     console.error('创建退货单失败:', e)
-    const errorMessage = e.response?.data?.error || e.response?.data?.message || '创建退货单失败'
+    const errorMessage = e.response?.data?.message || e.response?.data?.error?.message || '创建退货单失败'
     ElMessage.error(errorMessage)
   }
 }
@@ -621,12 +670,13 @@ const fetchData = async () => {
 
     // 适配后端数据到表格结构
     returnRecords.value = items.map((it, idx) => ({
+      ...it,
       id: it.id || `RET_${idx}`, // 保持数字ID用于API调用
       returnNo: it.returnNo || it.id || `RET_${idx}`, // 显示用的退货单号
       orderNo: it.orderNo || it.orderId || '-',
       customerName: it.customerName || '-',
       returnDate: it.returnDate,
-      returnAmount: isBlankAmount(it.totalAmount ?? it.return_amount) ? null : Number(it.totalAmount ?? it.return_amount),
+      returnAmount: isBlankAmount(it.totalAmount) ? null : Number(it.totalAmount),
       status: it.status || '待审批',
       reason: it.returnReason || '-', // 添加退货原因
       items: it.items || []
@@ -634,6 +684,14 @@ const fetchData = async () => {
 
     total.value = Number(data.total ?? returnRecords.value.length)
     calculateReturnStats()
+    if (data.statusStats) {
+      const stats = data.statusStats
+      returnStats.value = {
+        total: ['draft', 'pending', 'approved', 'completed', 'rejected', 'cancelled'].reduce((sum, status) => sum + Number(stats[`${status}Count`] || 0), 0),
+        pending: Number(stats.pendingCount || 0), approved: Number(stats.approvedCount || 0),
+        completed: Number(stats.completedCount || 0), rejected: Number(stats.rejectedCount || 0),
+      }
+    }
   } catch (error) {
     console.error('获取退货单数据失败:', error)
     ElMessage.error('获取退货单数据失败')
@@ -695,18 +753,9 @@ const salesReturnViewNavigation = computed(() => ({
 // 通用状态更新函数
 const updateReturnStatus = async (row, status, remarks = null) => {
   try {
-    // 先获取完整的退货单数据
-    const response = await salesApi.getReturn(row.id)
-    const fullReturnData = response.data || response
-
-    // 调用后端API更新状态，保留所有原有数据
     await salesApi.updateReturn(row.id, {
-      return_date: fullReturnData.return_date,
-      order_id: fullReturnData.orderId,
-      return_reason: fullReturnData.return_reason,
-      status: status,
-      remarks: remarks !== null ? remarks : fullReturnData.remarks,
-      items: fullReturnData.items || []
+      status,
+      ...(remarks !== null ? { remarks } : {}),
     })
 
     // 刷新数据以获取最新状态
@@ -791,18 +840,18 @@ const handlePrintReturn = async () => {
     const ret = currentReturn.value
     const printData = {
       return_no: ret.returnNo || '',
-      return_date: formatDate(ret.returnDate) || '',
-      customer_name: ret.customerName || '',
-      order_no: ret.orderNo || '',
+      returnDate: formatDate(ret.returnDate) || '',
+      customerName: ret.customerName || '',
+      orderNo: ret.orderNo || '',
       reason: ret.returnReason || '',
       operator: ret.created_by_name || '',
       items: (ret.items || []).map((item, idx) => ({
         index: idx + 1,
-        material_code: item.materialCode || item.productCode || '',
-        material_name: item.materialName || item.productName || '',
+        materialCode: item.materialCode || item.productCode || '',
+        materialName: item.materialName || item.productName || '',
         specification: item.specification || '',
         quantity: parseFloat(item.quantity || item.returnQuantity || 0).toFixed(2),
-        unit_name: item.unitName || '',
+        unitName: item.unitName || '',
         remark: item.reason || item.remark || ''
       }))
     }

@@ -4,6 +4,8 @@ const QualityInspection = require('../../models/qualityInspection');
 const PurchaseOrderStatusService = require('./PurchaseOrderStatusService');
 const InspectionClosureService = require('../quality/InspectionClosureService');
 const PurchasePriceService = require('./PurchasePriceService');
+const { purchaseQuantity } = require('../../utils/purchase/purchaseValidation');
+const { currentDateString } = require('../../utils/dateUtils');
 
 const createBusinessError = (message, statusCode = 400) => {
   const error = new Error(message);
@@ -12,12 +14,7 @@ const createBusinessError = (message, statusCode = 400) => {
   return error;
 };
 
-const toNumber = (value) => {
-  const numberValue = Number(value);
-  return Number.isFinite(numberValue) ? numberValue : 0;
-};
-
-const todayString = () => new Date().toISOString().slice(0, 10);
+const todayString = currentDateString;
 
 class PurchaseReceiveInspectionService {
   static async receiveWithIncomingInspection(orderId, items) {
@@ -31,13 +28,14 @@ class PurchaseReceiveInspectionService {
     }
 
     const receivingItems = items
-      .map((item) => ({
+      .map((item, index) => ({
         ...item,
         // 收货明细入参只认 camel（控制器边界已 fromApi）
         material_id: Number(item.materialId || 0),
-        receive_quantity: toNumber(item.receiveQuantity ?? item.quantity),
-      }))
-      .filter((item) => item.material_id > 0 && item.receive_quantity > 0);
+        receive_quantity: purchaseQuantity(item.receiveQuantity ?? item.quantity, `第${index + 1}行到货数量`),
+      }));
+
+    if (receivingItems.some(item => !Number.isInteger(item.material_id) || item.material_id <= 0)) throw createBusinessError('请为每一条到货明细选择有效物料');
 
     if (receivingItems.length === 0) {
       throw createBusinessError('没有有效的收货物料');
@@ -55,6 +53,7 @@ class PurchaseReceiveInspectionService {
       if (order.status === 'completed') {
         throw createBusinessError('已完成的采购订单不能再次收货');
       }
+      if (['draft', 'pending', 'rejected'].includes(order.status)) throw createBusinessError('采购订单尚未审批通过，不能登记到货');
       order = await this.resolveMissingOrderSupplier(connection, order, receivingItems);
       if (!order.supplier_code) {
         throw createBusinessError('供应商缺少编码，无法生成可追溯的来料批次号');
@@ -63,18 +62,11 @@ class PurchaseReceiveInspectionService {
       const inspections = [];
 
       for (const item of receivingItems) {
+        const itemContext = await this.getOrderItemContext(connection, cleanOrderId, item.material_id, item.orderItemId);
         await PurchaseOrderStatusService.updateOrderItemReceivedQuantity(
-          cleanOrderId,
-          item.material_id,
-          item.receive_quantity,
-          connection
+          cleanOrderId, item.material_id, item.receive_quantity, connection, itemContext.order_item_id
         );
 
-        const itemContext = await this.getOrderItemContext(
-          connection,
-          cleanOrderId,
-          item.material_id
-        );
         // 明细入参 camel；库上下文 snake
         const batchNo =
           item.batchNo ||
@@ -82,6 +74,7 @@ class PurchaseReceiveInspectionService {
 
         const inspectionPayload = {
           inspection_type: 'incoming',
+          purchase_order_item_id: itemContext.order_item_id,
           material_id: item.material_id,
           material_code: item.materialCode || itemContext.material_code,
           material_name: item.materialName || itemContext.material_name,
@@ -239,9 +232,10 @@ class PurchaseReceiveInspectionService {
     };
   }
 
-  static async getOrderItemContext(connection, orderId, materialId) {
+  static async getOrderItemContext(connection, orderId, materialId, orderItemId = null) {
     const [rows] = await connection.query(
       `SELECT
+        poi.id AS order_item_id,
         poi.material_id,
         COALESCE(poi.material_code, m.code) AS material_code,
         COALESCE(poi.material_name, m.name) AS material_name,
@@ -252,15 +246,15 @@ class PurchaseReceiveInspectionService {
       LEFT JOIN materials m ON poi.material_id = m.id
       LEFT JOIN units u1 ON poi.unit_id = u1.id
       LEFT JOIN units u2 ON m.unit_id = u2.id
-      WHERE poi.order_id = ? AND poi.material_id = ?
-      LIMIT 1`,
-      [orderId, materialId]
+      WHERE poi.order_id = ? AND poi.material_id = ? AND (? IS NULL OR poi.id = ?)`,
+      [orderId, materialId, orderItemId, orderItemId]
     );
 
     if (!rows || rows.length === 0) {
       throw createBusinessError(`采购订单物料不存在: 物料ID=${materialId}`);
     }
 
+    if (rows.length > 1) throw createBusinessError('同物料存在多条采购明细，请指定订单明细ID');
     return rows[0];
   }
 

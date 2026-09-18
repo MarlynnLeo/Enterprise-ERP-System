@@ -161,7 +161,7 @@
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
 import { useDictionaryStore } from '@/stores/dictionary'
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, onActivated } from 'vue';
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { useRouter } from 'vue-router';
@@ -347,6 +347,11 @@ const getStatusType = (status) => {
 };
 onMounted(() => {
   fetchData();
+});
+let activatedOnce = false;
+onActivated(() => {
+  if (activatedOnce) fetchData();
+  activatedOnce = true;
 });
 </script>
 <style scoped>

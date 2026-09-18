@@ -50,7 +50,7 @@ exports.getCustomers = async (req, res) => {
     const { keyword, limit = 50 } = req.query;
 
     let query =
-      'SELECT id, name, code, contact_person, contact_phone, address FROM customers WHERE deleted_at IS NULL';
+      'SELECT id, name, code, contact_person, COALESCE(contact_phone, phone) AS contact_phone, address FROM customers WHERE deleted_at IS NULL';
     const params = [];
 
     // 如果有搜索关键词，添加搜索条件
@@ -107,7 +107,7 @@ exports.getCustomer = async (req, res) => {
 
     try {
       const [customers] = await connection.query(
-        'SELECT id, name, code, contact_person, contact_phone, address FROM customers WHERE id = ? AND deleted_at IS NULL',
+        'SELECT id, name, code, contact_person, COALESCE(contact_phone, phone) AS contact_phone, address FROM customers WHERE id = ? AND deleted_at IS NULL',
         [customerId]
       );
 
@@ -217,32 +217,24 @@ exports.getCustomerOrderProducts = async (req, res) => {
           ELSE 'partial_shipped'
   END as shipping_status
       FROM sales_orders so
-      INNER JOIN sales_order_items soi ON so.id = soi.order_id
+      INNER JOIN (
+        SELECT order_id, material_id, SUM(quantity) AS quantity,
+               ROUND(SUM(quantity * unit_price) / NULLIF(SUM(quantity), 0), 4) AS unit_price,
+               SUM(amount) AS amount
+          FROM sales_order_items GROUP BY order_id, material_id
+      ) soi ON so.id = soi.order_id
       LEFT JOIN materials m ON soi.material_id = m.id
       LEFT JOIN units u ON m.unit_id = u.id
       LEFT JOIN(
     SELECT
-          soi2.material_id,
-    soi2.order_id,
+          sobi.product_id AS material_id,
+    COALESCE(sobi.source_order_id, sob.order_id) AS order_id,
     SUM(sobi.quantity) as shipped_quantity
-        FROM sales_order_items soi2
-        INNER JOIN sales_outbound_items sobi ON soi2.material_id = sobi.product_id
+        FROM sales_outbound_items sobi
         INNER JOIN sales_outbound sob ON sobi.outbound_id = sob.id
         WHERE sob.deleted_at IS NULL
           AND sob.status IN('completed', 'processing')
-          AND(
-      --单订单出库：直接匹配order_id
-            (COALESCE(sob.is_multi_order, 0) = 0 AND sob.order_id = soi2.order_id)
-            OR
-            --多订单出库：检查related_orders字段
-            (sob.is_multi_order = 1 AND sobi.source_order_id = soi2.order_id)
-      OR (sob.is_multi_order = 1 AND sobi.source_order_id IS NULL AND sob.related_orders IS NOT NULL
-             AND(
-        JSON_CONTAINS(sob.related_orders, CAST(soi2.order_id AS JSON))
-               OR sob.related_orders LIKE CONCAT('%', soi2.order_id, '%')
-      ))
-    )
-        GROUP BY soi2.material_id, soi2.order_id
+        GROUP BY sobi.product_id, COALESCE(sobi.source_order_id, sob.order_id)
   ) shipped ON soi.material_id = shipped.material_id AND soi.order_id = shipped.order_id
       LEFT JOIN(
     SELECT \n          material_id,\n    SUM(total_by_location) as total_stock\n        FROM(\n      SELECT \n            il.material_id,\n      il.location_id,\n      SUM(il.quantity) as total_by_location\n          FROM inventory_ledger il\n          JOIN materials mat ON il.material_id = mat.id\n          WHERE mat.location_id IS NULL OR il.location_id = mat.location_id\n          GROUP BY il.material_id, il.location_id\n          HAVING SUM(il.quantity) > 0\n    ) location_stock\n        GROUP BY material_id
@@ -295,6 +287,7 @@ exports.getCustomerOrderProducts = async (req, res) => {
         ordered_quantity: item.ordered_quantity,
         shipped_quantity: item.shipped_quantity,
         remaining_quantity: item.remaining_quantity,
+        unit_price: item.unit_price,
         shipping_status: item.shipping_status,
       });
 

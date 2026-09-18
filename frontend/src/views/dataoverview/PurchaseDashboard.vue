@@ -13,18 +13,20 @@
         <span v-if="lastUpdated" class="last-updated">
           最后更新: {{ new Date(lastUpdated).toLocaleTimeString() }}
         </span>
+        <el-button :loading="loading" @click="loadData">刷新</el-button>
       </template>
     </PageHeader>
+    <el-alert v-if="loadError" :title="loadError" type="error" show-icon :closable="false" class="mb-md" />
 
     <!-- 统计卡片 -->
     <el-row :gutter="16" class="stats-row">
       <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card primary-card" shadow="hover">
-          <div class="stat-value">{{ statistics.requisitions.completed }}</div>
+          <div class="stat-value">{{ statistics.requisitions.total }}</div>
           <div class="stat-label">采购申请</div>
           <div class="stat-secondary">
             <span class="stat-secondary-value">{{ statistics.requisitions.pending }}</span>
-            <span class="stat-secondary-label">待审批</span>
+            <span class="stat-secondary-label">待处理</span>
           </div>
         </el-card>
       </el-col>
@@ -102,7 +104,7 @@
         <el-card class="dashboard-card" shadow="hover">
           <template #header>
             <div class="card-header-with-search">
-              <span>最近采购订单</span>
+              <span>最近50条采购订单</span>
               <el-input
                 v-model="search"
                 placeholder="搜索订单号 / 供应商 / 状态"
@@ -131,7 +133,7 @@
             <el-table-column prop="supplierName" label="供应商" min-width="200" show-overflow-tooltip />
             <el-table-column label="订单金额" min-width="120">
               <template #default="scope">
-                {{ formatCurrency(scope.row.totalAmount) }}
+                {{ scope.row.totalAmount == null ? '—' : formatCurrency(scope.row.totalAmount) }}
               </template>
             </el-table-column>
             <el-table-column label="状态" min-width="100">
@@ -198,6 +200,7 @@ const router = useRouter()
 
 // 状态定义
 const loading = ref(false)
+const loadError = ref('')
 const lastUpdated = ref(null)
 const timeRange = ref('6') // '6' | '12'
 
@@ -424,9 +427,10 @@ async function renderCharts() {
 // 加载采购概览与订单数据
 async function loadData() {
   loading.value = true
+  loadError.value = ''
   try {
     const [statsRes, ordersRes] = await Promise.allSettled([
-      purchaseApi.getDashboardStatistics ? purchaseApi.getDashboardStatistics() : purchaseApi.getStatistics(),
+      purchaseApi.getDashboardStatistics({ months: Number(timeRange.value) }),
       purchaseApi.getOrders({
         page: 1,
         pageSize: 50,
@@ -450,7 +454,7 @@ async function loadData() {
         orderDate: order.orderDate || order.createdAt,
         expectedDeliveryDate: order.expectedDeliveryDate,
         supplierName: order.supplierName || (order.supplier && order.supplier.name) || order.supplier || '未知供应商',
-        totalAmount: toNumber(order.totalAmount),
+        totalAmount: order.totalAmount == null ? null : toNumber(order.totalAmount),
         status: order.status || 'draft',
         requisitionId: order.requisitionId,
         requisitionNumber: order.requisitionNumber,
@@ -458,10 +462,15 @@ async function loadData() {
       }))
     }
 
-    lastUpdated.value = new Date()
+    const failures = []
+    if (statsRes.status === 'rejected') failures.push('采购统计加载失败')
+    if (ordersRes.status === 'rejected') failures.push('采购订单加载失败')
+    loadError.value = failures.length ? `${failures.join('；')}，请点击刷新重试。` : ''
+    if (!failures.length) lastUpdated.value = new Date()
     await renderCharts()
   } catch (error) {
     console.error('加载采购概览数据失败:', error)
+    loadError.value = '采购概览加载失败，请点击刷新重试。'
   } finally {
     loading.value = false
   }
@@ -469,8 +478,9 @@ async function loadData() {
 
 // 监听时间范围切换
 watch(timeRange, () => {
-  renderPurchaseTrendChart()
+  loadData()
 })
+watch(search, () => { currentPage.value = 1 })
 
 onMounted(async () => {
   await loadData()

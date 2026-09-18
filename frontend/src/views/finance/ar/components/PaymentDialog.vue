@@ -82,7 +82,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { InfoFilled } from '@element-plus/icons-vue'
 
 const props = defineProps({
@@ -107,6 +107,7 @@ const props = defineProps({
 defineEmits(['update:modelValue', 'save'])
 
 const editableForm = computed(() => props.form)
+const paymentFormRef = ref(null)
 
 // 是否显示银行账户字段
 const showBankAccountField = computed(() => {
@@ -127,7 +128,18 @@ const paymentRules = {
     { required: true, message: '请选择收款日期', trigger: 'change' }
   ],
   amount: [
-    { required: true, message: '请输入收款金额', trigger: 'blur' }
+    { required: true, message: '请输入收款金额', trigger: 'blur' },
+    {
+      validator: (rule, value, callback) => {
+        const amount = Number(value)
+        if (!Number.isFinite(amount) || amount <= 0 || amount > Number(editableForm.value.balanceValue)) {
+          callback(new Error('收款金额须大于 0 且不超过剩余金额'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'change'
+    }
   ],
   paymentMethod: [
     { required: true, message: '请选择收款方式', trigger: 'change' }
@@ -145,4 +157,6 @@ const paymentRules = {
     }
   ]
 }
+
+defineExpose({ validate: callback => paymentFormRef.value?.validate(callback) })
 </script>

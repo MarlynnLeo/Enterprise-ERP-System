@@ -441,11 +441,11 @@ const expenseModel = {
   /**
    * 获取费用类型树形结构
    */
-  async getExpenseCategoryTree() {
+  async getExpenseCategoryTree(includeInactive = false) {
     try {
       const [rows] = await db.pool.execute(`
         SELECT id, name, code, parent_id, description, status, sort_order, created_at, updated_at, gl_account_code, deleted_at FROM expense_categories
-        WHERE status = 1 AND deleted_at IS NULL
+        WHERE ${includeInactive ? '1 = 1' : 'status = 1'} AND deleted_at IS NULL
         ORDER BY sort_order, id
       `);
 
@@ -469,18 +469,35 @@ const expenseModel = {
   /**
    * 创建费用类型
    */
+  async validateExpenseCategoryAccount(code) {
+    if (!code) return;
+    const [accounts] = await db.pool.execute('SELECT id, parent_id, is_active FROM gl_accounts WHERE account_code = ?', [code]);
+    let account = accounts[0];
+    const visited = new Set();
+    while (account) {
+      if (!isTruthyFlag(account.is_active) || visited.has(account.id)) break;
+      visited.add(account.id);
+      if (!account.parent_id) return;
+      const [parents] = await db.pool.execute('SELECT id, parent_id, is_active FROM gl_accounts WHERE id = ?', [account.parent_id]);
+      account = parents[0];
+    }
+    throw Object.assign(new Error('费用科目不存在或科目及上级科目未启用'), { code: 'VALIDATION_ERROR' });
+  },
+
   async createExpenseCategory(data) {
     try {
+      await this.validateExpenseCategoryAccount(data.gl_account_code);
       const [result] = await db.pool.execute(
-        `INSERT INTO expense_categories (code, name, parent_id, description, status, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO expense_categories (code, name, parent_id, description, status, sort_order, gl_account_code)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           data.code,
           data.name,
           data.parent_id || null,
           data.description || '',
-          data.status || 1,
+          data.status ?? 1,
           data.sort_order || 0,
+          data.gl_account_code || null,
         ]
       );
       return { id: result.insertId, ...data };
@@ -495,8 +512,13 @@ const expenseModel = {
    */
   async updateExpenseCategory(id, data) {
     try {
+      await this.validateExpenseCategoryAccount(data.gl_account_code);
       const fields = [];
       const params = [];
+      if (data.gl_account_code !== undefined) {
+        fields.push('gl_account_code = ?');
+        params.push(data.gl_account_code || null);
+      }
 
       if (data.name !== undefined) {
         fields.push('name = ?');
@@ -937,6 +959,8 @@ const expenseModel = {
          WHERE reference_number = ?
            AND transaction_type = '费用'
            AND COALESCE(status, 'approved') = 'approved'
+           AND NOT EXISTS (SELECT 1 FROM gl_entries ge
+             WHERE ge.id = bank_transactions.gl_entry_id AND COALESCE(ge.is_reversed, 0) = 1)
          LIMIT 1
          FOR UPDATE`,
         [expense.expense_number]
@@ -1442,6 +1466,8 @@ const expenseModel = {
       }
 
       const bankTransactionId = expense.payment_transaction_id;
+      let reversalBankTransactionId = null;
+      let originalBankEntryId = null;
       if (bankTransactionId) {
         const [bankTxs] = await connection.execute(
           `SELECT id, transaction_number, bank_account_id, amount, is_reconciled, gl_entry_id
@@ -1452,6 +1478,7 @@ const expenseModel = {
           throw new Error('关联银行流水不存在，无法作废付款');
         }
         const bankTx = bankTxs[0];
+        originalBankEntryId = bankTx.gl_entry_id;
         if (isTruthyFlag(bankTx.is_reconciled)) {
           throw new Error('关联银行流水已对账，请先取消对账后再作废付款');
         }
@@ -1466,7 +1493,7 @@ const expenseModel = {
 
         const reversalDate = currentDateString();
         const reversalNumber = `${bankTx.transaction_number}-VOID`;
-        await connection.execute(
+        const [reversalBankTransaction] = await connection.execute(
           `INSERT INTO bank_transactions
            (transaction_number, bank_account_id, transaction_date, transaction_type,
             amount, reference_number, description, is_reconciled, related_party, status, created_by)
@@ -1485,13 +1512,14 @@ const expenseModel = {
             voidedBy,
           ]
         );
+        reversalBankTransactionId = reversalBankTransaction.insertId;
         await connection.execute(
           'UPDATE bank_accounts SET current_balance = current_balance + ?, last_transaction_date = ? WHERE id = ?',
           [bankTx.amount, reversalDate, bankTx.bank_account_id]
         );
       }
 
-      await VoucherReversalService.reverseBusinessVouchers(connection, {
+      const reversedEntries = await VoucherReversalService.reverseBusinessVouchers(connection, {
         sourceType: 'expense',
         sourceId: expense.id,
         documentNumber: expense.expense_number,
@@ -1499,6 +1527,12 @@ const expenseModel = {
         voidedBy,
         reason: `冲销费用付款 - 原因: ${voidReason}`,
       });
+      if (reversalBankTransactionId) {
+        const reversed = reversedEntries.find(entry => Number(entry.originalEntryId) === Number(originalBankEntryId))
+          || (reversedEntries.length === 1 ? reversedEntries[0] : null);
+        if (!reversed) throw new Error('费用冲销流水缺少对应的冲销凭证');
+        await connection.execute('UPDATE bank_transactions SET gl_entry_id = ? WHERE id = ?', [reversed.entryId, reversalBankTransactionId]);
+      }
 
       await connection.execute(
         `UPDATE expenses SET

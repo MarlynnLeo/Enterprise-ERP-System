@@ -588,7 +588,7 @@ const budgetModel = {
       await connection.beginTransaction();
 
       const [budgets] = await connection.execute(
-        'SELECT id, status FROM budgets WHERE id = ? FOR UPDATE',
+        'SELECT id, status, created_by FROM budgets WHERE id = ? FOR UPDATE',
         [id]
       );
 

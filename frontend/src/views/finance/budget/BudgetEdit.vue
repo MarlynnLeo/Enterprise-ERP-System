@@ -171,7 +171,7 @@
 
 <script setup>
 import { useDictionaryStore } from '@/stores/dictionary'
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, onActivated, nextTick } from 'vue';
 import { ElMessage } from 'element-plus/es/components/message/index';
 import { useRouter, useRoute } from 'vue-router';
 import { financeApi } from '@/api/finance';
@@ -284,7 +284,7 @@ const handleSave = async () => {
   if (saving.value) return;
 
   try {
-    await formRef.value.validate();
+    if (!(await formRef.value.validate().catch(() => false))) return;
 
     if (formData.details.length === 0) {
       ElMessage.warning('请至少添加一条预算明细');
@@ -337,7 +337,7 @@ const handleSave = async () => {
   } catch (error) {
     if (error.name !== 'ValidationError') {
       console.error('保存失败:', error);
-      ElMessage.error(error.response?.data?.error || '保存失败');
+      ElMessage.error(error.response?.data?.message || error.response?.data?.error || error.message || '保存失败');
     }
   } finally {
     saving.value = false;
@@ -351,13 +351,31 @@ const handleCancel = () => {
 
 // 格式化金额 - 已统一使用 @/utils/format 导入
 
-onMounted(async () => {
-  await Promise.all([fetchDepartments(), fetchAccounts()]);
-
-  if (isEdit.value) {
-    await fetchBudgetDetail();
+let initializingForm = false;
+const initializeForm = async () => {
+  if (initializingForm) return;
+  initializingForm = true;
+  try {
+    if (isEdit.value) {
+      await fetchBudgetDetail();
+    } else {
+      Object.assign(formData, {
+        budgetName: '', budgetYear: String(new Date().getFullYear()), budgetType: '年度预算',
+        departmentId: null, startDate: '', endDate: '', totalAmount: 0,
+        status: '草稿', description: '', details: [],
+      });
+    }
+    await nextTick();
+    formRef.value?.clearValidate();
+  } finally {
+    initializingForm = false;
   }
+};
+onMounted(() => {
+  Promise.all([fetchDepartments(), fetchAccounts()]);
+  initializeForm();
 });
+onActivated(initializeForm);
 </script>
 
 <style scoped>

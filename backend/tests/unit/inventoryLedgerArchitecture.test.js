@@ -104,8 +104,8 @@ describe('inventory ledger architecture', () => {
     );
     expect(statusUpdateIndex).toBeGreaterThan(-1);
     expect(reconciliationIndex).toBeGreaterThan(statusUpdateIndex);
-    expect(orderStatusService).toContain('FROM quality_inspections qi');
-    expect(orderStatusService).toContain('SELECT GREATEST(');
+    expect(orderStatusService).toContain('PurchaseOrderQuantityService.read(client, orderId)');
+    expect(orderStatusService).toContain('Math.max(0, line.received)');
   });
 
   it('does not replay a cancelled outsourced receipt finance event', () => {

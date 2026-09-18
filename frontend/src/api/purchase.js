@@ -1,6 +1,7 @@
 import { api, fastApi } from '../services/axiosInstance';
 import { baseDataApi } from './baseData';
 import { normalizePurchaseReceivingItems } from '../utils/purchaseReceiving';
+import { normalizePurchaseReceiptPayload } from '../utils/purchaseReceipts';
 import {
     normalizePurchaseOrderResponse,
     normalizePurchaseRequisitionResponse
@@ -16,7 +17,7 @@ export {
     normalizePurchaseRequisitionResponse
 } from '../utils/purchaseContracts';
 
-const createIdempotencyKey = (prefix) => {
+export const createIdempotencyKey = (prefix) => {
     const uuid = globalThis.crypto?.randomUUID?.();
     return `${prefix}:${uuid || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
 };
@@ -185,149 +186,17 @@ export const purchaseApi = {
         create: (data) => api.post('/purchase/outsourced-receipts', data),
         update: (id, data) => api.put(`/purchase/outsourced-receipts/${id}`, data),
         updateStatus: (id, status) => api.put(`/purchase/outsourced-receipts/${id}/status`, { status }),
-        receiveWithInspection: (id, items) => api.post(
+        receiveWithInspection: (id, items, idempotencyKey) => api.post(
             `/purchase/outsourced-receipts/${id}/receive-with-inspection`,
             { items },
-            { headers: { 'X-Idempotency-Key': createIdempotencyKey(`outsourced-arrival:${id}`) } }
+            { headers: { 'X-Idempotency-Key': idempotencyKey || createIdempotencyKey(`outsourced-arrival:${id}`) } }
         ),
         arrive: (id, items) => api.post(`/purchase/outsourced-receipts/${id}/arrive`, { items })
     },
-    createReceipt: async (data) => {
-        try {
-
-            // 确保orderId字段存在并处理字段格式
-            if (!data.orderId) {
-                console.error('创建收货单失败: 缺少必要的orderId字段');
-                throw new Error('缺少必要的orderId字段');
-            }
-
-            // 确保其他必要字段存在
-            if (!data.receiptDate) {
-                console.error('创建收货单失败: 缺少必要的receiptDate字段');
-                throw new Error('缺少必要的receiptDate字段');
-            }
-
-            // 确保items字段是数组
-            if (!data.items || !Array.isArray(data.items)) {
-                console.error('创建收货单失败: items必须是数组');
-                data.items = [];  // 设置为空数组以防止错误
-            }
-
-            if (!data.warehouseId) {
-                console.error('创建收货单失败: 缺少必要的warehouseId字段');
-                throw new Error('缺少必要的warehouseId字段');
-            }
-
-            // 确保warehouseId是数字类型
-            const warehouseId = parseInt(data.warehouseId);
-            if (isNaN(warehouseId)) {
-                console.error('创建收货单失败: warehouseId不是有效的数字', data.warehouseId);
-                throw new Error(`仓库ID格式无效: ${data.warehouseId}`);
-            }
-
-            // 准备最终发送的数据，处理下划线格式和驼峰格式字段
-            const receiptData = {
-                ...data,
-                status: data.status || 'draft',
-                orderId: data.orderId,
-                receiptDate: data.receiptDate,
-                warehouseId: warehouseId,
-                operator: data.receiver,
-                receiver: data.receiver,
-                inspectionId: data.inspectionId || null,
-                items: data.items.map(item => ({
-                    materialId: item.materialId,
-                    unitId: item.unitId,
-                    orderedQuantity: Number(item.orderedQuantity),
-                    receivedQuantity: Number(item.receivedQuantity),
-                    qualifiedQuantity: Number(item.qualifiedQuantity),
-                    price: Number(item.price || 0),
-                    remarks: item.remarks || ''
-                }))
-            };
-
-            const response = await api.post('/purchase/receipts', receiptData);
-            return response;
-        } catch (error) {
-            console.error('创建收货单失败:', error);
-            if (error.response) {
-                console.error('错误响应状态:', error.response.status);
-                console.error('错误响应数据:', error.response.data);
-                console.error('错误响应头:', error.response.headers);
-                if (error.response.data && error.response.data.error) {
-                    console.error('服务器返回的错误信息:', error.response.data.error);
-                }
-            } else if (error.request) {
-                console.error('请求已发送但没有收到响应');
-                console.error('请求对象:', error.request);
-            } else {
-                console.error('设置请求时发生错误:', error.message);
-            }
-            console.error('错误配置:', error.config);
-            throw error;
-        }
-    },
-    updateReceipt: async (id, data) => {
-        try {
-            // 确保orderId字段存在并处理字段格式
-            if (!data.orderId) {
-                throw new Error('缺少必要的orderId字段');
-            }
-
-            // 确保其他必要字段存在
-            if (!data.receiptDate) {
-                console.error('更新收货单失败: 缺少必要的receiptDate字段');
-                throw new Error('缺少必要的receiptDate字段');
-            }
-
-            if (!data.receiver) {
-                console.error('更新收货单失败: 缺少必要的receiver字段');
-                throw new Error('缺少必要的receiver字段');
-            }
-
-            if (!data.warehouseId) {
-                console.error('更新收货单失败: 缺少必要的warehouseId字段');
-                throw new Error('缺少必要的warehouseId字段');
-            }
-
-            // 确保warehouseId是数字类型
-            const warehouseId = parseInt(data.warehouseId);
-            if (isNaN(warehouseId)) {
-                console.error('更新收货单失败: warehouseId不是有效的数字', data.warehouseId);
-                throw new Error(`仓库ID格式无效: ${data.warehouseId}`);
-            }
-
-            // HTTP 只认 camelCase
-            const receiptData = {
-                ...data,
-                status: data.status || 'draft',
-                orderId: data.orderId,
-                receiptDate: data.receiptDate,
-                warehouseId,
-                operator: data.receiver,
-                receiver: data.receiver,
-                inspectionId: data.inspectionId || null,
-                items: data.items.map(item => ({
-                    materialId: item.materialId,
-                    unitId: item.unitId,
-                    orderedQuantity: Number(item.orderedQuantity),
-                    receivedQuantity: Number(item.receivedQuantity),
-                    qualifiedQuantity: Number(item.qualifiedQuantity),
-                    price: Number(item.price || 0),
-                    remarks: item.remarks || ''
-                }))
-            };
-            delete receiptData.order_id;
-            delete receiptData.receipt_date;
-            delete receiptData.warehouse_id;
-            delete receiptData.inspection_id;
-
-            const response = await api.put(`/purchase/receipts/${id}`, receiptData);
-            return response;
-        } catch (error) {
-            throw error;
-        }
-    },
+    createReceipt: (data) => api.post('/purchase/receipts', normalizePurchaseReceiptPayload(data), {
+        headers: { 'Idempotency-Key': data.idempotencyKey || createIdempotencyKey('purchase-receipt') }
+    }),
+    updateReceipt: (id, data) => api.put(`/purchase/receipts/${id}`, normalizePurchaseReceiptPayload(data)),
     updateReceiptStatus: async (id, data) => {
         try {
             // 处理status参数格式，确保与后端API期望的格式一致
@@ -354,7 +223,7 @@ export const purchaseApi = {
     getStatistics: () => api.get('/purchase/statistics'),
 
     // 获取采购综合统计数据（用于数据概览）
-    getDashboardStatistics: () => api.get('/purchase/dashboard-statistics'),
+    getDashboardStatistics: (params) => api.get('/purchase/dashboard-statistics', { params }),
 
     // 供应商基础数据统一走 baseDataApi 契约
     getSuppliers: (params = {}) => baseDataApi.getSuppliers(params || {})

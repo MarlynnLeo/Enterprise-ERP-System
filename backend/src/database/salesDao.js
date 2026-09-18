@@ -24,25 +24,29 @@ class SalesDao {
 
   static async createCustomer(customer) {
     const [result] = await pool.execute(
-      'INSERT INTO customers (name, contact_person, phone, email, address, status) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO customers (code, name, contact_person, phone, contact_phone, email, address, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [
+        customer.code || null,
         customer.name,
         customer.contactPerson,
+        customer.phone,
         customer.phone,
         customer.email,
         customer.address,
         customer.status,
       ]
     );
-    return { id: result.insertId, ...customer };
+    return this.getCustomer(result.insertId);
   }
 
   static async updateCustomer(id, customer) {
     await pool.execute(
-      'UPDATE customers SET name = ?, contact_person = ?, phone = ?, email = ?, address = ?, status = ? WHERE id = ?',
+      'UPDATE customers SET code = COALESCE(?, code), name = ?, contact_person = ?, phone = ?, contact_phone = ?, email = ?, address = ?, status = ? WHERE id = ? AND deleted_at IS NULL',
       [
+        customer.code || null,
         customer.name,
         customer.contactPerson,
+        customer.phone,
         customer.phone,
         customer.email,
         customer.address,
@@ -50,7 +54,7 @@ class SalesDao {
         id,
       ]
     );
-    return { id, ...customer };
+    return this.getCustomer(id);
   }
 
   // ==========================================
@@ -231,7 +235,9 @@ class SalesDao {
         defaultTaxRate: order.tax_rate !== undefined ? order.tax_rate : financeConfig.get('tax.defaultVATRate', 0.13),
       });
       const totalAmount = orderAmounts.totalAmount;
-      const taxRate = normalizeTaxRate(order.tax_rate !== undefined ? order.tax_rate : orderAmounts.taxRate, financeConfig.get('tax.defaultVATRate', 0.13));
+      const taxRate = orderAmounts.subtotal > 0
+        ? normalizeTaxRate(orderAmounts.items.reduce((sum, item) => sum + item.amount * item.tax_percent, 0) / orderAmounts.subtotal)
+        : 0;
       const subtotal = orderAmounts.subtotal;
       const taxAmount = orderAmounts.taxAmount;
 

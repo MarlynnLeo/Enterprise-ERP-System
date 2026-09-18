@@ -177,7 +177,7 @@ const cashTransactionController = {
         return ResponseHandler.notFound(res, '现金交易记录不存在');
       }
     } catch (error) {
-      return ResponseHandler.error(res, '更新现金交易失败', 'SERVER_ERROR', 500, error);
+      return sendCashBusinessError(res, error, '更新现金交易失败');
     }
   },
 
@@ -203,7 +203,7 @@ const cashTransactionController = {
         return ResponseHandler.notFound(res, '现金交易记录不存在');
       }
     } catch (error) {
-      return ResponseHandler.error(res, '删除现金交易失败', 'SERVER_ERROR', 500, error);
+      return sendCashBusinessError(res, error, '删除现金交易失败');
     }
   },
 

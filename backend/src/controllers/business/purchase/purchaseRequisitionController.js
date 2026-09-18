@@ -15,6 +15,7 @@ const { softDelete } = require('../../../utils/softDelete');
 const purchaseModel = require('../../../models/purchase');
 const { getRequestActorLabel } = require('../../../utils/userUtils');
 const { purchaseRequisitionMap } = require('../../../utils/purchase/purchaseFieldMap');
+const { normalizePurchaseDate, normalizeRequisitionMaterials } = require('../../../utils/purchase/purchaseValidation');
 
 const toNullableInteger = (value) => {
   if (value === undefined || value === null || value === '') return null;
@@ -88,6 +89,41 @@ const fetchExistingSourceRequisition = async (connection, sourceInfo, lock = fal
   return rows[0] || null;
 };
 
+const attachOrderedQuantities = async (connection, items) => {
+  const requisitionIds = [...new Set(items.map((item) => item.requisition_id))];
+  if (!requisitionIds.length) return;
+  const placeholders = requisitionIds.map(() => '?').join(',');
+  const [orderedRows] = await connection.execute(
+    `SELECT po.requisition_id, poi.material_id, SUM(poi.quantity) AS ordered_qty
+     FROM purchase_order_items poi
+     JOIN purchase_orders po ON poi.order_id = po.id
+     WHERE po.requisition_id IN (${placeholders})
+       AND po.deleted_at IS NULL AND po.status <> 'cancelled'
+     GROUP BY po.requisition_id, poi.material_id`,
+    requisitionIds
+  );
+  const remaining = new Map(orderedRows.map((row) => [
+    `${row.requisition_id}:${row.material_id}`, Number(row.ordered_qty),
+  ]));
+  // 同一物料拆成多行时，已采购量按明细顺序分配，不能每行重复计入。
+  for (const item of items) {
+    const key = `${item.requisition_id}:${item.material_id}`;
+    const available = remaining.get(key) || 0;
+    item.ordered_quantity = Math.min(Number(item.quantity), available);
+    remaining.set(key, Math.max(0, available - item.ordered_quantity));
+  }
+};
+
+const orderProgress = (items) => {
+  const fullyOrdered = items.length > 0 && items.every(
+    (item) => Number(item.ordered_quantity || 0) + 0.000001 >= Number(item.quantity)
+  );
+  return {
+    is_fully_ordered: fullyOrdered,
+    is_partially_ordered: !fullyOrdered && items.some((item) => item.ordered_quantity > 0),
+  };
+};
+
 // 获取采购申请列表
 const getRequisitions = async (req, res) => {
   // DataScope list wired below
@@ -113,7 +149,6 @@ const getRequisitions = async (req, res) => {
     });
 
     let query = `
-      SELECT r.*, u.real_name as user_real_name, COUNT(*) OVER() as total_count
       FROM purchase_requisitions r
       LEFT JOIN users u ON r.requester = u.username
       ${scopeClause.join}
@@ -122,10 +157,13 @@ const getRequisitions = async (req, res) => {
 
     const queryParams = [];
 
-    // 支持keyword参数同时搜索申请单号和合同编码
+    // 关键字同时匹配单号、合同和物料，物料多行只返回一个申请单。
     if (keyword) {
-      query += ' AND (r.requisition_number LIKE ? OR r.contract_code LIKE ?)';
-      queryParams.push(`%${keyword}%`, `%${keyword}%`);
+      query += ` AND (r.requisition_number LIKE ? OR r.contract_code LIKE ? OR EXISTS (
+        SELECT 1 FROM purchase_requisition_items ri
+        WHERE ri.requisition_id = r.id AND (ri.material_name LIKE ? OR ri.material_code LIKE ?)
+      ))`;
+      queryParams.push(...Array(4).fill(`%${keyword}%`));
     } else {
       // 兼容旧的独立参数
       if (requisitionNo) {
@@ -154,7 +192,7 @@ const getRequisitions = async (req, res) => {
       queryParams.push(endDate);
     }
 
-    if (status) {
+    if (status || req.query['status[]']) {
       // 处理status[]形式的参数
       const statusArray = Array.isArray(status)
         ? status
@@ -181,9 +219,23 @@ const getRequisitions = async (req, res) => {
     const offsetValue = pagination.offset;
     query += scopeClause.where || '';
     queryParams.push(...(scopeClause.params || []));
-    query += ` ORDER BY r.created_at DESC LIMIT ${limitValue} OFFSET ${offsetValue}`;
-
-    const [rows] = await db.pool.execute(query, queryParams);
+    const [statisticsRows] = await db.pool.execute(
+      `SELECT COUNT(*) AS total,
+        COALESCE(SUM(r.status = 'draft'), 0) AS draftCount,
+        COALESCE(SUM(r.status IN ('submitted', 'pending')), 0) AS submittedCount,
+        COALESCE(SUM(r.status = 'approved'), 0) AS approvedCount,
+        COALESCE(SUM(r.status = 'rejected'), 0) AS rejectedCount
+       ${query}`,
+      queryParams
+    );
+    const statistics = Object.fromEntries(
+      Object.entries(statisticsRows[0]).map(([key, value]) => [key, Number(value)])
+    );
+    const [rows] = await db.pool.execute(
+      `SELECT r.*, u.real_name AS user_real_name ${query}
+       ORDER BY r.created_at DESC, r.id DESC LIMIT ${limitValue} OFFSET ${offsetValue}`,
+      queryParams
+    );
 
     // 获取申请单的物料详情
     const items = [];
@@ -201,26 +253,7 @@ const getRequisitions = async (req, res) => {
       const [itemsRows] = await db.pool.execute(itemsQuery, requisitionIds);
       items.push(...itemsRows);
 
-      // 获取已订购数量统计（包括所有未取消的订单）
-      const orderedQuery = `
-        SELECT po.requisition_id, poi.material_code, SUM(poi.quantity) as ordered_qty
-        FROM purchase_order_items poi
-        JOIN purchase_orders po ON poi.order_id = po.id
-        WHERE po.requisition_id IN (${placeholders})
-        AND po.requisition_id IS NOT NULL
-        AND po.deleted_at IS NULL
-        AND po.status <> 'cancelled'
-        GROUP BY po.requisition_id, poi.material_code
-      `;
-      const [orderedRows] = await db.pool.execute(orderedQuery, requisitionIds);
-
-      // 将已订购信息附加到items上
-      items.forEach((item) => {
-        const orderedInfo = orderedRows.find(
-          (r) => r.requisition_id === item.requisition_id && r.material_code === item.material_code
-        );
-        item.ordered_quantity = orderedInfo ? parseFloat(orderedInfo.ordered_qty) : 0;
-      });
+      await attachOrderedQuantities(db.pool, items);
     }
 
     // 整合申请单及其物料，并确保real_name有值
@@ -246,24 +279,13 @@ const getRequisitions = async (req, res) => {
         materials: requisitionItems,
         materials_count,
         total_amount: total_amount.toFixed(2),
-        // 判断是否全部生成订单（所有物料都有采购订单，不管数量）
-        is_fully_ordered:
-          requisitionItems.length > 0 &&
-          requisitionItems.every((item) => item.ordered_quantity > 0),
-        // 判断是否部分生成订单（部分物料有订单，部分没有）
-        is_partially_ordered: false, // 初始值，下面计算
+        ...orderProgress(requisitionItems),
       };
-
-      // 计算部分订购状态：至少有一个物料有订单，且至少有一个物料没订单
-      if (requisitionItems.length > 0 && !processedReq.is_fully_ordered) {
-        const hasAnyOrdered = requisitionItems.some((item) => item.ordered_quantity > 0);
-        processedReq.is_partially_ordered = hasAnyOrdered;
-      }
 
       return processedReq;
     });
 
-    const totalCount = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
+    const totalCount = statistics.total;
 
     const responseData = {
       items: requisitions.map((r) => purchaseRequisitionMap.toApi(r)),
@@ -271,6 +293,7 @@ const getRequisitions = async (req, res) => {
       page: pagination.page,
       pageSize: pagination.pageSize,
       totalPages: Math.ceil(totalCount / pagination.pageSize),
+      statistics,
     };
 
     return ResponseHandler.success(res, responseData);
@@ -324,14 +347,16 @@ const getRequisition = async (req, res) => {
         ri.id
     `;
     const [itemsRows] = await db.pool.execute(itemsQuery, [id]);
+    await attachOrderedQuantities(db.pool, itemsRows);
+    Object.assign(requisition, orderProgress(itemsRows));
 
     // 处理物料数据，优先使用物料表中的specs字段，并添加供应商信息；出参走 FieldMap camel
     requisition.materials = itemsRows.map((item) => ({
       ...item,
-      specification: item.materialSpecs || item.specification || '',
+      specification: item.material_specs || item.specification || '',
       supplier_id: item.supplier_id || null,
       supplier_name: item.supplier_name || '暂无设置供应商',
-      unit: item.unit || item.unitName || '',
+      unit: item.unit || item.unit_name || '',
     }));
 
     return ResponseHandler.success(res, purchaseRequisitionMap.toApi(requisition));
@@ -422,10 +447,11 @@ const createRequisition = async (req, res) => {
       request_date,
       contract_code,
       remarks,
-      materials,
+      materials: rawMaterials,
       requester,
       real_name,
     } = mapKeysToSnake(req.body || {});
+    const materials = await normalizeRequisitionMaterials(connection, rawMaterials);
 
     // 使用请求中提供的requester或者从认证信息中获取
     const finalRequester = requester || getRequestActorLabel(req);
@@ -445,7 +471,7 @@ const createRequisition = async (req, res) => {
     }
 
     // mapKeysToSnake 后 requestDate → request_date
-    const finalRequestDate = request_date || new Date().toISOString().split('T')[0];
+    const finalRequestDate = normalizePurchaseDate(request_date || new Date(), '请购日期');
 
     const finalContractCode = contract_code || null;
     sourceInfo = normalizeSourceInfo(req.body);
@@ -693,13 +719,15 @@ const updateRequisition = async (req, res) => {
 
     const { id } = req.params;
     const {
-      request_date: requestDate,
+      request_date: rawRequestDate,
       contract_code,
       remarks,
-      materials,
+      materials: rawMaterials,
       requester,
       real_name,
     } = mapKeysToSnake(req.body || {});
+    const materials = await normalizeRequisitionMaterials(connection, rawMaterials);
+    const requestDate = normalizePurchaseDate(rawRequestDate, '请购日期');
 
     // 使用请求中提供的requester和real_name，或者从认证信息中获取
     const finalRequester = requester || getRequestActorLabel(req);
@@ -829,7 +857,7 @@ const updateRequisition = async (req, res) => {
   } catch (error) {
     if (connection) await connection.rollback();
     logger.error('更新采购申请失败:', error);
-    return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
+    return ResponseHandler.error(res, error.statusCode < 500 ? error.message : '操作失败', error.code || 'OPERATION_ERROR', error.statusCode || 500, error);
   } finally {
     if (connection) connection.release();
   }
@@ -954,6 +982,8 @@ const updateRequisitionStatus = async (req, res) => {
     // 提交审批时发起工作流
     let finalStatus = newStatus;
     if (newStatus === 'submitted') {
+      const [submissionItems] = await connection.query('SELECT material_id, quantity FROM purchase_requisition_items WHERE requisition_id = ? FOR UPDATE', [id]);
+      await normalizeRequisitionMaterials(connection, submissionItems);
       const WorkflowService = require('../../../services/business/WorkflowService');
       const userId = req.user?.userId || req.user?.id;
       const [reqInfo] = await connection.execute(

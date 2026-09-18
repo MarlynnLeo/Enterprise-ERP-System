@@ -53,19 +53,16 @@ describe('purchase service invariants', () => {
 
   test('rejects receipt synchronization when confirmed receipts exceed the order quantity', async () => {
     const connection = {
-      execute: jest.fn()
-        .mockResolvedValueOnce([[{ total_received: 12 }]])
-        .mockResolvedValueOnce([[{ quantity: 10 }]]),
+      query: jest.fn()
+        .mockResolvedValueOnce([[{ id: 71, material_id: 10, quantity: 10 }]])
+        .mockResolvedValueOnce([[]])
+        .mockResolvedValueOnce([[{ order_item_id: 71, material_id: 10, status: 'confirmed', qualified_quantity: 12 }]])
+        .mockResolvedValueOnce([[]]),
+      execute: jest.fn(),
     };
-
-    await expect(
-      PurchaseOrderStatusService.syncOrderItemReceivedFromReceipts(7, 10, connection)
-    ).rejects.toMatchObject({
-      statusCode: 400,
-      code: 'VALIDATION_ERROR',
-    });
-
-    expect(connection.execute).toHaveBeenCalledTimes(2);
+    await expect(PurchaseOrderStatusService.syncOrderItemReceivedFromReceipts(7, 10, connection))
+      .rejects.toMatchObject({ statusCode: 400, code: 'VALIDATION_ERROR' });
+    expect(connection.execute).not.toHaveBeenCalled();
   });
 
   test('keeps an order partially received while any material line is still outstanding', () => {

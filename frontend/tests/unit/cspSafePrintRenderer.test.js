@@ -29,6 +29,12 @@ describe('cspSafePrintRenderer', () => {
     ).toBe('hidden')
   })
 
+  it('preserves business document row numbers while keeping @index zero-based', () => {
+    expect(renderPrintTemplate('{{#each items}}{{index}}/{{@index}};{{/each}}', {
+      items: [{ index: 1 }, { index: 2 }],
+    })).toBe('1/0;2/1;')
+  })
+
   it('supports helpers eq/default/formatNumber', () => {
     expect(renderPrintTemplate('{{eq a b}}', { a: 1, b: 1 })).toBe('true')
     expect(renderPrintTemplate('{{default title "单据"}}', {})).toBe('单据')

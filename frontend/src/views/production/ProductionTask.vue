@@ -104,6 +104,7 @@
     <!-- 数据表格区域 -->
     <el-card class="data-card">
       <el-table
+        ref="taskTableRef"
         :data="taskList"
         border
         class="table-row-click w-full"
@@ -198,7 +199,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="72" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+        <el-table-column label="操作" column-key="operations" :width="taskColumnWidths.operations" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
       >
           <template #default="scope">
             <div class="table-actions">
@@ -763,6 +764,7 @@ import { parseQuantity, formatQuantity, getQuantityFromRelatedItem } from '@/uti
 import { parseDataObject, parseListData, parseResponseData } from '@/utils/responseParser'
 import { loadDepartmentOptions } from '@/utils/optionLoaders'
 import { useFormKeyboardNav } from '@/composables/useFormKeyboardNav'
+import { useTableColumnWidths } from '@/composables/useTableColumnWidths'
 import printService from '@/services/printService'
 import { useAuthStore } from '@/stores/auth'
 
@@ -780,6 +782,8 @@ const { onFormKeydown: issueFormKeydown } = useFormKeyboardNav(() => handleMater
 
 // 状态和数据
 const loading = ref(false)
+const taskTableRef = ref(null)
+const taskColumnWidths = useTableColumnWidths(taskTableRef, { operations: 72 })
 const currentPage = ref(1)
 const pageSize = ref(10)
 const total = ref(0)

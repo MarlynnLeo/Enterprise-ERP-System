@@ -9,7 +9,7 @@ const fs = require('fs');
 const path = require('path');
 
 // 确保日志目录存在
-const logDir = path.join(__dirname, '../../logs');
+const logDir = process.env.LOG_DIR ? path.resolve(process.env.LOG_DIR) : path.join(__dirname, '../../logs');
 if (!fs.existsSync(logDir)) {
   fs.mkdirSync(logDir, { recursive: true });
 }
@@ -171,7 +171,7 @@ const log = (level, message, meta = {}) => {
   const formattedMessage = formatMessage(level, message, meta);
 
   // 输出到控制台
-  if (process.env.NODE_ENV !== 'production') {
+  if (process.env.NODE_ENV !== 'production' && process.env.LOG_CONSOLE !== 'false') {
     consoleOutput(level, formattedMessage);
   }
 

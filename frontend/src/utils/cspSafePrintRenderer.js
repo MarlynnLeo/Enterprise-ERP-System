@@ -190,7 +190,7 @@ export function renderPrintTemplate(template, data = {}) {
         items.forEach((item, index) => {
           const itemCtx =
             item != null && typeof item === 'object'
-              ? { ...ctx, ...item, this: item, index, '@index': index }
+              ? { ...ctx, ...item, this: item, index: item.index ?? index, '@index': index }
               : { ...ctx, this: item, index, '@index': index }
           out += render(body, itemCtx)
         })
