@@ -13,12 +13,17 @@ class SalesDao {
   // 客户查询 (Customers)
   // ==========================================
   static async getCustomers() {
-    const [rows] = await pool.execute('SELECT id, code, name, contact_person, phone, email, address, credit_limit, status, created_at, updated_at, contact_phone, remark, customer_type, deleted_at FROM customers');
+    const [rows] = await pool.execute(
+      'SELECT id, code, name, contact_person, phone, email, address, credit_limit, status, created_at, updated_at, contact_phone, remark, customer_type, deleted_at FROM customers'
+    );
     return rows;
   }
 
   static async getCustomer(id) {
-    const [rows] = await pool.execute('SELECT id, code, name, contact_person, phone, email, address, credit_limit, status, created_at, updated_at, contact_phone, remark, customer_type, deleted_at FROM customers WHERE id = ?', [id]);
+    const [rows] = await pool.execute(
+      'SELECT id, code, name, contact_person, phone, email, address, credit_limit, status, created_at, updated_at, contact_phone, remark, customer_type, deleted_at FROM customers WHERE id = ?',
+      [id]
+    );
     return rows[0];
   }
 
@@ -71,20 +76,26 @@ class SalesDao {
   }
 
   static async getSalesQuotation(id) {
-    const [quotation] = await pool.execute(`
+    const [quotation] = await pool.execute(
+      `
       SELECT sq.*, c.name as customer_name, COALESCE(NULLIF(TRIM(u.real_name), ''), u.username) as created_by_name
       FROM sales_quotations sq
       JOIN customers c ON sq.customer_id = c.id
       JOIN users u ON sq.created_by = u.id
       WHERE sq.id = ?
-    `, [id]);
+    `,
+      [id]
+    );
 
-    const [items] = await pool.execute(`
+    const [items] = await pool.execute(
+      `
       SELECT sqi.*, i.name as product_name
       FROM sales_quotation_items sqi
       JOIN materials i ON sqi.product_id = i.id
       WHERE sqi.quotation_id = ?
-    `, [id]);
+    `,
+      [id]
+    );
 
     return { ...quotation[0], items };
   }
@@ -99,19 +110,40 @@ class SalesDao {
 
       const [result] = await connection.execute(
         'INSERT INTO sales_quotations (quotation_no, customer_id, total_amount, validity_date, status, remarks, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [quotation.quotationNo, quotation.customerId, quotationAmounts.totalAmount, quotation.validityDate, quotation.status, quotation.remarks, quotation.createdBy]
+        [
+          quotation.quotationNo,
+          quotation.customerId,
+          quotationAmounts.totalAmount,
+          quotation.validityDate,
+          quotation.status,
+          quotation.remarks,
+          quotation.createdBy,
+        ]
       );
       const quotationId = result.insertId;
 
       for (const item of quotationAmounts.items) {
         await connection.execute(
           'INSERT INTO sales_quotation_items (quotation_id, product_id, quantity, unit_price, discount_percent, tax_percent, total_price) VALUES (?, ?, ?, ?, ?, ?, ?)',
-          [quotationId, item.productId ?? item.product_id, item.quantity, item.unit_price, item.discountPercent ?? item.discount_percent ?? 0, item.tax_percent, item.total_price]
+          [
+            quotationId,
+            item.productId ?? item.product_id,
+            item.quantity,
+            item.unit_price,
+            item.discountPercent ?? item.discount_percent ?? 0,
+            item.tax_percent,
+            item.total_price,
+          ]
         );
       }
 
       await connection.commit();
-      return { id: quotationId, ...quotation, totalAmount: quotationAmounts.totalAmount, items: quotationAmounts.items };
+      return {
+        id: quotationId,
+        ...quotation,
+        totalAmount: quotationAmounts.totalAmount,
+        items: quotationAmounts.items,
+      };
     } catch (error) {
       await connection.rollback();
       throw error;
@@ -124,13 +156,16 @@ class SalesDao {
   // 销售订单 (Sales Orders)
   // ==========================================
   static async getLastOrderNoOfDay(dateStr) {
-    const [rows] = await pool.execute(`
+    const [rows] = await pool.execute(
+      `
       SELECT order_no
       FROM sales_orders
       WHERE order_no LIKE ?
       ORDER BY order_no DESC
       LIMIT 1
-    `, [`DD${dateStr}%`]);
+    `,
+      [`DD${dateStr}%`]
+    );
     return rows[0]?.order_no;
   }
 
@@ -143,8 +178,9 @@ class SalesDao {
       `);
 
       if (orders.length > 0) {
-        const orderIds = orders.map(o => o.id);
-        const [allItems] = await pool.execute(`
+        const orderIds = orders.map((o) => o.id);
+        const [allItems] = await pool.execute(
+          `
           SELECT soi.*, COALESCE(m.code, '') as material_code, m.name as material_name,
                  m.specs as specification, u.name as unit_name,
                  CASE WHEN m.id IS NULL THEN 0 ELSE 1 END as material_exists
@@ -152,15 +188,17 @@ class SalesDao {
           LEFT JOIN materials m ON soi.material_id = m.id
           LEFT JOIN units u ON m.unit_id = u.id
           WHERE soi.order_id IN (?)
-        `, [orderIds]);
+        `,
+          [orderIds]
+        );
 
         const itemsByOrder = {};
-        allItems.forEach(item => {
+        allItems.forEach((item) => {
           if (!itemsByOrder[item.order_id]) itemsByOrder[item.order_id] = [];
           itemsByOrder[item.order_id].push(item);
         });
 
-        orders.forEach(order => {
+        orders.forEach((order) => {
           order.items = itemsByOrder[order.id] || [];
         });
       }
@@ -172,16 +210,20 @@ class SalesDao {
   }
 
   static async getSalesOrder(id) {
-    const [order] = await pool.execute(`
+    const [order] = await pool.execute(
+      `
       SELECT so.*, c.id as customer_id, c.name as customer_name, c.contact_person, c.contact_phone,
              c.address as delivery_address, COALESCE(NULLIF(TRIM(u.real_name), ''), u.username) as created_by_name
       FROM sales_orders so
       JOIN customers c ON so.customer_id = c.id
       JOIN users u ON so.created_by = u.id
       WHERE so.id = ?
-    `, [id]);
+    `,
+      [id]
+    );
 
-    const [items] = await pool.execute(`
+    const [items] = await pool.execute(
+      `
       SELECT soi.*, COALESCE(m.code, '') as material_code, m.name as material_name,
              m.specs as specification, u.name as unit_name,
              CASE WHEN m.id IS NULL THEN 0 ELSE 1 END as material_exists
@@ -189,7 +231,9 @@ class SalesDao {
       LEFT JOIN materials m ON soi.material_id = m.id
       LEFT JOIN units u ON m.unit_id = u.id
       WHERE soi.order_id = ?
-    `, [id]);
+    `,
+      [id]
+    );
 
     return { ...order[0], items };
   }
@@ -201,7 +245,21 @@ class SalesDao {
 
       const [result] = await connection.execute(
         'INSERT INTO sales_orders (order_no, customer_id, quotation_id, contract_code, total_amount, tax_rate, tax_amount, subtotal, payment_terms, delivery_date, status, remarks, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [order.orderNo, order.customerId, order.quotationId, order.contractCode, order.totalAmount, normalizeTaxRate(order.taxRate, financeConfig.get('tax.defaultVATRate', 0.13)), order.taxAmount || 0, order.subtotal || 0, order.paymentTerms, order.deliveryDate, order.status, order.remarks, order.createdBy]
+        [
+          order.orderNo,
+          order.customerId,
+          order.quotationId,
+          order.contractCode,
+          order.totalAmount,
+          normalizeTaxRate(order.taxRate, financeConfig.get('tax.defaultVATRate', 0.13)),
+          order.taxAmount || 0,
+          order.subtotal || 0,
+          order.paymentTerms,
+          order.deliveryDate,
+          order.status,
+          order.remarks,
+          order.createdBy,
+        ]
       );
       const orderId = result.insertId;
 
@@ -210,7 +268,17 @@ class SalesDao {
         // 两者含义相同（小数制，0.13 = 13%），仅字段名不同，历史原因保留
         await connection.execute(
           'INSERT INTO sales_order_items (order_id, material_id, quantity, unit_price, amount, tax_percent, remark) VALUES (?, ?, ?, ?, ?, ?, ?)',
-          [orderId, item.material_id, item.quantity, item.unit_price, item.amount, item.tax_percent !== undefined ? item.tax_percent : financeConfig.get('tax.defaultVATRate', 0.13), item.remark]
+          [
+            orderId,
+            item.material_id,
+            item.quantity,
+            item.unit_price,
+            item.amount,
+            item.tax_percent !== undefined
+              ? item.tax_percent
+              : financeConfig.get('tax.defaultVATRate', 0.13),
+            item.remark,
+          ]
         );
       }
 
@@ -232,18 +300,37 @@ class SalesDao {
 
       const remarks = order.notes || order.remarks || '';
       const orderAmounts = calculateLines(items || [], {
-        defaultTaxRate: order.tax_rate !== undefined ? order.tax_rate : financeConfig.get('tax.defaultVATRate', 0.13),
+        defaultTaxRate:
+          order.tax_rate !== undefined
+            ? order.tax_rate
+            : financeConfig.get('tax.defaultVATRate', 0.13),
       });
       const totalAmount = orderAmounts.totalAmount;
-      const taxRate = orderAmounts.subtotal > 0
-        ? normalizeTaxRate(orderAmounts.items.reduce((sum, item) => sum + item.amount * item.tax_percent, 0) / orderAmounts.subtotal)
-        : 0;
+      const taxRate =
+        orderAmounts.subtotal > 0
+          ? normalizeTaxRate(
+              orderAmounts.items.reduce((sum, item) => sum + item.amount * item.tax_percent, 0) /
+                orderAmounts.subtotal
+            )
+          : 0;
       const subtotal = orderAmounts.subtotal;
       const taxAmount = orderAmounts.taxAmount;
 
       await connection.execute(
         'UPDATE sales_orders SET customer_id = ?, contract_code = ?, total_amount = ?, tax_rate = ?, tax_amount = ?, subtotal = ?, payment_terms = ?, delivery_date = ?, status = ?, remarks = ?, updated_at = NOW() WHERE id = ?',
-        [order.customer_id, order.contract_code || '', totalAmount, taxRate, taxAmount, subtotal, order.payment_terms || null, order.delivery_date || null, order.status || 'pending', remarks, id]
+        [
+          order.customer_id,
+          order.contract_code || '',
+          totalAmount,
+          taxRate,
+          taxAmount,
+          subtotal,
+          order.payment_terms || null,
+          order.delivery_date || null,
+          order.status || 'pending',
+          remarks,
+          id,
+        ]
       );
 
       await connection.execute('DELETE FROM sales_order_items WHERE order_id = ?', [id]);
@@ -268,7 +355,10 @@ class SalesDao {
   }
 
   static async updateSalesOrderStatus(orderId, status) {
-    await pool.execute('UPDATE sales_orders SET status = ?, updated_at = NOW() WHERE id = ?', [status, orderId]);
+    await pool.execute('UPDATE sales_orders SET status = ?, updated_at = NOW() WHERE id = ?', [
+      status,
+      orderId,
+    ]);
     return true;
   }
 }

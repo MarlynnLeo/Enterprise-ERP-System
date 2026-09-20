@@ -6,6 +6,7 @@
 
 import { ref, onBeforeUnmount } from 'vue'
 import { io } from 'socket.io-client'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 
 let socket = null
 const isConnected = ref(false)
@@ -57,7 +58,7 @@ export function getSocket() {
   })
 
   socket.on('connect_error', (err) => {
-    connectionError.value = err.message
+    connectionError.value = getApiErrorMessage(err, '实时连接失败，请稍后重试')
     isConnected.value = false
 
     // W-26: 认证失败时停止自动重连，避免无意义的重试

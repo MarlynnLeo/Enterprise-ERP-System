@@ -38,25 +38,71 @@ const ncpController = require('../controllers/business/quality/nonconformingProd
  * AQL 标准管理
  */
 router.get('/aql-standards', requirePermission('quality:aql:view'), aqlController.getStandards);
-router.post('/aql-standards', requirePermission('quality:aql:create'), aqlController.createStandard);
-router.put('/aql-standards/:id', requirePermission('quality:aql:update'), aqlController.updateStandard);
-router.delete('/aql-standards/:id', requirePermission('quality:aql:delete'), aqlController.deleteStandard);
+router.post(
+  '/aql-standards',
+  requirePermission('quality:aql:create'),
+  aqlController.createStandard
+);
+router.put(
+  '/aql-standards/:id',
+  requirePermission('quality:aql:update'),
+  aqlController.updateStandard
+);
+router.delete(
+  '/aql-standards/:id',
+  requirePermission('quality:aql:delete'),
+  aqlController.deleteStandard
+);
 router.get('/aql-levels', requirePermission('quality:aql:view'), aqlController.getAqlLevels);
-router.post('/aql-sampling/calculate', requirePermission('quality:inspections:view'), aqlController.calculateSampling);
+router.post(
+  '/aql-sampling/calculate',
+  requirePermission('quality:inspections:view'),
+  aqlController.calculateSampling
+);
 
 /**
  * 质量检验相关路由
  */
 
 // 来料检验
-router.get('/inspections/incoming', authenticateToken, requirePermission(['quality:inspections:view', 'purchase:receipts:view', 'purchase:orders:view']), inspectionCtrl.getIncomingInspections);
-router.get('/inspections/incoming/stats', authenticateToken, requirePermission('quality:inspections:view'), inspectionCtrl.getIncomingInspectionStats);
-router.post('/inspections/incoming', authenticateToken, requirePermission('quality:inspections:create'), inspectionCtrl.createInspection);
+router.get(
+  '/inspections/incoming',
+  authenticateToken,
+  requirePermission(['quality:inspections:view', 'purchase:receipts:view', 'purchase:orders:view']),
+  inspectionCtrl.getIncomingInspections
+);
+router.get(
+  '/inspections/incoming/stats',
+  authenticateToken,
+  requirePermission('quality:inspections:view'),
+  inspectionCtrl.getIncomingInspectionStats
+);
+router.post(
+  '/inspections/incoming',
+  authenticateToken,
+  requirePermission('quality:inspections:create'),
+  inspectionCtrl.createInspection
+);
 
 // 过程检验
-router.get('/inspections/process', authenticateToken, requirePermission('quality:inspections:view'), inspectionCtrl.getProcessInspections);
-router.get('/inspections/process/stats', authenticateToken, requirePermission('quality:inspections:view'), inspectionCtrl.getProcessInspectionStats);
-router.post('/inspections/process', authenticateToken, requirePermission('quality:inspections:create'), inspectionCtrl.createInspection);
+router.get(
+  '/inspections/process',
+  authenticateToken,
+  requirePermission('quality:inspections:view'),
+  inspectionCtrl.getProcessInspections
+);
+router.get(
+  '/inspections/process/stats',
+  authenticateToken,
+  requirePermission('quality:inspections:view'),
+  inspectionCtrl.getProcessInspectionStats
+);
+router.post(
+  '/inspections/process',
+  authenticateToken,
+  requirePermission('quality:inspections:create'),
+  inspectionCtrl.createInspection
+);
 router.post(
   '/inspections/process/:id/punch',
   authenticateToken,
@@ -65,104 +111,366 @@ router.post(
 );
 
 // 过程检验规则配置
-router.get('/process-inspection/rules', authenticateToken, requirePermission('quality:settings:view'), processInspCtrl.getProcessInspectionRules);
-router.post('/process-inspection/rules', authenticateToken, requirePermission('quality:settings:create'), processInspCtrl.createProcessInspectionRule);
-router.put('/process-inspection/rules/:id', authenticateToken, requirePermission('quality:settings:update'), processInspCtrl.updateProcessInspectionRule);
-router.delete('/process-inspection/rules/:id', authenticateToken, requirePermission('quality:settings:delete'), processInspCtrl.deleteProcessInspectionRule);
+router.get(
+  '/process-inspection/rules',
+  authenticateToken,
+  requirePermission('quality:settings:view'),
+  processInspCtrl.getProcessInspectionRules
+);
+router.post(
+  '/process-inspection/rules',
+  authenticateToken,
+  requirePermission('quality:settings:create'),
+  processInspCtrl.createProcessInspectionRule
+);
+router.put(
+  '/process-inspection/rules/:id',
+  authenticateToken,
+  requirePermission('quality:settings:update'),
+  processInspCtrl.updateProcessInspectionRule
+);
+router.delete(
+  '/process-inspection/rules/:id',
+  authenticateToken,
+  requirePermission('quality:settings:delete'),
+  processInspCtrl.deleteProcessInspectionRule
+);
 
 // 过程检验打卡记录
-router.get('/process-inspection/punch/today', authenticateToken, requirePermission('quality:inspections:view'), processInspCtrl.getProcessInspectionPunchToday);
-router.get('/process-inspection/punch/list', authenticateToken, requirePermission('quality:inspections:view'), processInspCtrl.getProcessInspectionPunchList);
-router.post('/process-inspection/punch', authenticateToken, requirePermission('quality:inspections:create'), processInspCtrl.createProcessInspectionPunch);
+router.get(
+  '/process-inspection/punch/today',
+  authenticateToken,
+  requirePermission('quality:inspections:view'),
+  processInspCtrl.getProcessInspectionPunchToday
+);
+router.get(
+  '/process-inspection/punch/list',
+  authenticateToken,
+  requirePermission('quality:inspections:view'),
+  processInspCtrl.getProcessInspectionPunchList
+);
+router.post(
+  '/process-inspection/punch',
+  authenticateToken,
+  requirePermission('quality:inspections:create'),
+  processInspCtrl.createProcessInspectionPunch
+);
 
 // 成品检验
-router.get('/inspections/final', authenticateToken, requirePermission('quality:inspections:view'), inspectionCtrl.getFinalInspections);
-router.get('/inspections/final/stats', authenticateToken, requirePermission('quality:inspections:view'), inspectionCtrl.getFinalInspectionStats);
-router.post('/inspections/final', authenticateToken, requirePermission('quality:inspections:create'), inspectionCtrl.createInspection);
+router.get(
+  '/inspections/final',
+  authenticateToken,
+  requirePermission('quality:inspections:view'),
+  inspectionCtrl.getFinalInspections
+);
+router.get(
+  '/inspections/final/stats',
+  authenticateToken,
+  requirePermission('quality:inspections:view'),
+  inspectionCtrl.getFinalInspectionStats
+);
+router.post(
+  '/inspections/final',
+  authenticateToken,
+  requirePermission('quality:inspections:create'),
+  inspectionCtrl.createInspection
+);
 
 // 首检管理
-router.get('/inspections/first-article', authenticateToken, requirePermission('quality:inspections:view'), firstArticleCtrl.getFirstArticleInspections);
-router.get('/inspections/first-article/stats', authenticateToken, requirePermission('quality:inspections:view'), firstArticleCtrl.getFirstArticleStats);
-router.post('/inspections/first-article', authenticateToken, requirePermission('quality:inspections:create'), firstArticleCtrl.createFirstArticleInspection);
-router.put('/inspections/first-article/:id/result', authenticateToken, requirePermission('quality:inspections:update'), firstArticleCtrl.updateFirstArticleResult);
+router.get(
+  '/inspections/first-article',
+  authenticateToken,
+  requirePermission('quality:inspections:view'),
+  firstArticleCtrl.getFirstArticleInspections
+);
+router.get(
+  '/inspections/first-article/stats',
+  authenticateToken,
+  requirePermission('quality:inspections:view'),
+  firstArticleCtrl.getFirstArticleStats
+);
+router.post(
+  '/inspections/first-article',
+  authenticateToken,
+  requirePermission('quality:inspections:create'),
+  firstArticleCtrl.createFirstArticleInspection
+);
+router.put(
+  '/inspections/first-article/:id/result',
+  authenticateToken,
+  requirePermission('quality:inspections:update'),
+  firstArticleCtrl.updateFirstArticleResult
+);
 
 // 首检规则配置
-router.get('/first-article-rules', authenticateToken, requirePermission('quality:settings:view'), firstArticleCtrl.getFirstArticleRules);
-router.get('/first-article-rules/:productId', authenticateToken, requirePermission('quality:settings:view'), firstArticleCtrl.getFirstArticleRuleByProduct);
-router.post('/first-article-rules', authenticateToken, requirePermission('quality:settings:create'), firstArticleCtrl.createFirstArticleRule);
-router.put('/first-article-rules/:id', authenticateToken, requirePermission('quality:settings:update'), firstArticleCtrl.updateFirstArticleRule);
-router.delete('/first-article-rules/:id', authenticateToken, requirePermission('quality:settings:delete'), firstArticleCtrl.deleteFirstArticleRule);
+router.get(
+  '/first-article-rules',
+  authenticateToken,
+  requirePermission('quality:settings:view'),
+  firstArticleCtrl.getFirstArticleRules
+);
+router.get(
+  '/first-article-rules/:productId',
+  authenticateToken,
+  requirePermission('quality:settings:view'),
+  firstArticleCtrl.getFirstArticleRuleByProduct
+);
+router.post(
+  '/first-article-rules',
+  authenticateToken,
+  requirePermission('quality:settings:create'),
+  firstArticleCtrl.createFirstArticleRule
+);
+router.put(
+  '/first-article-rules/:id',
+  authenticateToken,
+  requirePermission('quality:settings:update'),
+  firstArticleCtrl.updateFirstArticleRule
+);
+router.delete(
+  '/first-article-rules/:id',
+  authenticateToken,
+  requirePermission('quality:settings:delete'),
+  firstArticleCtrl.deleteFirstArticleRule
+);
 
 // 获取未关联到追溯记录的质检记录（静态路径必须在 :id 之前）
-router.get('/inspections/unlinked', authenticateToken, requirePermission('quality:traceability:view'), inspectionCtrl.getUnlinkedInspections);
+router.get(
+  '/inspections/unlinked',
+  authenticateToken,
+  requirePermission('quality:traceability:view'),
+  inspectionCtrl.getUnlinkedInspections
+);
 
 // 根据批次号查询检验单（静态路径必须在 :id 之前）
-router.get('/inspections/batch/:batchNo', authenticateToken, requirePermission('quality:inspections:view'), inspectionCtrl.getInspectionByBatchNo);
+router.get(
+  '/inspections/batch/:batchNo',
+  authenticateToken,
+  requirePermission('quality:inspections:view'),
+  inspectionCtrl.getInspectionByBatchNo
+);
 
 // 获取检验单详情
-router.get('/inspections/:id', authenticateToken, requirePermission(['quality:inspections:view', 'purchase:receipts:view', 'purchase:orders:view']), inspectionCtrl.getInspectionById);
+router.get(
+  '/inspections/:id',
+  authenticateToken,
+  requirePermission(['quality:inspections:view', 'purchase:receipts:view', 'purchase:orders:view']),
+  inspectionCtrl.getInspectionById
+);
 
 // 获取检验单项目
-router.get('/inspections/:id/items', authenticateToken, requirePermission('quality:inspections:view'), inspectionCtrl.getInspectionItems);
+router.get(
+  '/inspections/:id/items',
+  authenticateToken,
+  requirePermission('quality:inspections:view'),
+  inspectionCtrl.getInspectionItems
+);
 
 // 通用创建检验单接口
-router.post('/inspections', authenticateToken, requirePermission('quality:inspections:create'), inspectionCtrl.createInspection);
+router.post(
+  '/inspections',
+  authenticateToken,
+  requirePermission('quality:inspections:create'),
+  inspectionCtrl.createInspection
+);
 
 // 更新检验单
-router.put('/inspections/:id', authenticateToken, requirePermission('quality:inspections:update'), inspectionCtrl.updateInspection);
+router.put(
+  '/inspections/:id',
+  authenticateToken,
+  requirePermission('quality:inspections:update'),
+  inspectionCtrl.updateInspection
+);
 
 // 更新检验单状态并创建追溯记录
-router.put('/inspections/:id/status-and-trace', authenticateToken, requirePermission('quality:inspections:update'), inspectionCtrl.updateInspectionStatusAndTrace);
+router.put(
+  '/inspections/:id/status-and-trace',
+  authenticateToken,
+  requirePermission('quality:inspections:update'),
+  inspectionCtrl.updateInspectionStatusAndTrace
+);
 
 // 删除检验单
-router.delete('/inspections/:id', authenticateToken, requirePermission('quality:inspections:delete'), inspectionCtrl.deleteInspection);
+router.delete(
+  '/inspections/:id',
+  authenticateToken,
+  requirePermission('quality:inspections:delete'),
+  inspectionCtrl.deleteInspection
+);
 
 // 获取检验相关的引用数据
-router.get('/reference-data/:type', authenticateToken, requirePermission('quality:inspections:view'), inspectionCtrl.getReferenceData);
+router.get(
+  '/reference-data/:type',
+  authenticateToken,
+  requirePermission('quality:inspections:view'),
+  inspectionCtrl.getReferenceData
+);
 
 /**
  * 检验模板相关路由
  */
-router.get('/templates/presets', requirePermission('quality:templates:view'), inspectionTemplateController.getPresetDocxList);
-router.get('/templates/parse-preset', requirePermission('quality:templates:view'), inspectionTemplateController.parsePresetDocx);
-router.post('/templates/parse-preset', requirePermission('quality:templates:view'), inspectionTemplateController.parsePresetDocx);
-router.post('/templates/parse-docx', requirePermission('quality:templates:create'), FileUploadMiddlewares.docxTemplate, inspectionTemplateController.parseDocxTemplate);
-router.post('/templates/import-preset', requirePermission('quality:templates:create'), inspectionTemplateController.importPresetDocx);
-router.post('/templates/import-docx', requirePermission('quality:templates:create'), FileUploadMiddlewares.docxTemplate, inspectionTemplateController.importDocxTemplate);
-router.get('/templates', requirePermission('quality:templates:view'), inspectionTemplateController.getTemplates);
-router.get('/templates/reusable-items', requirePermission('quality:templates:view'), inspectionTemplateController.getReusableItems);
-router.post('/templates/reusable-items', requirePermission('quality:templates:create'), inspectionTemplateController.createReusableItem);
-router.get('/templates/:id', requirePermission('quality:templates:view'), inspectionTemplateController.getTemplate);
-router.post('/templates', requirePermission('quality:templates:create'), inspectionTemplateController.createTemplate);
-router.put('/templates/:id', requirePermission('quality:templates:update'), inspectionTemplateController.updateTemplate);
-router.delete('/templates/:id', requirePermission('quality:templates:delete'), inspectionTemplateController.deleteTemplate);
-router.put('/templates/:id/status', requirePermission('quality:templates:update'), inspectionTemplateController.updateTemplateStatus);
-router.post('/templates/:id/copy', requirePermission('quality:templates:create'), inspectionTemplateController.copyTemplate);
+router.get(
+  '/templates/presets',
+  requirePermission('quality:templates:view'),
+  inspectionTemplateController.getPresetDocxList
+);
+router.get(
+  '/templates/parse-preset',
+  requirePermission('quality:templates:view'),
+  inspectionTemplateController.parsePresetDocx
+);
+router.post(
+  '/templates/parse-preset',
+  requirePermission('quality:templates:view'),
+  inspectionTemplateController.parsePresetDocx
+);
+router.post(
+  '/templates/parse-docx',
+  requirePermission('quality:templates:create'),
+  FileUploadMiddlewares.docxTemplate,
+  inspectionTemplateController.parseDocxTemplate
+);
+router.post(
+  '/templates/import-preset',
+  requirePermission('quality:templates:create'),
+  inspectionTemplateController.importPresetDocx
+);
+router.post(
+  '/templates/import-docx',
+  requirePermission('quality:templates:create'),
+  FileUploadMiddlewares.docxTemplate,
+  inspectionTemplateController.importDocxTemplate
+);
+router.get(
+  '/templates',
+  requirePermission('quality:templates:view'),
+  inspectionTemplateController.getTemplates
+);
+router.get(
+  '/templates/reusable-items',
+  requirePermission('quality:templates:view'),
+  inspectionTemplateController.getReusableItems
+);
+router.post(
+  '/templates/reusable-items',
+  requirePermission('quality:templates:create'),
+  inspectionTemplateController.createReusableItem
+);
+router.get(
+  '/templates/:id',
+  requirePermission('quality:templates:view'),
+  inspectionTemplateController.getTemplate
+);
+router.post(
+  '/templates',
+  requirePermission('quality:templates:create'),
+  inspectionTemplateController.createTemplate
+);
+router.put(
+  '/templates/:id',
+  requirePermission('quality:templates:update'),
+  inspectionTemplateController.updateTemplate
+);
+router.delete(
+  '/templates/:id',
+  requirePermission('quality:templates:delete'),
+  inspectionTemplateController.deleteTemplate
+);
+router.put(
+  '/templates/:id/status',
+  requirePermission('quality:templates:update'),
+  inspectionTemplateController.updateTemplateStatus
+);
+router.post(
+  '/templates/:id/copy',
+  requirePermission('quality:templates:create'),
+  inspectionTemplateController.copyTemplate
+);
 
 // 获取检验标准
-router.get('/standards/:type/:targetId', authenticateToken, requirePermission('quality:standards:view'), inspectionCtrl.getStandards);
+router.get(
+  '/standards/:type/:targetId',
+  authenticateToken,
+  requirePermission('quality:standards:view'),
+  inspectionCtrl.getStandards
+);
 
 /**
  * 质量标准相关路由
  */
-router.get('/quality-standards', authenticateToken, requirePermission('quality:standards:view'), standardCtrl.getAllStandards);
-router.get('/quality-standards/:id', authenticateToken, requirePermission('quality:standards:view'), standardCtrl.getStandardById);
-router.post('/quality-standards', authenticateToken, requirePermission('quality:standards:create'), standardCtrl.createStandard);
-router.put('/quality-standards/:id', authenticateToken, requirePermission('quality:standards:update'), standardCtrl.updateStandard);
-router.delete('/quality-standards/:id', authenticateToken, requirePermission('quality:standards:delete'), standardCtrl.deleteStandard);
-router.get('/target-options/:targetType', authenticateToken, requirePermission('quality:standards:view'), standardCtrl.getTargetOptions);
+router.get(
+  '/quality-standards',
+  authenticateToken,
+  requirePermission('quality:standards:view'),
+  standardCtrl.getAllStandards
+);
+router.get(
+  '/quality-standards/:id',
+  authenticateToken,
+  requirePermission('quality:standards:view'),
+  standardCtrl.getStandardById
+);
+router.post(
+  '/quality-standards',
+  authenticateToken,
+  requirePermission('quality:standards:create'),
+  standardCtrl.createStandard
+);
+router.put(
+  '/quality-standards/:id',
+  authenticateToken,
+  requirePermission('quality:standards:update'),
+  standardCtrl.updateStandard
+);
+router.delete(
+  '/quality-standards/:id',
+  authenticateToken,
+  requirePermission('quality:standards:delete'),
+  standardCtrl.deleteStandard
+);
+router.get(
+  '/target-options/:targetType',
+  authenticateToken,
+  requirePermission('quality:standards:view'),
+  standardCtrl.getTargetOptions
+);
 
 /**
  * 不合格品 (NCP) 特采相关路由（未变更）
  */
-router.post('/ncp/:id/concession/apply', authenticateToken, requirePermission('quality:nonconforming:update'), ncpController.applyConcession);
-router.post('/ncp/:id/concession/approve', authenticateToken, requirePermission('quality:nonconforming:update'), ncpController.approveConcession);
+router.post(
+  '/ncp/:id/concession/apply',
+  authenticateToken,
+  requirePermission('quality:nonconforming:update'),
+  ncpController.applyConcession
+);
+router.post(
+  '/ncp/:id/concession/approve',
+  authenticateToken,
+  requirePermission('quality:nonconforming:update'),
+  ncpController.approveConcession
+);
 
 /**
  * 质量统计相关路由
  */
-router.get('/statistics', authenticateToken, requirePermission('quality:reports:view'), qualityStatCtrl.getQualityStatistics);
-router.get('/defect-items', authenticateToken, requirePermission('quality:reports:view'), qualityStatCtrl.getDefectItems);
-router.get('/trends', authenticateToken, requirePermission('quality:reports:view'), qualityStatCtrl.getQualityTrends);
+router.get(
+  '/statistics',
+  authenticateToken,
+  requirePermission('quality:reports:view'),
+  qualityStatCtrl.getQualityStatistics
+);
+router.get(
+  '/defect-items',
+  authenticateToken,
+  requirePermission('quality:reports:view'),
+  qualityStatCtrl.getDefectItems
+);
+router.get(
+  '/trends',
+  authenticateToken,
+  requirePermission('quality:reports:view'),
+  qualityStatCtrl.getQualityTrends
+);
 
 module.exports = router;

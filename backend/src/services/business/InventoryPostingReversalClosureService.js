@@ -462,12 +462,7 @@ class InventoryPostingReversalClosureService {
     const SalesOrderStatusService = require('./SalesOrderStatusService');
     const warnings = [];
     for (const orderId of orderIds) {
-      try {
-        await SalesOrderStatusService.updateOrderStatus(orderId, connection);
-      } catch (error) {
-        warnings.push(`销售订单 ${orderId} 状态同步失败: ${error.message}`);
-        logger.warn(warnings[warnings.length - 1]);
-      }
+      await SalesOrderStatusService.updateOrderStatus(orderId, connection);
     }
 
     try {
@@ -481,7 +476,8 @@ class InventoryPostingReversalClosureService {
         if (!orders.length || ['cancelled', 'completed'].includes(String(orders[0].status)))
           continue;
         const [items] = await connection.execute(
-          'SELECT material_id, quantity AS ordered_quantity FROM sales_order_items WHERE order_id = ?',
+          `SELECT material_id, SUM(quantity) AS ordered_quantity
+             FROM sales_order_items WHERE order_id = ? GROUP BY material_id`,
           [orderId]
         );
         const remaining = [];
@@ -493,8 +489,8 @@ class InventoryPostingReversalClosureService {
               WHERE sob.deleted_at IS NULL
                 AND sob.status IN ('processing', 'completed')
                 AND sobi.product_id = ?
-                AND (sob.order_id = ? OR sobi.source_order_id = ?)`,
-            [item.material_id, orderId, orderId]
+                AND COALESCE(sobi.source_order_id, sob.order_id) = ?`,
+            [item.material_id, orderId]
           );
           const remain = Math.max(
             0,
@@ -518,8 +514,8 @@ class InventoryPostingReversalClosureService {
         }
       }
     } catch (error) {
-      warnings.push(`销售订单库存重预留失败: ${error.message}`);
-      logger.warn(warnings[warnings.length - 1]);
+      logger.error(`销售出库 ${outbound.outbound_no} 反审核库存重预留失败:`, error);
+      throw error;
     }
 
     return {
@@ -673,7 +669,7 @@ class InventoryPostingReversalClosureService {
       [sourceNo, sourceNo]
     );
     if (!entries.length) {
-      throw new Error(`来源单 ${sourceNo || sourceId} 没有可冲销的有效财务凭证，已阻止反审核`);
+      throw new Error(`来源单 ${sourceNo || '当前单据'} 没有可冲销的有效财务凭证，已阻止反审核`);
     }
     const results = [];
     for (const entry of entries) {

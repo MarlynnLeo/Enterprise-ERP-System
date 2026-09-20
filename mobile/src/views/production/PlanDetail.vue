@@ -134,6 +134,7 @@
   import SvgIcon from '@/components/icons/index.vue'
   import { productionApi } from '@/api'
   import dayjs from 'dayjs'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const route = useRoute()
   const loading = ref(true)
@@ -224,7 +225,7 @@
       loadPlanDetail()
     } catch (e) {
       if (e !== 'cancel' && e?.message !== 'cancel') {
-        const errorMsg = e.response?.data?.message || '操作失败'
+        const errorMsg = getApiErrorMessage(e, '操作失败')
         showToast(errorMsg)
       }
     }

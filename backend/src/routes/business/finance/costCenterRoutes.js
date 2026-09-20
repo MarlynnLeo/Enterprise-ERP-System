@@ -33,8 +33,18 @@ function validateCostCenterPayload(data, options = {}) {
   if (code && code.length > 20) return '编码长度不能超过20个字符';
   if (name && name.length > 100) return '名称长度不能超过100个字符';
   if (data.type && !VALID_COST_CENTER_TYPES.has(data.type)) return '成本中心类型无效';
-  if (data.parent_id !== undefined && data.parent_id !== null && Number.isNaN(Number(data.parent_id))) return '上级中心无效';
-  if (data.department_id !== undefined && data.department_id !== null && Number.isNaN(Number(data.department_id))) return '关联部门无效';
+  if (
+    data.parent_id !== undefined &&
+    data.parent_id !== null &&
+    Number.isNaN(Number(data.parent_id))
+  )
+    return '上级中心无效';
+  if (
+    data.department_id !== undefined &&
+    data.department_id !== null &&
+    Number.isNaN(Number(data.department_id))
+  )
+    return '关联部门无效';
   return null;
 }
 
@@ -64,15 +74,19 @@ router.get('/', requirePermission('finance:cost:view'), async (req, res) => {
  * 获取成本中心选项（下拉框用）
  * GET /api/finance/cost-centers/options
  */
-router.get('/options', requirePermission(['finance:cost:view', 'finance:expenses:pay']), async (req, res) => {
-  try {
-    const data = await CostCenterService.getOptions();
-    ResponseHandler.success(res, data);
-  } catch (error) {
-    logger.error('[API] 获取成本中心选项失败:', error);
-    ResponseHandler.error(res, '获取成本中心选项失败', 'SERVER_ERROR', 500);
+router.get(
+  '/options',
+  requirePermission(['finance:cost:view', 'finance:expenses:pay']),
+  async (req, res) => {
+    try {
+      const data = await CostCenterService.getOptions();
+      ResponseHandler.success(res, data);
+    } catch (error) {
+      logger.error('[API] 获取成本中心选项失败:', error);
+      ResponseHandler.error(res, '获取成本中心选项失败', 'SERVER_ERROR', 500);
+    }
   }
-});
+);
 
 /**
  * 获取成本归集报表
@@ -155,7 +169,8 @@ router.post('/', requirePermission('finance:cost:create'), async (req, res) => {
       return ResponseHandler.error(res, validationMessage, 'VALIDATION_ERROR', 400);
     }
 
-    const { code, name, type, parent_id, department_id, manager, description, is_active } = req.body;
+    const { code, name, type, parent_id, department_id, manager, description, is_active } =
+      req.body;
     const data = await CostCenterService.create({
       code: code.trim(),
       name: name.trim(),

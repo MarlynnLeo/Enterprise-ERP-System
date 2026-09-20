@@ -22,7 +22,11 @@ const processController = {
   async getAllProcessTemplates(req, res) {
     try {
       const { page = 1, pageSize = 10, name, status, productId } = req.query;
-      const result = await processTemplateService.getAll(page, pageSize, { name, status, productId });
+      const result = await processTemplateService.getAll(page, pageSize, {
+        name,
+        status,
+        productId,
+      });
       ResponseHandler.paginated(
         res,
         result.list,
@@ -94,13 +98,19 @@ const processController = {
   async exportProcessTemplates(req, res) {
     try {
       const ImportExportService = require('../../../services/importExportService');
-      const workbook = await ImportExportService.exportProcessTemplates({ ...req.query, ...req.body });
+      const workbook = await ImportExportService.exportProcessTemplates({
+        ...req.query,
+        ...req.body,
+      });
 
       res.setHeader(
         'Content-Type',
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       );
-      res.setHeader('Content-Disposition', `attachment; filename=product_process_routes_${Date.now()}.xlsx`);
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename=product_process_routes_${Date.now()}.xlsx`
+      );
 
       await workbook.xlsx.write(res);
       res.end();
@@ -120,17 +130,19 @@ const processController = {
     }
   },
 
-
   async getProcessTemplateByProductId(req, res) {
     try {
       const template = await processTemplateService.getByProductId(req.params.id);
-      ResponseHandler.success(res, template, template ? '获取产品工艺路线成功' : '该产品暂无生效工艺');
+      ResponseHandler.success(
+        res,
+        template,
+        template ? '获取产品工艺路线成功' : '该产品暂无生效工艺'
+      );
     } catch (error) {
       logger.error('获取产品工艺路线失败:', error);
       BusinessError.handleError(res, error, '获取产品工艺路线失败', ResponseHandler);
     }
   },
-
 };
 
 module.exports = processController;

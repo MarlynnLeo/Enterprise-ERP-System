@@ -49,6 +49,7 @@
 import { ref, onErrorCaptured, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon, Button, showToast, showDialog } from 'vant'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 
 const props = defineProps({
   showDetails: {
@@ -138,7 +139,9 @@ const handleError = (error, info) => {
   }
 
   if (props.showDetails) {
-    errorDetails.value = `${error.name}: ${error.message}\n\n${error.stack}\n\nComponent Info: ${info}`
+    // 开发环境也只展示可读中文，完整 stack 保留在控制台/错误上报中，
+    // 避免异常边界把实现细节、内部 ID 或英文错误直接呈现在页面。
+    errorDetails.value = `错误信息：${getApiErrorMessage(error, props.fallbackMessage)}\n\n组件信息：${info}`
   }
 }
 

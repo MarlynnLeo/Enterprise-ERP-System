@@ -439,6 +439,7 @@ import { parsePaginatedData, parseListData } from '@/utils/responseParser';
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus/es/components/message/index'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { Plus, ArrowDown, Delete, RefreshRight, Edit } from '@element-plus/icons-vue';
 import { inventoryApi } from '@/api';
@@ -956,11 +957,7 @@ const submitCheckForm = async () => {
     await loadCheckStats();
   } catch (error) {
     console.error('提交盘点单失败:', error);
-    if (error.message) {
-      ElMessage.error(error.message);
-    } else {
-      ElMessage.error('提交盘点单失败');
-    }
+    ElMessage.error(getApiErrorMessage(error, '提交盘点单失败'));
   } finally {
     submitting.value = false;
   }

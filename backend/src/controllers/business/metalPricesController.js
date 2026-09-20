@@ -150,7 +150,9 @@ const loadPersistedMetalPrices = async () => {
 
   try {
     await seedMetalPricesIfNeeded();
-    const [rows] = await pool.query('SELECT id, symbol, name, price, change_amount, change_percent, unit, source, last_update_at, created_at, updated_at FROM metal_prices ORDER BY symbol');
+    const [rows] = await pool.query(
+      'SELECT id, symbol, name, price, change_amount, change_percent, unit, source, last_update_at, created_at, updated_at FROM metal_prices ORDER BY symbol'
+    );
     rows.forEach((row) => {
       if (metalPricesData[row.symbol]) {
         metalPricesData[row.symbol] = mapDbRowToMetalPrice(row);
@@ -242,9 +244,7 @@ const fetchRealMetalPrices = async () => {
         metal.source = 'STALE_OR_REFERENCE';
       }
       metal.lastUpdate = metal.lastUpdate || new Date();
-      logger.warn(
-        `[MetalPrices] ${symbol} 使用既有价格 ${metal.price} (${metal.source})`
-      );
+      logger.warn(`[MetalPrices] ${symbol} 使用既有价格 ${metal.price} (${metal.source})`);
     }
   }
 };
@@ -417,7 +417,12 @@ const updatePrice = async (req, res) => {
 
     // 验证金属符号是否存在
     if (!metalPricesData[normalizedSymbol]) {
-      return ResponseHandler.error(res, `无效的金属符号: ${normalizedSymbol}`, 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(
+        res,
+        `无效的金属符号: ${normalizedSymbol}`,
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     const numPrice = Number(price);

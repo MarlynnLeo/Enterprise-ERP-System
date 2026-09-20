@@ -15,10 +15,22 @@ router.use(authenticateToken);
 
 // 获取支持的事件类型列表（供前端下拉选择，放在 /:id 之前避免路由冲突）
 router.get('/events', requirePermission(NOTIFICATION_PERMISSIONS.VIEW), ctrl.getSupportedEvents);
-router.get('/recipient-options', requirePermission(NOTIFICATION_PERMISSIONS.VIEW), ctrl.getRecipientOptions);
+router.get(
+  '/recipient-options',
+  requirePermission(NOTIFICATION_PERMISSIONS.VIEW),
+  ctrl.getRecipientOptions
+);
 router.post('/preview', requirePermission(NOTIFICATION_PERMISSIONS.VIEW), ctrl.previewRecipients);
-router.get('/responsibilities', requirePermission(NOTIFICATION_PERMISSIONS.VIEW), ctrl.getResponsibilities);
-router.put('/responsibilities/:code', requirePermission(NOTIFICATION_PERMISSIONS.UPDATE), ctrl.updateResponsibility);
+router.get(
+  '/responsibilities',
+  requirePermission(NOTIFICATION_PERMISSIONS.VIEW),
+  ctrl.getResponsibilities
+);
+router.put(
+  '/responsibilities/:code',
+  requirePermission(NOTIFICATION_PERMISSIONS.UPDATE),
+  ctrl.updateResponsibility
+);
 
 // 规则 CRUD
 router.get('/', requirePermission(NOTIFICATION_PERMISSIONS.VIEW), ctrl.getRules);
@@ -29,6 +41,10 @@ router.delete('/:id', requirePermission(NOTIFICATION_PERMISSIONS.DELETE), ctrl.d
 
 // 切换启用/禁用
 router.patch('/:id/toggle', requirePermission(NOTIFICATION_PERMISSIONS.TOGGLE), ctrl.toggleActive);
-router.post('/:id/test', requirePermission(NOTIFICATION_PERMISSIONS.TEST), ctrl.sendTestNotification);
+router.post(
+  '/:id/test',
+  requirePermission(NOTIFICATION_PERMISSIONS.TEST),
+  ctrl.sendTestNotification
+);
 
 module.exports = router;

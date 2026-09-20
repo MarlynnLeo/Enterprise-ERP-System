@@ -14,13 +14,21 @@ const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
 const crypto = require('crypto');
 const businessConfig = require('../../config/businessConfig');
-const { lineAmount, normalizeTaxRate, roundMoney, taxAmount: calculateTaxAmount } = require('../../utils/money');
+const {
+  lineAmount,
+  normalizeTaxRate,
+  roundMoney,
+  taxAmount: calculateTaxAmount,
+} = require('../../utils/money');
 const { financeConfig } = require('../../config/financeConfig');
 const { firstValidUserId } = require('../../utils/userUtils');
 
 class PurchaseReceiptService {
   static payloadHash(value) {
-    return crypto.createHash('sha256').update(JSON.stringify(value || {})).digest('hex');
+    return crypto
+      .createHash('sha256')
+      .update(JSON.stringify(value || {}))
+      .digest('hex');
   }
 
   /**
@@ -31,8 +39,12 @@ class PurchaseReceiptService {
    * @param {object} originalInspection - 原始请求体
    * @returns {Promise<{receiptId: number, receiptNo: string}>}
    */
-  static async autoCreateFromInspection(inspectionResult, originalInspection, externalConnection = null) {
-    const connection = externalConnection || await db.pool.getConnection();
+  static async autoCreateFromInspection(
+    inspectionResult,
+    originalInspection,
+    externalConnection = null
+  ) {
+    const connection = externalConnection || (await db.pool.getConnection());
     const useOwnConnection = !externalConnection;
     try {
       if (useOwnConnection) {
@@ -58,7 +70,7 @@ class PurchaseReceiptService {
       const sourceRemark = isExempt ? '免检来料自动生成' : '来料检验合格自动生成';
 
       if (!orderId) {
-        throw new Error('缺少采购订单引用ID，无法创建入库单');
+        throw new Error('缺少采购订单关联信息，无法创建入库单');
       }
 
       if (qty <= 0) {
@@ -71,7 +83,7 @@ class PurchaseReceiptService {
           [inspectionId]
         );
         if (!lockedInspections || lockedInspections.length === 0) {
-          throw new Error(`检验单 ${inspectionId} 不存在，无法创建采购入库单`);
+          throw new Error('检验单不存在，无法创建采购入库单');
         }
 
         const [existingReceipts] = await connection.query(
@@ -94,7 +106,12 @@ class PurchaseReceiptService {
       }
 
       // 1. 一次 JOIN 查询获取完整订单上下文（订单、供应商、物料、采购价格）
-      const context = await this._getOrderContext(connection, orderId, materialId, inspectionResult.purchase_order_item_id || originalInspection.purchase_order_item_id || null);
+      const context = await this._getOrderContext(
+        connection,
+        orderId,
+        materialId,
+        inspectionResult.purchase_order_item_id || originalInspection.purchase_order_item_id || null
+      );
       const createdBy = firstValidUserId(
         inspectionResult.inspector_id,
         originalInspection.inspector_id,
@@ -103,7 +120,10 @@ class PurchaseReceiptService {
       if (!createdBy) {
         throw new Error('检验单和采购订单均缺少责任人，不能自动创建采购入库单');
       }
-      const taxRate = normalizeTaxRate(context.taxRate, financeConfig.get('tax.defaultVATRate', 0.13));
+      const taxRate = normalizeTaxRate(
+        context.taxRate,
+        financeConfig.get('tax.defaultVATRate', 0.13)
+      );
       const amountExcludingTax = lineAmount(qty, context.price);
       const taxAmount = calculateTaxAmount(amountExcludingTax, taxRate);
       const totalAmount = roundMoney(amountExcludingTax + taxAmount);
@@ -238,16 +258,19 @@ class PurchaseReceiptService {
     );
 
     if (!rows || rows.length === 0) {
-      throw new Error(`采购订单 ${orderId} 不存在`);
+      throw new Error('采购订单不存在或已被删除');
     }
 
-    if (rows.length > 1) throw Object.assign(new Error('同物料存在多条采购明细，检验单必须关联具体订单行'), { statusCode: 400 });
+    if (rows.length > 1)
+      throw Object.assign(new Error('同物料存在多条采购明细，检验单必须关联具体订单行'), {
+        statusCode: 400,
+      });
     const row = rows[0];
     if (!row.order_item_id) {
-      throw new Error(`采购订单 ${orderId} 中不存在物料 ${materialId}，无法创建入库单`);
+      throw new Error('采购订单中不存在所选物料，无法创建入库单');
     }
     if (!row.material_code || !row.material_name) {
-      throw new Error(`物料 ${materialId} 基础资料不完整，无法创建入库单`);
+      throw new Error('所选物料基础资料不完整，无法创建入库单');
     }
 
     return {
@@ -289,9 +312,7 @@ class PurchaseReceiptService {
           warehouseName: locRows[0].name || '',
         };
       }
-      logger.warn(
-        `⚠️ 物料默认仓库 ${materialLocationId} 不存在或已禁用，尝试使用系统默认仓库`
-      );
+      logger.warn(`⚠️ 物料默认仓库 ${materialLocationId} 不存在或已禁用，尝试使用系统默认仓库`);
     }
 
     // 策略2: 使用系统配置默认仓库ID
@@ -307,9 +328,7 @@ class PurchaseReceiptService {
           warehouseName: defaultRows[0].name || '',
         };
       }
-      logger.warn(
-        `⚠️ 系统默认仓库 ${defaultId} 不存在或已禁用`
-      );
+      logger.warn(`⚠️ 系统默认仓库 ${defaultId} 不存在或已禁用`);
     }
 
     // 策略3: 无可用仓库，抛出明确错误

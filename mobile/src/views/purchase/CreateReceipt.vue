@@ -267,6 +267,7 @@
     closeToast
   } from 'vant'
   import { purchaseApi, inventoryApi } from '@/api'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const router = useRouter()
   const route = useRoute()
@@ -548,7 +549,7 @@
     } catch (error) {
       closeToast()
       console.error('创建入库单失败:', error)
-      showToast(error.response?.data?.message || '创建入库单失败')
+      showToast(getApiErrorMessage(error, '创建入库单失败'))
     } finally {
       submitting.value = false
     }

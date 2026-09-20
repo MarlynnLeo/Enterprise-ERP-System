@@ -34,7 +34,7 @@ function amountParts(netCents) {
 function normalizeBalanceDate(value) {
   const date = String(value || '').slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    throw new Error('balanceDate must use YYYY-MM-DD format');
+    throw new Error('余额日期格式必须为 YYYY-MM-DD');
   }
 
   const [year, month, day] = date.split('-').map(Number);
@@ -44,15 +44,18 @@ function normalizeBalanceDate(value) {
     parsed.getUTCMonth() + 1 !== month ||
     parsed.getUTCDate() !== day
   ) {
-    throw new Error('balanceDate is not a valid date');
+    // 保留旧调用方依赖的英文关键字；HTTP 响应层会统一转换为中文提示。
+    throw new Error('余额日期不是有效日期（invalid date）');
   }
   return date;
 }
 
 function normalizeManualAmount(value, accountId) {
-  const amount = value === undefined || value === null || value === '' ? 0 : Number.parseFloat(value);
+  const amount =
+    value === undefined || value === null || value === '' ? 0 : Number.parseFloat(value);
   if (!Number.isFinite(amount) || amount < 0) {
-    throw new Error(`Manual opening balance must be a non-negative amount: account ${accountId}`);
+    // 保留旧调用方依赖的英文关键字；HTTP 响应层会统一转换为中文提示。
+    throw new Error('手工期初余额金额必须为非负数（non-negative）');
   }
   return fromCents(toCents(amount));
 }
@@ -61,7 +64,14 @@ function isDebitAccount(account) {
   return account?.is_debit === true || account?.is_debit === 1 || account?.is_debit === '1';
 }
 
-function createSourceLine({ sourceType, sourceLabel, accountKey, accountCode, netAmount, details }) {
+function createSourceLine({
+  sourceType,
+  sourceLabel,
+  accountKey,
+  accountCode,
+  netAmount,
+  details,
+}) {
   return {
     sourceType,
     sourceLabel,
@@ -80,7 +90,9 @@ function aggregateSourceLines(lines, accountsByCode) {
     const account = accountsByCode.get(line.accountCode);
     if (!account) {
       if (line.netCents) {
-        warnings.push(`系统来源“${line.sourceLabel}”存在余额，但未找到启用的会计科目 ${line.accountCode}`);
+        warnings.push(
+          `系统来源“${line.sourceLabel}”存在余额，但未找到启用的会计科目 ${line.accountCode}`
+        );
       }
       continue;
     }
@@ -121,7 +133,12 @@ async function queryTotal(connection, sql, params = []) {
 
 async function getInventoryOpeningValue(connection, balanceDate) {
   if (!(await hasTable(connection, 'inventory_year_end_balances'))) {
-    return { amount: 0, available: false, details: { strategy: 'unavailable' }, warning: '库存年度结存表不存在，库存期初无法自动生成' };
+    return {
+      amount: 0,
+      available: false,
+      details: { strategy: 'unavailable' },
+      warning: '库存年度结存表不存在，库存期初无法自动生成',
+    };
   }
 
   const fiscalYear = Number.parseInt(String(balanceDate).slice(0, 4), 10);
@@ -187,14 +204,16 @@ async function collectSourceLines(connection, balanceDate) {
          FROM bank_accounts
         WHERE COALESCE(is_active, 1) = 1`
     );
-    lines.push(createSourceLine({
-      sourceType: 'bank_accounts',
-      sourceLabel: '资金账户期初',
-      accountKey: 'BANK_DEPOSIT',
-      accountCode: accountCodes.BANK_DEPOSIT,
-      netAmount: amount,
-      details: { table: 'bank_accounts', field: 'opening_balance' },
-    }));
+    lines.push(
+      createSourceLine({
+        sourceType: 'bank_accounts',
+        sourceLabel: '资金账户期初',
+        accountKey: 'BANK_DEPOSIT',
+        accountCode: accountCodes.BANK_DEPOSIT,
+        netAmount: amount,
+        details: { table: 'bank_accounts', field: 'opening_balance' },
+      })
+    );
   } else {
     warnings.push('银行账户表不存在，银行存款期初无法自动生成');
   }
@@ -208,14 +227,16 @@ async function collectSourceLines(connection, balanceDate) {
         WHERE LOWER(COALESCE(status, '')) NOT IN (${excludedPlaceholders})`,
       EXCLUDED_DOCUMENT_STATUSES
     );
-    lines.push(createSourceLine({
-      sourceType: 'ar_invoices',
-      sourceLabel: '应收未结发票',
-      accountKey: 'ACCOUNTS_RECEIVABLE',
-      accountCode: accountCodes.ACCOUNTS_RECEIVABLE,
-      netAmount: amount,
-      details: { table: 'ar_invoices', field: 'balance_amount' },
-    }));
+    lines.push(
+      createSourceLine({
+        sourceType: 'ar_invoices',
+        sourceLabel: '应收未结发票',
+        accountKey: 'ACCOUNTS_RECEIVABLE',
+        accountCode: accountCodes.ACCOUNTS_RECEIVABLE,
+        netAmount: amount,
+        details: { table: 'ar_invoices', field: 'balance_amount' },
+      })
+    );
   } else {
     warnings.push('应收发票表不存在，应收账款期初无法自动生成');
   }
@@ -228,14 +249,16 @@ async function collectSourceLines(connection, balanceDate) {
         WHERE LOWER(COALESCE(status, '')) NOT IN (${excludedPlaceholders})`,
       EXCLUDED_DOCUMENT_STATUSES
     );
-    lines.push(createSourceLine({
-      sourceType: 'ap_invoices',
-      sourceLabel: '应付未结发票',
-      accountKey: 'ACCOUNTS_PAYABLE',
-      accountCode: accountCodes.ACCOUNTS_PAYABLE,
-      netAmount: -amount,
-      details: { table: 'ap_invoices', field: 'balance_amount' },
-    }));
+    lines.push(
+      createSourceLine({
+        sourceType: 'ap_invoices',
+        sourceLabel: '应付未结发票',
+        accountKey: 'ACCOUNTS_PAYABLE',
+        accountCode: accountCodes.ACCOUNTS_PAYABLE,
+        netAmount: -amount,
+        details: { table: 'ap_invoices', field: 'balance_amount' },
+      })
+    );
   } else {
     warnings.push('应付发票表不存在，应付账款期初无法自动生成');
   }
@@ -243,14 +266,16 @@ async function collectSourceLines(connection, balanceDate) {
   const inventory = await getInventoryOpeningValue(connection, balanceDate);
   if (inventory.warning) warnings.push(inventory.warning);
   if (inventory.available) {
-    lines.push(createSourceLine({
-      sourceType: 'inventory_year_end',
-      sourceLabel: '库存年度结存',
-      accountKey: 'INVENTORY_GOODS',
-      accountCode: accountCodes.INVENTORY_GOODS,
-      netAmount: inventory.amount,
-      details: inventory.details,
-    }));
+    lines.push(
+      createSourceLine({
+        sourceType: 'inventory_year_end',
+        sourceLabel: '库存年度结存',
+        accountKey: 'INVENTORY_GOODS',
+        accountCode: accountCodes.INVENTORY_GOODS,
+        netAmount: inventory.amount,
+        details: inventory.details,
+      })
+    );
   }
 
   if (await hasTable(connection, 'fixed_assets')) {
@@ -269,30 +294,36 @@ async function collectSourceLines(connection, balanceDate) {
       `SELECT COALESCE(SUM(impairment_amount), 0) AS total FROM fixed_assets ${activeAssetFilter}`
     );
 
-    lines.push(createSourceLine({
-      sourceType: 'fixed_assets',
-      sourceLabel: '固定资产卡片原值',
-      accountKey: 'FIXED_ASSETS',
-      accountCode: accountCodes.FIXED_ASSETS,
-      netAmount: acquisitionCost,
-      details: { table: 'fixed_assets', field: 'acquisition_cost' },
-    }));
-    lines.push(createSourceLine({
-      sourceType: 'fixed_assets',
-      sourceLabel: '固定资产累计折旧',
-      accountKey: 'ACCUMULATED_DEPRECIATION',
-      accountCode: accountCodes.ACCUMULATED_DEPRECIATION,
-      netAmount: -accumulatedDepreciation,
-      details: { table: 'fixed_assets', field: 'accumulated_depreciation' },
-    }));
-    lines.push(createSourceLine({
-      sourceType: 'fixed_assets',
-      sourceLabel: '固定资产减值准备',
-      accountKey: 'FIXED_ASSET_IMPAIRMENT_ALLOWANCE',
-      accountCode: accountCodes.FIXED_ASSET_IMPAIRMENT_ALLOWANCE,
-      netAmount: -impairment,
-      details: { table: 'fixed_assets', field: 'impairment_amount' },
-    }));
+    lines.push(
+      createSourceLine({
+        sourceType: 'fixed_assets',
+        sourceLabel: '固定资产卡片原值',
+        accountKey: 'FIXED_ASSETS',
+        accountCode: accountCodes.FIXED_ASSETS,
+        netAmount: acquisitionCost,
+        details: { table: 'fixed_assets', field: 'acquisition_cost' },
+      })
+    );
+    lines.push(
+      createSourceLine({
+        sourceType: 'fixed_assets',
+        sourceLabel: '固定资产累计折旧',
+        accountKey: 'ACCUMULATED_DEPRECIATION',
+        accountCode: accountCodes.ACCUMULATED_DEPRECIATION,
+        netAmount: -accumulatedDepreciation,
+        details: { table: 'fixed_assets', field: 'accumulated_depreciation' },
+      })
+    );
+    lines.push(
+      createSourceLine({
+        sourceType: 'fixed_assets',
+        sourceLabel: '固定资产减值准备',
+        accountKey: 'FIXED_ASSET_IMPAIRMENT_ALLOWANCE',
+        accountCode: accountCodes.FIXED_ASSET_IMPAIRMENT_ALLOWANCE,
+        netAmount: -impairment,
+        details: { table: 'fixed_assets', field: 'impairment_amount' },
+      })
+    );
   } else {
     warnings.push('固定资产表不存在，固定资产期初无法自动生成');
   }
@@ -323,11 +354,14 @@ async function getPreview(balanceDate) {
     const rows = accounts.map((account) => {
       const generated = aggregated.rows.get(account.id);
       const hasSystemSource = Boolean(generated);
-      const shouldClearStaleSystemValue = account.opening_source_type === 'system' && !hasSystemSource;
+      const shouldClearStaleSystemValue =
+        account.opening_source_type === 'system' && !hasSystemSource;
       const currentNetCents = toCents(account.opening_debit) - toCents(account.opening_credit);
       const netCents = hasSystemSource
         ? generated.netCents
-        : (shouldClearStaleSystemValue ? 0 : currentNetCents);
+        : shouldClearStaleSystemValue
+          ? 0
+          : currentNetCents;
       const parts = amountParts(netCents);
       totalDebitCents += toCents(parts.debit);
       totalCreditCents += toCents(parts.credit);
@@ -339,12 +373,14 @@ async function getPreview(balanceDate) {
         opening_credit: parts.credit,
         opening_amount: fromCents(Math.abs(netCents)),
         opening_direction: hasSystemSource
-          ? (netCents < 0 ? 'credit' : 'debit')
-          : (isDebitAccount(account) ? 'debit' : 'credit'),
+          ? netCents < 0
+            ? 'credit'
+            : 'debit'
+          : isDebitAccount(account)
+            ? 'debit'
+            : 'credit',
         source_type: hasSystemSource ? 'system' : 'manual',
-        source_label: hasSystemSource
-          ? [...generated.sourceLabels].join('、')
-          : '人工补录',
+        source_label: hasSystemSource ? [...generated.sourceLabels].join('、') : '人工补录',
         source_details: hasSystemSource ? generated.details : null,
         manual_allowed: !hasSystemSource,
       };
@@ -382,10 +418,14 @@ async function initialize({ balanceDate, manualBalances, setBy }) {
 
   for (const accountId of manualByAccountId.keys()) {
     if (systemAccountIds.has(accountId)) {
-      throw new Error(`System-generated opening balance cannot be overridden: account ${accountId}`);
+      throw new Error(
+        '系统生成的期初余额不允许手工覆盖'
+      );
     }
     if (!manualAccountIds.has(accountId)) {
-      throw new Error(`Opening balance account is not available for manual entry: account ${accountId}`);
+      throw new Error(
+        '该科目不允许手工录入期初余额'
+      );
     }
   }
 

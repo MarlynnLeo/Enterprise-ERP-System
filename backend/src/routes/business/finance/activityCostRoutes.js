@@ -93,39 +93,51 @@ router.delete('/activities/:id', requirePermission('finance:cost:delete'), async
 });
 
 // 获取产品的作业关联
-router.get('/products/:productId/activities', requirePermission('finance:cost:view'), async (req, res) => {
-  try {
-    const data = await ActivityCostService.getProductActivities(req.params.productId);
-    ResponseHandler.success(res, data);
-  } catch (error) {
-    logger.error('获取产品作业关联失败:', error);
-    ResponseHandler.error(res, '获取产品作业关联失败');
+router.get(
+  '/products/:productId/activities',
+  requirePermission('finance:cost:view'),
+  async (req, res) => {
+    try {
+      const data = await ActivityCostService.getProductActivities(req.params.productId);
+      ResponseHandler.success(res, data);
+    } catch (error) {
+      logger.error('获取产品作业关联失败:', error);
+      ResponseHandler.error(res, '获取产品作业关联失败');
+    }
   }
-});
+);
 
 // 设置产品的作业关联
-router.post('/products/:productId/activities', requirePermission('finance:cost:update'), async (req, res) => {
-  try {
-    const data = await ActivityCostService.setProductActivities(
-      req.params.productId,
-      req.body.activities || []
-    );
-    ResponseHandler.success(res, data, '设置成功');
-  } catch (error) {
-    logger.error('设置产品作业关联失败:', error);
-    ResponseHandler.error(res, '设置产品作业关联失败');
+router.post(
+  '/products/:productId/activities',
+  requirePermission('finance:cost:update'),
+  async (req, res) => {
+    try {
+      const data = await ActivityCostService.setProductActivities(
+        req.params.productId,
+        req.body.activities || []
+      );
+      ResponseHandler.success(res, data, '设置成功');
+    } catch (error) {
+      logger.error('设置产品作业关联失败:', error);
+      ResponseHandler.error(res, '设置产品作业关联失败');
+    }
   }
-});
+);
 
 // 计算产品的ABC成本
-router.get('/products/:productId/abc-cost', requirePermission('finance:cost:view'), async (req, res) => {
-  try {
-    const data = await ActivityCostService.calculateProductABCCost(req.params.productId);
-    ResponseHandler.success(res, data);
-  } catch (error) {
-    logger.error('计算ABC成本失败:', error);
-    ResponseHandler.error(res, '计算ABC成本失败');
+router.get(
+  '/products/:productId/abc-cost',
+  requirePermission('finance:cost:view'),
+  async (req, res) => {
+    try {
+      const data = await ActivityCostService.calculateProductABCCost(req.params.productId);
+      ResponseHandler.success(res, data);
+    } catch (error) {
+      logger.error('计算ABC成本失败:', error);
+      ResponseHandler.error(res, '计算ABC成本失败');
+    }
   }
-});
+);
 
 module.exports = router;

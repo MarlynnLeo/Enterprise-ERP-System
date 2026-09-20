@@ -17,9 +17,10 @@ function optionalString(value) {
 }
 
 async function runQuery(connection, sql, params = []) {
-  const runner = typeof connection.execute === 'function'
-    ? connection.execute.bind(connection)
-    : connection.query.bind(connection);
+  const runner =
+    typeof connection.execute === 'function'
+      ? connection.execute.bind(connection)
+      : connection.query.bind(connection);
   return runner(sql, params);
 }
 
@@ -100,14 +101,16 @@ function buildMaterialMasterWhere(materialIds, materialCodes) {
 
 class PurchasePriceService {
   static normalizeRequests(requests = []) {
-    return requests.map((request, index) => ({
-      index,
-      key: `req:${index}`,
-      materialId: optionalInt(request.materialId ?? request.material_id),
-      materialCode: optionalString(request.materialCode ?? request.material_code),
-      supplierId: optionalInt(request.supplierId ?? request.supplier_id),
-      raw: request,
-    })).filter((request) => request.materialId || request.materialCode);
+    return requests
+      .map((request, index) => ({
+        index,
+        key: `req:${index}`,
+        materialId: optionalInt(request.materialId ?? request.material_id),
+        materialCode: optionalString(request.materialCode ?? request.material_code),
+        supplierId: optionalInt(request.supplierId ?? request.supplier_id),
+        raw: request,
+      }))
+      .filter((request) => request.materialId || request.materialCode);
   }
 
   static indexRequests(requests) {
@@ -181,20 +184,38 @@ class PurchasePriceService {
     const { bySupplierMaterial, byMaterial } = this.indexRequests(normalized);
     const state = { results, unresolved, bySupplierMaterial, byMaterial };
 
-    const materialIds = [...new Set(normalized.map((request) => request.materialId).filter(Boolean))];
-    const materialCodes = [...new Set(normalized.map((request) => request.materialCode).filter(Boolean))];
-    const supplierIds = [...new Set(normalized.map((request) => request.supplierId).filter(Boolean))];
+    const materialIds = [
+      ...new Set(normalized.map((request) => request.materialId).filter(Boolean)),
+    ];
+    const materialCodes = [
+      ...new Set(normalized.map((request) => request.materialCode).filter(Boolean)),
+    ];
+    const supplierIds = [
+      ...new Set(normalized.map((request) => request.supplierId).filter(Boolean)),
+    ];
 
     if (supplierIds.length > 0) {
       await this.resolveMetalRangePrices(connection, normalized, state);
     }
 
     if (supplierIds.length > 0) {
-      await this.resolveSupplierOrderHistory(connection, materialIds, materialCodes, supplierIds, state);
+      await this.resolveSupplierOrderHistory(
+        connection,
+        materialIds,
+        materialCodes,
+        supplierIds,
+        state
+      );
     }
 
     if (unresolved.size > 0 && supplierIds.length > 0) {
-      await this.resolveSupplierReceiptHistory(connection, materialIds, materialCodes, supplierIds, state);
+      await this.resolveSupplierReceiptHistory(
+        connection,
+        materialIds,
+        materialCodes,
+        supplierIds,
+        state
+      );
     }
 
     if (unresolved.size > 0) {
@@ -217,7 +238,9 @@ class PurchasePriceService {
   }
 
   static async resolveMetalRangePrices(connection, normalized, state) {
-    const pending = normalized.filter((request) => state.unresolved.has(request.key) && request.supplierId);
+    const pending = normalized.filter(
+      (request) => state.unresolved.has(request.key) && request.supplierId
+    );
     if (pending.length === 0) return;
 
     const rangeResults = await SupplierMetalRangePriceService.resolveRangePrices(
@@ -239,7 +262,13 @@ class PurchasePriceService {
     });
   }
 
-  static async resolveSupplierOrderHistory(connection, materialIds, materialCodes, supplierIds, state) {
+  static async resolveSupplierOrderHistory(
+    connection,
+    materialIds,
+    materialCodes,
+    supplierIds,
+    state
+  ) {
     const materialWhere = buildWhereForMaterials(materialIds, materialCodes, 'poi');
     const supplierWhere = supplierIds.map(() => '?').join(',');
     const [rows] = await runQuery(
@@ -273,7 +302,13 @@ class PurchasePriceService {
     }
   }
 
-  static async resolveSupplierReceiptHistory(connection, materialIds, materialCodes, supplierIds, state) {
+  static async resolveSupplierReceiptHistory(
+    connection,
+    materialIds,
+    materialCodes,
+    supplierIds,
+    state
+  ) {
     const materialWhere = buildWhereForMaterials(materialIds, materialCodes, 'pri');
     const supplierWhere = supplierIds.map(() => '?').join(',');
     const [rows] = await runQuery(

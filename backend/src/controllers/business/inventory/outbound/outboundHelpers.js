@@ -77,13 +77,17 @@ const assertOutboundSourceAccess = async (connection, req, outbound, options = {
   // default.  Callers must opt in explicitly to shared-read semantics; a
   // generic `read` label must not accidentally expose quantities/shortages.
   const guardOptions = options.allowSharedRead === true ? { accessMode: 'read' } : {};
-  const referenceType = String(outbound?.reference_type || '').trim().toLowerCase();
+  const referenceType = String(outbound?.reference_type || '')
+    .trim()
+    .toLowerCase();
   const referenceId = outbound?.reference_id;
 
   if (referenceType === 'batch_production_tasks') {
     const ids = parseSourceTaskIdsValue(outbound?.source_task_ids);
     if (!ids.length || ids.some((id) => id <= 0)) return false;
-    if (!(await ScopeGuard.assertAllAccess(connection, req, 'production_task', ids, guardOptions))) {
+    if (
+      !(await ScopeGuard.assertAllAccess(connection, req, 'production_task', ids, guardOptions))
+    ) {
       return false;
     }
     if (options.checkParents === false) return true;
@@ -96,8 +100,13 @@ const assertOutboundSourceAccess = async (connection, req, outbound, options = {
           AND plan_id IS NOT NULL`,
       ids
     );
-    const planIds = parents.map((row) => Number(row.plan_id)).filter((value) => Number.isInteger(value) && value > 0);
-    return !planIds.length || ScopeGuard.assertAllAccess(connection, req, 'production_plan', planIds, guardOptions);
+    const planIds = parents
+      .map((row) => Number(row.plan_id))
+      .filter((value) => Number.isInteger(value) && value > 0);
+    return (
+      !planIds.length ||
+      ScopeGuard.assertAllAccess(connection, req, 'production_plan', planIds, guardOptions)
+    );
   }
 
   if (referenceId !== null && referenceId !== undefined && referenceId !== '') {
@@ -116,7 +125,10 @@ const assertOutboundSourceAccess = async (connection, req, outbound, options = {
         [referenceId]
       );
       const planId = parents[0]?.plan_id;
-      if (planId && !(await ScopeGuard.assertAccess(connection, req, 'production_plan', planId, guardOptions))) {
+      if (
+        planId &&
+        !(await ScopeGuard.assertAccess(connection, req, 'production_plan', planId, guardOptions))
+      ) {
         return false;
       }
     }
@@ -126,7 +138,16 @@ const assertOutboundSourceAccess = async (connection, req, outbound, options = {
         [referenceId]
       );
       const childIds = children.map((row) => Number(row.id));
-      if (childIds.length && !(await ScopeGuard.assertAllAccess(connection, req, 'production_task', childIds, guardOptions))) {
+      if (
+        childIds.length &&
+        !(await ScopeGuard.assertAllAccess(
+          connection,
+          req,
+          'production_task',
+          childIds,
+          guardOptions
+        ))
+      ) {
         return false;
       }
     }
@@ -142,7 +163,15 @@ const assertOutboundSourceAccess = async (connection, req, outbound, options = {
     fallbackTaskId !== '' &&
     (!Number.isInteger(normalizedReferenceId) || normalizedReferenceId !== Number(fallbackTaskId))
   ) {
-    if (!(await ScopeGuard.assertAccess(connection, req, 'production_task', fallbackTaskId, guardOptions))) {
+    if (
+      !(await ScopeGuard.assertAccess(
+        connection,
+        req,
+        'production_task',
+        fallbackTaskId,
+        guardOptions
+      ))
+    ) {
       return false;
     }
   }
@@ -179,10 +208,7 @@ const normalizeIssueQuantities = (item) => {
 
   const actualFallback = plannedQuantity;
   const actualQuantity = toQuantityNumber(
-    item.actual_quantity ??
-      item.actualQuantity ??
-      item.issue_quantity ??
-      item.issueQuantity,
+    item.actual_quantity ?? item.actualQuantity ?? item.issue_quantity ?? item.issueQuantity,
     actualFallback
   );
 
@@ -199,8 +225,6 @@ const normalizeIssueQuantities = (item) => {
   };
 };
 
-
-
 const getMaterialInfoMap = async (connection, materialIds) => {
   const uniqueIds = [...new Set((materialIds || []).filter(Boolean))];
   if (uniqueIds.length === 0) return new Map();
@@ -209,7 +233,9 @@ const getMaterialInfoMap = async (connection, materialIds) => {
   const [rows] = await connection.execute(
     `SELECT id, code, name, location_id, unit_id, price, COALESCE(cost_price, 0) AS cost_price
      FROM materials
-     WHERE id IN (${placeholders})`,
+     WHERE id IN (${placeholders})
+       AND status = 1
+       AND deleted_at IS NULL`,
     uniqueIds
   );
 
@@ -229,7 +255,16 @@ const getMaterialInfoMap = async (connection, materialIds) => {
 
   for (const id of uniqueIds) {
     if (!infoMap.has(id)) {
-      throw new Error(`Material ${id} does not exist`);
+      const [displayRows] = await connection.execute(
+        'SELECT code FROM materials WHERE id = ? LIMIT 1',
+        [id]
+      );
+      const displayCode = displayRows[0]?.code;
+      const label = displayCode ? `物料“${displayCode}”` : '所选物料';
+      throw Object.assign(new Error(`${label}不存在或已停用，请重新选择有效物料`), {
+        statusCode: 400,
+        code: 'VALIDATION_ERROR',
+      });
     }
   }
 
@@ -254,9 +289,7 @@ const getProductionPlanMaterialRows = async (connection, planId) => {
   const issueColumn = columnSet.has('issue_quantity')
     ? 'ppm.issue_quantity'
     : 'ppm.required_quantity';
-  const shortageColumn = columnSet.has('shortage_quantity')
-    ? 'ppm.shortage_quantity'
-    : '0';
+  const shortageColumn = columnSet.has('shortage_quantity') ? 'ppm.shortage_quantity' : '0';
 
   const [rows] = await connection.execute(
     `
@@ -284,11 +317,14 @@ const getProductionPlanMaterialRows = async (connection, planId) => {
 const mergeRequirementRows = (materialMap, rows, scale = 1, sourceTask = null) => {
   for (const row of rows) {
     const plannedQuantity = (parseFloat(row.required_quantity) || 0) * scale;
-    const issueQuantity = (parseFloat(row.issue_quantity ?? row.issueQuantity ?? row.required_quantity) || 0) * scale;
-    const shortageQuantity = (parseFloat(row.shortage_quantity ?? row.shortageQuantity ?? 0) || 0) * scale;
+    const issueQuantity =
+      (parseFloat(row.issue_quantity ?? row.issueQuantity ?? row.required_quantity) || 0) * scale;
+    const shortageQuantity =
+      (parseFloat(row.shortage_quantity ?? row.shortageQuantity ?? 0) || 0) * scale;
     const grossRequiredQuantity =
-      (parseFloat(row.gross_required_quantity ?? row.grossRequiredQuantity ?? row.required_quantity) || 0) *
-      scale;
+      (parseFloat(
+        row.gross_required_quantity ?? row.grossRequiredQuantity ?? row.required_quantity
+      ) || 0) * scale;
     if (plannedQuantity <= 0) continue;
 
     // rows 来自 SQL（snake）
@@ -420,13 +456,14 @@ const issueOutboundItemFromDetail = async ({
   issueReason = null,
   isExcess = 0,
   batchNumber = null,
+  materialCode = null,
 }) => {
   const actualQuantity = parseFloat(item.actual_quantity ?? item.actualQuantity ?? 0);
   if (actualQuantity <= 0) return null;
 
   // issue 明细来自 DB 行（snake）
   if (!locationId) {
-    throw new Error(`Material ${item.material_id} has no default location`);
+    throw new Error('所选物料未配置默认库位，请先维护物料资料');
   }
 
   const currentStock = await InventoryService.getCurrentStock(
@@ -437,8 +474,9 @@ const issueOutboundItemFromDetail = async ({
   );
 
   if (currentStock < actualQuantity) {
+    const materialLabel = item.material_code || item.materialCode || materialCode || '所选物料';
     const err = new Error(
-      `物料 ${item.material_id} 库存不足，当前库存: ${currentStock}，需要: ${actualQuantity}`
+      `物料 ${materialLabel} 库存不足，当前库存: ${currentStock}，需要: ${actualQuantity}`
     );
     err.statusCode = 400;
     err.code = 'INSUFFICIENT_STOCK';
@@ -446,9 +484,7 @@ const issueOutboundItemFromDetail = async ({
   }
 
   const materialId = item.material_id;
-  const txType = isProductionOutboundReference(referenceType)
-    ? 'production_outbound'
-    : 'outbound';
+  const txType = isProductionOutboundReference(referenceType) ? 'production_outbound' : 'outbound';
   // 批次键 SSOT：与 InventoryService 一致；空键表示由服务层 FIFO 拆批
   const normalizedBatch = InventoryService._normalizeBatchNumber(batchNumber);
   const batchKey = normalizedBatch || 'EMPTY';
@@ -475,9 +511,7 @@ const issueOutboundItemFromDetail = async ({
   );
 };
 
-
 // 引入成本凭证服务（用于生成领料凭证）
-
 
 // 引入状态映射工具和状态常量
 
@@ -522,7 +556,11 @@ const getTaskMaterialIssueRecords = async (req, res) => {
     // The inventory permission is not an object-level check.  Protect the
     // production task before exposing material usage and return quantities.
     const ScopeGuard = require('../../../../authorization/ScopeGuard');
-    if (!(await ScopeGuard.assertAccess(db.pool, req, 'production_task', normalizedTaskId, { accessMode: 'read' }))) {
+    if (
+      !(await ScopeGuard.assertAccess(db.pool, req, 'production_task', normalizedTaskId, {
+        accessMode: 'read',
+      }))
+    ) {
       return ResponseHandler.forbidden(res, '无权访问该生产任务');
     }
 

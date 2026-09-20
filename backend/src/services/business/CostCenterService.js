@@ -471,7 +471,7 @@ class CostCenterService {
             `);
 
       // 批量获取所有成本中心的实际工时（消除 N+1）
-      const centerIds = centers.map(c => c.id);
+      const centerIds = centers.map((c) => c.id);
       let hoursMap = new Map();
       if (centerIds.length > 0) {
         const centerPh = centerIds.map(() => '?').join(',');
@@ -486,7 +486,7 @@ class CostCenterService {
            GROUP BY pt.cost_center_id`,
           [...centerIds, startDate, endDate]
         );
-        hoursMap = new Map(hourResults.map(r => [r.cost_center_id, parseFloat(r.hours) || 0]));
+        hoursMap = new Map(hourResults.map((r) => [r.cost_center_id, parseFloat(r.hours) || 0]));
       }
 
       // 获取全局人工费率（只查一次，移到循环外）

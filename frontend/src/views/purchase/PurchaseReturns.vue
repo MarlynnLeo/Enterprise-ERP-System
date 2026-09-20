@@ -405,6 +405,7 @@ import { baseDataApi } from '@/api';
 import { formatCurrency } from '@/utils/helpers/formatters';
 import printService from '@/services/printService';
 import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue';
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import {
   getPurchaseReturnStatusText,
   getPurchaseReturnStatusColor
@@ -556,7 +557,7 @@ async function loadReturns() {
     pagination.value.total = parseInt(paginationData.total) || 0;
   } catch (error) {
     console.error('加载退货单失败:', error);
-    ElMessage.error('加载退货单失败: ' + (error.message || '未知错误'));
+    ElMessage.error('加载退货单失败: ' + (getApiErrorMessage(error, '未知错误')));
     // 出错时设置为空数组，避免类型错误
     returnList.value = [];
     pagination.value.total = 0;
@@ -885,7 +886,7 @@ async function submitReturn() {
     returnDialog.show = false;
     loadReturns();
   } catch (error) {
-    ElMessage.error('提交退货单失败: ' + (error.message || '未知错误'));
+    ElMessage.error('提交退货单失败: ' + (getApiErrorMessage(error, '未知错误')));
   } finally {
     submitLoading.value = false;
   }
@@ -918,7 +919,7 @@ const handleDelete = async (row) => {
       loadReturns();
     } catch (error) {
       console.error('删除退货单失败:', error);
-      ElMessage.error('删除失败: ' + (error.response?.data?.error || error.message));
+      ElMessage.error(`删除失败: ${getApiErrorMessage(error, '请稍后重试')}`);
     }
 }
 // 直接更新状态（绕过对话框）
@@ -933,7 +934,7 @@ const directUpdateStatus = async (id, newStatus) => {
     loadReturns();
   } catch (error) {
     console.error('更新状态失败:', error);
-    ElMessage.error('更新状态失败: ' + (error.response?.data?.error || error.message));
+    ElMessage.error(`更新状态失败: ${getApiErrorMessage(error, '请稍后重试')}`);
   } finally {
     statusDialog.loading = false;
   }

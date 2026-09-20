@@ -19,10 +19,9 @@
 
     filterTabs: [
       { label: '全部', value: 'all' },
-      { label: '正常', value: 'normal' },
-      { label: '异常', value: 'abnormal' },
-      { label: '合格', value: 'passed' },
-      { label: '不合格', value: 'failed' }
+      { label: '合格', value: 'pass' },
+      { label: '有条件合格', value: 'conditional_pass' },
+      { label: '不合格', value: 'fail' }
     ],
 
     fields: {
@@ -42,10 +41,9 @@
           field: 'status',
           type: 'status',
           map: {
-            normal: { text: '正常', color: 'success' },
-            abnormal: { text: '异常', color: 'danger' },
-            passed: { text: '合格', color: 'success' },
-            failed: { text: '不合格', color: 'danger' }
+            pass: { text: '合格', color: 'success' },
+            conditional_pass: { text: '有条件合格', color: 'warning' },
+            fail: { text: '不合格', color: 'danger' }
           }
         }
       ]

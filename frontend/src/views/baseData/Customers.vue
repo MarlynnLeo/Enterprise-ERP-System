@@ -224,6 +224,7 @@ import { ElMessage } from 'element-plus/es/components/message/index'
 import { baseDataApi } from '@/api/baseData';
 import { Plus, Edit, Delete, Download, Switch } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
+import { getApiErrorMessage } from '@/utils/errorHandler'
 // 权限store
 const authStore = useAuthStore();
 const canCreate = computed(() => authStore.hasPermission('basedata:customers:create'));
@@ -437,8 +438,9 @@ const handleDelete = async (row) => {
     let errorMessage = '删除客户失败';
 
     if (error.response) {
-      if (error.response.data && error.response.data.message) {
-        errorMessage = `删除失败: ${error.response.data.message}`;
+      const apiMessage = getApiErrorMessage(error, '')
+      if (apiMessage) {
+        errorMessage = `删除失败: ${apiMessage}`;
       } else if (error.response.status === 500) {
         errorMessage = '服务器内部错误，该客户可能已被其他数据引用，无法删除';
       } else if (error.response.status === 404) {
@@ -466,7 +468,7 @@ const handleToggleStatus = async (row) => {
     fetchData();
   } catch (error) {
     console.error(`${action}客户失败:`, error);
-    ElMessage.error(error.response?.data?.message || `${action}客户失败`);
+    ElMessage.error(getApiErrorMessage(error, `${action}客户失败`));
   }
 };
 

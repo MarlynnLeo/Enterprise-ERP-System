@@ -1,7 +1,7 @@
 // Receipt edits must keep the source line and receipt line identities intact.
 export const normalizePurchaseReceiptPayload = (data) => {
-  if (!data.orderId) throw new Error('缺少必要的orderId字段');
-  if (!data.receiptDate) throw new Error('缺少必要的receiptDate字段');
+  if (!data.orderId) throw new Error('请选择采购订单');
+  if (!data.receiptDate) throw new Error('请选择入库日期');
   const warehouseId = Number(data.warehouseId);
   if (!Number.isSafeInteger(warehouseId) || warehouseId <= 0) throw new Error('请选择有效仓库');
   if (!Array.isArray(data.items) || !data.items.length) throw new Error('收货单必须包含物料明细');

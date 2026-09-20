@@ -17,33 +17,17 @@ const createEntryValidation = [
     .matches(/^\d{4}-\d{2}-\d{2}$/)
     .withMessage('凭证日期格式必须为 YYYY-MM-DD'),
 
-  body('document_type')
-    .optional()
-    .isLength({ max: 50 })
-    .withMessage('单据类型不能超过50个字符'),
+  body('document_type').optional().isLength({ max: 50 }).withMessage('单据类型不能超过50个字符'),
 
-  body('description')
-    .optional()
-    .isLength({ max: 500 })
-    .withMessage('摘要不能超过500个字符'),
+  body('description').optional().isLength({ max: 500 }).withMessage('摘要不能超过500个字符'),
 
-  body('items')
-    .isArray({ min: 2 })
-    .withMessage('分录明细至少需要两行（一借一贷）'),
+  body('items').isArray({ min: 2 }).withMessage('分录明细至少需要两行（一借一贷）'),
 
-  body('items.*.account_id')
-    .isInt({ min: 1 })
-    .withMessage('科目ID必须是正整数'),
+  body('items.*.account_id').isInt({ min: 1 }).withMessage('科目ID必须是正整数'),
 
-  body('items.*.debit_amount')
-    .optional()
-    .isFloat({ min: 0 })
-    .withMessage('借方金额不能为负数'),
+  body('items.*.debit_amount').optional().isFloat({ min: 0 }).withMessage('借方金额不能为负数'),
 
-  body('items.*.credit_amount')
-    .optional()
-    .isFloat({ min: 0 })
-    .withMessage('贷方金额不能为负数'),
+  body('items.*.credit_amount').optional().isFloat({ min: 0 }).withMessage('贷方金额不能为负数'),
 
   body('items.*.description')
     .optional()
@@ -54,9 +38,7 @@ const createEntryValidation = [
 /**
  * 过账验证
  */
-const postEntryValidation = [
-  param('id').isInt({ min: 1 }).withMessage('凭证ID必须是正整数'),
-];
+const postEntryValidation = [param('id').isInt({ min: 1 }).withMessage('凭证ID必须是正整数')];
 
 /**
  * 冲销验证
@@ -70,18 +52,13 @@ const reverseEntryValidation = [
     .matches(/^\d{4}-\d{2}-\d{2}$/)
     .withMessage('冲销日期格式必须为 YYYY-MM-DD'),
 
-  body('description')
-    .optional()
-    .isLength({ max: 500 })
-    .withMessage('冲销摘要不能超过500个字符'),
+  body('description').optional().isLength({ max: 500 }).withMessage('冲销摘要不能超过500个字符'),
 ];
 
 /**
  * 删除验证
  */
-const deleteEntryValidation = [
-  param('id').isInt({ min: 1 }).withMessage('凭证ID必须是正整数'),
-];
+const deleteEntryValidation = [param('id').isInt({ min: 1 }).withMessage('凭证ID必须是正整数')];
 
 /**
  * 查询验证

@@ -299,6 +299,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { useDictionaryStore } from '@/stores/dictionary'
 import { formatLocalDate } from '@/utils/format';
@@ -448,7 +449,7 @@ const submitAssign = async () => {
     fetchData()
   } catch (error) {
     console.error('任务分配失败:', error)
-    ElMessage.error(error.response?.data?.message || '任务分配失败')
+    ElMessage.error(getApiErrorMessage(error, '任务分配失败'))
   }
 }
 
@@ -468,7 +469,7 @@ const submitComplete = async () => {
     fetchData()
   } catch (error) {
     console.error('完成返工任务失败:', error)
-    ElMessage.error(error.response?.data?.message || '完成返工任务失败')
+    ElMessage.error(getApiErrorMessage(error, '完成返工任务失败'))
   }
 }
 
@@ -488,7 +489,7 @@ const submitEdit = async () => {
     fetchData()
   } catch (error) {
     console.error('更新失败:', error)
-    ElMessage.error(error.response?.data?.message || '更新失败')
+    ElMessage.error(getApiErrorMessage(error, '更新失败'))
   }
 }
 

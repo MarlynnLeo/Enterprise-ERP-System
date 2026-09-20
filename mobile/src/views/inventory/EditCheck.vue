@@ -194,6 +194,7 @@ import {
   showToast
 } from 'vant';
 import { inventoryApi } from '@/api';
+import { getApiErrorMessage } from '@/utils/errorHandler';
 
 const router = useRouter();
 const route = useRoute();
@@ -374,7 +375,7 @@ const submitCheckForm = async () => {
     router.push(`/inventory/check/${checkForm.value.id}`);
   } catch (error) {
     console.error('保存盘点单失败:', error);
-    showToast('保存盘点单失败：' + (error.message || '未知错误'));
+    showToast(`保存盘点单失败：${getApiErrorMessage(error, '未知错误')}`);
   } finally {
     submitting.value = false;
   }

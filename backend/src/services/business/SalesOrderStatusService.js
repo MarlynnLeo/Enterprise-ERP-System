@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 销售订单状态服务
  * @description 根据发货情况智能更新销售订单状态
  * @author ERP系统开发团队
@@ -22,6 +22,20 @@ class SalesOrderStatusService {
     const shouldRelease = !connection;
 
     try {
+      const [[currentOrder]] = await client.query(
+        'SELECT status FROM sales_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+        [orderId]
+      );
+      if (!currentOrder) return null;
+      if (currentOrder.status === SALES_STATUS_KEYS.CANCELLED) {
+        return {
+          orderId,
+          status: currentOrder.status,
+          skipped: true,
+          message: '订单已取消，跳过状态更新',
+        };
+      }
+
       const [orderItems] = await client.query(
         `
         SELECT
@@ -135,28 +149,19 @@ class SalesOrderStatusService {
 
       if (totalShipped === 0) {
         // 完全未发货 - 保持原状态或设为 ready_to_ship
-        const [currentOrder] = await client.query('SELECT status FROM sales_orders WHERE id = ? FOR UPDATE', [
-          orderId,
-        ]);
-
-        if (currentOrder && currentOrder.length > 0) {
-          const currentStatus = currentOrder[0].status;
-          if (
-            [
-              SALES_STATUS_KEYS.DRAFT,
-              SALES_STATUS_KEYS.PENDING,
-              SALES_STATUS_KEYS.CONFIRMED,
-              SALES_STATUS_KEYS.IN_PRODUCTION,
-              SALES_STATUS_KEYS.IN_PROCUREMENT,
-              SALES_STATUS_KEYS.READY_TO_SHIP,
-            ].includes(currentStatus)
-          ) {
-            newStatus = currentStatus;
-            statusMessage = '未发货，保持原状态';
-          } else {
-            newStatus = SALES_STATUS_KEYS.READY_TO_SHIP;
-            statusMessage = '未发货，设为待发货';
-          }
+        const currentStatus = currentOrder.status;
+        if (
+          [
+            SALES_STATUS_KEYS.DRAFT,
+            SALES_STATUS_KEYS.PENDING,
+            SALES_STATUS_KEYS.CONFIRMED,
+            SALES_STATUS_KEYS.IN_PRODUCTION,
+            SALES_STATUS_KEYS.IN_PROCUREMENT,
+            SALES_STATUS_KEYS.READY_TO_SHIP,
+          ].includes(currentStatus)
+        ) {
+          newStatus = currentStatus;
+          statusMessage = '未发货，保持原状态';
         } else {
           newStatus = SALES_STATUS_KEYS.READY_TO_SHIP;
           statusMessage = '未发货，设为待发货';
@@ -180,7 +185,7 @@ class SalesOrderStatusService {
         SET
           status = ?,
           updated_at = NOW()
-        WHERE id = ?
+        WHERE id = ? AND deleted_at IS NULL AND status <> 'cancelled'
       `,
         [newStatus, orderId]
       );
@@ -257,9 +262,9 @@ class SalesOrderStatusService {
       }
 
       const explicitOrderIds = [
-        ...new Set(outboundItems
-          .map((item) => item.source_order_id || item.order_id)
-          .filter(Boolean)),
+        ...new Set(
+          outboundItems.map((item) => item.source_order_id || item.order_id).filter(Boolean)
+        ),
       ];
 
       let affectedOrders;
@@ -320,180 +325,6 @@ class SalesOrderStatusService {
   }
 
   /**
-   * 获取订单发货状态统计
-   * @param {number} orderId - 订单ID
-   * @param {Object} connection - 数据库连接（可选）
-   * @returns {Promise<Object>} - 发货统计信息
-   */
-  static async getOrderShippingStats(orderId, connection = null) {
-    const client = connection || (await getConnection());
-    const shouldRelease = !connection;
-
-    try {
-      // 1. 获取毛发货量统计
-      const [stats] = await client.query(
-        `
-        SELECT
-          so.id as order_id,
-          so.order_no,
-          so.status as order_status,
-          COUNT(soi.id) as total_items,
-          SUM(soi.quantity) as total_ordered,
-          COALESCE(SUM(shipped_summary.shipped_quantity), 0) as total_gross_shipped,
-          COALESCE(SUM(returned_summary.returned_quantity), 0) as total_returned
-        FROM sales_orders so
-        INNER JOIN sales_order_items soi ON so.id = soi.order_id
-        LEFT JOIN (
-          SELECT
-            soi_inner.order_id,
-            soi_inner.material_id,
-            SUM(sobi.quantity) as shipped_quantity
-          FROM sales_order_items soi_inner
-          INNER JOIN sales_outbound_items sobi ON soi_inner.material_id = sobi.product_id
-          INNER JOIN sales_outbound sob ON sobi.outbound_id = sob.id
-          WHERE sob.status IN (?, ?)
-            AND (
-              -- 单订单出库：直接匹配 order_id
-              (COALESCE(sob.is_multi_order, 0) = 0 AND sob.order_id = soi_inner.order_id)
-              OR
-              -- 多订单出库：优先按明细来源订单匹配
-              (sob.is_multi_order = 1 AND sobi.source_order_id = soi_inner.order_id)
-              OR
-              -- 兼容旧数据：没有 source_order_id 时再回退到 related_orders
-              (sob.is_multi_order = 1 AND sobi.source_order_id IS NULL AND sob.related_orders IS NOT NULL
-               AND (
-                 JSON_CONTAINS(sob.related_orders, CAST(soi_inner.order_id AS JSON))
-                 OR sob.related_orders LIKE CONCAT('%', soi_inner.order_id, '%')
-               ))
-            )
-          GROUP BY soi_inner.order_id, soi_inner.material_id
-        ) shipped_summary ON soi.order_id = shipped_summary.order_id
-          AND soi.material_id = shipped_summary.material_id
-        LEFT JOIN (
-          SELECT
-            sr.order_id,
-            sri.product_id as material_id,
-            SUM(sri.quantity) as returned_quantity
-          FROM sales_return_items sri
-          INNER JOIN sales_returns sr ON sri.return_id = sr.id
-          WHERE sr.status NOT IN ('rejected', 'cancelled', 'draft')
-          GROUP BY sr.order_id, sri.product_id
-        ) returned_summary ON soi.order_id = returned_summary.order_id
-          AND soi.material_id = returned_summary.material_id
-        WHERE so.id = ?
-        GROUP BY so.id, so.order_no, so.status
-      `,
-        [SALES_STATUS_KEYS.COMPLETED, SALES_STATUS_KEYS.PROCESSING, orderId]
-      );
-
-      if (stats.length === 0) {
-        return null;
-      }
-
-      const stat = stats[0];
-
-      // 2. 计算净发货量 = 毛发货量 - 退货量（与 updateOrderStatus 保持一致）
-      const totalGrossShipped = parseFloat(stat.total_gross_shipped) || 0;
-      const totalReturned = parseFloat(stat.total_returned) || 0;
-      const totalShipped = Math.max(0, totalGrossShipped - totalReturned);
-
-      // 3. 重新计算各明细项的发货状态（基于净发货量）
-      const [detailStats] = await client.query(
-        `
-        SELECT
-          soi.material_id,
-          soi.quantity as ordered_qty,
-          COALESCE(shipped_sub.shipped_qty, 0) as gross_shipped,
-          COALESCE(returned_sub.returned_qty, 0) as returned_qty
-        FROM sales_order_items soi
-        LEFT JOIN (
-          SELECT sobi.product_id, SUM(sobi.quantity) as shipped_qty
-          FROM sales_outbound_items sobi
-          INNER JOIN sales_outbound sob ON sobi.outbound_id = sob.id
-          WHERE sob.status IN (?, ?)
-            AND (
-              (COALESCE(sob.is_multi_order, 0) = 0 AND sob.order_id = ?)
-              OR (sob.is_multi_order = 1 AND sobi.source_order_id = ?)
-              OR (sob.is_multi_order = 1 AND sobi.source_order_id IS NULL AND sob.related_orders LIKE CONCAT('%', ?, '%'))
-            )
-          GROUP BY sobi.product_id
-        ) shipped_sub ON soi.material_id = shipped_sub.product_id
-        LEFT JOIN (
-          SELECT sri.product_id, SUM(sri.quantity) as returned_qty
-          FROM sales_return_items sri
-          INNER JOIN sales_returns sr ON sri.return_id = sr.id
-          WHERE sr.order_id = ? AND sr.status NOT IN ('rejected', 'cancelled', 'draft')
-          GROUP BY sri.product_id
-        ) returned_sub ON soi.material_id = returned_sub.product_id
-        WHERE soi.order_id = ?
-      `,
-        [SALES_STATUS_KEYS.COMPLETED, SALES_STATUS_KEYS.PROCESSING, orderId, orderId, orderId, orderId, orderId]
-      );
-
-      // 出库/退货均按物料(product_id)汇总，而订单明细可能存在同物料多行，
-      // 需先按物料归并(订购量累加，已发/已退取该物料汇总值)再判定状态，
-      // 避免同物料多行时发货量被每行重复计数导致的统计失真(H12)
-      const byMaterial = new Map();
-      detailStats.forEach((item) => {
-        const mid = Number(item.material_id);
-        if (!byMaterial.has(mid)) {
-          byMaterial.set(mid, {
-            ordered: 0,
-            grossShipped: parseFloat(item.gross_shipped) || 0,
-            returnedQty: parseFloat(item.returned_qty) || 0,
-          });
-        }
-        byMaterial.get(mid).ordered += parseFloat(item.ordered_qty) || 0;
-      });
-
-      let unshippedItems = 0;
-      let partialItems = 0;
-      let fullyShippedItems = 0;
-
-      byMaterial.forEach((agg) => {
-        const netShipped = Math.max(0, agg.grossShipped - agg.returnedQty);
-        const orderedQty = agg.ordered;
-
-        if (netShipped === 0) {
-          unshippedItems++;
-        } else if (netShipped >= orderedQty) {
-          fullyShippedItems++;
-        } else {
-          partialItems++;
-        }
-      });
-
-      const totalOrdered = parseFloat(stat.total_ordered) || 0;
-      const completionPercentage =
-        totalOrdered > 0
-          ? Math.round((totalShipped / totalOrdered) * 100 * 100) / 100
-          : 0;
-
-      return {
-        order_id: stat.order_id,
-        order_no: stat.order_no,
-        order_status: stat.order_status,
-        // total_items 按物料归并口径，使其与下方 unshipped/partial/fully 三项之和保持一致
-        total_items: byMaterial.size,
-        total_ordered: totalOrdered,
-        total_shipped: totalShipped,
-        total_returned: totalReturned,
-        unshipped_items: unshippedItems,
-        partial_items: partialItems,
-        fully_shipped_items: fullyShippedItems,
-        completion_percentage: completionPercentage,
-      };
-    } catch (error) {
-      logger.error('获取订单发货统计失败:', error);
-      throw error;
-    } finally {
-      if (shouldRelease && client) {
-        client.release();
-      }
-    }
-  }
-
-  /**
    * 检查所有 in_procurement 和 in_production 状态的销售订单，
    * 如果其物料库存均已满足，则将其状态自动推进为 ready_to_ship。
    * 这个方法应在采购入库、生产入库等导致库存增加的操作后调用。
@@ -511,7 +342,7 @@ class SalesOrderStatusService {
       }
 
       const [pendingOrders] = await client.query(
-        'SELECT id, order_no, status, created_by FROM sales_orders WHERE status IN ("in_procurement", "in_production")'
+        'SELECT id, order_no, status, created_by FROM sales_orders WHERE deleted_at IS NULL AND status IN ("in_procurement", "in_production") ORDER BY id FOR UPDATE'
       );
 
       if (pendingOrders && pendingOrders.length > 0) {
@@ -527,7 +358,9 @@ class SalesOrderStatusService {
           orderIds
         );
 
-        const materialIds = [...new Set(allOrderItems.map((item) => item.material_id).filter(Boolean))];
+        const materialIds = [
+          ...new Set(allOrderItems.map((item) => item.material_id).filter(Boolean)),
+        ];
         const stockByMaterial = new Map();
         const reservedByMaterial = new Map();
         const reservedByOrderMaterial = new Map();
@@ -560,7 +393,10 @@ class SalesOrderStatusService {
             const materialId = Number(row.material_id);
             const orderId = Number(row.order_id);
             const reserved = parseFloat(row.reserved_quantity || 0);
-            reservedByMaterial.set(materialId, (reservedByMaterial.get(materialId) || 0) + reserved);
+            reservedByMaterial.set(
+              materialId,
+              (reservedByMaterial.get(materialId) || 0) + reserved
+            );
             reservedByOrderMaterial.set(`${orderId}:${materialId}`, reserved);
           });
         }
@@ -584,8 +420,12 @@ class SalesOrderStatusService {
               const materialId = Number(item.material_id);
               const totalStock = stockByMaterial.get(materialId) || 0;
               const totalReserved = reservedByMaterial.get(materialId) || 0;
-              const reservedForThisOrder = reservedByOrderMaterial.get(`${Number(order.id)}:${materialId}`) || 0;
-              const availableStock = Math.max(0, totalStock - (totalReserved - reservedForThisOrder));
+              const reservedForThisOrder =
+                reservedByOrderMaterial.get(`${Number(order.id)}:${materialId}`) || 0;
+              const availableStock = Math.max(
+                0,
+                totalStock - (totalReserved - reservedForThisOrder)
+              );
               return availableStock >= (parseFloat(item.quantity) || 0);
             });
 

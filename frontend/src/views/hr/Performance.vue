@@ -180,6 +180,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -233,7 +234,7 @@ const saveIndicator = async () => {
     if (indicatorForm.value.id) await performanceApi.updateIndicator(indicatorForm.value.id, indicatorForm.value)
     else await performanceApi.createIndicator(indicatorForm.value)
     ElMessage.success('保存成功'); indicatorVis.value = false; fetchData()
-  } catch (e) { ElMessage.error(e.message || '保存失败') }
+  } catch (e) { ElMessage.error(getApiErrorMessage(e, '保存失败')) }
   finally { saving.value = false }
 }
 
@@ -245,7 +246,7 @@ const delIndicator = async (id) => {
 const savePeriod = async () => {
   saving.value = true
   try { await performanceApi.createPeriod(periodForm.value); ElMessage.success('创建成功'); periodVis.value = false; fetchData() }
-  catch (e) { ElMessage.error(e.message || '创建失败') }
+  catch (e) { ElMessage.error(getApiErrorMessage(e, '创建失败')) }
   finally { saving.value = false }
 }
 

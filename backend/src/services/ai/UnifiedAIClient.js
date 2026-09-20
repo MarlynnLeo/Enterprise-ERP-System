@@ -66,10 +66,12 @@ class UnifiedAIClient {
     }
 
     if (response.status < 200 || response.status >= 300) {
-      const errorBody = typeof response.data === 'string'
-        ? response.data
-        : JSON.stringify(response.data);
-      throw createAIError(`AI provider API error: HTTP ${response.status} - ${errorBody}`, response);
+      const errorBody =
+        typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+      throw createAIError(
+        `AI provider API error: HTTP ${response.status} - ${errorBody}`,
+        response
+      );
     }
 
     const content = response.data?.choices?.[0]?.message?.content;

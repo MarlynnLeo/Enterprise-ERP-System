@@ -17,7 +17,11 @@ const {
   calculateAndInsertMaterials,
   resolveBomForProduct,
 } = require('../../../services/business/MaterialCalculationService');
-const { PRODUCTION_STATUS_KEYS, PRODUCTION_PLAN_STATUS_FLOW, getProductionStatusText } = require('../../../constants/systemConstants');
+const {
+  PRODUCTION_STATUS_KEYS,
+  PRODUCTION_PLAN_STATUS_FLOW,
+  getProductionStatusText,
+} = require('../../../constants/systemConstants');
 const businessConfig = require('../../../config/businessConfig');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 const { appendPaginationSQL, parsePagination } = require('../../../utils/safePagination');
@@ -41,9 +45,15 @@ const PLAN_STATUS_PERMISSION_MAP = {
 
 async function ensurePlanStatusPermission(req, res, targetStatus) {
   const requiredPermission = PLAN_STATUS_PERMISSION_MAP[targetStatus] || 'production:plans:update';
-  const userPermissions = req.userPermissions || await PermissionService.getUserPermissions(req.user.id);
+  const userPermissions =
+    req.userPermissions || (await PermissionService.getUserPermissions(req.user.id));
 
-  if (PermissionUtils.hasAnyPermission(userPermissions, ['production:plans:update', requiredPermission])) {
+  if (
+    PermissionUtils.hasAnyPermission(userPermissions, [
+      'production:plans:update',
+      requiredPermission,
+    ])
+  ) {
     req.userPermissions = userPermissions;
     return true;
   }
@@ -72,9 +82,6 @@ exports.getTodayMaxSequence = async (req, res) => {
     handleError(res, error);
   }
 };
-
-
-
 
 /**
  * 获取生产计划列表
@@ -204,7 +211,8 @@ exports.getProductionPlans = async (req, res) => {
 
     // 查询数据（添加库存状态检查）
     // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
-    const query = appendPaginationSQL(`
+    const query = appendPaginationSQL(
+      `
       SELECT
         pp.id, pp.code, pp.name, pp.start_date, pp.end_date, pp.delivery_date,
         pp.quantity, pp.pushed_quantity, pp.status, pp.remark, pp.created_at, pp.updated_at,
@@ -259,7 +267,10 @@ exports.getProductionPlans = async (req, res) => {
       ${scopeClause.join || ''}
       ${scopedWhereClause}
       ORDER BY pp.code DESC
-    `, pagination.limit, pagination.offset);
+    `,
+      pagination.limit,
+      pagination.offset
+    );
 
     // LIMIT/OFFSET 使用参数化查询
     const [plans] = await pool.query(query, scopedParams);
@@ -543,7 +554,11 @@ exports.createProductionPlan = async (req, res) => {
     const formattedDeliveryDate = formatDateParam(delivery_date);
 
     // 通过统一 API 解析 BOM 版本信息
-    const { bomId: resolvedBomId, bomVersion: resolvedBomVersion } = await resolveBomForProduct(productId, bomId, connection);
+    const { bomId: resolvedBomId, bomVersion: resolvedBomVersion } = await resolveBomForProduct(
+      productId,
+      bomId,
+      connection
+    );
 
     const ScopeGuard = require('../../../authorization/ScopeGuard');
     const TaskRepository = require('../../../repositories/TaskRepository');
@@ -558,12 +573,27 @@ exports.createProductionPlan = async (req, res) => {
       (code, name, start_date, end_date, delivery_date, product_id, quantity, contract_code, bom_id, bom_version, status, department_id, created_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?)
     `,
-      [code, name, formattedStartDate, formattedEndDate, formattedDeliveryDate, productId, quantity, contract_code || null, resolvedBomId, resolvedBomVersion, assignedDepartmentId, ownerStamp.created_by]
+      [
+        code,
+        name,
+        formattedStartDate,
+        formattedEndDate,
+        formattedDeliveryDate,
+        productId,
+        quantity,
+        contract_code || null,
+        resolvedBomId,
+        resolvedBomVersion,
+        assignedDepartmentId,
+        ownerStamp.created_by,
+      ]
     );
 
     const planId = result.insertId;
 
-    logger.info(`生产计划 ${code} 创建成功, BOM: id=${resolvedBomId}, version=${resolvedBomVersion}`);
+    logger.info(
+      `生产计划 ${code} 创建成功, BOM: id=${resolvedBomId}, version=${resolvedBomVersion}`
+    );
 
     // 计算并插入物料需求（BOM 已确定，传入 resolvedBomId 确保一致）
     await calculateAndInsertMaterials(connection, planId, productId, quantity, resolvedBomId);
@@ -638,9 +668,10 @@ exports.updateProductionPlan = async (req, res) => {
     const formattedDeliveryDate = formatDateParam(delivery_date);
 
     // 检查计划状态
-    const [plans] = await connection.query('SELECT status, quantity FROM production_plans WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [
-      id,
-    ]);
+    const [plans] = await connection.query(
+      'SELECT status, quantity FROM production_plans WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      [id]
+    );
 
     if (plans.length === 0) {
       await connection.rollback();
@@ -687,7 +718,11 @@ exports.updateProductionPlan = async (req, res) => {
     }
 
     // 通过统一 API 解析 BOM 版本信息
-    const { bomId: resolvedBomId, bomVersion: resolvedBomVersion } = await resolveBomForProduct(productId, bomId, connection);
+    const { bomId: resolvedBomId, bomVersion: resolvedBomVersion } = await resolveBomForProduct(
+      productId,
+      bomId,
+      connection
+    );
 
     // 更新生产计划（包含 BOM 信息），不更新编号
     await connection.query(
@@ -696,7 +731,19 @@ exports.updateProductionPlan = async (req, res) => {
       SET name = ?, start_date = ?, end_date = ?, delivery_date = ?, product_id = ?, quantity = ?, contract_code = ?, bom_id = ?, bom_version = ?, department_id = ?
       WHERE id = ? AND deleted_at IS NULL
     `,
-      [name, formattedStartDate, formattedEndDate, formattedDeliveryDate, productId, quantity, contract_code || null, resolvedBomId, resolvedBomVersion, Number(departmentId) || null, id]
+      [
+        name,
+        formattedStartDate,
+        formattedEndDate,
+        formattedDeliveryDate,
+        productId,
+        quantity,
+        contract_code || null,
+        resolvedBomId,
+        resolvedBomVersion,
+        Number(departmentId) || null,
+        id,
+      ]
     );
 
     // 删除原有物料需求
@@ -728,9 +775,10 @@ exports.deleteProductionPlan = async (req, res) => {
     const { id } = req.params;
 
     // 检查计划状态
-    const [plans] = await connection.query('SELECT status FROM production_plans WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [
-      id,
-    ]);
+    const [plans] = await connection.query(
+      'SELECT status FROM production_plans WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      [id]
+    );
 
     if (plans.length === 0) {
       await connection.rollback();
@@ -833,7 +881,11 @@ exports.updateProductionPlanStatus = async (req, res) => {
       const activeTotal = stats.total - stats.cancelled_count;
 
       // 统一使用状态常量
-      if (status === PRODUCTION_STATUS_KEYS.COMPLETED && activeTotal > 0 && stats.completed_count < activeTotal) {
+      if (
+        status === PRODUCTION_STATUS_KEYS.COMPLETED &&
+        activeTotal > 0 &&
+        stats.completed_count < activeTotal
+      ) {
         await connection.rollback();
         return ResponseHandler.error(
           res,
@@ -853,12 +905,7 @@ exports.updateProductionPlanStatus = async (req, res) => {
 
     if (updateResult.affectedRows === 0) {
       await connection.rollback();
-      return ResponseHandler.error(
-        res,
-        '计划已被其他用户修改，请刷新后重试',
-        'CONFLICT',
-        409
-      );
+      return ResponseHandler.error(res, '计划已被其他用户修改，请刷新后重试', 'CONFLICT', 409);
     }
 
     // 记录状态变更日志
@@ -895,11 +942,13 @@ exports.updateProductionPlanStatus = async (req, res) => {
 
       if (outbounds.length > 0) {
         // 统一使用状态常量
-        const incompleteOutbounds = outbounds.filter((ob) => ob.status !== PRODUCTION_STATUS_KEYS.COMPLETED);
+        const incompleteOutbounds = outbounds.filter(
+          (ob) => ob.status !== PRODUCTION_STATUS_KEYS.COMPLETED
+        );
 
         if (incompleteOutbounds.length > 0) {
           await connection.rollback();
-          const pns = incompleteOutbounds.map(ob => ob.outbound_no).join(', ');
+          const pns = incompleteOutbounds.map((ob) => ob.outbound_no).join(', ');
           return ResponseHandler.error(
             res,
             `生产计划包含未完成的出库单 (${pns})，请先在库存模块完成出库操作后再重试变更状态！`,

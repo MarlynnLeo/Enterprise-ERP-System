@@ -24,7 +24,9 @@ const saveStandardCostSnapshot = async (productId, standardCost = {}) => {
 
   try {
     await connection.beginTransaction();
-    await connection.execute('DELETE FROM standard_costs WHERE product_id = ?', [normalizedProductId]);
+    await connection.execute('DELETE FROM standard_costs WHERE product_id = ?', [
+      normalizedProductId,
+    ]);
 
     const elements = [
       ['material', standardCost.materialCost],
@@ -72,7 +74,12 @@ module.exports = {
       ResponseHandler.success(res, result);
     } catch (error) {
       logger.error('Failed to calculate standard cost:', error);
-      ResponseHandler.error(res, error.message || 'Failed to calculate standard cost', 'SERVER_ERROR', 500);
+      ResponseHandler.error(
+        res,
+        error.message || 'Failed to calculate standard cost',
+        'SERVER_ERROR',
+        500
+      );
     }
   },
 
@@ -90,11 +97,18 @@ module.exports = {
       const standardCost = result.standardCost || {};
       await saveStandardCostSnapshot(productId, standardCost);
 
-      logger.info(`Standard cost saved: productId=${productId}, totalCost=${standardCost.totalCost || 0}`);
+      logger.info(
+        `Standard cost saved: productId=${productId}, totalCost=${standardCost.totalCost || 0}`
+      );
       ResponseHandler.success(res, result);
     } catch (error) {
       logger.error('Failed to calculate and save standard cost:', error);
-      ResponseHandler.error(res, error.message || 'Failed to calculate and save standard cost', 'SERVER_ERROR', 500);
+      ResponseHandler.error(
+        res,
+        error.message || 'Failed to calculate and save standard cost',
+        'SERVER_ERROR',
+        500
+      );
     }
   },
 
@@ -123,7 +137,7 @@ module.exports = {
 
       // 尝试从standard_costs表获取
       const [rows] = await db.pool.query(
-          `
+        `
                     SELECT
                         MAX(psc.id) as id,
                         COALESCE(psc.product_id, psc.material_id) as product_id,
@@ -143,28 +157,22 @@ module.exports = {
                     ORDER BY MAX(psc.updated_at) DESC, MAX(psc.id) DESC
                     LIMIT ${pageSize} OFFSET ${offset}
                 `,
-          params
-        );
+        params
+      );
 
       const [countResult] = await db.pool.query(
-          `
+        `
                     SELECT COUNT(DISTINCT COALESCE(psc.product_id, psc.material_id)) as total
                     FROM standard_costs psc
                     LEFT JOIN materials p ON COALESCE(psc.product_id, psc.material_id) = p.id
                     ${whereClause}
                 `,
-          params
-        );
-
-      ResponseHandler.paginated(
-        res,
-        rows,
-        countResult[0].total,
-        page,
-        pageSize,
-        undefined,
-        { items: rows }
+        params
       );
+
+      ResponseHandler.paginated(res, rows, countResult[0].total, page, pageSize, undefined, {
+        items: rows,
+      });
     } catch (error) {
       logger.error('获取标准成本列表失败:', error);
       ResponseHandler.error(res, '获取标准成本列表失败', 'SERVER_ERROR', 500);
@@ -504,7 +512,9 @@ module.exports = {
             issue_date: item.issue_date ? toLocalDateString(item.issue_date) : null,
             document_numbers: [...item.document_numbers].join(', '),
           }))
-          .sort((a, b) => String(a.material_code || '').localeCompare(String(b.material_code || '')));
+          .sort((a, b) =>
+            String(a.material_code || '').localeCompare(String(b.material_code || ''))
+          );
         logger.info(
           `[实际成本详情] 任务 ${prodTaskId} 找到 ${materialDetails.length} 条材料消耗记录`
         );
@@ -592,7 +602,7 @@ module.exports = {
         [calcDate, calcDate, prodId]
       );
 
-      const overheadDetails = ohRules.map(rule => ({
+      const overheadDetails = ohRules.map((rule) => ({
         rule_name: rule.name,
         allocation_base: rule.allocation_base,
         rate: parseFloat(rule.rate),
@@ -806,7 +816,9 @@ module.exports = {
   updateMaterialStandardCost: async (req, res) => {
     try {
       const { id } = req.params;
-      const { standard_price, effective_date, expiry_date, is_active } = mapKeysToSnake(req.body || {});
+      const { standard_price, effective_date, expiry_date, is_active } = mapKeysToSnake(
+        req.body || {}
+      );
 
       if (!id) {
         return ResponseHandler.error(res, '标准成本ID不能为空', 'VALIDATION_ERROR', 400);

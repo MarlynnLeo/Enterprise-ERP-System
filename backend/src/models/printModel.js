@@ -15,7 +15,12 @@ const printModel = {
   // 打印设置管理
   async getAllPrintSettings(page = 1, pageSize = 10, filters = {}) {
     // ✅ 安全修复: 使用安全分页工具 + 修复 params 未传入分页查询的 bug
-    const { limit: safeLimit, offset: safeOffset, page: safePage, pageSize: safePageSize } = parsePagination(page, pageSize);
+    const {
+      limit: safeLimit,
+      offset: safeOffset,
+      page: safePage,
+      pageSize: safePageSize,
+    } = parsePagination(page, pageSize);
     let whereClause = 'deleted_at IS NULL';
     const params = [];
 
@@ -38,7 +43,8 @@ const printModel = {
     // 获取分页数据
     const sql = appendPaginationSQL(
       `SELECT id, name, default_paper_size, default_orientation, default_margin_top, default_margin_right, default_margin_bottom, default_margin_left, header_content, footer_content, company_logo, status, created_by, updated_by, created_at, updated_at, deleted_at FROM print_settings WHERE ${whereClause} ORDER BY id DESC`,
-      safeLimit, safeOffset
+      safeLimit,
+      safeOffset
     );
     const [rows] = await pool.execute(sql, params);
 
@@ -51,7 +57,10 @@ const printModel = {
   },
 
   async getPrintSettingById(id) {
-    const [rows] = await pool.execute('SELECT id, name, default_paper_size, default_orientation, default_margin_top, default_margin_right, default_margin_bottom, default_margin_left, header_content, footer_content, company_logo, status, created_by, updated_by, created_at, updated_at, deleted_at FROM print_settings WHERE id = ? AND deleted_at IS NULL', [id]);
+    const [rows] = await pool.execute(
+      'SELECT id, name, default_paper_size, default_orientation, default_margin_top, default_margin_right, default_margin_bottom, default_margin_left, header_content, footer_content, company_logo, status, created_by, updated_by, created_at, updated_at, deleted_at FROM print_settings WHERE id = ? AND deleted_at IS NULL',
+      [id]
+    );
     return rows.length > 0 ? rows[0] : null;
   },
 
@@ -125,7 +134,12 @@ const printModel = {
   async getAllPrintTemplates(page = 1, pageSize = 10, filters = {}) {
     try {
       // ✅ 安全修复: 使用安全分页工具替代模板字符串拼接
-      const { limit: safeLimit, offset: safeOffset, page: pageNum, pageSize: pageSizeNum } = parsePagination(page, pageSize);
+      const {
+        limit: safeLimit,
+        offset: safeOffset,
+        page: pageNum,
+        pageSize: pageSizeNum,
+      } = parsePagination(page, pageSize);
 
       // 构建查询条件
       let whereClause = 'deleted_at IS NULL';
@@ -164,7 +178,8 @@ const printModel = {
       // 分页查询 — 使用安全分页工具
       const sql = appendPaginationSQL(
         `SELECT id, name, module, template_type, content, paper_size, orientation, margin_top, margin_right, margin_bottom, margin_left, is_default, status, created_by, updated_by, created_at, updated_at, deleted_at, default_template_key FROM print_templates WHERE ${whereClause} ORDER BY id DESC`,
-        safeLimit, safeOffset
+        safeLimit,
+        safeOffset
       );
 
       // 执行查询
@@ -183,7 +198,10 @@ const printModel = {
   },
 
   async getPrintTemplateById(id) {
-    const [rows] = await pool.execute('SELECT id, name, module, template_type, content, paper_size, orientation, margin_top, margin_right, margin_bottom, margin_left, is_default, status, created_by, updated_by, created_at, updated_at, deleted_at, default_template_key FROM print_templates WHERE id = ? AND deleted_at IS NULL', [id]);
+    const [rows] = await pool.execute(
+      'SELECT id, name, module, template_type, content, paper_size, orientation, margin_top, margin_right, margin_bottom, margin_left, is_default, status, created_by, updated_by, created_at, updated_at, deleted_at, default_template_key FROM print_templates WHERE id = ? AND deleted_at IS NULL',
+      [id]
+    );
     return rows.length > 0 ? rows[0] : null;
   },
 

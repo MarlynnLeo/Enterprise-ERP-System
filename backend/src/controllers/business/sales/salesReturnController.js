@@ -15,10 +15,7 @@ const { parsePagination, appendPaginationSQL } = require('../../../utils/safePag
 
 const { STATUS, getConnection } = require('./salesShared');
 const { getRequestActorLabel } = require('../../../utils/userUtils');
-const {
-  salesReturnMap,
-  salesReturnItemMap,
-} = require('../../../utils/sales/salesFieldMap');
+const { salesReturnMap, salesReturnItemMap } = require('../../../utils/sales/salesFieldMap');
 
 const SALES_RETURN_STATUS_LABELS = {
   [STATUS.SALES_RETURN.DRAFT]: '草稿',
@@ -55,13 +52,14 @@ const { validationError } = SalesReturnEligibilityService;
 
 function normalizeReturnItems(items) {
   if (!Array.isArray(items) || items.length === 0) throw validationError('退货明细不能为空');
-  return items.map(item => ({ ...item, product_id: item.product_id ?? item.material_id }));
+  return items.map((item) => ({ ...item, product_id: item.product_id ?? item.material_id }));
 }
 
 async function saveReturnItems(connection, returnId, items) {
-  await connection.query('INSERT INTO sales_return_items (return_id, product_id, quantity, reason) VALUES ?', [
-    items.map(item => [returnId, item.product_id, item.quantity, item.reason || '']),
-  ]);
+  await connection.query(
+    'INSERT INTO sales_return_items (return_id, product_id, quantity, reason) VALUES ?',
+    [items.map((item) => [returnId, item.product_id, item.quantity, item.reason || ''])]
+  );
 }
 
 exports.getSalesReturns = async (req, res) => {
@@ -203,7 +201,6 @@ exports.getSalesReturns = async (req, res) => {
   }
 };
 
-
 exports.getSalesReturnById = async (req, res) => {
   let conn;
   try {
@@ -212,7 +209,17 @@ exports.getSalesReturnById = async (req, res) => {
     conn = await getConnection();
 
     const ScopeGuard = require('../../../authorization/ScopeGuard');
-    if (!(await ScopeGuard.denyUnlessAccess(res, conn, req, 'sales_return', id, '无权访问该销售退货单', { accessMode: 'read' }))) {
+    if (
+      !(await ScopeGuard.denyUnlessAccess(
+        res,
+        conn,
+        req,
+        'sales_return',
+        id,
+        '无权访问该销售退货单',
+        { accessMode: 'read' }
+      ))
+    ) {
       return;
     }
 
@@ -254,13 +261,13 @@ exports.getSalesReturnById = async (req, res) => {
   }
 };
 
-
 exports.createSalesReturn = async (req, res) => {
   let connection;
   try {
     const body = mapKeysToSnake(req.body || {});
     const status = body.status || 'pending';
-    if (!['draft', 'pending'].includes(status)) throw validationError('新退货单只能保存为草稿或待审批');
+    if (!['draft', 'pending'].includes(status))
+      throw validationError('新退货单只能保存为草稿或待审批');
     if (!body.return_reason) throw validationError('请填写退货原因');
     body.return_date = normalizeSalesDate(body.return_date, '退货日期');
     const items = normalizeReturnItems(body.items);
@@ -275,12 +282,25 @@ exports.createSalesReturn = async (req, res) => {
       if (sources.length !== 1) throw validationError('多订单出库请明确选择本次退货的来源订单');
       orderId = sources[0].order_id;
     }
-    await SalesReturnEligibilityService.assertReturnable(connection, { orderId, outboundId: body.outbound_id, items });
+    await SalesReturnEligibilityService.assertReturnable(connection, {
+      orderId,
+      outboundId: body.outbound_id,
+      items,
+    });
     const { CodeGenerators } = require('../../../utils/codeGenerator');
     const returnNo = await CodeGenerators.generateSalesReturnCode(connection);
     const [result] = await connection.query(
       'INSERT INTO sales_returns (return_no, order_id, outbound_id, return_date, return_reason, status, remarks, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [returnNo, orderId, body.outbound_id || null, body.return_date, body.return_reason, status, body.remarks || '', getAuthenticatedUserId(req)]
+      [
+        returnNo,
+        orderId,
+        body.outbound_id || null,
+        body.return_date,
+        body.return_reason,
+        status,
+        body.remarks || '',
+        getAuthenticatedUserId(req),
+      ]
     );
     await saveReturnItems(connection, result.insertId, items);
     await connection.commit();
@@ -288,7 +308,12 @@ exports.createSalesReturn = async (req, res) => {
   } catch (error) {
     if (connection) await connection.rollback();
     logger.error('创建销售退货单失败:', error);
-    return ResponseHandler.error(res, error.message, error.code || 'SERVER_ERROR', error.statusCode || 500);
+    return ResponseHandler.error(
+      res,
+      error.message,
+      error.code || 'SERVER_ERROR',
+      error.statusCode || 500
+    );
   } finally {
     if (connection) connection.release();
   }
@@ -302,11 +327,26 @@ exports.updateSalesReturn = async (req, res) => {
     const statusOnly = Object.keys(body).length === 1 && body.status !== undefined;
     connection = await getConnection();
     const ScopeGuard = require('../../../authorization/ScopeGuard');
-    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'sales_return', id, '无权修改该销售退货单'))) return;
+    if (
+      !(await ScopeGuard.denyUnlessAccess(
+        res,
+        connection,
+        req,
+        'sales_return',
+        id,
+        '无权修改该销售退货单'
+      ))
+    )
+      return;
     await connection.beginTransaction();
-    const [[source]] = await connection.query('SELECT order_id FROM sales_returns WHERE id=?', [id]);
+    const [[source]] = await connection.query('SELECT order_id FROM sales_returns WHERE id=?', [
+      id,
+    ]);
     const lockedOrderIds = await lockSalesOrders(connection, [source?.order_id, body.order_id]);
-    const [[current]] = await connection.query('SELECT * FROM sales_returns WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]);
+    const [[current]] = await connection.query(
+      'SELECT * FROM sales_returns WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      [id]
+    );
     if (!current) {
       await connection.rollback();
       return ResponseHandler.notFound(res, '销售退货单不存在');
@@ -315,28 +355,54 @@ exports.updateSalesReturn = async (req, res) => {
     if (!isValidSalesReturnStatus(nextStatus)) throw validationError('无效的退货状态');
     if (statusOnly && current.status === nextStatus) {
       await connection.commit();
-      return ResponseHandler.success(res, { id: Number(id), status: nextStatus }, '销售退货状态未变化');
+      return ResponseHandler.success(
+        res,
+        { id: Number(id), status: nextStatus },
+        '销售退货状态未变化'
+      );
     }
-    if (['completed', 'rejected', 'cancelled'].includes(current.status)) throw validationError('已完成、驳回或取消的退货单不可修改');
-    if (nextStatus !== current.status && !canTransitionSalesReturnStatus(current.status, nextStatus)) {
+    if (['completed', 'rejected', 'cancelled'].includes(current.status))
+      throw validationError('已完成、驳回或取消的退货单不可修改');
+    if (
+      nextStatus !== current.status &&
+      !canTransitionSalesReturnStatus(current.status, nextStatus)
+    ) {
       throw validationError(`退货状态不允许从 ${current.status} 变为 ${nextStatus}`);
     }
-    if (current.status === 'approved' && !statusOnly) throw validationError('已审批退货单只能通过状态操作完成或取消，不可改写明细');
+    if (current.status === 'approved' && !statusOnly)
+      throw validationError('已审批退货单只能通过状态操作完成或取消，不可改写明细');
 
-    const [savedItems] = await connection.query('SELECT * FROM sales_return_items WHERE return_id = ? ORDER BY id', [id]);
+    const [savedItems] = await connection.query(
+      'SELECT * FROM sales_return_items WHERE return_id = ? ORDER BY id',
+      [id]
+    );
     const items = body.items === undefined ? savedItems : normalizeReturnItems(body.items);
     const orderId = body.order_id ?? current.order_id;
-    if (!lockedOrderIds.has(Number(orderId))) throw validationError('退货来源已变更，请刷新单据后重试');
+    if (!lockedOrderIds.has(Number(orderId)))
+      throw validationError('退货来源已变更，请刷新单据后重试');
     const outboundId = body.outbound_id ?? current.outbound_id;
     const returnDate = normalizeSalesDate(body.return_date ?? current.return_date, '退货日期');
     const returnReason = body.return_reason ?? current.return_reason;
     if (!returnReason) throw validationError('退货原因不能为空');
     if (!['cancelled', 'rejected'].includes(nextStatus)) {
-      await SalesReturnEligibilityService.assertReturnable(connection, { orderId, outboundId, items, excludeReturnId: id });
+      await SalesReturnEligibilityService.assertReturnable(connection, {
+        orderId,
+        outboundId,
+        items,
+        excludeReturnId: id,
+      });
     }
     await connection.query(
       'UPDATE sales_returns SET order_id=?, outbound_id=?, return_date=?, return_reason=?, status=?, remarks=?, updated_at=NOW() WHERE id=?',
-      [orderId, outboundId || null, returnDate, returnReason, nextStatus, body.remarks ?? current.remarks, id]
+      [
+        orderId,
+        outboundId || null,
+        returnDate,
+        returnReason,
+        nextStatus,
+        body.remarks ?? current.remarks,
+        id,
+      ]
     );
     if (body.items !== undefined) {
       await connection.query('DELETE FROM sales_return_items WHERE return_id = ?', [id]);
@@ -346,43 +412,80 @@ exports.updateSalesReturn = async (req, res) => {
     let domainEventId = null;
     if (nextStatus === 'completed') {
       const [persistedItems] = await connection.query(
-        'SELECT i.*, m.code, m.name, m.unit_id, m.location_id FROM sales_return_items i JOIN materials m ON m.id = i.product_id AND m.deleted_at IS NULL WHERE i.return_id = ? ORDER BY i.id', [id]
+        'SELECT i.*, m.code, m.name, m.unit_id, m.location_id FROM sales_return_items i JOIN materials m ON m.id = i.product_id AND m.deleted_at IS NULL WHERE i.return_id = ? ORDER BY i.id',
+        [id]
       );
-      if (persistedItems.length !== items.length) throw validationError('退货商品已失效，请核对物料资料');
+      if (persistedItems.length !== items.length)
+        throw validationError('退货商品已失效，请核对物料资料');
       const InventoryService = require('../../../services/InventoryService');
       for (const item of persistedItems) {
         if (!item.location_id) throw validationError(`物料 ${item.code} 未配置默认仓库`);
-        await InventoryService.updateStock({
-          materialId: item.product_id, locationId: item.location_id, quantity: Number(item.quantity),
-          transactionType: 'sales_return', referenceType: 'sales_return', referenceNo: current.return_no,
-          sourceId: Number(id), sourceLineKey: `sales_return:${id}:${item.id}`,
-          operator: getRequestActorLabel(req), unitId: item.unit_id,
-          transactionDate: returnDate, remark: `销售退货入库：${item.code} ${item.name}`,
-          batchNumber: `RT-${current.return_no}-${item.product_id}`,
-          idempotencyKey: `sales_return:${id}:${item.id}`,
-        }, connection);
+        await InventoryService.updateStock(
+          {
+            materialId: item.product_id,
+            locationId: item.location_id,
+            quantity: Number(item.quantity),
+            transactionType: 'sales_return',
+            referenceType: 'sales_return',
+            referenceNo: current.return_no,
+            sourceId: Number(id),
+            sourceLineKey: `sales_return:${id}:${item.id}`,
+            operator: getRequestActorLabel(req),
+            unitId: item.unit_id,
+            transactionDate: returnDate,
+            remark: `销售退货入库：${item.code} ${item.name}`,
+            batchNumber: `RT-${current.return_no}-${item.product_id}`,
+            idempotencyKey: `sales_return:${id}:${item.id}`,
+          },
+          connection
+        );
       }
-      domainEventId = await DomainEventService.enqueue('SALES_RETURN_COMPLETED', {
-        returnId: Number(id), returnNo: current.return_no, currentUserId: req.user?.id || null,
-      }, { connection, aggregateType: 'sales_return', aggregateId: id, dedupKey: `SALES_RETURN_COMPLETED:${id}` });
+      domainEventId = await DomainEventService.enqueue(
+        'SALES_RETURN_COMPLETED',
+        {
+          returnId: Number(id),
+          returnNo: current.return_no,
+          currentUserId: req.user?.id || null,
+        },
+        {
+          connection,
+          aggregateType: 'sales_return',
+          aggregateId: id,
+          dedupKey: `SALES_RETURN_COMPLETED:${id}`,
+        }
+      );
       const SalesOrderStatusService = require('../../../services/business/SalesOrderStatusService');
       await SalesOrderStatusService.updateOrderStatus(orderId, connection);
     }
     await connection.commit();
     DomainEventService.dispatchSoon(domainEventId);
-    return ResponseHandler.success(res, { id: Number(id), status: nextStatus }, '销售退货单更新成功');
+    return ResponseHandler.success(
+      res,
+      { id: Number(id), status: nextStatus },
+      '销售退货单更新成功'
+    );
   } catch (error) {
     if (connection) await connection.rollback();
     logger.error('更新销售退货单失败:', error);
-    return ResponseHandler.error(res, error.message, error.code || 'SERVER_ERROR', error.statusCode || 500);
+    return ResponseHandler.error(
+      res,
+      error.message,
+      error.code || 'SERVER_ERROR',
+      error.statusCode || 500
+    );
   } finally {
     if (connection) connection.release();
   }
 };
 
-exports.updateSalesReturnStatus = (req, res) => exports.updateSalesReturn({
-  ...req, body: { status: req.body?.status },
-}, res);
+exports.updateSalesReturnStatus = (req, res) =>
+  exports.updateSalesReturn(
+    {
+      ...req,
+      body: { status: req.body?.status },
+    },
+    res
+  );
 
 // 删除退货单功能
 
@@ -394,7 +497,16 @@ exports.deleteSalesReturn = async (req, res) => {
     connection = await getConnection();
 
     const ScopeGuard = require('../../../authorization/ScopeGuard');
-    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'sales_return', id, '无权删除该销售退货单'))) {
+    if (
+      !(await ScopeGuard.denyUnlessAccess(
+        res,
+        connection,
+        req,
+        'sales_return',
+        id,
+        '无权删除该销售退货单'
+      ))
+    ) {
       return;
     }
 

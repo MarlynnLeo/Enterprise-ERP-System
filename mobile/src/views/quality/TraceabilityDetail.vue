@@ -179,6 +179,7 @@
   import { NavBar, Loading, Empty, Button } from 'vant'
   import SvgIcon from '@/components/icons/index.vue'
   import { qualityApi } from '@/api'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const route = useRoute()
 
@@ -240,14 +241,14 @@
 
       // 解析响应
       if (respData.success === false) {
-        errorMsg.value = respData.message || '追溯失败'
+        errorMsg.value = getApiErrorMessage(respData, '追溯失败')
         return
       }
 
       traceData.value = respData.data || respData
     } catch (error) {
       console.error('追溯查询失败:', error)
-      errorMsg.value = '追溯查询失败，请重试'
+      errorMsg.value = getApiErrorMessage(error, '追溯查询失败，请重试')
     } finally {
       loading.value = false
     }

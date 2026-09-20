@@ -39,7 +39,9 @@ async function generateOrdersFromRequisition(requisitionId, conn, actorId) {
   try {
     if (useOwnConn) await conn.beginTransaction();
 
-    logger.info(`Purchase requisition approved; generating purchase orders: requisitionId=${requisitionId}`);
+    logger.info(
+      `Purchase requisition approved; generating purchase orders: requisitionId=${requisitionId}`
+    );
 
     // 获取采购申请的基本信息
     const [requisitionRows] = await conn.execute(
@@ -53,7 +55,8 @@ async function generateOrdersFromRequisition(requisitionId, conn, actorId) {
       throw new Error('采购申请不存在');
     }
     const requisition = requisitionRows[0];
-    if (!['approved', 'completed'].includes(requisition.status)) throw Object.assign(new Error('采购申请尚未审批通过，不能自动转单'), { statusCode: 400 });
+    if (!['approved', 'completed'].includes(requisition.status))
+      throw Object.assign(new Error('采购申请尚未审批通过，不能自动转单'), { statusCode: 400 });
 
     // 获取采购申请的物料项，关联物料表获取供应商信息和价格
     let [itemsRows] = await conn.execute(
@@ -81,7 +84,9 @@ async function generateOrdersFromRequisition(requisitionId, conn, actorId) {
     );
 
     if (itemsRows.length === 0) {
-      throw new Error(`采购申请 ${requisition.requisition_number || requisitionId} 没有物料项，不能自动生成采购订单`);
+      throw new Error(
+        `采购申请 ${requisition.requisition_number || requisitionId} 没有物料项，不能自动生成采购订单`
+      );
     }
 
     // 补全明细物料：历史脏数据可能只有 material_id 或只有编码/空字段
@@ -110,8 +115,9 @@ async function generateOrdersFromRequisition(requisitionId, conn, actorId) {
         }
       }
       if (!item.material_id || !item.material_code || !item.material_name) {
+        const materialLabel = item.material_code || item.m_code || '所选物料';
         throw new Error(
-          `采购申请 ${requisition.requisition_number || requisitionId} 明细物料不完整：id=${item.material_id}, code=${item.material_code}, name=${item.material_name}`
+          `采购申请 ${requisition.requisition_number || requisitionId} 的物料“${materialLabel}”资料不完整，请编辑申请单后重新选择有效物料`
         );
       }
       // 回写明细，避免下次再失败
@@ -138,23 +144,34 @@ async function generateOrdersFromRequisition(requisitionId, conn, actorId) {
       `SELECT poi.material_id, poi.quantity FROM purchase_order_items poi
        JOIN purchase_orders po ON po.id = poi.order_id
        WHERE po.requisition_id = ? AND po.deleted_at IS NULL AND po.status NOT IN ('cancelled', 'rejected')
-       ORDER BY po.id, poi.id FOR UPDATE`, [requisitionId]
+       ORDER BY po.id, poi.id FOR UPDATE`,
+      [requisitionId]
     );
     const allocated = new Map();
-    for (const item of activeOrderItems) allocated.set(Number(item.material_id), (allocated.get(Number(item.material_id)) || 0) + Number(item.quantity));
-    itemsRows = itemsRows.map(item => {
-      const used = allocated.get(Number(item.material_id)) || 0;
-      const required = Number(item.quantity);
-      allocated.set(Number(item.material_id), Math.max(0, used - required));
-      return { ...item, quantity: Math.max(0, Math.round((required - used) * 100) / 100) };
-    }).filter(item => item.quantity > 0);
+    for (const item of activeOrderItems)
+      allocated.set(
+        Number(item.material_id),
+        (allocated.get(Number(item.material_id)) || 0) + Number(item.quantity)
+      );
+    itemsRows = itemsRows
+      .map((item) => {
+        const used = allocated.get(Number(item.material_id)) || 0;
+        const required = Number(item.quantity);
+        allocated.set(Number(item.material_id), Math.max(0, used - required));
+        return { ...item, quantity: Math.max(0, Math.round((required - used) * 100) / 100) };
+      })
+      .filter((item) => item.quantity > 0);
     if (!itemsRows.length) {
       await PurchaseOrderService.syncRequisitionStatusFromOrders(conn, requisitionId);
       if (useOwnConn) await conn.commit();
       return [];
     }
-    const materialIds = [...new Set(itemsRows.map(item => Number(item.material_id)))].sort((a, b) => a - b);
-    await conn.query('SELECT id FROM materials WHERE id IN (?) ORDER BY id FOR SHARE', [materialIds]);
+    const materialIds = [...new Set(itemsRows.map((item) => Number(item.material_id)))].sort(
+      (a, b) => a - b
+    );
+    await conn.query('SELECT id FROM materials WHERE id IN (?) ORDER BY id FOR SHARE', [
+      materialIds,
+    ]);
 
     const defaultTaxRate = normalizeTaxRate(financeConfig.get('tax.defaultVATRate', 0), 0);
     const resolvedPrices = await PurchasePriceService.resolvePurchasePrices(
@@ -166,9 +183,13 @@ async function generateOrdersFromRequisition(requisitionId, conn, actorId) {
       }))
     );
 
-    const supplierIdsToLoad = [...new Set(resolvedPrices
-      .map((priceInfo) => Number(priceInfo?.supplier_id))
-      .filter((supplierId) => Number.isInteger(supplierId) && supplierId > 0))];
+    const supplierIdsToLoad = [
+      ...new Set(
+        resolvedPrices
+          .map((priceInfo) => Number(priceInfo?.supplier_id))
+          .filter((supplierId) => Number.isInteger(supplierId) && supplierId > 0)
+      ),
+    ];
     const supplierDetails = new Map();
     if (supplierIdsToLoad.length > 0) {
       const [supplierRows] = await conn.execute(
@@ -185,12 +206,17 @@ async function generateOrdersFromRequisition(requisitionId, conn, actorId) {
     itemsRows.forEach((item, index) => {
       const priceInfo = resolvedPrices[index] || {};
       const resolvedSupplierId = item.supplier_id || priceInfo.supplier_id || null;
-      const supplierDetail = resolvedSupplierId ? supplierDetails.get(Number(resolvedSupplierId)) : null;
+      const supplierDetail = resolvedSupplierId
+        ? supplierDetails.get(Number(resolvedSupplierId))
+        : null;
       const resolvedTaxRate = normalizeTaxRate(priceInfo.tax_rate, defaultTaxRate);
       item.resolved_supplier_id = resolvedSupplierId;
-      item.resolved_supplier_name = item.supplier_name || supplierDetail?.name || priceInfo.last_supplier || null;
-      item.resolved_supplier_contact_person = item.supplier_contact_person || supplierDetail?.contact_person || null;
-      item.resolved_supplier_contact_phone = item.supplier_contact_phone || supplierDetail?.contact_phone || null;
+      item.resolved_supplier_name =
+        item.supplier_name || supplierDetail?.name || priceInfo.last_supplier || null;
+      item.resolved_supplier_contact_person =
+        item.supplier_contact_person || supplierDetail?.contact_person || null;
+      item.resolved_supplier_contact_phone =
+        item.supplier_contact_phone || supplierDetail?.contact_phone || null;
       item.material_price = toNumber(priceInfo.price, 0);
       item.tax_rate = resolvedTaxRate;
       item.price_source = priceInfo.source || 'none';
@@ -216,9 +242,11 @@ async function generateOrdersFromRequisition(requisitionId, conn, actorId) {
 
     if (itemsBySupplier[NO_SUPPLIER_KEY]) {
       const missingMaterials = itemsBySupplier[NO_SUPPLIER_KEY].items
-        .map(item => item.material_code || item.m_code || item.material_name || item.material_id)
+        .map((item) => item.material_code || item.m_code || item.material_name || item.material_id)
         .join(', ');
-      logger.warn(`Purchase requisition has materials without supplier history: requisitionId=${requisitionId}, materials=${missingMaterials}`);
+      logger.warn(
+        `Purchase requisition has materials without supplier history: requisitionId=${requisitionId}, materials=${missingMaterials}`
+      );
     }
 
     const purchaseModel = require('../../models/purchase');
@@ -321,12 +349,16 @@ async function generateOrdersFromRequisition(requisitionId, conn, actorId) {
         conn
       );
 
-      logger.info(`Purchase order generated from requisition: orderNo=${orderNo}, supplierName=${supplierData.supplier_name}, itemCount=${supplierData.items.length}`);
+      logger.info(
+        `Purchase order generated from requisition: orderNo=${orderNo}, supplierName=${supplierData.supplier_name}, itemCount=${supplierData.items.length}`
+      );
     }
 
     await PurchaseOrderService.syncRequisitionStatusFromOrders(conn, requisitionId);
 
-    logger.info(`Purchase requisition auto-order generation completed: requisitionId=${requisitionId}, orderCount=${generatedOrders.length}`);
+    logger.info(
+      `Purchase requisition auto-order generation completed: requisitionId=${requisitionId}, orderCount=${generatedOrders.length}`
+    );
 
     if (useOwnConn) await conn.commit();
     return generatedOrders;

@@ -5,8 +5,33 @@
 
 const { logger } = require('../../utils/logger');
 const { currentDateString } = require('../../utils/dateUtils');
+const { INACTIVE_INVOICE_STATUSES } = require('../../constants/financeConstants');
 
 class VoucherReversalService {
+  /** A shared confirmation voucher cannot be reversed by cancelling only one invoice. */
+  static async assertInvoiceVoucherExclusive(connection, sourceType, sourceId, entryId) {
+    if (!['ar_invoice', 'ap_invoice'].includes(sourceType)) return;
+    const table = sourceType === 'ar_invoice' ? 'ar_invoices' : 'ap_invoices';
+    const [otherInvoices] = await connection.execute(
+      `SELECT i.id FROM document_links dl
+         JOIN ${table} i ON i.id = dl.source_id
+        WHERE dl.source_type = ? AND dl.target_type = 'finance_voucher'
+          AND dl.target_id = ? AND i.id <> ?
+          AND i.status NOT IN (${INACTIVE_INVOICE_STATUSES.map(() => '?').join(', ')})
+        LIMIT 1 FOR UPDATE`,
+      [sourceType, entryId, sourceId, ...INACTIVE_INVOICE_STATUSES]
+    );
+    if (otherInvoices.length) {
+      throw Object.assign(
+        new Error('该发票使用合并凭证，请通过退货红冲处理，不能单独作废或冲销来源单据'),
+        {
+          code: 'SHARED_INVOICE_VOUCHER',
+          statusCode: 400,
+        }
+      );
+    }
+  }
+
   /**
    * 查找业务单据关联、且仍有效的总账凭证 ID
    * 优先 document_links，再按「业务单号 + 规范 document_type」定位
@@ -93,13 +118,15 @@ class VoucherReversalService {
     });
 
     if (voucherIds.length === 0) {
-      throw new Error(
-        `未找到单据 ${documentNumber || sourceId} 对应的未冲销会计凭证，无法完成作废`
+      throw Object.assign(
+        new Error(`未找到单据 ${documentNumber || sourceId} 对应的未冲销会计凭证，无法完成作废`),
+        { code: 'VOUCHER_NOT_FOUND' }
       );
     }
 
     const results = [];
     for (const originalEntryId of voucherIds) {
+      await this.assertInvoiceVoucherExclusive(connection, sourceType, sourceId, originalEntryId);
       const reversalEntryId = await financeModel.reverseEntry(
         originalEntryId,
         {
@@ -111,10 +138,9 @@ class VoucherReversalService {
         connection
       );
 
-      const [rows] = await connection.execute(
-        'SELECT entry_number FROM gl_entries WHERE id = ?',
-        [reversalEntryId]
-      );
+      const [rows] = await connection.execute('SELECT entry_number FROM gl_entries WHERE id = ?', [
+        reversalEntryId,
+      ]);
 
       results.push({
         originalEntryId,

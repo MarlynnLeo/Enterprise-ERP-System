@@ -20,9 +20,10 @@ const productCategoryController = {
    */
   async getAllProductCategories(req, res) {
     try {
-      const parsedStatus = req.query.status !== undefined && req.query.status !== ''
-        ? parseInt(req.query.status, 10)
-        : undefined;
+      const parsedStatus =
+        req.query.status !== undefined && req.query.status !== ''
+          ? parseInt(req.query.status, 10)
+          : undefined;
       const filters = {
         name: req.query.name,
         code: req.query.code,
@@ -35,9 +36,18 @@ const productCategoryController = {
         maxPageSize: 100,
       });
 
-      const result = req.query.tree === 'true' || req.query.tree === '1'
-        ? await productCategoryModel.getProductCategoryTreePage(filters, pagination.page, pagination.pageSize)
-        : await productCategoryModel.getAllProductCategories(filters, pagination.page, pagination.pageSize);
+      const result =
+        req.query.tree === 'true' || req.query.tree === '1'
+          ? await productCategoryModel.getProductCategoryTreePage(
+              filters,
+              pagination.page,
+              pagination.pageSize
+            )
+          : await productCategoryModel.getAllProductCategories(
+              filters,
+              pagination.page,
+              pagination.pageSize
+            );
 
       // 返回统一的分页格式
       return ResponseHandler.paginated(

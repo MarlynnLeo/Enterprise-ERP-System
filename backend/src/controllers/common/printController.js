@@ -13,7 +13,6 @@ const printModel = require('../../models/printModel');
 const { getCurrentUserName } = require('../../utils/userHelper');
 const { parsePagination } = require('../../utils/safePagination');
 
-
 // 打印控制器
 const printController = {
   // 打印设置管理
@@ -24,9 +23,20 @@ const printController = {
         defaultPageSize: 10,
         maxPageSize: 100,
       });
-      const result = await printModel.getAllPrintSettings(pagination.page, pagination.pageSize, filters);
+      const result = await printModel.getAllPrintSettings(
+        pagination.page,
+        pagination.pageSize,
+        filters
+      );
 
-      ResponseHandler.paginated(res, result.list, result.total, result.page, result.pageSize, '获取打印设置列表成功');
+      ResponseHandler.paginated(
+        res,
+        result.list,
+        result.total,
+        result.page,
+        result.pageSize,
+        '获取打印设置列表成功'
+      );
     } catch (error) {
       logger.error('获取打印设置列表失败:', error);
       ResponseHandler.error(res, '获取打印设置列表失败', 'SERVER_ERROR', 500, error);
@@ -119,9 +129,20 @@ const printController = {
         defaultPageSize: 10,
         maxPageSize: 100,
       });
-      const result = await printModel.getAllPrintTemplates(pagination.page, pagination.pageSize, filters);
+      const result = await printModel.getAllPrintTemplates(
+        pagination.page,
+        pagination.pageSize,
+        filters
+      );
 
-      ResponseHandler.paginated(res, result.list, result.total, result.page, result.pageSize, '获取打印模板列表成功');
+      ResponseHandler.paginated(
+        res,
+        result.list,
+        result.total,
+        result.page,
+        result.pageSize,
+        '获取打印模板列表成功'
+      );
     } catch (error) {
       logger.error('获取打印模板列表失败:', error);
       ResponseHandler.error(res, '获取打印模板列表失败', 'SERVER_ERROR', 500, error);
@@ -151,7 +172,12 @@ const printController = {
       const template_type = q.template_type;
 
       if (!moduleName || !template_type) {
-        return ResponseHandler.error(res, '缺少必要参数：module 和 templateType', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(
+          res,
+          '缺少必要参数：module 和 templateType',
+          'VALIDATION_ERROR',
+          400
+        );
       }
 
       const template = await printModel.getDefaultTemplateByType(moduleName, template_type);

@@ -138,6 +138,7 @@ import { baseDataApi } from '@/api/baseData'
 import { workStationApi } from '@/api/assembly'
 import { loadDepartmentOptions } from '@/utils/optionLoaders'
 import { parsePaginatedData, parseListData } from '@/utils/responseParser'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { useAuthStore } from '@/stores/auth'
 import { createRouteDraft, newProcessDetail, normalizeProcessDetail, buildRoutePayload, validateRouteDetails, formatStandardHours, totalStandardHours, routeStatusLabel, hasProductProcessPermission } from '@/utils/productProcessRoute'
@@ -161,7 +162,7 @@ const rules = {
   version: [{ required: true, message: '请输入新版本号', trigger: 'blur' }]
 }
 const isDraft = row => Number(row.status) !== 1 && !row.publishedAt
-const errorMessage = (error, fallback) => ElMessage.error(error.response?.data?.message || error.message || fallback)
+const errorMessage = (error, fallback) => ElMessage.error(getApiErrorMessage(error, fallback))
 let listRequest = 0, productRequest = 0, materialRequest = 0
 const loadRoutes = async () => {
   const current = ++listRequest

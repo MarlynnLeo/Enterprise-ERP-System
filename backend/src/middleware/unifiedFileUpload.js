@@ -8,11 +8,7 @@ const path = require('path');
 const fs = require('fs').promises;
 const crypto = require('crypto');
 const { ErrorFactory } = require('./unifiedErrorHandler');
-const {
-  FILE_TYPES,
-  ATTACHMENT_MAX_SIZE,
-  EXCEL_EXTENSIONS,
-} = require('../config/fileUploadPolicy');
+const { FILE_TYPES, ATTACHMENT_MAX_SIZE, EXCEL_EXTENSIONS } = require('../config/fileUploadPolicy');
 
 // 存储策略
 const STORAGE_STRATEGIES = {
@@ -34,8 +30,7 @@ class FileUploadConfig {
     this.maxFiles = options.maxFiles || 5;
     this.fieldName = options.fieldName || (this.allowMultiple ? 'files' : 'file');
     this.urlPrefix =
-      options.urlPrefix ||
-      `/${this.destination.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '')}`;
+      options.urlPrefix || `/${this.destination.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '')}`;
   }
 
   getAllowedExtensions() {
@@ -91,9 +86,7 @@ const MAGIC_SIGNATURES = {
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': [
     [0x50, 0x4b, 0x03, 0x04],
   ],
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': [
-    [0x50, 0x4b, 0x03, 0x04],
-  ],
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': [[0x50, 0x4b, 0x03, 0x04]],
   'application/vnd.openxmlformats-officedocument.presentationml.presentation': [
     [0x50, 0x4b, 0x03, 0x04],
   ],
@@ -439,7 +432,10 @@ function createFileUploadMiddleware(options = {}) {
           size: req.file.size,
           mimetype: req.file.mimetype,
           path: req.file.path,
-          url: config.storage === STORAGE_STRATEGIES.DISK ? `${config.urlPrefix}/${req.file.filename}` : null,
+          url:
+            config.storage === STORAGE_STRATEGIES.DISK
+              ? `${config.urlPrefix}/${req.file.filename}`
+              : null,
         };
       }
 
@@ -450,7 +446,10 @@ function createFileUploadMiddleware(options = {}) {
           size: file.size,
           mimetype: file.mimetype,
           path: file.path,
-          url: config.storage === STORAGE_STRATEGIES.DISK ? `${config.urlPrefix}/${file.filename}` : null,
+          url:
+            config.storage === STORAGE_STRATEGIES.DISK
+              ? `${config.urlPrefix}/${file.filename}`
+              : null,
         }));
       }
 

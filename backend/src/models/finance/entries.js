@@ -64,9 +64,10 @@ module.exports = {
 
       const entry = entries[0];
 
-      const [items] = await db.pool.execute('SELECT id, entry_id, line_number, account_id, debit_amount, credit_amount, description, cost_center_id, project_id, created_at, updated_at, currency_code, exchange_rate, customer_id, supplier_id, employee_id FROM gl_entry_items WHERE entry_id = ?', [
-        id,
-      ]);
+      const [items] = await db.pool.execute(
+        'SELECT id, entry_id, line_number, account_id, debit_amount, credit_amount, description, cost_center_id, project_id, created_at, updated_at, currency_code, exchange_rate, customer_id, supplier_id, employee_id FROM gl_entry_items WHERE entry_id = ?',
+        [id]
+      );
       entry.items = items;
 
       return entry;
@@ -451,14 +452,23 @@ module.exports = {
       }
 
       if (Number(entry.created_by) === normalizedUserId) {
-        throw new BusinessError('制单人与过账人必须分离，不能过账自己创建的凭证', null, 'SEPARATION_OF_DUTIES', 403);
+        throw new BusinessError(
+          '制单人与过账人必须分离，不能过账自己创建的凭证',
+          null,
+          'SEPARATION_OF_DUTIES',
+          403
+        );
       }
 
       const entryDate = normalizeDateInput(entry.entry_date, '记账日期');
       const postingDate = normalizeDateInput(entry.posting_date || entry.entry_date, '过账日期');
       let resolvedPeriodId = entry.period_id;
 
-      if (resolvedPeriodId && isDateWithinPeriod(entryDate, entry) && isDateWithinPeriod(postingDate, entry)) {
+      if (
+        resolvedPeriodId &&
+        isDateWithinPeriod(entryDate, entry) &&
+        isDateWithinPeriod(postingDate, entry)
+      ) {
         // 凭证日期在所属期间内，直接使用当前期间
       } else {
         const [periods] = await connection.execute(
@@ -473,7 +483,9 @@ module.exports = {
         );
 
         if (periods.length === 0) {
-          throw new BusinessError(`凭证日期 ${entryDate} 和过账日期 ${postingDate} 未匹配到会计期间`);
+          throw new BusinessError(
+            `凭证日期 ${entryDate} 和过账日期 ${postingDate} 未匹配到会计期间`
+          );
         }
 
         if (resolvedPeriodId) {

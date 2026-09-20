@@ -17,12 +17,6 @@ const ganttMethods = require('./scheduling/ganttMethods');
 
 class SchedulingService {}
 
-Object.assign(
-  SchedulingService,
-  calendarMethods,
-  scheduleMethods,
-  timeMethods,
-  ganttMethods
-);
+Object.assign(SchedulingService, calendarMethods, scheduleMethods, timeMethods, ganttMethods);
 
 module.exports = SchedulingService;

@@ -1181,7 +1181,7 @@ import {
   mapMaterialData,
   searchMaterials as performSearchMaterials,
 } from '@/utils/searchConfig';
-import { handleApiError, handleSuccess, handleWarning } from '@/utils/errorHandler';
+import { getApiErrorMessage, handleApiError, handleSuccess, handleWarning } from '@/utils/errorHandler';
 import {
   validateInspectionItems,
   normalizeBoolean,
@@ -1328,9 +1328,6 @@ const newStandardForm = reactive({
   tolerance_lower: null,
 });
 const savingStandard = ref(false);
-const getApiErrorMessage = (error, fallback = '操作失败') => {
-  return error?.response?.data?.message || error?.message || fallback;
-};
 const parseMaterialTypes = (value) => {
   if (Array.isArray(value)) {
     return value.filter(Boolean);
@@ -2521,7 +2518,7 @@ const saveNewStandard = async () => {
       if (isExisting) {
         // 标准已存在，提示用户并高亮显示
         ElMessage.warning({
-          message: `该检验标准已存在（ID: ${newStandard.id}），已为您定位`,
+          message: '该检验标准已存在，已为您定位',
           duration: 3000,
         });
       } else {

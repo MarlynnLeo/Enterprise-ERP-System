@@ -15,7 +15,10 @@ const materialService = require('../../../services/materialService');
 
 exports.getCustomersList = async (req, res) => {
   try {
-    const pageSize = Math.min(Math.max(parseInt(req.query.limit || req.query.pageSize, 10) || 50, 1), 100);
+    const pageSize = Math.min(
+      Math.max(parseInt(req.query.limit || req.query.pageSize, 10) || 50, 1),
+      100
+    );
     const result = await customerService.getAllCustomers(1, pageSize, {
       search: req.query.keyword || req.query.search || '',
       status: req.query.status,
@@ -30,7 +33,10 @@ exports.getCustomersList = async (req, res) => {
 
 exports.getProductsList = async (req, res) => {
   try {
-    const pageSize = Math.min(Math.max(parseInt(req.query.limit || req.query.pageSize, 10) || 50, 1), 100);
+    const pageSize = Math.min(
+      Math.max(parseInt(req.query.limit || req.query.pageSize, 10) || 50, 1),
+      100
+    );
     const products = await materialService.getAllMaterials(1, pageSize, {
       search: req.query.keyword || req.query.search || '',
       status: req.query.status ?? 1,
@@ -97,7 +103,6 @@ exports.getCustomers = async (req, res) => {
   }
 };
 
-
 exports.getCustomer = async (req, res) => {
   try {
     const customerId = req.params.id;
@@ -140,7 +145,6 @@ exports.getCustomer = async (req, res) => {
   }
 };
 
-
 exports.createCustomer = async (req, res) => {
   try {
     const customer = await SalesDao.createCustomer(req.body);
@@ -150,7 +154,6 @@ exports.createCustomer = async (req, res) => {
     ResponseHandler.error(res, 'Error creating customer', 'SERVER_ERROR', 500, error);
   }
 };
-
 
 exports.updateCustomer = async (req, res) => {
   try {

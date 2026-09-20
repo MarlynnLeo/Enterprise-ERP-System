@@ -399,6 +399,7 @@ import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, onMounted, computed, nextTick } from 'vue';
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index';
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { formatAmount, formatLocalDate } from '@/utils/format'
 import { Plus, Check, Money, Delete } from '@element-plus/icons-vue';
 import { financeApi } from '@/api';
@@ -584,7 +585,7 @@ const loadData = async () => {
     }
   } catch (error) {
     console.error('加载纳税申报列表失败:', error);
-    ElMessage.error(error.response?.data?.message || error.message || '加载数据失败');
+    ElMessage.error(getApiErrorMessage(error, '加载数据失败'));
   } finally {
     loading.value = false;
   }
@@ -632,7 +633,7 @@ const submitCreate = async () => {
       loadData();
     } catch (error) {
       console.error('创建申报失败:', error);
-      ElMessage.error(error.response?.data?.message || error.message || '创建失败');
+      ElMessage.error(getApiErrorMessage(error, '创建失败'));
     } finally {
       createLoading.value = false;
     }
@@ -651,7 +652,7 @@ const handleView = async (row) => {
     viewDialogVisible.value = true;
   } catch (error) {
     console.error('获取申报详情失败:', error);
-    ElMessage.error(error.response?.data?.message || error.message || '获取详情失败');
+    ElMessage.error(getApiErrorMessage(error, '获取详情失败'));
   }
 };
 
@@ -662,7 +663,7 @@ const handleReopen = async (row) => {
     await financeApi.tax.reopenReturn(row.id, { reason: value });
     ElMessage.success('申报已撤回');
     await loadData();
-  } catch (error) { if (error !== 'cancel' && error !== 'close') ElMessage.error(error.response?.data?.message || error.message || '撤回失败'); }
+  } catch (error) { if (error !== 'cancel' && error !== 'close') ElMessage.error(getApiErrorMessage(error, '撤回失败')); }
 };
 const handleSubmit = async (row) => {
   try {
@@ -685,7 +686,7 @@ const handleSubmit = async (row) => {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('提交申报失败:', error);
-      ElMessage.error(error.response?.data?.message || error.message || '提交失败');
+      ElMessage.error(getApiErrorMessage(error, '提交失败'));
     }
   }
 };
@@ -720,7 +721,7 @@ const handlePay = async (row) => {
     payDialogVisible.value = true;
   } catch (error) {
     console.error('打开缴税窗口失败:', error);
-    ElMessage.error(error.response?.data?.message || error.message || '打开缴税窗口失败');
+    ElMessage.error(getApiErrorMessage(error, '打开缴税窗口失败'));
   }
 };
 
@@ -762,7 +763,7 @@ const confirmPay = async () => {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('缴纳税款失败:', error);
-      ElMessage.error(error.response?.data?.message || error.message || '缴纳失败');
+      ElMessage.error(getApiErrorMessage(error, '缴纳失败'));
     }
   } finally {
     payLoading.value = false;
@@ -787,7 +788,7 @@ const handleVoidPayment = async (row) => {
     await loadData();
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error(error.response?.data?.message || error.message || '作废失败');
+      ElMessage.error(getApiErrorMessage(error, '作废失败'));
     }
   }
 };
@@ -811,7 +812,7 @@ const handleDelete = async (row) => {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('删除申报失败:', error);
-      ElMessage.error(error.response?.data?.message || error.message || '删除失败');
+      ElMessage.error(getApiErrorMessage(error, '删除失败'));
     }
   }
 };

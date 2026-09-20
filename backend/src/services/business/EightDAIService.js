@@ -21,188 +21,207 @@ const getAIConfig = () => assertAIConfigured('8D AI service');
 
 // 速率限制
 const RATE_LIMIT = {
-    maxRetries: 3,
-    baseDelayMs: 2000,
-    maxDelayMs: 20000,
-    minRequestIntervalMs: 1000,
+  maxRetries: 3,
+  baseDelayMs: 2000,
+  maxDelayMs: 20000,
+  minRequestIntervalMs: 1000,
 };
 
 // ===================== 公司背景常量 =====================
 
-
 class EightDAIService {
+  static _lastRequestTime = 0;
 
-    static _lastRequestTime = 0;
+  /**
+   * 延迟工具
+   */
+  static _sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
 
-    /**
-     * 延迟工具
-     */
-    static _sleep(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
+  /**
+   * 请求限流
+   */
+  static async _throttle() {
+    const now = Date.now();
+    const elapsed = now - this._lastRequestTime;
+    if (elapsed < RATE_LIMIT.minRequestIntervalMs) {
+      await this._sleep(RATE_LIMIT.minRequestIntervalMs - elapsed);
     }
+    this._lastRequestTime = Date.now();
+  }
 
-    /**
-     * 请求限流
-     */
-    static async _throttle() {
-        const now = Date.now();
-        const elapsed = now - this._lastRequestTime;
-        if (elapsed < RATE_LIMIT.minRequestIntervalMs) {
-            await this._sleep(RATE_LIMIT.minRequestIntervalMs - elapsed);
-        }
-        this._lastRequestTime = Date.now();
-    }
+  /**
+   * 获取当日日期字符串（YYYY-MM-DD 格式）
+   */
+  static _getToday() {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
 
-    /**
-     * 获取当日日期字符串（YYYY-MM-DD 格式）
-     */
-    static _getToday() {
-        const now = new Date();
-        const y = now.getFullYear();
-        const m = String(now.getMonth() + 1).padStart(2, '0');
-        const d = String(now.getDate()).padStart(2, '0');
-        return `${y}-${m}-${d}`;
-    }
+  /**
+   * 调用统一 AI（含重试机制）
+   * @param {string} systemPrompt - 系统提示词
+   * @param {string} userPrompt - 用户消息
+   * @returns {Promise<{content: string, usage: Object}>}
+   */
+  static async callAI(systemPrompt, userPrompt) {
+    const { model: primaryModel, provider } = getAIConfig();
+    const candidateModels = [primaryModel, 'meta/llama-3.2-11b-vision-instruct'].filter(Boolean);
+    const uniqueModels = [...new Set(candidateModels)];
 
-    /**
-     * 调用统一 AI（含重试机制）
-     * @param {string} systemPrompt - 系统提示词
-     * @param {string} userPrompt - 用户消息
-     * @returns {Promise<{content: string, usage: Object}>}
-     */
-    static async callAI(systemPrompt, userPrompt) {
-        const { model: primaryModel, provider } = getAIConfig();
-        const candidateModels = [primaryModel, 'meta/llama-3.2-11b-vision-instruct'].filter(Boolean);
-        const uniqueModels = [...new Set(candidateModels)];
+    let lastError = null;
 
-        let lastError = null;
-
-        for (const currentModel of uniqueModels) {
-            for (let attempt = 0; attempt <= RATE_LIMIT.maxRetries; attempt++) {
-                try {
-                    await this._throttle();
-
-                    const result = await UnifiedAIClient.createChatCompletion({
-                        serviceName: '8D AI service',
-                        model: currentModel,
-                        messages: [
-                            { role: 'system', content: systemPrompt },
-                            { role: 'user', content: userPrompt },
-                        ],
-                        temperature: 0.35,
-                        topP: 0.95,
-                        stream: false,
-                        retries: 0,
-                    });
-                    const { content, usage } = result;
-
-                    logger.info(`[8D-AI] 调用成功 | Provider:${provider} | 模型:${currentModel} | Token: 输入${usage.prompt_tokens} 输出${usage.completion_tokens} 总计${usage.total_tokens}`);
-                    return { content, usage, model: currentModel };
-                } catch (error) {
-                    lastError = error;
-                    if (error.status === 429) {
-                        if (attempt < RATE_LIMIT.maxRetries) {
-                            const delay = Math.min(
-                                RATE_LIMIT.baseDelayMs * Math.pow(2, attempt) + crypto.randomInt(0, 1000),
-                                RATE_LIMIT.maxDelayMs
-                            );
-                            logger.warn(`[8D-AI] 速率限制(429)，模型${currentModel}第${attempt + 1}次重试，等待${Math.round(delay)}ms`);
-                            await this._sleep(delay);
-                            continue;
-                        }
-                    } else if (attempt < RATE_LIMIT.maxRetries && error.status >= 500) {
-                        const delay = Math.min(
-                            RATE_LIMIT.baseDelayMs * Math.pow(2, attempt) + crypto.randomInt(0, 1000),
-                            RATE_LIMIT.maxDelayMs
-                        );
-                        logger.warn(`[8D-AI] 服务端错误(${error.status})，模型${currentModel}第${attempt + 1}次重试，等待${Math.round(delay)}ms`);
-                        await this._sleep(delay);
-                        continue;
-                    } else if (attempt < RATE_LIMIT.maxRetries && (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' || error.name === 'AbortError')) {
-                        logger.warn(`[8D-AI] 网络异常或超时，模型${currentModel}第${attempt + 1}次重试...`);
-                        await this._sleep(RATE_LIMIT.baseDelayMs);
-                        continue;
-                    }
-
-                    // 如果当前模型失败且有备用模型，跳到下一个备用模型
-                    if (uniqueModels.indexOf(currentModel) < uniqueModels.length - 1) {
-                        logger.warn(`[8D-AI] 模型 ${currentModel} 请求失败 (${error.message})，自动切换至备用模型...`);
-                        break;
-                    }
-                }
-            }
-        }
-
-        throw lastError || new Error('AI服务暂不可用，请稍后重试');
-    }
-
-    /**
-     * 从AI回复中提取JSON（高容错深度解析）
-     */
-    static extractJSON(text) {
-        if (!text || typeof text !== 'string') {
-            throw new Error('AI回复内容为空');
-        }
-
-        // 1. 过滤思考标签与多余控制字符
-        let cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-
-        // 2. 提取 Markdown 代码块或大括号包裹的 JSON
-        const jsonMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-        if (jsonMatch) {
-            cleaned = jsonMatch[1].trim();
-        } else {
-            const firstBrace = cleaned.indexOf('{');
-            const lastBrace = cleaned.lastIndexOf('}');
-            if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-                cleaned = cleaned.substring(firstBrace, lastBrace + 1);
-            }
-        }
-
-        // 3. 优先尝试直接解析
+    for (const currentModel of uniqueModels) {
+      for (let attempt = 0; attempt <= RATE_LIMIT.maxRetries; attempt++) {
         try {
-            return JSON.parse(cleaned);
-        } catch {
-            // 4. 容错修复：移除注释、尾随逗号、不可打印字符
-            try {
-                const repaired = cleaned
-                    .replace(/\/\/[^\n\r]*/g, '')
-                    .replace(/\/\*[\s\S]*?\*\//g, '')
-                    .replace(/,(\s*[}\]])/g, '$1')
-                    .replace(/[^\x20-\x7E\t\r\n\u00A0-\uFFFF]/g, '');
+          await this._throttle();
 
-                return JSON.parse(repaired);
-            } catch (e2) {
-                logger.error('[8D-AI] JSON解析及修复均失败. 原始内容:\n', text);
-                throw new Error('无法从AI回复中提取有效JSON结构: ' + e2.message, { cause: e2 });
+          const result = await UnifiedAIClient.createChatCompletion({
+            serviceName: '8D AI service',
+            model: currentModel,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt },
+            ],
+            temperature: 0.35,
+            topP: 0.95,
+            stream: false,
+            retries: 0,
+          });
+          const { content, usage } = result;
+
+          logger.info(
+            `[8D-AI] 调用成功 | Provider:${provider} | 模型:${currentModel} | Token: 输入${usage.prompt_tokens} 输出${usage.completion_tokens} 总计${usage.total_tokens}`
+          );
+          return { content, usage, model: currentModel };
+        } catch (error) {
+          lastError = error;
+          if (error.status === 429) {
+            if (attempt < RATE_LIMIT.maxRetries) {
+              const delay = Math.min(
+                RATE_LIMIT.baseDelayMs * Math.pow(2, attempt) + crypto.randomInt(0, 1000),
+                RATE_LIMIT.maxDelayMs
+              );
+              logger.warn(
+                `[8D-AI] 速率限制(429)，模型${currentModel}第${attempt + 1}次重试，等待${Math.round(delay)}ms`
+              );
+              await this._sleep(delay);
+              continue;
             }
+          } else if (attempt < RATE_LIMIT.maxRetries && error.status >= 500) {
+            const delay = Math.min(
+              RATE_LIMIT.baseDelayMs * Math.pow(2, attempt) + crypto.randomInt(0, 1000),
+              RATE_LIMIT.maxDelayMs
+            );
+            logger.warn(
+              `[8D-AI] 服务端错误(${error.status})，模型${currentModel}第${attempt + 1}次重试，等待${Math.round(delay)}ms`
+            );
+            await this._sleep(delay);
+            continue;
+          } else if (
+            attempt < RATE_LIMIT.maxRetries &&
+            (error.code === 'ECONNRESET' ||
+              error.code === 'ETIMEDOUT' ||
+              error.name === 'AbortError')
+          ) {
+            logger.warn(`[8D-AI] 网络异常或超时，模型${currentModel}第${attempt + 1}次重试...`);
+            await this._sleep(RATE_LIMIT.baseDelayMs);
+            continue;
+          }
+
+          // 如果当前模型失败且有备用模型，跳到下一个备用模型
+          if (uniqueModels.indexOf(currentModel) < uniqueModels.length - 1) {
+            logger.warn(
+              `[8D-AI] 模型 ${currentModel} 请求失败 (${error.message})，自动切换至备用模型...`
+            );
+            break;
+          }
         }
+      }
     }
 
-    // ==================== 核心业务方法 ====================
+    throw lastError || new Error('AI服务暂不可用，请稍后重试');
+  }
 
-    /**
-     * 一键生成8D报告全部内容（专业深度优化版）
-     * @param {Object} params - 参数
-     * @param {string} params.problemDescription - 问题描述（必填）
-     * @param {string} [params.materialName] - 物料名称
-     * @param {string} [params.supplierName] - 供应商名称
-     * @param {string} [params.defectType] - 缺陷类型
-     * @param {number} [params.quantityAffected] - 影响数量
-     * @param {string} [params.priority] - 优先级
-     * @param {string} [params.usersListStr] - 真实公司员工花名册
-     * @returns {Promise<Object>} 生成的8D报告内容
-     */
-    static async generateFullReport(params) {
-        const { problemDescription, materialName, supplierName, defectType, quantityAffected, priority, usersListStr } = params;
+  /**
+   * 从AI回复中提取JSON（高容错深度解析）
+   */
+  static extractJSON(text) {
+    if (!text || typeof text !== 'string') {
+      throw new Error('AI回复内容为空');
+    }
 
-        if (!problemDescription || problemDescription.trim().length < 5) {
-            throw new Error('请输入至少5个字的问题描述');
-        }
+    // 1. 过滤思考标签与多余控制字符
+    let cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
 
-        const today = this._getToday();
+    // 2. 提取 Markdown 代码块或大括号包裹的 JSON
+    const jsonMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+    if (jsonMatch) {
+      cleaned = jsonMatch[1].trim();
+    } else {
+      const firstBrace = cleaned.indexOf('{');
+      const lastBrace = cleaned.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+      }
+    }
 
-        const systemPrompt = `你是浙江开控电气有限公司(KACON品牌)的资深质量管理总监，精通8D问题解决方法论、IATF 16949和ISO 9001标准。
+    // 3. 优先尝试直接解析
+    try {
+      return JSON.parse(cleaned);
+    } catch {
+      // 4. 容错修复：移除注释、尾随逗号、不可打印字符
+      try {
+        const repaired = cleaned
+          .replace(/\/\/[^\n\r]*/g, '')
+          .replace(/\/\*[\s\S]*?\*\//g, '')
+          .replace(/,(\s*[}\]])/g, '$1')
+          .replace(/[^\x20-\x7E\t\r\n\u00A0-\uFFFF]/g, '');
+
+        return JSON.parse(repaired);
+      } catch (e2) {
+        logger.error('[8D-AI] JSON解析及修复均失败. 原始内容:\n', text);
+        throw new Error('无法从AI回复中提取有效JSON结构: ' + e2.message, { cause: e2 });
+      }
+    }
+  }
+
+  // ==================== 核心业务方法 ====================
+
+  /**
+   * 一键生成8D报告全部内容（专业深度优化版）
+   * @param {Object} params - 参数
+   * @param {string} params.problemDescription - 问题描述（必填）
+   * @param {string} [params.materialName] - 物料名称
+   * @param {string} [params.supplierName] - 供应商名称
+   * @param {string} [params.defectType] - 缺陷类型
+   * @param {number} [params.quantityAffected] - 影响数量
+   * @param {string} [params.priority] - 优先级
+   * @param {string} [params.usersListStr] - 真实公司员工花名册
+   * @returns {Promise<Object>} 生成的8D报告内容
+   */
+  static async generateFullReport(params) {
+    const {
+      problemDescription,
+      materialName,
+      supplierName,
+      defectType,
+      quantityAffected,
+      priority,
+      usersListStr,
+    } = params;
+
+    if (!problemDescription || problemDescription.trim().length < 5) {
+      throw new Error('请输入至少5个字的问题描述');
+    }
+
+    const today = this._getToday();
+
+    const systemPrompt = `你是浙江开控电气有限公司(KACON品牌)的资深质量管理总监，精通8D问题解决方法论、IATF 16949和ISO 9001标准。
 公司主营工业电气控制元件（脚踏开关、按钮开关、行程开关等），产品面向全球工业客户。
 
 公司组织架构（真实部门）：
@@ -251,22 +270,22 @@ class EightDAIService {
 9. 所有措施必须具体、可量化、可追溯，避免"加强管理""提高意识"等空话
 10. 语言风格：严谨专业、面向客户可呈现，体现KACON作为专业电气制造商的专业水准`;
 
-        // 构建上下文信息
-        let contextInfo = `【客户投诉/质量问题描述】\n${problemDescription}`;
-        if (materialName) contextInfo += `\n【涉及产品/物料】${materialName}`;
-        if (supplierName) contextInfo += `\n【投诉客户】${supplierName}`;
-        if (defectType) contextInfo += `\n【初步缺陷分类】${defectType}`;
-        if (quantityAffected) contextInfo += `\n【影响数量】${quantityAffected} 件/批`;
-        contextInfo += `\n【问题发现/反馈日期】${today}`;
-        if (priority) {
-            const priorityMap = { low: '一般', medium: '重要', high: '紧急', critical: '特急(停线级)' };
-            contextInfo += `\n【紧急程度】${priorityMap[priority] || priority}`;
-        }
-        if (usersListStr) {
-            contextInfo += `\n\n【公司当前各部门实际负责人名单(请从以下名单中抽取组长和成员)】\n${usersListStr}`;
-        }
+    // 构建上下文信息
+    let contextInfo = `【客户投诉/质量问题描述】\n${problemDescription}`;
+    if (materialName) contextInfo += `\n【涉及产品/物料】${materialName}`;
+    if (supplierName) contextInfo += `\n【投诉客户】${supplierName}`;
+    if (defectType) contextInfo += `\n【初步缺陷分类】${defectType}`;
+    if (quantityAffected) contextInfo += `\n【影响数量】${quantityAffected} 件/批`;
+    contextInfo += `\n【问题发现/反馈日期】${today}`;
+    if (priority) {
+      const priorityMap = { low: '一般', medium: '重要', high: '紧急', critical: '特急(停线级)' };
+      contextInfo += `\n【紧急程度】${priorityMap[priority] || priority}`;
+    }
+    if (usersListStr) {
+      contextInfo += `\n\n【公司当前各部门实际负责人名单(请从以下名单中抽取组长和成员)】\n${usersListStr}`;
+    }
 
-        const userPrompt = `请根据以下质量问题信息，为浙江开控电气有限公司(KACON)生成一份专业的8D纠正预防措施报告。
+    const userPrompt = `请根据以下质量问题信息，为浙江开控电气有限公司(KACON)生成一份专业的8D纠正预防措施报告。
 此报告将直接呈送给投诉客户，代表公司的质量管控水平和问题处理态度，请确保内容专业严谨。
 
 ${contextInfo}
@@ -279,62 +298,62 @@ ${contextInfo}
 5. D6验证方法要明确但不包含结果数据（注明"待纠正措施实施后执行验证"）
 6. 措施中所涉及的部门请使用公司实际部门名称`;
 
-        logger.info(`[8D-AI] 开始生成专业级8D报告 | 公司:KACON | 日期:${today} | 描述长度:${problemDescription.length}字`);
+    logger.info(
+      `[8D-AI] 开始生成专业级8D报告 | 公司:KACON | 日期:${today} | 描述长度:${problemDescription.length}字`
+    );
 
-        try {
-            const { content, usage } = await this.callAI(systemPrompt, userPrompt);
-            const result = this.extractJSON(content);
+    try {
+      const { content, usage } = await this.callAI(systemPrompt, userPrompt);
+      const result = this.extractJSON(content);
 
-            // 规范化返回数据 —— 确保所有字段有合理默认值
-            return {
-                success: true,
-                data: {
-                    title: result.title || `成品质量问题纠正预防措施报告-${today}`,
-                    // D1 - 团队（基于公司真实部门）
-                    d1_team_leader: result.d1_team_leader || '',
-                    d1_team_members: Array.isArray(result.d1_team_members)
-                        ? result.d1_team_members
-                        : [],
-                    // D2 - 问题描述（日期使用当天）
-                    d2_problem_description: result.d2_problem_description || problemDescription,
-                    d2_defect_type: result.d2_defect_type || defectType || '',
-                    d2_occurrence_date: today, // 强制使用当天日期
-                    // D3 - 遏制措施
-                    d3_containment_actions: Array.isArray(result.d3_containment_actions)
-                        ? result.d3_containment_actions
-                        : [],
-                    // D4 - 根因分析
-                    d4_root_cause: result.d4_root_cause || '',
-                    d4_analysis_method: result.d4_analysis_method || '5why',
-                    d4_contributing_factors: Array.isArray(result.d4_contributing_factors)
-                        ? result.d4_contributing_factors
-                        : [],
-                    // D5 - 纠正措施
-                    d5_corrective_actions: Array.isArray(result.d5_corrective_actions)
-                        ? result.d5_corrective_actions
-                        : [],
-                    d5_target_date_days: result.d5_target_date_days || 14,
-                    // D6 - 验证方法（仅方法，不含结果——因为尚未实施）
-                    d6_verification_method: result.d6_verification_method || '',
-                    d6_implementation_results: '', // 显式留空——待纠正措施实施后填写
-                    d6_verification_result: 'pending', // 显式标记为待验证
-                    // D7 - 预防措施
-                    d7_preventive_actions: Array.isArray(result.d7_preventive_actions)
-                        ? result.d7_preventive_actions
-                        : [],
-                    d7_standardization: result.d7_standardization || '',
-                    // D8 - 总结
-                    d8_summary: result.d8_summary || '',
-                    d8_lessons_learned: result.d8_lessons_learned || '',
-                },
-                usage,
-                model: getAIModel(),
-            };
-        } catch (error) {
-            logger.error('[8D-AI] 生成8D报告失败:', error.message);
-            throw error;
-        }
+      // 规范化返回数据 —— 确保所有字段有合理默认值
+      return {
+        success: true,
+        data: {
+          title: result.title || `成品质量问题纠正预防措施报告-${today}`,
+          // D1 - 团队（基于公司真实部门）
+          d1_team_leader: result.d1_team_leader || '',
+          d1_team_members: Array.isArray(result.d1_team_members) ? result.d1_team_members : [],
+          // D2 - 问题描述（日期使用当天）
+          d2_problem_description: result.d2_problem_description || problemDescription,
+          d2_defect_type: result.d2_defect_type || defectType || '',
+          d2_occurrence_date: today, // 强制使用当天日期
+          // D3 - 遏制措施
+          d3_containment_actions: Array.isArray(result.d3_containment_actions)
+            ? result.d3_containment_actions
+            : [],
+          // D4 - 根因分析
+          d4_root_cause: result.d4_root_cause || '',
+          d4_analysis_method: result.d4_analysis_method || '5why',
+          d4_contributing_factors: Array.isArray(result.d4_contributing_factors)
+            ? result.d4_contributing_factors
+            : [],
+          // D5 - 纠正措施
+          d5_corrective_actions: Array.isArray(result.d5_corrective_actions)
+            ? result.d5_corrective_actions
+            : [],
+          d5_target_date_days: result.d5_target_date_days || 14,
+          // D6 - 验证方法（仅方法，不含结果——因为尚未实施）
+          d6_verification_method: result.d6_verification_method || '',
+          d6_implementation_results: '', // 显式留空——待纠正措施实施后填写
+          d6_verification_result: 'pending', // 显式标记为待验证
+          // D7 - 预防措施
+          d7_preventive_actions: Array.isArray(result.d7_preventive_actions)
+            ? result.d7_preventive_actions
+            : [],
+          d7_standardization: result.d7_standardization || '',
+          // D8 - 总结
+          d8_summary: result.d8_summary || '',
+          d8_lessons_learned: result.d8_lessons_learned || '',
+        },
+        usage,
+        model: getAIModel(),
+      };
+    } catch (error) {
+      logger.error('[8D-AI] 生成8D报告失败:', error.message);
+      throw error;
     }
+  }
 }
 
 module.exports = EightDAIService;

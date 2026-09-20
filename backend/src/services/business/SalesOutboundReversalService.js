@@ -2,7 +2,7 @@
  * 销售出库冲销的财务补偿闭环
  * - 成本结转 GL（document_number = outbound_no）
  * - 销项税票（related 销售出库单）
- * - 关联订单的 AR（仅当无其它已完成出库且未收款时取消）
+ * - 出库级 AR，以及无其它已完成出库时的历史订单级 AR
  */
 
 const { logger } = require('../../utils/logger');
@@ -13,7 +13,11 @@ const {
   TAX_INVOICE_STATUS,
   TAX_RELATED_DOCUMENT_TYPES,
   taxRelatedDocumentTypeMatchList,
+  DOCUMENT_TYPE_MAPPING,
+  INACTIVE_INVOICE_STATUSES,
 } = require('../../constants/financeConstants');
+const VoucherReversalService = require('../finance/VoucherReversalService');
+const { isTruthyFlag } = require('../../utils/finance/settlementMath');
 
 function parseRelatedOrderIds(value) {
   if (value === null || value === undefined || value === '') return [];
@@ -44,12 +48,7 @@ class SalesOutboundReversalService {
    * @returns {Promise<object>} 补偿摘要
    */
   static async compensateFinance(connection, options = {}) {
-    const {
-      outboundNo,
-      outboundId,
-      orderId = null,
-      operator: operatorInput = null,
-    } = options;
+    const { outboundNo, outboundId, orderId = null, operator: operatorInput = null } = options;
     const operator = await resolveActorLabel(connection, operatorInput);
 
     const summary = {
@@ -62,31 +61,29 @@ class SalesOutboundReversalService {
 
     // 1) 冲销成本结转分录
     try {
-      summary.costGlReversed = await this.reverseCostEntries(
-        connection,
-        outboundNo,
-        operator
-      );
+      summary.costGlReversed = await this.reverseCostEntries(connection, outboundNo, operator);
     } catch (e) {
       summary.errors.push(`成本凭证冲销失败: ${e.message}`);
       logger.error(`[SalesOutboundReversal] cost GL: ${e.message}`);
       throw e;
     }
 
-    // 2) 销项税票
-    try {
-      summary.taxInvoicesVoided = await this.voidRelatedTaxInvoices(
+    // 2) 出库级 AR 独立撤销；历史订单级 AR 仅在没有其它已完成出库时撤销。
+    if (outboundId) {
+      const [outboundInvoices] = await connection.execute(
+        `SELECT id, invoice_number, status, total_amount, paid_amount, balance_amount
+           FROM ar_invoices
+          WHERE source_type = 'sales_outbound' AND source_id = ?
+          FOR UPDATE`,
+        [outboundId]
+      );
+      summary.arInvoicesCancelled += await this.cancelUnpaidArInvoices(
         connection,
-        outboundId,
+        outboundInvoices,
         operator
       );
-    } catch (e) {
-      summary.errors.push(`销项税处理失败: ${e.message}`);
-      logger.error(`[SalesOutboundReversal] tax: ${e.message}`);
-      throw e;
     }
 
-    // 3) AR：仅在本订单无其它已完成出库、且未收款时取消
     const relatedOrderIds = await this.resolveRelatedOrderIds(connection, {
       orderId,
       outboundId,
@@ -103,19 +100,33 @@ class SalesOutboundReversalService {
           );
         }
       } catch (e) {
-        // AR 已收款时拒绝整个冲销（调用方在同一事务中 rollback）
-        if (e.code === 'AR_HAS_PAYMENT' || e.code === 'OTHER_OUTBOUND_EXISTS') {
-          throw e;
-        }
-        summary.warnings.push(`AR 处理: ${e.message}`);
-        logger.warn(`[SalesOutboundReversal] AR: ${e.message}`);
+        // AR 和库存、成本凭证属于同一冲销事务，任一步失败都必须整体回滚。
+        summary.errors.push(`应收撤销失败: ${e.message}`);
+        logger.error(`[SalesOutboundReversal] AR: ${e.message}`);
+        throw e;
       }
+    }
+
+    // 3) 税票可能复用 AR 凭证，先完成 AR 的合并凭证校验，再处理税票。
+    try {
+      summary.taxInvoicesVoided = await this.voidRelatedTaxInvoices(
+        connection,
+        outboundId,
+        operator
+      );
+    } catch (e) {
+      summary.errors.push(`销项税处理失败: ${e.message}`);
+      logger.error(`[SalesOutboundReversal] tax: ${e.message}`);
+      throw e;
     }
 
     return summary;
   }
 
-  static async resolveRelatedOrderIds(connection, { orderId = null, outboundId = null, orderIds = [] } = {}) {
+  static async resolveRelatedOrderIds(
+    connection,
+    { orderId = null, outboundId = null, orderIds = [] } = {}
+  ) {
     const ids = new Set();
     const addId = (value) => {
       const id = Number(value);
@@ -235,7 +246,7 @@ class SalesOutboundReversalService {
 
       if (tax.status === TAX_INVOICE_STATUS.DEDUCTED) {
         const err = new Error(
-          `销项税票 ${tax.invoice_number || tax.id} 已抵扣，禁止直接冲销出库；请走红字/退货流程`
+          `销项税票 ${tax.invoice_number || '该税票'} 已抵扣，禁止直接冲销出库；请走红字/退货流程`
         );
         err.code = 'TAX_LOCKED';
         err.statusCode = 400;
@@ -244,20 +255,23 @@ class SalesOutboundReversalService {
 
       // 已认证且有凭证：先冲凭证
       if (tax.gl_entry_id && tax.status === TAX_INVOICE_STATUS.CERTIFIED) {
-        try {
+        const [[entry]] = await connection.execute(
+          'SELECT id, is_reversed FROM gl_entries WHERE id = ? FOR UPDATE',
+          [tax.gl_entry_id]
+        );
+        if (!entry)
+          throw new Error(`税票 ${tax.invoice_number || '该税票'} 的会计凭证不存在，无法冲销`);
+        if (!isTruthyFlag(entry.is_reversed)) {
           await financeModel.reverseEntry(
             tax.gl_entry_id,
             {
               entry_date: today,
               posting_date: today,
-              description: `销售出库冲销回冲销项税 ${tax.invoice_number || tax.id}`,
+              description: `销售出库冲销回冲销项税 ${tax.invoice_number || '该税票'}`,
               created_by: await resolveActorLabel(null, operator),
             },
             connection
           );
-        } catch (e) {
-          // 凭证可能已冲销
-          logger.warn(`[SalesOutboundReversal] tax GL reverse: ${e.message}`);
         }
       }
 
@@ -313,17 +327,25 @@ class SalesOutboundReversalService {
       [orderId]
     );
 
-    if (ars.length === 0) return 0;
+    return this.cancelUnpaidArInvoices(connection, ars, operator);
+  }
+
+  static async cancelUnpaidArInvoices(connection, invoices, operator) {
+    if (invoices.length === 0) return 0;
 
     const financeModel = require('../../models/finance');
     const today = currentDateString();
     let cancelled = 0;
 
-    for (const inv of ars) {
-      if (inv.status === INVOICE_STATUS.CANCELLED || inv.status === 'void') continue;
+    for (const inv of invoices) {
+      if (INACTIVE_INVOICE_STATUSES.includes(inv.status)) continue;
 
       const paid = Number(inv.paid_amount) || 0;
-      if (paid > 0 || inv.status === INVOICE_STATUS.PAID || inv.status === INVOICE_STATUS.PARTIAL_PAID) {
+      if (
+        paid > 0 ||
+        inv.status === INVOICE_STATUS.PAID ||
+        inv.status === INVOICE_STATUS.PARTIAL_PAID
+      ) {
         const err = new Error(
           `应收发票 ${inv.invoice_number} 已有收款，请先作废收款或走销售退货红冲后再冲销出库`
         );
@@ -334,20 +356,21 @@ class SalesOutboundReversalService {
 
       // 冲销确认时生成的 AR 凭证（document_number 通常为发票号）
       if (inv.status === INVOICE_STATUS.CONFIRMED || inv.status === INVOICE_STATUS.OVERDUE) {
-        const [entries] = await connection.execute(
-          `SELECT id FROM gl_entries
-           WHERE document_number = ?
-             AND COALESCE(is_posted, 0) = 1
-             AND COALESCE(is_reversed, 0) = 0
-             AND NOT EXISTS (
-               SELECT 1 FROM gl_entries rev WHERE rev.reversal_entry_id = gl_entries.id
-             )
-           FOR UPDATE`,
-          [inv.invoice_number]
-        );
-        for (const entry of entries) {
+        const entryIds = await VoucherReversalService.findActiveVoucherIds(connection, {
+          sourceType: 'ar_invoice',
+          sourceId: inv.id,
+          documentNumber: inv.invoice_number,
+          documentType: DOCUMENT_TYPE_MAPPING.SALES_INVOICE,
+        });
+        for (const entryId of entryIds) {
+          await VoucherReversalService.assertInvoiceVoucherExclusive(
+            connection,
+            'ar_invoice',
+            inv.id,
+            entryId
+          );
           await financeModel.reverseEntry(
-            entry.id,
+            entryId,
             {
               entry_date: today,
               posting_date: today,

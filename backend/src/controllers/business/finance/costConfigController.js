@@ -36,9 +36,8 @@ module.exports = {
     try {
       const body = mapKeysToSnake(req.body || {});
       const { reason_code, reason_name } = body;
-      const isIncludedInCost = body.is_included_in_cost !== undefined
-        ? body.is_included_in_cost
-        : 1;
+      const isIncludedInCost =
+        body.is_included_in_cost !== undefined ? body.is_included_in_cost : 1;
       const isActive = body.is_active !== undefined ? body.is_active : 1;
       const id = req.params.id || body.id;
       logger.debug('Supplement reason payload normalized', {
@@ -97,7 +96,9 @@ module.exports = {
    */
   getGLAccounts: async (req, res) => {
     try {
-      const [accounts] = await db.pool.execute('SELECT id, account_code, account_name, account_type, parent_id, is_debit, is_active, currency_code, description, created_at, updated_at, type, opening_debit, opening_credit, opening_balance_date, opening_balance_set, opening_source_type, opening_source_details, opening_source_updated_at, has_customer, has_supplier, has_employee, has_department, has_project FROM gl_accounts ORDER BY account_code');
+      const [accounts] = await db.pool.execute(
+        'SELECT id, account_code, account_name, account_type, parent_id, is_debit, is_active, currency_code, description, created_at, updated_at, type, opening_debit, opening_credit, opening_balance_date, opening_balance_set, opening_source_type, opening_source_details, opening_source_updated_at, has_customer, has_supplier, has_employee, has_department, has_project FROM gl_accounts ORDER BY account_code'
+      );
       return ResponseHandler.success(res, accounts);
     } catch (error) {
       logger.error('获取科目列表失败:', error);

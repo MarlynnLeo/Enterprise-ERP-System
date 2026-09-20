@@ -88,6 +88,7 @@ function exercise(scenario) {
     const result = spawnSync(bash, [process.env.ERP_TEST_TRACE ? '-sex' : '-se'], {
       input: script, encoding: 'utf8', windowsHide: true, timeout: 60_000,
       env: { ...process.env, ERP_TEST_DIRECTORY: directory, ERP_TEST_POSIX_TARGET: posixTarget,
+        ERP_TEST_BASH: bash,
         MSYS2_ENV_CONV_EXCL: 'ERP_TEST_POSIX_TARGET',
         ERP_TEST_SCENARIO: scenario, ERP_TEST_RELEASE: release }
     });
@@ -125,6 +126,27 @@ function exercise(scenario) {
       assert.equal(JSON.parse(fs.readFileSync(path.join(target, '.deployed-release.json'))).buildId, oldBuild);
       assert.equal(finalState.commands.some((args) => args[0] === 'compose' && args.includes('up')), false);
     }
+    if (['candidate-public-permissions', 'frontend-candidate-public-permissions'].includes(scenario)) {
+      const status = JSON.parse(fs.readFileSync(path.join(target, '.last-deployment.json')));
+      assert.equal(status.status, 'failed');
+      assert.equal(status.phase, 'candidate-validation');
+      assert.equal(status.rollback, 'not-needed');
+      assert.equal(JSON.parse(fs.readFileSync(path.join(target, '.deployed-release.json'))).buildId, oldBuild);
+      assert.deepEqual(finalState.syncedDirectories || [], [], 'unreadable candidates must not replace source files');
+      assert.equal(finalState.commands.some((args) => args[0] === 'compose' && (args.includes('up') || args.includes('run'))), false,
+        'unreadable candidates must not switch containers or run database migrations');
+      assert.equal(fs.readFileSync(path.join(target, '.env'), 'utf8'), 'ERP_RELEASE_TAG=' + oldTag + '\nKEEP=test\n');
+      for (const name of RELEASE_ROOTS) {
+        const file = path.join(target, name);
+        assert.equal(fs.readFileSync(fs.statSync(file).isDirectory() ? path.join(file, 'marker') : file, 'utf8'), 'old');
+      }
+      const denied = scenario.startsWith('frontend') ? 'silver-moon.png' : 'rainbow-star.png';
+      assert.ok(finalState.publicValidations[0].reads.some((file) => file.endsWith('/avatar-frames/' + denied)));
+      assert.notEqual(finalState.publicValidations[0].status, 0);
+    }
+    for (const validation of finalState.publicValidations || []) {
+      assert.equal(validation.user, 'nginx', 'candidate reads must run as the Nginx worker, not root');
+    }
     if (scenario === 'retry') assert.equal(finalState.commands.some((args) => args[0] === 'build'), false);
     if (scenario === 'build') {
       assert.equal(JSON.parse(fs.readFileSync(path.join(target, '.last-deployment.json'))).phase, 'build-frontend', result.stderr);
@@ -139,6 +161,12 @@ function exercise(scenario) {
     if (scenario === 'locked') assert.equal(result.status, 23, result.stderr);
     if (['stale', 'tampered', 'locked'].includes(scenario)) assert.equal(finalState.commands.some((args) => args[0] === 'build'), false);
     if (successful) {
+      assert.equal(finalState.publicValidations?.length, 1);
+      const validation = finalState.publicValidations[0];
+      assert.equal(validation.status, 0);
+      for (const filename of ['version.json', 'avatar-frames/rainbow-star.png', 'avatar-frames/silver-moon.png', 'default-avatar.webp', 'favicon.svg', 'assets/app.js']) {
+        assert.ok(validation.reads.includes('./candidate-static/' + filename), 'candidate readability was not checked: ' + filename);
+      }
       assert.deepEqual(finalState.requests, frontendOnly
         ? ['http://127.0.0.1:18081/version.json']
         : ['http://127.0.0.1:18081/version.json', 'http://127.0.0.1:18082/version.json']);
@@ -161,6 +189,6 @@ function imageId(state, service) {
   return state.images['kacon-erp-' + service + ':' + state.containers[service]].id;
 }
 
-for (const scenario of ['success', 'retry', 'build', 'migration', 'container', 'health', 'version', 'mobile-version', 'mobile-candidate-version', 'stale', 'tampered', 'locked', 'missing-migrations', 'frontend', 'frontend-health', 'mixed-full']) {
+for (const scenario of ['success', 'retry', 'build', 'migration', 'container', 'health', 'version', 'mobile-version', 'mobile-candidate-version', 'candidate-public-permissions', 'frontend-candidate-public-permissions', 'stale', 'tampered', 'locked', 'missing-migrations', 'frontend', 'frontend-health', 'mixed-full']) {
   test('release transaction: ' + scenario, { timeout: 70_000 }, () => exercise(scenario));
 }

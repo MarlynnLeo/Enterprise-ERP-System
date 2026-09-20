@@ -333,6 +333,7 @@
   import { NavBar, Button, Form, Field, Popup, Picker, showToast, showLoadingToast, closeToast, showConfirmDialog } from 'vant'
   import { baseDataApi, systemApi } from '@/api'
   import { extractApiData } from '@/utils/apiHelper'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const router = useRouter()
   const route = useRoute()
@@ -652,7 +653,7 @@
     } catch (e) {
       closeToast()
       console.error(isEdit.value ? '更新物料失败:' : '创建物料失败:', e)
-      showToast(e.response?.data?.message || (isEdit.value ? '更新物料失败' : '创建物料失败'))
+      showToast(getApiErrorMessage(e, isEdit.value ? '更新物料失败' : '创建物料失败'))
     } finally {
       submitting.value = false
     }

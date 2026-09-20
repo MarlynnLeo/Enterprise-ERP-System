@@ -61,6 +61,11 @@ describe('findTransitionPath', () => {
   test('in_progress 不能一步到 warehousing', () => {
     expect(validateTaskTransition('in_progress', 'warehousing').valid).toBe(false);
   });
+
+  test('部分发料被反审核后可回到配料，且不开放反向自动推进', () => {
+    expect(validateTaskTransition('material_partial_issued', 'preparing').valid).toBe(true);
+    expect(findTransitionPath('material_partial_issued', 'preparing')).toBeNull();
+  });
 });
 
 describe('resolveInboundFromInspection SSOT', () => {

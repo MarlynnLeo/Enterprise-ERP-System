@@ -255,6 +255,7 @@
   import { productionApi, inventoryApi } from '@/api'
   import { useAuthStore } from '@/stores/auth'
   import dayjs from 'dayjs'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const router = useRouter()
   const route = useRoute()
@@ -403,7 +404,7 @@
       const res = await inventoryApi.getWarehouses()
       const list = extractApiList(res)
       locationColumns.value = list.map((item) => ({
-        text: item.warehouseName || item.locationName || item.name || `仓库#${item.id}`,
+        text: item.warehouseName || item.locationName || item.name || '未命名仓库',
         value: item.id
       }))
     } catch {
@@ -446,7 +447,7 @@
   }
 
   const selectMaterial = (item) => {
-    const name = item.name || item.materialName || `物料#${item.id}`
+    const name = item.name || item.materialName || item.code || item.materialCode || '未命名物料'
     if (materialPickerTarget.value === 'from') {
       requestForm.value.fromMaterialId = item.id
       requestForm.value.fromMaterialName = name
@@ -522,7 +523,7 @@
       showToast(requestType.value === 'exchange' ? '换料申请已提交，等待仓库确认' : '补料申请已提交，等待仓库确认')
       requestVisible.value = false
     } catch (error) {
-      showToast(error.response?.data?.message || error.message || '提交失败')
+      showToast(getApiErrorMessage(error, '提交失败'))
     } finally {
       requestSaving.value = false
     }
@@ -589,7 +590,7 @@
       showToast('已生成发料出库草稿')
       router.push('/inventory/outbound')
     } catch (error) {
-      showToast(error.response?.data?.message || error.message || '发料失败')
+      showToast(getApiErrorMessage(error, '发料失败'))
     } finally {
       issueLoading.value = false
     }
@@ -608,7 +609,7 @@
       router.back()
     } catch (e) {
       if (e !== 'cancel' && e?.message !== 'cancel') {
-        const errorMsg = e.response?.data?.message || '操作失败'
+        const errorMsg = getApiErrorMessage(e, '操作失败')
         showToast(errorMsg)
       }
     }

@@ -48,7 +48,7 @@ export const baseDataApi = {
     getCustomer: (id) => api.get(`/base-data/customers/${id}`),
     createCustomer: (customer) => api.post('/base-data/customers', customer),
     updateCustomer: (id, customer) => {
-        if (!id) throw new Error('更新客户失败: 未提供ID');
+        if (!id) throw new Error('更新客户失败：未选择客户');
         return api.put(`/base-data/customers/${id}`, customer);
     },
     deleteCustomer: (id) => api.delete(`/base-data/customers/${id}`),

@@ -128,6 +128,7 @@
   } from 'vant'
   import { qualityApi } from '@/api'
   import { extractApiData } from '@/utils/apiHelper'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const router = useRouter()
   const route = useRoute()
@@ -219,11 +220,14 @@
     } catch (error) {
       console.error('加载成品检验详情失败:', error)
       inspection.value = null
-      errorMessage.value = error?.response?.status === 403
+      const fallback = error?.response?.status === 403
         ? '没有权限查看此成品检验记录'
         : error?.response?.status === 404 || error?.code === 'NOT_FOUND'
           ? '成品检验记录不存在或已被删除'
           : '加载失败，请重试'
+      errorMessage.value = error?.response?.status === 403 || error?.response?.status === 404 || error?.code === 'NOT_FOUND'
+        ? fallback
+        : getApiErrorMessage(error, fallback)
       showToast(errorMessage.value)
     } finally {
       loading.value = false

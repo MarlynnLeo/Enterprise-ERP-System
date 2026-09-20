@@ -36,7 +36,7 @@ class BankBalanceService {
       throw new Error('syncAccountBalance 必须在事务中调用');
     }
     if (!accountId) {
-      throw new Error('accountId 无效');
+      throw new Error('银行账户参数无效');
     }
 
     const [accounts] = await connection.execute(
@@ -47,7 +47,7 @@ class BankBalanceService {
       [accountId]
     );
     if (accounts.length === 0) {
-      throw new Error(`银行账户不存在: ${accountId}`);
+      throw new Error('银行账户不存在或已停用');
     }
 
     const incomeList = INCOME_TYPES.map((t) => `'${t}'`).join(',');

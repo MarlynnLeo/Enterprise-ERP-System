@@ -45,9 +45,11 @@ const validateTimePairs = (data, requireWorkTime = true) => {
     if (error) return error;
   }
 
-  return compareTime(data.work_start, data.work_end, 'work_start', 'work_end') ||
+  return (
+    compareTime(data.work_start, data.work_end, 'work_start', 'work_end') ||
     compareTime(data.break_start, data.break_end, 'break_start', 'break_end') ||
-    compareTime(data.dinner_start, data.dinner_end, 'dinner_start', 'dinner_end');
+    compareTime(data.dinner_start, data.dinner_end, 'dinner_start', 'dinner_end')
+  );
 };
 
 const normalizeWorkdayFlag = (value) => {
@@ -56,18 +58,21 @@ const normalizeWorkdayFlag = (value) => {
   return null;
 };
 
-const valueOrDefault = (value, fallback) => (
-  value === null || value === undefined || value === '' ? fallback : value
-);
+const valueOrDefault = (value, fallback) =>
+  value === null || value === undefined || value === '' ? fallback : value;
 
-const validateEffectiveWorkdayTimes = (item, defaultCalendar) => validateTimePairs({
-  work_start: valueOrDefault(item.work_start, defaultCalendar.work_start),
-  work_end: valueOrDefault(item.work_end, defaultCalendar.work_end),
-  break_start: valueOrDefault(item.break_start, defaultCalendar.break_start),
-  break_end: valueOrDefault(item.break_end, defaultCalendar.break_end),
-  dinner_start: valueOrDefault(item.dinner_start, defaultCalendar.dinner_start),
-  dinner_end: valueOrDefault(item.dinner_end, defaultCalendar.dinner_end),
-}, true);
+const validateEffectiveWorkdayTimes = (item, defaultCalendar) =>
+  validateTimePairs(
+    {
+      work_start: valueOrDefault(item.work_start, defaultCalendar.work_start),
+      work_end: valueOrDefault(item.work_end, defaultCalendar.work_end),
+      break_start: valueOrDefault(item.break_start, defaultCalendar.break_start),
+      break_end: valueOrDefault(item.break_end, defaultCalendar.break_end),
+      dinner_start: valueOrDefault(item.dinner_start, defaultCalendar.dinner_start),
+      dinner_end: valueOrDefault(item.dinner_end, defaultCalendar.dinner_end),
+    },
+    true
+  );
 
 const formatDateOnlyLocal = (date) => {
   const pad = (value) => String(value).padStart(2, '0');
@@ -87,13 +92,13 @@ const getDefaultCalendarImpactCriteria = () => {
 async function assertProductionTaskWriteAccess(req, taskId, connection = pool) {
   const normalized = Number(taskId);
   if (!Number.isInteger(normalized) || normalized <= 0) {
-    const error = new Error('生产任务 ID 无效');
+    const error = new Error('生产任务参数无效');
     error.statusCode = 400;
     throw error;
   }
   const allowed = await ScopeGuard.assertAccess(connection, req, 'production_task', normalized);
   if (!allowed) {
-    const error = new Error(`无权排程生产任务 ${normalized}`);
+    const error = new Error('无权排程该生产任务');
     error.statusCode = 403;
     throw error;
   }
@@ -115,10 +120,18 @@ module.exports = {
    */
   getStandardHours: async (req, res) => {
     try {
-      const result = await SchedulingService.getProductStandardHours(safeParseId(req.params.productId));
+      const result = await SchedulingService.getProductStandardHours(
+        safeParseId(req.params.productId)
+      );
       ResponseHandler.success(res, result);
     } catch (error) {
-      ResponseHandler.error(res, error.message, 'ERROR', error.httpStatus || error.statusCode || 500, error);
+      ResponseHandler.error(
+        res,
+        error.message,
+        'ERROR',
+        error.httpStatus || error.statusCode || 500,
+        error
+      );
     }
   },
 
@@ -129,7 +142,12 @@ module.exports = {
     try {
       const { productId, quantity, startTime, processTemplateId, taskId } = req.body;
       if (!productId || !quantity || !startTime) {
-        return ResponseHandler.error(res, '缺少必填参数: productId, quantity, startTime', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(
+          res,
+          '缺少必填参数: productId, quantity, startTime',
+          'VALIDATION_ERROR',
+          400
+        );
       }
       const result = await SchedulingService.calculateSchedule({
         productId: parseInt(productId),
@@ -140,7 +158,13 @@ module.exports = {
       });
       ResponseHandler.success(res, result);
     } catch (error) {
-      ResponseHandler.error(res, error.message, 'ERROR', error.httpStatus || error.statusCode || 500, error);
+      ResponseHandler.error(
+        res,
+        error.message,
+        'ERROR',
+        error.httpStatus || error.statusCode || 500,
+        error
+      );
     }
   },
 
@@ -158,7 +182,13 @@ module.exports = {
       });
       ResponseHandler.success(res, result);
     } catch (error) {
-      ResponseHandler.error(res, error.message, 'ERROR', error.httpStatus || error.statusCode || 500, error);
+      ResponseHandler.error(
+        res,
+        error.message,
+        'ERROR',
+        error.httpStatus || error.statusCode || 500,
+        error
+      );
     }
   },
 
@@ -194,11 +224,25 @@ module.exports = {
   updateCalendar: async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, work_start, work_end, break_start, break_end, dinner_start, dinner_end, exclude_weekends } = mapKeysToSnake(req.body || {});
+      const {
+        name,
+        work_start,
+        work_end,
+        break_start,
+        break_end,
+        dinner_start,
+        dinner_end,
+        exclude_weekends,
+      } = mapKeysToSnake(req.body || {});
 
       // 校验必填字段
       if (!name || !work_start || !work_end) {
-        return ResponseHandler.error(res, '班次名称、上班时间、下班时间为必填', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(
+          res,
+          '班次名称、上班时间、下班时间为必填',
+          'VALIDATION_ERROR',
+          400
+        );
       }
 
       const validationError = validateTimePairs({
@@ -226,7 +270,17 @@ module.exports = {
 
       await pool.query(
         'UPDATE production_calendar SET name = ?, work_start = ?, work_end = ?, break_start = ?, break_end = ?, dinner_start = ?, dinner_end = ?, exclude_weekends = ?, updated_at = NOW() WHERE id = ?',
-        [updateFields.name, updateFields.work_start, updateFields.work_end, updateFields.break_start, updateFields.break_end, updateFields.dinner_start, updateFields.dinner_end, updateFields.exclude_weekends, id]
+        [
+          updateFields.name,
+          updateFields.work_start,
+          updateFields.work_end,
+          updateFields.break_start,
+          updateFields.break_end,
+          updateFields.dinner_start,
+          updateFields.dinner_end,
+          updateFields.exclude_weekends,
+          id,
+        ]
       );
 
       const [updated] = await pool.query(
@@ -238,9 +292,10 @@ module.exports = {
         return ResponseHandler.error(res, '班次不存在', 'NOT_FOUND', 404);
       }
 
-      const impact = Number(updated[0].is_default || 0) === 1
-        ? await SchedulingService.analyzeCalendarImpact(getDefaultCalendarImpactCriteria())
-        : null;
+      const impact =
+        Number(updated[0].is_default || 0) === 1
+          ? await SchedulingService.analyzeCalendarImpact(getDefaultCalendarImpactCriteria())
+          : null;
 
       ResponseHandler.success(res, { calendar: updated[0], impact }, '班次配置更新成功');
     } catch (error) {
@@ -258,7 +313,10 @@ module.exports = {
       const { id } = req.params;
 
       // 先检查目标是否存在
-      const [target] = await connection.query('SELECT id, name FROM production_calendar WHERE id = ?', [id]);
+      const [target] = await connection.query(
+        'SELECT id, name FROM production_calendar WHERE id = ?',
+        [id]
+      );
       if (target.length === 0) {
         await connection.rollback();
         return ResponseHandler.error(res, '班次不存在', 'NOT_FOUND', 404);
@@ -267,9 +325,15 @@ module.exports = {
       // 清除其他默认
       await connection.query('UPDATE production_calendar SET is_default = 0 WHERE is_default = 1');
       // 设置新默认
-      await connection.query('UPDATE production_calendar SET is_default = 1, updated_at = NOW() WHERE id = ?', [id]);
+      await connection.query(
+        'UPDATE production_calendar SET is_default = 1, updated_at = NOW() WHERE id = ?',
+        [id]
+      );
 
-      const impact = await SchedulingService.analyzeCalendarImpact(getDefaultCalendarImpactCriteria(), connection);
+      const impact = await SchedulingService.analyzeCalendarImpact(
+        getDefaultCalendarImpactCriteria(),
+        connection
+      );
 
       await connection.commit();
       ResponseHandler.success(res, { impact }, `已将「${target[0].name}」设为默认班次`);
@@ -291,7 +355,12 @@ module.exports = {
       const { month } = req.query; // 格式 YYYY-MM
       const range = getMonthRange(month);
       if (!range) {
-        return ResponseHandler.error(res, '请提供 month 参数，格式 YYYY-MM', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(
+          res,
+          '请提供 month 参数，格式 YYYY-MM',
+          'VALIDATION_ERROR',
+          400
+        );
       }
       const [rows] = await pool.query(
         `SELECT id, DATE_FORMAT(calendar_date, '%Y-%m-%d') AS calendar_date, is_workday, work_start, work_end, break_start, break_end, dinner_start, dinner_end, label
@@ -331,7 +400,12 @@ module.exports = {
         }
         if (!isValidDateOnly(item.calendar_date)) {
           await connection.rollback();
-          return ResponseHandler.error(res, 'calendar_date 格式不正确，应为 YYYY-MM-DD', 'VALIDATION_ERROR', 400);
+          return ResponseHandler.error(
+            res,
+            'calendar_date 格式不正确，应为 YYYY-MM-DD',
+            'VALIDATION_ERROR',
+            400
+          );
         }
 
         const isWorkday = normalizeWorkdayFlag(item.is_workday);
@@ -340,14 +414,17 @@ module.exports = {
           return ResponseHandler.error(res, 'is_workday 必须为布尔值', 'VALIDATION_ERROR', 400);
         }
 
-        const overrideValidationError = validateTimePairs({
-          work_start: item.work_start,
-          work_end: item.work_end,
-          break_start: item.break_start,
-          break_end: item.break_end,
-          dinner_start: item.dinner_start,
-          dinner_end: item.dinner_end,
-        }, false);
+        const overrideValidationError = validateTimePairs(
+          {
+            work_start: item.work_start,
+            work_end: item.work_end,
+            break_start: item.break_start,
+            break_end: item.break_end,
+            dinner_start: item.dinner_start,
+            dinner_end: item.dinner_end,
+          },
+          false
+        );
         if (overrideValidationError) {
           await connection.rollback();
           return ResponseHandler.error(res, overrideValidationError, 'VALIDATION_ERROR', 400);
@@ -391,9 +468,12 @@ module.exports = {
         affectedDates.push(item.calendar_date);
       }
 
-      const impact = await SchedulingService.analyzeCalendarImpact({
-        dates: [...new Set(affectedDates)],
-      }, connection);
+      const impact = await SchedulingService.analyzeCalendarImpact(
+        {
+          dates: [...new Set(affectedDates)],
+        },
+        connection
+      );
 
       await connection.commit();
       ResponseHandler.success(res, { savedCount, impact }, `成功保存 ${savedCount} 条日历覆盖`);
@@ -412,7 +492,12 @@ module.exports = {
     try {
       const { date } = req.params;
       if (!isValidDateOnly(date)) {
-        return ResponseHandler.error(res, '日期格式不正确，应为 YYYY-MM-DD', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(
+          res,
+          '日期格式不正确，应为 YYYY-MM-DD',
+          'VALIDATION_ERROR',
+          400
+        );
       }
       await pool.query('DELETE FROM production_calendar_overrides WHERE calendar_date = ?', [date]);
       const impact = await SchedulingService.analyzeCalendarImpact({ dates: [date] });
@@ -430,7 +515,13 @@ module.exports = {
       const impact = await SchedulingService.analyzeCalendarImpact(req.body || {});
       ResponseHandler.success(res, impact, '日历影响分析完成');
     } catch (error) {
-      ResponseHandler.error(res, error.message, 'ERROR', error.httpStatus || error.statusCode || 500, error);
+      ResponseHandler.error(
+        res,
+        error.message,
+        'ERROR',
+        error.httpStatus || error.statusCode || 500,
+        error
+      );
     }
   },
 
@@ -440,14 +531,18 @@ module.exports = {
   recalculateCalendarImpact: async (req, res) => {
     try {
       const criteria = { ...(req.body || {}) };
-      const requestedIds = Array.isArray(criteria.taskIds)
-        ? criteria.taskIds
-        : [];
+      const requestedIds = Array.isArray(criteria.taskIds) ? criteria.taskIds : [];
       await assertProductionTaskWriteAccessMany(req, requestedIds);
       const result = await SchedulingService.rescheduleCalendarImpact(criteria);
       ResponseHandler.success(res, result, '受影响任务已重排');
     } catch (error) {
-      ResponseHandler.error(res, error.message, 'ERROR', error.httpStatus || error.statusCode || 500, error);
+      ResponseHandler.error(
+        res,
+        error.message,
+        'ERROR',
+        error.httpStatus || error.statusCode || 500,
+        error
+      );
     }
   },
 
@@ -458,18 +553,23 @@ module.exports = {
     try {
       const { taskIds, groups, startTime } = req.body;
       const hasTaskIds = Array.isArray(taskIds) && taskIds.length > 0;
-      const hasGroups = Array.isArray(groups) && groups.some(
-        (group) => Array.isArray(group?.taskIds) && group.taskIds.length > 0
-      );
+      const hasGroups =
+        Array.isArray(groups) &&
+        groups.some((group) => Array.isArray(group?.taskIds) && group.taskIds.length > 0);
       if ((!hasTaskIds && !hasGroups) || !startTime) {
-        return ResponseHandler.error(res, '缺少参数: taskIds/groups, startTime', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(
+          res,
+          '缺少参数: taskIds/groups, startTime',
+          'VALIDATION_ERROR',
+          400
+        );
       }
       const submittedTaskIds = hasTaskIds
         ? taskIds
-        : groups.flatMap((group) => Array.isArray(group?.taskIds) ? group.taskIds : []);
+        : groups.flatMap((group) => (Array.isArray(group?.taskIds) ? group.taskIds : []));
       await assertProductionTaskWriteAccessMany(req, submittedTaskIds);
       const result = await SchedulingService.batchSchedule({
-        taskIds: hasTaskIds ? taskIds.map(id => parseInt(id)) : undefined,
+        taskIds: hasTaskIds ? taskIds.map((id) => parseInt(id)) : undefined,
         groups: hasGroups
           ? groups.map((group) => ({
               name: group.name,
@@ -480,7 +580,13 @@ module.exports = {
       });
       ResponseHandler.success(res, result);
     } catch (error) {
-      ResponseHandler.error(res, error.message, 'ERROR', error.httpStatus || error.statusCode || 500, error);
+      ResponseHandler.error(
+        res,
+        error.message,
+        'ERROR',
+        error.httpStatus || error.statusCode || 500,
+        error
+      );
     }
   },
 
@@ -492,7 +598,13 @@ module.exports = {
       const data = await SchedulingService.getGanttData(req.query);
       return ResponseHandler.success(res, data);
     } catch (error) {
-      ResponseHandler.error(res, error.message, 'ERROR', error.httpStatus || error.statusCode || 500, error);
+      ResponseHandler.error(
+        res,
+        error.message,
+        'ERROR',
+        error.httpStatus || error.statusCode || 500,
+        error
+      );
     }
   },
 };

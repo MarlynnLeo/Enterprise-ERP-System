@@ -227,6 +227,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -392,7 +393,7 @@ const handleUpgrade = async (row) => {
     currentEditBom.value = bomData;
     dialogVisible.value = true;
   } catch (error) {
-    ElMessage.error(error.message || '升版操作失败');
+    ElMessage.error(getApiErrorMessage(error, '升版操作失败'));
   }
 };
 
@@ -459,7 +460,7 @@ const handleDelete = async (row) => {
     ElMessage.success('删除成功');
     fetchData();
   } catch (error) {
-    ElMessage.error(error.message || '删除失败');
+    ElMessage.error(getApiErrorMessage(error, '删除失败'));
   }
 };
 
@@ -469,7 +470,7 @@ const handleApprove = async (row) => {
     ElMessage.success('审核成功');
     fetchData();
   } catch (error) {
-    ElMessage.error(error.message || '审核失败');
+    ElMessage.error(getApiErrorMessage(error, '审核失败'));
   }
 };
 
@@ -479,7 +480,7 @@ const handleUnapprove = async (row) => {
     ElMessage.success('反审成功');
     fetchData();
   } catch (error) {
-    ElMessage.error(error.message || '反审失败');
+    ElMessage.error(getApiErrorMessage(error, '反审失败'));
   }
 };
 
@@ -573,7 +574,7 @@ const handleImportBom = () => {
       fetchData();
     } catch (error) {
       console.error('导入BOM失败:', error);
-      ElMessage.error(error.response?.data?.message || '导入BOM失败');
+      ElMessage.error(getApiErrorMessage(error, '导入BOM失败'));
     }
   };
   input.click();
@@ -711,7 +712,7 @@ const executeCopyBom = async () => {
     const newBom = {
       product_id: copyTargetProductId.value,
       version: copyTargetVersion.value,
-      remark: `复制自 BOM #${bomId} (${bomData.productCode || ''} ${bomData.version || ''})`
+      remark: `复制自 BOM${bomData.productCode || bomData.version ? `（${[bomData.productCode, bomData.version].filter(Boolean).join(' ')}）` : ''}`
     };
 
     const details = Array.isArray(bomData.details) ? bomData.details.map(d => ({
@@ -730,7 +731,7 @@ const executeCopyBom = async () => {
     fetchData();
   } catch (error) {
     console.error('复制BOM失败:', error);
-    ElMessage.error(error.response?.data?.message || error.message || '复制BOM失败');
+    ElMessage.error(getApiErrorMessage(error, '复制BOM失败'));
   } finally {
     copyLoading.value = false;
   }
@@ -759,7 +760,7 @@ const handleReplaceBom = async () => {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('替换物料失败:', error);
-      ElMessage.error(error.response?.data?.message || '替换物料失败');
+      ElMessage.error(getApiErrorMessage(error, '替换物料失败'));
     }
   }
 };

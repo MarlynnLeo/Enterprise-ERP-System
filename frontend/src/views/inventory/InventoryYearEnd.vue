@@ -243,6 +243,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
@@ -370,7 +371,7 @@ const handlePreview = async (openDialog = true) => {
     return previewData.value
   } catch (error) {
     console.error('获取年度库存结存预览失败:', error)
-    ElMessage.error(error.response?.data?.message || error.message || '获取年度库存结存预览失败')
+    ElMessage.error(getApiErrorMessage(error, '获取年度库存结存预览失败'))
     return null
   } finally {
     previewLoading.value = false
@@ -414,7 +415,7 @@ const handleExecute = async () => {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('执行年度结存失败:', error)
-      ElMessage.error(error.response?.data?.message || error.message || '执行年度结存失败')
+      ElMessage.error(getApiErrorMessage(error, '执行年度结存失败'))
     }
   } finally {
     executeLoading.value = false
@@ -442,7 +443,7 @@ const handleFreeze = async () => {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('冻结年度结存失败:', error)
-      ElMessage.error(error.response?.data?.message || error.message || '冻结年度结存失败')
+      ElMessage.error(getApiErrorMessage(error, '冻结年度结存失败'))
     }
   } finally {
     freezeLoading.value = false
@@ -473,7 +474,7 @@ const handleUnfreeze = async () => {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('反冻结年度库存结存失败:', error)
-      ElMessage.error(error.response?.data?.message || error.message || '反冻结年度库存结存失败')
+      ElMessage.error(getApiErrorMessage(error, '反冻结年度库存结存失败'))
     }
   } finally {
     unfreezeLoading.value = false

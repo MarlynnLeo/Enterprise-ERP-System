@@ -92,7 +92,21 @@ class DocumentLinkService {
   /**
    * 创建单据关联
    */
-  async createLink({ source_type, source_id, source_code, target_type, target_id, target_code, link_type = 'generate', remark, created_by }, conn = null, options = {}) {
+  async createLink(
+    {
+      source_type,
+      source_id,
+      source_code,
+      target_type,
+      target_id,
+      target_code,
+      link_type = 'generate',
+      remark,
+      created_by,
+    },
+    conn = null,
+    options = {}
+  ) {
     if (!ALLOWED_LINK_TYPES.has(link_type)) {
       throw new Error(`不支持的单据关联类型: ${link_type}`);
     }
@@ -105,12 +119,30 @@ class DocumentLinkService {
     const normalizedSourceId = normalizeBusinessId(source_id);
     const normalizedTargetId = normalizeBusinessId(target_id);
     if (!normalizedSourceId || !normalizedTargetId) {
-      throw Object.assign(new Error('单据关联的源/目标 ID 无效'), { code: 'INVALID_DOCUMENT_LINK_ID', statusCode: 400 });
+      throw Object.assign(new Error('单据关联的源和目标无效'), {
+        code: 'INVALID_DOCUMENT_LINK_ID',
+        statusCode: 400,
+      });
     }
     if (options.req) {
-      if (!(await this.assertLinkEndpointAccess(options.req, source_type, normalizedSourceId, 'write')) ||
-          !(await this.assertLinkEndpointAccess(options.req, target_type, normalizedTargetId, 'write'))) {
-        throw Object.assign(new Error('无权关联该源或目标单据'), { code: 'DOCUMENT_LINK_ACCESS_DENIED', statusCode: 403 });
+      if (
+        !(await this.assertLinkEndpointAccess(
+          options.req,
+          source_type,
+          normalizedSourceId,
+          'write'
+        )) ||
+        !(await this.assertLinkEndpointAccess(
+          options.req,
+          target_type,
+          normalizedTargetId,
+          'write'
+        ))
+      ) {
+        throw Object.assign(new Error('无权关联该源或目标单据'), {
+          code: 'DOCUMENT_LINK_ACCESS_DENIED',
+          statusCode: 403,
+        });
       }
     }
 
@@ -118,8 +150,17 @@ class DocumentLinkService {
     await db.query(
       `INSERT IGNORE INTO document_links (source_type, source_id, source_code, target_type, target_id, target_code, link_type, remark, created_by)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [source_type, normalizedSourceId, source_code || null, target_type, normalizedTargetId, target_code || null, link_type, remark || null,
-        options.req?.user?.id || options.req?.user?.userId || created_by || null]
+      [
+        source_type,
+        normalizedSourceId,
+        source_code || null,
+        target_type,
+        normalizedTargetId,
+        target_code || null,
+        link_type,
+        remark || null,
+        options.req?.user?.id || options.req?.user?.userId || created_by || null,
+      ]
     );
   }
 
@@ -138,10 +179,24 @@ class DocumentLinkService {
   async getLinks(businessType, businessId, options = {}) {
     const normalizedBusinessId = normalizeBusinessId(businessId);
     if (!isKnownDocumentLinkType(businessType) || !normalizedBusinessId) {
-      throw Object.assign(new Error('无效的单据类型或 ID'), { code: 'INVALID_DOCUMENT_LINK_QUERY', statusCode: 400 });
+      throw Object.assign(new Error('单据类型或标识无效'), {
+        code: 'INVALID_DOCUMENT_LINK_QUERY',
+        statusCode: 400,
+      });
     }
-    if (options.req && !(await this.assertLinkEndpointAccess(options.req, businessType, normalizedBusinessId, 'read'))) {
-      throw Object.assign(new Error('无权查看该单据关联'), { code: 'DOCUMENT_LINK_ACCESS_DENIED', statusCode: 403 });
+    if (
+      options.req &&
+      !(await this.assertLinkEndpointAccess(
+        options.req,
+        businessType,
+        normalizedBusinessId,
+        'read'
+      ))
+    ) {
+      throw Object.assign(new Error('无权查看该单据关联'), {
+        code: 'DOCUMENT_LINK_ACCESS_DENIED',
+        statusCode: 403,
+      });
     }
     // 正向关联（本单据作为源）
     const [forward] = await pool.query(
@@ -195,13 +250,15 @@ class DocumentLinkService {
 
     const visible = [];
     for (const link of permissionFiltered) {
-      if (await this.assertLinkEndpointAccess(
-        options.req,
-        link.related_type,
-        link.related_id,
-        'read',
-        options.userPermissions
-      )) {
+      if (
+        await this.assertLinkEndpointAccess(
+          options.req,
+          link.related_type,
+          link.related_id,
+          'read',
+          options.userPermissions
+        )
+      ) {
         visible.push(link);
       }
     }
@@ -215,7 +272,10 @@ class DocumentLinkService {
     const options = optionsOrVisited instanceof Set ? {} : optionsOrVisited;
     const visited = optionsOrVisited instanceof Set ? optionsOrVisited : maybeVisited;
 
-    if (Array.isArray(options.userPermissions) && !this.canViewBusinessType(businessType, options.userPermissions)) {
+    if (
+      Array.isArray(options.userPermissions) &&
+      !this.canViewBusinessType(businessType, options.userPermissions)
+    ) {
       return [];
     }
 
@@ -224,12 +284,24 @@ class DocumentLinkService {
     visited.add(key);
 
     const links = await this.getLinks(businessType, businessId, options);
-    const chain = [{ type: businessType, type_label: TYPE_LABELS[businessType] || businessType, id: businessId, links }];
+    const chain = [
+      {
+        type: businessType,
+        type_label: TYPE_LABELS[businessType] || businessType,
+        id: businessId,
+        links,
+      },
+    ];
 
     // 递归（限深度防循环）
     if (visited.size < 20) {
       for (const link of links) {
-        const subChain = await this.getFullChain(link.related_type, link.related_id, options, visited);
+        const subChain = await this.getFullChain(
+          link.related_type,
+          link.related_id,
+          options,
+          visited
+        );
         chain.push(...subChain);
       }
     }
@@ -243,7 +315,10 @@ class DocumentLinkService {
   async deleteLink(id, options = {}) {
     const normalizedId = normalizeBusinessId(id);
     if (!normalizedId) {
-      throw Object.assign(new Error('关联 ID 无效'), { code: 'INVALID_DOCUMENT_LINK_ID', statusCode: 400 });
+      throw Object.assign(new Error('关联参数无效'), {
+        code: 'INVALID_DOCUMENT_LINK_ID',
+        statusCode: 400,
+      });
     }
     if (options.req) {
       const [[link]] = await pool.query(
@@ -254,16 +329,37 @@ class DocumentLinkService {
         [normalizedId]
       );
       if (!link) {
-        throw Object.assign(new Error('单据关联不存在'), { code: 'DOCUMENT_LINK_NOT_FOUND', statusCode: 404 });
+        throw Object.assign(new Error('单据关联不存在'), {
+          code: 'DOCUMENT_LINK_NOT_FOUND',
+          statusCode: 404,
+        });
       }
-      if (!(await this.assertLinkEndpointAccess(options.req, link.source_type, link.source_id, 'write')) ||
-          !(await this.assertLinkEndpointAccess(options.req, link.target_type, link.target_id, 'write'))) {
-        throw Object.assign(new Error('无权删除该单据关联'), { code: 'DOCUMENT_LINK_ACCESS_DENIED', statusCode: 403 });
+      if (
+        !(await this.assertLinkEndpointAccess(
+          options.req,
+          link.source_type,
+          link.source_id,
+          'write'
+        )) ||
+        !(await this.assertLinkEndpointAccess(
+          options.req,
+          link.target_type,
+          link.target_id,
+          'write'
+        ))
+      ) {
+        throw Object.assign(new Error('无权删除该单据关联'), {
+          code: 'DOCUMENT_LINK_ACCESS_DENIED',
+          statusCode: 403,
+        });
       }
     }
     const [result] = await pool.query('DELETE FROM document_links WHERE id = ?', [normalizedId]);
     if (!result.affectedRows && options.req) {
-      throw Object.assign(new Error('单据关联不存在'), { code: 'DOCUMENT_LINK_NOT_FOUND', statusCode: 404 });
+      throw Object.assign(new Error('单据关联不存在'), {
+        code: 'DOCUMENT_LINK_NOT_FOUND',
+        statusCode: 404,
+      });
     }
   }
 
@@ -285,11 +381,19 @@ class DocumentLinkService {
    */
   async tryAutoLink(srcType, srcId, srcCode, tgtType, tgtId, tgtCode, userId, conn) {
     try {
-      await this.createLink({
-        source_type: srcType, source_id: srcId, source_code: srcCode,
-        target_type: tgtType, target_id: tgtId, target_code: tgtCode,
-        link_type: 'generate', created_by: userId,
-      }, conn);
+      await this.createLink(
+        {
+          source_type: srcType,
+          source_id: srcId,
+          source_code: srcCode,
+          target_type: tgtType,
+          target_id: tgtId,
+          target_code: tgtCode,
+          link_type: 'generate',
+          created_by: userId,
+        },
+        conn
+      );
     } catch (e) {
       const DLQService = require('./DLQService');
       await DLQService.recordSideEffectFailure(

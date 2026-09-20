@@ -86,14 +86,14 @@ async function assertAssignableRoleIds(connection, roleIds, options = {}) {
   const existingIds = new Set(roles.map((role) => Number(role.id)));
   const missingIds = roleIds.filter((roleId) => !existingIds.has(roleId));
   if (missingIds.length > 0) {
-    throw new Error(`invalid roleIds: ${missingIds.join(',')}`);
+    throw new Error('包含不存在的系统角色，请刷新后重试');
   }
 
   const disabledIds = roles
     .filter((role) => Number(role.status) !== 1)
     .map((role) => Number(role.id));
   if (disabledIds.length > 0) {
-    throw new Error(`invalid roleIds: disabled roles ${disabledIds.join(',')}`);
+    throw new Error('包含已停用的系统角色，请重新选择');
   }
 
   const adminIds = roles
@@ -117,7 +117,7 @@ async function assertExistingMenuIds(connection, menuIds) {
   const existingIds = new Set(menus.map((menu) => Number(menu.id)));
   const missingIds = menuIds.filter((menuId) => !existingIds.has(menuId));
   if (missingIds.length > 0) {
-    throw new Error(`invalid menuIds: ${missingIds.join(',')}`);
+    throw new Error('包含不存在的菜单权限，请刷新后重试');
   }
 
   return menus;

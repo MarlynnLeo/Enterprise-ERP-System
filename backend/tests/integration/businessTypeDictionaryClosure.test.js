@@ -1,5 +1,6 @@
 const { authRequest, clearCache } = require('../testHelper');
 const db = require('../../src/config/db');
+const { ensureCurrentAccountingPeriod } = require('../accountingPeriodFixture');
 
 describe('business type dictionary consumer closure', () => {
   let api;
@@ -20,6 +21,7 @@ describe('business type dictionary consumer closure', () => {
     const prefix = `BT-${Date.now()}`;
     connection = await db.pool.getConnection();
     await connection.beginTransaction();
+    await ensureCurrentAccountingPeriod(connection);
     const [location] = await connection.query("INSERT INTO locations (code, name, type, status) VALUES (?, ?, 'warehouse', 1)", [prefix, prefix]);
     const [unit] = await connection.query('INSERT INTO units (code, name) VALUES (?, ?)', [prefix, '件']);
     const [material] = await connection.query('INSERT INTO materials (code, name, location_id, unit_id) VALUES (?, ?, ?, ?)', [prefix, prefix, location.insertId, unit.insertId]);

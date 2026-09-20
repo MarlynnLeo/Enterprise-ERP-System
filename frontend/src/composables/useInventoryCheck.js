@@ -5,6 +5,7 @@
  */
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { inventoryApi } from '@/api'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 
 /**
  * 库存充足性检查
@@ -35,7 +36,7 @@ export async function checkInventory(items) {
     return response.data || []
   } catch (error) {
     console.error('❌ 检查库存时出错:', error)
-    ElMessage.error(`检查库存失败: ${error.message || '网络错误'}`)
+    ElMessage.error(`检查库存失败：${getApiErrorMessage(error, '网络错误')}`)
     return []
   }
 }

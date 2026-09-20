@@ -59,10 +59,7 @@ fs.readdirSync(__dirname)
   });
 
 // 然后加载其他类型的模型
-const otherModels = [
-  'qualityInspection.js',
-  'qualityStandard.js',
-];
+const otherModels = ['qualityInspection.js', 'qualityStandard.js'];
 
 otherModels.forEach((file) => {
   if (fs.existsSync(path.join(__dirname, file))) {

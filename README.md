@@ -83,7 +83,7 @@ KACON ERP 以工厂真实业务流程为主线，把订单、物料、生产、�
 
 ### 1. 环境要求
 
-- Node.js 20+（推荐 22）
+- Node.js 20.19+ 或 22.12+（推荐 22 LTS）
 - MySQL 8+
 - Redis 7+（可按环境关闭，但生产建议开启）
 - npm
@@ -179,6 +179,11 @@ node scripts/deploy_to_server.js --frontend-only --ref=<已审核提交>
 每次发布会校验归档 SHA-256、服务器当前版本与 Git 祖先关系；旧提交、分叉提交、
 并发发布和预检后服务器版本发生变化的发布会被拒绝。同一发布号的镜像只构建一次，
 再次执行会复用已校验镜像。前端构建必须通过菜单、列宽和缓存恢复的回归测试。
+
+两端镜像会将 Nginx 静态目录设为 `755`、文件设为 `644`，防止发布归档在
+`umask 077` 下解压后，`public` 图片因保留 `600` 权限而返回 403。前端候选检查
+使用 `nginx` 用户读取静态资源，健康检查同时访问默认头像框图片；部署目录与
+环境文件继续使用原有受限权限。
 
 所有候选镜像验证通过后才切换源码和发布标签。切换过程中的迁移、容器启动、健康检查
 或版本核验失败，会恢复上一次源码、环境文件、发布清单和原镜像，并记录失败阶段。
@@ -286,25 +291,45 @@ npm run build:mobile
 2. **库存数量变更统一经库存服务**，避免直接插入台账旁路
 3. **财务凭证金额、借贷必须平衡**，合并凭证需与业务价税合计一致
 4. **权限校验前后端双重控制**：接口鉴权 + 菜单/按钮显隐
-5. **生产部署前建议至少执行**：lint、tests、migrations:verify、build
+5. **生产部署前执行检查**：lint、format:check、tests、migrations:verify、build；CI 同时检查后端格式
+6. **生成的审计 JSON 写入各端 `reports/`**，不提交一次性改写脚本或历史生成结果；`npm run check:repository` 检查脚本入口与遗留产物
 
 ---
 
 ## 测试
 
-后端测试基于 Jest，默认使用独立测试库（如 `erp_test`），不会直接写生产库：
+先运行仓库静态检查与发布事务回归：
+
+```bash
+npm run lint
+npm run test:release
+```
+
+发布事务回归使用隔离命令替身，需要 Bash 和 Python 3；Windows 可通过
+`ERP_TEST_BASH`、`ERP_TEST_PYTHON` 指定解释器路径。
+
+后端测试基于 Jest。数据库集成测试必须先配置专用测试库（如 `erp_test`）并完成迁移、种子初始化，连接配置不得指向实际业务库：
 
 ```bash
 cd backend
 npm test
 ```
 
-前端测试：
+仅运行后端单元测试：
+
+```bash
+cd backend
+node node_modules/jest/bin/jest.js --runInBand --testPathPattern=tests/unit
+```
+
+PC 前端测试（移动端在 `mobile` 目录执行相同命令）：
 
 ```bash
 cd frontend
 npm test
 ```
+
+本轮审计范围、修复、清理和验证限制见 [全站审计报告](AUDIT_REPORT.md)。
 
 ---
 

@@ -14,6 +14,7 @@ import { loadCustomerPageOptions, searchCustomerPageOptions } from '@/utils/opti
 import { checkInventory } from '@/composables/useInventoryCheck'
 import { useFinanceStore } from '@/stores/finance'
 import { storeToRefs } from 'pinia'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 
 /** 默认交期天数 */
 const DEFAULT_DELIVERY_DAYS = 21
@@ -317,7 +318,7 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
     const materialId = Number(item.id)
     if (!materialId || isNaN(materialId)) {
       console.error('物料ID无效:', item.id)
-      ElMessage.error('物料ID无效，请重新选择')
+      ElMessage.error('所选物料无效，请重新选择')
       return
     }
     form.items[index].materialId = materialId
@@ -540,21 +541,14 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
       } catch (error) {
         const action = dialogType.value === 'edit' ? '更新' : '创建'
         console.error(`${action}订单失败:`, error)
-        const errorData = error.response?.data
-        const errorMessage =
-          errorData?.message ||
-          errorData?.error?.message ||
-          errorData?.error ||
-          error.message ||
-          '未知错误'
-        ElMessage.error(`${action}订单失败: ${errorMessage}`)
+        ElMessage.error(`${action}订单失败: ${getApiErrorMessage(error, '操作失败')}`)
       } finally {
         dialogLoading.value = false
         if (orderSaved && fetchDataCallback) await fetchDataCallback()
       }
     } catch (error) {
       console.error('提交过程中发生错误:', error)
-      ElMessage.error('提交过程中发生错误: ' + (error.message || '未知错误'))
+      ElMessage.error('提交过程中发生错误: ' + (getApiErrorMessage(error, '未知错误')))
     }
   }
 

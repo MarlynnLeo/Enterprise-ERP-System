@@ -17,8 +17,7 @@ const { getRedisClient } = require('../config/redisClient');
 const { ResponseHandler } = require('../utils/responseHandler');
 
 const ALLOW_MEMORY_FALLBACK =
-  process.env.NODE_ENV !== 'production' ||
-  process.env.RATE_LIMIT_ALLOW_MEMORY_FALLBACK === 'true';
+  process.env.NODE_ENV !== 'production' || process.env.RATE_LIMIT_ALLOW_MEMORY_FALLBACK === 'true';
 
 /**
  * 为指定配置创建 RedisStore（每个 limiter 独立实例）
@@ -87,43 +86,32 @@ async function initLimiters() {
   }
 
   // 通用 API 限流器 — 独立 prefix: rl:api:
-  _apiLimiter = buildLimiter(
-    RATE_LIMIT_CONFIG.global,
-    redisClient,
-    'rl:api:',
-    {
-      skip: RATE_LIMIT_CONFIG.global.skip,
-      handler: (req, res, _next, options) => {
-        logger.warn(`API Rate Limit Exceeded: ${req.ip} -> ${req.originalUrl}`);
-        ResponseHandler.error(
-          res,
-          options.message?.message || '请求过于频繁，请稍后再试',
-          options.message?.code || 'RATE_LIMIT_EXCEEDED',
-          options.statusCode
-        );
-      },
-    }
-  );
+  _apiLimiter = buildLimiter(RATE_LIMIT_CONFIG.global, redisClient, 'rl:api:', {
+    skip: RATE_LIMIT_CONFIG.global.skip,
+    handler: (req, res, _next, options) => {
+      logger.warn(`API Rate Limit Exceeded: ${req.ip} -> ${req.originalUrl}`);
+      ResponseHandler.error(
+        res,
+        options.message?.message || '请求过于频繁，请稍后再试',
+        options.message?.code || 'RATE_LIMIT_EXCEEDED',
+        options.statusCode
+      );
+    },
+  });
 
   // 登录/认证限流器 — 独立 prefix: rl:auth:
-  _authLimiter = buildLimiter(
-    RATE_LIMIT_CONFIG.login,
-    redisClient,
-    'rl:auth:',
-    {
-      skipSuccessfulRequests: RATE_LIMIT_CONFIG.login.skipSuccessfulRequests,
-      handler: (req, res, _next, options) => {
-        logger.warn(`Auth Rate Limit Exceeded: ${req.ip}`);
-        ResponseHandler.error(
-          res,
-          options.message?.message || '登录尝试次数过多，请稍后再试',
-          options.message?.code || 'AUTH_RATE_LIMIT_EXCEEDED',
-          options.statusCode
-        );
-      },
-    }
-  );
-
+  _authLimiter = buildLimiter(RATE_LIMIT_CONFIG.login, redisClient, 'rl:auth:', {
+    skipSuccessfulRequests: RATE_LIMIT_CONFIG.login.skipSuccessfulRequests,
+    handler: (req, res, _next, options) => {
+      logger.warn(`Auth Rate Limit Exceeded: ${req.ip}`);
+      ResponseHandler.error(
+        res,
+        options.message?.message || '登录尝试次数过多，请稍后再试',
+        options.message?.code || 'AUTH_RATE_LIMIT_EXCEEDED',
+        options.statusCode
+      );
+    },
+  });
 }
 
 // 启动时异步初始化

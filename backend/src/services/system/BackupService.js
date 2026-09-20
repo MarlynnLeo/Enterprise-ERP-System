@@ -12,8 +12,14 @@ const {
 } = require('../../utils/backupCrypto');
 
 const BACKUP_DIR = path.resolve(process.env.BACKUP_DIR || path.join(__dirname, '../../../backups'));
-const BACKUP_RETENTION_DAYS = Math.max(1, Number.parseInt(process.env.BACKUP_RETENTION_DAYS, 10) || 30);
-const BACKUP_RETENTION_COUNT = Math.max(1, Number.parseInt(process.env.BACKUP_RETENTION_COUNT, 10) || 30);
+const BACKUP_RETENTION_DAYS = Math.max(
+  1,
+  Number.parseInt(process.env.BACKUP_RETENTION_DAYS, 10) || 30
+);
+const BACKUP_RETENTION_COUNT = Math.max(
+  1,
+  Number.parseInt(process.env.BACKUP_RETENTION_COUNT, 10) || 30
+);
 
 function quoteIdentifier(identifier) {
   return `\`${String(identifier).replace(/`/g, '``')}\``;
@@ -47,7 +53,6 @@ async function ensureBackupTable() {
       INDEX idx_status (status)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统数据库备份记录'
   `);
-
 }
 
 async function writeLine(stream, line = '') {
@@ -83,7 +88,7 @@ function isStatementBalanced(sql) {
       continue;
     }
 
-    if (char === '\'' || char === '"') {
+    if (char === "'" || char === '"') {
       quote = char;
     } else if (char === '(') {
       parenDepth += 1;
@@ -122,8 +127,10 @@ async function scanBackupSql(filePath) {
 
     const normalized = statement.trim();
     checks.statementCount += 1;
-    checks.hasForeignKeyOff = checks.hasForeignKeyOff || /SET\s+FOREIGN_KEY_CHECKS\s*=\s*0/i.test(normalized);
-    checks.hasForeignKeyOn = checks.hasForeignKeyOn || /SET\s+FOREIGN_KEY_CHECKS\s*=\s*1/i.test(normalized);
+    checks.hasForeignKeyOff =
+      checks.hasForeignKeyOff || /SET\s+FOREIGN_KEY_CHECKS\s*=\s*0/i.test(normalized);
+    checks.hasForeignKeyOn =
+      checks.hasForeignKeyOn || /SET\s+FOREIGN_KEY_CHECKS\s*=\s*1/i.test(normalized);
     if (/^CREATE\s+TABLE/i.test(normalized)) checks.tableCount += 1;
     if (/^INSERT\s+INTO/i.test(normalized)) checks.insertCount += 1;
     if (!isStatementBalanced(normalized)) checks.hasInvalidStatement = true;
@@ -219,7 +226,11 @@ class BackupService {
        WHERE status = 'failed' AND created_at < DATE_SUB(NOW(), INTERVAL ? DAY)`,
       [BACKUP_RETENTION_DAYS]
     );
-    return { deleted, retention_days: BACKUP_RETENTION_DAYS, retention_count: BACKUP_RETENTION_COUNT };
+    return {
+      deleted,
+      retention_days: BACKUP_RETENTION_DAYS,
+      retention_count: BACKUP_RETENTION_COUNT,
+    };
   }
 
   async createBackup(createdBy) {
@@ -254,7 +265,9 @@ class BackupService {
       }
 
       await writeLine(stream, 'SET FOREIGN_KEY_CHECKS=1;');
-      await new Promise((resolve, reject) => stream.end((error) => (error ? reject(error) : resolve())));
+      await new Promise((resolve, reject) =>
+        stream.end((error) => (error ? reject(error) : resolve()))
+      );
 
       if (encrypted) {
         await encryptFile(plainPath, filePath);
@@ -276,7 +289,15 @@ class BackupService {
         `INSERT INTO system_backups
            (filename, file_path, file_size, checksum, status, encrypted, encryption_algorithm, created_by)
          VALUES (?, ?, ?, ?, 'success', ?, ?, ?)`,
-        [filename, filePath, fileSize, checksum, encrypted ? 1 : 0, encrypted ? 'aes-256-gcm' : null, createdBy || null]
+        [
+          filename,
+          filePath,
+          fileSize,
+          checksum,
+          encrypted ? 1 : 0,
+          encrypted ? 'aes-256-gcm' : null,
+          createdBy || null,
+        ]
       );
 
       let retention;
@@ -307,7 +328,14 @@ class BackupService {
         `INSERT INTO system_backups
            (filename, file_path, file_size, status, encrypted, encryption_algorithm, message, created_by)
          VALUES (?, ?, 0, 'failed', ?, ?, ?, ?)`,
-        [filename, filePath, encrypted ? 1 : 0, encrypted ? 'aes-256-gcm' : null, error.message, createdBy || null]
+        [
+          filename,
+          filePath,
+          encrypted ? 1 : 0,
+          encrypted ? 'aes-256-gcm' : null,
+          error.message,
+          createdBy || null,
+        ]
       );
       throw error;
     }
@@ -355,7 +383,8 @@ class BackupService {
     const checksum = await sha256File(backup.file_path);
     let scanPath = backup.file_path;
     let temporaryPlainPath = null;
-    const encrypted = Boolean(Number(backup.encrypted)) || await isEncryptedBackup(backup.file_path);
+    const encrypted =
+      Boolean(Number(backup.encrypted)) || (await isEncryptedBackup(backup.file_path));
     if (encrypted) {
       temporaryPlainPath = path.join(BACKUP_DIR, `.verify_${crypto.randomUUID()}.sql`);
       try {

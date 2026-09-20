@@ -34,7 +34,16 @@ module.exports = {
     } catch (error) {
       logger.error('创建技能失败:', error);
       const isDuplicate = error.message?.includes('Duplicate');
-      ResponseHandler.error(res, isDuplicate ? '该员工已有同名技能记录' : (error.message || '创建失败'), isDuplicate ? 'VALIDATION_ERROR' : (error.statusCode === 403 ? 'FORBIDDEN' : 'OPERATION_ERROR'), isDuplicate ? 400 : (error.statusCode || 500));
+      ResponseHandler.error(
+        res,
+        isDuplicate ? '该员工已有同名技能记录' : error.message || '创建失败',
+        isDuplicate
+          ? 'VALIDATION_ERROR'
+          : error.statusCode === 403
+            ? 'FORBIDDEN'
+            : 'OPERATION_ERROR',
+        isDuplicate ? 400 : error.statusCode || 500
+      );
     }
   },
 
@@ -45,7 +54,12 @@ module.exports = {
       ResponseHandler.success(res, data, '更新成功');
     } catch (error) {
       logger.error('更新技能失败:', error);
-      ResponseHandler.error(res, error.message || '更新失败', error.statusCode === 403 ? 'FORBIDDEN' : 'OPERATION_ERROR', error.statusCode || 500);
+      ResponseHandler.error(
+        res,
+        error.message || '更新失败',
+        error.statusCode === 403 ? 'FORBIDDEN' : 'OPERATION_ERROR',
+        error.statusCode || 500
+      );
     }
   },
 
@@ -55,7 +69,12 @@ module.exports = {
       ResponseHandler.success(res, null, '删除成功');
     } catch (error) {
       logger.error('删除技能失败:', error);
-      ResponseHandler.error(res, error.message || '删除失败', error.statusCode === 403 ? 'FORBIDDEN' : 'OPERATION_ERROR', error.statusCode || 500);
+      ResponseHandler.error(
+        res,
+        error.message || '删除失败',
+        error.statusCode === 403 ? 'FORBIDDEN' : 'OPERATION_ERROR',
+        error.statusCode || 500
+      );
     }
   },
 

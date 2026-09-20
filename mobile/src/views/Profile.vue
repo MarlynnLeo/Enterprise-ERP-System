@@ -154,6 +154,7 @@ import { showConfirmDialog, showToast, showLoadingToast, closeToast } from 'vant
 import { useAuthStore } from '@/stores/auth'
 import { authApi, productionApi } from '@/api'
 import dayjs from 'dayjs'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -228,7 +229,7 @@ const handleFileChange = async (event) => {
     if (fileInput.value) fileInput.value.value = ''
   } catch (error) {
     closeToast()
-    showToast({ type: 'fail', message: error?.response?.data?.message || '头像上传失败' })
+    showToast({ type: 'fail', message: getApiErrorMessage(error, '头像上传失败') })
   }
 }
 

@@ -160,7 +160,10 @@ class InventoryYearEndService {
           key: 'has_rows',
           name: '存在可结存数据',
           passed: rows.length > 0,
-          message: rows.length > 0 ? `预计生成 ${rows.length} 条结存记录` : '没有可结存的库存流水或期初记录',
+          message:
+            rows.length > 0
+              ? `预计生成 ${rows.length} 条结存记录`
+              : '没有可结存的库存流水或期初记录',
         },
         {
           key: 'negative_closing',
@@ -241,7 +244,9 @@ class InventoryYearEndService {
       );
 
       if ((parseInt(nextYearRecords[0].count, 10) || 0) > 0) {
-        throw new Error(`${nextYear}年度已存在结存记录，请先删除${nextYear}年度结存后再重新执行${year}年度结存`);
+        throw new Error(
+          `${nextYear}年度已存在结存记录，请先删除${nextYear}年度结存后再重新执行${year}年度结存`
+        );
       }
 
       await connection.execute(
@@ -300,6 +305,9 @@ class InventoryYearEndService {
         SELECT
           k.material_id,
           k.location_id,
+          m.code as material_code,
+          m.name as material_name,
+          l.name as location_name,
           COALESCE(pf.closing_quantity, pl.opening_qty, 0) as opening_qty,
           COALESCE(pf.closing_value, pl.opening_value, 0) as opening_value,
           COALESCE(cl.inbound_qty, 0) as inbound_qty,
@@ -313,6 +321,8 @@ class InventoryYearEndService {
           ON pl.material_id = k.material_id AND pl.location_id = k.location_id
         LEFT JOIN current_ledger cl
           ON cl.material_id = k.material_id AND cl.location_id = k.location_id
+        LEFT JOIN materials m ON k.material_id = m.id
+        LEFT JOIN locations l ON k.location_id = l.id
       `,
         [prevYear, yearStart, yearStart, yearEnd]
       );
@@ -332,9 +342,12 @@ class InventoryYearEndService {
         const outboundValue = parseFloat(row.outbound_value) || 0;
         return {
           ...row,
-          openingQty, openingValue,
-          inboundQty, inboundValue,
-          outboundQty, outboundValue,
+          openingQty,
+          openingValue,
+          inboundQty,
+          inboundValue,
+          outboundQty,
+          outboundValue,
           closingQty: openingQty + inboundQty - outboundQty,
           closingValue: openingValue + inboundValue - outboundValue,
         };
@@ -342,9 +355,13 @@ class InventoryYearEndService {
 
       const negatives = parsedRows.filter((r) => r.closingQty < -0.0001);
       if (negatives.length > 0) {
-        const detail = negatives.slice(0, 5).map(
-          (r) => `物料${r.material_id}/仓库${r.location_id}(期末=${r.closingQty})`
-        ).join('、');
+        const detail = negatives
+          .slice(0, 5)
+          .map(
+            (r) =>
+              `物料“${r.material_code || r.material_name || '所选物料'}”/仓库“${r.location_name || '所选仓库'}”(期末=${r.closingQty})`
+          )
+          .join('、');
         const extra = negatives.length > 5 ? `等共${negatives.length}条` : '';
         throw new Error(`${year}年度存在期末负库存：${detail}${extra}，不能执行结存`);
       }

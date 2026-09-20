@@ -8,7 +8,9 @@ const supplierService = {
     try {
       const safePage = Math.max(1, parseInt(page, 10) || 1);
       const noPagination = pageSize === null || pageSize === undefined;
-      const safePageSize = noPagination ? null : Math.max(1, Math.min(100, parseInt(pageSize, 10) || 10));
+      const safePageSize = noPagination
+        ? null
+        : Math.max(1, Math.min(100, parseInt(pageSize, 10) || 10));
       const offset = noPagination ? 0 : (safePage - 1) * safePageSize;
       let whereClause = 'deleted_at IS NULL';
       const params = [];
@@ -143,7 +145,9 @@ const supplierService = {
         address: data.address,
         status: data.status !== undefined ? Number(data.status) : undefined,
         payment_term_days:
-          data.payment_term_days !== undefined && data.payment_term_days !== null && data.payment_term_days !== ''
+          data.payment_term_days !== undefined &&
+          data.payment_term_days !== null &&
+          data.payment_term_days !== ''
             ? Math.max(0, Math.min(3650, parseInt(data.payment_term_days, 10) || 0))
             : data.payment_term_days === null
               ? null
@@ -170,7 +174,10 @@ const supplierService = {
       const values = [...Object.values(updateFields), id];
 
       // 执行更新
-      await pool.query(`UPDATE suppliers SET ${fields} WHERE id = ? AND deleted_at IS NULL`, values);
+      await pool.query(
+        `UPDATE suppliers SET ${fields} WHERE id = ? AND deleted_at IS NULL`,
+        values
+      );
 
       // 获取并返回更新后的完整数据
       const [updatedSupplier] = await pool.query(
@@ -272,7 +279,10 @@ const supplierService = {
               .join(', ');
             const values = [...Object.values(updateData), existingSuppliers[0].id];
 
-            await connection.query(`UPDATE suppliers SET ${fields} WHERE id = ? AND deleted_at IS NULL`, values);
+            await connection.query(
+              `UPDATE suppliers SET ${fields} WHERE id = ? AND deleted_at IS NULL`,
+              values
+            );
 
             results.success.push({
               id: existingSuppliers[0].id,

@@ -24,7 +24,8 @@ exports.getDashboardStatistics = async (req, res) => {
     });
 
     // 生产计划统计 - 查询所有记录的总计，不限制为今天创建
-    const [planRows] = await pool.query(`
+    const [planRows] = await pool.query(
+      `
       SELECT
         COUNT(*) as total,
         SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.COMPLETED}' THEN 1 ELSE 0 END) as completed,
@@ -34,7 +35,9 @@ exports.getDashboardStatistics = async (req, res) => {
       FROM production_plans pp
       ${planScope.join || ''}
       WHERE pp.deleted_at IS NULL${planScope.where || ''}
-    `, planScope.params || []);
+    `,
+      planScope.params || []
+    );
 
     // 生产任务统计 - 查询所有记录的总计
     const [taskRows] = await pool.query(`
@@ -58,16 +61,20 @@ exports.getDashboardStatistics = async (req, res) => {
     `);
 
     // 生产报工统计 - 总数和今日报工
-    const [reportRows] = await pool.query(`
+    const [reportRows] = await pool.query(
+      `
       SELECT
         COUNT(*) as total,
         SUM(CASE WHEN DATE(pr.report_time) = ? THEN 1 ELSE 0 END) as today
       FROM production_reports pr
       JOIN production_tasks pt ON pr.task_id = pt.id AND pt.deleted_at IS NULL
-    `, [today]);
+    `,
+      [today]
+    );
 
     // 今日生产量（用于质量率计算）
-    const [productionRows] = await pool.query(`
+    const [productionRows] = await pool.query(
+      `
       SELECT
         COALESCE(SUM(pr.completed_quantity), 0) as total_quantity,
         COALESCE(SUM(pr.qualified_quantity), 0) as qualified_quantity,
@@ -75,7 +82,9 @@ exports.getDashboardStatistics = async (req, res) => {
       FROM production_reports pr
       JOIN production_tasks pt ON pr.task_id = pt.id AND pt.deleted_at IS NULL
       WHERE DATE(pr.report_time) = ?
-    `, [today]);
+    `,
+      [today]
+    );
 
     const plans = planRows[0] || { total: 0, completed: 0, in_progress: 0, pending: 0, draft: 0 };
     const tasks = taskRows[0] || { total: 0, completed: 0, in_progress: 0, pending: 0 };
@@ -93,9 +102,10 @@ exports.getDashboardStatistics = async (req, res) => {
         : 0;
 
     // 工序完成率
-    const processRate = processData.total > 0
-      ? `${((processData.completed / processData.total) * 100).toFixed(1)}%`
-      : '0%';
+    const processRate =
+      processData.total > 0
+        ? `${((processData.completed / processData.total) * 100).toFixed(1)}%`
+        : '0%';
 
     ResponseHandler.success(res, {
       plans: {
@@ -289,14 +299,17 @@ exports.getDashboardTrends = async (req, res) => {
       }
 
       // 统计生产计划（按创建时间，合计计划数量）
-      const [planRows] = await pool.query(`
+      const [planRows] = await pool.query(
+        `
         SELECT DATE_FORMAT(pp.created_at, '%Y-%m') AS month, COALESCE(SUM(pp.quantity), 0) AS planned
         FROM production_plans pp
         ${planScope.join || ''}
         WHERE pp.deleted_at IS NULL AND pp.created_at >= DATE_SUB(CURDATE(), INTERVAL 11 MONTH)${planScope.where || ''}
         GROUP BY DATE_FORMAT(pp.created_at, '%Y-%m')
         ORDER BY month ASC
-      `, planScope.params || []);
+      `,
+        planScope.params || []
+      );
 
       // 统计完成数量（报工）
       const [completedRows] = await pool.query(`

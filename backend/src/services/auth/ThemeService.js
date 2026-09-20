@@ -13,10 +13,7 @@ class ThemeService {
    * @returns {Promise<string|null>} theme_settings JSON 字符串或 null
    */
   static async getUserThemeSettings(userId) {
-    const [rows] = await pool.execute(
-      'SELECT theme_settings FROM users WHERE id = ?',
-      [userId]
-    );
+    const [rows] = await pool.execute('SELECT theme_settings FROM users WHERE id = ?', [userId]);
     if (rows.length === 0) return undefined; // 用户不存在
     return rows[0].theme_settings || null;
   }
@@ -27,10 +24,10 @@ class ThemeService {
    * @param {string} themeSettingsJson - 序列化后的 JSON 字符串
    */
   static async saveUserThemeSettings(userId, themeSettingsJson) {
-    await pool.execute(
-      'UPDATE users SET theme_settings = ?, updated_at = NOW() WHERE id = ?',
-      [themeSettingsJson, userId]
-    );
+    await pool.execute('UPDATE users SET theme_settings = ?, updated_at = NOW() WHERE id = ?', [
+      themeSettingsJson,
+      userId,
+    ]);
   }
 }
 

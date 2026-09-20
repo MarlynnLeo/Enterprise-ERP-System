@@ -14,12 +14,12 @@ const qualityInspectionItemMap = {
     if (row == null) return null;
     const measurements = Array.isArray(row.measurements)
       ? row.measurements.slice(0, MAX_QUALITY_MEASUREMENT_SAMPLES).map((m, index) => ({
-        sample_no: m.sample_no ?? m.sampleNo ?? index + 1,
-        measured_value: m.measured_value ?? m.measuredValue ?? m.value ?? null,
-        measured_by: m.measured_by ?? m.measuredBy ?? null,
-        is_qualified: m.is_qualified ?? m.isQualified ?? null,
-        measured_at: formatDate(m.measured_at ?? m.measuredAt),
-      }))
+          sample_no: m.sample_no ?? m.sampleNo ?? index + 1,
+          measured_value: m.measured_value ?? m.measuredValue ?? m.value ?? null,
+          measured_by: m.measured_by ?? m.measuredBy ?? null,
+          is_qualified: m.is_qualified ?? m.isQualified ?? null,
+          measured_at: formatDate(m.measured_at ?? m.measuredAt),
+        }))
       : [];
     return {
       id: row.id ?? null,
@@ -67,12 +67,12 @@ const qualityInspectionItemMap = {
       measure_6: body.measure6 ?? body.measure_6,
       measurements: Array.isArray(body.measurements)
         ? body.measurements.slice(0, MAX_QUALITY_MEASUREMENT_SAMPLES).map((m, index) => ({
-          sample_no: m?.sample_no ?? m?.sampleNo ?? index + 1,
-          measured_value: m?.measured_value ?? m?.measuredValue ?? m?.value ?? m,
-          measured_by: m?.measured_by ?? m?.measuredBy,
-          is_qualified: m?.is_qualified ?? m?.isQualified,
-          measured_at: m?.measured_at ?? m?.measuredAt,
-        }))
+            sample_no: m?.sample_no ?? m?.sampleNo ?? index + 1,
+            measured_value: m?.measured_value ?? m?.measuredValue ?? m?.value ?? m,
+            measured_by: m?.measured_by ?? m?.measuredBy,
+            is_qualified: m?.is_qualified ?? m?.isQualified,
+            measured_at: m?.measured_at ?? m?.measuredAt,
+          }))
         : undefined,
       method: body.method,
       result: body.result,
@@ -133,13 +133,13 @@ const qualityInspectionMap = {
       note: row.note ?? null,
       attachments: Array.isArray(row.attachments)
         ? row.attachments.map((attachment) => ({
-          id: attachment.id ?? null,
-          url: attachment.url ?? attachment.fileUrl ?? attachment.file_url ?? null,
-          name: attachment.name ?? attachment.filename ?? attachment.originalName ?? '附件',
-          size: attachment.size ?? null,
-          type: attachment.type ?? attachment.mimetype ?? attachment.mimeType ?? null,
-          createdAt: formatDate(attachment.created_at ?? attachment.createdAt),
-        }))
+            id: attachment.id ?? null,
+            url: attachment.url ?? attachment.fileUrl ?? attachment.file_url ?? null,
+            name: attachment.name ?? attachment.filename ?? attachment.originalName ?? '附件',
+            size: attachment.size ?? null,
+            type: attachment.type ?? attachment.mimetype ?? attachment.mimeType ?? null,
+            createdAt: formatDate(attachment.created_at ?? attachment.createdAt),
+          }))
         : [],
       punchCount: row.punch_count != null ? toNumber(row.punch_count, 0) : null,
       taskStatus: row.task_status ?? null,

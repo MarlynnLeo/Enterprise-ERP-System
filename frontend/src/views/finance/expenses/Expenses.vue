@@ -380,7 +380,7 @@
             <el-option
               v-for="account in bankAccounts"
               :key="account.id"
-              :label="account.accountName || `账户${account.id}`"
+              :label="account.accountName || account.accountCode || '未命名科目'"
               :value="account.id"
             />
           </el-select>
@@ -414,6 +414,7 @@ import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { Plus, Tickets, Clock, Select, Money, Refresh, Edit, Promotion, Check, Wallet, CircleClose, Close, Delete } from '@element-plus/icons-vue'
 import { financeApi } from '@/api'
 import { parseDataObject, parseListData, parsePaginatedData } from '@/utils/responseParser'
@@ -638,7 +639,7 @@ const handleView = async (row) => {
     if (data.amount) data.amount = parseFloat(data.amount)
     Object.assign(expenseForm, data)
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || error.message || '获取费用详情失败')
+    ElMessage.error(getApiErrorMessage(error, '获取费用详情失败'))
     return
   }
   dialogVisible.value = true
@@ -656,7 +657,7 @@ const handleEdit = async (row) => {
     if (data.amount) data.amount = parseFloat(data.amount)
     Object.assign(expenseForm, data)
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || error.message || '获取费用详情失败')
+    ElMessage.error(getApiErrorMessage(error, '获取费用详情失败'))
     return
   }
   dialogVisible.value = true
@@ -693,7 +694,7 @@ const handleSave = async () => {
     fetchStats()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('保存失败: ' + (error.response?.data?.message || error.message || '未知错误'))
+      ElMessage.error(`保存失败：${getApiErrorMessage(error, '请稍后重试')}`)
     }
   } finally {
     saving.value = false
@@ -743,7 +744,7 @@ const handleSaveAndSubmit = async () => {
     fetchStats()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('操作失败: ' + (error.response?.data?.message || error.message || '未知错误'))
+      ElMessage.error(`操作失败：${getApiErrorMessage(error, '请稍后重试')}`)
     }
   } finally {
     saving.value = false
@@ -765,7 +766,7 @@ const handleSubmit = async (row) => {
     fetchStats()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('提交失败: ' + (error.response?.data?.message || error.message || '未知错误'))
+      ElMessage.error(`提交失败：${getApiErrorMessage(error, '请稍后重试')}`)
     }
   }
 }
@@ -789,7 +790,7 @@ const handleApproveAction = async (action) => {
     fetchExpenses()
     fetchStats()
   } catch (error) {
-    ElMessage.error('操作失败: ' + (error.response?.data?.message || error.message || '未知错误'))
+    ElMessage.error(`操作失败：${getApiErrorMessage(error, '请稍后重试')}`)
   } finally {
     approving.value = false
   }
@@ -809,7 +810,7 @@ const handlePay = async (row) => {
     costCenters.value = parseListData(response, { enableLog: false })
   } catch (error) {
     costCenters.value = []
-    ElMessage.error(error.response?.data?.message || '获取成本中心失败')
+      ElMessage.error(getApiErrorMessage(error, '获取成本中心失败'))
   }
 }
 
@@ -835,7 +836,7 @@ const handlePayAction = async () => {
     fetchStats()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('付款失败: ' + (error.response?.data?.message || error.message || '未知错误'))
+      ElMessage.error(`付款失败：${getApiErrorMessage(error, '请稍后重试')}`)
     }
   } finally {
     paying.value = false
@@ -858,7 +859,7 @@ const handleVoidPayment = async (row) => {
     fetchStats()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('作废失败: ' + (error.response?.data?.message || error.message || '未知错误'))
+      ElMessage.error(`作废失败：${getApiErrorMessage(error, '请稍后重试')}`)
     }
   }
 }
@@ -878,7 +879,7 @@ const handleCancelExpense = async (row) => {
     fetchStats()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('取消失败: ' + (error.response?.data?.message || error.message || '未知错误'))
+      ElMessage.error(`取消失败：${getApiErrorMessage(error, '请稍后重试')}`)
     }
   }
 }
@@ -898,7 +899,7 @@ const handleDelete = async (row) => {
     fetchStats()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('删除失败: ' + (error.response?.data?.message || error.message || '未知错误'))
+      ElMessage.error(`删除失败：${getApiErrorMessage(error, '请稍后重试')}`)
     }
   }
 }
@@ -913,7 +914,7 @@ const handleSyncDingtalk = async () => {
     fetchExpenses()
     fetchStats()
   } catch (error) {
-    ElMessage.error('同步失败: ' + (error.response?.data?.message || error.message || '未知错误'))
+    ElMessage.error(`同步失败：${getApiErrorMessage(error, '请稍后重试')}`)
   } finally {
     syncing.value = false
   }

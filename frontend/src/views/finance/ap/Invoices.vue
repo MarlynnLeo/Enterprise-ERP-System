@@ -471,6 +471,7 @@ import { storeToRefs } from 'pinia';
 import printService from '@/services/printService';
 import RelatedOrderDialog from '../components/RelatedOrderDialog.vue';
 import CreditNoteActions from '../components/CreditNoteActions.vue';
+import { getApiErrorMessage } from '@/utils/errorHandler';
 import InvoiceFormDialog from './components/InvoiceFormDialog.vue';
 const router = useRouter();
 const financeStore = useFinanceStore();
@@ -527,7 +528,7 @@ const openRelatedPurchaseOrderDialog = async (row) => {
     }
   } catch (error) {
     console.error('加载关联采购订单失败:', error);
-    ElMessage.error(error?.response?.data?.message || error.message || '加载采购订单失败');
+    ElMessage.error(getApiErrorMessage(error, '加载采购订单失败'));
   } finally {
     relatedOrderLoading.value = false;
   }
@@ -806,7 +807,7 @@ const saveInvoice = async () => {
     dialogVisible.value = false;
     await loadInvoices();
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || error.message || '保存发票失败');
+    ElMessage.error(getApiErrorMessage(error, '保存发票失败'));
   } finally { saveInvoiceLoading.value = false; }
 };
 const handleStatusChange = async (row, status) => {
@@ -828,7 +829,7 @@ const handleStatusChange = async (row, status) => {
     loadInvoices();
   } catch (error) {
     if (error === 'cancel' || error === 'close') return;
-    ElMessage.error(error.response?.data?.message || error.message || '状态更新失败');
+    ElMessage.error(getApiErrorMessage(error, '状态更新失败'));
   }
 };
 // 编辑发票
@@ -1040,7 +1041,7 @@ const savePayment = async () => {
           handleViewDetails({ id: invoiceDetail.value.id });
         }
       } catch (error) {
-        ElMessage.error('保存付款记录失败: ' + (error.response?.data?.message || error.response?.data?.error || error.message));
+        ElMessage.error(`保存付款记录失败: ${getApiErrorMessage(error, '请稍后重试')}`);
       } finally {
         savePaymentLoading.value = false;
       }

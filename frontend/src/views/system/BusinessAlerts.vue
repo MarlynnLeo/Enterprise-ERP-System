@@ -57,6 +57,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { Setting } from '@element-plus/icons-vue'
@@ -87,7 +88,7 @@ const toggleActive = async (row) => {
 const saveEdit = async () => {
   saving.value = true
   try { await alertApi.update(editForm.value.id, editForm.value); ElMessage.success('保存成功'); editVis.value = false; fetchList() }
-  catch (e) { ElMessage.error(e.message || '保存失败') }
+  catch (e) { ElMessage.error(getApiErrorMessage(e, '保存失败')) }
   finally { saving.value = false }
 }
 

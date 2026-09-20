@@ -118,6 +118,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, computed, onMounted, watch } from 'vue'
 import { hrApi } from '@/api/hr'
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -167,7 +168,7 @@ const handleFileSelected = async (uploadFile) => {
     ElMessage.success(res.data.message || '导入成功')
     fetchAttendance()
   } catch (error) {
-    if (error !== 'cancel') ElMessage.error(error.response?.data?.message || '导入失败')
+    if (error !== 'cancel') ElMessage.error(getApiErrorMessage(error, '导入失败'))
   } finally {
     loading.value = false
   }
@@ -186,7 +187,7 @@ const handleSyncDingtalk = async () => {
     ElMessage.success(res.data.message || '考勤同步完成')
     fetchAttendance()
   } catch (error) {
-    if (error !== 'cancel') ElMessage.error(error.response?.data?.message || '考勤同步失败')
+    if (error !== 'cancel') ElMessage.error(getApiErrorMessage(error, '考勤同步失败'))
   } finally {
     syncing.value = false
   }

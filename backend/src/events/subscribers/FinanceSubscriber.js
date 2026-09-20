@@ -184,7 +184,7 @@ class FinanceSubscriber {
       [receiptId]
     );
     if (rows.length === 0) {
-      throw new Error(`Purchase receipt not found: ${receiptId}`);
+      throw new Error('采购入库单不存在或已被删除');
     }
     return rows[0];
   }
@@ -199,7 +199,7 @@ class FinanceSubscriber {
       [salesOrderId]
     );
     if (rows.length === 0) {
-      throw new Error(`Sales order not found: ${salesOrderId}`);
+      throw new Error('销售订单不存在或已被删除');
     }
     return rows[0];
   }
@@ -215,7 +215,7 @@ class FinanceSubscriber {
       [returnId]
     );
     if (rows.length === 0) {
-      throw new Error(`Sales return not found: ${returnId}`);
+      throw new Error('销售退货单不存在或已被删除');
     }
     return rows[0];
   }
@@ -230,7 +230,7 @@ class FinanceSubscriber {
       [returnId]
     );
     if (rows.length === 0) {
-      throw new Error(`Purchase return not found: ${returnId}`);
+      throw new Error('采购退货单不存在或已被删除');
     }
     return rows[0];
   }
@@ -302,7 +302,7 @@ class FinanceSubscriber {
       [outboundId]
     );
     if (rows.length === 0) {
-      throw new Error(`Sales outbound not found: ${outboundId}`);
+      throw new Error('销售出库单不存在或已被删除');
     }
     return rows[0];
   }
@@ -416,7 +416,9 @@ class FinanceSubscriber {
       posting.finance_status !== InventoryPostingService.STATUS.APPROVED ||
       Number(posting.locked) !== 1
     ) {
-      const error = new Error(`库存过账 ${sourceNo} 未处于财务审核通过且锁定状态，拒绝触发财务集成`);
+      const error = new Error(
+        `库存过账 ${sourceNo} 未处于财务审核通过且锁定状态，拒绝触发财务集成`
+      );
       error.code = 'INVENTORY_POSTING_NOT_APPROVED';
       error.statusCode = 409;
       throw error;
@@ -772,7 +774,9 @@ class FinanceSubscriber {
         );
         return;
       }
-      if (['reversed', 'cancelled'].includes(String(currentOutboundData.status || '').toLowerCase())) {
+      if (
+        ['reversed', 'cancelled'].includes(String(currentOutboundData.status || '').toLowerCase())
+      ) {
         logger.info(
           `[FinanceSubscriber] 跳过已反审核/取消的销售出库财务事件: outboundNo=${currentOutboundData.outbound_no}`
         );

@@ -26,9 +26,23 @@ router.use(requirePriceMutationPermission('update'));
  * @desc    创建税务发票
  * @access  Private
  */
-router.post('/invoices', requirePermission('finance:tax:create'), requirePermission(PRICE_UPDATE_PERMISSIONS), taxController.createTaxInvoice);
-router.get('/red-letter-originals', requirePermission('finance:tax:view'), require('../../../controllers/business/finance/creditNoteController').redLetterOriginals);
-router.post('/red-letter-invoices', requirePermission('finance:tax:create'), requirePermission(PRICE_UPDATE_PERMISSIONS), require('../../../controllers/business/finance/creditNoteController').createRedLetter);
+router.post(
+  '/invoices',
+  requirePermission('finance:tax:create'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  taxController.createTaxInvoice
+);
+router.get(
+  '/red-letter-originals',
+  requirePermission('finance:tax:view'),
+  require('../../../controllers/business/finance/creditNoteController').redLetterOriginals
+);
+router.post(
+  '/red-letter-invoices',
+  requirePermission('finance:tax:create'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  require('../../../controllers/business/finance/creditNoteController').createRedLetter
+);
 
 /**
  * @route   GET /finance/tax/invoices
@@ -49,28 +63,44 @@ router.get('/invoices/:id', requirePermission('finance:tax:view'), taxController
  * @desc    认证税务发票
  * @access  Private
  */
-router.post('/invoices/:id/certify', requirePermission('finance:tax:update'), taxController.certifyTaxInvoice);
+router.post(
+  '/invoices/:id/certify',
+  requirePermission('finance:tax:update'),
+  taxController.certifyTaxInvoice
+);
 
 /**
  * @route   POST /finance/tax/invoices/:id/deduct
  * @desc    抵扣税务发票
  * @access  Private
  */
-router.post('/invoices/:id/deduct', requirePermission('finance:tax:update'), taxController.deductTaxInvoice);
+router.post(
+  '/invoices/:id/deduct',
+  requirePermission('finance:tax:update'),
+  taxController.deductTaxInvoice
+);
 
 /**
  * @route   PUT /finance/tax/invoices/:id/invoice-number
  * @desc    手动更新税务发票号码
  * @access  Private
  */
-router.put('/invoices/:id/invoice-number', requirePermission('finance:tax:update'), taxController.updateTaxInvoiceNumber);
+router.put(
+  '/invoices/:id/invoice-number',
+  requirePermission('finance:tax:update'),
+  taxController.updateTaxInvoiceNumber
+);
 
 /**
  * @route   POST /finance/tax/invoices/:id/void
  * @desc    作废税务发票
  * @access  Private
  */
-router.post('/invoices/:id/void', requirePermission('finance:tax:update'), taxController.voidTaxInvoice);
+router.post(
+  '/invoices/:id/void',
+  requirePermission('finance:tax:update'),
+  taxController.voidTaxInvoice
+);
 
 // ==================== 税务申报路由 ====================
 
@@ -79,7 +109,12 @@ router.post('/invoices/:id/void', requirePermission('finance:tax:update'), taxCo
  * @desc    创建税务申报
  * @access  Private
  */
-router.post('/returns', requirePermission('finance:tax:create'), requirePermission(PRICE_UPDATE_PERMISSIONS), taxController.createTaxReturn);
+router.post(
+  '/returns',
+  requirePermission('finance:tax:create'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  taxController.createTaxReturn
+);
 
 /**
  * @route   GET /finance/tax/returns
@@ -100,15 +135,28 @@ router.get('/returns/:id', requirePermission('finance:tax:view'), taxController.
  * @desc    提交税务申报
  * @access  Private
  */
-router.post('/returns/:id/submit', requirePermission('finance:tax:update'), taxController.submitTaxReturn);
-router.post('/returns/:id/reopen', requirePermission('finance:tax:update'), taxController.reopenTaxReturn);
+router.post(
+  '/returns/:id/submit',
+  requirePermission('finance:tax:update'),
+  taxController.submitTaxReturn
+);
+router.post(
+  '/returns/:id/reopen',
+  requirePermission('finance:tax:update'),
+  taxController.reopenTaxReturn
+);
 
 /**
  * @route   POST /finance/tax/returns/:id/pay
  * @desc    缴纳税款
  * @access  Private
  */
-router.post('/returns/:id/pay', requirePermission('finance:tax:pay'), requirePermission(PRICE_UPDATE_PERMISSIONS), taxController.payTaxReturn);
+router.post(
+  '/returns/:id/pay',
+  requirePermission('finance:tax:pay'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  taxController.payTaxReturn
+);
 
 /**
  * @route   POST /finance/tax/returns/:id/void-payment
@@ -127,7 +175,11 @@ router.post(
  * @desc    删除税务申报（仅草稿状态）
  * @access  Private
  */
-router.delete('/returns/:id', requirePermission('finance:tax:delete'), taxController.deleteTaxReturn);
+router.delete(
+  '/returns/:id',
+  requirePermission('finance:tax:delete'),
+  taxController.deleteTaxReturn
+);
 
 // ==================== 税务发票关联路由 ====================
 
@@ -136,21 +188,33 @@ router.delete('/returns/:id', requirePermission('finance:tax:delete'), taxContro
  * @desc    关联税务发票到业务单据
  * @access  Private
  */
-router.post('/invoices/:id/link', requirePermission('finance:tax:update'), taxController.linkTaxInvoice);
+router.post(
+  '/invoices/:id/link',
+  requirePermission('finance:tax:update'),
+  taxController.linkTaxInvoice
+);
 
 /**
  * @route   POST /finance/tax/invoices/:id/unlink
  * @desc    取消税务发票关联
  * @access  Private
  */
-router.post('/invoices/:id/unlink', requirePermission('finance:tax:update'), taxController.unlinkTaxInvoice);
+router.post(
+  '/invoices/:id/unlink',
+  requirePermission('finance:tax:update'),
+  taxController.unlinkTaxInvoice
+);
 
 /**
  * @route   GET /finance/tax/available-documents
  * @desc    获取可关联的业务单据
  * @access  Private
  */
-router.get('/available-documents', requirePermission('finance:tax:view'), taxController.getAvailableDocuments);
+router.get(
+  '/available-documents',
+  requirePermission('finance:tax:view'),
+  taxController.getAvailableDocuments
+);
 
 // ==================== 税务科目配置路由 ====================
 
@@ -159,27 +223,43 @@ router.get('/available-documents', requirePermission('finance:tax:view'), taxCon
  * @desc    获取税务科目配置列表
  * @access  Private
  */
-router.get('/account-config', requirePermission('finance:tax:view'), taxController.getTaxAccountConfigs);
+router.get(
+  '/account-config',
+  requirePermission('finance:tax:view'),
+  taxController.getTaxAccountConfigs
+);
 
 /**
  * @route   POST /finance/tax/account-config
  * @desc    创建税务科目配置
  * @access  Private
  */
-router.post('/account-config', requirePermission('finance:tax:create'), taxController.createTaxAccountConfig);
+router.post(
+  '/account-config',
+  requirePermission('finance:tax:create'),
+  taxController.createTaxAccountConfig
+);
 
 /**
  * @route   PUT /finance/tax/account-config/:id
  * @desc    更新税务科目配置
  * @access  Private
  */
-router.put('/account-config/:id', requirePermission('finance:tax:update'), taxController.updateTaxAccountConfig);
+router.put(
+  '/account-config/:id',
+  requirePermission('finance:tax:update'),
+  taxController.updateTaxAccountConfig
+);
 
 /**
  * @route   DELETE /finance/tax/account-config/:id
  * @desc    删除税务科目配置
  * @access  Private
  */
-router.delete('/account-config/:id', requirePermission('finance:tax:delete'), taxController.deleteTaxAccountConfig);
+router.delete(
+  '/account-config/:id',
+  requirePermission('finance:tax:delete'),
+  taxController.deleteTaxAccountConfig
+);
 
 module.exports = router;

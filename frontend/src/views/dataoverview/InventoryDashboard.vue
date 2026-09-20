@@ -151,6 +151,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -377,7 +378,7 @@ const loadData = async () => {
     await renderCharts()
   } catch (error) {
     console.error('获取库存看板数据失败:', error)
-    ElMessage.error(error.message || '获取库存看板数据失败')
+    ElMessage.error(getApiErrorMessage(error, '获取库存看板数据失败'))
   } finally {
     loading.value = false
   }

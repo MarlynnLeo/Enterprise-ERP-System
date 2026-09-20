@@ -15,7 +15,8 @@ const ExcelJS = require('exceljs');
 const { getInventoryTransactionTypeText } = require('../../../constants/systemConstants');
 const BusinessTypeService = require('../../../services/BusinessTypeService');
 
-const toRows = (result) => (Array.isArray(result.rows) ? result.rows : (result.rows ? [result.rows] : []));
+const toRows = (result) =>
+  Array.isArray(result.rows) ? result.rows : result.rows ? [result.rows] : [];
 const toPlainRows = (result) => {
   if (Array.isArray(result)) {
     return Array.isArray(result[0]) ? result[0] : result;
@@ -133,8 +134,9 @@ const batchTraceabilityController = {
       // 由于 db.query 底层拦截器有可能会将 len=1 的数组直接解压为对象
       const safeBatchRows = Array.isArray(batchResult.rows)
         ? batchResult.rows
-        : (batchResult.rows ? [batchResult.rows] : []);
-
+        : batchResult.rows
+          ? [batchResult.rows]
+          : [];
 
       if (safeBatchRows.length === 0) {
         // 友好提示：区分「物料不存在」与「物料存在但无此批次」
@@ -217,8 +219,9 @@ const batchTraceabilityController = {
       const transactionResult = await db.query(transactionQuery, [materialCode, batchNumber]);
       const safeTransactionRows = Array.isArray(transactionResult.rows)
         ? transactionResult.rows
-        : (transactionResult.rows ? [transactionResult.rows] : []);
-
+        : transactionResult.rows
+          ? [transactionResult.rows]
+          : [];
 
       // ✅ 将同一 reference_no+transaction_type 的多条台账合并，防止 FIFO 跨批次出库显示多条
       const mergedTransactions = [];
@@ -252,7 +255,6 @@ const batchTraceabilityController = {
         },
         transaction_history: mergedTransactions,
       };
-
 
       // 智能探测物料类型并扩展全链路数据
       try {
@@ -290,13 +292,14 @@ const batchTraceabilityController = {
           [batchNumber, batchNumber, batchNumber, materialCode]
         );
         const signal = typeSignals[0] || {};
-        const isProduct = signal.material_type === 'product' ||
+        const isProduct =
+          signal.material_type === 'product' ||
           Boolean(signal.has_sales_trace) ||
           Boolean(signal.has_child_relation) ||
           Boolean(signal.has_production_inbound);
 
         responseData.isProduct = isProduct;
-        responseData.type = isProduct ? 'product' : (signal.material_type || 'material');
+        responseData.type = isProduct ? 'product' : signal.material_type || 'material';
 
         if (!isProduct) {
           // 原材料：正向追溯查询生产去向及最终客户
@@ -340,7 +343,7 @@ const batchTraceabilityController = {
 
           const traceRecords = toPlainRows(traceChainResult);
           if (traceRecords.length > 0) {
-            responseData.steps = traceRecords.map(r => ({
+            responseData.steps = traceRecords.map((r) => ({
               step_type: r.customer_name ? 'SALES_OUT' : 'PRODUCTION_IN',
               reference_no: r.outbound_no || r.product_batch,
               remarks: r.customer_name || '生产耗用',
@@ -349,13 +352,15 @@ const batchTraceabilityController = {
               product_name: r.product_name,
               product_code: r.product_code,
               product_specification: r.product_specification,
-              product_batch: r.product_batch
+              product_batch: r.product_batch,
             }));
           }
-        }
-        else {
+        } else {
           // 成品：调用反向追溯查询使用的材料及后续销售情况
-          const fullTraceResult = await ProductSalesTraceabilityService.getProductFullTraceability(materialCode, batchNumber);
+          const fullTraceResult = await ProductSalesTraceabilityService.getProductFullTraceability(
+            materialCode,
+            batchNumber
+          );
 
           if (fullTraceResult.success && fullTraceResult.data) {
             responseData.product_code = materialCode;
@@ -365,12 +370,12 @@ const batchTraceabilityController = {
             responseData.raw_materials = fullTraceResult.data.raw_materials || [];
             responseData.sales_records = fullTraceResult.data.sales_records || [];
             responseData.traceability_summary = fullTraceResult.data.traceability_summary || null;
-            responseData.steps = (fullTraceResult.data.sales_records || []).map(r => ({
+            responseData.steps = (fullTraceResult.data.sales_records || []).map((r) => ({
               step_type: 'SALES_OUT',
               reference_no: r.outbound_no,
               remarks: r.customer_name,
               quantity: r.allocated_quantity,
-              created_at: r.sales_created_at || r.delivery_date
+              created_at: r.sales_created_at || r.delivery_date,
             }));
           }
         }
@@ -448,9 +453,8 @@ const batchTraceabilityController = {
                ORDER BY created_at ASC LIMIT 1`,
               [batchNumber]
             );
-            const inboundCutoff = batchInbTime.length > 0
-              ? batchInbTime[0].inbound_time
-              : new Date();
+            const inboundCutoff =
+              batchInbTime.length > 0 ? batchInbTime[0].inbound_time : new Date();
 
             const [bomDetails] = await db.pool.execute(
               `SELECT
@@ -496,12 +500,10 @@ const batchTraceabilityController = {
               `批次 ${batchNumber} 无实际领料记录，展示 BOM 配方（含截止 ${inboundCutoff} 前最近采购批次）`
             );
           }
-
         }
       } catch (bomErr) {
         logger.warn('获取BOM清单失败:', bomErr);
       }
-
 
       ResponseHandler.success(res, responseData, '批次追溯查询成功');
     } catch (error) {
@@ -522,7 +524,12 @@ const batchTraceabilityController = {
       }
 
       if (!['forward', 'backward'].includes(direction)) {
-        return ResponseHandler.error(res, '追溯方向只能是 forward 或 backward', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(
+          res,
+          '追溯方向只能是 forward 或 backward',
+          'VALIDATION_ERROR',
+          400
+        );
       }
 
       const traceabilityChain = await InventoryTraceabilityService.getBatchTraceabilityChain(
@@ -551,7 +558,12 @@ const batchTraceabilityController = {
 
       const batchDetails = await getBatchDetailsData(materialCode, batchNumber);
       if (!batchDetails) {
-        return ResponseHandler.error(res, `未找到批次: ${materialCode} - ${batchNumber}`, 'NOT_FOUND', 404);
+        return ResponseHandler.error(
+          res,
+          `未找到批次: ${materialCode} - ${batchNumber}`,
+          'NOT_FOUND',
+          404
+        );
       }
       ResponseHandler.success(res, batchDetails, '操作成功');
     } catch (error) {
@@ -573,7 +585,12 @@ const batchTraceabilityController = {
 
       const batchDetails = await getBatchDetailsData(materialCode, batchNumber);
       if (!batchDetails) {
-        return ResponseHandler.error(res, `未找到批次: ${materialCode} - ${batchNumber}`, 'NOT_FOUND', 404);
+        return ResponseHandler.error(
+          res,
+          `未找到批次: ${materialCode} - ${batchNumber}`,
+          'NOT_FOUND',
+          404
+        );
       }
 
       return ResponseHandler.success(res, batchDetails);
@@ -591,7 +608,7 @@ const batchTraceabilityController = {
       const { materialId, requiredQuantity } = req.query;
 
       if (!materialId || !requiredQuantity) {
-        return ResponseHandler.error(res, '物料ID和需要数量不能为空', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(res, '请选择物料并填写需求数量', 'VALIDATION_ERROR', 400);
       }
 
       const preview = await FIFOOutboundService.getFIFOOutboundPreview(
@@ -666,7 +683,7 @@ const batchTraceabilityController = {
       const { materialId, daysThreshold = 30 } = req.query;
 
       if (!materialId) {
-        return ResponseHandler.error(res, '物料ID不能为空', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(res, '请选择物料', 'VALIDATION_ERROR', 400);
       }
 
       const report = await FIFOOutboundService.getBatchAgingReport(
@@ -743,7 +760,10 @@ const batchTraceabilityController = {
         return ResponseHandler.error(res, '入库单ID和物料项目不能为空', 'VALIDATION_ERROR', 400);
       }
 
-      const result = await InventoryTraceabilityService.handlePurchaseReceipt(receiptData);
+      const result = await InventoryTraceabilityService.handlePurchaseReceipt({
+        ...receiptData,
+        operator_id: req.user?.id || req.user?.userId,
+      });
 
       ResponseHandler.success(res, result, '采购入库处理成功');
     } catch (error) {
@@ -791,7 +811,7 @@ const batchTraceabilityController = {
 
       // 验证必要字段
       if (!reserveData.material_id || !reserveData.required_quantity) {
-        return ResponseHandler.error(res, '物料ID和需要数量不能为空', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(res, '请选择物料并填写需求数量', 'VALIDATION_ERROR', 400);
       }
 
       const result = await BatchManagementService.reserveBatch(reserveData);
@@ -820,7 +840,12 @@ const batchTraceabilityController = {
       // 获取批次详情
       const batchDetails = await getBatchDetailsData(materialCode, batchNumber);
       if (!batchDetails) {
-        return ResponseHandler.error(res, `未找到批次: ${materialCode} - ${batchNumber}`, 'NOT_FOUND', 404);
+        return ResponseHandler.error(
+          res,
+          `未找到批次: ${materialCode} - ${batchNumber}`,
+          'NOT_FOUND',
+          404
+        );
       }
       const batch = batchDetails.batch_info;
       batch.available_quantity = batch.available_quantity ?? batch.current_quantity;
@@ -860,7 +885,8 @@ const batchTraceabilityController = {
           [batchNumber, batchNumber, batchNumber, materialCode]
         );
         const signal = typeSignals[0] || {};
-        const isProduct = signal.material_type === 'product' ||
+        const isProduct =
+          signal.material_type === 'product' ||
           Boolean(signal.has_sales_trace) ||
           Boolean(signal.has_child_relation) ||
           Boolean(signal.has_production_inbound);
@@ -932,12 +958,17 @@ const batchTraceabilityController = {
         '入库时间',
         batch.receipt_date ? new Date(batch.receipt_date).toLocaleString('zh-CN') : '-',
       ]);
-      worksheet.addRow(['仓库位置', [batch.warehouse_name, batch.location].filter(Boolean).join(' - ') || '-']);
+      worksheet.addRow([
+        '仓库位置',
+        [batch.warehouse_name, batch.location].filter(Boolean).join(' - ') || '-',
+      ]);
       worksheet.addRow(['状态', batch.status || '-']);
 
       // 添加追溯链路
       worksheet.addRow([]);
-      const chainTitleRow = worksheet.addRow([`${direction === 'forward' ? '正向' : '反向'}追溯链路`]);
+      const chainTitleRow = worksheet.addRow([
+        `${direction === 'forward' ? '正向' : '反向'}追溯链路`,
+      ]);
       chainTitleRow.font = {
         bold: true,
         size: 12,
@@ -948,7 +979,13 @@ const batchTraceabilityController = {
         traceabilityChain.traceability_chain &&
         traceabilityChain.traceability_chain.length > 0
       ) {
-        const chainHeaderRow = worksheet.addRow(['关系类型', '物料编码', '批次号', '消耗数量', '产出数量']);
+        const chainHeaderRow = worksheet.addRow([
+          '关系类型',
+          '物料编码',
+          '批次号',
+          '消耗数量',
+          '产出数量',
+        ]);
         chainHeaderRow.font = { bold: true };
 
         traceabilityChain.traceability_chain.forEach((item) => {
@@ -980,17 +1017,27 @@ const batchTraceabilityController = {
       transactionTitleRow.font = { bold: true, size: 12 };
 
       if (transactions && transactions.length > 0) {
-        const transactionHeaderRow = worksheet.addRow(['交易类型', '单据号', '数量', '变更前', '变更后', '操作员', '交易时间', '备注']);
+        const transactionHeaderRow = worksheet.addRow([
+          '交易类型',
+          '单据号',
+          '数量',
+          '变更前',
+          '变更后',
+          '操作员',
+          '交易时间',
+          '备注',
+        ]);
         transactionHeaderRow.font = { bold: true };
 
         transactions.forEach((trans) => {
-          const typeText = {
-            reserve: '预留',
-            unreserve: '取消预留',
-            return_inbound: '退货入库',
-          }[trans.transaction_type]
-            || inventoryTypeMap[trans.transaction_type]
-            || getInventoryTransactionTypeText(trans.transaction_type);
+          const typeText =
+            {
+              reserve: '预留',
+              unreserve: '取消预留',
+              return_inbound: '退货入库',
+            }[trans.transaction_type] ||
+            inventoryTypeMap[trans.transaction_type] ||
+            getInventoryTransactionTypeText(trans.transaction_type);
 
           worksheet.addRow([
             typeText,

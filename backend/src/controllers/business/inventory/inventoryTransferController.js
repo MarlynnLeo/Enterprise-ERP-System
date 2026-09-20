@@ -389,9 +389,7 @@ const getTransferDetails = async (req, res) => {
       ])
     );
 
-    const orderedTransfers = transferIds
-      .map((id) => transferById.get(id))
-      .filter(Boolean);
+    const orderedTransfers = transferIds.map((id) => transferById.get(id)).filter(Boolean);
 
     ResponseHandler.success(
       res,
@@ -418,12 +416,7 @@ const createTransfer = async (req, res) => {
     const status = STATUS.TRANSFER.DRAFT || 'draft';
 
     // 基本验证
-    if (
-      !from_location_id ||
-      !to_location_id ||
-      !items ||
-      !isValidTransferDate(transfer_date)
-    ) {
+    if (!from_location_id || !to_location_id || !items || !isValidTransferDate(transfer_date)) {
       return ResponseHandler.error(
         res,
         `请提供有效的调拨日期、源库位、目标库位和1-${MAX_TRANSFER_ITEMS}条不重复物料明细`,
@@ -446,7 +439,8 @@ const createTransfer = async (req, res) => {
 
     // ===== 年度结存校验 =====
     const PeriodValidationService = require('../../../services/business/PeriodValidationService');
-    const inventoryCheck = await PeriodValidationService.validateInventoryTransaction(transfer_date);
+    const inventoryCheck =
+      await PeriodValidationService.validateInventoryTransaction(transfer_date);
     if (!inventoryCheck.allowed) {
       return ResponseHandler.error(res, inventoryCheck.message, 'VALIDATION_ERROR', 400);
     }
@@ -471,11 +465,13 @@ const createTransfer = async (req, res) => {
 
       if (!validation.isEnough) {
         const [materialResult] = await connection.execute(
-          'SELECT name FROM materials WHERE id = ? AND deleted_at IS NULL',
+          'SELECT code, name FROM materials WHERE id = ? AND deleted_at IS NULL',
           [item.material_id]
         );
         const materialName =
-          materialResult.length > 0 ? materialResult[0].name : `物料ID: ${item.material_id}`;
+          materialResult.length > 0
+            ? `${materialResult[0].code || ''}${materialResult[0].name ? ` - ${materialResult[0].name}` : ''}`.trim()
+            : '所选物料';
         await connection.rollback();
         transactionStarted = false;
         return ResponseHandler.error(
@@ -589,12 +585,7 @@ const updateTransfer = async (req, res) => {
     const items = normalizeTransferItems(mapped.items);
     const remark = mapped.remark;
 
-    if (
-      !from_location_id ||
-      !to_location_id ||
-      !items ||
-      !isValidTransferDate(transfer_date)
-    ) {
+    if (!from_location_id || !to_location_id || !items || !isValidTransferDate(transfer_date)) {
       return ResponseHandler.error(
         res,
         `请提供有效的调拨日期、源库位、目标库位和1-${MAX_TRANSFER_ITEMS}条不重复物料明细`,
@@ -612,7 +603,8 @@ const updateTransfer = async (req, res) => {
     }
 
     const PeriodValidationService = require('../../../services/business/PeriodValidationService');
-    const inventoryCheck = await PeriodValidationService.validateInventoryTransaction(transfer_date);
+    const inventoryCheck =
+      await PeriodValidationService.validateInventoryTransaction(transfer_date);
     if (!inventoryCheck.allowed) {
       return ResponseHandler.error(res, inventoryCheck.message, 'VALIDATION_ERROR', 400);
     }
@@ -637,7 +629,13 @@ const updateTransfer = async (req, res) => {
       transactionStarted = false;
       return ResponseHandler.forbidden(res, '无权修改该调拨单');
     }
-    if (!(await canAccessTransferLocations(req, transferResult[0].from_location_id, transferResult[0].to_location_id))) {
+    if (
+      !(await canAccessTransferLocations(
+        req,
+        transferResult[0].from_location_id,
+        transferResult[0].to_location_id
+      ))
+    ) {
       await connection.rollback();
       transactionStarted = false;
       return ResponseHandler.forbidden(res, '无权使用该调拨单的源库位或目标库位');
@@ -667,11 +665,13 @@ const updateTransfer = async (req, res) => {
       );
       if (!validation.isEnough) {
         const [materialResult] = await connection.execute(
-          'SELECT name FROM materials WHERE id = ? AND deleted_at IS NULL',
+          'SELECT code, name FROM materials WHERE id = ? AND deleted_at IS NULL',
           [item.material_id]
         );
         const materialName =
-          materialResult.length > 0 ? materialResult[0].name : `物料ID: ${item.material_id}`;
+          materialResult.length > 0
+            ? `${materialResult[0].code || ''}${materialResult[0].name ? ` - ${materialResult[0].name}` : ''}`.trim()
+            : '所选物料';
         await connection.rollback();
         transactionStarted = false;
         return ResponseHandler.error(
@@ -856,7 +856,9 @@ const updateTransferStatus = async (req, res) => {
         await connection.rollback();
         return ResponseHandler.forbidden(res, '无权变更该调拨单状态');
       }
-      if (!(await canAccessTransferLocations(req, transfer.from_location_id, transfer.to_location_id))) {
+      if (
+        !(await canAccessTransferLocations(req, transfer.from_location_id, transfer.to_location_id))
+      ) {
         await connection.rollback();
         return ResponseHandler.forbidden(res, '无权使用该调拨单的源库位或目标库位');
       }
@@ -919,8 +921,8 @@ const updateTransferStatus = async (req, res) => {
         }
 
         const fromLocationName =
-          transfer.from_location_name || `库位ID:${transfer.from_location_id}`;
-        const toLocationName = transfer.to_location_name || `库位ID:${transfer.to_location_id}`;
+          transfer.from_location_name || '来源库位';
+        const toLocationName = transfer.to_location_name || '目标库位';
 
         for (const item of items) {
           await InventoryService.transferStock(
@@ -941,10 +943,7 @@ const updateTransferStatus = async (req, res) => {
         }
       }
 
-      if (
-        currentStatus === STATUS.TRANSFER.COMPLETED &&
-        newStatus === STATUS.TRANSFER.REVERSED
-      ) {
+      if (currentStatus === STATUS.TRANSFER.COMPLETED && newStatus === STATUS.TRANSFER.REVERSED) {
         const InventoryPostingService = require('../../../services/InventoryPostingService');
         const posting = await InventoryPostingService.requireApprovedForTransaction(connection, {
           reference_no: transfer.transfer_no,
@@ -1035,7 +1034,8 @@ const getTransferStatistics = async (req, res) => {
       tableAlias: 't',
       ownerAlias: 'inventory_transfer_stats_owner_scope',
     });
-    const [results] = await db.pool.execute(`
+    const [results] = await db.pool.execute(
+      `
       SELECT
         COUNT(*) as total,
         SUM(CASE WHEN t.status = 'draft' THEN 1 ELSE 0 END) as draft,
@@ -1046,7 +1046,9 @@ const getTransferStatistics = async (req, res) => {
       FROM inventory_transfers t
       ${scopeClause.join || ''}
       WHERE t.deleted_at IS NULL${scopeClause.where || ''}
-    `, scopeClause.params || []);
+    `,
+      scopeClause.params || []
+    );
 
     ResponseHandler.success(res, results[0], '获取调拨单统计信息成功');
   } catch (error) {
@@ -1147,7 +1149,7 @@ const exportTransfers = async (req, res) => {
     });
 
     // 批量查出所有调拨单的明细（消除 N+1）
-    const allTransferIds = transfers.map(t => t.id);
+    const allTransferIds = transfers.map((t) => t.id);
     const detailPlaceholders = allTransferIds.map(() => '?').join(',');
     const [allItems] = await db.pool.execute(
       `SELECT
@@ -1281,12 +1283,18 @@ const batchDeleteTransfers = async (req, res) => {
       return ResponseHandler.error(res, '部分调拨单不存在或已删除', 'NOT_FOUND', 404);
     }
 
-    if (!(await ScopeGuard.assertAllAccess(connection, req, 'inventory_transfer', transferIds, { accessMode: 'write' }))) {
+    if (
+      !(await ScopeGuard.assertAllAccess(connection, req, 'inventory_transfer', transferIds, {
+        accessMode: 'write',
+      }))
+    ) {
       await connection.rollback();
       return ResponseHandler.forbidden(res, '批量调拨单中包含无权删除的记录');
     }
     for (const transfer of transferResults) {
-      if (!(await canAccessTransferLocations(req, transfer.from_location_id, transfer.to_location_id))) {
+      if (
+        !(await canAccessTransferLocations(req, transfer.from_location_id, transfer.to_location_id))
+      ) {
         await connection.rollback();
         return ResponseHandler.forbidden(res, '批量调拨单包含无权使用的库位');
       }
@@ -1334,7 +1342,6 @@ const batchDeleteTransfers = async (req, res) => {
 };
 
 // 获取库存盘点统计信息
-
 
 module.exports = {
   getTransferList,

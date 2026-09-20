@@ -141,7 +141,7 @@ class InventoryService {
       throw new Error('rebuildStockBalancesForMaterial必须在数据库事务中调用');
     }
     if (!materialId) {
-      throw new Error(`无效的物料ID: ${materialId}`);
+      throw new Error('所选物料无效，请重新选择');
     }
     if (this.balanceTableAvailable === false) {
       return false;
@@ -339,6 +339,8 @@ class InventoryService {
     if (!refNo) return 0;
 
     if (refType === 'purchase_receipt' || refType === 'inbound') {
+      // Receipt and legacy ledger columns can inherit different MySQL defaults.
+      // An explicit collation keeps the scalar subquery comparison compatible.
       const [rows] = await connection.execute(
         `SELECT pri.price AS receipt_price, poi.price AS order_price
          FROM purchase_receipts pr
@@ -347,7 +349,8 @@ class InventoryService {
          LEFT JOIN purchase_order_items poi
            ON poi.order_id = pr.order_id AND poi.material_id = ?
          WHERE pr.receipt_no = ? OR pr.receipt_no = (
-           SELECT receipt_no FROM inventory_ledger
+           SELECT CONVERT(receipt_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+           FROM inventory_ledger
            WHERE reference_no = ? AND material_id = ? AND receipt_no IS NOT NULL
            LIMIT 1
          )
@@ -482,7 +485,7 @@ class InventoryService {
     try {
       // 参数验证
       if (!materialId || !locationId) {
-        throw new Error(`无效的参数: materialId=${materialId}, locationId=${locationId}`);
+        throw new Error('物料或库位参数无效，请重新选择');
       }
 
       // 在事务中（传入 connection）时自动禁用缓存，避免读到过时数据
@@ -748,6 +751,7 @@ class InventoryService {
       internalPostingToken = null,
       businessApprovedById = null,
       businessApprovedBy = null,
+      materialCode = null,
     },
     connection
   ) {
@@ -785,17 +789,26 @@ class InventoryService {
     }
 
     if (!materialId || !locationId) {
-      throw new Error(`无效的参数: materialId=${materialId}, locationId=${locationId}`);
+      throw new Error('物料或库位参数无效，请重新选择');
     }
 
-    if (isNaN(quantity) || quantity === 0) {
-      throw new Error(`无效的数量: ${quantity}`);
+    const resolveMaterialLabel = async () => {
+      if (materialCode) return String(materialCode);
+      const result = await connection.execute(
+        'SELECT code FROM materials WHERE id = ? LIMIT 1',
+        [materialId]
+      );
+      const material = Array.isArray(result) ? result[0]?.[0] : null;
+      return material?.code || '所选物料';
+    };
+
+    quantity = Number(quantity);
+    if (!Number.isFinite(quantity) || quantity === 0) {
+      throw new Error('无效的数量：请输入不为 0 的有效库存数量');
     }
 
     if (!transactionType || !referenceNo || !operator) {
-      throw new Error(
-        `缺少必要参数: transactionType=${transactionType}, referenceNo=${referenceNo}, operator=${operator}`
-      );
+      throw new Error('库存变动缺少必要业务信息，请检查单据、操作人和交易类型');
     }
 
     // 批次键入口归一：后续 FIFO / 台账 / 幂等键统一使用
@@ -807,8 +820,9 @@ class InventoryService {
       allowEmptyBatch &&
       ['adjustment', 'reconciliation', 'correction'].includes(String(transactionType));
     if (isInboundOperation && !normalizedBatchInput && !emptyBatchAllowed) {
+      const materialLabel = await resolveMaterialLabel();
       throw new Error(
-        `入库必须提供可追溯批次号: materialId=${materialId}, referenceNo=${referenceNo}, transactionType=${transactionType}`
+        `物料“${materialLabel}”入库必须提供可追溯批次号，请补充批次信息`
       );
     }
 
@@ -889,7 +903,7 @@ class InventoryService {
         !['adjustment', 'correction', 'outbound_cancel'].includes(transactionType)
       ) {
         const shortageError = new Error(
-          `库存不足: 当前库存 ${beforeQuantity}, 需要 ${Math.abs(changeQuantity)}, 差额 ${Math.abs(afterQuantity)}`
+          `物料“${await resolveMaterialLabel()}”库存不足：当前库存 ${beforeQuantity}，需要 ${Math.abs(changeQuantity)}，差额 ${Math.abs(afterQuantity)}`
         );
         shortageError.code = 'INSUFFICIENT_STOCK';
         shortageError.statusCode = 400;
@@ -963,8 +977,9 @@ class InventoryService {
         }
 
         if (remainingQuantity > 0) {
+          const materialLabel = await resolveMaterialLabel();
           const fifoShortageError = new Error(
-            `FIFO批次库存不足: materialId=${materialId}, locationId=${locationId}, referenceNo=${referenceNo}, missing=${remainingQuantity}`
+            `物料“${materialLabel}”库存不足，缺少数量：${remainingQuantity}`
           );
           fifoShortageError.code = 'INSUFFICIENT_STOCK';
           fifoShortageError.statusCode = 400;
@@ -973,8 +988,9 @@ class InventoryService {
       } else {
         // 入库或出库明确指定批次（已归一化）
         if (!normalizedBatchInput && changeQuantity < 0) {
+          const materialLabel = await resolveMaterialLabel();
           throw new Error(
-            `出库必须提供批次号或可通过FIFO分配批次: materialId=${materialId}, locationId=${locationId}, referenceNo=${referenceNo}`
+            `物料“${materialLabel}”出库必须提供批次号，且当前无法自动分配批次`
           );
         }
         finalBatchNumbers = [
@@ -1012,9 +1028,9 @@ class InventoryService {
         );
 
         if (!(Number(actualUnitCost) > 0)) {
+          const materialLabel = await resolveMaterialLabel();
           throw new Error(
-            `库存变动缺少有效成本：materialId=${materialId}, referenceNo=${referenceNo}, ` +
-              `transactionType=${transactionType}, batch=${ledgerBatchNumber || ''}`
+            `物料“${materialLabel}”库存变动缺少有效成本，请先维护物料成本资料`
           );
         }
 
@@ -1258,7 +1274,7 @@ class InventoryService {
       cost = Number(m?.cost_price || 0);
     }
     if (!(Number(cost) > 0)) {
-      throw new Error(`对账调整缺少有效成本: materialId=${materialId}, locationId=${locationId}`);
+      throw new Error('对账调整缺少有效成本，请先维护物料成本资料');
     }
 
     const refNo = `ADJ-RECON-${materialId}-${locationId}-${Date.now()}`;
@@ -1290,12 +1306,12 @@ class InventoryService {
   static async _validateMaterialAndLocation(materialId, locationId, connection) {
     // 验证物料是否存在（不再强制要求 status = 1，因为停用的物料依然需要被允许出库销账）
     const [materialResult] = await connection.execute(
-      'SELECT id FROM materials WHERE id = ? AND deleted_at IS NULL',
+      'SELECT id, code FROM materials WHERE id = ? AND deleted_at IS NULL',
       [materialId]
     );
 
     if (materialResult.length === 0) {
-      throw new Error(`物料不存在: ${materialId}`);
+      throw new Error('所选物料不存在或已停用');
     }
 
     // 验证库位是否存在
@@ -1305,7 +1321,7 @@ class InventoryService {
     );
 
     if (locationResult.length === 0) {
-      throw new Error(`库位不存在: ${locationId}`);
+      throw new Error('所选库位不存在或已停用，请重新选择有效库位');
     }
   }
 
@@ -1638,12 +1654,12 @@ class InventoryService {
     );
 
     if (rows.length === 0) {
-      throw new Error(`物料 ${materialId} 不存在，请检查物料基础数据`);
+      throw new Error('所选物料不存在，请检查物料基础数据');
     }
 
     const locationId = rows[0].location_id;
     if (!locationId) {
-      throw new Error(`物料 ${materialId} 未配置默认仓库，请在【物料管理】中设置存放仓库后再操作`);
+      throw new Error('所选物料未配置默认仓库，请在【物料管理】中设置存放仓库后再操作');
     }
 
     return locationId;
@@ -1674,13 +1690,13 @@ class InventoryService {
     );
 
     if (rows.length === 0) {
-      throw new Error(`物料 ${materialId} 不存在，请检查物料基础数据`);
+      throw new Error('所选物料不存在，请检查物料基础数据');
     }
 
     const mat = rows[0];
     if (!mat.location_id) {
       throw new Error(
-        `物料 ${mat.code || materialId} 未配置默认仓库，请在【物料管理】中设置存放仓库后再操作`
+        `物料 ${mat.code || '所选物料'} 未配置默认仓库，请在【物料管理】中设置存放仓库后再操作`
       );
     }
 
@@ -1733,7 +1749,7 @@ class InventoryService {
     for (const row of rows) {
       if (!row.location_id) {
         throw new Error(
-          `物料 ${row.code || row.id} 未配置默认仓库，请在【物料管理】中设置存放仓库后再操作`
+          `物料 ${row.code || '所选物料'} 未配置默认仓库，请在【物料管理】中设置存放仓库后再操作`
         );
       }
       const data = {
@@ -1751,7 +1767,16 @@ class InventoryService {
     // 检查是否所有请求的物料都找到了
     for (const id of uniqueIds) {
       if (!infoMap.has(id)) {
-        throw new Error(`物料 ${id} 不存在，请检查物料基础数据`);
+        const [displayRows] = await conn.execute(
+          'SELECT code FROM materials WHERE id = ? LIMIT 1',
+          [id]
+        );
+        const displayCode = displayRows[0]?.code;
+        throw new Error(
+          displayCode
+            ? `物料“${displayCode}”不存在或已停用，请检查物料基础数据`
+            : '所选物料不存在或已停用，请检查物料基础数据'
+        );
       }
     }
 

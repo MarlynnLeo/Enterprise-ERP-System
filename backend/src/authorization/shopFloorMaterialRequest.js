@@ -3,11 +3,7 @@
  */
 
 const SHOP_OUTBOUND_TYPES = new Set(['supplement', 'exchange']);
-const SHOP_INBOUND_TYPES = new Set([
-  'defective_return',
-  'production_return',
-  'exchange_return',
-]);
+const SHOP_INBOUND_TYPES = new Set(['defective_return', 'production_return', 'exchange_return']);
 
 function hasCode(permissions, code) {
   if (!Array.isArray(permissions) || !code) return false;

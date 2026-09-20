@@ -6,7 +6,11 @@
  * real database to find residual data problems.
  */
 
-const { INCOMING_INSPECTION_COUNTED_STATUSES, PURCHASE_RECEIPT_COUNTED_STATUSES, sqlStringList } = require('../../constants/qualityReceipt');
+const {
+  INCOMING_INSPECTION_COUNTED_STATUSES,
+  PURCHASE_RECEIPT_COUNTED_STATUSES,
+  sqlStringList,
+} = require('../../constants/qualityReceipt');
 const DEFAULT_RULE_TIMEOUT_MS = Number(process.env.DATA_CONSISTENCY_RULE_TIMEOUT_MS || 30000);
 
 // Inventory finance posting became the required movement path in migration
@@ -110,7 +114,8 @@ const consistencyRules = [
     id: 'inventory.completed_inbound_has_ledger',
     severity: 'critical',
     closure: 'inventoryControl',
-    description: 'Post-cutover completed inbound documents must have ledger entries or a staged finance posting.',
+    description:
+      'Post-cutover completed inbound documents must have ledger entries or a staged finance posting.',
     sql: `
       SELECT i.id, i.inbound_no
       FROM inventory_inbound i
@@ -133,7 +138,8 @@ const consistencyRules = [
     id: 'inventory.completed_outbound_has_ledger',
     severity: 'critical',
     closure: 'inventoryControl',
-    description: 'Post-cutover completed outbound documents with actual issue qty must have ledger entries or a staged finance posting.',
+    description:
+      'Post-cutover completed outbound documents with actual issue qty must have ledger entries or a staged finance posting.',
     sql: `
       SELECT o.id, o.outbound_no
       FROM inventory_outbound o
@@ -163,7 +169,8 @@ const consistencyRules = [
     id: 'inventory.inbound_ledger_has_cost_value',
     severity: 'critical',
     closure: 'inventoryControl',
-    description: 'Inbound inventory ledger rows with quantity must carry a positive unit cost and total value.',
+    description:
+      'Inbound inventory ledger rows with quantity must carry a positive unit cost and total value.',
     sql: `
       SELECT l.id, l.transaction_no, l.reference_no, l.material_id, l.quantity, l.unit_cost, l.total_value
       FROM inventory_ledger l
@@ -175,7 +182,8 @@ const consistencyRules = [
     id: 'inventory.outbound_ledger_has_cost_value',
     severity: 'critical',
     closure: 'inventoryControl',
-    description: 'Outbound inventory ledger rows with quantity must carry a positive unit cost and total value.',
+    description:
+      'Outbound inventory ledger rows with quantity must carry a positive unit cost and total value.',
     sql: `
       SELECT l.id, l.transaction_no, l.reference_no, l.material_id, l.quantity, l.unit_cost, l.total_value
       FROM inventory_ledger l
@@ -188,7 +196,8 @@ const consistencyRules = [
     id: 'inventory.outbound_cost_matches_source_batch',
     severity: 'critical',
     closure: 'inventoryControl',
-    description: 'Outbound inventory cost must match the proven cost of the source batch, never a sales price.',
+    description:
+      'Outbound inventory cost must match the proven cost of the source batch, never a sales price.',
     sql: `
       SELECT l.id, l.transaction_no, l.reference_no, l.material_id, l.batch_number,
              l.unit_cost AS outbound_unit_cost,
@@ -246,7 +255,8 @@ const consistencyRules = [
     id: 'inventory.stock_balances_match_ledger',
     severity: 'critical',
     closure: 'inventoryControl',
-    description: 'Inventory stock balances must match signed ledger quantity and value by material/location/batch.',
+    description:
+      'Inventory stock balances must match signed ledger quantity and value by material/location/batch.',
     sql: `
       SELECT material_id, location_id, batch_number,
              ROUND(balance_quantity, 6) AS balance_quantity,
@@ -361,7 +371,8 @@ const consistencyRules = [
     id: 'purchase.order_received_quantity_matches_receipts',
     severity: 'high',
     closure: 'procureToPay',
-    description: 'Purchase order line received quantities match arrivals and accepted receipts, net of completed returns.',
+    description:
+      'Purchase order line received quantities match arrivals and accepted receipts, net of completed returns.',
     sql: `
       SELECT poi.id AS order_item_id, po.order_no, poi.material_id, poi.received_quantity,
         GREATEST(0, COALESCE(source.quantity, 0)) AS source_quantity
@@ -439,7 +450,8 @@ const consistencyRules = [
     id: 'production.completed_task_has_production_inbound',
     severity: 'high',
     closure: 'planToProduce',
-    description: 'Completed production tasks must have a completed production inbound linked via final inspection.',
+    description:
+      'Completed production tasks must have a completed production inbound linked via final inspection.',
     sql: `
       SELECT t.id AS task_id, t.code, t.status
       FROM production_tasks t
@@ -571,7 +583,8 @@ const consistencyRules = [
     id: 'finance.bank_account_balance_matches_approved_transactions',
     severity: 'critical',
     closure: 'recordToReport',
-    description: 'Bank account balance must equal opening balance plus approved or legacy posted bank movement.',
+    description:
+      'Bank account balance must equal opening balance plus approved or legacy posted bank movement.',
     sql: `
       SELECT a.id, a.account_number, a.account_name,
              ROUND(COALESCE(a.current_balance, 0), 2) AS current_balance,
@@ -593,7 +606,8 @@ const consistencyRules = [
     id: 'finance.approved_bank_transactions_have_balanced_gl_entry',
     severity: 'critical',
     closure: 'recordToReport',
-    description: 'Approved or legacy posted bank transactions must link to an existing balanced GL entry.',
+    description:
+      'Approved or legacy posted bank transactions must link to an existing balanced GL entry.',
     sql: `
       SELECT bt.id, bt.transaction_number, bt.gl_entry_id
       FROM bank_transactions bt

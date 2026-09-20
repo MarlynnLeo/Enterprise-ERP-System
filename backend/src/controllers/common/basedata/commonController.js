@@ -17,7 +17,9 @@ const locationService = require('../../../services/locationService');
 const materialSourceService = require('../../../services/materialSourceService');
 const inspectionMethodService = require('../../../services/inspectionMethodService');
 
-const baseCategoryController = createCrudController(categoryService, '分类', { usePaginated: false });
+const baseCategoryController = createCrudController(categoryService, '分类', {
+  usePaginated: false,
+});
 const baseUnitController = createCrudController(unitService, '单位');
 const baseLocationController = createCrudController(locationService, '库位');
 const baseMaterialSourceController = createCrudController(materialSourceService, '物料来源');
@@ -319,7 +321,6 @@ const commonController = {
       ResponseHandler.error(res, error.message, 'SERVER_ERROR', 500, error);
     }
   },
-
 };
 
 module.exports = commonController;

@@ -223,10 +223,18 @@ exports.getDeliveryStats = async (req, res) => {
       stats.total += parseInt(stat.count);
     });
 
-    return ResponseHandler.paginated(res, results, total, pagination.page, pagination.pageSize, undefined, {
-      items: results,
-      stats,
-    });
+    return ResponseHandler.paginated(
+      res,
+      results,
+      total,
+      pagination.page,
+      pagination.pageSize,
+      undefined,
+      {
+        items: results,
+        stats,
+      }
+    );
   } catch (error) {
     logger.error('获取发货统计数据失败:', error);
     ResponseHandler.error(res, '获取发货统计数据失败', 'SERVER_ERROR', 500, error);
@@ -302,9 +310,9 @@ exports.getOrderDeliveryDetails = async (req, res) => {
     );
 
     return ResponseHandler.success(res, {
-        orderInfo: orderInfo[0],
-        details: details,
-      });
+      orderInfo: orderInfo[0],
+      details: details,
+    });
   } catch (error) {
     logger.error('获取订单发货明细失败:', error);
     ResponseHandler.error(res, '获取订单发货明细失败', 'SERVER_ERROR', 500, error);

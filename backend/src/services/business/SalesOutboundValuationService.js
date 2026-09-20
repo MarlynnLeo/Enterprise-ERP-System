@@ -46,11 +46,18 @@ class SalesOutboundValuationService {
            ON ordered.order_id=COALESCE(i.source_order_id,o.order_id) AND ordered.material_id=i.product_id
         WHERE o.deleted_at IS NULL AND o.status='completed'
           AND COALESCE(i.source_order_id,o.order_id)=? AND (? IS NULL OR o.id=?)
-        GROUP BY i.product_id`, [orderId, outboundId, outboundId]
+        GROUP BY i.product_id`,
+      [orderId, outboundId, outboundId]
     );
-    return new Map(items.map(item => [Number(item.product_id), {
-      ...item, unit_price: Precision.round(Number(item.unit_price), 4),
-    }]));
+    return new Map(
+      items.map((item) => [
+        Number(item.product_id),
+        {
+          ...item,
+          unit_price: Precision.round(Number(item.unit_price), 4),
+        },
+      ])
+    );
   }
 
   static summarize(items) {

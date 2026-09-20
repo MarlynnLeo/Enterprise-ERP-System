@@ -16,14 +16,16 @@ const columns = [
   { prop: 'name', label: '设备名称', minWidth: 160 },
   { prop: 'model', label: '型号', minWidth: 130 },
   { prop: 'location', label: '位置', minWidth: 140 },
-  { prop: 'responsible_person', label: '负责人', minWidth: 120 },
+  { prop: 'responsiblePerson', label: '负责人', minWidth: 120 },
   { prop: 'status', label: '状态', type: 'status', minWidth: 110 },
-  { prop: 'inspection_date', label: '最近点检', type: 'date', minWidth: 120 },
-  { prop: 'next_inspection_date', label: '下次点检', type: 'date', minWidth: 120 }
+  { prop: 'inspectionDate', label: '最近点检', type: 'date', minWidth: 120 },
+  { prop: 'nextInspectionDate', label: '下次点检', type: 'date', minWidth: 120 }
 ]
 
 const statusOptions = [
   { label: '正常', value: 'normal' },
+  { label: '闲置', value: 'idle' },
+  { label: '离线', value: 'offline' },
   { label: '维护中', value: 'maintenance' },
   { label: '维修中', value: 'repair' },
   { label: '已报废', value: 'scrapped' }
@@ -31,6 +33,8 @@ const statusOptions = [
 
 const statusLabels = {
   normal: '正常',
+  idle: '闲置',
+  offline: '离线',
   maintenance: '维护中',
   repair: '维修中',
   scrapped: '已报废'

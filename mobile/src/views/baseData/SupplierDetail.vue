@@ -14,7 +14,7 @@
       <div class="info-header">
         <div class="avatar-icon"><VanIcon name="shop-o" size="24px" /></div>
         <div class="supplier-name">{{ supplier.name || '--' }}</div>
-        <div class="supplier-code">{{ supplier.code || `编码#${supplier.id}` }}</div>
+        <div class="supplier-code">{{ supplier.code || '未设置供应商编码' }}</div>
       </div>
 
       <CellGroup inset title="基本信息">
@@ -73,6 +73,7 @@
   import { NavBar, CellGroup, Cell, Button as VanButton, Icon as VanIcon, Loading, Empty, showToast } from 'vant'
   import { baseDataApi } from '@/api'
   import { extractApiData } from '@/utils/apiHelper'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const route = useRoute()
   const router = useRouter()
@@ -94,11 +95,14 @@
     } catch (error) {
       console.error('加载供应商详情失败:', error)
       supplier.value = null
-      errorMessage.value = error?.response?.status === 403
+      const fallback = error?.response?.status === 403
         ? '没有权限查看此供应商'
         : error?.response?.status === 404
           ? '供应商不存在或已被删除'
           : '加载失败，请重试'
+      errorMessage.value = error?.response?.status === 403 || error?.response?.status === 404
+        ? fallback
+        : getApiErrorMessage(error, fallback)
       showToast(errorMessage.value)
     } finally {
       loading.value = false

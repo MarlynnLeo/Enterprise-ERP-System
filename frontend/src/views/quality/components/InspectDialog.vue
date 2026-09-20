@@ -115,6 +115,14 @@
       </el-form-item>
 
       <!-- AQL 标准选择区 -->
+      <el-alert
+        v-if="samplingError"
+        :title="samplingError"
+        type="warning"
+        show-icon
+        :closable="false"
+        class="mb-md"
+      />
       <el-row :gutter="20">
         <el-col :span="8">
           <el-form-item label="AQL 抽样">
@@ -175,7 +183,7 @@
     <template #footer>
       <span class="dialog-footer">
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button v-permission="'quality:inspections:update'" type="primary" @click="submitInspection" :loading="submitting">提交检验</el-button>
+        <el-button v-permission="'quality:inspections:update'" type="primary" @click="submitInspection" :loading="submitting" :disabled="samplingLoading || (inspectForm.is_aql && !inspectForm.aql_standard_id)">提交检验</el-button>
       </span>
     </template>
     </AppDialog>
@@ -190,6 +198,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
@@ -243,6 +252,8 @@ const inspectionNo = computed(() => props.row?.inspectionNo || props.row?.inspec
 const inspectFormRef = ref(null)
 const submitting = ref(false)
 const samplingLoading = ref(false)
+const samplingError = ref('')
+let samplingRequestId = 0
 const currentSampleSize = ref(MAX_INSPECTION_MEASUREMENT_COLUMNS)
 const currentInspectionData = ref(null) // 保存完整检验数据用于后续操作
 
@@ -298,8 +309,12 @@ const inspectRules = {
 }
 
 // AQL 相关
-const aqlStandardsList = ref([])
 const availableAqlLevels = ref([])
+const normalizeAqlLevel = (level) => {
+  if (level === null || level === undefined || level === '') return null
+  const numericLevel = Number(level)
+  return Number.isFinite(numericLevel) && numericLevel > 0 ? String(numericLevel) : String(level).trim()
+}
 
 // 模板相关
 const inspectionTemplateId = ref(null)
@@ -315,12 +330,9 @@ const measureInputRefs = ref([])
 // AQL 标准加载
 const fetchAqlStandards = async () => {
   try {
-    const res = await qualityApi.getAqlStandards({ status: 'active', limit: 50 })
-    const items = res.data?.items || res.items || res.data || []
-    aqlStandardsList.value = items
-    const levels = new Set()
-    items.forEach(std => levels.add(std.aqlLevel))
-    availableAqlLevels.value = Array.from(levels).sort((a, b) => a - b)
+    const res = await qualityApi.getAqlLevels()
+    const levels = Array.isArray(res.data) ? res.data : []
+    availableAqlLevels.value = [...new Set(levels.map(normalizeAqlLevel).filter(Boolean))].sort((a, b) => Number(a) - Number(b))
   } catch (err) {
     console.error('获取AQL标准失败:', err)
   }
@@ -328,6 +340,9 @@ const fetchAqlStandards = async () => {
 
 // 监听弹窗打开
 watch(() => props.visible, async (val) => {
+  samplingRequestId += 1
+  samplingLoading.value = false
+  samplingError.value = ''
   if (val && props.row) {
     await fetchAqlStandards()
     await loadInspectionData()
@@ -376,7 +391,7 @@ const loadInspectionData = async () => {
     inspectForm.note = inspectionData.note || ''
     inspectForm.attachments = Array.isArray(inspectionData.attachments) ? inspectionData.attachments : []
     inspectForm.is_aql = inspectionData.isAql ?? !!inspectionData.is_aql
-    inspectForm.aqlLevel = inspectionData.aqlLevel ?? inspectionData.aql_level ?? null
+    inspectForm.aqlLevel = normalizeAqlLevel(inspectionData.aqlLevel ?? inspectionData.aql_level)
     inspectForm.aql_standard_id = inspectionData.aqlStandardId ?? inspectionData.aql_standard_id ?? null
     inspectForm.acceptLimit = inspectionData.acceptLimit ?? inspectionData.accept_limit ?? 0
     inspectForm.rejectLimit = inspectionData.rejectLimit ?? inspectionData.reject_limit ?? 1
@@ -399,14 +414,14 @@ const loadInspectionData = async () => {
     }
 
     // 如果 AQL 已启用，自动触发计算
-    if (inspectForm.is_aql && inspectForm.aqlLevel && inspectForm.quantity > 0 && !hasExistingMeasurements(inspectionData.items)) {
-      await handleAqlChange()
+    if (inspectForm.is_aql && (!hasExistingMeasurements(inspectionData.items) || !inspectForm.aql_standard_id)) {
+      await handleAqlChange({ preserveMeasurements: true })
     }
 
     measureInputRefs.value = []
   } catch (error) {
     console.error('获取检验单详情失败:', error)
-    ElMessage.error(`获取检验单详情失败: ${error.message}`)
+    ElMessage.error(`获取检验单详情失败：${getApiErrorMessage(error, '请稍后重试')}`)
     dialogVisible.value = false
   }
 }
@@ -448,7 +463,7 @@ const fetchInspectionTemplates = async (materialId) => {
   }
 }
 
-const selectTemplate = (templateId) => {
+const selectTemplate = async (templateId) => {
   inspectionTemplateId.value = templateId
   const selectedTemplate = inspectionTemplates.value.find(t => t.id === templateId)
   if (selectedTemplate) {
@@ -458,6 +473,7 @@ const selectTemplate = (templateId) => {
     currentTemplateItems.value = templateItems
     inspectForm.items = mapInspectionItems(templateItems)
     applyTemplateAql(selectedTemplate)
+    await handleAqlChange()
   }
   selectTemplateDialogVisible.value = false
   ElMessage.success('检验模板应用成功')
@@ -470,32 +486,51 @@ const handleCancelTemplateSelect = () => {
   }
 }
 
-const applyTemplateAql = async (tmpl) => {
+const applyTemplateAql = (tmpl) => {
   if (!tmpl) return
-  const isAql = tmpl.is_aql === true || tmpl.is_aql === 1
-  inspectForm.is_aql = isAql
-  if (isAql && tmpl.aqlLevel) {
-    inspectForm.aqlLevel = String(tmpl.aqlLevel)
-    await handleAqlChange()
-  } else {
-    inspectForm.aqlLevel = null
-    inspectForm.aql_standard_id = null
-  }
+  const isAql = tmpl.isAql ?? tmpl.is_aql
+  inspectForm.is_aql = isAql === true || isAql === 1
+  inspectForm.aqlLevel = inspectForm.is_aql ? normalizeAqlLevel(tmpl.aqlLevel) : null
+  inspectForm.aql_standard_id = null
+  inspectForm.acceptLimit = 0
+  inspectForm.rejectLimit = 1
 }
 
 // ===== AQL 相关 =====
-const handleAqlChange = async () => {
-  if (inspectForm.is_aql && inspectForm.quantity > 0 && inspectForm.aqlLevel) {
+const handleAqlChange = async (options = {}) => {
+  const requestId = ++samplingRequestId
+  samplingLoading.value = false
+  samplingError.value = ''
+  inspectForm.aql_standard_id = null
+  inspectForm.acceptLimit = 0
+  inspectForm.rejectLimit = 1
+  if (inspectForm.is_aql) {
+    const batchSize = Number(inspectForm.quantity)
+    if (!Number.isFinite(batchSize) || batchSize <= 0) {
+      samplingError.value = '检验数量必须为大于 0 的有效数字，才能匹配 AQL 标准。'
+      return
+    }
+    if (!inspectForm.aqlLevel) {
+      samplingError.value = '请选择 AQL 级别并匹配抽样标准后再提交检验。'
+      return
+    }
     samplingLoading.value = true
     try {
-      const res = await qualityApi.calculateAqlSampling({ batchSize: inspectForm.quantity, aqlLevel: inspectForm.aqlLevel })
+      const res = await qualityApi.calculateAqlSampling({ batchSize, aqlLevel: inspectForm.aqlLevel })
+      if (requestId !== samplingRequestId) return
       const unwrappedData = res.data || res
+      if (unwrappedData.matched === false) {
+        samplingError.value = unwrappedData.message || `未配置覆盖批量 ${batchSize}、AQL ${inspectForm.aqlLevel} 的抽样标准，请先在 AQL 抽样标准库中维护。`
+        return
+      }
       const data = unwrappedData.data || unwrappedData
 
       const rawSampleSize = Number(data?.sampleSize ?? data?.sample_size)
-      const sampleSize = Math.min(MAX_INSPECTION_MEASUREMENT_COLUMNS, rawSampleSize)
-      if (data && Number.isFinite(sampleSize) && sampleSize > 0) {
-        const aqlStandardId = data.aqlStandardId ?? data.aql_standard_id ?? data.id ?? data.aqlStandard?.id
+      // 自动补匹配旧记录的标准时，保留已经录入的测量值。
+      const savedCount = options.preserveMeasurements ? getExistingMeasurementCount(inspectForm.items) : 0
+      const sampleSize = Math.min(MAX_INSPECTION_MEASUREMENT_COLUMNS, Math.max(rawSampleSize, savedCount))
+      const aqlStandardId = data?.aqlStandardId ?? data?.aql_standard_id ?? data?.id ?? data?.aqlStandard?.id
+      if (aqlStandardId && Number.isInteger(rawSampleSize) && rawSampleSize > 0) {
         const acceptLimit = data.acceptLimit ?? data.accept_limit ?? 0
         const rejectLimit = data.rejectLimit ?? data.reject_limit ?? 1
         inspectForm.aql_standard_id = aqlStandardId
@@ -503,21 +538,19 @@ const handleAqlChange = async () => {
         inspectForm.rejectLimit = rejectLimit
         currentSampleSize.value = sampleSize
         resizeAllMeasurements(sampleSize)
-        ElMessage.success(`匹配到 AQL 抽样: n=${rawSampleSize}，录入前${sampleSize}个样本，Ac=${acceptLimit}, Re=${rejectLimit}`)
+        const measurementText = savedCount > rawSampleSize ? `保留${sampleSize}个已录入测量位` : `录入前${sampleSize}个样本`
+        ElMessage.success(`匹配到 AQL 抽样: n=${rawSampleSize}，${measurementText}，Ac=${acceptLimit}, Re=${rejectLimit}`)
+      } else {
+        samplingError.value = 'AQL 抽样标准缺少有效的标准编号或抽样数量，请检查标准配置。'
       }
     } catch (err) {
+      if (requestId !== samplingRequestId) return
       console.error('AQL计算失败:', err)
-      ElMessage.warning('未能匹配到适用的 AQL 标准，请检查批量大小和级别。')
-      inspectForm.aql_standard_id = null
-      inspectForm.acceptLimit = 0
-      inspectForm.rejectLimit = 1
+      samplingError.value = getApiErrorMessage(err, 'AQL 抽样计算失败，请稍后重试。')
     } finally {
-      samplingLoading.value = false
+      if (requestId === samplingRequestId) samplingLoading.value = false
     }
   } else {
-    inspectForm.aql_standard_id = null
-    inspectForm.acceptLimit = 0
-    inspectForm.rejectLimit = 1
     currentSampleSize.value = MAX_INSPECTION_MEASUREMENT_COLUMNS
     resizeAllMeasurements(MAX_INSPECTION_MEASUREMENT_COLUMNS)
   }
@@ -767,6 +800,11 @@ const handleQualifiedQuantityChange = () => {
 const submitInspection = async () => {
   if (!inspectFormRef.value) return
   if (submitting.value) { ElMessage.warning('正在提交中，请勿重复操作'); return }
+  if (samplingLoading.value) { ElMessage.warning('AQL 抽样计算中，请稍候'); return }
+  if (inspectForm.is_aql && !inspectForm.aql_standard_id) {
+    ElMessage.warning(samplingError.value || '请先匹配有效的 AQL 抽样标准再提交检验。')
+    return
+  }
   submitting.value = true
 
   try {
@@ -852,7 +890,7 @@ const submitInspection = async () => {
     emit('success')
   } catch (error) {
     console.error('检验提交失败:', error)
-    ElMessage.error(`检验提交失败: ${error.message}`)
+    ElMessage.error(`检验提交失败：${getApiErrorMessage(error, '请稍后重试')}`)
   } finally {
     submitting.value = false
   }

@@ -327,6 +327,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { Refresh, InfoFilled, Upload } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -485,7 +486,7 @@ const seedSupplierOption = (data) => {
   filteredSupplierOptions.value = [
     {
       id: supplierId,
-      name: supplierName || `供应商#${supplierId}`,
+      name: supplierName || '未命名供应商',
       code: supplierCode
     },
     ...filteredSupplierOptions.value
@@ -791,7 +792,7 @@ const regenerateMaterialCode = async (options = {}) => {
     }
   } catch (error) {
     console.error('生成物料编码失败:', error)
-    ElMessage.error(error.message || '生成编码失败')
+    ElMessage.error(getApiErrorMessage(error, '生成编码失败'))
   }
   return false
 }
@@ -857,7 +858,7 @@ const submitForm = async () => {
         emit('success')
         handleClose()
       } catch (error) {
-        ElMessage.error(error.message || '操作失败')
+        ElMessage.error(getApiErrorMessage(error, '操作失败'))
       } finally {
         submitting.value = false
       }

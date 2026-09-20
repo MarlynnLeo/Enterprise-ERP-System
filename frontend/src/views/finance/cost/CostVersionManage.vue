@@ -107,6 +107,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -202,7 +203,7 @@ const saveVersion = async () => {
       dialogVisible.value = false;
       fetchVersions();
     } catch (error) {
-      ElMessage.error(error.response?.data?.message || '创建失败');
+      ElMessage.error(getApiErrorMessage(error, '创建失败'));
     } finally {
       saving.value = false;
     }
@@ -220,7 +221,7 @@ const handleGenerate = async (row) => {
     const res = await financeApi.cost.generateCostVersion(row.id);
     ElMessage.success(parseResponseData(res, {})?.message || '测算成功');
   } catch (error) {
-    if (error !== 'cancel') ElMessage.error(error.response?.data?.message || '测算异常');
+    if (error !== 'cancel') ElMessage.error(getApiErrorMessage(error, '测算异常'));
   } finally {
     operatingId.value = null;
   }
@@ -252,7 +253,7 @@ const handleApprove = async (row) => {
     ElMessage.success('新版本已生效');
     fetchVersions();
   } catch (error) {
-    if (error !== 'cancel') ElMessage.error(error.response?.data?.message || '审核失败');
+    if (error !== 'cancel') ElMessage.error(getApiErrorMessage(error, '审核失败'));
   } finally {
     operatingId.value = null;
   }

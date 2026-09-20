@@ -1,6 +1,7 @@
 'use strict';
 
-const validationError = message => Object.assign(new Error(message), { statusCode: 400, code: 'VALIDATION_ERROR' });
+const validationError = (message) =>
+  Object.assign(new Error(message), { statusCode: 400, code: 'VALIDATION_ERROR' });
 
 function normalizeSalesDate(value, label = '业务日期') {
   if (typeof value === 'string') {
@@ -8,7 +9,12 @@ function normalizeSalesDate(value, label = '业务日期') {
     if (!match) throw validationError(`${label}格式无效`);
     const [, year, month, day] = match.map(Number);
     const calendar = new Date(Date.UTC(year, month - 1, day));
-    if (year < 1000 || calendar.getUTCFullYear() !== year || calendar.getUTCMonth() !== month - 1 || calendar.getUTCDate() !== day) {
+    if (
+      year < 1000 ||
+      calendar.getUTCFullYear() !== year ||
+      calendar.getUTCMonth() !== month - 1 ||
+      calendar.getUTCDate() !== day
+    ) {
       throw validationError(`${label}不是有效的日历日期`);
     }
     if (value.length === 10) return value;
@@ -29,12 +35,21 @@ function assertSalesLineQuantities(items) {
 }
 
 async function assertActiveSalesMaterials(connection, items) {
-  const ids = [...new Set(items.map(item => Number(item.material_id ?? item.product_id)))];
-  if (ids.some(id => !Number.isSafeInteger(id) || id <= 0)) throw validationError('请为每条销售明细选择有效物料');
-  const [rows] = await connection.query('SELECT id FROM materials WHERE id IN (?) AND deleted_at IS NULL', [ids]);
-  const valid = new Set(rows.map(row => Number(row.id)));
-  const missing = ids.filter(id => !valid.has(id));
+  const ids = [...new Set(items.map((item) => Number(item.material_id ?? item.product_id)))];
+  if (ids.some((id) => !Number.isSafeInteger(id) || id <= 0))
+    throw validationError('请为每条销售明细选择有效物料');
+  const [rows] = await connection.query(
+    'SELECT id FROM materials WHERE id IN (?) AND deleted_at IS NULL',
+    [ids]
+  );
+  const valid = new Set(rows.map((row) => Number(row.id)));
+  const missing = ids.filter((id) => !valid.has(id));
   if (missing.length) throw validationError(`以下物料不存在或已删除：${missing.join('、')}`);
 }
 
-module.exports = { validationError, normalizeSalesDate, assertSalesLineQuantities, assertActiveSalesMaterials };
+module.exports = {
+  validationError,
+  normalizeSalesDate,
+  assertSalesLineQuantities,
+  assertActiveSalesMaterials,
+};

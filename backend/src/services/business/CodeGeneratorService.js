@@ -10,7 +10,6 @@ const { parsePagination, appendPaginationSQL } = require('../../utils/safePagina
 const dayjs = require('dayjs');
 
 class CodeGeneratorService {
-
   /**
    * 生成下一个编号（并发安全）
    * @param {string} businessType - 业务类型（对应 coding_rules.business_type）
@@ -27,7 +26,9 @@ class CodeGeneratorService {
     );
 
     if (!rule) {
-      throw new Error(`编码规则未配置: ${businessType}，请先在「系统管理 → 编码规则」中添加该业务类型的编码规则`);
+      throw new Error(
+        `编码规则未配置: ${businessType}，请先在「系统管理 → 编码规则」中添加该业务类型的编码规则`
+      );
     }
 
     // 2. 计算周期键
@@ -83,7 +84,10 @@ class CodeGeneratorService {
       values.push(`%${keyword}%`, `%${keyword}%`);
     }
 
-    const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM coding_rules cr ${where}`, values);
+    const [[{ total }]] = await pool.query(
+      `SELECT COUNT(*) AS total FROM coding_rules cr ${where}`,
+      values
+    );
     // 一次性 LEFT JOIN 序列表，避免前端逐条请求预览（消除 N+1）
     const listSql = appendPaginationSQL(
       `SELECT cr.*, cs.current_value AS _seq_current
@@ -115,17 +119,29 @@ class CodeGeneratorService {
   }
 
   async getRuleById(id) {
-    const [[rule]] = await pool.query('SELECT id, business_type, name, prefix, date_format, `separator`, sequence_length, reset_cycle, initial_value, step, description, is_active, created_at, updated_at FROM coding_rules WHERE id = ?', [id]);
+    const [[rule]] = await pool.query(
+      'SELECT id, business_type, name, prefix, date_format, `separator`, sequence_length, reset_cycle, initial_value, step, description, is_active, created_at, updated_at FROM coding_rules WHERE id = ?',
+      [id]
+    );
     return rule || null;
   }
 
   async updateRule(id, data) {
     await pool.query(
       'UPDATE coding_rules SET name = ?, prefix = ?, date_format = ?, `separator` = ?, sequence_length = ?, reset_cycle = ?, initial_value = ?, step = ?, description = ?, is_active = ? WHERE id = ?',
-      [data.name, data.prefix, data.date_format ?? 'YYMMDD', data.separator ?? '',
-       data.sequence_length || 3, data.reset_cycle || 'daily',
-       data.initial_value ?? 1, data.step || 1, data.description || null,
-       data.is_active ?? 1, id]
+      [
+        data.name,
+        data.prefix,
+        data.date_format ?? 'YYMMDD',
+        data.separator ?? '',
+        data.sequence_length || 3,
+        data.reset_cycle || 'daily',
+        data.initial_value ?? 1,
+        data.step || 1,
+        data.description || null,
+        data.is_active ?? 1,
+        id,
+      ]
     );
     return this.getRuleById(id);
   }
@@ -133,9 +149,19 @@ class CodeGeneratorService {
   async createRule(data) {
     const [result] = await pool.query(
       'INSERT INTO coding_rules (business_type, name, prefix, date_format, `separator`, sequence_length, reset_cycle, initial_value, step, description, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [data.business_type, data.name, data.prefix || '', data.date_format ?? 'YYMMDD',
-       data.separator ?? '', data.sequence_length || 3, data.reset_cycle || 'daily',
-       data.initial_value ?? 1, data.step || 1, data.description || null, data.is_active ?? 1]
+      [
+        data.business_type,
+        data.name,
+        data.prefix || '',
+        data.date_format ?? 'YYMMDD',
+        data.separator ?? '',
+        data.sequence_length || 3,
+        data.reset_cycle || 'daily',
+        data.initial_value ?? 1,
+        data.step || 1,
+        data.description || null,
+        data.is_active ?? 1,
+      ]
     );
     return this.getRuleById(result.insertId);
   }
@@ -144,7 +170,9 @@ class CodeGeneratorService {
     // 同时清理关联的序列
     const rule = await this.getRuleById(id);
     if (rule) {
-      await pool.query('DELETE FROM coding_sequences WHERE business_type = ?', [rule.business_type]);
+      await pool.query('DELETE FROM coding_sequences WHERE business_type = ?', [
+        rule.business_type,
+      ]);
     }
     await pool.query('DELETE FROM coding_rules WHERE id = ?', [id]);
     return { success: true };
@@ -152,15 +180,12 @@ class CodeGeneratorService {
 
   async resetSequence(businessType, periodKey) {
     if (periodKey) {
-      await pool.query(
-        'DELETE FROM coding_sequences WHERE business_type = ? AND period_key = ?',
-        [businessType, periodKey]
-      );
+      await pool.query('DELETE FROM coding_sequences WHERE business_type = ? AND period_key = ?', [
+        businessType,
+        periodKey,
+      ]);
     } else {
-      await pool.query(
-        'DELETE FROM coding_sequences WHERE business_type = ?',
-        [businessType]
-      );
+      await pool.query('DELETE FROM coding_sequences WHERE business_type = ?', [businessType]);
     }
     return { success: true };
   }
@@ -184,11 +209,15 @@ class CodeGeneratorService {
 
   _getPeriodKey(resetCycle, now = dayjs()) {
     switch (resetCycle) {
-      case 'daily':   return now.format('YYYYMMDD');
-      case 'monthly': return now.format('YYYYMM');
-      case 'yearly':  return now.format('YYYY');
+      case 'daily':
+        return now.format('YYYYMMDD');
+      case 'monthly':
+        return now.format('YYYYMM');
+      case 'yearly':
+        return now.format('YYYY');
       case 'none':
-      default:        return 'default';
+      default:
+        return 'default';
     }
   }
 

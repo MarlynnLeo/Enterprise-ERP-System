@@ -6,22 +6,8 @@
         <Cell title="设备" is-link :value="selectedEquipment?.name || '请选择'" @click="showPicker = true" />
       </CellGroup>
       <CellGroup inset title="故障信息">
-        <Field v-model="form.failure_type" label="故障类型" placeholder="如：电气/机械/液压" />
+        <Field v-model="form.failureType" label="故障类型" placeholder="如：电气/机械/液压" />
         <Field v-model="form.description" type="textarea" rows="3" label="故障描述" placeholder="请详细描述故障现象..." autosize />
-        <Cell title="紧急程度">
-          <template #value>
-            <RadioGroup v-model="form.severity" direction="horizontal">
-              <Radio name="low">一般</Radio>
-              <Radio name="medium">紧急</Radio>
-              <Radio name="high">严重</Radio>
-            </RadioGroup>
-          </template>
-        </Cell>
-        <Cell title="是否停机">
-          <template #value>
-            <Switch v-model="form.is_shutdown" size="20px" />
-          </template>
-        </Cell>
       </CellGroup>
       <div class="submit-area">
         <Button type="danger" block round :loading="submitting" @click="handleSubmit">提交报修</Button>
@@ -43,7 +29,7 @@
 
 <script setup>
   import { ref, onMounted } from 'vue'
-  import { NavBar, CellGroup, Cell, Field, Button, RadioGroup, Radio, Switch, Popup, Search, Empty, showToast } from 'vant'
+  import { NavBar, CellGroup, Cell, Field, Button, Popup, Search, Empty, showToast } from 'vant'
   import { useRouter } from 'vue-router'
   import { equipmentApi } from '@/api'
   import { extractApiData } from '@/utils/apiHelper'
@@ -54,7 +40,7 @@
   const eqKeyword = ref('')
   const equipments = ref([])
   const selectedEquipment = ref(null)
-  const form = ref({ failure_type: '', description: '', severity: 'low', is_shutdown: false })
+  const form = ref({ failureType: '', description: '' })
 
   const fetchEquipments = async () => {
     try {
@@ -67,15 +53,15 @@
   const pickEquipment = (eq) => { selectedEquipment.value = eq; showPicker.value = false }
 
   const handleSubmit = async () => {
+    if (submitting.value) return
     if (!selectedEquipment.value) return showToast('请选择设备')
-    if (!form.value.description) return showToast('请填写故障描述')
+    if (!form.value.description.trim()) return showToast('请填写故障描述')
     submitting.value = true
     try {
       await equipmentApi.addFailure(selectedEquipment.value.id, {
-        failure_type: form.value.failure_type,
+        failureType: form.value.failureType,
+        failureDate: new Date().toISOString(),
         description: form.value.description,
-        severity: form.value.severity,
-        is_shutdown: form.value.is_shutdown
       })
       showToast('报修提交成功')
       router.go(-1)

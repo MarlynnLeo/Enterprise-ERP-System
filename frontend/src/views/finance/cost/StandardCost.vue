@@ -281,6 +281,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted } from 'vue';
@@ -415,7 +416,7 @@ const calculateStandardCost = async () => {
     loadStandardCosts();
   } catch (error) {
     console.error('计算标准成本失败:', error);
-    ElMessage.error(error.response?.data?.message || '计算标准成本失败');
+    ElMessage.error(getApiErrorMessage(error, '计算标准成本失败'));
   } finally {
     calculating.value = false;
   }
@@ -475,7 +476,7 @@ const recalculate = async (row) => {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('重新计算失败:', error);
-      ElMessage.error(error.response?.data?.message || '重新计算失败');
+      ElMessage.error(getApiErrorMessage(error, '重新计算失败'));
     }
   }
 };

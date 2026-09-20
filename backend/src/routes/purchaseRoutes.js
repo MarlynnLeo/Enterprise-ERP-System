@@ -25,16 +25,38 @@ router.use(desensitizeSensitiveResponse('view'));
 router.use(requirePriceMutationPermission('update'));
 
 // 采购申请路由
-router.get('/requisitions', authenticateToken, requirePermission('purchase:requisitions:view'), purchaseRequisitionController.getRequisitions);
+router.get(
+  '/requisitions',
+  authenticateToken,
+  requirePermission('purchase:requisitions:view'),
+  purchaseRequisitionController.getRequisitions
+);
 router.get(
   '/requisitions/production-status',
   authenticateToken,
   requirePermission('purchase:requisitions:view'),
   purchaseRequisitionController.getProductionPlanRequisitionStatus
 );
-router.get('/requisitions/:id', authenticateToken, requirePermission('purchase:requisitions:view'), purchaseRequisitionController.getRequisition);
-router.post('/requisitions', authenticateToken, requirePermission('purchase:requisitions:create'), requirePriceMutationPermission('update'), purchaseRequisitionController.createRequisition);
-router.put('/requisitions/:id', authenticateToken, requirePermission('purchase:requisitions:update'), requirePriceMutationPermission('update'), purchaseRequisitionController.updateRequisition);
+router.get(
+  '/requisitions/:id',
+  authenticateToken,
+  requirePermission('purchase:requisitions:view'),
+  purchaseRequisitionController.getRequisition
+);
+router.post(
+  '/requisitions',
+  authenticateToken,
+  requirePermission('purchase:requisitions:create'),
+  requirePriceMutationPermission('update'),
+  purchaseRequisitionController.createRequisition
+);
+router.put(
+  '/requisitions/:id',
+  authenticateToken,
+  requirePermission('purchase:requisitions:update'),
+  requirePriceMutationPermission('update'),
+  purchaseRequisitionController.updateRequisition
+);
 router.delete(
   '/requisitions/:id',
   authenticateToken,
@@ -49,16 +71,68 @@ router.put(
 );
 
 // 采购订单路由
-router.get('/orders', authenticateToken, requirePermission('purchase:orders:view'), purchaseOrderController.getOrders);
-router.get('/orders/latest-price', authenticateToken, requirePermission(PRICE_VIEW_PERMISSIONS), purchaseOrderController.getLatestPrice);
-router.post('/orders/latest-prices', authenticateToken, requirePermission(PRICE_VIEW_PERMISSIONS), purchaseOrderController.getLatestPrices);
-router.put('/orders/batch-status', authenticateToken, requirePermission('purchase:orders:update'), purchaseOrderController.batchUpdateOrderStatus);
-router.get('/orders/statistics', authenticateToken, requirePermission(['purchase:orders:view', 'purchase:reports:view']), purchaseOrderController.getStatistics);
-router.get('/orders/:id', authenticateToken, requirePermission('purchase:orders:view'), purchaseOrderController.getOrder);
-router.post('/orders', authenticateToken, requirePermission('purchase:orders:create'), requirePriceMutationPermission('update'), purchaseOrderController.createOrder);
-router.put('/orders/:id', authenticateToken, requirePermission('purchase:orders:update'), requirePriceMutationPermission('update'), purchaseOrderController.updateOrder);
-router.delete('/orders/:id', authenticateToken, requirePermission('purchase:orders:delete'), purchaseOrderController.deleteOrder);
-router.put('/orders/:id/status', authenticateToken, requirePermission('purchase:orders:update'), purchaseOrderController.updateOrderStatus);
+router.get(
+  '/orders',
+  authenticateToken,
+  requirePermission('purchase:orders:view'),
+  purchaseOrderController.getOrders
+);
+router.get(
+  '/orders/latest-price',
+  authenticateToken,
+  requirePermission(PRICE_VIEW_PERMISSIONS),
+  purchaseOrderController.getLatestPrice
+);
+router.post(
+  '/orders/latest-prices',
+  authenticateToken,
+  requirePermission(PRICE_VIEW_PERMISSIONS),
+  purchaseOrderController.getLatestPrices
+);
+router.put(
+  '/orders/batch-status',
+  authenticateToken,
+  requirePermission('purchase:orders:update'),
+  purchaseOrderController.batchUpdateOrderStatus
+);
+router.get(
+  '/orders/statistics',
+  authenticateToken,
+  requirePermission(['purchase:orders:view', 'purchase:reports:view']),
+  purchaseOrderController.getStatistics
+);
+router.get(
+  '/orders/:id',
+  authenticateToken,
+  requirePermission('purchase:orders:view'),
+  purchaseOrderController.getOrder
+);
+router.post(
+  '/orders',
+  authenticateToken,
+  requirePermission('purchase:orders:create'),
+  requirePriceMutationPermission('update'),
+  purchaseOrderController.createOrder
+);
+router.put(
+  '/orders/:id',
+  authenticateToken,
+  requirePermission('purchase:orders:update'),
+  requirePriceMutationPermission('update'),
+  purchaseOrderController.updateOrder
+);
+router.delete(
+  '/orders/:id',
+  authenticateToken,
+  requirePermission('purchase:orders:delete'),
+  purchaseOrderController.deleteOrder
+);
+router.put(
+  '/orders/:id/status',
+  authenticateToken,
+  requirePermission('purchase:orders:update'),
+  purchaseOrderController.updateOrderStatus
+);
 router.put(
   '/orders/:id/items-received',
   authenticateToken,
@@ -71,7 +145,12 @@ router.post(
   requirePermission(['purchase:orders:pushdown', 'purchase:orders:update']),
   purchaseOrderController.receiveWithIncomingInspection
 );
-router.get('/orders-statistics', authenticateToken, requirePermission(['purchase:orders:view', 'purchase:reports:view']), purchaseOrderController.getStatistics);
+router.get(
+  '/orders-statistics',
+  authenticateToken,
+  requirePermission(['purchase:orders:view', 'purchase:reports:view']),
+  purchaseOrderController.getStatistics
+);
 
 // 采购综合统计数据（用于数据概览）
 router.get(
@@ -82,43 +161,132 @@ router.get(
 );
 
 // 采购订单关联申请单路由
-router.get('/order-requisitions', authenticateToken, requirePermission('purchase:requisitions:view'), purchaseOrderController.getRequisitions);
-router.get('/order-requisitions/:id', authenticateToken, requirePermission('purchase:requisitions:view'), purchaseOrderController.getRequisition);
+router.get(
+  '/order-requisitions',
+  authenticateToken,
+  requirePermission('purchase:requisitions:view'),
+  purchaseOrderController.getRequisitions
+);
+router.get(
+  '/order-requisitions/:id',
+  authenticateToken,
+  requirePermission('purchase:requisitions:view'),
+  purchaseOrderController.getRequisition
+);
 
 // 供应商路由
-router.get('/suppliers', authenticateToken, requirePermission('basedata:suppliers:view'), purchaseOrderController.getSuppliers);
+router.get(
+  '/suppliers',
+  authenticateToken,
+  requirePermission('basedata:suppliers:view'),
+  purchaseOrderController.getSuppliers
+);
 
 // 采购入库路由
-router.get('/receipts/history-items', authenticateToken, requirePermission('purchase:receipts:view'), purchaseReceiptController.getPurchaseHistoryItems);
-router.get('/receipts', authenticateToken, requirePermission('purchase:receipts:view'), purchaseReceiptController.getReceipts);
+router.get(
+  '/receipts/history-items',
+  authenticateToken,
+  requirePermission('purchase:receipts:view'),
+  purchaseReceiptController.getPurchaseHistoryItems
+);
+router.get(
+  '/receipts',
+  authenticateToken,
+  requirePermission('purchase:receipts:view'),
+  purchaseReceiptController.getReceipts
+);
 router.get(
   '/receipts/material/:materialId',
   authenticateToken,
   requirePermission('purchase:receipts:view'),
   purchaseReceiptController.getMaterialPurchaseHistory
 );
-router.get('/receipts/:id', authenticateToken, requirePermission('purchase:receipts:view'), purchaseReceiptController.getReceipt);
-router.post('/receipts', authenticateToken, requirePermission('purchase:receipts:create'), requirePriceMutationPermission('update'), purchaseReceiptController.createReceipt);
-router.put('/receipts/:id', authenticateToken, requirePermission('purchase:receipts:update'), requirePriceMutationPermission('update'), purchaseReceiptController.updateReceipt);
+router.get(
+  '/receipts/:id',
+  authenticateToken,
+  requirePermission('purchase:receipts:view'),
+  purchaseReceiptController.getReceipt
+);
+router.post(
+  '/receipts',
+  authenticateToken,
+  requirePermission('purchase:receipts:create'),
+  requirePriceMutationPermission('update'),
+  purchaseReceiptController.createReceipt
+);
+router.put(
+  '/receipts/:id',
+  authenticateToken,
+  requirePermission('purchase:receipts:update'),
+  requirePriceMutationPermission('update'),
+  purchaseReceiptController.updateReceipt
+);
 router.put(
   '/receipts/:id/status',
   authenticateToken,
   requirePermission('purchase:receipts:update'),
   purchaseReceiptController.updateReceiptStatus
 );
-router.get('/receipts-statistics', authenticateToken, requirePermission(['purchase:receipts:view', 'purchase:reports:view']), purchaseReceiptController.getReceiptStats);
+router.get(
+  '/receipts-statistics',
+  authenticateToken,
+  requirePermission(['purchase:receipts:view', 'purchase:reports:view']),
+  purchaseReceiptController.getReceiptStats
+);
 
 // 采购退货路由
-router.get('/returns', authenticateToken, requirePermission('purchase:returns:view'), purchaseReturnController.getReturns);
-router.get('/returns/:id', authenticateToken, requirePermission('purchase:returns:view'), purchaseReturnController.getReturn);
-router.post('/returns', authenticateToken, requirePermission('purchase:returns:create'), requirePriceMutationPermission('update'), purchaseReturnController.createReturn);
-router.put('/returns/:id', authenticateToken, requirePermission('purchase:returns:update'), requirePriceMutationPermission('update'), purchaseReturnController.updateReturn);
-router.delete('/returns/:id', authenticateToken, requirePermission('purchase:returns:delete'), purchaseReturnController.deleteReturn);
-router.put('/returns/:id/status', authenticateToken, requirePermission('purchase:returns:update'), purchaseReturnController.updateReturnStatus);
-router.get('/returns-statistics', authenticateToken, requirePermission(['purchase:returns:view', 'purchase:reports:view']), purchaseReturnController.getReturnStats);
+router.get(
+  '/returns',
+  authenticateToken,
+  requirePermission('purchase:returns:view'),
+  purchaseReturnController.getReturns
+);
+router.get(
+  '/returns/:id',
+  authenticateToken,
+  requirePermission('purchase:returns:view'),
+  purchaseReturnController.getReturn
+);
+router.post(
+  '/returns',
+  authenticateToken,
+  requirePermission('purchase:returns:create'),
+  requirePriceMutationPermission('update'),
+  purchaseReturnController.createReturn
+);
+router.put(
+  '/returns/:id',
+  authenticateToken,
+  requirePermission('purchase:returns:update'),
+  requirePriceMutationPermission('update'),
+  purchaseReturnController.updateReturn
+);
+router.delete(
+  '/returns/:id',
+  authenticateToken,
+  requirePermission('purchase:returns:delete'),
+  purchaseReturnController.deleteReturn
+);
+router.put(
+  '/returns/:id/status',
+  authenticateToken,
+  requirePermission('purchase:returns:update'),
+  purchaseReturnController.updateReturnStatus
+);
+router.get(
+  '/returns-statistics',
+  authenticateToken,
+  requirePermission(['purchase:returns:view', 'purchase:reports:view']),
+  purchaseReturnController.getReturnStats
+);
 
 // 采购统计数据
-router.get('/statistics', authenticateToken, requirePermission('purchase:reports:view'), purchaseOrderController.getStatistics);
+router.get(
+  '/statistics',
+  authenticateToken,
+  requirePermission('purchase:reports:view'),
+  purchaseOrderController.getStatistics
+);
 
 // 委外加工路由
 router.get(
@@ -181,7 +349,12 @@ router.put(
 );
 
 // 委外入库路由
-router.get('/outsourced-receipts', authenticateToken, requirePermission('purchase:processing-receipts:view'), outsourcedProcessingController.getReceipts);
+router.get(
+  '/outsourced-receipts',
+  authenticateToken,
+  requirePermission('purchase:processing-receipts:view'),
+  outsourcedProcessingController.getReceipts
+);
 router.get(
   '/outsourced-receipts/options/warehouses',
   authenticateToken,

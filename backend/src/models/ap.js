@@ -821,7 +821,7 @@ const apModel = {
           });
         } catch (revErr) {
           // 历史数据可能无 GL 凭证；其余冲销失败必须阻断作废，避免账实不一致
-          if (!/未找到|不存在|not found|NO_ENTRY|无可冲销/i.test(String(revErr.message || ''))) {
+          if (revErr.code !== 'VOUCHER_NOT_FOUND') {
             throw revErr;
           }
           logger.warn(`[AP] 作废时未找到可冲销凭证: ${revErr.message}`);
@@ -1051,15 +1051,17 @@ const apModel = {
       const payAmount = Array.isArray(paymentItems)
         ? paymentItems.reduce((s, it) => s + Number(it.amount || it.payment_amount || 0), 0)
         : Number(paymentData.amount || paymentData.total_amount || 0);
-      const paymentApproval = paymentData.is_refund ? { approvalId: null } : await PaymentApprovalGuard.assertPayable({
-        amount: payAmount,
-        approvalId: paymentData.approval_id || paymentData.approvalId,
-        approvalNo: paymentData.approval_no || paymentData.approvalNo,
-        supplierId: paymentData.supplier_id,
-        invoiceIds: (paymentItems || []).map((item) => item.invoice_id),
-        serverAdminOverride: paymentData.server_admin_override === true,
-        connection,
-      });
+      const paymentApproval = paymentData.is_refund
+        ? { approvalId: null }
+        : await PaymentApprovalGuard.assertPayable({
+            amount: payAmount,
+            approvalId: paymentData.approval_id || paymentData.approvalId,
+            approvalNo: paymentData.approval_no || paymentData.approvalNo,
+            supplierId: paymentData.supplier_id,
+            invoiceIds: (paymentItems || []).map((item) => item.invoice_id),
+            serverAdminOverride: paymentData.server_admin_override === true,
+            connection,
+          });
 
       const approvalId = paymentApproval.approvalId || null;
 
@@ -1146,7 +1148,7 @@ const apModel = {
         );
 
         if (invoices.length === 0) {
-          throw new Error(`发票ID ${item.invoice_id} 不存在`);
+          throw new Error('发票不存在或已被删除');
         }
 
         const invoice = invoices[0];
@@ -1164,11 +1166,12 @@ const apModel = {
         const line = paymentData.is_refund
           ? parseRefundLine(item, invoice, 'purchase_return')
           : parseSettlementLine(item);
-        if (!paymentData.is_refund) assertWithinBalance(
-          line.settlementCents,
-          toCents(invoice.balance_amount),
-          `发票 ${invoice.invoice_number} 付款核销金额`
-        );
+        if (!paymentData.is_refund)
+          assertWithinBalance(
+            line.settlementCents,
+            toCents(invoice.balance_amount),
+            `发票 ${invoice.invoice_number} 付款核销金额`
+          );
 
         await connection.execute(
           'INSERT INTO ap_payment_items (payment_id, invoice_id, amount, discount_amount) VALUES (?, ?, ?, ?)',
@@ -1178,7 +1181,11 @@ const apModel = {
         const paidAmountCents = toCents(invoice.paid_amount) + line.settlementCents;
         const totalAmountCents = toCents(invoice.total_amount);
         const newPaidAmount = fromCents(paidAmountCents);
-        const newBalanceAmount = fromCents(totalAmountCents < 0 ? totalAmountCents - paidAmountCents : Math.max(0, totalAmountCents - paidAmountCents));
+        const newBalanceAmount = fromCents(
+          totalAmountCents < 0
+            ? totalAmountCents - paidAmountCents
+            : Math.max(0, totalAmountCents - paidAmountCents)
+        );
         const newStatus = invoiceStatusAfterSettlement(paidAmountCents, totalAmountCents);
 
         await connection.execute(
@@ -1203,7 +1210,7 @@ const apModel = {
         );
 
         if (bankAccounts.length === 0) {
-          throw new Error(`银行账户ID ${paymentData.bank_account_id} 不存在`);
+          throw new Error('银行账户不存在或已停用');
         }
 
         const bankAccount = bankAccounts[0];
@@ -1260,7 +1267,7 @@ const apModel = {
           document_type: DOCUMENT_TYPE_MAPPING.PURCHASE_PAYMENT,
           document_number: paymentData.payment_number,
           period_id: glEntry.period_id,
-          description: `供应商 ${paymentData.supplier_name} ${paymentData.is_refund ? "退款" : "付款"}`,
+          description: `供应商 ${paymentData.supplier_name} ${paymentData.is_refund ? '退款' : '付款'}`,
           created_by: glEntry.created_by,
           status: 'posted',
           is_posted: 1,
@@ -1673,16 +1680,24 @@ const apModel = {
         if (invoices.length === 0) continue;
 
         const invoice = invoices[0];
-        const settleBackCents = Number(item.item_amount) < 0 ? toCents(item.item_amount) : parseSettlementLine({
-          amount: item.item_amount,
-          discount_amount: item.item_discount_amount,
-        }).settlementCents;
-        const paidAmountCents = toCents(invoice.total_amount) < 0
-          ? Math.min(0, toCents(invoice.paid_amount) - settleBackCents)
-          : Math.max(0, toCents(invoice.paid_amount) - settleBackCents);
+        const settleBackCents =
+          Number(item.item_amount) < 0
+            ? toCents(item.item_amount)
+            : parseSettlementLine({
+                amount: item.item_amount,
+                discount_amount: item.item_discount_amount,
+              }).settlementCents;
+        const paidAmountCents =
+          toCents(invoice.total_amount) < 0
+            ? Math.min(0, toCents(invoice.paid_amount) - settleBackCents)
+            : Math.max(0, toCents(invoice.paid_amount) - settleBackCents);
         const totalAmountCents = toCents(invoice.total_amount);
         const newPaidAmount = fromCents(paidAmountCents);
-        const newBalanceAmount = fromCents(totalAmountCents < 0 ? totalAmountCents - paidAmountCents : Math.max(0, totalAmountCents - paidAmountCents));
+        const newBalanceAmount = fromCents(
+          totalAmountCents < 0
+            ? totalAmountCents - paidAmountCents
+            : Math.max(0, totalAmountCents - paidAmountCents)
+        );
         const newStatus = invoiceStatusAfterSettlement(paidAmountCents, totalAmountCents);
 
         await connection.execute(
@@ -1729,7 +1744,10 @@ const apModel = {
             throw new Error('付款账户不存在，无法冲销银行交易');
           }
           if (Number(payment.total_amount) < 0) {
-            assertBankBalanceSufficient(toCents(bankAccounts[0].current_balance), -toCents(payment.total_amount));
+            assertBankBalanceSufficient(
+              toCents(bankAccounts[0].current_balance),
+              -toCents(payment.total_amount)
+            );
           }
 
           const [reversalBankTxResult] = await connection.execute(

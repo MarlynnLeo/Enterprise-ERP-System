@@ -282,12 +282,14 @@ function isSensitiveFieldName(fieldName) {
   const snakeName = toSnakeCase(normalized);
   if (SENSITIVE_FIELD_SET.has(snakeName)) return true;
 
-  return /(^|_)(price|cost|amount|balance|tax_rate|tax_amount|tax_percent|profit|margin|sales|revenue|expense|debit|credit)($|_)/.test(snakeName);
+  return /(^|_)(price|cost|amount|balance|tax_rate|tax_amount|tax_percent|profit|margin|sales|revenue|expense|debit|credit)($|_)/.test(
+    snakeName
+  );
 }
 
 function hasSensitiveFieldDescriptor(data) {
-  return Object.keys(data).some((key) =>
-    SENSITIVE_FIELD_DESCRIPTORS.has(key) && isSensitiveFieldName(data[key])
+  return Object.keys(data).some(
+    (key) => SENSITIVE_FIELD_DESCRIPTORS.has(key) && isSensitiveFieldName(data[key])
   );
 }
 

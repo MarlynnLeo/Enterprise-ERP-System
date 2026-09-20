@@ -40,7 +40,9 @@ const expenseController = {
       const { status, parentId, tree } = req.query;
 
       if (tree === 'true') {
-        const data = await expenseModel.getExpenseCategoryTree(req.query.includeInactive === 'true');
+        const data = await expenseModel.getExpenseCategoryTree(
+          req.query.includeInactive === 'true'
+        );
         return ResponseHandler.success(res, data, '获取费用类型树成功');
       }
 
@@ -82,7 +84,8 @@ const expenseController = {
       ResponseHandler.success(res, result, '费用类型创建成功');
     } catch (error) {
       logger.error('创建费用类型失败:', error);
-      if (error.code === 'VALIDATION_ERROR') return ResponseHandler.error(res, error.message, error.code, 400);
+      if (error.code === 'VALIDATION_ERROR')
+        return ResponseHandler.error(res, error.message, error.code, 400);
       if (error.code === 'ER_DUP_ENTRY') {
         return ResponseHandler.error(res, '类型编码已存在', 'VALIDATION_ERROR', 400);
       }
@@ -100,7 +103,8 @@ const expenseController = {
       ResponseHandler.success(res, result, '费用类型更新成功');
     } catch (error) {
       logger.error('更新费用类型失败:', error);
-      if (error.code === 'VALIDATION_ERROR') return ResponseHandler.error(res, error.message, error.code, 400);
+      if (error.code === 'VALIDATION_ERROR')
+        return ResponseHandler.error(res, error.message, error.code, 400);
       ResponseHandler.error(res, '更新费用类型失败', 'SERVER_ERROR', 500, error);
     }
   },
@@ -176,7 +180,9 @@ const expenseController = {
       if (!id) {
         return ResponseHandler.error(res, '无效的费用ID', 'VALIDATION_ERROR', 400);
       }
-      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'expense', id, '无权访问该费用记录'))) {
+      if (
+        !(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'expense', id, '无权访问该费用记录'))
+      ) {
         return;
       }
       const data = await expenseModel.getExpenseById(id);
@@ -208,7 +214,12 @@ const expenseController = {
       const parsedAmount = Number.parseFloat(amount);
 
       if (!category_id || !title || amount === undefined || amount === null || !expense_date) {
-        return ResponseHandler.error(res, '费用类型、标题、金额和日期为必填项', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(
+          res,
+          '费用类型、标题、金额和日期为必填项',
+          'VALIDATION_ERROR',
+          400
+        );
       }
       if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
         return ResponseHandler.error(res, '费用金额必须大于0', 'VALIDATION_ERROR', 400);
@@ -223,7 +234,13 @@ const expenseController = {
       ResponseHandler.success(res, result, '费用创建成功');
     } catch (error) {
       logger.error('创建费用记录失败:', error);
-      ResponseHandler.error(res, error.message || '创建费用记录失败', 'VALIDATION_ERROR', 400, error);
+      ResponseHandler.error(
+        res,
+        error.message || '创建费用记录失败',
+        'VALIDATION_ERROR',
+        400,
+        error
+      );
     }
   },
 
@@ -236,7 +253,9 @@ const expenseController = {
       if (!id) {
         return ResponseHandler.error(res, '无效的费用ID', 'VALIDATION_ERROR', 400);
       }
-      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'expense', id, '无权修改该费用记录'))) {
+      if (
+        !(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'expense', id, '无权修改该费用记录'))
+      ) {
         return;
       }
       const result = await expenseModel.updateExpense(id, mapKeysToSnake(req.body || {}));
@@ -257,7 +276,9 @@ const expenseController = {
       if (!id) {
         return ResponseHandler.error(res, '无效的费用ID', 'VALIDATION_ERROR', 400);
       }
-      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'expense', id, '无权提交该费用记录'))) {
+      if (
+        !(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'expense', id, '无权提交该费用记录'))
+      ) {
         return;
       }
       const userId = getAuthenticatedUserId(req);
@@ -324,11 +345,7 @@ const expenseController = {
         }
       }
 
-      ResponseHandler.success(
-        res,
-        { ...result, dingtalk: dingtalkResult },
-        '已提交审批'
-      );
+      ResponseHandler.success(res, { ...result, dingtalk: dingtalkResult }, '已提交审批');
     } catch (error) {
       logger.error('提交审批失败:', error);
       ResponseHandler.error(res, error.message, 'VALIDATION_ERROR', 400);
@@ -344,7 +361,9 @@ const expenseController = {
       if (!id) {
         return ResponseHandler.error(res, '无效的费用ID', 'VALIDATION_ERROR', 400);
       }
-      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'expense', id, '无权审批该费用记录'))) {
+      if (
+        !(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'expense', id, '无权审批该费用记录'))
+      ) {
         return;
       }
       const { action, remark } = req.body; // action: 'approve' | 'reject'
@@ -372,7 +391,9 @@ const expenseController = {
       if (!id) {
         return ResponseHandler.error(res, '无效的费用ID', 'VALIDATION_ERROR', 400);
       }
-      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'expense', id, '无权付款该费用记录'))) {
+      if (
+        !(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'expense', id, '无权付款该费用记录'))
+      ) {
         return;
       }
       // HTTP camel → snake
@@ -414,7 +435,9 @@ const expenseController = {
       if (!id) {
         return ResponseHandler.error(res, '无效的费用ID', 'VALIDATION_ERROR', 400);
       }
-      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'expense', id, '无权删除该费用记录'))) {
+      if (
+        !(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'expense', id, '无权删除该费用记录'))
+      ) {
         return;
       }
       const result = await expenseModel.deleteExpense(id);

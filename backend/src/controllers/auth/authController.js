@@ -25,11 +25,26 @@ const { revokeUserSockets } = require('../../utils/sessionRevocation');
 const AuditLogService = require('../../services/system/AuditLogService');
 
 const PROFILE_AUTHORIZATION_FIELDS = new Set([
-  'department_id', 'departmentId', 'role', 'role_id', 'roleId',
-  'role_ids', 'roleIds', 'status', 'position', 'is_super_admin', 'isSuperAdmin',
+  'department_id',
+  'departmentId',
+  'role',
+  'role_id',
+  'roleId',
+  'role_ids',
+  'roleIds',
+  'status',
+  'position',
+  'is_super_admin',
+  'isSuperAdmin',
 ]);
 const PROFILE_EDITABLE_FIELDS = new Set([
-  'real_name', 'realName', 'name', 'email', 'phone', 'avatar', 'bio',
+  'real_name',
+  'realName',
+  'name',
+  'email',
+  'phone',
+  'avatar',
+  'bio',
 ]);
 
 async function logAuthenticationEvent(req, event, details = {}, user = null) {
@@ -122,7 +137,9 @@ const login = async (req, res) => {
     if (lockStatus.locked) {
       logger.warn('Login rejected because account is locked', { username });
       await logAuthenticationEvent(req, 'LOGIN', {
-        outcome: 'failure', reason: 'account_locked', username,
+        outcome: 'failure',
+        reason: 'account_locked',
+        username,
       });
       return ResponseHandler.error(
         res,
@@ -153,26 +170,40 @@ const login = async (req, res) => {
 
     // 3. 检查用户状态是否禁用
     if (user.status === 0) {
-      await logAuthenticationEvent(req, 'LOGIN', {
-        outcome: 'failure', reason: 'account_disabled', username,
-      }, user);
+      await logAuthenticationEvent(
+        req,
+        'LOGIN',
+        {
+          outcome: 'failure',
+          reason: 'account_disabled',
+          username,
+        },
+        user
+      );
       return ResponseHandler.error(res, '账号已被禁用，请联系管理员', 'VALIDATION_ERROR', 403);
     }
 
     // 4. 验证密码（防御性检查：确保密码哈希存在）
     if (!user.password) {
-      logger.error(`Login rejected because password hash is missing: username=${username}, userId=${user.id}`);
+      logger.error(
+        `Login rejected because password hash is missing: username=${username}, userId=${user.id}`
+      );
       return ResponseHandler.error(res, '账户数据异常，请联系管理员', 'SERVER_ERROR', 500);
     }
     const isMatch = await PasswordSecurity.verifyPassword(password, user.password);
 
     if (!isMatch) {
       const result = await AccountLockService.recordFailedAttempt(username, req.ip);
-      await logAuthenticationEvent(req, 'LOGIN', {
-        outcome: 'failure',
-        reason: result.locked ? 'account_locked' : 'invalid_credentials',
-        username,
-      }, user);
+      await logAuthenticationEvent(
+        req,
+        'LOGIN',
+        {
+          outcome: 'failure',
+          reason: result.locked ? 'account_locked' : 'invalid_credentials',
+          username,
+        },
+        user
+      );
       return ResponseHandler.error(
         res,
         invalidCredentialsMessage(result),
@@ -253,13 +284,14 @@ const getUserProfile = async (req, res) => {
 // 更新用户信息
 const updateUserProfile = async (req, res) => {
   try {
-
     const userId = req.user.id;
     const rawBody = req.body || {};
     if (!rawBody || typeof rawBody !== 'object' || Array.isArray(rawBody)) {
       return ResponseHandler.error(res, '个人资料格式无效', 'VALIDATION_ERROR', 400);
     }
-    const forbiddenField = Object.keys(rawBody).find((key) => PROFILE_AUTHORIZATION_FIELDS.has(key));
+    const forbiddenField = Object.keys(rawBody).find((key) =>
+      PROFILE_AUTHORIZATION_FIELDS.has(key)
+    );
     if (forbiddenField) {
       return ResponseHandler.forbidden(res, '部门、岗位、角色和状态只能由用户管理流程修改');
     }
@@ -291,16 +323,28 @@ const updateUserProfile = async (req, res) => {
     // 附加角色信息到用户对象
     await AuthService.attachUserRoles(user);
 
-    await logAuthenticationEvent(req, 'PROFILE_UPDATE', {
-      outcome: 'success', reason: 'self_service_profile',
-    }, user);
+    await logAuthenticationEvent(
+      req,
+      'PROFILE_UPDATE',
+      {
+        outcome: 'success',
+        reason: 'self_service_profile',
+      },
+      user
+    );
 
     ResponseHandler.success(res, user, '更新用户信息成功');
   } catch (error) {
     logger.error('[Auth] 更新用户信息失败:', error);
-    await logAuthenticationEvent(req, 'PROFILE_UPDATE', {
-      outcome: 'failure', reason: error.code || 'profile_update_failed',
-    }, req.user);
+    await logAuthenticationEvent(
+      req,
+      'PROFILE_UPDATE',
+      {
+        outcome: 'failure',
+        reason: error.code || 'profile_update_failed',
+      },
+      req.user
+    );
     if (error.code === 'PROFILE_FIELD_FORBIDDEN') {
       return ResponseHandler.forbidden(res, '个人资料包含不可编辑的授权字段');
     }
@@ -345,17 +389,23 @@ const changePassword = async (req, res) => {
     return ResponseHandler.success(res, null, '密码修改成功，请重新登录');
   } catch (error) {
     logger.error('[Auth] 修改密码失败:', error);
-    await logAuthenticationEvent(req, 'PASSWORD_CHANGE', {
-      outcome: 'failure', reason: error.code || 'password_change_failed',
-    }, req.user);
+    await logAuthenticationEvent(
+      req,
+      'PASSWORD_CHANGE',
+      {
+        outcome: 'failure',
+        reason: error.code || 'password_change_failed',
+      },
+      req.user
+    );
     return ResponseHandler.error(res, '服务器错误', 'SERVER_ERROR', 500, error);
   }
 };
 
 // Magic bytes 校验 — 防止伪造 Content-Type
 const MAGIC_BYTES = {
-  'image/jpeg': [Buffer.from([0xFF, 0xD8, 0xFF])],
-  'image/png': [Buffer.from([0x89, 0x50, 0x4E, 0x47])],
+  'image/jpeg': [Buffer.from([0xff, 0xd8, 0xff])],
+  'image/png': [Buffer.from([0x89, 0x50, 0x4e, 0x47])],
   'image/gif': [Buffer.from('GIF87a'), Buffer.from('GIF89a')],
   'image/webp': [Buffer.from('RIFF')], // RIFF header
 };
@@ -426,13 +476,7 @@ const uploadAvatar = async (req, res) => {
     ResponseHandler.success(res, { avatarUrl }, '头像上传成功');
   } catch (error) {
     logger.error('[Auth] 头像上传失败:', error);
-    ResponseHandler.error(
-      res,
-      '头像上传失败',
-      'SERVER_ERROR',
-      500,
-      error
-    );
+    ResponseHandler.error(res, '头像上传失败', 'SERVER_ERROR', 500, error);
   }
 };
 
@@ -446,9 +490,7 @@ const getUserPermissions = async (req, res) => {
     const PermissionService = require('../../services/PermissionService');
     const permissions = await PermissionService.getUserPermissions(userId);
 
-    logger.info(
-      `📋 [Auth] 用户 ${req.user.username}(ID:${userId}) 权限数: ${permissions.length}`
-    );
+    logger.info(`📋 [Auth] 用户 ${req.user.username}(ID:${userId}) 权限数: ${permissions.length}`);
 
     return ResponseHandler.success(res, permissions, '获取用户权限成功');
   } catch (error) {
@@ -462,7 +504,7 @@ const updateAvatarFrame = async (req, res) => {
   try {
     const userId = req.user.id;
     const body = mapKeysToSnake(req.body || {});
-    const frameId = req.body.frameId || body.avatarFrame;
+    const frameId = body.frame_id ?? body.avatar_frame;
 
     const decorativeFrameIds = new Set([
       'silver-moon',
@@ -483,7 +525,7 @@ const updateAvatarFrame = async (req, res) => {
     ]);
 
     if (!frameId || (!decorativeFrameIds.has(frameId) && frameId !== 'none')) {
-      return ResponseHandler.error(res, '无效的头像特效ID', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(res, '头像特效参数无效', 'VALIDATION_ERROR', 400);
     }
 
     // 更新用户的头像特效设置
@@ -599,18 +641,19 @@ const refreshToken = async (req, res) => {
     await logAuthenticationEvent(req, 'TOKEN_REFRESH', { outcome: 'success' }, user);
   } catch (error) {
     logger.error('[Auth] 令牌刷新失败:', error);
-    await logAuthenticationEvent(req, 'TOKEN_REFRESH', {
-      outcome: 'failure', reason: error.code || 'refresh_failed',
-    }, req.user);
+    await logAuthenticationEvent(
+      req,
+      'TOKEN_REFRESH',
+      {
+        outcome: 'failure',
+        reason: error.code || 'refresh_failed',
+      },
+      req.user
+    );
     // Concurrent tabs lost the race after the winner already Set-Cookie.
     // Tell the client to retry once instead of wiping the session.
     if (error.code === 'REFRESH_TOKEN_BUSY') {
-      return ResponseHandler.error(
-        res,
-        '会话刷新繁忙，请重试',
-        'REFRESH_TOKEN_BUSY',
-        409
-      );
+      return ResponseHandler.error(res, '会话刷新繁忙，请重试', 'REFRESH_TOKEN_BUSY', 409);
     }
     if (error.code === 'REFRESH_TOKEN_REUSED' || error.code === 'REFRESH_TOKEN_ROTATION_REQUIRED') {
       clearTokenCookies(req, res);

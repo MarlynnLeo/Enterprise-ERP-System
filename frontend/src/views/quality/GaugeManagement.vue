@@ -271,6 +271,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, reactive, computed, onMounted } from 'vue'
 
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -374,7 +375,7 @@ const handleSubmit = () => {
       dialogVisible.value = false;
       fetchData();
     } catch (error) {
-      ElMessage.error(error.message || '操作失败');
+      ElMessage.error(getApiErrorMessage(error, '操作失败'));
     } finally { submitting.value = false; }
   });
 };
@@ -399,7 +400,7 @@ const handleCalSubmit = () => {
       calDialogVisible.value = false;
       fetchData();
     } catch (error) {
-      ElMessage.error(error.message || '校准记录提交失败');
+      ElMessage.error(getApiErrorMessage(error, '校准记录提交失败'));
     } finally { submitting.value = false; }
   });
 };

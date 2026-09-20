@@ -125,7 +125,7 @@ class MaterialReadinessService {
         const result = await this.checkByTask(taskId);
         results.push({ taskId, ...result });
       } catch (error) {
-        results.push({ taskId, ready: false, error: error.message });
+        results.push({ taskId, ready: false, error: '生产任务齐套检查失败，请稍后重试' });
       }
     }
     return results;

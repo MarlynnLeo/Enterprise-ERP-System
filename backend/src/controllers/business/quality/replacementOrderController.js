@@ -89,7 +89,8 @@ const getReplacementOrders = async (req, res) => {
     const total = countResult[0].total;
 
     // 查询列表数据
-    const dataQuery = appendPaginationSQL(`
+    const dataQuery = appendPaginationSQL(
+      `
       SELECT
         ro.*,
         ncp.inspection_no,
@@ -98,17 +99,24 @@ const getReplacementOrders = async (req, res) => {
       LEFT JOIN nonconforming_products ncp ON ro.ncp_id = ncp.id
       ${whereClause}
       ORDER BY ro.created_at DESC
-    `, pagination.limit, pagination.offset);
+    `,
+      pagination.limit,
+      pagination.offset
+    );
     const [rows] = await pool.query(dataQuery, queryParams);
 
-    return ResponseHandler.success(res, {
-      data: rows,
-      pagination: {
-        total,
-        current: pagination.page,
-        pageSize: pagination.pageSize,
+    return ResponseHandler.success(
+      res,
+      {
+        data: rows,
+        pagination: {
+          total,
+          current: pagination.page,
+          pageSize: pagination.pageSize,
+        },
       },
-    }, '获取换货单列表成功');
+      '获取换货单列表成功'
+    );
   } catch (error) {
     logger.error('获取换货单列表失败:', error);
     return ResponseHandler.error(res, '获取换货单列表失败', 'OPERATION_ERROR', 500, error);
@@ -216,7 +224,10 @@ const confirmReceipt = async (req, res) => {
     }
 
     // 获取换货单信息
-    const [orders] = await connection.query('SELECT id, replacement_no, ncp_id, ncp_no, return_no, purchase_order_no, supplier_id, supplier_name, material_id, material_code, material_name, quantity, received_quantity, replacement_reason, expected_date, actual_date, status, note, created_by, created_at, updated_at FROM replacement_orders WHERE id = ? FOR UPDATE', [id]);
+    const [orders] = await connection.query(
+      'SELECT id, replacement_no, ncp_id, ncp_no, return_no, purchase_order_no, supplier_id, supplier_name, material_id, material_code, material_name, quantity, received_quantity, replacement_reason, expected_date, actual_date, status, note, created_by, created_at, updated_at FROM replacement_orders WHERE id = ? FOR UPDATE',
+      [id]
+    );
 
     if (orders.length === 0) {
       await connection.rollback();
@@ -269,11 +280,15 @@ const confirmReceipt = async (req, res) => {
 
     await connection.commit();
     QualityIntegrationService.emitPurchaseReceiptCompleted(receipt.receipt_id, req.user?.id);
-    return ResponseHandler.success(res, {
-      received_quantity: newReceivedQty,
-      status: newStatus,
-      receipt,
-    }, '收货确认成功');
+    return ResponseHandler.success(
+      res,
+      {
+        received_quantity: newReceivedQty,
+        status: newStatus,
+        receipt,
+      },
+      '收货确认成功'
+    );
   } catch (error) {
     await connection.rollback();
     logger.error('换货收货确认失败:', error);
@@ -300,7 +315,10 @@ const updateStatus = async (req, res) => {
       return ResponseHandler.error(res, '无效的状态值', 'VALIDATION_ERROR', 400);
     }
 
-    const [existing] = await connection.query('SELECT id, replacement_no, ncp_id, ncp_no, return_no, purchase_order_no, supplier_id, supplier_name, material_id, material_code, material_name, quantity, received_quantity, replacement_reason, expected_date, actual_date, status, note, created_by, created_at, updated_at FROM replacement_orders WHERE id = ? FOR UPDATE', [id]);
+    const [existing] = await connection.query(
+      'SELECT id, replacement_no, ncp_id, ncp_no, return_no, purchase_order_no, supplier_id, supplier_name, material_id, material_code, material_name, quantity, received_quantity, replacement_reason, expected_date, actual_date, status, note, created_by, created_at, updated_at FROM replacement_orders WHERE id = ? FOR UPDATE',
+      [id]
+    );
     if (existing.length === 0) {
       await connection.rollback();
       return ResponseHandler.error(res, '换货单不存在', 'NOT_FOUND', 404);
@@ -314,11 +332,21 @@ const updateStatus = async (req, res) => {
     }
     if (['partial', 'completed'].includes(status)) {
       await connection.rollback();
-      return ResponseHandler.error(res, '部分收货和完成状态必须通过收货确认流程产生', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(
+        res,
+        '部分收货和完成状态必须通过收货确认流程产生',
+        'VALIDATION_ERROR',
+        400
+      );
     }
     if (['pending', 'cancelled'].includes(status) && receivedQty > 0) {
       await connection.rollback();
-      return ResponseHandler.error(res, '已有收货记录的换货单不能退回待收货或取消', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(
+        res,
+        '已有收货记录的换货单不能退回待收货或取消',
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     await connection.query(

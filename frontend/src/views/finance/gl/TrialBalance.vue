@@ -118,6 +118,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { Download } from '@element-plus/icons-vue'
@@ -211,7 +212,7 @@ const fetchPeriods = async () => {
     }
   } catch (error) {
     console.error('获取会计期间失败:', error)
-    ElMessage.error(error.message || '获取会计期间失败')
+    ElMessage.error(getApiErrorMessage(error, '获取会计期间失败'))
   }
 }
 
@@ -230,7 +231,7 @@ const fetchData = async () => {
     }
   } catch (error) {
     console.error('获取试算平衡失败:', error)
-    ElMessage.error(error.message || '获取数据失败')
+    ElMessage.error(getApiErrorMessage(error, '获取数据失败'))
   } finally {
     loading.value = false
   }
@@ -354,7 +355,7 @@ const exportData = async () => {
     ElMessage.success('导出成功')
   } catch (error) {
     console.error('导出失败:', error)
-    ElMessage.error('导出失败: ' + (error.message || '未知错误'))
+    ElMessage.error('导出失败: ' + (getApiErrorMessage(error, '未知错误')))
   }
 }
 

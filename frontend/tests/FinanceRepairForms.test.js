@@ -205,7 +205,7 @@ describe('费用表单与付款', () => {
     await clickButton(form, '确认付款')
     expect(mocks.api.payExpense).toHaveBeenCalledExactlyOnceWith(12, expect.objectContaining({ bankAccountId: 3, costCenterId: 7 }))
     expect(wrapper.find('[data-dialog="费用付款"]').exists()).toBe(true)
-    expect(mocks.message.error).toHaveBeenCalledWith('付款失败: 预算余额不足')
+    expect(mocks.message.error).toHaveBeenCalledWith('付款失败：预算余额不足')
   })
 })
 

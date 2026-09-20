@@ -20,6 +20,7 @@ import { formatDate } from '@/utils/helpers/dateUtils'
 import { formatCurrency } from '@/utils/format'
 import { parseResponseData } from '@/utils/responseParser'
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 
 /** 采购订单是否已设置有效供应商（用于提交审批前校验） */
 export function hasPurchaseOrderSupplier(order) {
@@ -71,8 +72,7 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
   const unwrapBusinessData = (response) => parseResponseData(response, {})
 
   const getRequestErrorMessage = (error, fallback = '操作失败') => {
-    const data = error?.response?.data
-    return data?.message || data?.error?.message || data?.error || error?.message || fallback
+    return getApiErrorMessage(error, fallback)
   }
 
   // 申请单详情
@@ -226,7 +226,7 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
         const row = orderList.value.find((item) => String(item.id) === String(id))
         setCurrentViewOrder(row || { id: data.id })
       } else { ElMessage.warning('获取不到订单详情') }
-    } catch (error) { console.error('获取采购订单详情失败:', error); ElMessage.error('获取采购订单详情失败: ' + (error.message || '未知错误')) }
+    } catch (error) { console.error('获取采购订单详情失败:', error); ElMessage.error(`获取采购订单详情失败：${getApiErrorMessage(error, '请稍后重试')}`) }
     finally { detailLoading.value = false }
   }
 
@@ -292,17 +292,14 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
       if (error.response && error.response.data) {
         const errorData = error.response.data
         if (errorData.error === '当前已经是该状态') ElMessage.info(`订单当前已经是"${getPurchaseStatusLabel(status)}"状态`)
-        else if (errorData.message) ElMessage.error(`更新失败: ${errorData.message}`)
-        else if (errorData.error?.message) ElMessage.error(`更新失败: ${errorData.error.message}`)
-        else if (errorData.error) ElMessage.error(`更新失败: ${errorData.error}`)
-        else ElMessage.error('更新失败: 服务器返回未知错误')
-      } else { ElMessage.error(error.message || '操作失败') }
+        else ElMessage.error(`更新失败: ${getApiErrorMessage(error, '操作失败')}`)
+      } else { ElMessage.error(`更新失败: ${getApiErrorMessage(error, '操作失败')}`) }
     } finally { if (loadOrdersCallback) loadOrdersCallback() }
   }
 
   const deleteOrder = async (id) => {
     try { await purchaseApi.deleteOrder(id); ElMessage.success('删除成功'); if (loadOrdersCallback) loadOrdersCallback() }
-    catch (error) { console.error('删除订单失败:', error); ElMessage.error('删除订单失败: ' + (error.message || '未知错误')) }
+    catch (error) { console.error('删除订单失败:', error); ElMessage.error(`删除订单失败：${getApiErrorMessage(error, '请稍后重试')}`) }
   }
 
   // ========== 到货操作 ==========
@@ -331,7 +328,7 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
       })
       const hasPendingItems = receiveForm.items.some(item => parseFloat(item.pendingQuantity || 0) > 0)
       if (!hasPendingItems) { ElMessage.info('该订单所有物料已全部收货完成'); receiveDialogVisible.value = false }
-    } catch (error) { console.error('打开到货对话框失败:', error); ElMessage.error('打开到货对话框失败: ' + (error.message || '未知错误')); receiveDialogVisible.value = false }
+    } catch (error) { console.error('打开到货对话框失败:', error); ElMessage.error(`打开到货对话框失败：${getApiErrorMessage(error, '请稍后重试')}`); receiveDialogVisible.value = false }
     finally { receiveDialogLoading.value = false }
   }
 
@@ -429,7 +426,7 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
         })
       }
       await printService.previewByDefaultTemplate('purchase', 'purchase_order', printData)
-    } catch (error) { console.error('打印失败:', error); ElMessage.error('打印失败: ' + (error.message || '未知错误')) }
+    } catch (error) { console.error('打印失败:', error); ElMessage.error(`打印失败：${getApiErrorMessage(error, '请稍后重试')}`) }
   }
 
   // ========== 统计与批量 ==========

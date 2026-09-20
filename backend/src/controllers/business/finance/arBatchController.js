@@ -43,7 +43,7 @@ const batchReceipts = async (req, res) => {
       for (const item of receipts) {
         const invoice = await arModel.getInvoiceById(item.invoiceId);
         if (!invoice) {
-          throw new Error(`发票ID ${item.invoiceId} 不存在`);
+          throw new Error('发票不存在或已被删除');
         }
         if (!SETTLEMENT_ELIGIBLE_STATUSES.includes(invoice.status)) {
           throw new Error(
@@ -53,7 +53,7 @@ const batchReceipts = async (req, res) => {
 
         const line = parseSettlementLine({
           amount: item.amount,
-          discount_amount: item.discountAmount || 0,
+          discount_amount: item.discountAmount ?? 0,
         });
         assertWithinBalance(
           line.settlementCents,
@@ -82,7 +82,7 @@ const batchReceipts = async (req, res) => {
           {
             invoice_id: item.invoiceId,
             amount: item.amount,
-            discount_amount: item.discountAmount || 0,
+            discount_amount: item.discountAmount ?? 0,
           },
         ];
 

@@ -261,6 +261,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -427,7 +428,7 @@ const submitForm = async () => {
     formDialogVisible.value = false
     loadData()
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || '操作失败')
+    ElMessage.error(getApiErrorMessage(error, '操作失败'))
   } finally {
     submitting.value = false
   }
@@ -445,7 +446,7 @@ const handleDelete = (row) => {
       ElMessage.success('删除成功')
       loadData()
     } catch (error) {
-      ElMessage.error(error.response?.data?.message || '删除失败')
+      ElMessage.error(getApiErrorMessage(error, '删除失败'))
     }
   }).catch(() => {})
 }
@@ -471,7 +472,7 @@ const submitCost = async () => {
     costDialogVisible.value = false
     loadData()
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || '成本归集失败')
+    ElMessage.error(getApiErrorMessage(error, '成本归集失败'))
   } finally {
     submitting.value = false
   }
@@ -504,7 +505,7 @@ const submitTransfer = async () => {
     transferDialogVisible.value = false
     loadData()
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || '转固失败')
+    ElMessage.error(getApiErrorMessage(error, '转固失败'))
   } finally {
     submitting.value = false
   }

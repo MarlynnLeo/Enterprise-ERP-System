@@ -50,11 +50,11 @@ class InspectionTemplateResolverService {
 
     if (!Array.isArray(rawValue)) return [];
 
-    return [...new Set(
-      rawValue
-        .map((id) => this.parseMaterialId(id))
-        .filter((id) => id && !Number.isNaN(id))
-    )];
+    return [
+      ...new Set(
+        rawValue.map((id) => this.parseMaterialId(id)).filter((id) => id && !Number.isNaN(id))
+      ),
+    ];
   }
 
   static getInspectionMaterialId(inspection) {
@@ -103,7 +103,10 @@ class InspectionTemplateResolverService {
     };
   }
 
-  static validateTemplateDefinition(payload = {}, normalized = this.normalizeTemplateDefinition(payload)) {
+  static validateTemplateDefinition(
+    payload = {},
+    normalized = this.normalizeTemplateDefinition(payload)
+  ) {
     const errors = [];
 
     if (!String(payload.template_name || '').trim()) {
@@ -116,9 +119,12 @@ class InspectionTemplateResolverService {
       errors.push('版本号不能为空');
     }
     if (normalized.invalidMaterialType) {
-      errors.push('物料ID格式不正确');
+      errors.push('所选物料格式不正确，请重新选择');
     }
-    if (!normalized.isGeneral && (!normalized.materialTypes || normalized.materialTypes.length === 0)) {
+    if (
+      !normalized.isGeneral &&
+      (!normalized.materialTypes || normalized.materialTypes.length === 0)
+    ) {
       errors.push('非通用模板必须选择至少一个适用物料');
     }
     if (!Array.isArray(payload.items) || payload.items.length === 0) {
@@ -140,7 +146,13 @@ class InspectionTemplateResolverService {
     }
   }
 
-  static async findMatchingTemplate(connection, inspectionType, materialId, explicitTemplateId = null, options = {}) {
+  static async findMatchingTemplate(
+    connection,
+    inspectionType,
+    materialId,
+    explicitTemplateId = null,
+    options = {}
+  ) {
     const normalizedType = this.normalizeInspectionType(inspectionType);
     if (!normalizedType) {
       throw this.createValidationError('检验类型无效');
@@ -148,7 +160,7 @@ class InspectionTemplateResolverService {
 
     const normalizedMaterialId = this.parseMaterialId(materialId);
     if (Number.isNaN(normalizedMaterialId)) {
-      throw this.createValidationError('物料ID格式不正确');
+      throw this.createValidationError('所选物料格式不正确，请重新选择');
     }
 
     const normalizedTemplateId = this.parsePositiveInteger(explicitTemplateId);

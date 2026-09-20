@@ -18,11 +18,25 @@ function fromCents(cents) {
  * 解析一行收/付款明细的现金、折扣与核销额（单位：分）
  */
 function parseSettlementLine(item = {}) {
+  const values = [item.amount, item.discount_amount ?? item.discountAmount ?? 0];
+  if (
+    values.some(
+      (value) =>
+        !['number', 'string'].includes(typeof value) ||
+        String(value).trim() === '' ||
+        !Number.isFinite(Number(value))
+    )
+  ) {
+    throw new Error('收付款金额与折扣金额必须为有效数字');
+  }
+  if (values.some((value) => Number(value) < 0)) {
+    throw new Error('收付款金额与折扣金额不能为负数');
+  }
   const cashCents = toCents(item.amount);
   const discountCents = toCents(item.discount_amount ?? item.discountAmount ?? 0);
 
-  if (cashCents < 0 || discountCents < 0) {
-    throw new Error('收付款金额与折扣金额不能为负数');
+  if (![cashCents, discountCents, cashCents + discountCents].every(Number.isSafeInteger)) {
+    throw new Error('收付款金额与折扣金额超出可精确计算范围');
   }
   if (cashCents === 0 && discountCents === 0) {
     throw new Error('收付款金额与折扣金额不能同时为0');
@@ -82,11 +96,20 @@ function invoiceStatusAfterSettlement(paidCents, totalCents) {
 function parseRefundLine(item, invoice, sourceType) {
   const cashCents = toCents(item.amount);
   const discount = Number(item.discount_amount ?? item.discountAmount ?? 0);
-  if (!Number.isFinite(Number(item.amount)) || cashCents >= 0 || discount !== 0) throw new Error('退款金额必须大于0且不能包含折扣');
-  if (invoice.source_type !== sourceType || toCents(invoice.total_amount) >= 0) throw new Error('仅已确认的退货红字发票可办理退款');
+  if (!Number.isFinite(Number(item.amount)) || cashCents >= 0 || discount !== 0)
+    throw new Error('退款金额必须大于0且不能包含折扣');
+  if (invoice.source_type !== sourceType || toCents(invoice.total_amount) >= 0)
+    throw new Error('仅已确认的退货红字发票可办理退款');
   const balance = toCents(invoice.balance_amount);
   if (balance >= 0 || cashCents < balance) throw new Error('退款金额不能超过红字发票待退款余额');
-  return { cashCents, discountCents: 0, settlementCents: cashCents, cashAmount: fromCents(cashCents), discountAmount: 0, settlementAmount: fromCents(cashCents) };
+  return {
+    cashCents,
+    discountCents: 0,
+    settlementCents: cashCents,
+    cashAmount: fromCents(cashCents),
+    discountAmount: 0,
+    settlementAmount: fromCents(cashCents),
+  };
 }
 
 /**

@@ -64,7 +64,7 @@ class BomExplosionService {
       );
 
       if (!netStockMap) {
-        const parentIds = new Set(explosionResult.map(item => item.parent_material_id));
+        const parentIds = new Set(explosionResult.map((item) => item.parent_material_id));
         for (const item of explosionResult) {
           item.is_leaf = !item.has_sub_bom && !parentIds.has(item.material_id);
         }
@@ -96,12 +96,22 @@ class BomExplosionService {
    * @param {Array<number>} ancestorPath - 祖先产品ID路径数组（用于循环引用检测）
    * @returns {Promise<Array>} - 展开后的物料列表
    */
-  static async recursiveExplode(bomId, productId, parentPath, level, parentQuantity, ancestorPath, options = {}) {
+  static async recursiveExplode(
+    bomId,
+    productId,
+    parentPath,
+    level,
+    parentQuantity,
+    ancestorPath,
+    options = {}
+  ) {
     const { netStockMap = null, netReqMap = null } = options;
     const results = [];
 
     if (level > MAX_DEPTH) {
-      logger.error(`BOM展开深度超过${MAX_DEPTH}层，疑似数据异常。BOM ID: ${bomId}, 产品ID: ${productId}`);
+      logger.error(
+        `BOM展开深度超过${MAX_DEPTH}层，疑似数据异常。BOM ID: ${bomId}, 产品ID: ${productId}`
+      );
       return results;
     }
 
@@ -130,10 +140,19 @@ class BomExplosionService {
         [bomId]
       );
 
-      const detailIds = new Set(details.map(d => d.id));
-      const rootDetails = details.filter(d => !d.parent_id || d.parent_id === 0 || d.parent_id === '0' || !detailIds.has(d.parent_id));
+      const detailIds = new Set(details.map((d) => d.id));
+      const rootDetails = details.filter(
+        (d) =>
+          !d.parent_id || d.parent_id === 0 || d.parent_id === '0' || !detailIds.has(d.parent_id)
+      );
 
-      const traverseInternalTree = async (currentDetail, internalParentPath, internalLevel, internalParentQty, outputParentId) => {
+      const traverseInternalTree = async (
+        currentDetail,
+        internalParentPath,
+        internalLevel,
+        internalParentQty,
+        outputParentId
+      ) => {
         const currentPath = internalParentPath
           ? `${internalParentPath}/${currentDetail.material_code}`
           : currentDetail.material_code;
@@ -154,19 +173,19 @@ class BomExplosionService {
           netStockMap.set(currentDetail.material_id, stockQty - qtyFromStock);
 
           if (qtyFromStock > 0 && netReqMap) {
-             if (!netReqMap.has(currentDetail.material_id)) {
-                 netReqMap.set(currentDetail.material_id, {
-                   requiredQuantity: 0,
-                   issueQuantity: 0,
-                   shortageQuantity: 0,
-                   grossRequiredQuantity: 0,
-                   level: internalLevel,
-                 });
-             }
-             const req = netReqMap.get(currentDetail.material_id);
-             req.requiredQuantity += qtyFromStock;
-             req.issueQuantity += qtyFromStock;
-             req.grossRequiredQuantity += qtyFromStock;
+            if (!netReqMap.has(currentDetail.material_id)) {
+              netReqMap.set(currentDetail.material_id, {
+                requiredQuantity: 0,
+                issueQuantity: 0,
+                shortageQuantity: 0,
+                grossRequiredQuantity: 0,
+                level: internalLevel,
+              });
+            }
+            const req = netReqMap.get(currentDetail.material_id);
+            req.requiredQuantity += qtyFromStock;
+            req.issueQuantity += qtyFromStock;
+            req.grossRequiredQuantity += qtyFromStock;
           }
         } else {
           results.push({
@@ -187,50 +206,56 @@ class BomExplosionService {
         }
 
         if (childNetDemand > 0) {
-            const inlineChildren = details.filter(c => c.parent_id === currentDetail.id);
-            const hasExternal = currentDetail.has_sub_bom;
-            const hasInternal = inlineChildren.length > 0;
+          const inlineChildren = details.filter((c) => c.parent_id === currentDetail.id);
+          const hasExternal = currentDetail.has_sub_bom;
+          const hasInternal = inlineChildren.length > 0;
 
-            if (hasExternal) {
-                const childBom = currentDetail.ref_bom_id
-                    ? await this.getBomById(currentDetail.ref_bom_id)
-                    : await this.getLatestApprovedBom(currentDetail.material_id);
+          if (hasExternal) {
+            const childBom = currentDetail.ref_bom_id
+              ? await this.getBomById(currentDetail.ref_bom_id)
+              : await this.getLatestApprovedBom(currentDetail.material_id);
 
-                if (childBom) {
-                  const externalChildren = await this.recursiveExplode(
-                      childBom.id,
-                      currentDetail.material_id,
-                      currentPath,
-                      internalLevel + 1,
-                      childNetDemand,
-                      ancestorPath,
-                      options
-                  );
-                  if (!netStockMap) results.push(...externalChildren);
-                }
+            if (childBom) {
+              const externalChildren = await this.recursiveExplode(
+                childBom.id,
+                currentDetail.material_id,
+                currentPath,
+                internalLevel + 1,
+                childNetDemand,
+                ancestorPath,
+                options
+              );
+              if (!netStockMap) results.push(...externalChildren);
             }
+          }
 
-            if (hasInternal) {
-                for (const child of inlineChildren) {
-                    await traverseInternalTree(child, currentPath, internalLevel + 1, childNetDemand, currentDetail.material_id);
-                }
+          if (hasInternal) {
+            for (const child of inlineChildren) {
+              await traverseInternalTree(
+                child,
+                currentPath,
+                internalLevel + 1,
+                childNetDemand,
+                currentDetail.material_id
+              );
             }
+          }
 
-            if (netStockMap && netReqMap && !hasExternal && !hasInternal) {
-                if (!netReqMap.has(currentDetail.material_id)) {
-                     netReqMap.set(currentDetail.material_id, {
-                       requiredQuantity: 0,
-                       issueQuantity: 0,
-                       shortageQuantity: 0,
-                       grossRequiredQuantity: 0,
-                       level: internalLevel,
-                     });
-                }
-                const req = netReqMap.get(currentDetail.material_id);
-                req.requiredQuantity += childNetDemand;
-                req.shortageQuantity += childNetDemand;
-                req.grossRequiredQuantity += childNetDemand;
+          if (netStockMap && netReqMap && !hasExternal && !hasInternal) {
+            if (!netReqMap.has(currentDetail.material_id)) {
+              netReqMap.set(currentDetail.material_id, {
+                requiredQuantity: 0,
+                issueQuantity: 0,
+                shortageQuantity: 0,
+                grossRequiredQuantity: 0,
+                level: internalLevel,
+              });
             }
+            const req = netReqMap.get(currentDetail.material_id);
+            req.requiredQuantity += childNetDemand;
+            req.shortageQuantity += childNetDemand;
+            req.grossRequiredQuantity += childNetDemand;
+          }
         }
       };
 
@@ -297,7 +322,10 @@ class BomExplosionService {
    * 根据ID获取BOM
    */
   static async getBomById(bomId) {
-    const [rows] = await pool.query('SELECT id, product_id, version, status, remark, created_at, created_by, updated_at, updated_by, attachment, approved_by, approved_at, deleted_at FROM bom_masters WHERE id = ? AND deleted_at IS NULL', [bomId]);
+    const [rows] = await pool.query(
+      'SELECT id, product_id, version, status, remark, created_at, created_by, updated_at, updated_by, attachment, approved_by, approved_at, deleted_at FROM bom_masters WHERE id = ? AND deleted_at IS NULL',
+      [bomId]
+    );
     return rows[0] || null;
   }
 
@@ -342,9 +370,10 @@ class BomExplosionService {
       await connection.beginTransaction();
 
       // 获取产品信息
-      const [bomInfo] = await connection.query('SELECT product_id FROM bom_masters WHERE id = ? AND deleted_at IS NULL', [
-        bomId,
-      ]);
+      const [bomInfo] = await connection.query(
+        'SELECT product_id FROM bom_masters WHERE id = ? AND deleted_at IS NULL',
+        [bomId]
+      );
       const productId = bomInfo[0]?.product_id;
 
       // 清除旧缓存（统一使用 DELETE 策略）
@@ -409,9 +438,10 @@ class BomExplosionService {
         await pool.query('DELETE FROM bom_explosion_cache WHERE bom_id = ?', [currentBomId]);
 
         // 2. 获取该BOM的产品ID
-        const [bomInfo] = await pool.query('SELECT product_id FROM bom_masters WHERE id = ? AND deleted_at IS NULL', [
-          currentBomId,
-        ]);
+        const [bomInfo] = await pool.query(
+          'SELECT product_id FROM bom_masters WHERE id = ? AND deleted_at IS NULL',
+          [currentBomId]
+        );
 
         if (bomInfo.length > 0) {
           const productId = bomInfo[0].product_id;

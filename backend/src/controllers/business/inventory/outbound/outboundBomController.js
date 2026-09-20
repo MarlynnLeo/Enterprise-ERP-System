@@ -26,8 +26,6 @@ const {
 } = require('./outboundHelpers');
 const ScopeGuard = require('../../../../authorization/ScopeGuard');
 
-
-
 const fetchBomItemsForOutbound = async (connection, outboundId, referenceType, referenceId) => {
   try {
     const materialMap = new Map();
@@ -100,7 +98,7 @@ const fetchBomItemsForOutbound = async (connection, outboundId, referenceType, r
     return { success: true, itemCount };
   } catch (error) {
     logger.error('从统一净需求生成生产出库明细失败:', error);
-    return { success: false, itemCount: 0, error: error.message };
+    return { success: false, itemCount: 0, error: '生成生产出库明细失败，请稍后重试' };
   }
 };
 
@@ -152,7 +150,7 @@ const fetchBatchBomItemsForOutbound = async (connection, outboundId, taskIds) =>
     return { success: true, itemCount };
   } catch (error) {
     logger.error('批量发料从统一净需求生成明细失败:', error);
-    return { success: false, itemCount: 0, error: error.message };
+    return { success: false, itemCount: 0, error: '生成批量发料明细失败，请稍后重试' };
   }
 };
 
@@ -225,7 +223,16 @@ const supplementOutbound = async (req, res) => {
 
     const originalOutbound = outboundCheck[0];
 
-    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'inventory_outbound', id, '无权补发该出库单'))) {
+    if (
+      !(await ScopeGuard.denyUnlessAccess(
+        res,
+        connection,
+        req,
+        'inventory_outbound',
+        id,
+        '无权补发该出库单'
+      ))
+    ) {
       await connection.rollback();
       return;
     }
@@ -261,20 +268,18 @@ const supplementOutbound = async (req, res) => {
     );
 
     // 3.5 批量获取并验证物料库位信息
-    const materialIds = items.map(item => item.material_id);
+    const materialIds = items.map((item) => item.material_id);
     let materialInfoMap;
     try {
       materialInfoMap = await InventoryService.getBatchMaterialInfo(materialIds, connection);
     } catch (err) {
       await connection.rollback();
-      return ResponseHandler.error(res, err.message, 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(res, '补发物料校验失败，请检查物料和数量', 'VALIDATION_ERROR', 400, err);
     }
 
     // 4. 验证每个补发物料
     for (const item of items) {
-      const originalItem = originalItems.find(
-        (oi) => Number(oi.id) === item.outbound_item_id
-      );
+      const originalItem = originalItems.find((oi) => Number(oi.id) === item.outbound_item_id);
 
       if (!originalItem || Number(originalItem.material_id) !== item.material_id) {
         await connection.rollback();
@@ -306,7 +311,7 @@ const supplementOutbound = async (req, res) => {
         await connection.rollback();
         return ResponseHandler.error(
           res,
-          `物料 ${item.material_id} 未配置可用的默认库位`,
+          `物料 ${matInfo?.code || '所选物料'} 未配置可用的默认库位`,
           'VALIDATION_ERROR',
           400
         );
@@ -350,14 +355,7 @@ const supplementOutbound = async (req, res) => {
          SET actual_quantity = actual_quantity + ?,
              shortage_quantity = shortage_quantity - ?
          WHERE id = ? AND outbound_id = ? AND material_id = ? AND shortage_quantity >= ?`,
-        [
-          supplementQty,
-          supplementQty,
-          item.outbound_item_id,
-          id,
-          item.material_id,
-          supplementQty,
-        ]
+        [supplementQty, supplementQty, item.outbound_item_id, id, item.material_id, supplementQty]
       );
       if (itemUpdate.affectedRows !== 1) {
         const conflict = new Error('补发明细已被并发处理，请刷新后重试');
@@ -478,10 +476,11 @@ const supplementOutbound = async (req, res) => {
   } catch (error) {
     await connection.rollback();
     logger.error('补发出库单失败:', error);
-    const statusCode = Number(error.statusCode) === 409 ? 409 : Number(error.statusCode) === 400 ? 400 : 500;
+    const statusCode =
+      Number(error.statusCode) === 409 ? 409 : Number(error.statusCode) === 400 ? 400 : 500;
     ResponseHandler.error(
       res,
-      statusCode === 500 ? '补发出库单失败' : error.message,
+      statusCode === 500 ? '补发出库单失败' : '补发出库单校验失败，请检查后重试',
       error.code || (statusCode === 500 ? 'SERVER_ERROR' : 'VALIDATION_ERROR'),
       statusCode,
       error
@@ -504,7 +503,12 @@ const batchOutbound = async (req, res) => {
     }
 
     if (task_ids.length > MAX_BATCH_TASKS) {
-      return ResponseHandler.error(res, `批量发料任务数不能超过${MAX_BATCH_TASKS}条`, 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(
+        res,
+        `批量发料任务数不能超过${MAX_BATCH_TASKS}条`,
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     const normalizedTaskIds = [...new Set(task_ids.map((id) => Number(id)))];
@@ -522,10 +526,12 @@ const batchOutbound = async (req, res) => {
     }
 
     await connection.beginTransaction();
-    if (!(await assertOutboundSourceAccess(connection, req, {
-      reference_type: 'batch_production_tasks',
-      source_task_ids: normalizedTaskIds,
-    }))) {
+    if (
+      !(await assertOutboundSourceAccess(connection, req, {
+        reference_type: 'batch_production_tasks',
+        source_task_ids: normalizedTaskIds,
+      }))
+    ) {
       await connection.rollback();
       return ResponseHandler.forbidden(res, '批量发料包含无权访问的生产任务或生产计划');
     }
@@ -676,7 +682,7 @@ const batchOutbound = async (req, res) => {
     const outboundId = outboundResult.insertId;
 
     // 批量预取物料信息（消除循环内 N+1 查询）
-    const batchMaterialIds = mergedMaterials.map(m => m.material_id);
+    const batchMaterialIds = mergedMaterials.map((m) => m.material_id);
     const batchMaterialInfoMap = await getMaterialInfoMap(connection, batchMaterialIds);
 
     // 6. 插入出库单明细
@@ -722,7 +728,7 @@ const batchOutbound = async (req, res) => {
   } catch (error) {
     await connection.rollback();
     logger.error('批量发料失败:', error);
-    ResponseHandler.error(res, '批量发料失败: ' + error.message, 'SERVER_ERROR', 500, error);
+    ResponseHandler.error(res, '批量发料失败，请稍后重试', 'SERVER_ERROR', 500, error);
   } finally {
     connection.release();
   }

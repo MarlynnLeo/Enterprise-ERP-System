@@ -394,6 +394,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 
 import { formatCurrency, formatLocalDate } from '@/utils/format'
 
@@ -479,7 +480,7 @@ const loadBalanceSheet = async () => {
       ElMessage.info('暂无调节表数据');
     }
   } catch (e) {
-    ElMessage.error(e?.response?.data?.message || e.message || '加载余额调节表失败');
+    ElMessage.error(getApiErrorMessage(e, '加载余额调节表失败'));
   } finally {
     balanceSheetLoading.value = false;
   }
@@ -738,7 +739,7 @@ const cancelReconciliation = async (transaction) => {
   } catch (error) {
     if (error === 'cancel' || error === 'close') return;
     console.error('取消对账失败:', error);
-    ElMessage.error(error?.response?.data?.message || error?.message || '取消对账失败');
+    ElMessage.error(getApiErrorMessage(error, '取消对账失败'));
   }
 };
 

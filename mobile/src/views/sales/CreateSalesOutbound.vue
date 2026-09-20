@@ -16,7 +16,7 @@
       <CellGroup inset title="出库明细">
         <div v-if="items.length" class="items">
           <div v-for="(item, index) in items" :key="item.productId || index" class="item-card">
-            <div class="item-title">{{ item.productName || item.materialName || `物料#${item.productId}` }}</div>
+            <div class="item-title">{{ item.productName || item.materialName || item.productCode || item.materialCode || '未命名物料' }}</div>
             <div class="item-subtitle">{{ item.productCode || item.materialCode || '-' }}</div>
             <Field v-model="item.quantity" label="出库数量" type="number" input-align="right" />
             <Field v-model="item.unitPrice" label="单价" type="number" input-align="right" />

@@ -676,6 +676,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted, nextTick, computed } from 'vue'
@@ -1225,7 +1226,7 @@ const handleDelete = (row) => {
         loadTableData()
       } catch (error) {
         console.error('删除失败:', error)
-        ElMessage.error(error.response?.data?.message || '删除失败')
+        ElMessage.error(getApiErrorMessage(error, '删除失败'))
       }
     }).catch(() => {})
   } else if (row.approvalStatus === 'rejected') {
@@ -1243,7 +1244,7 @@ const handleDelete = (row) => {
         loadTableData()
       } catch (error) {
         console.error('删除失败:', error)
-        ElMessage.error(error.response?.data?.message || '删除失败')
+        ElMessage.error(getApiErrorMessage(error, '删除失败'))
       }
     }).catch(() => {})
   }
@@ -1276,7 +1277,7 @@ const handleApproveConfirm = async () => {
     loadTableData()
   } catch (error) {
     console.error('审核失败:', error)
-    ElMessage.error('审核失败: ' + (error.message || '未知错误'))
+    ElMessage.error('审核失败: ' + (getApiErrorMessage(error, '未知错误')))
   } finally {
     approvalSubmitting.value = false
   }
@@ -1295,7 +1296,7 @@ const handleReject = async () => {
     loadTableData()
   } catch (error) {
     console.error('驳回失败:', error)
-    ElMessage.error('操作失败: ' + (error.message || '未知错误'))
+    ElMessage.error('操作失败: ' + (getApiErrorMessage(error, '未知错误')))
   } finally {
     approvalSubmitting.value = false
   }
@@ -1492,7 +1493,7 @@ const handleExchangeSubmit = async () => {
       loadTableData()
     } catch (error) {
       console.error('调货失败:', error)
-      ElMessage.error(error.response?.data?.message || '调货失败')
+      ElMessage.error(getApiErrorMessage(error, '调货失败'))
     } finally {
       exchangeSubmitting.value = false
     }
@@ -1593,7 +1594,7 @@ const handleSubmit = async () => {
       loadTableData()
     } catch (error) {
       console.error('提交失败:', error)
-      ElMessage.error(error.response?.data?.message || '提交失败')
+      ElMessage.error(getApiErrorMessage(error, '提交失败'))
     } finally {
       submitting.value = false
     }

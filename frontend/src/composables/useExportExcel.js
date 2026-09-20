@@ -21,6 +21,7 @@
 
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 
 /**
  * @returns {{ exportLoading: Ref<boolean>, exportToExcel: Function }}
@@ -93,7 +94,7 @@ export function useExportExcel() {
       ElMessage.success(`成功导出 ${data.length} 条数据`)
     } catch (error) {
       console.error('导出失败:', error)
-      ElMessage.error('导出失败: ' + (error.message || '未知错误'))
+      ElMessage.error(`导出失败：${getApiErrorMessage(error, '未知错误')}`)
     } finally {
       exportLoading.value = false
     }

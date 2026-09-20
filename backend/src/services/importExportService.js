@@ -17,9 +17,7 @@ const normalizeBomIds = (rawIds) => {
   const values = Array.isArray(rawIds) ? rawIds : String(rawIds || '').split(',');
   return [
     ...new Set(
-      values
-        .map((value) => Number(value))
-        .filter((value) => Number.isInteger(value) && value > 0)
+      values.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0)
     ),
   ];
 };
@@ -326,7 +324,9 @@ class ImportExportService {
       const rawBase = Number(row['基数'] || row['基数/每(成品数)'] || row['base_quantity']);
       const baseQuantity = Number.isFinite(rawBase) && rawBase > 0 ? rawBase : 1;
 
-      const rawCritical = String(row['是否关键件(是/否)'] || row['是否关键件'] || row['is_critical'] || '').trim();
+      const rawCritical = String(
+        row['是否关键件(是/否)'] || row['是否关键件'] || row['is_critical'] || ''
+      ).trim();
       const isCritical = /^(是|yes|1|true|y)$/i.test(rawCritical) ? 1 : 0;
 
       bomGroups[bomCode].details.push({
@@ -444,11 +444,12 @@ class ImportExportService {
       const detailsTree = await bomService.buildReferencedBomTree(bom.details, bom.id);
       const appendDetails = (details, prefix = '') => {
         const sortedDetails = [...details].sort((a, b) =>
-          String(a.material_code || '').trim().localeCompare(
-            String(b.material_code || '').trim(),
-            undefined,
-            { numeric: true, sensitivity: 'base' }
-          )
+          String(a.material_code || '')
+            .trim()
+            .localeCompare(String(b.material_code || '').trim(), undefined, {
+              numeric: true,
+              sensitivity: 'base',
+            })
         );
         sortedDetails.forEach((detail, index) => {
           const wbs = prefix ? `${prefix}.${index + 1}` : `${index + 1}`;
@@ -462,7 +463,11 @@ class ImportExportService {
             material_code: detail.material_code,
             material_name: detail.material_name,
             material_specs:
-              detail.material_specs || detail.materialSpecs || detail.specification || detail.specs || '',
+              detail.material_specs ||
+              detail.materialSpecs ||
+              detail.specification ||
+              detail.specs ||
+              '',
             quantity: detail.quantity,
             base_quantity: detail.base_quantity || detail.baseQuantity || 1,
             is_critical: isCritical,
@@ -603,7 +608,11 @@ class ImportExportService {
         };
 
         await customerService.createCustomer(customerData);
-        successList.push({ row: rowNum, code: customerData.code || '(auto)', name: customerData.name });
+        successList.push({
+          row: rowNum,
+          code: customerData.code || '(auto)',
+          name: customerData.name,
+        });
       } catch (error) {
         errorList.push({ row: rowNum, name: row['客户名称*'] || '', error: error.message });
       }
@@ -711,13 +720,19 @@ class ImportExportService {
           station_name: detail.station_name || '',
           description: detail.description || '',
           sop_content: detail.sop_content || '',
-          materials: jsonArray(detail.materials).map(material =>
-            `${material.material_code || material.material_id} ${material.material_name || ''} × ${material.quantity}${Number(material.is_scan_required) === 1 ? '（需扫码）' : ''}`
-          ).join('\n'),
-          instruction_docs: jsonArray(detail.instruction_docs).map(doc => `${doc.name}: ${doc.url}`).join('\n'),
+          materials: jsonArray(detail.materials)
+            .map(
+              (material) =>
+                `${material.material_code || material.material_id} ${material.material_name || ''} × ${material.quantity}${Number(material.is_scan_required) === 1 ? '（需扫码）' : ''}`
+            )
+            .join('\n'),
+          instruction_docs: jsonArray(detail.instruction_docs)
+            .map((doc) => `${doc.name}: ${doc.url}`)
+            .join('\n'),
           sop_images: jsonArray(detail.sop_images).join('\n'),
           remark: detail.remark || '',
-          status_text: Number(template.status) === 1 ? '启用' : template.published_at ? '停用' : '草稿',
+          status_text:
+            Number(template.status) === 1 ? '启用' : template.published_at ? '停用' : '草稿',
         });
       }
     }

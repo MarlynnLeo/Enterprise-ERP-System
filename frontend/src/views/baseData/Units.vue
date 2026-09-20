@@ -200,6 +200,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { parsePaginatedData, parseResponseData } from '@/utils/responseParser';
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
@@ -421,7 +422,7 @@ const handleDelete = async (row) => {
     fetchStats();
   } catch (error) {
     console.error('删除单位失败:', error);
-    ElMessage.error(error.response?.data?.message || '删除单位失败');
+    ElMessage.error(getApiErrorMessage(error, '删除单位失败'));
   }
 };
 
@@ -437,7 +438,7 @@ const handleToggleStatus = async (row) => {
     fetchStats();
   } catch (error) {
     console.error(`${action}单位失败:`, error);
-    ElMessage.error(error.response?.data?.message || `${action}单位失败`);
+    ElMessage.error(getApiErrorMessage(error, `${action}单位失败`));
   }
 };
 
@@ -475,7 +476,7 @@ const submitForm = () => {
         fetchStats();
       } catch (error) {
         console.error('保存单位失败:', error);
-        ElMessage.error(error.response?.data?.message || '保存单位失败');
+        ElMessage.error(getApiErrorMessage(error, '保存单位失败'));
       }
     }
   });

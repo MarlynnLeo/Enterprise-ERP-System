@@ -89,7 +89,11 @@ class PoolManager extends EventEmitter {
       logger.warn(`[PoolManager] 预热连接失败: ${error.message}`);
     } finally {
       for (const conn of conns) {
-        try { conn.release(); } catch (e) { logger.warn(`[PoolManager] 预热连接释放失败: ${e.message}`); }
+        try {
+          conn.release();
+        } catch (e) {
+          logger.warn(`[PoolManager] 预热连接释放失败: ${e.message}`);
+        }
       }
     }
   }
@@ -121,7 +125,9 @@ class PoolManager extends EventEmitter {
     this.activeConnections.clear();
     await this.pool.end();
     this._forceDestroyRemainingConnections();
-    logger.info(`[PoolManager] 连接池 "${this.name}" 已关闭 (自动回收连接数: ${this._stats.autoReclaimed})`);
+    logger.info(
+      `[PoolManager] 连接池 "${this.name}" 已关闭 (自动回收连接数: ${this._stats.autoReclaimed})`
+    );
   }
 
   _forceDestroyRemainingConnections() {
@@ -219,9 +225,7 @@ class ConnectionPoolFactory {
       manager.activeConnections.add(conn);
 
       // 记录获取连接的调用栈（仅开发环境，帮助排查泄漏来源）
-      const acquireStack = process.env.NODE_ENV !== 'production'
-        ? new Error().stack
-        : null;
+      const acquireStack = process.env.NODE_ENV !== 'production' ? new Error().stack : null;
 
       // 设置自动回收定时器
       // 重要：超时后必须 rollback + destroy，不能只 release。
@@ -238,9 +242,7 @@ class ConnectionPoolFactory {
 
         logger.warn(
           `[连接池] ⚠️ 连接 #${conn.threadId} 持有超过 ${maxHoldTime / 1000}s，强制 rollback+destroy！` +
-            (acquireStack
-              ? `\n获取位置:\n${acquireStack.split('\n').slice(2, 6).join('\n')}`
-              : '')
+            (acquireStack ? `\n获取位置:\n${acquireStack.split('\n').slice(2, 6).join('\n')}` : '')
         );
 
         // 异步尽力回滚并销毁；不阻塞定时器回调

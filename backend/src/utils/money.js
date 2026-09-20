@@ -6,9 +6,8 @@ const Precision = require('./precision');
 function toNumber(value, fallback = 0) {
   if (value === null || value === undefined || value === '') return fallback;
 
-  const normalized = typeof value === 'string'
-    ? value.trim().replace(/,/g, '').replace(/%$/, '')
-    : value;
+  const normalized =
+    typeof value === 'string' ? value.trim().replace(/,/g, '').replace(/%$/, '') : value;
   const number = Number(normalized);
   return Number.isFinite(number) ? number : fallback;
 }
@@ -20,12 +19,7 @@ function toNumber(value, fallback = 0) {
 function resolveLineUnitPrice(item, fallback = 0) {
   if (item === null || item === undefined || item === '') return fallback;
   if (typeof item !== 'object') return toNumber(item, fallback);
-  const raw =
-    item.unit_price ??
-    item.unitPrice ??
-    item.price ??
-    item.cost_price ??
-    item.sale_price;
+  const raw = item.unit_price ?? item.unitPrice ?? item.price ?? item.cost_price ?? item.sale_price;
   if (raw === null || raw === undefined || raw === '') return fallback;
   return toNumber(raw, fallback);
 }
@@ -76,7 +70,9 @@ function splitTaxIncluded(totalAmount, taxRate) {
 }
 
 function sumMoney(values) {
-  return roundMoney((values || []).reduce((sum, value) => Precision.add(sum, toNumber(value, 0)), 0));
+  return roundMoney(
+    (values || []).reduce((sum, value) => Precision.add(sum, toNumber(value, 0)), 0)
+  );
 }
 
 function calculateLines(items = [], options = {}) {
@@ -86,11 +82,15 @@ function calculateLines(items = [], options = {}) {
     const quantity = toNumber(item.quantity, 0);
     // 统一：price 与 unit_price 同值写出，避免上下游只认其中一个
     const price = resolveLineUnitPrice(item, 0);
-    const rate = normalizeTaxRate(item.tax_rate ?? item.taxRate ?? item.tax_percent ?? item.taxPercent, defaultTaxRate);
+    const rate = normalizeTaxRate(
+      item.tax_rate ?? item.taxRate ?? item.tax_percent ?? item.taxPercent,
+      defaultTaxRate
+    );
     const amount = lineAmount(quantity, price);
-    const tax = item.tax_amount !== undefined || item.taxAmount !== undefined
-      ? roundMoney(item.tax_amount ?? item.taxAmount)
-      : taxAmount(amount, rate);
+    const tax =
+      item.tax_amount !== undefined || item.taxAmount !== undefined
+        ? roundMoney(item.tax_amount ?? item.taxAmount)
+        : taxAmount(amount, rate);
 
     return {
       ...item,

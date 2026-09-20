@@ -155,7 +155,7 @@
                 <el-option
                   v-if="row.bomId && !bomOptions.find(o => o.id === row.bomId)"
                   :key="row.bomId"
-                  :label="row.bomLabel || `BOM#${row.bomId}`"
+                  :label="row.bomLabel || '未命名BOM'"
                   :value="row.bomId"
                 />
                 <el-option
@@ -165,7 +165,7 @@
                   :value="b.id"
                 />
               </el-select>
-              <span v-else>{{ row.bomLabel || (row.bomId ? `BOM#${row.bomId}` : '-') }}</span>
+              <span v-else>{{ row.bomLabel || (row.bomId ? '未命名BOM' : '-') }}</span>
             </template>
           </el-table-column>
           <!-- 物料搜索选择器 -->

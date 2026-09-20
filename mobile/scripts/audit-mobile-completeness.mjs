@@ -262,7 +262,8 @@ const report = {
   },
 }
 
-const out = path.join(ROOT, 'scripts/mobile-completeness-audit.json')
+const out = path.join(ROOT, 'reports', 'mobile-completeness-audit.json')
+fs.mkdirSync(path.dirname(out), { recursive: true })
 fs.writeFileSync(out, JSON.stringify(report, null, 2), 'utf8')
 
 // print summary

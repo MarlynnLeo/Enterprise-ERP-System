@@ -79,9 +79,6 @@ const normalizeUserData = (userData) => {
   return normalized
 }
 
-/**
- * 检查 JWT token 是否已过期
- */
 export const useAuthStore = defineStore('auth', () => {
   // ==================== 状态 ====================
   // 后端使用 httpOnly cookie 管理 accessToken / refreshToken，前端无需操作 token
@@ -326,7 +323,9 @@ export const useAuthStore = defineStore('auth', () => {
    * @returns {Promise<boolean>} 是否成功
    */
   const updateProfile = async (data) => {
+    const generation = authGeneration
     const response = await api.put('/auth/profile', data)
+    if (generation !== authGeneration) return false
     if (response.data) {
       user.value = normalizeUserData({ ...user.value, ...response.data })
       profileLoaded.value = true
@@ -471,27 +470,6 @@ export const useAuthStore = defineStore('auth', () => {
     return permissions.value.some(p => p.startsWith(`${permission}:`))
   }
 
-  /**
-   * 刷新 Token
-   * @returns {Promise<boolean>} 是否成功
-   */
-  const refreshAccessToken = async () => {
-    try {
-      const response = await api.post('/auth/refresh')
-      const authData = response.data
-
-      if (authData) {
-        saveAuthData(authData)
-        return !!user.value
-      }
-      return false
-    } catch {
-      // Token 刷新失败，清除认证信息
-      clearAuthData()
-      return false
-    }
-  }
-
   // ==================== 初始化 ====================
   setAuthHeader()
 
@@ -523,7 +501,6 @@ export const useAuthStore = defineStore('auth', () => {
     fetchUserPermissions,
     refreshPermissions,
     hasPermission,
-    hasChildPermission,
-    refreshAccessToken
+    hasChildPermission
   }
 })

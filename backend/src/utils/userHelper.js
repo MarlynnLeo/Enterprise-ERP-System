@@ -43,9 +43,7 @@ async function getCurrentUserName(req) {
       [userId]
     );
     const label =
-      (rows.length > 0 && rows[0].label) ||
-      syncLabel ||
-      (await resolveActorLabel(pool, userId));
+      (rows.length > 0 && rows[0].label) || syncLabel || (await resolveActorLabel(pool, userId));
 
     nameCache.set(userId, { name: label, timestamp: Date.now() });
     return label;

@@ -138,10 +138,7 @@ module.exports = {
       }
 
       if (requireInventoryApproval) {
-        await this.assertApprovedProductionInboundPostings(
-          connection,
-          productionOrderId,
-        );
+        await this.assertApprovedProductionInboundPostings(connection, productionOrderId);
       }
 
       const completionDate = this.toDateOnly(order.completed_at || currentDateString()); // 使用完工日期作为记账日期
@@ -323,7 +320,10 @@ module.exports = {
 
       // ========== 计算并保存成本差异 (Cost Variance) ==========
       try {
-        const stdCostResult = await this.ensureStandardCost(order.product_id, order.quantity, { taskId: productionOrderId, connection });
+        const stdCostResult = await this.ensureStandardCost(order.product_id, order.quantity, {
+          taskId: productionOrderId,
+          connection,
+        });
         if (stdCostResult && stdCostResult.totalCost > 0) {
           const standardMaterialCost = stdCostResult.materialCost || 0;
           const standardLaborCost = stdCostResult.laborCost || 0;
@@ -394,242 +394,245 @@ module.exports = {
       // Production inbound confirmation may pre-calculate and persist cost,
       // but only the finance-approved posting event may execute this block.
       if (postToGL) {
+        // 1. 获取所有需要的科目映射 (纯净的 SSOT 节点提取，杜绝防呆字面量)
+        const config = globalConfigManager.getConfig();
+        const accountCodes = [
+          config.accounting.accounts.INVENTORY_GOODS, // 库存商品 (借)
+          config.accounting.accounts.PRODUCTION_COST, // 生产成本/在制品 (借/贷)
+          config.accounting.accounts.RAW_MATERIALS, // 原材料 (贷)
+          config.accounting.accounts.EMPLOYEE_PAYABLE, // 应付职工薪酬 (贷)
+          config.accounting.accounts.MANUFACTURING_EXPENSE, // 制造费用-转出 (贷)
+        ];
 
-      // 1. 获取所有需要的科目映射 (纯净的 SSOT 节点提取，杜绝防呆字面量)
-      const config = globalConfigManager.getConfig();
-      const accountCodes = [
-        config.accounting.accounts.INVENTORY_GOODS, // 库存商品 (借)
-        config.accounting.accounts.PRODUCTION_COST, // 生产成本/在制品 (借/贷)
-        config.accounting.accounts.RAW_MATERIALS, // 原材料 (贷)
-        config.accounting.accounts.EMPLOYEE_PAYABLE, // 应付职工薪酬 (贷)
-        config.accounting.accounts.MANUFACTURING_EXPENSE, // 制造费用-转出 (贷)
-      ];
+        const accounts = await GLService.getAccountIds(accountCodes);
+        const accFG = accounts[config.accounting.accounts.INVENTORY_GOODS];
+        const accWIP = accounts[config.accounting.accounts.PRODUCTION_COST];
+        const accRaw = accounts[config.accounting.accounts.RAW_MATERIALS];
+        const accWages = accounts[config.accounting.accounts.EMPLOYEE_PAYABLE];
+        const accOverhead = accounts[config.accounting.accounts.MANUFACTURING_EXPENSE];
 
-      const accounts = await GLService.getAccountIds(accountCodes);
-      const accFG = accounts[config.accounting.accounts.INVENTORY_GOODS];
-      const accWIP = accounts[config.accounting.accounts.PRODUCTION_COST];
-      const accRaw = accounts[config.accounting.accounts.RAW_MATERIALS];
-      const accWages = accounts[config.accounting.accounts.EMPLOYEE_PAYABLE];
-      const accOverhead = accounts[config.accounting.accounts.MANUFACTURING_EXPENSE];
+        // 检查关键科目 (WIP和FG是必须的)
+        if (accFG && accWIP) {
+          try {
+            const baseEntryData = {
+              period_id: periodId,
+              entry_date: completionDate,
+              document_type: DOCUMENT_TYPES.PRODUCTION_COST_TRANSFER,
+              document_number: order.code,
+              transaction_id: productionOrderId,
+              created_by: await resolveActorUserId(connection),
+              voucher_word: '转',
+              status: 'posted',
+              is_posted: 1,
+            };
 
-      // 检查关键科目 (WIP和FG是必须的)
-      if (accFG && accWIP) {
-        try {
-          const baseEntryData = {
-            period_id: periodId,
-            entry_date: completionDate,
-            document_type: DOCUMENT_TYPES.PRODUCTION_COST_TRANSFER,
-            document_number: order.code,
-            transaction_id: productionOrderId,
-            created_by: await resolveActorUserId(connection),
-            voucher_word: '转',
-            status: 'posted',
-            is_posted: 1,
-          };
-
-          const createProductionEntry = async (transactionType, entryData, items) => {
-            const typedDocumentNumber = `${String(order.code).slice(0, 30)}-${transactionType.replace('PRODUCTION_', '')}`;
-            const itemsWithCostCenter = items.map((item) => ({
-              ...item,
-              cost_center_id: item.cost_center_id ?? order.cost_center_id ?? null,
-            }));
-            const [existing] = await connection.execute(
-              `SELECT id, entry_number, is_posted
+            const createProductionEntry = async (transactionType, entryData, items) => {
+              const typedDocumentNumber = `${String(order.code).slice(0, 30)}-${transactionType.replace('PRODUCTION_', '')}`;
+              const itemsWithCostCenter = items.map((item) => ({
+                ...item,
+                cost_center_id: item.cost_center_id ?? order.cost_center_id ?? null,
+              }));
+              const [existing] = await connection.execute(
+                `SELECT id, entry_number, is_posted
                  FROM gl_entries
                  WHERE transaction_type = ?
                    AND (transaction_id = ? OR document_number IN (?, ?))
                    AND COALESCE(is_reversed, 0) = 0
                  LIMIT 1
                  FOR UPDATE`,
-              [transactionType, productionOrderId, order.code, typedDocumentNumber]
-            );
-
-            if (existing.length > 0) {
-              const existingEntry = existing[0];
-              const [existingItems] = await connection.execute(
-                'SELECT id, entry_id, line_number, account_id, debit_amount, credit_amount, description, cost_center_id, project_id, created_at, updated_at, currency_code, exchange_rate, customer_id, supplier_id, employee_id FROM gl_entry_items WHERE entry_id = ? ORDER BY line_number, id FOR UPDATE',
-                [existingEntry.id]
+                [transactionType, productionOrderId, order.code, typedDocumentNumber]
               );
 
-              if (this.areGLItemsExpected(existingItems, itemsWithCostCenter)) {
-                logger.info(
-                  `Production cost entry skipped: type=${transactionType}, task=${productionOrderId}`
-                );
-                return existingEntry.id;
-              }
-
-              if (Number(existingEntry.is_posted) === 1 || existingEntry.is_posted === true) {
-                const reversalEntryId = await GLService.createEntry(
-                  {
-                    ...baseEntryData,
-                    ...entryData,
-                    document_type: `${entryData.document_type || baseEntryData.document_type || transactionType}冲销`,
-                    document_number: `R-${typedDocumentNumber}-${existingEntry.id}`.slice(0, 50),
-                    description: `自动冲销失配生产成本凭证 ${existingEntry.entry_number || existingEntry.id}`,
-                    transaction_type: `${transactionType}_REVERSAL`,
-                    transaction_id: existingEntry.id,
-                  },
-                  existingItems.map((item) => ({
-                    account_id: item.account_id,
-                    debit_amount: item.credit_amount,
-                    credit_amount: item.debit_amount,
-                    currency_code:
-                      item.currency_code || financeConfig.get('invoice.defaultCurrency', 'CNY'),
-                    exchange_rate: item.exchange_rate || 1,
-                    cost_center_id: item.cost_center_id || order.cost_center_id || null,
-                    description: `自动冲销失配生产成本凭证明细: ${item.description || ''}`,
-                  })),
-                  connection
+              if (existing.length > 0) {
+                const existingEntry = existing[0];
+                const [existingItems] = await connection.execute(
+                  'SELECT id, entry_id, line_number, account_id, debit_amount, credit_amount, description, cost_center_id, project_id, created_at, updated_at, currency_code, exchange_rate, customer_id, supplier_id, employee_id FROM gl_entry_items WHERE entry_id = ? ORDER BY line_number, id FOR UPDATE',
+                  [existingEntry.id]
                 );
 
-                await connection.execute(
-                  `UPDATE gl_entries
+                if (this.areGLItemsExpected(existingItems, itemsWithCostCenter)) {
+                  logger.info(
+                    `Production cost entry skipped: type=${transactionType}, task=${productionOrderId}`
+                  );
+                  return existingEntry.id;
+                }
+
+                if (Number(existingEntry.is_posted) === 1 || existingEntry.is_posted === true) {
+                  const reversalEntryId = await GLService.createEntry(
+                    {
+                      ...baseEntryData,
+                      ...entryData,
+                      document_type: `${entryData.document_type || baseEntryData.document_type || transactionType}冲销`,
+                      document_number: `R-${typedDocumentNumber}-${existingEntry.id}`.slice(0, 50),
+                      description: `自动冲销失配生产成本凭证 ${existingEntry.entry_number || existingEntry.id}`,
+                      transaction_type: `${transactionType}_REVERSAL`,
+                      transaction_id: existingEntry.id,
+                    },
+                    existingItems.map((item) => ({
+                      account_id: item.account_id,
+                      debit_amount: item.credit_amount,
+                      credit_amount: item.debit_amount,
+                      currency_code:
+                        item.currency_code || financeConfig.get('invoice.defaultCurrency', 'CNY'),
+                      exchange_rate: item.exchange_rate || 1,
+                      cost_center_id: item.cost_center_id || order.cost_center_id || null,
+                      description: `自动冲销失配生产成本凭证明细: ${item.description || ''}`,
+                    })),
+                    connection
+                  );
+
+                  await connection.execute(
+                    `UPDATE gl_entries
                         SET is_reversed = 1,
                             reversal_entry_id = ?,
                             status = 'reversed',
                             transaction_type = ?,
                             transaction_id = NULL
                       WHERE id = ?`,
-                  [reversalEntryId, `${transactionType}_REVERSED`, existingEntry.id]
-                );
-              } else {
-                await connection.execute('DELETE FROM gl_entry_items WHERE entry_id = ?', [
-                  existingEntry.id,
-                ]);
-                await connection.execute('DELETE FROM gl_entries WHERE id = ?', [existingEntry.id]);
+                    [reversalEntryId, `${transactionType}_REVERSED`, existingEntry.id]
+                  );
+                } else {
+                  await connection.execute('DELETE FROM gl_entry_items WHERE entry_id = ?', [
+                    existingEntry.id,
+                  ]);
+                  await connection.execute('DELETE FROM gl_entries WHERE id = ?', [
+                    existingEntry.id,
+                  ]);
+                }
               }
+
+              return GLService.createEntry(
+                {
+                  ...baseEntryData,
+                  ...entryData,
+                  document_number: typedDocumentNumber,
+                  transaction_type: transactionType,
+                },
+                itemsWithCostCenter,
+                connection
+              );
+            };
+
+            // --- 凭证 1: 生产领料 (借: 生产成本 / 贷: 原材料) ---
+            if (accRaw && materialCost.totalCost > 0) {
+              await createProductionEntry(
+                'PRODUCTION_MATERIAL',
+                {
+                  ...baseEntryData,
+                  description: `生产领料结转: ${order.code}`,
+                  transaction_type: 'PRODUCTION_MATERIAL',
+                },
+                [
+                  {
+                    account_id: accWIP,
+                    debit_amount: materialCost.totalCost,
+                    credit_amount: 0,
+                    description: `生产领料: ${order.code}`,
+                  },
+                  {
+                    account_id: accRaw,
+                    debit_amount: 0,
+                    credit_amount: materialCost.totalCost,
+                    description: `生产领料出库: ${order.code}`,
+                  },
+                ],
+                connection
+              );
             }
 
-            return GLService.createEntry(
-              {
-                ...baseEntryData,
-                ...entryData,
-                document_number: typedDocumentNumber,
-                transaction_type: transactionType,
-              },
-              itemsWithCostCenter,
-              connection
-            );
-          };
-
-          // --- 凭证 1: 生产领料 (借: 生产成本 / 贷: 原材料) ---
-          if (accRaw && materialCost.totalCost > 0) {
-            await createProductionEntry(
-              'PRODUCTION_MATERIAL',
-              {
-                ...baseEntryData,
-                description: `生产领料结转: ${order.code}`,
-                transaction_type: 'PRODUCTION_MATERIAL',
-              },
-              [
+            // --- 凭证 2: 直接人工 (借: 生产成本 / 贷: 应付职工薪酬) ---
+            if (accWages && laborCost.totalCost > 0) {
+              await createProductionEntry(
+                'PRODUCTION_LABOR',
                 {
-                  account_id: accWIP,
-                  debit_amount: materialCost.totalCost,
-                  credit_amount: 0,
-                  description: `生产领料: ${order.code}`,
-                },
-                {
-                  account_id: accRaw,
-                  debit_amount: 0,
-                  credit_amount: materialCost.totalCost,
-                  description: `生产领料出库: ${order.code}`,
-                },
-              ],
-              connection
-            );
-          }
-
-          // --- 凭证 2: 直接人工 (借: 生产成本 / 贷: 应付职工薪酬) ---
-          if (accWages && laborCost.totalCost > 0) {
-            await createProductionEntry(
-              'PRODUCTION_LABOR',
-              {
-                ...baseEntryData,
-                description: `分配生产人工: ${order.code}`,
-                transaction_type: 'PRODUCTION_LABOR',
-              },
-              [
-                {
-                  account_id: accWIP,
-                  debit_amount: laborCost.totalCost,
-                  credit_amount: 0,
+                  ...baseEntryData,
                   description: `分配生产人工: ${order.code}`,
+                  transaction_type: 'PRODUCTION_LABOR',
                 },
-                {
-                  account_id: accWages,
-                  debit_amount: 0,
-                  credit_amount: laborCost.totalCost,
-                  description: `计提生产人工: ${order.code}`,
-                },
-              ],
-              connection
-            );
-          }
+                [
+                  {
+                    account_id: accWIP,
+                    debit_amount: laborCost.totalCost,
+                    credit_amount: 0,
+                    description: `分配生产人工: ${order.code}`,
+                  },
+                  {
+                    account_id: accWages,
+                    debit_amount: 0,
+                    credit_amount: laborCost.totalCost,
+                    description: `计提生产人工: ${order.code}`,
+                  },
+                ],
+                connection
+              );
+            }
 
-          // --- 凭证 3: 制造费用 (借: 生产成本 / 贷: 制造费用转出) ---
-          if (accOverhead && overheadCost.totalCost > 0) {
-            await createProductionEntry(
-              'PRODUCTION_OVERHEAD',
-              {
-                ...baseEntryData,
-                description: `分配制造费用: ${order.code}`,
-                transaction_type: 'PRODUCTION_OVERHEAD',
-              },
-              [
+            // --- 凭证 3: 制造费用 (借: 生产成本 / 贷: 制造费用转出) ---
+            if (accOverhead && overheadCost.totalCost > 0) {
+              await createProductionEntry(
+                'PRODUCTION_OVERHEAD',
                 {
-                  account_id: accWIP,
-                  debit_amount: overheadCost.totalCost,
-                  credit_amount: 0,
+                  ...baseEntryData,
                   description: `分配制造费用: ${order.code}`,
+                  transaction_type: 'PRODUCTION_OVERHEAD',
                 },
-                {
-                  account_id: accOverhead,
-                  debit_amount: 0,
-                  credit_amount: overheadCost.totalCost,
-                  description: `制造费用结转: ${order.code}`,
-                },
-              ],
-              connection
-            );
-          }
+                [
+                  {
+                    account_id: accWIP,
+                    debit_amount: overheadCost.totalCost,
+                    credit_amount: 0,
+                    description: `分配制造费用: ${order.code}`,
+                  },
+                  {
+                    account_id: accOverhead,
+                    debit_amount: 0,
+                    credit_amount: overheadCost.totalCost,
+                    description: `制造费用结转: ${order.code}`,
+                  },
+                ],
+                connection
+              );
+            }
 
-          // --- 凭证 4: 完工入库 (借: 库存商品 / 贷: 生产成本) ---
-          if (totalActualCost > 0) {
-            await createProductionEntry(
-              'PRODUCTION_COMPLETE',
-              {
-                ...baseEntryData,
-                description: `生产完工入库: ${order.code}`,
-                transaction_type: 'PRODUCTION_COMPLETE',
-              },
-              [
+            // --- 凭证 4: 完工入库 (借: 库存商品 / 贷: 生产成本) ---
+            if (totalActualCost > 0) {
+              await createProductionEntry(
+                'PRODUCTION_COMPLETE',
                 {
-                  account_id: accFG,
-                  debit_amount: totalActualCost,
-                  credit_amount: 0,
+                  ...baseEntryData,
                   description: `生产完工入库: ${order.code}`,
+                  transaction_type: 'PRODUCTION_COMPLETE',
                 },
-                {
-                  account_id: accWIP,
-                  debit_amount: 0,
-                  credit_amount: totalActualCost,
-                  description: `结转生产成本: ${order.code}`,
-                },
-              ],
-              connection
-            );
+                [
+                  {
+                    account_id: accFG,
+                    debit_amount: totalActualCost,
+                    credit_amount: 0,
+                    description: `生产完工入库: ${order.code}`,
+                  },
+                  {
+                    account_id: accWIP,
+                    debit_amount: 0,
+                    credit_amount: totalActualCost,
+                    description: `结转生产成本: ${order.code}`,
+                  },
+                ],
+                connection
+              );
+            }
+          } catch (glError) {
+            logger.error(`GL Entry Creation Failed for Order ${productionOrderId}:`, glError);
+            // 财务合规要求一致性: 必须回滚
+            throw glError;
           }
-        } catch (glError) {
-          logger.error(`GL Entry Creation Failed for Order ${productionOrderId}:`, glError);
-          // 财务合规要求一致性: 必须回滚
-          throw glError;
+        } else {
+          logger.warn(
+            `未配置GL标准化科目映射 (4001 或 1405 缺失)，不能生成凭证: Order ${productionOrderId}`
+          );
+          throw new Error(
+            `未配置生产成本总账科目映射，不能完成成本结转: Order ${productionOrderId}`
+          );
         }
-      } else {
-        logger.warn(
-          `未配置GL标准化科目映射 (4001 或 1405 缺失)，不能生成凭证: Order ${productionOrderId}`
-        );
-        throw new Error(`未配置生产成本总账科目映射，不能完成成本结转: Order ${productionOrderId}`);
-      }
       } else {
         logger.info(
           `生产任务 ${productionOrderId} 成本已预计算，等待生产入库财务审批后生成总账凭证`

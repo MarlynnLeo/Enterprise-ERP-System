@@ -16,7 +16,6 @@ const db = require('../../../config/db');
 const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity, MAX(updated_at) as updated_at FROM inventory_stock_balances WHERE batch_number <> '__LOCATION_LOCK__' GROUP BY material_id, location_id)`;
 // DRY: 两处引用相同子查询，统一使用 STOCK_SUBQUERY
 
-
 // 引入库存一致性校验服务
 
 // 引入成本凭证服务（用于生成领料凭证）
@@ -25,9 +24,7 @@ const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity)
 
 // 引入状态映射工具和状态常量
 
-
 // ========== 出入库类型常量（全局唯一定义，消除重复） ==========
-
 
 // 添加一个辅助函数来处理inventory_ledger插入
 
@@ -131,7 +128,7 @@ const getBatchInventory = async (req, res) => {
     const { materialIds, locationIds } = req.body;
 
     if (!materialIds || !Array.isArray(materialIds) || materialIds.length === 0) {
-      return ResponseHandler.error(res, '物料ID列表不能为空', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '物料列表不能为空', 'BAD_REQUEST', 400);
     }
 
     // 构建批量查询SQL
@@ -139,19 +136,20 @@ const getBatchInventory = async (req, res) => {
       .map((id) => Number.parseInt(id, 10))
       .filter((id) => Number.isInteger(id) && id > 0);
     if (materialIdList.length === 0) {
-      return ResponseHandler.error(res, '物料ID列表无有效值', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '物料列表中没有有效物料', 'BAD_REQUEST', 400);
     }
 
     const locationIdList = Array.isArray(locationIds)
       ? locationIds
-        .map((id) => Number.parseInt(id, 10))
-        .filter((id) => Number.isInteger(id) && id > 0)
+          .map((id) => Number.parseInt(id, 10))
+          .filter((id) => Number.isInteger(id) && id > 0)
       : [];
     const effectiveLocationIdList = locationIdList;
     const materialPlaceholders = materialIdList.map(() => '?').join(',');
-    const locationFilter = effectiveLocationIdList.length > 0
-      ? `AND location_id IN (${effectiveLocationIdList.map(() => '?').join(',')})`
-      : '';
+    const locationFilter =
+      effectiveLocationIdList.length > 0
+        ? `AND location_id IN (${effectiveLocationIdList.map(() => '?').join(',')})`
+        : '';
     const inventoryParams = [...materialIdList, ...effectiveLocationIdList];
 
     // 优化的库存查询SQL - 优先使用事务记录聚合，库存表作为补充
@@ -205,7 +203,7 @@ const getBatchInventory = async (req, res) => {
       materialIdList
     );
     const materialNameMap = {};
-    allMaterialInfo.forEach(m => {
+    allMaterialInfo.forEach((m) => {
       materialNameMap[m.id] = { name: m.name, code: m.code, unit: m.unit };
     });
 
@@ -225,7 +223,7 @@ const getBatchInventory = async (req, res) => {
       resolvedLocations
     );
     const locationNameMap = {};
-    allLocationInfo.forEach(l => {
+    allLocationInfo.forEach((l) => {
       locationNameMap[l.id] = l.name;
     });
 
@@ -243,7 +241,7 @@ const getBatchInventory = async (req, res) => {
             locationId: parseInt(locationId),
             quantity: 0,
             source: 'none',
-            materialName: matName.name || `物料${materialId}`,
+            materialName: matName.name || matName.code || '未命名物料',
             materialCode: matName.code || '',
             unit: matName.unit || '个',
             locationName: locationNameMap[locationId] || `库位${locationId}`,
@@ -281,7 +279,7 @@ const getBatchInventoryDetail = async (req, res) => {
     const location_id = q.location_id;
 
     if (!material_id) {
-      return ResponseHandler.error(res, '物料ID不能为空', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '请选择物料', 'BAD_REQUEST', 400);
     }
 
     // ✅ 单表架构：从 inventory_ledger 聚合查询批次库存
@@ -347,7 +345,7 @@ const getBatchTransactionsDetail = async (req, res) => {
     const { material_id, batch_number } = req.query;
 
     if (!material_id || !batch_number) {
-      return ResponseHandler.error(res, '物料ID和批次号不能为空', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '物料和批次号不能为空', 'BAD_REQUEST', 400);
     }
 
     // 单表架构：直接查询 inventory_ledger
@@ -394,7 +392,6 @@ const getBatchTransactionsDetail = async (req, res) => {
 /**
  * 批量更新出库单状态
  */
-
 
 module.exports = {
   getMaterialBatchNumber,

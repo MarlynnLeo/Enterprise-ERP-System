@@ -16,7 +16,9 @@ const customerService = {
       const safePage = Math.max(1, parseInt(page, 10) || 1);
       const noPagination = pageSize === null || pageSize === undefined;
       // 下拉选项可能需要较多记录；上限 500，全量时 pageSize=null
-      const safePageSize = noPagination ? null : Math.max(1, Math.min(500, parseInt(pageSize, 10) || 10));
+      const safePageSize = noPagination
+        ? null
+        : Math.max(1, Math.min(500, parseInt(pageSize, 10) || 10));
       const offset = noPagination ? 0 : (safePage - 1) * safePageSize;
       let whereClause = 'deleted_at IS NULL';
       const params = [];
@@ -167,8 +169,7 @@ const customerService = {
       }
 
       // 入参只认 contact_phone；同步镜像到 phone 列
-      const phoneCanonical =
-        data.contact_phone !== undefined ? data.contact_phone : undefined;
+      const phoneCanonical = data.contact_phone !== undefined ? data.contact_phone : undefined;
 
       // 定义允许更新的字段及其值
       const validFields = {
@@ -179,12 +180,17 @@ const customerService = {
         phone: phoneCanonical,
         email: data.email,
         address: data.address,
-        status: data.status === undefined || data.status === '' ? undefined : normalizeCustomerStatus(data.status),
+        status:
+          data.status === undefined || data.status === ''
+            ? undefined
+            : normalizeCustomerStatus(data.status),
         remark: data.remark,
         customer_type: data.customer_type,
         credit_limit: data.credit_limit === undefined ? undefined : data.credit_limit || 0,
         payment_term_days:
-          data.payment_term_days !== undefined && data.payment_term_days !== null && data.payment_term_days !== ''
+          data.payment_term_days !== undefined &&
+          data.payment_term_days !== null &&
+          data.payment_term_days !== ''
             ? Math.max(0, Math.min(3650, parseInt(data.payment_term_days, 10) || 0))
             : data.payment_term_days === null
               ? null
@@ -210,7 +216,10 @@ const customerService = {
       const values = [...Object.values(updateFields), id];
 
       // 执行更新
-      await pool.query(`UPDATE customers SET ${fields} WHERE id = ? AND deleted_at IS NULL`, values);
+      await pool.query(
+        `UPDATE customers SET ${fields} WHERE id = ? AND deleted_at IS NULL`,
+        values
+      );
 
       // 获取并返回更新后的完整数据
       const [updated] = await pool.query(

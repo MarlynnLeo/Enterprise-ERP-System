@@ -2,7 +2,7 @@ import { baseDataApi } from './baseData';
 
 const ensureMaterialId = (id) => {
     if (!id || id === null || id === 'null' || id === 'undefined') {
-        throw new Error(`Invalid material id: ${id}`);
+        throw new Error('所选物料参数无效，请重新选择');
     }
     return id;
 };

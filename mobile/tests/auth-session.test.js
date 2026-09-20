@@ -27,6 +27,7 @@ describe('mobile authentication session isolation', () => {
     vi.useFakeTimers()
     vi.clearAllMocks()
     api.get.mockReset()
+    api.put.mockReset()
     api.post.mockReset().mockResolvedValue({})
     localStorage.clear()
     sessionStorage.clear()
@@ -89,6 +90,17 @@ describe('mobile authentication session isolation', () => {
     expect(await profile).toBe(false)
     expect(auth.user).toBeNull()
     expect(localStorage.getItem('isLoggedIn')).toBeNull()
+  })
+
+  test('does not restore an edited profile after logout', async () => {
+    const pending = deferred()
+    api.put.mockReturnValueOnce(pending.promise)
+    const update = auth.updateProfile({ realName: 'updated' })
+    await auth.logout()
+    pending.resolve({ data: { id: 1, username: 'old-user' } })
+    expect(await update).toBe(false)
+    expect(auth.user).toBeNull()
+    expect(sessionStorage.getItem('user')).toBeNull()
   })
 
   test('keeps new-account permissions when the previous account responds late', async () => {

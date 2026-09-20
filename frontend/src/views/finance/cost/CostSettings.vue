@@ -507,7 +507,7 @@
             <el-table-column prop="name" label="规则名称" min-width="150" />
             <el-table-column label="指定产品" min-width="150">
               <template #default="scope">
-                <span v-if="scope.row.productId" class="text-primary">{{ scope.row.productName || scope.row.productCode || `ID:${scope.row.productId}` }}</span>
+                <span v-if="scope.row.productId" class="text-primary">{{ scope.row.productName || scope.row.productCode || '未命名产品' }}</span>
                 <span v-else class="text-muted">全部产品</span>
               </template>
             </el-table-column>
@@ -627,6 +627,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { formatLocalDate } from '@/utils/format';
 import { computed, ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
@@ -1039,7 +1040,7 @@ const handleFreeze = async () => {
     fetchMaterialStandardCosts();
   } catch (error) {
     console.error('批量冻结失败:', error);
-    ElMessage.error('批量冻结失败: ' + (error.response?.data?.message || error.message));
+    ElMessage.error('批量冻结失败: ' + (getApiErrorMessage(error, '未知错误')));
   } finally {
     freezing.value = false;
   }
@@ -1161,7 +1162,7 @@ const openAllocationRuleDialog = (row = null) => {
        materialOptions.value.push({
          id: row.productId,
          code: row.productCode || '',
-         name: row.productName || `ID:${row.productId}`
+         name: row.productName || row.productCode || '未命名产品'
        });
     }
     allocationRuleForm.value = {

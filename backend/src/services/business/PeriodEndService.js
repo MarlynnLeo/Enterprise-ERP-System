@@ -21,12 +21,6 @@ const yearEndMethods = require('./periodEnd/yearEndMethods');
  */
 class PeriodEndService {}
 
-Object.assign(
-  PeriodEndService,
-  helpersMethods,
-  controlsMethods,
-  closingMethods,
-  yearEndMethods
-);
+Object.assign(PeriodEndService, helpersMethods, controlsMethods, closingMethods, yearEndMethods);
 
 module.exports = PeriodEndService;

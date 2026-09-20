@@ -95,7 +95,11 @@ const cashController = {
       filters.page = pagination.page;
       filters.limit = pagination.pageSize;
 
-      const result = await BankTransactionModel.getBankTransactions(filters, pagination.page, pagination.pageSize);
+      const result = await BankTransactionModel.getBankTransactions(
+        filters,
+        pagination.page,
+        pagination.pageSize
+      );
 
       ResponseHandler.paginated(
         res,
@@ -160,12 +164,7 @@ const cashController = {
 
       const insertId = await BankTransactionModel.createBankTransaction(transaction);
 
-      ResponseHandler.success(
-        res,
-        { id: insertId, ...transaction },
-        '交易记录创建成功',
-        201
-      );
+      ResponseHandler.success(res, { id: insertId, ...transaction }, '交易记录创建成功', 201);
     } catch (error) {
       logger.error('Error creating transaction:', error);
       ResponseHandler.error(res, '创建交易记录失败', 'SERVER_ERROR', 500, error);

@@ -48,7 +48,7 @@ const getMaterialBatchNumber = async (connection, materialId, locationId = null)
       return stockBatchRecords[0].batch_number;
     }
 
-    throw new Error(`物料 ${materialId} 在当前库位没有可用批次库存`);
+    throw new Error('所选物料在当前库位没有可用批次库存');
   } catch (error) {
     logger.error('获取物料批次号失败:', error);
     throw error;

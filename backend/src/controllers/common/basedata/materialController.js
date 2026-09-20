@@ -56,18 +56,13 @@ const buildMaterialExportRows = (items = []) =>
       min_stock: item.min_stock ?? item.minStock ?? 0,
       max_stock: item.max_stock ?? item.maxStock ?? 0,
       stock_quantity:
-        item.stock_quantity ??
-        item.stockQuantity ??
-        item.current_stock ??
-        item.currentStock ??
-        0,
+        item.stock_quantity ?? item.stockQuantity ?? item.current_stock ?? item.currentStock ?? 0,
       status_text: Number(item.status) === 1 ? '启用' : '停用',
       remark: item.remark ?? item.remarks ?? '',
     };
   });
 
 const materialController = {
-
   async getAllMaterials(req, res) {
     try {
       const { page = 1, pageSize = 10, ...filters } = req.query;
@@ -124,7 +119,7 @@ const materialController = {
     try {
       const { ids } = req.body;
       if (!ids || !Array.isArray(ids) || ids.length === 0) {
-        return ResponseHandler.error(res, '请提供有效的物料ID数组', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(res, '请提供有效的物料列表', 'VALIDATION_ERROR', 400);
       }
       if (ids.length > 100) {
         return ResponseHandler.error(res, '批量查询数量不能超过100条', 'VALIDATION_ERROR', 400);
@@ -252,7 +247,10 @@ const materialController = {
 
   async getMaterialOptions(req, res) {
     try {
-      const pageSize = Math.min(Math.max(parseInt(req.query.limit || req.query.pageSize, 10) || 50, 1), 100);
+      const pageSize = Math.min(
+        Math.max(parseInt(req.query.limit || req.query.pageSize, 10) || 50, 1),
+        100
+      );
       const result = await materialService.getAllMaterials(1, pageSize, {
         search: req.query.keyword || req.query.search || '',
         status: req.query.status ?? 1,
@@ -341,27 +339,41 @@ const materialController = {
         { header: '计量单位*', key: 'unit', width: 12 },
         { header: '物料来源*', key: 'source_type', width: 15 },
         {
-          header: '供应商编码', key: 'supplier_code', width: 18
+          header: '供应商编码',
+          key: 'supplier_code',
+          width: 18,
         },
         {
-          header: '生产组编码', key: 'production_group_code', width: 18
+          header: '生产组编码',
+          key: 'production_group_code',
+          width: 18,
         },
         {
-          header: '物料负责人工号', key: 'manager_code', width: 18
+          header: '物料负责人工号',
+          key: 'manager_code',
+          width: 18,
         },
         { header: '默认库位编码', key: 'location_code', width: 18 },
         {
-          header: '参考价格', key: 'price', width: 12
+          header: '参考价格',
+          key: 'price',
+          width: 12,
         },
         { header: '安全库存', key: 'safety_stock', width: 12 },
         {
-          header: '最小库存', key: 'min_stock', width: 12
+          header: '最小库存',
+          key: 'min_stock',
+          width: 12,
         },
         {
-          header: '最大库存', key: 'max_stock', width: 12
+          header: '最大库存',
+          key: 'max_stock',
+          width: 12,
         },
         {
-          header: '状态', key: 'status', width: 10
+          header: '状态',
+          key: 'status',
+          width: 10,
         },
         { header: '备注', key: 'remark', width: 30 },
       ];
@@ -446,19 +458,27 @@ const materialController = {
       const errorList = [];
 
       const { pool: dbPool } = require('../../../config/db');
-      const [allCategories] = await dbPool.query('SELECT id, code, name FROM categories WHERE deleted_at IS NULL');
-      const categoryByCode = new Map(allCategories.map(c => [c.code, c.id]));
+      const [allCategories] = await dbPool.query(
+        'SELECT id, code, name FROM categories WHERE deleted_at IS NULL'
+      );
+      const categoryByCode = new Map(allCategories.map((c) => [c.code, c.id]));
 
       const [allUnits] = await dbPool.query('SELECT id, name FROM units WHERE deleted_at IS NULL');
-      const unitByName = new Map(allUnits.map(u => [u.name, u.id]));
+      const unitByName = new Map(allUnits.map((u) => [u.name, u.id]));
 
-      const [allSources] = await dbPool.query('SELECT id, type FROM material_sources WHERE deleted_at IS NULL');
-      const sourceByType = new Map(allSources.map(s => [s.type, s.id]));
+      const [allSources] = await dbPool.query(
+        'SELECT id, type FROM material_sources WHERE deleted_at IS NULL'
+      );
+      const sourceByType = new Map(allSources.map((s) => [s.type, s.id]));
 
-      const [allSuppliers] = await dbPool.query('SELECT id, code FROM suppliers WHERE deleted_at IS NULL');
-      const supplierByCode = new Map(allSuppliers.map(s => [s.code, s.id]));
+      const [allSuppliers] = await dbPool.query(
+        'SELECT id, code FROM suppliers WHERE deleted_at IS NULL'
+      );
+      const supplierByCode = new Map(allSuppliers.map((s) => [s.code, s.id]));
 
-      const [allGroups] = await dbPool.query('SELECT id, code, name FROM departments WHERE status = 1');
+      const [allGroups] = await dbPool.query(
+        'SELECT id, code, name FROM departments WHERE status = 1'
+      );
       const groupByCode = new Map(allGroups.filter((g) => g.code).map((g) => [g.code, g.id]));
       const groupByName = new Map(allGroups.map((g) => [g.name, g.id]));
 
@@ -469,11 +489,13 @@ const materialController = {
         if (u.username) userByCode.set(u.username, u.id);
       }
 
-      const [allLocations] = await dbPool.query('SELECT id, code FROM locations WHERE deleted_at IS NULL');
-      const locationByCode = new Map(allLocations.map(l => [l.code, l.id]));
+      const [allLocations] = await dbPool.query(
+        'SELECT id, code FROM locations WHERE deleted_at IS NULL'
+      );
+      const locationByCode = new Map(allLocations.map((l) => [l.code, l.id]));
 
       const [allExistingMaterials] = await dbPool.query('SELECT id, code FROM materials');
-      const existingMaterialByCode = new Map(allExistingMaterials.map(m => [m.code, m.id]));
+      const existingMaterialByCode = new Map(allExistingMaterials.map((m) => [m.code, m.id]));
 
       // 逐行处理数据（仅做内存映射，无 SQL）
       for (let i = 0; i < data.length; i++) {
@@ -492,9 +514,10 @@ const materialController = {
           if (!categoryId) throw new Error(`物料分类编码"${row['物料分类编码*']}"不存在`);
 
           const sourceType = row['物料来源*'];
-          const sourceTypeMap = { '自产': 'internal', '外购': 'external', '采购': 'external' };
+          const sourceTypeMap = { 自产: 'internal', 外购: 'external', 采购: 'external' };
           const materialSourceId = sourceByType.get(sourceTypeMap[sourceType]);
-          if (!materialSourceId) throw new Error(`物料来源"${sourceType}"无效，请使用"自产"或"外购"`);
+          if (!materialSourceId)
+            throw new Error(`物料来源"${sourceType}"无效，请使用"自产"或"外购"`);
 
           const unitId = unitByName.get(row['计量单位*']);
           if (!unitId) throw new Error(`计量单位"${row['计量单位*']}"不存在`);
@@ -507,7 +530,8 @@ const materialController = {
 
           let productionGroupId = null;
           if (row['生产组编码']) {
-            productionGroupId = groupByCode.get(row['生产组编码']) || groupByName.get(row['生产组编码']);
+            productionGroupId =
+              groupByCode.get(row['生产组编码']) || groupByName.get(row['生产组编码']);
             if (!productionGroupId) throw new Error(`生产组编码"${row['生产组编码']}"不存在`);
           }
 
@@ -600,7 +624,6 @@ const materialController = {
 
   async importMaterialsJson(req, res) {
     try {
-
       if (!req.body || !Array.isArray(req.body)) {
         return ResponseHandler.error(res, '无效的数据格式，应该是数据', 'VALIDATION_ERROR', 400);
       }
@@ -615,21 +638,25 @@ const materialController = {
       logger.info(`Material import started: rowCount=${req.body.length}`);
 
       // 1. 批量加载所有分类（编码和名称映射）
-      const [allCategories] = await dbPool.query('SELECT id, code, name FROM categories WHERE deleted_at IS NULL');
+      const [allCategories] = await dbPool.query(
+        'SELECT id, code, name FROM categories WHERE deleted_at IS NULL'
+      );
       const categoryByCode = new Map(allCategories.map((c) => [c.code, c.id]));
       const categoryByName = new Map(allCategories.map((c) => [c.name, c.id]));
-
 
       const [allUnits] = await dbPool.query('SELECT id, name FROM units WHERE deleted_at IS NULL');
       const unitByName = new Map(allUnits.map((u) => [u.name, u.id]));
 
-
-      const [allSources] = await dbPool.query('SELECT id, name, code FROM material_sources WHERE deleted_at IS NULL');
+      const [allSources] = await dbPool.query(
+        'SELECT id, name, code FROM material_sources WHERE deleted_at IS NULL'
+      );
       const sourceByName = new Map(allSources.map((s) => [s.name, s.id]));
       const sourceByCode = new Map(allSources.map((s) => [s.code, s.id]));
 
       // 4. 批量加载所有供应商
-      const [allSuppliers] = await dbPool.query('SELECT id, code, name FROM suppliers WHERE deleted_at IS NULL');
+      const [allSuppliers] = await dbPool.query(
+        'SELECT id, code, name FROM suppliers WHERE deleted_at IS NULL'
+      );
       const supplierByCode = new Map(allSuppliers.map((s) => [s.code, s.id]));
       const supplierByName = new Map(allSuppliers.map((s) => [s.name, s.id]));
 
@@ -638,8 +665,9 @@ const materialController = {
       const groupByCode = new Map(allGroups.filter((g) => g.code).map((g) => [g.code, g.id]));
       const groupByName = new Map(allGroups.map((g) => [g.name, g.id]));
 
-
-      const [allUsers] = await dbPool.query('SELECT id, username, real_name FROM users WHERE status = 1');
+      const [allUsers] = await dbPool.query(
+        'SELECT id, username, real_name FROM users WHERE status = 1'
+      );
       const userByUsername = new Map(allUsers.map((u) => [u.username, u.id]));
       const userByDisplayName = new Map();
       for (const user of allUsers) {
@@ -647,8 +675,9 @@ const materialController = {
         if (user.name) userByDisplayName.set(user.name, user.id);
       }
 
-
-      const [allLocations] = await dbPool.query('SELECT id, code, name FROM locations WHERE deleted_at IS NULL');
+      const [allLocations] = await dbPool.query(
+        'SELECT id, code, name FROM locations WHERE deleted_at IS NULL'
+      );
       const locationByCode = new Map(allLocations.map((l) => [l.code, l.id]));
       const locationByName = new Map(allLocations.map((l) => [l.name, l.id]));
 
@@ -668,7 +697,6 @@ const materialController = {
             throw new Error('物料名称不能为空');
           }
 
-
           let categoryId = null;
           if (row.category_code) {
             categoryId =
@@ -677,7 +705,6 @@ const materialController = {
               throw new Error(`物料分类"${row.category_code}"不存在（请填写分类编码或分类名称）`);
             }
           }
-
 
           let materialSourceId = null;
           if (row.source_type) {
@@ -690,7 +717,6 @@ const materialController = {
             }
           }
 
-
           let unitId = null;
           if (row.unit) {
             unitId = unitByName.get(row.unit);
@@ -698,7 +724,6 @@ const materialController = {
               throw new Error(`计量单位"${row.unit}"不存在`);
             }
           }
-
 
           let supplierId = null;
           if (row.supplier_code) {
@@ -708,7 +733,6 @@ const materialController = {
               throw new Error(`供应商"${row.supplier_code}"不存在（请填写供应商编码或名称）`);
             }
           }
-
 
           let productionGroupId = null;
           if (row.production_group_code) {
@@ -722,7 +746,6 @@ const materialController = {
             }
           }
 
-
           let managerId = null;
           if (row.manager_code) {
             managerId =
@@ -732,7 +755,6 @@ const materialController = {
             }
           }
 
-
           let locationId = null;
           if (row.location_code) {
             locationId =
@@ -741,7 +763,6 @@ const materialController = {
               throw new Error(`库位"${row.location_code}"不存在（请填写库位编码或名称）`);
             }
           }
-
 
           let status = 1; // 默认启用
           if (row.status !== undefined) {
@@ -783,7 +804,6 @@ const materialController = {
             code: materialData.code,
             name: materialData.name,
           });
-
 
           if (rowNum % 100 === 0) {
             logger.info(
@@ -833,7 +853,6 @@ const materialController = {
 
       const ExcelHelper = require('../../../utils/excelHelper');
 
-
       const columns = [
         { header: '物料编码', key: 'code', width: 20 },
         { header: '物料名称', key: 'name', width: 25 },
@@ -852,7 +871,6 @@ const materialController = {
       const exportData = buildMaterialExportRows(result.data);
 
       const workbook = ExcelHelper.exportData(exportData, columns, '物料列表');
-
 
       res.setHeader(
         'Content-Type',
@@ -883,7 +901,7 @@ const materialController = {
     try {
       const attachmentId = Number(req.params.attachmentId);
       if (!Number.isInteger(attachmentId) || attachmentId <= 0) {
-        return ResponseHandler.error(res, '附件 ID 无效', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(res, '附件参数无效', 'VALIDATION_ERROR', 400);
       }
       const [[attachment]] = await dbPool.execute(
         'SELECT material_id, file_path FROM material_attachments WHERE id = ?',
@@ -933,7 +951,7 @@ const materialController = {
       const materialId = Number(id);
       if (!Number.isInteger(materialId) || materialId <= 0) {
         FileAccessService.removeLocalFile(filePathForCleanup);
-        return ResponseHandler.error(res, '物料 ID 无效', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(res, '所选物料无效，请重新选择', 'VALIDATION_ERROR', 400);
       }
       const materialExists = await FileAccessService.assertBusinessObjectAccess(
         req,
@@ -986,7 +1004,6 @@ const materialController = {
     }
   },
 
-
   async locatePart(req, res) {
     try {
       // 支持从URL参数或请求体获取物料编码
@@ -1026,7 +1043,6 @@ const materialController = {
       ResponseHandler.error(res, error.message, 'SERVER_ERROR', 500, error);
     }
   },
-
 };
 
 module.exports = materialController;

@@ -94,6 +94,7 @@ import { ElMessage } from 'element-plus/es/components/message/index'
 import { baseDataApi } from '@/api/baseData'
 import { parsePaginatedData } from '@/utils/responseParser'
 import { normalizeCustomerStatus } from '@/utils/customerStatus'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 
 const props = defineProps({
   modelValue: Boolean,
@@ -250,11 +251,7 @@ const submitForm = () => {
         handleClose()
       } catch (error) {
         console.error('保存客户失败:', error)
-        if (error.response?.data?.message) {
-          ElMessage.error(`保存失败: ${error.response.data.message}`)
-        } else {
-          ElMessage.error('保存客户失败')
-        }
+        ElMessage.error(`保存失败: ${getApiErrorMessage(error, '保存客户失败')}`)
       } finally {
         submitting.value = false
       }

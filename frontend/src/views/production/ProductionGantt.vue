@@ -171,6 +171,7 @@ import { Refresh, UserFilled, WarningFilled, ZoomIn } from '@element-plus/icons-
 import dayjs from 'dayjs'
 import { productionApi } from '@/api/production'
 import { getProductionStatusText } from '@/constants/systemConstants'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 
 const router = useRouter()
 const loading = ref(false)
@@ -327,7 +328,7 @@ async function fetchGanttData() {
     }
   } catch (error) {
     console.error('获取排程甘特图数据失败', error)
-    errorMessage.value = error.response?.data?.message || error.message || '获取排程数据失败'
+    errorMessage.value = getApiErrorMessage(error, '获取排程数据失败')
     ElMessage.error(errorMessage.value)
     ganttData.value = { groups: [], dateRange: { start: startDate, end: endDate }, meta: {} }
   } finally {

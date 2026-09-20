@@ -40,6 +40,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { computed, ref, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -128,7 +129,7 @@ async function generateInputTax() {
     ElMessage.success('进项税票已生成')
     await load()
   } catch (e) {
-    ElMessage.error(e?.response?.data?.message || e.message || '生成失败')
+    ElMessage.error(getApiErrorMessage(e, '生成失败'))
   } finally {
     loading.value = false
   }

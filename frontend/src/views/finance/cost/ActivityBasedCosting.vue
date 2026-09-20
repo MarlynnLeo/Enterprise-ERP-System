@@ -130,6 +130,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
@@ -245,7 +246,7 @@ const deleteActivity = async (row) => {
     loadActivities()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error(error.response?.data?.message || '删除失败')
+      ElMessage.error(getApiErrorMessage(error, '删除失败'))
     }
   }
 }
@@ -266,7 +267,7 @@ const submitForm = async () => {
     loadSummary()
   } catch (error) {
     if (error !== false) {
-      ElMessage.error(error.response?.data?.message || '操作失败')
+      ElMessage.error(getApiErrorMessage(error, '操作失败'))
     }
   }
 }

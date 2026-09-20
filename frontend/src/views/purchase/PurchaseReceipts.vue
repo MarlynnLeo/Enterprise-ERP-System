@@ -342,7 +342,7 @@
                     receiptDialog.form.warehouseId = Number(val);
                     // 验证所选仓库是否有效
                     if (!validateWarehouseId(receiptDialog.form.warehouseId)) {
-                      ElMessage.warning('警告：所选仓库ID不在系统中，请重新选择');
+                      ElMessage.warning('警告：所选仓库不存在或已停用，请重新选择');
                       receiptDialog.form.warehouseId = null;
                     }
                   }
@@ -357,7 +357,7 @@
                   <div class="flex-col">
                     <span>{{ item.name }}</span>
                     <small class="text-muted">
-                      ID: {{ Number(item.id) }} | 代码: {{ item.code || '无' }} | 类型: {{ item.type || '标准' }}
+                      代码: {{ item.code || '无' }} | 类型: {{ item.type || '标准' }}
                     </small>
                   </div>
                 </el-option>
@@ -483,6 +483,7 @@ import {
 } from '@/constants/systemConstants';
 import FinanceStreamStatus from '@/views/finance/components/FinanceStreamStatus.vue';
 import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue';
+import { getApiErrorMessage } from '@/utils/errorHandler'
 
 const isBlankAmount = (value) => value === null || value === undefined || value === '';
 // 初始化认证存储
@@ -701,7 +702,7 @@ async function loadReceipts() {
     receiptStats.value = paginated.statistics || {};
   } catch (error) {
     console.error('加载收货单失败:', error);
-    ElMessage.error('加载收货单失败: ' + (error.message || '未知错误'));
+    ElMessage.error('加载收货单失败: ' + (getApiErrorMessage(error, '未知错误')));
     receipts.value = []; // 确保在出错时receipts是一个数组
     pagination.value.total = 0;
     receiptStats.value = {};
@@ -977,7 +978,7 @@ async function viewReceipt(receipt) {
     viewDialog.show = true;
   } catch (error) {
     console.error('获取收货单详情失败:', error);
-    ElMessage.error('获取收货单详情失败: ' + (error.message || '未知错误'));
+    ElMessage.error('获取收货单详情失败: ' + (getApiErrorMessage(error, '未知错误')));
   } finally {
     detailLoading.value = false;
   }
@@ -1045,7 +1046,7 @@ async function editReceipt(receipt) {
     receipt = parseResponseData(response);
     if (!receipt?.id) throw new Error('收货单详情为空');
   } catch (error) {
-    ElMessage.error('加载收货单详情失败: ' + (error.message || '未知错误'));
+    ElMessage.error('加载收货单详情失败: ' + (getApiErrorMessage(error, '未知错误')));
     return;
   }
   if (!orders.value.some(order => Number(order.id) === Number(receipt.orderId))) {
@@ -1300,7 +1301,7 @@ const submitReceipt = async () => {
     }
   } catch (error) {
     console.error('提交收货单失败:', error);
-    ElMessage.error('提交收货单失败: ' + (error.response?.data?.message || error.message));
+    ElMessage.error('提交收货单失败: ' + (getApiErrorMessage(error, '未知错误')));
   } finally {
     submitLoading.value = false;
   }
@@ -1317,7 +1318,7 @@ const cancelReceipt = async (receipt) => {
     loadReceipts();
   } catch (error) {
     console.error('取消收货单失败:', error);
-    ElMessage.error('取消收货单失败: ' + (error.message || '未知错误'));
+    ElMessage.error('取消收货单失败: ' + (getApiErrorMessage(error, '未知错误')));
   } finally {
     updateStatusLoading.value = false;
   }
@@ -1595,7 +1596,7 @@ const handleInspectionChange = async (inspectionId) => {
     ElMessage.success('成功加载物料信息');
   } catch (error) {
     console.error('获取来料检验单详情失败:', error);
-    ElMessage.error(`获取来料检验单详情失败: ${error.message || '未知错误'}`);
+    ElMessage.error(`获取来料检验单详情失败: ${getApiErrorMessage(error, '未知错误')}`);
     receiptDialog.form.items = [];
   }
 };
@@ -1660,7 +1661,7 @@ async function printReceipt() {
     printService.previewDocument(html);
   } catch (error) {
     console.error('打印失败:', error);
-    ElMessage.error('打印失败: ' + error.message);
+    ElMessage.error(`打印失败：${getApiErrorMessage(error, '请稍后重试')}`);
   }
 }
 function _getSelectedSupplierName(supplierId) {
@@ -1676,7 +1677,7 @@ function _getSelectedSupplierName(supplierId) {
   if (supplier) {
     return supplier.name || supplier.supplierName;
   }
-  return `供应商(ID: ${numericId})`;
+  return '未命名供应商';
 }
 function _getAllStringFields(item) {
   if (!item) return {};
@@ -1700,21 +1701,7 @@ async function directCompleteReceipt(receipt) {
     loadReceipts();
   } catch (error) {
     console.error('确认入库失败:', error);
-    let errorMessage = '确认入库失败';
-    if (error.response && error.response.data) {
-      if (typeof error.response.data === 'string') {
-        errorMessage += ': ' + error.response.data;
-      } else if (error.response.data.message) {
-        errorMessage += ': ' + error.response.data.message;
-      } else if (error.response.data.error) {
-        errorMessage += ': ' + error.response.data.error;
-      } else {
-        errorMessage += ': ' + (error.message || '未知错误');
-      }
-    } else {
-      errorMessage += ': ' + (error.message || '未知错误');
-    }
-    ElMessage.error(errorMessage);
+    ElMessage.error(`确认入库失败: ${getApiErrorMessage(error, '请稍后重试')}`);
   } finally {
     updateStatusLoading.value = false;
   }

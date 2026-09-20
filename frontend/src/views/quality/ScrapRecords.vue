@@ -293,6 +293,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { useDictionaryStore } from '@/stores/dictionary'
 import { ref, reactive, onMounted } from 'vue'
@@ -436,7 +437,7 @@ const submitApprove = async () => {
     fetchData()
   } catch (error) {
     console.error('审批失败:', error)
-    ElMessage.error(error.response?.data?.message || '审批失败')
+    ElMessage.error(getApiErrorMessage(error, '审批失败'))
   }
 }
 
@@ -455,7 +456,7 @@ const submitComplete = async () => {
     fetchData()
   } catch (error) {
     console.error('完成报废失败:', error)
-    ElMessage.error(error.response?.data?.message || '完成报废失败')
+    ElMessage.error(getApiErrorMessage(error, '完成报废失败'))
   }
 }
 
@@ -474,7 +475,7 @@ const submitEdit = async () => {
     fetchData()
   } catch (error) {
     console.error('更新失败:', error)
-    ElMessage.error(error.response?.data?.message || '更新失败')
+    ElMessage.error(getApiErrorMessage(error, '更新失败'))
   }
 }
 

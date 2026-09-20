@@ -183,7 +183,6 @@ exports.getTraceabilityCoverage = async (req, res) => {
   }
 };
 
-
 /**
  * 获取追溯数据质量报告
  */
@@ -261,6 +260,12 @@ exports.getDataQualityReport = async (req, res) => {
     ResponseHandler.success(res, report);
   } catch (error) {
     logger.error('获取追溯数据质量报告失败:', error);
-    ResponseHandler.error(res, '获取追溯数据质量报告失败', 'TRACEABILITY_QUALITY_ERROR', 500, error);
+    ResponseHandler.error(
+      res,
+      '获取追溯数据质量报告失败',
+      'TRACEABILITY_QUALITY_ERROR',
+      500,
+      error
+    );
   }
 };

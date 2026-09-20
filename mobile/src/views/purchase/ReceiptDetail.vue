@@ -131,6 +131,7 @@ import { purchaseApi } from '@/api'
 import { extractApiData } from '@/utils/apiHelper'
 import Icon from '@/components/icons/index.vue'
 import dayjs from 'dayjs'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 
 const route = useRoute()
 const router = useRouter()
@@ -209,7 +210,7 @@ const handleComplete = async () => {
     } catch (e) {
         if (e !== 'cancel') {
             console.error('执行入库失败:', e)
-            showToast(e.response?.data?.message || '操作失败')
+            showToast(getApiErrorMessage(e, '操作失败'))
         }
     } finally {
         actionLoading.value = false
@@ -230,7 +231,7 @@ const handleCancel = async () => {
     } catch (e) {
         if (e !== 'cancel') {
             console.error('取消收货单失败:', e)
-            showToast(e.response?.data?.message || '操作失败')
+            showToast(getApiErrorMessage(e, '操作失败'))
         }
     } finally {
         actionLoading.value = false

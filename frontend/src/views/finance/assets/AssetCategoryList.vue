@@ -149,6 +149,7 @@ import { ElMessage } from 'element-plus/es/components/message/index';
 import { Plus } from '@element-plus/icons-vue';
 import { financeApi } from '@/api/finance';
 import { ensureInteger, normalizePaginationData } from '@/utils/helpers/typeUtils';
+import { getApiErrorMessage } from '@/utils/errorHandler'
 
 // 数据加载状态
 const loading = ref(false);
@@ -275,11 +276,7 @@ const handleDelete = async (id) => {
     loadCategories();
   } catch (error) {
     console.error('删除资产类别失败:', error);
-    if (error.response && error.response.data && error.response.data.message) {
-      ElMessage.error(error.response.data.message);
-    } else {
-      ElMessage.error('删除资产类别失败');
-    }
+    ElMessage.error(getApiErrorMessage(error, '删除资产类别失败'));
   }
 };
 
@@ -307,11 +304,7 @@ const saveCategory = async () => {
         loadCategories();
       } catch (error) {
         console.error('保存资产类别失败:', error);
-        if (error.response && error.response.data && error.response.data.message) {
-          ElMessage.error(error.response.data.message);
-        } else {
-          ElMessage.error('保存资产类别失败');
-        }
+        ElMessage.error(getApiErrorMessage(error, '保存资产类别失败'));
       } finally {
         saveLoading.value = false;
       }

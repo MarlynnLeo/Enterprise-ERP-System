@@ -216,7 +216,6 @@ class AuditService {
         params.push(`%${pathPattern}%`);
       }
 
-
       const pagination = parsePagination(page, pageSize, { defaultPageSize: 20, maxPageSize: 100 });
 
       connection = await getConnection();
@@ -250,7 +249,17 @@ class AuditService {
   static async queryForExport(filters = {}) {
     let connection;
     try {
-      const { module, action, entityType, entityId, userId, startDate, endDate, excludeActions, excludePaths } = filters;
+      const {
+        module,
+        action,
+        entityType,
+        entityId,
+        userId,
+        startDate,
+        endDate,
+        excludeActions,
+        excludePaths,
+      } = filters;
       let whereClause = '1=1';
       const params = [];
 
@@ -297,7 +306,6 @@ class AuditService {
         whereClause += ' AND (path IS NULL OR path NOT LIKE ?)';
         params.push(`%${pathPattern}%`);
       }
-
 
       connection = await getConnection();
       const [rows] = await connection.query(

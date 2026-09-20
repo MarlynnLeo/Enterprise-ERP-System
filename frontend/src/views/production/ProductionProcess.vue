@@ -846,6 +846,7 @@ const formatQuantity = (val) => {
 }
 import { baseDataApi, commonApi, financeApi, inventoryApi, productionApi } from '@/api'
 import { parseListData } from '@/utils/responseParser'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { getProductionStatusText, getProductionStatusColor } from '@/constants/systemConstants'
 
 // 工序状态标签（统一调用配置中心）
@@ -1214,7 +1215,7 @@ const submitApplyParts = async () => {
       } catch (error) {
         console.error('补料申请提交失败:', error)
         console.error('后端返回:', error.response?.data)
-        const backendMessage = error.response?.data?.message || error.response?.data?.error || error.message || '提交失败'
+        const backendMessage = getApiErrorMessage(error, '提交失败')
         ElMessage.error(backendMessage)
       } finally {
         submittingApply.value = false
@@ -1280,6 +1281,11 @@ const handleExchangeToMaterialChange = (materialId) => {
   applyExchangeForm.value.toUnitId = selected?.unitId || null
 }
 
+const materialDisplayName = (materialId) => {
+  const material = materialOptions.value.find((item) => Number(item.id) === Number(materialId))
+  return material?.code || material?.materialCode || material?.name || material?.materialName || '未命名物料'
+}
+
 const submitApplyExchange = async () => {
   if (!applyExchangeFormRef.value) return
   await applyExchangeFormRef.value.validate(async (valid) => {
@@ -1298,7 +1304,7 @@ const submitApplyExchange = async () => {
         production_task_id: applyExchangeForm.value.taskId,
         force_excess: true,
         issue_reason: applyExchangeForm.value.reason,
-        remark: `【换料申请】退下 ${applyExchangeForm.value.fromMaterialId}，换上 ${applyExchangeForm.value.toMaterialId}。${applyExchangeForm.value.remark || applyExchangeForm.value.reason}`,
+        remark: `【换料申请】退下 ${materialDisplayName(applyExchangeForm.value.fromMaterialId)}，换上 ${materialDisplayName(applyExchangeForm.value.toMaterialId)}。${applyExchangeForm.value.remark || applyExchangeForm.value.reason}`,
         items: [
           {
             materialId: applyExchangeForm.value.toMaterialId,
@@ -1331,7 +1337,7 @@ const submitApplyExchange = async () => {
       ElMessage.success('换料申请已提交：新料出库草稿和原物料退回草稿已生成，请联系仓库确认。')
       applyExchangeVisible.value = false
     } catch (error) {
-      const backendMessage = error.response?.data?.message || error.response?.data?.error || error.message || '提交失败'
+      const backendMessage = getApiErrorMessage(error, '提交失败')
       ElMessage.error(backendMessage)
     } finally {
       submittingExchange.value = false
@@ -1580,7 +1586,7 @@ const viewInstructionDocs = async (process) => {
     currentInstructionDocs.value = extractInstructionDocs(data)
     currentSopContent.value = processSnapshotInstructions(data).sopContent
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || '读取任务作业要求失败')
+    ElMessage.error(getApiErrorMessage(error, '读取任务作业要求失败'))
   } finally {
     instructionDocsLoading.value = false
   }
@@ -1636,7 +1642,7 @@ const handleQuickStart = async (row, task) => {
     fetchTaskList()
   } catch (error) {
     console.error('开始工序失败:', error)
-    ElMessage.error('操作失败: ' + (error.response?.data?.message || '未知错误'))
+    ElMessage.error(`操作失败：${getApiErrorMessage(error, '请稍后重试')}`)
   } finally {
     loading.value = false
   }
@@ -1671,7 +1677,7 @@ const handleQuickComplete = async (row, task) => {
 /** 工序更新失败：优先展示后端业务提示，支持跳转检验单 */
 const handleProcessUpdateError = async (error, fallback = '操作失败') => {
   const data = error?.response?.data || {}
-  const message = data.message || error?.message || fallback
+  const message = getApiErrorMessage(error, fallback)
   const action = data.action
   const code = data.errorCode || data.code
 
@@ -1744,7 +1750,7 @@ const downloadFile = async () => {
     ElMessage.success('文件下载成功')
   } catch (error) {
     console.error('文件下载失败:', error)
-    ElMessage.error('文件下载失败: ' + (error.response?.data?.message || error.message))
+    ElMessage.error(`文件下载失败：${getApiErrorMessage(error, '请稍后重试')}`)
   }
 }
 
@@ -1842,7 +1848,7 @@ const handleStartTask = async (row) => {
     fetchTaskList()
   } catch (error) {
     console.error('开始任务失败:', error)
-    ElMessage.error('开始任务失败: ' + (error.response?.data?.message || error.message))
+    ElMessage.error(`开始任务失败：${getApiErrorMessage(error, '请稍后重试')}`)
   } finally {
     loading.value = false
   }
@@ -1910,7 +1916,7 @@ const submitCompletion = async () => {
     fetchTaskList()
   } catch (error) {
     console.error('完工失败:', error)
-    ElMessage.error('完工失败: ' + (error.response?.data?.message || error.message))
+    ElMessage.error(`完工失败：${getApiErrorMessage(error, '请稍后重试')}`)
   } finally {
     submittingCompletion.value = false
   }
@@ -2030,7 +2036,7 @@ const submitReturnMaterial = async () => {
     returnMaterialVisible.value = false
   } catch (error) {
     console.error('退料失败:', error)
-    const msg = error.response?.data?.message || error.message || '退料失败'
+    const msg = getApiErrorMessage(error, '退料失败')
     ElMessage.error(msg)
   } finally {
     submittingReturn.value = false

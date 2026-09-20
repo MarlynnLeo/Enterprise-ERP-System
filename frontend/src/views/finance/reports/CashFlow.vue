@@ -132,6 +132,7 @@ import { financeApi } from '@/api';
 import printService from '@/services/printService';
 import { formatCurrency, formatLocalMonth } from '@/utils/format';
 import { loadExcelJS } from '@/utils/lazyVendors';
+import { getApiErrorMessage } from '@/utils/errorHandler'
 // 查询参数
 const queryParams = reactive({
   reportMonth: formatLocalMonth(new Date()), // 默认为当前月份 YYYY-MM
@@ -185,7 +186,7 @@ const generateReport = async () => {
       throw new Error('获取数据失败');
     }
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || error.message || '获取现金流量表数据失败');
+    ElMessage.error(getApiErrorMessage(error, '获取现金流量表数据失败'));
   } finally {
     loading.value = false;
   }

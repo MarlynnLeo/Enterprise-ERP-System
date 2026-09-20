@@ -86,13 +86,23 @@ exports.createStrategyField = async (req, res) => {
     }
 
     if (field_type && !VALID_FIELD_TYPES.has(field_type)) {
-      return ResponseHandler.error(res, '字段类型只能是 amount 或 percentage', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(
+        res,
+        '字段类型只能是 amount 或 percentage',
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     connection = await getConnection();
 
     if (field_type && !VALID_FIELD_TYPES.has(field_type)) {
-      return ResponseHandler.error(res, '字段类型只能是 amount 或 percentage', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(
+        res,
+        '字段类型只能是 amount 或 percentage',
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     // 检查字段名是否重复
@@ -152,12 +162,19 @@ exports.updateStrategyField = async (req, res) => {
   let connection;
   try {
     const id = safeParseId(req.params.id);
-    const { field_label, field_type, unit, description, sort_order, is_additive } = mapKeysToSnake(req.body || {});
+    const { field_label, field_type, unit, description, sort_order, is_additive } = mapKeysToSnake(
+      req.body || {}
+    );
 
     // 与创建接口保持一致：field_type 仅允许 amount / percentage，
     // 否则会把已有 field_value 的语义（金额 vs 百分比）静默改变，污染定价计算
     if (field_type !== undefined && !VALID_FIELD_TYPES.has(field_type)) {
-      return ResponseHandler.error(res, '无效的字段类型，仅支持 amount 或 percentage', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(
+        res,
+        '无效的字段类型，仅支持 amount 或 percentage',
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     connection = await getConnection();

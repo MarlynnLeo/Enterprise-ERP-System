@@ -177,6 +177,7 @@
   import { useRoute, useRouter } from 'vue-router'
   import { NavBar, Button, Form, Field, Popup, Picker, showToast, showLoadingToast, closeToast } from 'vant'
   import { baseDataApi } from '@/api'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const router = useRouter()
   const route = useRoute()
@@ -265,7 +266,7 @@
       }
     } catch (e) {
       console.error('加载客户失败:', e)
-      showToast(e.response?.data?.message || '加载客户失败')
+      showToast(getApiErrorMessage(e, '加载客户失败'))
     }
   }
 
@@ -299,7 +300,7 @@
     } catch (e) {
       closeToast()
       console.error(isEdit.value ? '更新客户失败:' : '创建客户失败:', e)
-      showToast(e.response?.data?.message || (isEdit.value ? '更新客户失败' : '创建客户失败'))
+      showToast(getApiErrorMessage(e, isEdit.value ? '更新客户失败' : '创建客户失败'))
     } finally {
       submitting.value = false
     }

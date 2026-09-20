@@ -25,6 +25,7 @@
   </span>
 </template>
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { computed, nextTick, reactive, ref } from 'vue';
 import { ElMessage } from 'element-plus/es/components/message/index';
 import { financeApi } from '@/api/finance';
@@ -44,7 +45,7 @@ const refundRules = {
   amount: [{ validator: (_rule, value, callback) => { const amount = Math.round(Number(value) * 100); callback(Number.isFinite(amount) && amount > 0 && amount <= Math.abs(Math.round(Number(props.invoice.balanceAmount) * 100)) ? undefined : new Error('请输入可退余额以内的正数金额')); }, trigger: 'blur' }],
 };
 const redRules = Object.fromEntries([['originalTaxInvoiceId', '请选择原税票'], ['invoiceNumber', '请输入红字税票号码'], ['invoiceDate', '请选择开票日期']].map(([key, message]) => [key, [{ required: true, message, trigger: 'change' }]]));
-const showError = error => ElMessage.error(error.response?.data?.message || error.message || '操作失败');
+const showError = error => ElMessage.error(getApiErrorMessage(error, '操作失败'));
 const openRefund = async () => {
   Object.assign(refundForm, { amount: Math.abs(Number(props.invoice.balanceAmount)), refundDate: formatLocalDate(new Date()), bankAccountId: null, notes: '', requestId: crypto.randomUUID() });
   refundVisible.value = true; await nextTick(); refundRef.value?.clearValidate();

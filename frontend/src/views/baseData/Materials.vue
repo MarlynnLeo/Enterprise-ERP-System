@@ -150,6 +150,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -593,7 +594,7 @@ const handleImportSubmit = async () => {
     fetchData(); // 刷新列表
   } catch (error) {
     console.error('导入失败:', error);
-    const msg = error.response?.data?.message || error.message || '导入失败，请检查文件格式';
+    const msg = getApiErrorMessage(error, '导入失败，请检查文件格式');
     ElMessage.error(msg);
   } finally {
     importLoading.value = false;

@@ -112,9 +112,11 @@ class ExchangeRateService {
         );
         const today = currentDateString();
         const rowDate = row?.effective_date
-          ? String(row.effective_date instanceof Date
-              ? row.effective_date.toISOString().slice(0, 10)
-              : row.effective_date).slice(0, 10)
+          ? String(
+              row.effective_date instanceof Date
+                ? row.effective_date.toISOString().slice(0, 10)
+                : row.effective_date
+            ).slice(0, 10)
           : '';
         // 无记录，或库内日期已过期：从公开 API 拉当天中间价
         if (!row || rowDate < today) {

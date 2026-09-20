@@ -135,7 +135,12 @@ const enhancedReportsController = {
         }
 
         if (new Date(compareStartDate) > new Date(compareEndDate)) {
-          return ResponseHandler.error(res, '对比期间开始日期不能大于结束日期', 'VALIDATION_ERROR', 400);
+          return ResponseHandler.error(
+            res,
+            '对比期间开始日期不能大于结束日期',
+            'VALIDATION_ERROR',
+            400
+          );
         }
       }
 
@@ -201,7 +206,6 @@ const enhancedReportsController = {
       const lastMonthEnd = new Date(startDateObj);
       lastMonthEnd.setDate(lastMonthEnd.getDate() - 1);
 
-
       // 获取所有银行账户
       const [accounts] = await db.pool.execute(
         `SELECT id, account_name, bank_name, current_balance, opening_balance
@@ -210,8 +214,10 @@ const enhancedReportsController = {
          ORDER BY bank_name, account_name`
       );
 
-      const incomeTypes = "('存款', '转入', '利息', 'income', '收入', 'deposit', 'transfer_in', 'interest')";
-      const expenseTypes = "('取款', '转出', '费用', 'expense', '支出', 'withdrawal', 'transfer_out', 'fee')";
+      const incomeTypes =
+        "('存款', '转入', '利息', 'income', '收入', 'deposit', 'transfer_in', 'interest')";
+      const expenseTypes =
+        "('取款', '转出', '费用', 'expense', '支出', 'withdrawal', 'transfer_out', 'fee')";
       const cashIncomeTypes = "('income', 'receipt', 'cash_income', '收入', '现金收入')";
       const cashExpenseTypes = "('expense', 'payment', 'cash_expense', '支出', '现金支出')";
       const effectiveTransactionStatus = "(status IS NULL OR status = 'approved')";
@@ -221,7 +227,7 @@ const enhancedReportsController = {
       let histExpenseMap = new Map();
 
       if (accounts.length > 0) {
-        const accountIds = accounts.map(a => a.id);
+        const accountIds = accounts.map((a) => a.id);
         const ph = accountIds.map(() => '?').join(',');
 
         // 一次性查出本月收入
@@ -234,7 +240,7 @@ const enhancedReportsController = {
            GROUP BY bank_account_id`,
           [...accountIds, startDate, endDate]
         );
-        incomeMap = new Map(incomeRows.map(r => [r.bank_account_id, parseFloat(r.total) || 0]));
+        incomeMap = new Map(incomeRows.map((r) => [r.bank_account_id, parseFloat(r.total) || 0]));
 
         // 一次性查出本月支出
         const [expenseRows] = await db.pool.execute(
@@ -246,7 +252,7 @@ const enhancedReportsController = {
            GROUP BY bank_account_id`,
           [...accountIds, startDate, endDate]
         );
-        expenseMap = new Map(expenseRows.map(r => [r.bank_account_id, parseFloat(r.total) || 0]));
+        expenseMap = new Map(expenseRows.map((r) => [r.bank_account_id, parseFloat(r.total) || 0]));
 
         // 一次性查出历史总收入（startDate 之前）
         const [histIncomeRows] = await db.pool.execute(
@@ -258,7 +264,9 @@ const enhancedReportsController = {
            GROUP BY bank_account_id`,
           [...accountIds, startDate]
         );
-        histIncomeMap = new Map(histIncomeRows.map(r => [r.bank_account_id, parseFloat(r.total) || 0]));
+        histIncomeMap = new Map(
+          histIncomeRows.map((r) => [r.bank_account_id, parseFloat(r.total) || 0])
+        );
 
         // 一次性查出历史总支出（startDate 之前）
         const [histExpenseRows] = await db.pool.execute(
@@ -270,7 +278,9 @@ const enhancedReportsController = {
            GROUP BY bank_account_id`,
           [...accountIds, startDate]
         );
-        histExpenseMap = new Map(histExpenseRows.map(r => [r.bank_account_id, parseFloat(r.total) || 0]));
+        histExpenseMap = new Map(
+          histExpenseRows.map((r) => [r.bank_account_id, parseFloat(r.total) || 0])
+        );
       }
 
       const [[cashCurrentRow]] = await db.pool.execute(
@@ -316,7 +326,7 @@ const enhancedReportsController = {
       const cashCurrentIncome = parseFloat(cashCurrentRow?.income || 0);
       const cashCurrentExpense = parseFloat(cashCurrentRow?.expense || 0);
       const cashOpeningBalance =
-        (parseFloat(cashHistoryRow?.income || 0) - parseFloat(cashHistoryRow?.expense || 0));
+        parseFloat(cashHistoryRow?.income || 0) - parseFloat(cashHistoryRow?.expense || 0);
       const cashCurrentBalance = cashOpeningBalance + cashCurrentIncome - cashCurrentExpense;
       if (cashOpeningBalance !== 0 || cashCurrentIncome !== 0 || cashCurrentExpense !== 0) {
         reportData.push({
@@ -405,7 +415,12 @@ const enhancedReportsController = {
         }
 
         if (new Date(compareStartDate) > new Date(compareEndDate)) {
-          return ResponseHandler.error(res, '对比期间开始日期不能大于结束日期', 'VALIDATION_ERROR', 400);
+          return ResponseHandler.error(
+            res,
+            '对比期间开始日期不能大于结束日期',
+            'VALIDATION_ERROR',
+            400
+          );
         }
       }
 

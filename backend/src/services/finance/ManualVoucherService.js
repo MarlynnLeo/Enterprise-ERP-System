@@ -44,12 +44,7 @@ function defaultVatRate() {
   }
 }
 
-const INACTIVE_INVOICE_STATUSES = Object.freeze([
-  'cancelled',
-  '已取消',
-  'void',
-  '作废',
-]);
+const INACTIVE_INVOICE_STATUSES = Object.freeze(['cancelled', '已取消', 'void', '作废']);
 
 const BLOCKED_DOC_STATUSES = Object.freeze(['draft', 'cancelled', 'pending', 'reversed']);
 
@@ -79,9 +74,7 @@ function normalizeIds(rawIds) {
   if (!Array.isArray(rawIds)) return [];
   return [
     ...new Set(
-      rawIds
-        .map((id) => Number.parseInt(id, 10))
-        .filter((id) => Number.isInteger(id) && id > 0)
+      rawIds.map((id) => Number.parseInt(id, 10)).filter((id) => Number.isInteger(id) && id > 0)
     ),
   ];
 }
@@ -193,9 +186,7 @@ function buildEntryLine(account, debit, credit, description, role, dims = {}) {
 function requireAccounts(accounts, keys) {
   const missing = keys.filter((k) => !accounts[k]);
   if (missing.length) {
-    throw businessError(
-      `缺少会计科目配置: ${missing.join(', ')}，请前往会计科目/财务设置配置`
-    );
+    throw businessError(`缺少会计科目配置: ${missing.join(', ')}，请前往会计科目/财务设置配置`);
   }
 }
 
@@ -226,11 +217,9 @@ class ManualVoucherService {
    * 采购入库单 → 应付（专业主路径）
    */
   static async listEligiblePurchaseReceipts(query = {}) {
-    const { page, pageSize, limit, offset } = parsePagination(
-      query.page,
-      query.pageSize,
-      { defaultPageSize: 10 }
-    );
+    const { page, pageSize, limit, offset } = parsePagination(query.page, query.pageSize, {
+      defaultPageSize: 10,
+    });
     const keyword = String(query.keyword || '').trim();
 
     // 可生成 = 无「有效」应付；已取消票不挡列表（生成时会释放其 source_id）
@@ -304,11 +293,9 @@ class ManualVoucherService {
    * 销售出库单 → 应收（专业主路径：按交货量）
    */
   static async listEligibleSalesOutbounds(query = {}) {
-    const { page, pageSize, limit, offset } = parsePagination(
-      query.page,
-      query.pageSize,
-      { defaultPageSize: 10 }
-    );
+    const { page, pageSize, limit, offset } = parsePagination(query.page, query.pageSize, {
+      defaultPageSize: 10,
+    });
     const keyword = String(query.keyword || '').trim();
 
     const where = [
@@ -405,11 +392,7 @@ class ManualVoucherService {
    * 接口保留以兼容旧版前端调用，直接返回标准空列表，避免无谓的数据库连接与查询开销。
    */
   static async listEligibleSalesOrders(query = {}) {
-    const { page, pageSize } = parsePagination(
-      query.page,
-      query.pageSize,
-      { defaultPageSize: 10 }
-    );
+    const { page, pageSize } = parsePagination(query.page, query.pageSize, { defaultPageSize: 10 });
     return { list: [], total: 0, page, pageSize };
   }
 
@@ -418,11 +401,7 @@ class ManualVoucherService {
    * 接口保留以兼容旧版前端调用，直接返回标准空列表，避免无谓的数据库连接与查询开销。
    */
   static async listEligiblePurchaseOrders(query = {}) {
-    const { page, pageSize } = parsePagination(
-      query.page,
-      query.pageSize,
-      { defaultPageSize: 10 }
-    );
+    const { page, pageSize } = parsePagination(query.page, query.pageSize, { defaultPageSize: 10 });
     return { list: [], total: 0, page, pageSize };
   }
 
@@ -573,9 +552,7 @@ class ManualVoucherService {
       [receiptId]
     );
     if (!receiptItems.length) {
-      throw businessError(
-        `采购入库单 ${receipt.receipt_no} 没有明细，不能生成应付发票`
-      );
+      throw businessError(`采购入库单 ${receipt.receipt_no} 没有明细，不能生成应付发票`);
     }
 
     const items = receiptItems.map((row) => {
@@ -584,7 +561,7 @@ class ManualVoucherService {
       return {
         material_id: row.material_id,
         material_code: row.material_code || null,
-        material_name: row.material_name || row.material_code || `material#${row.material_id}`,
+        material_name: row.material_name || row.material_code || '未命名物料',
         description: `采购物资 ${row.material_name || row.material_code || ''}`.trim(),
         quantity: qty,
         unit_price: unitPrice,
@@ -594,9 +571,7 @@ class ManualVoucherService {
 
     const subtotal = money(items.reduce((s, it) => s + it.amount, 0));
     if (subtotal <= 0) {
-      throw businessError(
-        `采购入库单 ${receipt.receipt_no} 物料金额为0，不能生成应付发票`
-      );
+      throw businessError(`采购入库单 ${receipt.receipt_no} 物料金额为0，不能生成应付发票`);
     }
     const taxRate = normalizeTaxRate(receipt.tax_rate, defaultVatRate());
     // 优先用入库单头税额；否则按税率重算
@@ -608,19 +583,16 @@ class ManualVoucherService {
         : calcTaxAmount(subtotal, taxRate);
     const totalAmount = money(subtotal + taxAmount);
 
-    const accounts = await resolveAccountMeta(
-      ['GR_IR', 'ACCOUNTS_PAYABLE', 'VAT_INPUT_TAX'],
-      { required: false }
-    );
+    const accounts = await resolveAccountMeta(['GR_IR', 'ACCOUNTS_PAYABLE', 'VAT_INPUT_TAX'], {
+      required: false,
+    });
     requireAccounts(accounts, ['GR_IR', 'ACCOUNTS_PAYABLE']);
     const costAcc = accounts.GR_IR;
     const payableAcc = accounts.ACCOUNTS_PAYABLE;
     const taxAcc = accounts.VAT_INPUT_TAX;
     const splitTax = taxAmount > 0.0001 && taxAcc;
     const docLabel = receipt.receipt_no;
-    const supplierDim = receipt.supplier_id
-      ? { supplier_id: Number(receipt.supplier_id) }
-      : {};
+    const supplierDim = receipt.supplier_id ? { supplier_id: Number(receipt.supplier_id) } : {};
 
     const entryLines = splitTax
       ? [
@@ -747,9 +719,7 @@ class ManualVoucherService {
       [outboundId]
     );
     if (!itemRows.length) {
-      throw businessError(
-        `出库单 ${outbound.outbound_no || outboundId} 无明细，不能生成应收`
-      );
+      throw businessError(`出库单 ${outbound.outbound_no || '该出库单'} 无明细，不能生成应收`);
     }
 
     const orderIds = [
@@ -806,18 +776,17 @@ class ManualVoucherService {
         material_id: row.material_id,
         product_id: row.material_id,
         material_code: row.material_code || null,
-        material_name: row.material_name || row.material_code || `material#${row.material_id}`,
-        product_name: row.material_name || row.material_code || `material#${row.material_id}`,
-        description: `销售出库 ${outbound.outbound_no || outboundId} ${row.material_name || row.material_code || ''}`.trim(),
+        material_name: row.material_name || row.material_code || '未命名物料',
+        product_name: row.material_name || row.material_code || '未命名物料',
+        description:
+          `销售出库 ${outbound.outbound_no || outboundId} ${row.material_name || row.material_code || ''}`.trim(),
         quantity: qty,
         unit_price: unitPrice,
         amount: money(qty * unitPrice),
       });
     }
     if (!items.length) {
-      throw businessError(
-        `出库单 ${outbound.outbound_no || outboundId} 无可开票数量`
-      );
+      throw businessError(`出库单 ${outbound.outbound_no || '该出库单'} 无可开票数量`);
     }
 
     const subtotal = money(items.reduce((s, it) => s + it.amount, 0));
@@ -834,9 +803,7 @@ class ManualVoucherService {
     const taxAcc = accounts.VAT_OUTPUT_TAX;
     const splitTax = taxAmount > 0.0001 && taxAcc;
     const docLabel = outbound.outbound_no;
-    const customerDim = outbound.customer_id
-      ? { customer_id: Number(outbound.customer_id) }
-      : {};
+    const customerDim = outbound.customer_id ? { customer_id: Number(outbound.customer_id) } : {};
 
     const entryLines = splitTax
       ? [
@@ -848,7 +815,13 @@ class ManualVoucherService {
             ENTRY_ROLES.RECEIVABLE,
             customerDim
           ),
-          buildEntryLine(revAcc, 0, subtotal, `销售收入(未税) - 出库 ${docLabel}`, ENTRY_ROLES.INCOME),
+          buildEntryLine(
+            revAcc,
+            0,
+            subtotal,
+            `销售收入(未税) - 出库 ${docLabel}`,
+            ENTRY_ROLES.INCOME
+          ),
           buildEntryLine(taxAcc, 0, taxAmount, `销项税额 - 出库 ${docLabel}`, ENTRY_ROLES.TAX),
         ]
       : [
@@ -906,9 +879,7 @@ class ManualVoucherService {
     const merge = parseMergeFlag(options, true);
     const previewOne = this.resolvePreviewer(businessType);
     if (!previewOne) {
-      throw businessError(
-        `预览仅支持专业主路径：${PRIMARY_BUSINESS_TYPES.join(' / ')}`
-      );
+      throw businessError(`预览仅支持专业主路径：${PRIMARY_BUSINESS_TYPES.join(' / ')}`);
     }
 
     const drafts = [];
@@ -1180,10 +1151,7 @@ class ManualVoucherService {
   static buildMergeDocumentNumber(businessType, sourceIds = [], invoiceLinks = []) {
     const day = currentDateString().replace(/-/g, '');
     const tag = businessType === BUSINESS_TYPES.PURCHASE_RECEIPT ? 'P' : 'S';
-    const ids = (sourceIds.length
-      ? sourceIds
-      : invoiceLinks.map((x) => x.sourceId).filter(Boolean)
-    )
+    const ids = (sourceIds.length ? sourceIds : invoiceLinks.map((x) => x.sourceId).filter(Boolean))
       .map((n) => Number(n))
       .filter((n) => Number.isInteger(n) && n > 0)
       .sort((a, b) => a - b);
@@ -1232,7 +1200,11 @@ class ManualVoucherService {
         };
         // 合并路径兜底：预览未带辅助核算时，按角色 + 统一往来单位写入
         if (partyId) {
-          if (isApPreview && !base.supplier_id && (role === ENTRY_ROLES.PAYABLE || role === ENTRY_ROLES.COST)) {
+          if (
+            isApPreview &&
+            !base.supplier_id &&
+            (role === ENTRY_ROLES.PAYABLE || role === ENTRY_ROLES.COST)
+          ) {
             base.supplier_id = Number(partyId);
           }
           if (!isApPreview && !base.customer_id && role === ENTRY_ROLES.RECEIVABLE) {
@@ -1253,9 +1225,7 @@ class ManualVoucherService {
     }
 
     // 最终以发票合计为准对齐分录（开票后金额可能与预览有 0.01 级差异）
-    const invoiceTotal = money(
-      invoiceLinks.reduce((s, x) => s + money(x.amount || 0), 0)
-    );
+    const invoiceTotal = money(invoiceLinks.reduce((s, x) => s + money(x.amount || 0), 0));
     let finalLines = lines;
     if (invoiceTotal > 0) {
       // 按发票合计重算：保持税/未税比例
@@ -1303,11 +1273,7 @@ class ManualVoucherService {
     }
 
     const isAp = businessType === BUSINESS_TYPES.PURCHASE_RECEIPT;
-    const documentNumber = this.buildMergeDocumentNumber(
-      businessType,
-      sourceIds,
-      invoiceLinks
-    );
+    const documentNumber = this.buildMergeDocumentNumber(businessType, sourceIds, invoiceLinks);
 
     const entryId = await financeModel.createEntry(
       {
@@ -1336,10 +1302,9 @@ class ManualVoucherService {
     let entryNumber = null;
     const q = connection || db.pool;
     try {
-      const [rows] = await q.execute(
-        'SELECT entry_number FROM gl_entries WHERE id = ? LIMIT 1',
-        [entryId]
-      );
+      const [rows] = await q.execute('SELECT entry_number FROM gl_entries WHERE id = ? LIMIT 1', [
+        entryId,
+      ]);
       entryNumber = rows[0]?.entry_number || null;
     } catch {
       /* ignore */
@@ -1371,13 +1336,7 @@ class ManualVoucherService {
 
     for (const id of ids) {
       try {
-        const { item } = await generateOne.call(
-          this,
-          id,
-          userId,
-          overridesMap.get(id) || null,
-          {}
-        );
+        const { item } = await generateOne.call(this, id, userId, overridesMap.get(id) || null, {});
         results.push(item);
         if (item.skipped) skippedCount += 1;
         else successCount += 1;
@@ -1591,9 +1550,7 @@ class ManualVoucherService {
     }
 
     const merge =
-      this.isPrimaryType(businessType) &&
-      parseMergeFlag(options, true) &&
-      ids.length > 1;
+      this.isPrimaryType(businessType) && parseMergeFlag(options, true) && ids.length > 1;
 
     if (!merge) {
       return this.runSeparateGenerate(generateOne, businessType, ids, userId, rawOverrides);

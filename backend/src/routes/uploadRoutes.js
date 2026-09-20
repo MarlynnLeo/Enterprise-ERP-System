@@ -38,7 +38,11 @@ async function ensureBindingAccess(req, files) {
   const binding = getRequestedBinding(req);
   if (!binding.valid) {
     cleanupUploadedFiles(files);
-    return { ok: false, status: 400, message: '业务类型和业务 ID 必须成对提供，且业务类型必须受支持' };
+    return {
+      ok: false,
+      status: 400,
+      message: '业务类型和业务 ID 必须成对提供，且业务类型必须受支持',
+    };
   }
   if (
     binding.bound &&

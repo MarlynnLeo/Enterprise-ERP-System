@@ -57,7 +57,7 @@
             <div class="items-list">
                 <div class="basic-list-item" v-for="item in outboundOrder.items" :key="item.id">
        <div class="item-title-row">
-         <div class="item-title">{{ item.materialName || item.productName || `物料#${item.productId || item.materialId}` }}</div>
+         <div class="item-title">{{ item.materialName || item.productName || item.materialCode || item.productCode || '未命名物料' }}</div>
          <div class="item-subtitle" v-if="item.materialCode || item.productCode">SKU: {{ item.materialCode || item.productCode }}</div>
        </div>
                     <div class="item-details">
@@ -135,6 +135,7 @@ import {  showToast , Button } from 'vant'
 import { salesApi } from '@/api'
 import Icon from '@/components/icons/index.vue'
 import dayjs from 'dayjs'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 
 const route = useRoute()
 const router = useRouter()
@@ -214,7 +215,7 @@ const handleStart = async () => {
         fetchDetail()
     } catch (error) {
         console.error('开始出库失败:', error)
-        showToast('操作失败')
+        showToast(getApiErrorMessage(error, '开始出库失败'))
     } finally {
         submitting.value = false
     }
@@ -230,7 +231,7 @@ const handleExecute = async () => {
         fetchDetail() // 刷新详情
     } catch (error) {
         console.error('执行出库失败:', error)
-        showToast('操作失败')
+        showToast(getApiErrorMessage(error, '完成出库失败'))
     } finally {
         submitting.value = false
         showExecuteDialog.value = false

@@ -378,6 +378,7 @@ import { Download, Van, Select, Close } from '@element-plus/icons-vue'
 import { salesApi } from '@/api'
 import { useRoute } from 'vue-router'
 import { formatDate } from '@/utils/helpers/dateUtils'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 
 const dictStore = useDictionaryStore()
 const route = useRoute()
@@ -452,7 +453,7 @@ const fetchDeliveryStats = async () => {
     }
   } catch (error) {
     console.error('获取发货统计数据失败:', error)
-    ElMessage.error('获取数据失败: ' + (error.message || '网络错误'))
+    ElMessage.error('获取数据失败: ' + (getApiErrorMessage(error, '网络错误')))
     // 设置默认值，避免页面出错
     tableData.value = []
     total.value = 0
@@ -503,7 +504,7 @@ const viewDeliveryDetails = async (orderId) => {
     detailDialogVisible.value = true
   } catch (error) {
     console.error('获取发货明细失败:', error)
-    ElMessage.error('获取发货明细失败: ' + (error.message || '网络错误'))
+    ElMessage.error('获取发货明细失败: ' + (getApiErrorMessage(error, '网络错误')))
   }
 }
 // 工具函数
@@ -735,10 +736,7 @@ const confirmShipping = async () => {
     }
     console.error('创建出库单失败:', error)
     // 提取后端返回的错误信息
-    const errorMsg = error.response?.data?.message ||
-                     error.response?.data?.error?.message ||
-                     error.message ||
-                     '网络错误'
+    const errorMsg = getApiErrorMessage(error, '网络错误')
     // 如果是重复提交错误（409状态码），显示警告而不是错误
     if (error.response?.status === 409) {
       ElMessage.warning(errorMsg)

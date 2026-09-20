@@ -27,14 +27,14 @@
     fields: {
       id: 'id',
       title: 'equipmentName',
-      subtitle: 'failure_type',
+      subtitle: 'failureType',
       icon: 'tools',
       status: 'status',
 
       details: [
         { label: '故障现象', field: 'description' },
-        { label: '上报人', field: 'reported_by' },
-        { label: '故障时间', field: 'failure_date', type: 'datetime' }
+        { label: '上报人', field: 'reportedBy' },
+        { label: '故障时间', field: 'failureDate', type: 'datetime' }
       ],
 
       tags: [

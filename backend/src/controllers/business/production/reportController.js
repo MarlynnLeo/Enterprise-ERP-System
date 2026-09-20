@@ -28,8 +28,10 @@ const ProductProcessExecutionService = require('../../../services/business/Produ
 const normalizeReportQuantities = (data) => {
   const completedQty = Number(data.completed_quantity ?? data.report_quantity ?? 0);
   const defectiveInput = data.defective_quantity ?? data.unqualified_quantity;
-  const qualifiedQty = Number(data.qualified_quantity ?? (completedQty - Number(defectiveInput ?? 0)));
-  const defectiveQty = Number(defectiveInput ?? (completedQty - qualifiedQty));
+  const qualifiedQty = Number(
+    data.qualified_quantity ?? completedQty - Number(defectiveInput ?? 0)
+  );
+  const defectiveQty = Number(defectiveInput ?? completedQty - qualifiedQty);
   const unqualifiedQty = Number(data.unqualified_quantity ?? defectiveQty);
   const workHours = Number(data.work_hours ?? 0);
   const fail = (message) => {
@@ -39,9 +41,11 @@ const normalizeReportQuantities = (data) => {
   if (!Number.isFinite(completedQty) || completedQty <= 0) {
     fail('报工完成数量必须大于0');
   }
-  if (![qualifiedQty, defectiveQty, unqualifiedQty, workHours].every((value) =>
-    Number.isFinite(value) && value >= 0
-  )) {
+  if (
+    ![qualifiedQty, defectiveQty, unqualifiedQty, workHours].every(
+      (value) => Number.isFinite(value) && value >= 0
+    )
+  ) {
     fail('合格数量、不良数量和工时必须是有限的非负数');
   }
   if (Math.abs(defectiveQty - unqualifiedQty) > 0.0001) {
@@ -50,10 +54,11 @@ const normalizeReportQuantities = (data) => {
   if (Math.abs(qualifiedQty + defectiveQty - completedQty) > 0.0001) {
     fail('合格数量与不良数量之和必须等于完成数量');
   }
-  if (data.report_quantity != null && (
-    !Number.isFinite(Number(data.report_quantity)) ||
-    Math.abs(Number(data.report_quantity) - completedQty) > 0.0001
-  )) {
+  if (
+    data.report_quantity != null &&
+    (!Number.isFinite(Number(data.report_quantity)) ||
+      Math.abs(Number(data.report_quantity) - completedQty) > 0.0001)
+  ) {
     fail('报工数量必须等于完成数量');
   }
   return { completedQty, qualifiedQty, defectiveQty, unqualifiedQty, workHours };
@@ -88,7 +93,11 @@ exports.getReportSummary = async (req, res) => {
     }
 
     if (taskId) {
-      if (!(await ScopeGuard.assertAccess(pool, req, 'production_task', taskId, { accessMode: 'read' }))) {
+      if (
+        !(await ScopeGuard.assertAccess(pool, req, 'production_task', taskId, {
+          accessMode: 'read',
+        }))
+      ) {
         return ResponseHandler.forbidden(res, '无权访问该生产任务');
       }
       conditions.push('pr.task_id = ?');
@@ -136,7 +145,11 @@ exports.getReportDetail = async (req, res) => {
     const params = [];
 
     if (taskId) {
-      if (!(await ScopeGuard.assertAccess(pool, req, 'production_task', taskId, { accessMode: 'read' }))) {
+      if (
+        !(await ScopeGuard.assertAccess(pool, req, 'production_task', taskId, {
+          accessMode: 'read',
+        }))
+      ) {
         return ResponseHandler.forbidden(res, '无权访问该生产任务');
       }
       conditions.push('pr.task_id = ?');
@@ -181,9 +194,17 @@ exports.getReportDetail = async (req, res) => {
     // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
     const [reports] = await pool.query(query, params);
 
-    return ResponseHandler.paginated(res, reports, total[0].count, pagination.page, pagination.pageSize, undefined, {
-      items: reports,
-    });
+    return ResponseHandler.paginated(
+      res,
+      reports,
+      total[0].count,
+      pagination.page,
+      pagination.pageSize,
+      undefined,
+      {
+        items: reports,
+      }
+    );
   } catch (error) {
     logger.error('获取报工明细失败:', error);
     handleError(res, error);
@@ -201,7 +222,11 @@ exports.exportReport = async (req, res) => {
     const params = [];
 
     if (taskId) {
-      if (!(await ScopeGuard.assertAccess(pool, req, 'production_task', taskId, { accessMode: 'read' }))) {
+      if (
+        !(await ScopeGuard.assertAccess(pool, req, 'production_task', taskId, {
+          accessMode: 'read',
+        }))
+      ) {
         return ResponseHandler.forbidden(res, '无权访问该生产任务');
       }
       conditions.push('pr.task_id = ?');
@@ -297,7 +322,11 @@ exports.getReportById = async (req, res) => {
       return ResponseHandler.error(res, '报工记录不存在', 'NOT_FOUND', 404);
     }
 
-    if (!(await ScopeGuard.assertAccess(pool, req, 'production_task', reports[0].task_id, { accessMode: 'read' }))) {
+    if (
+      !(await ScopeGuard.assertAccess(pool, req, 'production_task', reports[0].task_id, {
+        accessMode: 'read',
+      }))
+    ) {
       return ResponseHandler.forbidden(res, '无权访问该生产任务');
     }
 
@@ -317,15 +346,18 @@ exports.createReport = async (req, res) => {
     await connection.beginTransaction();
 
     const reportData = mapKeysToSnake(req.body || {});
-    const {
-      task_id,
-      process_id,
-      process_name,
-      report_time,
-      remarks,
-    } = reportData;
+    const { task_id, process_id, process_name, report_time, remarks } = reportData;
 
-    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'production_task', task_id, '无权为该生产任务报工'))) {
+    if (
+      !(await ScopeGuard.denyUnlessAccess(
+        res,
+        connection,
+        req,
+        'production_task',
+        task_id,
+        '无权为该生产任务报工'
+      ))
+    ) {
       await connection.rollback();
       return;
     }
@@ -345,7 +377,12 @@ exports.createReport = async (req, res) => {
     const reportableStatuses = [TASK_STATUS.IN_PROGRESS];
     if (!reportableStatuses.includes(task.status)) {
       await connection.rollback();
-      return ResponseHandler.error(res, '生产报工必须在生产中状态下进行，请先从生产过程页开始任务', 'INVALID_STATUS', 400);
+      return ResponseHandler.error(
+        res,
+        '生产报工必须在生产中状态下进行，请先从生产过程页开始任务',
+        'INVALID_STATUS',
+        400
+      );
     }
 
     const planQuantity = parseFloat(task.quantity) || 0;
@@ -448,16 +485,12 @@ exports.updateReport = async (req, res) => {
 
     const { id } = req.params;
     const reportData = mapKeysToSnake(req.body || {});
-    const {
-      process_id,
-      process_name,
-      report_time,
-      remarks,
-    } = reportData;
+    const { process_id, process_name, report_time, remarks } = reportData;
 
-    const [reportCheck] = await connection.query('SELECT id, task_id, process_id as old_process_id FROM production_reports WHERE id = ? FOR UPDATE', [
-      id,
-    ]);
+    const [reportCheck] = await connection.query(
+      'SELECT id, task_id, process_id as old_process_id FROM production_reports WHERE id = ? FOR UPDATE',
+      [id]
+    );
 
     if (reportCheck.length === 0) {
       await connection.rollback();
@@ -465,7 +498,16 @@ exports.updateReport = async (req, res) => {
     }
 
     const task_id = reportCheck[0].task_id;
-    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'production_task', task_id, '无权修改该生产任务报工'))) {
+    if (
+      !(await ScopeGuard.denyUnlessAccess(
+        res,
+        connection,
+        req,
+        'production_task',
+        task_id,
+        '无权修改该生产任务报工'
+      ))
+    ) {
       await connection.rollback();
       return;
     }
@@ -571,9 +613,10 @@ exports.deleteReport = async (req, res) => {
 
     const { id } = req.params;
 
-    const [reportCheck] = await connection.query('SELECT id, task_id, process_id FROM production_reports WHERE id = ? FOR UPDATE', [
-      id,
-    ]);
+    const [reportCheck] = await connection.query(
+      'SELECT id, task_id, process_id FROM production_reports WHERE id = ? FOR UPDATE',
+      [id]
+    );
 
     if (reportCheck.length === 0) {
       await connection.rollback();
@@ -582,7 +625,16 @@ exports.deleteReport = async (req, res) => {
 
     const task_id = reportCheck[0].task_id;
     const process_id = reportCheck[0].process_id;
-    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'production_task', task_id, '无权删除该生产任务报工'))) {
+    if (
+      !(await ScopeGuard.denyUnlessAccess(
+        res,
+        connection,
+        req,
+        'production_task',
+        task_id,
+        '无权删除该生产任务报工'
+      ))
+    ) {
       await connection.rollback();
       return;
     }
@@ -623,7 +675,9 @@ exports.getTaskReportStats = async (req, res) => {
   try {
     const { taskId } = req.params;
 
-    if (!(await ScopeGuard.assertAccess(pool, req, 'production_task', taskId, { accessMode: 'read' }))) {
+    if (
+      !(await ScopeGuard.assertAccess(pool, req, 'production_task', taskId, { accessMode: 'read' }))
+    ) {
       return ResponseHandler.forbidden(res, '无权访问该生产任务');
     }
 
@@ -701,7 +755,9 @@ exports.getTaskProcesses = async (req, res) => {
   try {
     const { taskId } = req.params;
 
-    if (!(await ScopeGuard.assertAccess(pool, req, 'production_task', taskId, { accessMode: 'read' }))) {
+    if (
+      !(await ScopeGuard.assertAccess(pool, req, 'production_task', taskId, { accessMode: 'read' }))
+    ) {
       return ResponseHandler.forbidden(res, '无权访问该生产任务');
     }
 
@@ -834,14 +890,21 @@ async function syncProgressAndStatus(connection, task_id, process_id) {
       // Reporting uses the same sequence, timing and scan gates as both
       // execution pages. It cannot complete a process by a direct status write.
       if (totalProcReported > 0 && currentProcStatus === PROC_STATUS.PENDING) {
-        await ProductProcessExecutionService.update(connection, process_id, { status: PROC_STATUS.IN_PROGRESS });
+        await ProductProcessExecutionService.update(connection, process_id, {
+          status: PROC_STATUS.IN_PROGRESS,
+        });
       }
-      if (procProgress >= 100 && [PROC_STATUS.PENDING, PROC_STATUS.IN_PROGRESS].includes(currentProcStatus)) {
-        await ProductProcessExecutionService.update(connection, process_id, { status: PROC_STATUS.COMPLETED });
+      if (
+        procProgress >= 100 &&
+        [PROC_STATUS.PENDING, PROC_STATUS.IN_PROGRESS].includes(currentProcStatus)
+      ) {
+        await ProductProcessExecutionService.update(connection, process_id, {
+          status: PROC_STATUS.COMPLETED,
+        });
       }
 
       await connection.query(
-        'UPDATE production_processes SET progress = ? WHERE id = ? AND status NOT IN (\'completed\', \'cancelled\')',
+        "UPDATE production_processes SET progress = ? WHERE id = ? AND status NOT IN ('completed', 'cancelled')",
         [procProgress, process_id]
       );
     }
@@ -883,9 +946,7 @@ async function syncProgressAndStatus(connection, task_id, process_id) {
   const hasProcesses = processes.length > 0;
   const allProcessesCompleted =
     hasProcesses &&
-    processes.every((p) =>
-      [PROC_STATUS.COMPLETED, 'qc_passed', 'qc_failed'].includes(p.status)
-    );
+    processes.every((p) => [PROC_STATUS.COMPLETED, 'qc_passed', 'qc_failed'].includes(p.status));
   const anyProcessStarted = hasProcesses
     ? processes.some((p) =>
         [PROC_STATUS.IN_PROGRESS, PROC_STATUS.COMPLETED, 'qc_passed', 'qc_failed'].includes(
@@ -898,10 +959,7 @@ async function syncProgressAndStatus(connection, task_id, process_id) {
   try {
     if (
       anyProcessStarted &&
-      [
-        TASK_STATUS.MATERIAL_ISSUED,
-        TASK_STATUS.MATERIAL_PARTIAL_ISSUED,
-      ].includes(task.status)
+      [TASK_STATUS.MATERIAL_ISSUED, TASK_STATUS.MATERIAL_PARTIAL_ISSUED].includes(task.status)
     ) {
       await promoteTaskToInProgress(connection, task_id);
       apiStatus = TASK_STATUS.IN_PROGRESS;
@@ -923,13 +981,9 @@ async function syncProgressAndStatus(connection, task_id, process_id) {
   } catch (lifecycleError) {
     // 未关闭检验等：进度已写，状态保持，不阻断报工提交
     if (lifecycleError.code === 'OPEN_INSPECTIONS') {
-      logger.warn(
-        `任务 ${task_id} 报工后未推进状态: ${lifecycleError.message}`
-      );
+      logger.warn(`任务 ${task_id} 报工后未推进状态: ${lifecycleError.message}`);
     } else if (/不允许从/.test(lifecycleError.message || '')) {
-      logger.warn(
-        `任务 ${task_id} 报工后状态转移被状态机拒绝: ${lifecycleError.message}`
-      );
+      logger.warn(`任务 ${task_id} 报工后状态转移被状态机拒绝: ${lifecycleError.message}`);
     } else {
       throw lifecycleError;
     }

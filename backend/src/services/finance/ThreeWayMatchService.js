@@ -19,9 +19,7 @@ class ThreeWayMatchService {
     const qtyPct = Number(
       (await SystemConfigService.get('ap_match_qty_tolerance_pct', 0.02)) ?? 0.02
     );
-    const amountTol = Number(
-      (await SystemConfigService.get('ap_match_amount_tolerance', 1)) ?? 1
-    );
+    const amountTol = Number((await SystemConfigService.get('ap_match_amount_tolerance', 1)) ?? 1);
     return {
       qtyTolerancePct: Number.isFinite(qtyPct) && qtyPct >= 0 ? qtyPct : 0.02,
       amountTolerance: Number.isFinite(amountTol) && amountTol >= 0 ? amountTol : 1,
@@ -29,8 +27,10 @@ class ThreeWayMatchService {
   }
 
   static async isMatchRequired() {
-    return (await SystemConfigService.get('ap_three_way_match_required', false)) === true
-      || (await SystemConfigService.get('ap_three_way_match_required', 'false')) === 'true';
+    return (
+      (await SystemConfigService.get('ap_three_way_match_required', false)) === true ||
+      (await SystemConfigService.get('ap_three_way_match_required', 'false')) === 'true'
+    );
   }
 
   /**
@@ -65,7 +65,7 @@ class ThreeWayMatchService {
         [receipt.order_id, receiptId]
       );
       if (!items.length) throw new BusinessError('入库单无明细');
-      if (receipt.order_id && items.some(it => !it.po_item_id)) {
+      if (receipt.order_id && items.some((it) => !it.po_item_id)) {
         throw new BusinessError('收货明细缺少明确的采购订单行，请先补全来源明细后再进行三单匹配');
       }
 
@@ -87,8 +87,7 @@ class ThreeWayMatchService {
         const invPrice = recPrice;
         const qtyVar = invQty - recQty;
         const amtVar = money(invQty * invPrice - recQty * recPrice);
-        const qtyOk =
-          Math.abs(qtyVar) <= Math.max(Math.abs(recQty) * tol.qtyTolerancePct, 0.0001);
+        const qtyOk = Math.abs(qtyVar) <= Math.max(Math.abs(recQty) * tol.qtyTolerancePct, 0.0001);
         const amtOk = Math.abs(amtVar) <= tol.amountTolerance;
         return {
           material_id: it.material_id,
@@ -288,22 +287,21 @@ class ThreeWayMatchService {
         if (line.id != null) target = byId.get(Number(line.id));
         if (!target && line.material_id != null) target = byMat.get(Number(line.material_id));
         if (!target) {
-          throw new BusinessError(`找不到匹配明细 id=${line.id} material=${line.material_id}`);
+          throw new BusinessError('找不到匹配的采购明细，请刷新后重试');
         }
         const invQty = Number(line.invoice_qty);
         const invPrice = Number(line.invoice_price);
         if (!Number.isFinite(invQty) || invQty < 0) {
-          throw new BusinessError(`发票数量无效 material=${target.material_code || target.id}`);
+          throw new BusinessError(`发票数量无效，物料“${target.material_code || '所选物料'}”`);
         }
         if (!Number.isFinite(invPrice) || invPrice < 0) {
-          throw new BusinessError(`发票单价无效 material=${target.material_code || target.id}`);
+          throw new BusinessError(`发票单价无效，物料“${target.material_code || '所选物料'}”`);
         }
         const recQty = Number(target.receipt_qty || 0);
         const recPrice = Number(target.receipt_price || 0);
         const qtyVar = invQty - recQty;
         const amtVar = money(invQty * invPrice - recQty * recPrice);
-        const qtyOk =
-          Math.abs(qtyVar) <= Math.max(Math.abs(recQty) * tol.qtyTolerancePct, 0.0001);
+        const qtyOk = Math.abs(qtyVar) <= Math.max(Math.abs(recQty) * tol.qtyTolerancePct, 0.0001);
         const amtOk = Math.abs(amtVar) <= tol.amountTolerance;
         await connection.execute(
           `UPDATE ap_match_items
@@ -418,10 +416,11 @@ class ThreeWayMatchService {
         await connection.commit();
         return this.getById(matchId);
       }
-      const overTolerance =
-        row.status === 'variance' || row.match_result === 'over_tolerance';
+      const overTolerance = row.status === 'variance' || row.match_result === 'over_tolerance';
       if (overTolerance && !options.forceVariance) {
-        throw new BusinessError('差异超容差，不能确认匹配；请调整发票数量/单价，或使用强制确认（需权限）');
+        throw new BusinessError(
+          '差异超容差，不能确认匹配；请调整发票数量/单价，或使用强制确认（需权限）'
+        );
       }
       await connection.execute(
         `UPDATE ap_match_headers

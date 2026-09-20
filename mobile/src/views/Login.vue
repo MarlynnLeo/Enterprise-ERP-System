@@ -111,6 +111,7 @@
   import { showToast } from 'vant'
   import { useAuthStore } from '@/stores/auth'
   import { APP_INFO } from '@/config/app'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const router = useRouter()
   const route = useRoute()
@@ -184,7 +185,7 @@
       await completeLogin()
     } catch (error) {
       console.error('登录失败:', error)
-      showToast(error.response?.data?.message || '登录失败，请重试')
+      showToast(getApiErrorMessage(error, '登录失败，请重试'))
       // B-17: 记录失败次数，第 5 次起才启用客户端延迟
       failCount.value++
       const lockoutSeconds = getLockoutSeconds(failCount.value)

@@ -29,7 +29,11 @@ const MAX_TODO_PAGE_SIZE = 100;
 const DASHBOARD_TODO_LIMIT = 10;
 const AVAILABLE_USERS_LIMIT = 200;
 
-function getBoundedLimit(value, defaultValue = DEFAULT_TODO_PAGE_SIZE, maxValue = MAX_TODO_PAGE_SIZE) {
+function getBoundedLimit(
+  value,
+  defaultValue = DEFAULT_TODO_PAGE_SIZE,
+  maxValue = MAX_TODO_PAGE_SIZE
+) {
   const parsed = Number.parseInt(value, 10);
   if (!Number.isInteger(parsed) || parsed < 1) return defaultValue;
   return Math.min(parsed, maxValue);
@@ -44,11 +48,13 @@ function getBoundedOffset(page, pageSize) {
 function normalizeParticipantIds(participants, creatorId) {
   if (!Array.isArray(participants)) return [];
 
-  return [...new Set(
-    participants
-      .map((id) => Number(id))
-      .filter((id) => Number.isInteger(id) && id > 0 && id !== Number(creatorId))
-  )];
+  return [
+    ...new Set(
+      participants
+        .map((id) => Number(id))
+        .filter((id) => Number.isInteger(id) && id > 0 && id !== Number(creatorId))
+    ),
+  ];
 }
 
 function normalizePriority(priority, defaultValue = 2) {
@@ -210,11 +216,13 @@ async function dispatchCollaborativeTodos(todo, transaction) {
     raw: true,
   });
 
-  const participantIds = [...new Set(
-    participants
-      .map(participant => Number(participant.userId))
-      .filter(userId => Number.isInteger(userId) && userId > 0)
-  )];
+  const participantIds = [
+    ...new Set(
+      participants
+        .map((participant) => Number(participant.userId))
+        .filter((userId) => Number.isInteger(userId) && userId > 0)
+    ),
+  ];
 
   if (participantIds.length === 0) {
     return [];
@@ -229,11 +237,11 @@ async function dispatchCollaborativeTodos(todo, transaction) {
     transaction,
     raw: true,
   });
-  const existingUserIds = new Set(existingTodos.map(existingTodo => Number(existingTodo.userId)));
+  const existingUserIds = new Set(existingTodos.map((existingTodo) => Number(existingTodo.userId)));
 
   const todosToCreate = participantIds
-    .filter(userId => !existingUserIds.has(userId))
-    .map(userId => ({
+    .filter((userId) => !existingUserIds.has(userId))
+    .map((userId) => ({
       userId,
       creatorId: todo.creatorId || todo.userId,
       title: todo.title,
@@ -292,8 +300,12 @@ exports.getDashboardSummary = async (req, res) => {
 
     if (
       hasRequestedMonth &&
-      (!Number.isInteger(requestedYear) || requestedYear < 2000 || requestedYear > 2100 ||
-        !Number.isInteger(requestedMonth) || requestedMonth < 1 || requestedMonth > 12)
+      (!Number.isInteger(requestedYear) ||
+        requestedYear < 2000 ||
+        requestedYear > 2100 ||
+        !Number.isInteger(requestedMonth) ||
+        requestedMonth < 1 ||
+        requestedMonth > 12)
     ) {
       return ResponseHandler.error(res, '日历月份参数无效', 'VALIDATION_ERROR', 400);
     }
@@ -318,14 +330,20 @@ exports.getDashboardSummary = async (req, res) => {
         where: { userId, completed: false },
         attributes: listAttributes,
         include: getDashboardTodoIncludes(),
-        order: [['deadline', 'ASC'], ['id', 'DESC']],
+        order: [
+          ['deadline', 'ASC'],
+          ['id', 'DESC'],
+        ],
         limit: DASHBOARD_TODO_LIMIT,
       }),
       models.Todo.findAll({
         where: { userId, completed: true },
         attributes: listAttributes,
         include: getDashboardTodoIncludes(),
-        order: [['updatedAt', 'DESC'], ['id', 'DESC']],
+        order: [
+          ['updatedAt', 'DESC'],
+          ['id', 'DESC'],
+        ],
         limit: DASHBOARD_TODO_LIMIT,
       }),
       models.Todo.count({ where: { userId, completed: false } }),
@@ -418,19 +436,22 @@ exports.createTodo = async (req, res) => {
     }
 
     const fullTodo = await models.sequelize.transaction(async (transaction) => {
-      const todo = await models.Todo.create({
-        userId,
-        creatorId: userId,
-        title: normalizedTitle,
-        description: normalizeDescription(description),
-        deadline: normalizedDeadline.provided ? normalizedDeadline.value : null,
-        priority: normalizedPriority,
-        completed: false,
-        isShared,
-        parentTodoId: null,
-      }, {
-        transaction,
-      });
+      const todo = await models.Todo.create(
+        {
+          userId,
+          creatorId: userId,
+          title: normalizedTitle,
+          description: normalizeDescription(description),
+          deadline: normalizedDeadline.provided ? normalizedDeadline.value : null,
+          priority: normalizedPriority,
+          completed: false,
+          isShared,
+          parentTodoId: null,
+        },
+        {
+          transaction,
+        }
+      );
 
       if (isShared) {
         await syncTodoParticipants(todo, participantIds, transaction);
@@ -463,7 +484,9 @@ exports.updateTodo = async (req, res) => {
     const normalizedDeadline = normalizeDeadline(deadline);
     const normalizedCompleted = normalizeCompleted(completed, undefined);
     const shouldSyncParticipants = participants !== undefined;
-    const participantIds = shouldSyncParticipants ? normalizeParticipantIds(participants, userId) : [];
+    const participantIds = shouldSyncParticipants
+      ? normalizeParticipantIds(participants, userId)
+      : [];
 
     if (hasTitle && !normalizedTitle) {
       return ResponseHandler.error(res, '标题不能为空', 'VALIDATION_ERROR', 400);
@@ -532,7 +555,12 @@ exports.updateTodo = async (req, res) => {
         await todo.update(nextValues, { transaction });
       }
 
-      if (!todo.parentTodoId && todo.completed && todo.isShared && (!wasCompleted || shouldSyncParticipants)) {
+      if (
+        !todo.parentTodoId &&
+        todo.completed &&
+        todo.isShared &&
+        (!wasCompleted || shouldSyncParticipants)
+      ) {
         await dispatchCollaborativeTodos(todo, transaction);
       }
 
@@ -603,11 +631,14 @@ exports.toggleTodoStatus = async (req, res) => {
       }
 
       const willComplete = !todo.completed;
-      await todo.update({
-        completed: willComplete,
-      }, {
-        transaction,
-      });
+      await todo.update(
+        {
+          completed: willComplete,
+        },
+        {
+          transaction,
+        }
+      );
 
       if (willComplete && todo.isShared && !todo.parentTodoId) {
         const dispatchedTodos = await dispatchCollaborativeTodos(todo, transaction);
@@ -626,7 +657,11 @@ exports.toggleTodoStatus = async (req, res) => {
       dispatchedCount,
     };
 
-    return ResponseHandler.success(res, responseTodo, `待办事项已标记为${updatedTodo.completed ? '已完成' : '未完成'}`);
+    return ResponseHandler.success(
+      res,
+      responseTodo,
+      `待办事项已标记为${updatedTodo.completed ? '已完成' : '未完成'}`
+    );
   } catch (error) {
     logger.error('更新待办事项状态失败:', error);
     return ResponseHandler.error(res, '更新待办事项状态失败', 'SERVER_ERROR', 500, error);

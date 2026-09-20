@@ -333,7 +333,8 @@ module.exports = {
    */
   saveCostAlertSettings: async (req, res) => {
     try {
-      const { variance_threshold, material_threshold, labor_threshold, overhead_threshold } = mapKeysToSnake(req.body || {});
+      const { variance_threshold, material_threshold, labor_threshold, overhead_threshold } =
+        mapKeysToSnake(req.body || {});
 
       // 表结构由 migrations/20260312000009_baseline_misc_tables.js 管理
 

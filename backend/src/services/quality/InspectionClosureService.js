@@ -10,22 +10,16 @@ const {
 
 const STATUS = businessConfig.status.inspection;
 
-const TERMINAL_STATUSES = new Set([
-  STATUS.PASSED,
-  STATUS.FAILED,
-  STATUS.PARTIAL,
-  STATUS.COMPLETED,
-]);
+const TERMINAL_STATUSES = new Set([STATUS.PASSED, STATUS.FAILED, STATUS.PARTIAL, STATUS.COMPLETED]);
 
-const RECEIPT_STATUSES = new Set([
-  STATUS.PASSED,
-  STATUS.PARTIAL,
-  STATUS.COMPLETED,
-]);
+const RECEIPT_STATUSES = new Set([STATUS.PASSED, STATUS.PARTIAL, STATUS.COMPLETED]);
 
 const toNumber = (value) => {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : 0;
+  const number = Number(value ?? 0);
+  if (!Number.isFinite(number)) {
+    throw createValidationError('检验数量必须为有效数字');
+  }
+  return number;
 };
 
 const hasOwn = (object, key) => Object.prototype.hasOwnProperty.call(object || {}, key);
@@ -76,11 +70,10 @@ class InspectionClosureService {
       );
     }
 
-    if (
-      (status === STATUS.PASSED || status === STATUS.COMPLETED) &&
-      unqualifiedQuantity > 0.0001
-    ) {
-      throw createValidationError('检验通过时不合格数量必须为0；如有不合格请使用部分合格或不合格状态');
+    if ((status === STATUS.PASSED || status === STATUS.COMPLETED) && unqualifiedQuantity > 0.0001) {
+      throw createValidationError(
+        '检验通过时不合格数量必须为0；如有不合格请使用部分合格或不合格状态'
+      );
     }
 
     if (status === STATUS.PARTIAL && (qualifiedQuantity <= 0 || unqualifiedQuantity <= 0)) {
@@ -115,11 +108,9 @@ class InspectionClosureService {
 
     // 新记录直接读取 source_type；对旧记录按委外入库单号/ID识别并回填，
     // 防止历史 NULL 来源再次误走采购订单闭环。
-    inspection.source_type = await resolveInspectionSourceType(
-      connection,
-      inspection,
-      { persist: true }
-    );
+    inspection.source_type = await resolveInspectionSourceType(connection, inspection, {
+      persist: true,
+    });
 
     if (inspection.id) {
       await connection.query(

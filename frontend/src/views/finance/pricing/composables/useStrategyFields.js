@@ -1,3 +1,4 @@
+import { getApiErrorMessage } from '@/utils/errorHandler'
 /**
  * 策略字段管理composable
  * 包含策略字段的CRUD操作
@@ -104,7 +105,7 @@ export function useStrategyFields() {
             loadAvailableFields();
         } catch (error) {
             if (error !== 'cancel') {
-                ElMessage.error(error.response?.data?.message || '删除失败');
+                ElMessage.error(getApiErrorMessage(error, '删除失败'));
             }
         }
     };
@@ -144,7 +145,7 @@ export function useStrategyFields() {
                 loadFields();
                 loadAvailableFields();
             } catch (error) {
-                ElMessage.error(error.response?.data?.message || '保存失败');
+                ElMessage.error(getApiErrorMessage(error, '保存失败'));
             } finally {
                 submitting.value = false;
             }

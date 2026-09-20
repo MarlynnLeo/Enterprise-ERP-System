@@ -9,6 +9,7 @@ const DatabaseMonitorService = require('../services/DatabaseMonitorService');
 const { cacheMiddleware } = require('../services/cache/CacheManager');
 const { authenticateToken } = require('../middleware/authEnhanced');
 const { requirePermission } = require('../middleware/requirePermission');
+const { logger } = require('../utils/logger');
 
 const monitorAccess = [authenticateToken, requirePermission('system:monitor')];
 
@@ -36,10 +37,10 @@ async function fullHealthHandler(req, res) {
 
     res.status(statusCode).json(healthStatus);
   } catch (error) {
+    logger.error('完整健康检查失败:', error);
     res.status(503).json({
       status: 'unhealthy',
       message: '健康检查失败',
-      error: error.message,
       timestamp: new Date().toISOString(),
     });
   }
@@ -60,10 +61,10 @@ async function detailedHealthHandler(req, res) {
 
     res.status(statusCode).json(healthReport);
   } catch (error) {
+    logger.error('生成健康报告失败:', error);
     res.status(503).json({
       status: 'unhealthy',
       message: '生成健康报告失败',
-      error: error.message,
       timestamp: new Date().toISOString(),
     });
   }
@@ -84,9 +85,10 @@ router.get('/info', monitorAccess, cacheMiddleware(60), (req, res) => {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
+    logger.error('获取系统信息失败:', error);
     res.status(500).json({
       error: '获取系统信息失败',
-      message: error.message,
+      message: '获取系统信息失败，请稍后重试',
     });
   }
 });
@@ -107,11 +109,11 @@ async function databaseHealthHandler(req, res) {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
+    logger.error('数据库健康检查失败:', error);
     res.status(503).json({
       component: 'database',
       status: 'unhealthy',
       message: '数据库健康检查失败',
-      error: error.message,
       timestamp: new Date().toISOString(),
     });
   }
@@ -133,11 +135,11 @@ async function cacheHealthHandler(req, res) {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
+    logger.error('缓存健康检查失败:', error);
     res.status(503).json({
       component: 'cache',
       status: 'unhealthy',
       message: '缓存健康检查失败',
-      error: error.message,
       timestamp: new Date().toISOString(),
     });
   }
@@ -160,11 +162,11 @@ async function memoryHealthHandler(req, res) {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
+    logger.error('内存检查失败:', error);
     res.status(500).json({
       component: 'memory',
       status: 'unhealthy',
       message: '内存检查失败',
-      error: error.message,
       timestamp: new Date().toISOString(),
     });
   }
@@ -200,10 +202,10 @@ router.get('/ready', async (req, res) => {
       });
     }
   } catch (error) {
+    logger.error('就绪检查失败:', error);
     res.status(503).json({
       status: 'not_ready',
       message: '就绪检查失败',
-      error: error.message,
       timestamp: new Date().toISOString(),
     });
   }
@@ -250,9 +252,10 @@ router.get('/metrics', monitorAccess, async (req, res) => {
 
     res.json(metrics);
   } catch (error) {
+    logger.error('获取性能指标失败:', error);
     res.status(500).json({
       error: '获取性能指标失败',
-      message: error.message,
+      message: '获取性能指标失败，请稍后重试',
     });
   }
 });
@@ -272,11 +275,11 @@ router.get('/pools', monitorAccess, async (req, res) => {
       ...poolsHealth,
     });
   } catch (error) {
+    logger.error('连接池健康检查失败:', error);
     res.status(503).json({
       component: 'connectionPools',
       status: 'unhealthy',
       message: '连接池健康检查失败',
-      error: error.message,
       timestamp: new Date().toISOString(),
     });
   }
@@ -290,9 +293,10 @@ router.get('/pools/stats', monitorAccess, async (req, res) => {
     const stats = DatabaseMonitorService.getPoolsStats();
     res.json(stats);
   } catch (error) {
+    logger.error('获取连接池统计信息失败:', error);
     res.status(500).json({
       error: '获取连接池统计信息失败',
-      message: error.message,
+      message: '获取连接池统计信息失败，请稍后重试',
       timestamp: new Date().toISOString(),
     });
   }
@@ -310,10 +314,10 @@ router.get('/pools/:poolName', monitorAccess, async (req, res) => {
 
     res.status(statusCode).json(health);
   } catch (error) {
+    logger.error('连接池健康检查失败:', error);
     res.status(503).json({
       status: 'unhealthy',
       message: '连接池健康检查失败',
-      error: error.message,
       timestamp: new Date().toISOString(),
     });
   }
@@ -328,9 +332,10 @@ router.get('/pools/:poolName/stats', monitorAccess, async (req, res) => {
     const stats = DatabaseMonitorService.getPoolStats(poolName);
     res.json(stats);
   } catch (error) {
+    logger.error('获取连接池统计信息失败:', error);
     res.status(500).json({
       error: '获取连接池统计信息失败',
-      message: error.message,
+      message: '获取连接池统计信息失败，请稍后重试',
       timestamp: new Date().toISOString(),
     });
   }
@@ -345,9 +350,10 @@ router.post('/pools/:poolName/reset', monitorAccess, async (req, res) => {
     const result = DatabaseMonitorService.resetPoolMetrics(poolName);
     res.json(result);
   } catch (error) {
+    logger.error('重置连接池指标失败:', error);
     res.status(500).json({
       error: '重置连接池指标失败',
-      message: error.message,
+      message: '重置连接池指标失败，请稍后重试',
       timestamp: new Date().toISOString(),
     });
   }
@@ -361,9 +367,10 @@ router.get('/database/report', monitorAccess, async (req, res) => {
     const report = await DatabaseMonitorService.generateMonitorReport();
     res.json(report);
   } catch (error) {
+    logger.error('生成监控报告失败:', error);
     res.status(500).json({
       error: '生成监控报告失败',
-      message: error.message,
+      message: '生成监控报告失败，请稍后重试',
       timestamp: new Date().toISOString(),
     });
   }

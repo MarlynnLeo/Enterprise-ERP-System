@@ -141,6 +141,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { formatLocalDate } from '@/utils/format';
 import { ReportHelper } from '@/utils/commonHelpers'
 
@@ -200,7 +201,7 @@ const generateReport = async () => {
     }
   } catch (error) {
     console.error('获取利润表数据失败:', error);
-    ElMessage.error('获取利润表数据失败: ' + (error.response?.data?.message || error.message));
+    ElMessage.error('获取利润表数据失败: ' + (getApiErrorMessage(error, '未知错误')));
     reportData.value = [];
   } finally {
     loading.value = false;

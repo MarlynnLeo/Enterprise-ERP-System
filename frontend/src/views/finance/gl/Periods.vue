@@ -219,6 +219,7 @@ import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { Plus, Edit, Lock, Unlock } from '@element-plus/icons-vue';
 import { financeApi } from '@/api';
+import { getApiErrorMessage } from '@/utils/errorHandler';
 // 数据加载状态
 const loading = ref(false);
 const saveLoading = ref(false);
@@ -312,10 +313,6 @@ const periodRules = {
   ]
 };
 
-const getErrorMessage = (error, fallback) => {
-  return error?.response?.data?.message || error?.message || fallback;
-};
-
 // 加载会计期间列表
 const loadPeriods = async () => {
   loading.value = true;
@@ -352,7 +349,7 @@ const loadPeriods = async () => {
     }
   } catch (error) {
     console.error('加载会计期间失败:', error);
-    ElMessage.error(getErrorMessage(error, '加载会计期间失败'));
+    ElMessage.error(getApiErrorMessage(error, '加载会计期间失败'));
     periodList.value = [];
     total.value = 0;
   } finally {
@@ -411,7 +408,7 @@ const batchCreatePeriods = async () => {
       loadPeriods();
     } catch (error) {
       console.error('批量生成会计期间失败:', error);
-      ElMessage.error(getErrorMessage(error, '批量生成会计期间失败'));
+      ElMessage.error(getApiErrorMessage(error, '批量生成会计期间失败'));
     } finally {
       saveLoading.value = false;
     }
@@ -458,7 +455,7 @@ const handleReopen = (row) => {
       loadPeriods();
     } catch (error) {
       console.error('重新开启会计期间失败:', error);
-      ElMessage.error(getErrorMessage(error, '重新开启会计期间失败'));
+      ElMessage.error(getApiErrorMessage(error, '重新开启会计期间失败'));
     }
   }).catch(() => {});
 };
@@ -493,7 +490,7 @@ const savePeriod = async () => {
         loadPeriods();
       } catch (error) {
         console.error('保存会计期间失败:', error);
-        ElMessage.error(getErrorMessage(error, '保存会计期间失败'));
+        ElMessage.error(getApiErrorMessage(error, '保存会计期间失败'));
       } finally {
         saveLoading.value = false;
       }

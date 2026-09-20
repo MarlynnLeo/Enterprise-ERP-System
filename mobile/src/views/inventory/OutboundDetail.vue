@@ -156,6 +156,7 @@ import { showToast, showConfirmDialog } from 'vant'
 import { inventoryApi } from '@/api'
 import Icon from '@/components/icons/index.vue'
 import dayjs from 'dayjs'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 
 const route = useRoute()
 const router = useRouter()
@@ -258,7 +259,7 @@ const handleConfirm = async () => {
     } catch (error) {
         if (error !== 'cancel' && error?.message !== 'cancel') {
             console.error('确认出库失败:', error)
-            const errorMsg = error.response?.data?.message || '确认出库失败'
+            const errorMsg = getApiErrorMessage(error, '确认出库失败')
             showToast(errorMsg)
         }
     } finally {
@@ -307,7 +308,7 @@ const handleComplete = async () => {
     } catch (error) {
         if (error !== 'cancel' && error?.message !== 'cancel') {
             console.error('完成出库失败:', error)
-            const errorMsg = error.response?.data?.message || '完成出库失败'
+            const errorMsg = getApiErrorMessage(error, '完成出库失败')
             showToast(errorMsg)
         }
     } finally {
@@ -340,7 +341,7 @@ const handleRevoke = async () => {
                 try {
                     await showConfirmDialog({
                         title: '需要确认',
-                        message: `${errorData.message}\n\n确定要强制撤销吗？这可能会导致库存数据不一致。`
+                        message: `${getApiErrorMessage(error, '撤销失败')}\n\n确定要强制撤销吗？这可能会导致库存数据不一致。`
                     })
                     // 用户确认后强制撤销
                     submitting.value = true
@@ -351,7 +352,7 @@ const handleRevoke = async () => {
                     // 用户取消
                 }
             } else {
-                showToast(errorData?.message || '撤销失败')
+                showToast(getApiErrorMessage(error, '撤销失败'))
             }
         }
     } finally {

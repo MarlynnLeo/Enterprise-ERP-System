@@ -52,7 +52,9 @@ const pool = rawPool;
 
 // 监听管理器事件
 manager.on('health:critical', ({ failedCount }) => {
-  logger.error(`Database connection pool health check failed repeatedly: failedCount=${failedCount}`);
+  logger.error(
+    `Database connection pool health check failed repeatedly: failedCount=${failedCount}`
+  );
 });
 
 manager.on('leak:detected', (leaks) => {
@@ -68,7 +70,9 @@ const gracefulShutdown = async (signal) => {
     try {
       const { closeRedis } = require('./redisClient');
       await closeRedis();
-    } catch { /* Redis 可能未启用 */ }
+    } catch {
+      /* Redis 可能未启用 */
+    }
 
     await poolFactory.closeAll();
     logger.info('All database connection pools closed');

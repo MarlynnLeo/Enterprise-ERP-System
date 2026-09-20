@@ -73,6 +73,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, reactive, watch, nextTick } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { supplierApi } from '@/api/supplier'
@@ -200,7 +201,7 @@ const submitForm = () => {
         handleClose()
       } catch (error) {
         console.error('保存供应商失败:', error)
-        ElMessage.error(error.response?.data?.message || '保存供应商失败')
+        ElMessage.error(getApiErrorMessage(error, '保存供应商失败'))
       } finally {
         submitting.value = false
       }

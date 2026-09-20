@@ -62,6 +62,7 @@
   import { NavBar, CellGroup, Cell, Button, Loading, Empty, showToast, showConfirmDialog } from 'vant'
   import { qualityApi } from '@/api'
   import { extractApiData } from '@/utils/apiHelper'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const route = useRoute()
   const router = useRouter()
@@ -102,11 +103,14 @@
     } catch (error) {
       console.error('加载不合格品详情失败:', error)
       record.value = null
-      errorMessage.value = error?.response?.status === 403
+      const fallback = error?.response?.status === 403
         ? '没有权限查看此不合格品记录'
         : error?.response?.status === 404
           ? '不合格品记录不存在或已被删除'
           : '加载失败，请重试'
+      errorMessage.value = error?.response?.status === 403 || error?.response?.status === 404
+        ? fallback
+        : getApiErrorMessage(error, fallback)
       showToast(errorMessage.value)
     } finally {
       loading.value = false
@@ -124,7 +128,7 @@
       record.value.status = 'processing'
     } catch (e) {
       if (e !== 'cancel' && e?.message !== 'cancel') {
-        const errorMsg = e.response?.data?.message || '操作失败'
+        const errorMsg = getApiErrorMessage(e, '操作失败')
         showToast(errorMsg)
       }
     }
@@ -139,7 +143,7 @@
       record.value.status = 'completed'
     } catch (e) {
       if (e !== 'cancel' && e?.message !== 'cancel') {
-        const errorMsg = e.response?.data?.message || '操作失败'
+        const errorMsg = getApiErrorMessage(e, '操作失败')
         showToast(errorMsg)
       }
     }

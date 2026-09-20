@@ -20,9 +20,8 @@ const parseNumber = (value, fallback) => {
 const readString = (value) => (typeof value === 'string' ? value.trim() : '');
 const isTruthyEnv = (value) => ['1', 'true', 'yes', 'on'].includes(readString(value).toLowerCase());
 
-const hasLegacyOllamaConfig = () => Boolean(
-  readString(process.env.OLLAMA_API_URL) && readString(process.env.OLLAMA_MODEL)
-);
+const hasLegacyOllamaConfig = () =>
+  Boolean(readString(process.env.OLLAMA_API_URL) && readString(process.env.OLLAMA_MODEL));
 
 const isRemoteProvider = (provider, apiUrl = '') => {
   const normalizedProvider = readString(provider).toLowerCase();
@@ -56,9 +55,11 @@ const inferProvider = () => {
 const getAIConfig = () => {
   const provider = inferProvider();
   const isOllama = provider === 'ollama';
-  const apiUrl = readString(process.env.AI_API_URL) ||
+  const apiUrl =
+    readString(process.env.AI_API_URL) ||
     (isOllama ? readString(process.env.OLLAMA_API_URL) : DEFAULT_AI_API_URL);
-  const model = readString(process.env.AI_MODEL) ||
+  const model =
+    readString(process.env.AI_MODEL) ||
     (isOllama ? readString(process.env.OLLAMA_MODEL) : DEFAULT_AI_MODEL);
   const apiKey = readString(process.env.AI_API_KEY) || readString(process.env.NVIDIA_API_KEY);
   const requiresApiKey = !isOllama;

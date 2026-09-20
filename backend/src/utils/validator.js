@@ -332,7 +332,10 @@ function validateMiddleware(rules, customMessages = {}) {
 
     if (validator.hasErrors()) {
       return res.status(400).json({
+        success: false,
         error: '数据验证失败',
+        message: '提交内容有误，请检查后重试',
+        errorCode: 'VALIDATION_ERROR',
         details: validator.getErrors(),
       });
     }

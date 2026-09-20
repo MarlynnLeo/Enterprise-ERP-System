@@ -21,11 +21,7 @@ function isFinanceDepartment(departmentName) {
   return String(departmentName || '').trim() === '财务部';
 }
 
-function canAccessInventoryApproval({
-  isAdmin = false,
-  permissions = [],
-  action = 'view',
-} = {}) {
+function canAccessInventoryApproval({ isAdmin = false, permissions = [], action = 'view' } = {}) {
   if (isAdmin) return true;
 
   const requiredPermission = ACTION_PERMISSIONS[action] || ACTION_PERMISSIONS.view;

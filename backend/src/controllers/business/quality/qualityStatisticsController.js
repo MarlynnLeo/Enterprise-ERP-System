@@ -27,7 +27,7 @@ const DEFECT_INSPECTION_STATUS_CONDITION = "qi.status IN ('failed', 'partial', '
  */
 const getQualityStatistics = async (req, res) => {
   try {
-    const {  startDate, endDate } = req.query;
+    const { startDate, endDate } = req.query;
     const scopeClause = await ScopeGuard.applyListScope(req, 'quality_inspection', {
       tableAlias: 'qi',
       ownerAlias: 'quality_statistics_owner_scope',
@@ -97,7 +97,8 @@ const getQualityStatistics = async (req, res) => {
     );
 
     const calcRate = (s) => {
-      const t = s.total || 0, p = s.passed || 0;
+      const t = s.total || 0,
+        p = s.passed || 0;
       return t > 0 ? ((p / t) * 100).toFixed(1) + '%' : '0%';
     };
 
@@ -134,7 +135,9 @@ const getDefectItems = async (req, res) => {
     });
 
     if (keyword) {
-      whereConds.push(`(qi.inspection_no LIKE ? OR qi.product_name LIKE ? OR qi.product_code LIKE ? OR qii.remark LIKE ?)`);
+      whereConds.push(
+        `(qi.inspection_no LIKE ? OR qi.product_name LIKE ? OR qi.product_code LIKE ? OR qii.remark LIKE ?)`
+      );
       const kw = `%${keyword}%`;
       params.push(kw, kw, kw, kw);
     }
@@ -153,7 +156,8 @@ const getDefectItems = async (req, res) => {
             FROM quality_inspections qi
             LEFT JOIN quality_inspection_items qii ON qi.id = qii.inspection_id
             ${scopeClause.join || ''}
-            ${where}`, params
+            ${where}`,
+      params
     );
 
     const pagination = parsePagination(page, pageSize, {
@@ -161,7 +165,8 @@ const getDefectItems = async (req, res) => {
       maxPageSize: 100,
     });
     const [rows] = await pool.query(
-      appendPaginationSQL(`SELECT DISTINCT qi.id, qi.inspection_no as inspectionNo, qi.inspection_type as inspectionType,
+      appendPaginationSQL(
+        `SELECT DISTINCT qi.id, qi.inspection_no as inspectionNo, qi.inspection_type as inspectionType,
               qi.product_name as materialName, qi.product_code as materialCode,
               DATE_FORMAT(qi.created_at, '%Y-%m-%d') as inspectionDate,
               qi.quantity as defectQty,
@@ -173,10 +178,20 @@ const getDefectItems = async (req, res) => {
             ${scopeClause.join || ''}
             ${where}
             GROUP BY qi.id ORDER BY qi.created_at DESC
-            `, pagination.limit, pagination.offset), params
+            `,
+        pagination.limit,
+        pagination.offset
+      ),
+      params
     );
 
-    ResponseHandler.paginated(res, rows, countResult[0].total || 0, pagination.page, pagination.pageSize);
+    ResponseHandler.paginated(
+      res,
+      rows,
+      countResult[0].total || 0,
+      pagination.page,
+      pagination.pageSize
+    );
   } catch (error) {
     logger.error('获取不合格项目列表失败:', error);
     ResponseHandler.error(res, '获取不合格项目列表失败', 'SERVER_ERROR', 500, error);
@@ -232,7 +247,9 @@ const getQualityTrends = async (req, res) => {
 const getDispositionStatistics = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-    let dateCondition = '', subQueryDateCondition = '', queryParams = [];
+    let dateCondition = '',
+      subQueryDateCondition = '',
+      queryParams = [];
 
     if (startDate && endDate) {
       dateCondition = 'WHERE ncp.deleted_at IS NULL AND ncp.created_at BETWEEN ? AND ?';
@@ -264,7 +281,8 @@ const getTrendAnalysis = async (req, res) => {
     const formatMap = { month: '%Y-%m', week: '%Y-%u', day: '%Y-%m-%d' };
     const dateFormat = formatMap[groupBy] || '%Y-%m-%d';
 
-    let dateCondition = '', queryParams = [];
+    let dateCondition = '',
+      queryParams = [];
     if (startDate && endDate) {
       dateCondition = 'WHERE deleted_at IS NULL AND created_at BETWEEN ? AND ?';
       queryParams = [startDate, `${endDate} 23:59:59`];
@@ -296,7 +314,8 @@ const getTrendAnalysis = async (req, res) => {
 const getSupplierQualityAnalysis = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-    let dateCondition = '', queryParams = [];
+    let dateCondition = '',
+      queryParams = [];
 
     if (startDate && endDate) {
       dateCondition = 'AND ncp.created_at BETWEEN ? AND ?';
@@ -329,7 +348,8 @@ const getSupplierQualityAnalysis = async (req, res) => {
 const getMaterialDefectAnalysis = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-    let dateCondition = '', queryParams = [];
+    let dateCondition = '',
+      queryParams = [];
 
     if (startDate && endDate) {
       dateCondition = 'WHERE deleted_at IS NULL AND created_at BETWEEN ? AND ?';
@@ -358,7 +378,8 @@ const getMaterialDefectAnalysis = async (req, res) => {
 const getCostAnalysis = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-    let dateCondition = '', queryParams = [];
+    let dateCondition = '',
+      queryParams = [];
 
     if (startDate && endDate) {
       dateCondition = 'WHERE created_at BETWEEN ? AND ?';
@@ -367,21 +388,29 @@ const getCostAnalysis = async (req, res) => {
 
     const [reworkResult] = await pool.query(
       `SELECT COALESCE(SUM(rework_cost), 0) as total_rework_cost, COUNT(*) as rework_count
-            FROM rework_tasks ${dateCondition}`, queryParams
+            FROM rework_tasks ${dateCondition}`,
+      queryParams
     );
 
     const [scrapResult] = await pool.query(
       `SELECT COALESCE(SUM(scrap_cost), 0) as total_scrap_cost, COUNT(*) as scrap_count
-            FROM scrap_records ${dateCondition}`, queryParams
+            FROM scrap_records ${dateCondition}`,
+      queryParams
     );
 
-    return ResponseHandler.success(res, {
-      rework_cost: reworkResult[0].total_rework_cost,
-      rework_count: reworkResult[0].rework_count,
-      scrap_cost: scrapResult[0].total_scrap_cost,
-      scrap_count: scrapResult[0].scrap_count,
-      total_cost: parseFloat(reworkResult[0].total_rework_cost) + parseFloat(scrapResult[0].total_scrap_cost),
-    }, '获取成本分析成功');
+    return ResponseHandler.success(
+      res,
+      {
+        rework_cost: reworkResult[0].total_rework_cost,
+        rework_count: reworkResult[0].rework_count,
+        scrap_cost: scrapResult[0].total_scrap_cost,
+        scrap_count: scrapResult[0].scrap_count,
+        total_cost:
+          parseFloat(reworkResult[0].total_rework_cost) +
+          parseFloat(scrapResult[0].total_scrap_cost),
+      },
+      '获取成本分析成功'
+    );
   } catch (error) {
     logger.error('获取成本分析失败:', error);
     return ResponseHandler.error(res, '获取成本分析失败', 'OPERATION_ERROR', 500, error);
@@ -394,7 +423,8 @@ const getCostAnalysis = async (req, res) => {
 const getOverview = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-    let dateCondition = '', queryParams = [];
+    let dateCondition = '',
+      queryParams = [];
 
     if (startDate && endDate) {
       dateCondition = 'WHERE deleted_at IS NULL AND created_at BETWEEN ? AND ?';
@@ -403,7 +433,8 @@ const getOverview = async (req, res) => {
 
     const [ncpResult] = await pool.query(
       `SELECT COUNT(*) as total_ncp, SUM(quantity) as total_defect_quantity
-            FROM nonconforming_products ${dateCondition || 'WHERE deleted_at IS NULL'}`, queryParams
+            FROM nonconforming_products ${dateCondition || 'WHERE deleted_at IS NULL'}`,
+      queryParams
     );
 
     const [dispositionResult] = await pool.query(
@@ -414,10 +445,15 @@ const getOverview = async (req, res) => {
               SUM(CASE WHEN disposition = 'scrap' THEN 1 ELSE 0 END) as scrap_count,
               SUM(CASE WHEN disposition = 'use_as_is' THEN 1 ELSE 0 END) as use_as_is_count,
               SUM(CASE WHEN disposition = 'pending' THEN 1 ELSE 0 END) as pending_count
-            FROM nonconforming_products ${dateCondition || 'WHERE deleted_at IS NULL'}`, queryParams
+            FROM nonconforming_products ${dateCondition || 'WHERE deleted_at IS NULL'}`,
+      queryParams
     );
 
-    return ResponseHandler.success(res, { ...ncpResult[0], ...dispositionResult[0] }, '获取综合统计概览成功');
+    return ResponseHandler.success(
+      res,
+      { ...ncpResult[0], ...dispositionResult[0] },
+      '获取综合统计概览成功'
+    );
   } catch (error) {
     logger.error('获取综合统计概览失败:', error);
     return ResponseHandler.error(res, '获取综合统计概览失败', 'OPERATION_ERROR', 500, error);

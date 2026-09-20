@@ -142,18 +142,14 @@ class DingtalkService {
         requestBody.agent_id = agentId;
       }
 
-      const response = await httpPost(
-        `${apiBaseUrl}/topapi/processinstance/create`,
-        requestBody,
-        {
-          params: { access_token: accessToken },
-          headers: { 'Content-Type': 'application/json' },
-          timeout: this.config.requestTimeoutMs,
-          retries: 0,
-          maxResponseBytes: this.config.maxResponseBytes,
-          rejectUnauthorized: this.config.rejectUnauthorized,
-        }
-      );
+      const response = await httpPost(`${apiBaseUrl}/topapi/processinstance/create`, requestBody, {
+        params: { access_token: accessToken },
+        headers: { 'Content-Type': 'application/json' },
+        timeout: this.config.requestTimeoutMs,
+        retries: 0,
+        maxResponseBytes: this.config.maxResponseBytes,
+        rejectUnauthorized: this.config.rejectUnauthorized,
+      });
 
       const payload = requireDingtalkPayload(response, '发起审批');
       const instanceId = requireNonEmptyString(
@@ -665,10 +661,14 @@ class DingtalkService {
 
     if (!token) {
       if (process.env.NODE_ENV === 'production') {
-        logger.error('[Dingtalk] Callback token is not configured; rejecting callback in production');
+        logger.error(
+          '[Dingtalk] Callback token is not configured; rejecting callback in production'
+        );
         return false;
       }
-      logger.warn('[Dingtalk] Callback token is not configured; skipping signature verification outside production');
+      logger.warn(
+        '[Dingtalk] Callback token is not configured; skipping signature verification outside production'
+      );
       return true;
     }
 
@@ -743,10 +743,7 @@ class DingtalkService {
       );
 
       const payload = requireDingtalkPayload(response, '获取用户ID');
-      return requireNonEmptyString(
-        payload.result?.userid,
-        '获取用户ID失败: 响应缺少 userid'
-      );
+      return requireNonEmptyString(payload.result?.userid, '获取用户ID失败: 响应缺少 userid');
     } catch (error) {
       logger.error('[Dingtalk] 根据手机号获取UserId失败:', error.message);
       return null;

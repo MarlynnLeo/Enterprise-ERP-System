@@ -37,7 +37,7 @@
     "prettier": "^3.8.3",
     "sass": "^1.69.5",
     "vite": "^8.0.16",
-    "vitest": "^3.2.7"
+    "vitest": "^4.1.11"
   },
   "overrides": {
     "socket.io-parser": "4.2.7",

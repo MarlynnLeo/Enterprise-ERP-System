@@ -235,7 +235,11 @@ class DepreciationService {
     const startDate = toDate(asset.depreciation_start_date || asset.acquisition_date);
     const usedMonths = monthsBetween(startDate, periodDate);
 
-    if (depreciableAmount <= 0 || netValueBefore <= salvageValue || usedMonths >= usefulLifeMonths) {
+    if (
+      depreciableAmount <= 0 ||
+      netValueBefore <= salvageValue ||
+      usedMonths >= usefulLifeMonths
+    ) {
       return 0;
     }
 
@@ -284,7 +288,10 @@ class DepreciationService {
     const accumulatedDepreciation = Number(asset.accumulated_depreciation) || 0;
     const impairmentAmount = Number(asset.impairment_amount) || 0;
     const salvageValue = Math.min(Math.max(Number(asset.salvage_value) || 0, 0), acquisitionCost);
-    const currentNetValue = Math.max(0, acquisitionCost - accumulatedDepreciation - impairmentAmount);
+    const currentNetValue = Math.max(
+      0,
+      acquisitionCost - accumulatedDepreciation - impairmentAmount
+    );
     const periodDate = toDate(`${_periodMonth}-01T00:00:00Z`);
     const startDate = toDate(asset.depreciation_start_date || asset.acquisition_date);
     const remainingMonths = Math.max(usefulLifeMonths - monthsBetween(startDate, periodDate), 1);
@@ -380,7 +387,12 @@ class DepreciationService {
   /**
    * 更新资产折旧信息
    */
-  static async updateAssetDepreciationInfo(connection, depreciationEntries, periodMonth, entryInfo) {
+  static async updateAssetDepreciationInfo(
+    connection,
+    depreciationEntries,
+    periodMonth,
+    entryInfo
+  ) {
     for (const entry of depreciationEntries) {
       const { asset, monthlyDepreciation } = entry;
 
@@ -426,7 +438,8 @@ class DepreciationService {
         ]
       );
 
-      await DocumentLinkService.tryAutoLink(DocType.ASSET,
+      await DocumentLinkService.tryAutoLink(
+        DocType.ASSET,
         asset.id,
         asset.asset_code,
         DocType.FINANCE_VOUCHER,
@@ -435,7 +448,8 @@ class DepreciationService {
         null,
         connection
       );
-      await DocumentLinkService.tryAutoLink(DocType.ASSET_DEPRECIATION,
+      await DocumentLinkService.tryAutoLink(
+        DocType.ASSET_DEPRECIATION,
         depResult.insertId,
         `${asset.asset_code}-${periodMonth}`,
         DocType.FINANCE_VOUCHER,
@@ -518,7 +532,9 @@ class DepreciationService {
 
     const period = periods[0];
     if (period.is_closed === true || period.is_closed === 1 || period.is_closed === '1') {
-      throw new Error(`[Depreciation] 日期 ${businessDate} 对应的期间 ${period.period_name} 已关闭`);
+      throw new Error(
+        `[Depreciation] 日期 ${businessDate} 对应的期间 ${period.period_name} 已关闭`
+      );
     }
 
     return period.id;

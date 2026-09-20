@@ -253,6 +253,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -430,7 +431,7 @@ const handleSubmit = async () => {
       loadTableData()
     } catch (error) {
       console.error('操作失败:', error)
-      ElMessage.error(error.response?.data?.message || '操作失败')
+      ElMessage.error(getApiErrorMessage(error, '操作失败'))
     } finally {
       submitting.value = false
     }
@@ -453,7 +454,7 @@ const handleStatusChange = async (row, newStatus) => {
     // 不显示成功提示，避免频繁弹出
   } catch (error) {
     console.error('状态更新失败:', error)
-    ElMessage.error(error.response?.data?.message || '状态更新失败')
+    ElMessage.error(getApiErrorMessage(error, '状态更新失败'))
     row.status = oldStatus // 回滚状态
   }
 }
@@ -480,7 +481,7 @@ const handleDelete = async (row) => {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('删除失败:', error)
-      ElMessage.error(error.response?.data?.message || '删除失败')
+      ElMessage.error(getApiErrorMessage(error, '删除失败'))
     }
   }
 }

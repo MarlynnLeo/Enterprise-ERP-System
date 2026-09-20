@@ -4,7 +4,11 @@ const InventoryService = require('../InventoryService');
 const InventoryTraceabilityService = require('./InventoryTraceabilityService');
 const DocumentLinkService = require('./DocumentLinkService');
 const { DOCUMENT_LINK_TYPES: DocType } = require('../../constants/documentLinkTypes');
-const { normalizeTaxRate, roundMoney, taxAmount: calculateTaxAmount } = require('../../utils/money');
+const {
+  normalizeTaxRate,
+  roundMoney,
+  taxAmount: calculateTaxAmount,
+} = require('../../utils/money');
 const { financeConfig } = require('../../config/financeConfig');
 const { normalizeUserId, firstValidUserId } = require('../../utils/userUtils');
 const { resolveActorLabel } = require('../../utils/userUtils');
@@ -32,7 +36,7 @@ class QualityIntegrationService {
     const infoMap = await InventoryService.getBatchMaterialInfo([materialId], connection);
     const material = infoMap.get(materialId);
     if (!material) {
-      throw new Error(`Material ${materialId} does not exist`);
+      throw new Error('所选物料不存在或已停用');
     }
 
     const [warehouseRows] = await connection.query(
@@ -40,7 +44,7 @@ class QualityIntegrationService {
       [material.locationId]
     );
     if (warehouseRows.length === 0) {
-      throw new Error(`Material ${material.code || materialId} default warehouse does not exist`);
+      throw new Error(`物料 ${material.code || '所选物料'} 的默认仓库不存在或已停用`);
     }
 
     let unitName = null;
@@ -132,36 +136,47 @@ class QualityIntegrationService {
   ) {
     const receiveQty = this.toNumber(receivedQuantity);
     if (receiveQty <= 0) {
-      throw new Error('Replacement receipt quantity must be greater than zero');
+      throw new Error('换货入库数量必须大于0');
     }
     if (!replacementOrder?.id) {
-      throw new Error('Replacement order is required');
+      throw new Error('缺少换货单信息');
     }
     if (!replacementOrder.material_id) {
-      throw new Error(`Replacement order ${replacementOrder.replacement_no} has no material`);
+      throw new Error(`换货单 ${replacementOrder.replacement_no} 未选择物料`);
     }
     if (!replacementOrder.supplier_id || !replacementOrder.supplier_name) {
-      throw new Error(`Replacement order ${replacementOrder.replacement_no} has no supplier`);
+      throw new Error(`换货单 ${replacementOrder.replacement_no} 缺少供应商信息`);
     }
 
     const receiptDate = this.toDateOnly(actualDate);
     const operator = this.actorName(user, replacementOrder.created_by);
     const createdBy = firstValidUserId(user?.id, replacementOrder.created_by);
     if (!createdBy) {
-      throw new Error(`Replacement order ${replacementOrder.replacement_no} has no traceable owner`);
+      throw new Error(
+        `换货单 ${replacementOrder.replacement_no} 缺少可追溯责任人`
+      );
     }
     const material = await this.getMaterialContext(replacementOrder.material_id, connection);
     const orderContext = await this.getPurchaseOrderContext(replacementOrder, connection);
     const ncp = await this.getNcpContext(replacementOrder, connection);
-    const purchaseReturn = await this.getPurchaseReturnContext(replacementOrder.return_no, connection);
+    const purchaseReturn = await this.getPurchaseReturnContext(
+      replacementOrder.return_no,
+      connection
+    );
     const receiptNo = await purchaseModel.generateReceiptNo(connection);
     const sequence = await this.nextReplacementReceiptSequence(replacementOrder.id, connection);
-    const batchNumber = await this.buildReplacementBatchNumber(replacementOrder, receiptDate, sequence, connection);
+    const batchNumber = await this.buildReplacementBatchNumber(
+      replacementOrder,
+      receiptDate,
+      sequence,
+      connection
+    );
 
-    const unitPrice =
-      this.toNumber(orderContext.price, 0) ||
-      this.toNumber(material.costPrice, 0);
-    const taxRate = normalizeTaxRate(orderContext.tax_rate, financeConfig.get('tax.defaultVATRate', 0.13));
+    const unitPrice = this.toNumber(orderContext.price, 0) || this.toNumber(material.costPrice, 0);
+    const taxRate = normalizeTaxRate(
+      orderContext.tax_rate,
+      financeConfig.get('tax.defaultVATRate', 0.13)
+    );
     const amountExcludingTax = roundMoney(receiveQty * unitPrice);
     const taxAmount = calculateTaxAmount(amountExcludingTax, taxRate);
     const totalAmount = roundMoney(amountExcludingTax + taxAmount);
@@ -183,7 +198,9 @@ class QualityIntegrationService {
       [
         receiptNo,
         orderContext.order_id || null,
-        orderContext.order_no || replacementOrder.purchase_order_no || replacementOrder.replacement_no,
+        orderContext.order_no ||
+          replacementOrder.purchase_order_no ||
+          replacementOrder.replacement_no,
         replacementOrder.supplier_id,
         replacementOrder.supplier_name,
         material.warehouseId,
@@ -239,6 +256,7 @@ class QualityIntegrationService {
         supplier_id: replacementOrder.supplier_id,
         supplier_name: replacementOrder.supplier_name,
         receipt_date: receiptDate,
+        operator_id: createdBy,
         operator,
         items: [
           {
@@ -399,7 +417,14 @@ class QualityIntegrationService {
     );
   }
 
-  static async linkNcpToDocument(ncp, targetType, targetId, targetCode, connection, createdBy = null) {
+  static async linkNcpToDocument(
+    ncp,
+    targetType,
+    targetId,
+    targetCode,
+    connection,
+    createdBy = null
+  ) {
     if (!ncp?.id || !targetType || !targetId) return;
 
     await DocumentLinkService.tryAutoLink(
@@ -463,7 +488,9 @@ class QualityIntegrationService {
       );
 
       if (materials.length === 0) {
-        throw new Error(`Material does not exist for scrap inventory: ${scrapRecord.material_code}`);
+        throw new Error(
+          `报废入库找不到物料“${scrapRecord.material_code || '所选物料'}”，请检查物料基础资料`
+        );
       }
 
       const material = materials[0];

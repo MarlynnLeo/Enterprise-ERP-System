@@ -156,6 +156,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
@@ -242,7 +243,7 @@ const submitForm = async () => {
     formVis.value = false
     fetchData()
     fetchCategories()
-  } catch (err) { ElMessage.error(err.response?.data?.message || '操作失败') }
+  } catch (err) { ElMessage.error(getApiErrorMessage(err, '操作失败')) }
   finally { saving.value = false }
 }
 

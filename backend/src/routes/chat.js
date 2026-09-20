@@ -14,7 +14,6 @@ const { ResponseHandler } = require('../utils/responseHandler');
 const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
 const { normalizeAvatarUrl } = require('../utils/avatarUrl');
 
-
 router.use(authenticateToken);
 
 const CHAT_ACCESS_PERMISSIONS = ['chat:access', 'system:notifications'];
@@ -52,7 +51,8 @@ const getActiveUserIdSet = async (userIds, connection = pool) => {
 router.get('/conversations', async (req, res) => {
   try {
     const userId = getRequestUserId(req);
-    const [rows] = await pool.query(`
+    const [rows] = await pool.query(
+      `
       SELECT
         c.id, c.name, c.type, c.last_message_at, c.last_message_preview, c.created_at,
         cm.unread_count,
@@ -61,19 +61,24 @@ router.get('/conversations', async (req, res) => {
       JOIN chat_conversation_members cm ON cm.conversation_id = c.id
       WHERE cm.user_id = ? AND c.deleted_at IS NULL
       ORDER BY c.last_message_at DESC
-    `, [userId]);
+    `,
+      [userId]
+    );
 
     // 批量查出所有会话的成员信息（消除 N+1）
     const onlineUserIds = getOnlineUsers();
     if (rows.length > 0) {
-      const convIds = rows.map(c => c.id);
+      const convIds = rows.map((c) => c.id);
       const ph = convIds.map(() => '?').join(',');
-      const [allMembers] = await pool.query(`
+      const [allMembers] = await pool.query(
+        `
         SELECT cm.conversation_id, u.id, u.username, u.real_name, u.avatar
         FROM chat_conversation_members cm
         JOIN users u ON u.id = cm.user_id
         WHERE cm.conversation_id IN (${ph})
-      `, convIds);
+      `,
+        convIds
+      );
       // 按会话 ID 分组
       const memberMap = new Map();
       for (const m of allMembers) {
@@ -86,7 +91,7 @@ router.get('/conversations', async (req, res) => {
           member.avatar = normalizeAvatarUrl(member.avatar);
         });
         if (conv.type === 'private') {
-          const other = conv.members.find(m => m.id !== userId);
+          const other = conv.members.find((m) => m.id !== userId);
           if (other) {
             conv.display_name = other.real_name || other.username;
             conv.display_avatar = other.avatar;
@@ -104,118 +109,139 @@ router.get('/conversations', async (req, res) => {
 });
 
 // 创建或获取私聊会话
-router.post('/conversations/private', requirePermission(CHAT_SEND_PERMISSIONS), async (req, res) => {
-  try {
-    const userId = getRequestUserId(req);
-    const targetUserId = parsePositiveUserId(req.body.targetUserId);
-    if (!targetUserId || targetUserId === userId) {
-      return ResponseHandler.error(res, '无效的目标用户', 'VALIDATION_ERROR', 400);
-    }
+router.post(
+  '/conversations/private',
+  requirePermission(CHAT_SEND_PERMISSIONS),
+  async (req, res) => {
+    try {
+      const userId = getRequestUserId(req);
+      const targetUserId = parsePositiveUserId(req.body.targetUserId);
+      if (!targetUserId || targetUserId === userId) {
+        return ResponseHandler.error(res, '无效的目标用户', 'VALIDATION_ERROR', 400);
+      }
 
-    const activeUserIds = await getActiveUserIdSet([targetUserId]);
-    if (!activeUserIds.has(targetUserId)) {
-      return ResponseHandler.error(res, '目标用户不存在或已停用', 'VALIDATION_ERROR', 400);
-    }
+      const activeUserIds = await getActiveUserIdSet([targetUserId]);
+      if (!activeUserIds.has(targetUserId)) {
+        return ResponseHandler.error(res, '目标用户不存在或已停用', 'VALIDATION_ERROR', 400);
+      }
 
-    // 查找是否已有私聊会话
-    const [existing] = await pool.query(`
+      // 查找是否已有私聊会话
+      const [existing] = await pool.query(
+        `
       SELECT c.id FROM chat_conversations c
       JOIN chat_conversation_members cm1 ON cm1.conversation_id = c.id AND cm1.user_id = ?
       JOIN chat_conversation_members cm2 ON cm2.conversation_id = c.id AND cm2.user_id = ?
       WHERE c.type = 'private' AND c.deleted_at IS NULL
       LIMIT 1
-    `, [userId, targetUserId]);
-
-    if (existing.length > 0) {
-      return ResponseHandler.success(res, { conversationId: existing[0].id, isNew: false });
-    }
-
-    // 创建新会话
-    const conn = await pool.getConnection();
-    try {
-      await conn.beginTransaction();
-      const [convResult] = await conn.query(
-        'INSERT INTO chat_conversations (type, created_by) VALUES (?, ?)',
-        ['private', userId]
+    `,
+        [userId, targetUserId]
       );
-      const conversationId = convResult.insertId;
-      await conn.query(
-        'INSERT INTO chat_conversation_members (conversation_id, user_id) VALUES (?, ?), (?, ?)',
-        [conversationId, userId, conversationId, targetUserId]
-      );
-      await conn.commit();
-      ResponseHandler.success(res, { conversationId, isNew: true });
-    } catch (err) {
-      await conn.rollback();
-      throw err;
-    } finally {
-      conn.release();
+
+      if (existing.length > 0) {
+        return ResponseHandler.success(res, { conversationId: existing[0].id, isNew: false });
+      }
+
+      // 创建新会话
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        const [convResult] = await conn.query(
+          'INSERT INTO chat_conversations (type, created_by) VALUES (?, ?)',
+          ['private', userId]
+        );
+        const conversationId = convResult.insertId;
+        await conn.query(
+          'INSERT INTO chat_conversation_members (conversation_id, user_id) VALUES (?, ?), (?, ?)',
+          [conversationId, userId, conversationId, targetUserId]
+        );
+        await conn.commit();
+        ResponseHandler.success(res, { conversationId, isNew: true });
+      } catch (err) {
+        await conn.rollback();
+        throw err;
+      } finally {
+        conn.release();
+      }
+    } catch (error) {
+      logger.error('创建私聊会话失败:', error);
+      ResponseHandler.error(res, '创建会话失败', 'SERVER_ERROR', 500, error);
     }
-  } catch (error) {
-    logger.error('创建私聊会话失败:', error);
-    ResponseHandler.error(res, '创建会话失败', 'SERVER_ERROR', 500, error);
   }
-});
+);
 
 // 创建群聊会话
-router.post('/conversations/group', requirePermission(CHAT_MANAGE_PERMISSIONS), async (req, res) => {
-  try {
-    const userId = getRequestUserId(req);
-    const name = String(req.body.name || '').trim();
-    const memberIds = req.body.memberIds || [];
-    if (!name || name.length > MAX_GROUP_NAME_LENGTH || !Array.isArray(memberIds) || memberIds.length === 0) {
-      return ResponseHandler.error(res, '请提供群名和成员列表', 'VALIDATION_ERROR', 400);
-    }
-    if (memberIds.length > MAX_GROUP_MEMBERS) {
-      return ResponseHandler.error(res, '群聊成员数量超出限制', 'VALIDATION_ERROR', 400);
-    }
-
-    const parsedMemberIds = memberIds.map(parsePositiveUserId);
-    if (parsedMemberIds.some((id) => !id)) {
-      return ResponseHandler.error(res, '成员列表包含无效用户ID', 'VALIDATION_ERROR', 400);
-    }
-
-    const allMembers = [...new Set([userId, ...parsedMemberIds])];
-    const activeUserIds = await getActiveUserIdSet(allMembers);
-    if (activeUserIds.size !== allMembers.length) {
-      return ResponseHandler.error(res, '成员列表包含不存在或已停用的用户', 'VALIDATION_ERROR', 400);
-    }
-
-    const conn = await pool.getConnection();
+router.post(
+  '/conversations/group',
+  requirePermission(CHAT_MANAGE_PERMISSIONS),
+  async (req, res) => {
     try {
-      await conn.beginTransaction();
-      const [convResult] = await conn.query(
-        'INSERT INTO chat_conversations (name, type, created_by) VALUES (?, ?, ?)',
-        [name, 'group', userId]
-      );
-      const conversationId = convResult.insertId;
-      const values = allMembers.map(id => [conversationId, id]);
-      await conn.query(
-        'INSERT INTO chat_conversation_members (conversation_id, user_id) VALUES ?',
-        [values]
-      );
-      // 插入系统消息
-      await conn.query(
-        'INSERT INTO chat_messages (conversation_id, sender_id, content, type) VALUES (?, ?, ?, ?)',
-        [conversationId, userId, '群聊已创建', 'system']
-      );
-      await conn.query(
-        'UPDATE chat_conversations SET last_message_at = NOW(), last_message_preview = ? WHERE id = ?',
-        ['群聊已创建', conversationId]
-      );
-      await conn.commit();
-      ResponseHandler.success(res, { conversationId });
-    } catch (err) {
-      await conn.rollback();
-      throw err;
-    } finally {
-      conn.release();
+      const userId = getRequestUserId(req);
+      const name = String(req.body.name || '').trim();
+      const memberIds = req.body.memberIds || [];
+      if (
+        !name ||
+        name.length > MAX_GROUP_NAME_LENGTH ||
+        !Array.isArray(memberIds) ||
+        memberIds.length === 0
+      ) {
+        return ResponseHandler.error(res, '请提供群名和成员列表', 'VALIDATION_ERROR', 400);
+      }
+      if (memberIds.length > MAX_GROUP_MEMBERS) {
+        return ResponseHandler.error(res, '群聊成员数量超出限制', 'VALIDATION_ERROR', 400);
+      }
+
+      const parsedMemberIds = memberIds.map(parsePositiveUserId);
+      if (parsedMemberIds.some((id) => !id)) {
+        return ResponseHandler.error(res, '成员列表包含无效用户', 'VALIDATION_ERROR', 400);
+      }
+
+      const allMembers = [...new Set([userId, ...parsedMemberIds])];
+      const activeUserIds = await getActiveUserIdSet(allMembers);
+      if (activeUserIds.size !== allMembers.length) {
+        return ResponseHandler.error(
+          res,
+          '成员列表包含不存在或已停用的用户',
+          'VALIDATION_ERROR',
+          400
+        );
+      }
+
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        const [convResult] = await conn.query(
+          'INSERT INTO chat_conversations (name, type, created_by) VALUES (?, ?, ?)',
+          [name, 'group', userId]
+        );
+        const conversationId = convResult.insertId;
+        const values = allMembers.map((id) => [conversationId, id]);
+        await conn.query(
+          'INSERT INTO chat_conversation_members (conversation_id, user_id) VALUES ?',
+          [values]
+        );
+        // 插入系统消息
+        await conn.query(
+          'INSERT INTO chat_messages (conversation_id, sender_id, content, type) VALUES (?, ?, ?, ?)',
+          [conversationId, userId, '群聊已创建', 'system']
+        );
+        await conn.query(
+          'UPDATE chat_conversations SET last_message_at = NOW(), last_message_preview = ? WHERE id = ?',
+          ['群聊已创建', conversationId]
+        );
+        await conn.commit();
+        ResponseHandler.success(res, { conversationId });
+      } catch (err) {
+        await conn.rollback();
+        throw err;
+      } finally {
+        conn.release();
+      }
+    } catch (error) {
+      logger.error('创建群聊失败:', error);
+      ResponseHandler.error(res, '创建群聊失败', 'SERVER_ERROR', 500, error);
     }
-  } catch (error) {
-    logger.error('创建群聊失败:', error);
-    ResponseHandler.error(res, '创建群聊失败', 'SERVER_ERROR', 500, error);
   }
-});
+);
 
 // ==================== 消息管理 ====================
 
@@ -238,7 +264,8 @@ router.get('/conversations/:id/messages', async (req, res) => {
       return ResponseHandler.error(res, '无权访问该会话', 'FORBIDDEN', 403);
     }
 
-    const messageSql = appendPaginationSQL(`
+    const messageSql = appendPaginationSQL(
+      `
       SELECT
         m.id, m.conversation_id, m.sender_id, m.content, m.type,
         m.file_url, m.file_name, m.created_at,
@@ -247,7 +274,10 @@ router.get('/conversations/:id/messages', async (req, res) => {
       LEFT JOIN users u ON u.id = m.sender_id
       WHERE m.conversation_id = ? AND m.deleted_at IS NULL
       ORDER BY m.created_at DESC
-    `, pagination.limit, pagination.offset);
+    `,
+      pagination.limit,
+      pagination.offset
+    );
     const [messages] = await pool.query(messageSql, [conversationId]);
     messages.forEach((message) => {
       message.sender_avatar = normalizeAvatarUrl(message.sender_avatar);
@@ -282,7 +312,9 @@ router.get('/conversations/:id/messages', async (req, res) => {
 router.get('/contacts', requirePermission(CHAT_SEND_PERMISSIONS), async (req, res) => {
   try {
     const userId = getRequestUserId(req);
-    const search = String(req.query.search || '').trim().slice(0, 50);
+    const search = String(req.query.search || '')
+      .trim()
+      .slice(0, 50);
     let query = `
       SELECT id, username, real_name, avatar, department AS department_name
       FROM users
@@ -300,7 +332,9 @@ router.get('/contacts', requirePermission(CHAT_SEND_PERMISSIONS), async (req, re
       user.avatar = normalizeAvatarUrl(user.avatar);
     });
     const onlineUserIds = getOnlineUsers();
-    users.forEach(u => { u.online = onlineUserIds.includes(u.id); });
+    users.forEach((u) => {
+      u.online = onlineUserIds.includes(u.id);
+    });
 
     ResponseHandler.success(res, { list: users });
   } catch (error) {

@@ -15,7 +15,9 @@ async function transaction(work) {
   } catch (error) {
     await connection.rollback();
     throw error;
-  } finally { connection.release(); }
+  } finally {
+    connection.release();
+  }
 }
 
 const projection = `
@@ -31,46 +33,71 @@ const projection = `
   LEFT JOIN users u ON u.id = p.operator_id`;
 
 function stepView(row) {
-  const snapshot = typeof row.process_snapshot === 'string' ? JSON.parse(row.process_snapshot) : row.process_snapshot || {};
+  const snapshot =
+    typeof row.process_snapshot === 'string'
+      ? JSON.parse(row.process_snapshot)
+      : row.process_snapshot || {};
   return {
-    ...row, status: row.status === 'cancelled' ? 'skipped' : row.status,
-    sop_content: snapshot.sop_content || '', sop_images: jsonArray(snapshot.sop_images),
-    instruction_docs: jsonArray(snapshot.instruction_docs), materials: jsonArray(snapshot.materials),
+    ...row,
+    status: row.status === 'cancelled' ? 'skipped' : row.status,
+    sop_content: snapshot.sop_content || '',
+    sop_images: jsonArray(snapshot.sop_images),
+    instruction_docs: jsonArray(snapshot.instruction_docs),
+    materials: jsonArray(snapshot.materials),
     remark: row.remarks,
   };
 }
 
 class AssemblyExecutionService {
   static async generateSteps(taskId) {
-    return transaction(async connection => {
+    return transaction(async (connection) => {
       await ProductProcessTaskService.initializeTask(connection, taskId);
       return this.getTaskSteps(taskId, connection);
     });
   }
   static async getTaskSteps(taskId, connection = pool) {
-    const [rows] = await connection.query(projection + ' WHERE p.task_id = ? ORDER BY p.sequence, p.id', [taskId]);
+    const [rows] = await connection.query(
+      projection + ' WHERE p.task_id = ? ORDER BY p.sequence, p.id',
+      [taskId]
+    );
     const steps = rows.map(stepView);
-    const completedSteps = steps.filter(step => step.status === 'completed').length;
-    const skippedSteps = steps.filter(step => step.status === 'skipped').length;
-    return { taskId, steps, totalSteps: steps.length, completedSteps, skippedSteps,
-      progressPercent: steps.length ? Math.round((completedSteps + skippedSteps) / steps.length * 100) : 0 };
+    const completedSteps = steps.filter((step) => step.status === 'completed').length;
+    const skippedSteps = steps.filter((step) => step.status === 'skipped').length;
+    return {
+      taskId,
+      steps,
+      totalSteps: steps.length,
+      completedSteps,
+      skippedSteps,
+      progressPercent: steps.length
+        ? Math.round(((completedSteps + skippedSteps) / steps.length) * 100)
+        : 0,
+    };
   }
   static async getStepDetail(id, connection = pool) {
     const [rows] = await connection.query(projection + ' WHERE p.id = ?', [id]);
     return rows.length ? stepView(rows[0]) : null;
   }
   static async changeStep(id, data, operator = {}) {
-    return transaction(async connection => {
+    return transaction(async (connection) => {
       const result = await ProductProcessExecutionService.update(connection, id, data, operator);
       return { ...result, step: await this.getStepDetail(id, connection) };
     });
   }
   static async startStep(id, operatorId, stationId = null) {
-    return this.changeStep(id, { status: 'in_progress', ...(stationId ? { station_id: stationId } : {}) }, { operatorId });
+    return this.changeStep(
+      id,
+      { status: 'in_progress', ...(stationId ? { station_id: stationId } : {}) },
+      { operatorId }
+    );
   }
   static async completeStep(id, data = {}, operator = {}) {
     const input = mapKeysToSnake(data);
-    return this.changeStep(id, { ...input, remarks: input.remarks ?? input.remark, status: 'completed' }, operator);
+    return this.changeStep(
+      id,
+      { ...input, remarks: input.remarks ?? input.remark, status: 'completed' },
+      operator
+    );
   }
   static async skipStep(id, reason, operator = {}) {
     return this.changeStep(id, { status: 'cancelled', remarks: reason }, operator);

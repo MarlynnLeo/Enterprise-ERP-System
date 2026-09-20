@@ -16,10 +16,6 @@ const { authenticateToken } = require('../middleware/authEnhanced');
  * Query参数:
  *   - city: 城市名称，默认"乐清"
  */
-router.get(
-  '/current',
-  authenticateToken,
-  weatherController.getWeather
-);
+router.get('/current', authenticateToken, weatherController.getWeather);
 
 module.exports = router;

@@ -55,7 +55,7 @@ class ProductionBatchTraceabilityService {
          FROM inventory_inbound WHERE id = ? AND is_deleted = 0 FOR UPDATE`,
       [inboundId]
     );
-    if (!inbound) throw new Error(`生产入库单 ${inboundId} 不存在`);
+    if (!inbound) throw new Error('生产入库单不存在或已被删除');
     if (inbound.inbound_type !== 'production' || inbound.status !== 'completed') {
       return { skipped: true, created: 0 };
     }
@@ -91,16 +91,20 @@ class ProductionBatchTraceabilityService {
     );
     if (!items.length) throw new Error(`生产入库单 ${inbound.inbound_no} 没有入库明细`);
     for (const item of items) {
-      if (!item.batch_number || !(Number(item.quantity) > 0) || Number(item.material_id) !== Number(task.product_id)) {
+      if (
+        !item.batch_number ||
+        !(Number(item.quantity) > 0) ||
+        Number(item.material_id) !== Number(task.product_id)
+      ) {
         throw new Error(`生产任务 ${task.code} 的入库产品、批次或数量无效`);
       }
     }
-    const totalProduced = Precision.add(...items.map(item => Number(item.quantity)));
+    const totalProduced = Precision.add(...items.map((item) => Number(item.quantity)));
 
     const consumed = await this.getConsumedBatches(connection, task.id);
     if (!consumed.length) {
       throw new Error(
-        `生产任务 ${task.id}(${task.code}) 未找到已完成领料单的原料领用记录（含待财务过账明细），不能建立消耗追溯关系`
+        `生产任务 ${task.code} 未找到已完成领料单的原料领用记录（含待财务过账明细），不能建立消耗追溯关系`
       );
     }
     const missingBatch = consumed.find((row) => !row.raw_batch_number);
@@ -123,7 +127,13 @@ class ProductionBatchTraceabilityService {
           AND relationship_type = 'consume' AND process_type = 'production' ORDER BY id FOR UPDATE`,
       [task.id]
     );
-    const keyOf = row => JSON.stringify([row.parent_material_code, row.parent_batch_number, row.child_material_code, row.child_batch_number]);
+    const keyOf = (row) =>
+      JSON.stringify([
+        row.parent_material_code,
+        row.parent_batch_number,
+        row.child_material_code,
+        row.child_batch_number,
+      ]);
     const byKey = new Map();
     for (const row of existing) if (!byKey.has(keyOf(row))) byKey.set(keyOf(row), row);
     const retained = new Set();
@@ -135,19 +145,31 @@ class ProductionBatchTraceabilityService {
       for (const [index, item] of items.entries()) {
         const producedQuantity = Number(item.quantity);
         producedSoFar = Precision.add(producedSoFar, producedQuantity);
-        const cumulativeAllocation = index === items.length - 1 ? totalConsumed
-          : Precision.round(Precision.mul(totalConsumed, Precision.div(producedSoFar, totalProduced)), 4);
+        const cumulativeAllocation =
+          index === items.length - 1
+            ? totalConsumed
+            : Precision.round(
+                Precision.mul(totalConsumed, Precision.div(producedSoFar, totalProduced)),
+                4
+              );
         const consumedQuantity = Precision.sub(cumulativeAllocation, allocated);
         allocated = cumulativeAllocation;
         const relation = {
-          parent_material_code: raw.raw_material_code, parent_batch_number: raw.raw_batch_number,
-          child_material_code: item.material_code, child_batch_number: item.batch_number,
+          parent_material_code: raw.raw_material_code,
+          parent_batch_number: raw.raw_batch_number,
+          child_material_code: item.material_code,
+          child_batch_number: item.batch_number,
         };
         const previous = byKey.get(keyOf(relation));
         if (previous) {
           await connection.execute(
             'UPDATE batch_relationships SET consumed_quantity = ?, produced_quantity = ?, conversion_ratio = ? WHERE id = ?',
-            [consumedQuantity, producedQuantity, Precision.div(consumedQuantity, producedQuantity), previous.id]
+            [
+              consumedQuantity,
+              producedQuantity,
+              Precision.div(consumedQuantity, producedQuantity),
+              previous.id,
+            ]
           );
           retained.add(previous.id);
           continue;
@@ -161,17 +183,26 @@ class ProductionBatchTraceabilityService {
            ) VALUES (NULL, NULL, ?, ?, ?, ?, 'consume', ?, ?, ?, 'production',
                      'production_task', ?, ?, ?, ?, NOW())`,
           [
-            raw.raw_material_code, item.material_code, raw.raw_batch_number, item.batch_number,
-            consumedQuantity, producedQuantity, Precision.div(consumedQuantity, producedQuantity),
-            task.id, task.code, actor, `生产任务 ${task.code} 原料消耗按已入库产量分摊`,
+            raw.raw_material_code,
+            item.material_code,
+            raw.raw_batch_number,
+            item.batch_number,
+            consumedQuantity,
+            producedQuantity,
+            Precision.div(consumedQuantity, producedQuantity),
+            task.id,
+            task.code,
+            actor,
+            `生产任务 ${task.code} 原料消耗按已入库产量分摊`,
           ]
         );
         created += 1;
       }
     }
     // Remove only superseded/duplicate generated edges belonging to this task.
-    const obsolete = existing.filter(row => !retained.has(row.id)).map(row => row.id);
-    if (obsolete.length) await connection.query('DELETE FROM batch_relationships WHERE id IN (?)', [obsolete]);
+    const obsolete = existing.filter((row) => !retained.has(row.id)).map((row) => row.id);
+    if (obsolete.length)
+      await connection.query('DELETE FROM batch_relationships WHERE id IN (?)', [obsolete]);
 
     logger.info(`[追溯] 生产入库单 ${inbound.inbound_no} 已建立 ${created} 条原料消耗关系`);
     return { inboundId, taskId: task.id, consumedBatches: consumed.length, created };

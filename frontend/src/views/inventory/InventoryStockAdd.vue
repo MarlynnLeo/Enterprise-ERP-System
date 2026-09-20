@@ -141,6 +141,7 @@ import { ElMessage } from 'element-plus/es/components/message/index'
 import { InfoFilled } from '@element-plus/icons-vue'
 import { inventoryApi, baseDataApi } from '@/api'
 import { SEARCH_CONFIG, searchMaterials as performSearchMaterials, mapMaterialData } from '@/utils/searchConfig'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 // ===== 响应式数据 =====
 const formRef = ref(null)
 const materialOptions = ref([])
@@ -297,11 +298,7 @@ const submitForm = async () => {
         emit('update:modelValue', false)
         resetForm()
       } catch (error) {
-        const msg =
-          error?.response?.data?.message ||
-          error?.response?.data?.error ||
-          error?.message ||
-          '提交失败'
+        const msg = getApiErrorMessage(error, '提交失败')
         ElMessage.error(msg)
         console.error(error)
       } finally {

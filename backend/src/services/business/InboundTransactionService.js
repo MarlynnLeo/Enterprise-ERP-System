@@ -25,7 +25,13 @@ class InboundTransactionService {
    * @param {Object} inboundData 入库主表数据
    * @param {Number|null} businessApprovedById 当前业务完成操作人的认证用户ID
    */
-  static async confirmInbound(connection, inboundId, operator, inboundData, businessApprovedById = null) {
+  static async confirmInbound(
+    connection,
+    inboundId,
+    operator,
+    inboundData,
+    businessApprovedById = null
+  ) {
     logger.info(`开始分离核心入库处理，入库单ID: ${inboundId}`);
 
     // 获取入库单信息
@@ -66,9 +72,7 @@ class InboundTransactionService {
     let productionUnitCost = null;
     if (inboundType === 'production') {
       let taskId =
-        inboundData.reference_type === 'production_task'
-          ? Number(inboundData.reference_id)
-          : null;
+        inboundData.reference_type === 'production_task' ? Number(inboundData.reference_id) : null;
       if (!taskId && inspection_id) {
         const [taskRefs] = await connection.execute(
           `SELECT COALESCE(task_id, reference_id) AS task_id
@@ -95,7 +99,7 @@ class InboundTransactionService {
       });
       productionUnitCost = Number(costResult?.actualCost?.unitCost) || 0;
       if (productionUnitCost <= 0) {
-        throw new Error(`生产任务 ${taskId} 实际单位成本无效，不能完成成品入库`);
+        throw new Error('生产任务实际单位成本无效，不能完成成品入库');
       }
     }
 
@@ -104,7 +108,7 @@ class InboundTransactionService {
     for (const item of inboundItems) {
       if (!item.material_id) {
         logger.error('物料ID为空');
-        throw new Error('物料ID为空');
+        throw new Error('请选择物料');
       }
 
       // 获取物料的基础信息单位和仓库
@@ -114,7 +118,7 @@ class InboundTransactionService {
 
       if (!unitId) {
         logger.error(`物料 ${item.material_id} 没有单位`);
-        throw new Error(`物料 ${item.material_id} 没有单位`);
+        throw new Error(`物料 ${matInfo.code || '所选物料'} 没有配置计量单位`);
       }
 
       const currentStock = await InventoryService.getCurrentStock(
@@ -211,7 +215,7 @@ class InboundTransactionService {
 
         if (!finalBatchNumber) {
           throw new Error(
-            `入库明细缺少可追溯批次号: inbound_no=${inboundData.inbound_no}, material_id=${item.material_id}`
+            `入库明细缺少可追溯批次号：入库单 ${inboundData.inbound_no}，物料“${item.material_code || item.material_name || '所选物料'}”`
           );
         }
 
@@ -235,9 +239,8 @@ class InboundTransactionService {
         after: afterQuantity,
       });
 
-      let resolvedUnitCost = inboundType === 'production'
-        ? productionUnitCost
-        : Number(matInfo.costPrice) || 0;
+      let resolvedUnitCost =
+        inboundType === 'production' ? productionUnitCost : Number(matInfo.costPrice) || 0;
       if (['sales_return', 'production_return', 'defective_return'].includes(inboundType)) {
         const [sourceCosts] = await connection.execute(
           `SELECT unit_cost
@@ -254,7 +257,7 @@ class InboundTransactionService {
       }
       if (resolvedUnitCost <= 0) {
         throw new Error(
-          `入库单 ${inboundData.inbound_no} 的物料 ${item.material_id} 缺少可证明的正数单位成本，不能入库`
+          `入库单 ${inboundData.inbound_no} 的物料 ${item.material_code || '所选物料'} 缺少可证明的正数单位成本，不能入库`
         );
       }
 
@@ -318,7 +321,9 @@ class InboundTransactionService {
     // 标准业务链：质检/业务引用 → 入库单
     const DocumentChainService = require('./DocumentChainService');
     const linkActor =
-      businessApprovedById || (inboundData && (inboundData.updated_by || inboundData.created_by)) || null;
+      businessApprovedById ||
+      (inboundData && (inboundData.updated_by || inboundData.created_by)) ||
+      null;
     await DocumentChainService.afterInventoryInboundConfirmed(
       {
         id: inboundId,
@@ -365,7 +370,7 @@ class InboundTransactionService {
       [taskId]
     );
     if (taskResult.length === 0) {
-      throw new Error(`成品入库关联的生产任务不存在: ${taskId}`);
+      throw new Error('成品入库关联的生产任务不存在或已被删除');
     }
 
     const task = taskResult[0];
@@ -403,18 +408,16 @@ class InboundTransactionService {
     );
     const totalQualified = parseFloat(qualifiedRows[0]?.q) || 0;
     const qtyCap =
-      totalQualified > 0 ? Math.min(planQty || totalQualified, totalQualified) : planQty || totalWarehoused;
+      totalQualified > 0
+        ? Math.min(planQty || totalQualified, totalQualified)
+        : planQty || totalWarehoused;
 
     // 本单数量不得把累计推过 cap（ε=0.0001）
     if (qtyCap > 0 && totalWarehoused > qtyCap + 0.0001) {
-      throw new Error(
-        `生产入库累计数量 ${totalWarehoused} 超过任务/终检上限 ${qtyCap}，禁止过账`
-      );
+      throw new Error(`生产入库累计数量 ${totalWarehoused} 超过任务/终检上限 ${qtyCap}，禁止过账`);
     }
 
-    const isFullComplete = qtyCap <= 0
-      ? totalWarehoused > 0
-      : totalWarehoused + 0.0001 >= qtyCap;
+    const isFullComplete = qtyCap <= 0 ? totalWarehoused > 0 : totalWarehoused + 0.0001 >= qtyCap;
 
     let targetStatus = isFullComplete ? 'completed' : 'warehousing';
     // 若仍处于 inspection，至少推进到 warehousing
@@ -608,7 +611,7 @@ class InboundTransactionService {
 
                 if (!item.batch_number) {
                   throw new Error(
-                    `产品入库追溯缺少批次号: inbound_no=${inboundData.inbound_no}, material_id=${item.material_id}`
+                    `产品入库追溯缺少批次号：入库单 ${inboundData.inbound_no}，物料“${productCode || '所选物料'}”`
                   );
                 }
                 const batchNumber = item.batch_number;

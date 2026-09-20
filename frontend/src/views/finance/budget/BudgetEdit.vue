@@ -177,6 +177,7 @@ import { useRouter, useRoute } from 'vue-router';
 import { financeApi } from '@/api/finance';
 import { formatAmount } from '@/utils/format'
 import { loadDepartmentOptions } from '@/utils/optionLoaders';
+import { getApiErrorMessage } from '@/utils/errorHandler'
 
 const dictStore = useDictionaryStore()
 
@@ -337,7 +338,7 @@ const handleSave = async () => {
   } catch (error) {
     if (error.name !== 'ValidationError') {
       console.error('保存失败:', error);
-      ElMessage.error(error.response?.data?.message || error.response?.data?.error || error.message || '保存失败');
+      ElMessage.error(getApiErrorMessage(error, '保存失败'));
     }
   } finally {
     saving.value = false;

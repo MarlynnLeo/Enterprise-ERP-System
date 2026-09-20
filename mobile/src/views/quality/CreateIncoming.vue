@@ -69,6 +69,7 @@ import { NavBar, Form, Field, Cell, CellGroup, Button, Popup, DatePicker, Picker
   showToast, showLoadingToast, closeToast } from 'vant'
 import { purchaseApi, qualityApi } from '@/api'
 import { extractApiData, extractApiList, extractApiTotal } from '@/utils/apiHelper'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 
 const router = useRouter()
 const today = new Date()
@@ -126,7 +127,7 @@ const loadOrders = async (reset = false) => {
     ordersFinished.value = list.length < 50 || (total >= 0 && page * 50 >= total)
     orderPage = page + 1
   } catch (error) {
-    if (request === orderListRequest) showToast(error.response?.data?.message || '采购订单加载失败')
+    if (request === orderListRequest) showToast(getApiErrorMessage(error, '采购订单加载失败'))
   } finally {
     if (request === orderListRequest) ordersLoading.value = false
   }
@@ -157,7 +158,7 @@ const selectOrder = async (order) => {
     orderItems.value = (detail.items || []).filter(item => item.materialId)
     showOrderPicker.value = false
   } catch (error) {
-    if (selection === orderSelection) showToast(error.response?.data?.message || error.message || '采购订单明细加载失败')
+    if (selection === orderSelection) showToast(getApiErrorMessage(error, '采购订单明细加载失败'))
   } finally {
     if (selection === orderSelection) orderLoading.value = false
   }
@@ -189,7 +190,7 @@ const loadTemplates = async () => {
     }
     if (options.length === 0) showToast('该物料暂无有效来料检验模板，请先维护模板')
   } catch (error) {
-    if (request === templateRequest) showToast(error.response?.data?.message || '检验模板加载失败')
+    if (request === templateRequest) showToast(getApiErrorMessage(error, '检验模板加载失败'))
   } finally {
     if (request === templateRequest) templateLoading.value = false
   }
@@ -247,7 +248,7 @@ const onSubmit = async () => {
     router.replace('/quality/incoming')
   } catch (error) {
     closeToast()
-    showToast(error.response?.data?.message || '创建失败，请重试')
+    showToast(getApiErrorMessage(error, '创建失败，请重试'))
   } finally {
     submitting.value = false
   }

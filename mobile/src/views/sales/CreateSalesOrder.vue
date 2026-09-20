@@ -147,6 +147,7 @@
   import { useRouter } from 'vue-router'
   import { NavBar, Button, Form, Field, Popup, Search, Empty, Icon as VanIcon, showToast, showLoadingToast, closeToast } from 'vant'
   import { salesApi, baseDataApi } from '@/api'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const router = useRouter()
   const formRef = ref()
@@ -278,7 +279,7 @@
     } catch (e) {
       closeToast()
       console.error('创建销售订单失败:', e)
-      showToast(e.response?.data?.message || '创建销售订单失败')
+      showToast(getApiErrorMessage(e, '创建销售订单失败'))
     } finally { submitting.value = false }
   }
 

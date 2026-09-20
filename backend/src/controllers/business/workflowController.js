@@ -14,7 +14,10 @@ module.exports = {
     try {
       const data = await WorkflowService.getTemplates(mapKeysToSnake(req.query || {}));
       ResponseHandler.success(res, data);
-    } catch (e) { logger.error('获取工作流模板失败:', e); ResponseHandler.error(res, e.message); }
+    } catch (e) {
+      logger.error('获取工作流模板失败:', e);
+      ResponseHandler.error(res, e.message);
+    }
   },
 
   async getTemplateById(req, res) {
@@ -22,7 +25,10 @@ module.exports = {
       const data = await WorkflowService.getTemplateById(req.params.id);
       if (!data) return ResponseHandler.notFound(res, '模板不存在');
       ResponseHandler.success(res, data);
-    } catch (e) { logger.error('获取模板详情失败:', e); ResponseHandler.error(res, e.message); }
+    } catch (e) {
+      logger.error('获取模板详情失败:', e);
+      ResponseHandler.error(res, e.message);
+    }
   },
 
   async createTemplate(req, res) {
@@ -30,7 +36,10 @@ module.exports = {
       const userId = req.user?.userId || req.user?.id;
       const data = await WorkflowService.createTemplate(mapKeysToSnake(req.body || {}), userId);
       ResponseHandler.success(res, data, '创建成功');
-    } catch (e) { logger.error('创建模板失败:', e); ResponseHandler.error(res, e.message); }
+    } catch (e) {
+      logger.error('创建模板失败:', e);
+      ResponseHandler.error(res, e.message);
+    }
   },
 
   async updateTemplate(req, res) {
@@ -42,14 +51,20 @@ module.exports = {
         userId
       );
       ResponseHandler.success(res, data, '更新成功');
-    } catch (e) { logger.error('更新模板失败:', e); ResponseHandler.error(res, e.message); }
+    } catch (e) {
+      logger.error('更新模板失败:', e);
+      ResponseHandler.error(res, e.message);
+    }
   },
 
   async deleteTemplate(req, res) {
     try {
       await WorkflowService.deleteTemplate(req.params.id);
       ResponseHandler.success(res, null, '删除成功');
-    } catch (e) { logger.error('删除模板失败:', e); ResponseHandler.error(res, e.message); }
+    } catch (e) {
+      logger.error('删除模板失败:', e);
+      ResponseHandler.error(res, e.message);
+    }
   },
 
   // ========== 审批流程 ==========
@@ -59,7 +74,10 @@ module.exports = {
       const body = mapKeysToSnake(req.body || {});
       const data = await WorkflowService.startWorkflow({ ...body, initiator_id: userId });
       ResponseHandler.success(res, data);
-    } catch (e) { logger.error('发起审批失败:', e); ResponseHandler.error(res, e.message); }
+    } catch (e) {
+      logger.error('发起审批失败:', e);
+      ResponseHandler.error(res, e.message);
+    }
   },
 
   async handleApproval(req, res) {
@@ -76,13 +94,7 @@ module.exports = {
       ResponseHandler.success(res, data);
     } catch (e) {
       logger.error('审批操作失败:', e);
-      ResponseHandler.error(
-        res,
-        e.message,
-        e.errorCode || 'ERROR',
-        e.statusCode || 500,
-        e
-      );
+      ResponseHandler.error(res, e.message, e.errorCode || 'ERROR', e.statusCode || 500, e);
     }
   },
 
@@ -91,7 +103,10 @@ module.exports = {
       const userId = req.user?.userId || req.user?.id;
       const data = await WorkflowService.withdrawWorkflow(req.params.id, userId);
       ResponseHandler.success(res, data, '已撤回');
-    } catch (e) { logger.error('撤回审批失败:', e); ResponseHandler.error(res, e.message); }
+    } catch (e) {
+      logger.error('撤回审批失败:', e);
+      ResponseHandler.error(res, e.message);
+    }
   },
 
   async getInstanceById(req, res) {
@@ -103,7 +118,10 @@ module.exports = {
       const data = await WorkflowService.getInstanceById(req.params.id);
       if (!data) return ResponseHandler.notFound(res);
       ResponseHandler.success(res, data);
-    } catch (e) { logger.error('获取审批详情失败:', e); ResponseHandler.error(res, e.message); }
+    } catch (e) {
+      logger.error('获取审批详情失败:', e);
+      ResponseHandler.error(res, e.message);
+    }
   },
 
   async getMyInitiated(req, res) {
@@ -111,7 +129,10 @@ module.exports = {
       const userId = req.user?.userId || req.user?.id;
       const data = await WorkflowService.getMyInitiated(userId, mapKeysToSnake(req.query || {}));
       ResponseHandler.success(res, data);
-    } catch (e) { logger.error('获取我发起的审批失败:', e); ResponseHandler.error(res, e.message); }
+    } catch (e) {
+      logger.error('获取我发起的审批失败:', e);
+      ResponseHandler.error(res, e.message);
+    }
   },
 
   async getMyPending(req, res) {
@@ -119,7 +140,10 @@ module.exports = {
       const userId = req.user?.userId || req.user?.id;
       const data = await WorkflowService.getMyPending(userId, mapKeysToSnake(req.query || {}));
       ResponseHandler.success(res, data);
-    } catch (e) { logger.error('获取待审批失败:', e); ResponseHandler.error(res, e.message); }
+    } catch (e) {
+      logger.error('获取待审批失败:', e);
+      ResponseHandler.error(res, e.message);
+    }
   },
 
   async getWorkflowByBusiness(req, res) {
@@ -135,6 +159,9 @@ module.exports = {
         }
       }
       ResponseHandler.success(res, data);
-    } catch (e) { logger.error('获取业务审批状态失败:', e); ResponseHandler.error(res, e.message); }
+    } catch (e) {
+      logger.error('获取业务审批状态失败:', e);
+      ResponseHandler.error(res, e.message);
+    }
   },
 };

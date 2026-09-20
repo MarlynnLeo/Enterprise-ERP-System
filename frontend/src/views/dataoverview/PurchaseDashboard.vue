@@ -450,7 +450,7 @@ async function loadData() {
       const list = parseListData(ordersRes.value, { enableLog: false })
       purchaseOrders.value = list.map(order => ({
         id: order.id,
-        orderNo: order.orderNo || order.orderNumber || `PO${order.id}`,
+        orderNo: order.orderNo || order.orderNumber || '未命名采购订单',
         orderDate: order.orderDate || order.createdAt,
         expectedDeliveryDate: order.expectedDeliveryDate,
         supplierName: order.supplierName || (order.supplier && order.supplier.name) || order.supplier || '未知供应商',

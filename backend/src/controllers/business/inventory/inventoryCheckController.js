@@ -28,7 +28,6 @@ const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity)
 // DRY: 两处引用相同子查询，统一使用 STOCK_SUBQUERY
 const SIMPLE_STOCK_SUBQUERY = STOCK_SUBQUERY;
 
-
 // 引入库存一致性校验服务
 
 // 引入成本凭证服务（用于生成领料凭证）
@@ -36,7 +35,6 @@ const SIMPLE_STOCK_SUBQUERY = STOCK_SUBQUERY;
 // 引入重构后的入库处理服务
 
 // 引入状态映射工具和状态常量
-
 
 /**
  * 获取物料的批次号（FIFO原则）
@@ -54,7 +52,8 @@ const getCheckStatistics = async (req, res) => {
       tableAlias: 'c',
       ownerAlias: 'inventory_check_stats_owner_scope',
     });
-    const [results] = await db.pool.execute(`
+    const [results] = await db.pool.execute(
+      `
       SELECT
         COUNT(*) as total,
         SUM(CASE WHEN c.status = 'draft' THEN 1 ELSE 0 END) as draft,
@@ -65,7 +64,9 @@ const getCheckStatistics = async (req, res) => {
       FROM inventory_checks c
       ${scopeClause.join || ''}
       WHERE c.deleted_at IS NULL${scopeClause.where || ''}
-    `, scopeClause.params || []);
+    `,
+      scopeClause.params || []
+    );
 
     ResponseHandler.success(res, results[0], '获取库存盘点统计信息成功');
   } catch (error) {
@@ -78,7 +79,8 @@ const getCheckStatistics = async (req, res) => {
 
 const getCheckList = async (req, res) => {
   try {
-    // 列表查询 camel → snake    const q = inventoryCheckMap.fromListQuery(req.query || {});
+    // 列表查询 camel → snake
+    const q = inventoryCheckMap.fromListQuery(req.query || {});
     const page = req.query.page || 1;
     const limit = req.query.limit || 20;
     const search = q.search || '';
@@ -180,7 +182,8 @@ const getCheckList = async (req, res) => {
 
     const [checks] = await db.pool.execute(listQuery, params);
 
-    // 出参仅 camel（inventoryCheckMap）    const processedChecks = checks.map((check) =>
+    // 出参仅 camel（inventoryCheckMap）
+    const processedChecks = checks.map((check) =>
       inventoryCheckMap.toApi({
         ...check,
         warehouse: check.location_name || '未知仓库',
@@ -253,7 +256,8 @@ const getCheckDetail = async (req, res) => {
       [id]
     );
 
-    // 出参仅 camel（inventoryCheckMap）    const processedItems = items.map((item) => ({
+    // 出参仅 camel（inventoryCheckMap）
+    const processedItems = items.map((item) => ({
       ...item,
       system_quantity: parseFloat(item.system_quantity || 0),
       actual_quantity: parseFloat(item.actual_quantity || 0),
@@ -284,7 +288,8 @@ const createCheck = async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    // HTTP camel → snake（inventoryCheckMap）    const mapped = inventoryCheckMap.fromApi(req.body || {});
+    // HTTP camel → snake（inventoryCheckMap）
+    const mapped = inventoryCheckMap.fromApi(req.body || {});
     const location_id = mapped.location_id;
     const check_date = mapped.check_date;
     const check_type = mapped.check_type;
@@ -334,7 +339,8 @@ const createCheck = async (req, res) => {
 
     // 仅针对 全面盘点（full）或周期盘点（cycle），或者未分类的库位盘点时，自动加载账面现有库存
     // 若为随机盘点（random）或专项盘点（special），则默认创建“空”的盘点单，完全由人工扫码一条条追加
-    const shouldPrepopulate = check_type === 'full' || check_type === 'cycle' || check_type === 'warehouse';
+    const shouldPrepopulate =
+      check_type === 'full' || check_type === 'cycle' || check_type === 'warehouse';
 
     if (shouldPrepopulate) {
       // 为该库位的所有物料创建盘点明细条目
@@ -351,7 +357,7 @@ const createCheck = async (req, res) => {
 
       if (stockItems.length > 0) {
         // 批量查出所有物料在该库位的最新 after_quantity（消除 N+1）
-        const materialIds = stockItems.map(i => i.material_id);
+        const materialIds = stockItems.map((i) => i.material_id);
         const mPh = materialIds.map(() => '?').join(',');
         const [latestRecords] = await connection.execute(
           `SELECT material_id, after_quantity FROM (
@@ -362,13 +368,23 @@ const createCheck = async (req, res) => {
            ) t WHERE rn = 1`,
           [...materialIds, location_id]
         );
-        const afterQtyMap = new Map(latestRecords.map(r => [r.material_id, parseFloat(r.after_quantity)]));
+        const afterQtyMap = new Map(
+          latestRecords.map((r) => [r.material_id, parseFloat(r.after_quantity)])
+        );
 
         // 批量插入盘点明细
-        const insertValues = stockItems.map(item => {
+        const insertValues = stockItems.map((item) => {
           const aq = afterQtyMap.get(item.material_id);
-          const actualSystemQuantity = (aq !== undefined && aq !== null) ? aq : parseFloat(item.system_quantity || 0);
-          return [checkId, item.material_id, actualSystemQuantity, actualSystemQuantity, item.unit_id, 0];
+          const actualSystemQuantity =
+            aq !== undefined && aq !== null ? aq : parseFloat(item.system_quantity || 0);
+          return [
+            checkId,
+            item.material_id,
+            actualSystemQuantity,
+            actualSystemQuantity,
+            item.unit_id,
+            0,
+          ];
         });
         const insertPh = insertValues.map(() => '(?, ?, ?, ?, ?, ?)').join(', ');
         await connection.execute(
@@ -417,7 +433,7 @@ const addCheckItem = async (req, res) => {
 
     if (!materialId) {
       await connection.rollback();
-      return ResponseHandler.error(res, 'material_id is required', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '请选择物料', 'BAD_REQUEST', 400);
     }
 
     const [checkRows] = await connection.execute(
@@ -542,7 +558,8 @@ const updateCheck = async (req, res) => {
     await connection.beginTransaction();
 
     const { id } = req.params;
-    // HTTP camel → snake    const mapped = inventoryCheckMap.fromApi(req.body || {});
+    // HTTP camel → snake
+    const mapped = inventoryCheckMap.fromApi(req.body || {});
     const check_date = mapped.check_date;
     const remark = mapped.remark;
     const items = Array.isArray(mapped.items)
@@ -597,7 +614,12 @@ const updateCheck = async (req, res) => {
         const actualQuantity = parseFloat(item.actual_quantity);
         if (!Number.isFinite(actualQuantity)) {
           await connection.rollback();
-          return ResponseHandler.error(res, 'actual_quantity must be a valid number', 'BAD_REQUEST', 400);
+          return ResponseHandler.error(
+            res,
+            'actual_quantity must be a valid number',
+            'BAD_REQUEST',
+            400
+          );
         }
         const difference = actualQuantity - systemQuantity;
 
@@ -692,9 +714,10 @@ const submitCheckResult = async (req, res) => {
     const { items } = req.body;
 
     // 检查盘点单是否存在
-    const [checkResult] = await connection.execute('SELECT id, check_no, location_id, check_type, check_date, status, remark, created_by, created_at, updated_at, deleted_at FROM inventory_checks WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [
-      id,
-    ]);
+    const [checkResult] = await connection.execute(
+      'SELECT id, check_no, location_id, check_type, check_date, status, remark, created_by, created_at, updated_at, deleted_at FROM inventory_checks WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      [id]
+    );
 
     if (checkResult.length === 0) {
       await connection.rollback();
@@ -784,9 +807,10 @@ const updateCheckStatus = async (req, res) => {
     }
 
     // 检查盘点单是否存在
-    const [checkResult] = await connection.execute('SELECT id, check_no, location_id, check_type, check_date, status, remark, created_by, created_at, updated_at, deleted_at FROM inventory_checks WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [
-      id,
-    ]);
+    const [checkResult] = await connection.execute(
+      'SELECT id, check_no, location_id, check_type, check_date, status, remark, created_by, created_at, updated_at, deleted_at FROM inventory_checks WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      [id]
+    );
 
     if (checkResult.length === 0) {
       await connection.rollback();
@@ -845,9 +869,10 @@ const adjustInventory = async (req, res) => {
     const { id } = req.params;
 
     // 检查盘点单是否存在
-    const [checkResult] = await connection.execute('SELECT id, check_no, location_id, check_type, check_date, status, remark, created_by, created_at, updated_at, deleted_at FROM inventory_checks WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [
-      id,
-    ]);
+    const [checkResult] = await connection.execute(
+      'SELECT id, check_no, location_id, check_type, check_date, status, remark, created_by, created_at, updated_at, deleted_at FROM inventory_checks WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      [id]
+    );
 
     if (checkResult.length === 0) {
       await connection.rollback();
@@ -894,7 +919,12 @@ const adjustInventory = async (req, res) => {
       const newQuantity = parseFloat(item.actual_quantity);
       if (!Number.isFinite(newQuantity)) {
         await connection.rollback();
-        return ResponseHandler.error(res, 'Inventory check item actual quantity is invalid', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(
+          res,
+          'Inventory check item actual quantity is invalid',
+          'BAD_REQUEST',
+          400
+        );
       }
 
       const adjustmentQuantity = newQuantity - currentQuantity;
@@ -968,7 +998,6 @@ const checkStatusMappings = async (req, res) => {
 };
 
 // 批量库存查询API（优化版）
-
 
 module.exports = {
   getCheckStatistics,

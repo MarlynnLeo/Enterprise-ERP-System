@@ -290,6 +290,7 @@ import { useRouter } from 'vue-router';
 import { echarts } from '@/utils/echartsCore';
 import { financeApi } from '@/api/finance';
 import { parseListData } from '@/utils/responseParser';
+import { getApiErrorMessage } from '@/utils/errorHandler';
 import { CircleCheck, Setting } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index';
@@ -405,11 +406,11 @@ const calculateWIP = async () => {
       const totalCost = res.data.summary?.totalWIPCost || 0;
       ElMessage.success(`WIP计算完成：${res.data.taskCount}个任务，总成本 ¥${formatNumber(totalCost)}`);
     } else {
-      ElMessage.error(res.data?.message || 'WIP计算失败');
+      ElMessage.error(getApiErrorMessage(res.data, 'WIP计算失败'));
     }
   } catch (error) {
     console.error('WIP计算失败:', error);
-    ElMessage.error('WIP计算失败: ' + (error.response?.data?.message || error.message));
+    ElMessage.error('WIP计算失败: ' + (getApiErrorMessage(error, '未知错误')));
   } finally {
     wipLoading.value = false;
   }
@@ -435,15 +436,15 @@ const generateWIPVoucher = async () => {
     };
 
     if (result.reused) {
-      ElMessage.success(`WIP凭证已存在并通过校验：${result.entryNumber || result.entryId}`);
+      ElMessage.success(`WIP凭证已存在并通过校验：${result.entryNumber || '凭证'}`);
     } else if (result.skipped) {
       ElMessage.info(result.reason || '无在制品成本，未生成凭证');
     } else {
-      ElMessage.success(`WIP凭证生成完成：${result.entryId || '-'}`);
+      ElMessage.success('WIP凭证生成完成');
     }
   } catch (error) {
     console.error('WIP凭证生成失败:', error);
-    ElMessage.error('WIP凭证生成失败: ' + (error.response?.data?.message || error.message));
+    ElMessage.error(`WIP凭证生成失败：${getApiErrorMessage(error, '请稍后重试')}`);
   } finally {
     voucherLoading.value = false;
   }
@@ -488,14 +489,14 @@ const executeCostClosing = async () => {
     }
   } catch (error) {
     console.error('月末结转失败:', error);
-    const message = error.response?.data?.message || error.message;
+    const message = getApiErrorMessage(error, '请稍后重试');
     costClosingHistory.value.unshift({
       periodName: selectedPeriod.value?.period_name || selectedPeriodId.value,
       status: 'failed',
       message,
       time: new Date().toLocaleString()
     });
-    ElMessage.error('月末结转失败: ' + message);
+    ElMessage.error(`月末结转失败：${message}`);
   } finally {
     closingLoading.value = false;
   }

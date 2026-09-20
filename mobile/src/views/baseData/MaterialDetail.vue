@@ -170,7 +170,7 @@ const material = ref(null)
 const loadMaterialDetail = async () => {
   const materialId = route.params.id
   if (!materialId) {
-    showToast('物料ID不存在')
+    showToast('物料信息不存在或已被删除')
     router.back()
     return
   }

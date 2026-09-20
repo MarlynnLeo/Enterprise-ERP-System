@@ -431,6 +431,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { parsePaginatedData } from '@/utils/responseParser';
 import { ref, reactive, onMounted, watch, computed } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index';
@@ -856,7 +857,7 @@ const handleDelete = async (row) => {
     loadAllData();
   } catch (error) {
     console.error('删除失败:', error);
-    ElMessage.error(error.response?.data?.message || '删除失败');
+    ElMessage.error(getApiErrorMessage(error, '删除失败'));
   }
 };
 
@@ -880,7 +881,7 @@ const handleSubmit = async () => {
     loadAllData();
   } catch (error) {
     console.error('提交失败:', error);
-    ElMessage.error(error.response?.data?.message || '操作失败');
+    ElMessage.error(getApiErrorMessage(error, '操作失败'));
   } finally {
     submitLoading.value = false;
   }
@@ -901,7 +902,7 @@ const handleToggleStatus = async (row) => {
     loadAllData();
   } catch (error) {
     console.error('状态切换失败:', error);
-    ElMessage.error(error.response?.data?.message || '操作失败');
+    ElMessage.error(getApiErrorMessage(error, '操作失败'));
   }
 };
 
@@ -942,7 +943,7 @@ const handleToggleInspectionStatus = async (row) => {
     loadInspectionData();
   } catch (error) {
     console.error('状态切换失败:', error);
-    ElMessage.error(error.response?.data?.message || '操作失败');
+    ElMessage.error(getApiErrorMessage(error, '操作失败'));
   }
 };
 
@@ -953,7 +954,7 @@ const handleDeleteInspection = async (row) => {
     loadInspectionData();
   } catch (error) {
     console.error('删除失败:', error);
-    ElMessage.error(error.response?.data?.message || '删除失败');
+    ElMessage.error(getApiErrorMessage(error, '删除失败'));
   }
 };
 
@@ -1029,7 +1030,7 @@ const handleSourceSubmit = async () => {
     loadSourceData(); // 重新加载数据
   } catch (error) {
     console.error('提交失败:', error);
-    ElMessage.error(error.response?.data?.message || '操作失败');
+    ElMessage.error(getApiErrorMessage(error, '操作失败'));
   } finally {
     sourceSubmitLoading.value = false;
   }
@@ -1097,7 +1098,7 @@ const handleDeleteSource = async (row) => {
     loadSourceData();
   } catch (error) {
     console.error('删除失败:', error);
-    ElMessage.error(error.response?.data?.message || '删除失败');
+    ElMessage.error(getApiErrorMessage(error, '删除失败'));
   }
 };
 
@@ -1111,7 +1112,7 @@ const handleToggleSourceStatus = async (row) => {
     loadSourceData();
   } catch (error) {
     console.error('状态切换失败:', error);
-    ElMessage.error(error.response?.data?.message || '操作失败');
+    ElMessage.error(getApiErrorMessage(error, '操作失败'));
   }
 };
 

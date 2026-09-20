@@ -68,11 +68,11 @@ function parseAttachmentInput(value, { optional = false } = {}) {
     const rawUrl =
       typeof attachment === 'string'
         ? attachment
-        : attachment?.url ??
+        : (attachment?.url ??
           attachment?.fileUrl ??
           attachment?.file_url ??
           attachment?.path ??
-          attachment?.filePath;
+          attachment?.filePath);
     if (rawUrl === undefined || rawUrl === null || String(rawUrl).trim() === '') continue;
 
     const url = FileAccessService.normalizeUploadUrl(rawUrl);
@@ -89,9 +89,7 @@ function parseAttachmentInput(value, { optional = false } = {}) {
         '附件'
     ).slice(0, 255);
     const rawSize = attachment?.size ?? attachment?.fileSize ?? attachment?.file_size;
-    const size = Number.isFinite(Number(rawSize)) && Number(rawSize) >= 0
-      ? Number(rawSize)
-      : null;
+    const size = Number.isFinite(Number(rawSize)) && Number(rawSize) >= 0 ? Number(rawSize) : null;
     const type = String(
       attachment?.type ||
         attachment?.mimetype ||
@@ -123,15 +121,19 @@ function attachmentUrlSet(attachments) {
 class TechnicalCommunicationController {
   canManagePrivate(req) {
     const permissions = req.userPermissions || [];
-    return permissions.includes('*') ||
+    return (
+      permissions.includes('*') ||
       permissions.includes(NOTIFICATION_PERMISSIONS.TECH_COMM_WILDCARD) ||
-      permissions.includes(NOTIFICATION_PERMISSIONS.TECH_COMM_MANAGE);
+      permissions.includes(NOTIFICATION_PERMISSIONS.TECH_COMM_MANAGE)
+    );
   }
 
   canBroadcast(req) {
     const permissions = req.userPermissions || [];
-    return permissions.includes('*') ||
-      permissions.includes(NOTIFICATION_PERMISSIONS.TECH_COMM_BROADCAST);
+    return (
+      permissions.includes('*') ||
+      permissions.includes(NOTIFICATION_PERMISSIONS.TECH_COMM_BROADCAST)
+    );
   }
 
   buildVisibilityCondition(req) {
@@ -201,10 +203,10 @@ class TechnicalCommunicationController {
       [communicationId]
     );
 
-    await executor.query(
-      'UPDATE technical_communications SET recipient_count = ? WHERE id = ?',
-      [rows[0]?.total || 0, communicationId]
-    );
+    await executor.query('UPDATE technical_communications SET recipient_count = ? WHERE id = ?', [
+      rows[0]?.total || 0,
+      communicationId,
+    ]);
   }
 
   async getRecipientUserIds(communicationId) {
@@ -376,9 +378,7 @@ class TechnicalCommunicationController {
       const content = body.content;
       const status = body.status || 'draft';
       const isPinned = body.is_pinned ?? 0;
-      const attachments = parseAttachmentInput(
-        body.attachments ?? req.body?.attachments
-      );
+      const attachments = parseAttachmentInput(body.attachments ?? req.body?.attachments);
       const visibility = body.visibility || 'private';
       const recipients = normalizeIdList(req.body.recipients);
       const departmentRecipients = normalizeIdList(req.body.departmentRecipients);
@@ -402,7 +402,12 @@ class TechnicalCommunicationController {
         recipients.length === 0 &&
         departmentRecipients.length === 0
       ) {
-        return ResponseHandler.error(res, '私有通讯至少需要一个用户或部门抄送', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(
+          res,
+          '私有通讯至少需要一个用户或部门抄送',
+          'VALIDATION_ERROR',
+          400
+        );
       }
 
       const userId = req.user.id;
@@ -505,9 +510,10 @@ class TechnicalCommunicationController {
       const content = body.content;
       const status = body.status;
       const isPinned = body.is_pinned;
-      const attachments = body.attachments !== undefined
-        ? parseAttachmentInput(req.body?.attachments ?? body.attachments)
-        : undefined;
+      const attachments =
+        body.attachments !== undefined
+          ? parseAttachmentInput(req.body?.attachments ?? body.attachments)
+          : undefined;
       const visibility = body.visibility;
       const recipientsProvided = Object.prototype.hasOwnProperty.call(req.body || {}, 'recipients');
       const departmentRecipientsProvided = Object.prototype.hasOwnProperty.call(
@@ -599,7 +605,8 @@ class TechnicalCommunicationController {
       }
 
       // 更新抄送人数
-      const finalVisibility = visibility !== undefined ? visibility : (oldData[0].visibility || 'private');
+      const finalVisibility =
+        visibility !== undefined ? visibility : oldData[0].visibility || 'private';
       const finalStatus = status !== undefined ? status : oldData[0].status;
       if (finalVisibility === 'public' && visibility === 'public' && !this.canBroadcast(req)) {
         await connection.rollback();
@@ -625,7 +632,12 @@ class TechnicalCommunicationController {
       ) {
         await connection.rollback();
         transactionStarted = false;
-        return ResponseHandler.error(res, '私有通讯至少需要一个用户或部门抄送', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(
+          res,
+          '私有通讯至少需要一个用户或部门抄送',
+          'VALIDATION_ERROR',
+          400
+        );
       }
       if (shouldUpdateRecipients) {
         updateFields.push('recipient_count = ?');
@@ -843,10 +855,7 @@ class TechnicalCommunicationController {
         return ResponseHandler.error(res, '评论不存在', 'NOT_FOUND', 404);
       }
 
-      await db.pool.query(
-        'DELETE FROM technical_communication_comments WHERE id = ?',
-        [commentId]
-      );
+      await db.pool.query('DELETE FROM technical_communication_comments WHERE id = ?', [commentId]);
 
       ResponseHandler.success(res, null, '删除评论成功');
     } catch (error) {

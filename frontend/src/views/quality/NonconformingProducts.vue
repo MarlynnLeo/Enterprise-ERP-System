@@ -353,6 +353,7 @@
   </div>
 </template>
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
@@ -438,7 +439,7 @@ const fetchData = async () => {
     }
   } catch (error) {
     console.error('❌ Failed to fetch NCP list:', error)
-    ElMessage.error('获取不合格品列表失败: ' + (error.message || '未知错误'))
+    ElMessage.error('获取不合格品列表失败: ' + (getApiErrorMessage(error, '未知错误')))
   } finally {
     loading.value = false
   }
@@ -526,7 +527,7 @@ const handleDispose = (row) => {
   if (row.supplierId && !supplierList.value.some(s => Number(s.id) === Number(row.supplierId))) {
     supplierList.value.unshift({
       id: row.supplierId,
-      name: row.supplierName || row.supplier || `供应商-${row.supplierId}`
+      name: row.supplierName || row.supplier || '未命名供应商'
     })
   }
   disposeDialogVisible.value = true

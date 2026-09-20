@@ -331,6 +331,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { getCommonStatusText, getCommonStatusColor } from '@/constants/systemConstants'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { DateFormatter, NumberFormatter } from '@/utils/commonHelpers'
@@ -692,7 +693,7 @@ const confirmVoid = async () => {
         loadReceipts(); // 刷新列表
       } catch (error) {
         console.error('作废收款记录失败:', error);
-        ElMessage.error(error.response?.data?.message || '作废收款记录失败');
+        ElMessage.error(getApiErrorMessage(error, '作废收款记录失败'));
       } finally {
         voidLoading.value = false;
       }

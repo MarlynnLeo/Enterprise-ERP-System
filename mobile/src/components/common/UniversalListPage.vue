@@ -166,7 +166,7 @@
 <script setup>
   import { ref, computed, watch, onMounted, getCurrentInstance } from 'vue'
   import { useRouter } from 'vue-router'
-  import { showToast, NavBar, Search, PullRefresh, List, Empty, BackTop } from 'vant'
+  import { NavBar, Search, PullRefresh, List, Empty, BackTop } from 'vant'
   import SvgIcon from '@/components/icons/index.vue'
   import dayjs from 'dayjs'
   import { useDebouncedRef } from '@/composables/useDebounce'

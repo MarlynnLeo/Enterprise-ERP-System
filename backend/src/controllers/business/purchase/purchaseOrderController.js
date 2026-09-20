@@ -31,7 +31,12 @@ const { parsePagination } = require('../../../utils/safePagination');
 const { financeConfig } = require('../../../config/financeConfig');
 const ScopeGuard = require('../../../authorization/ScopeGuard');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
-const { purchaseValidationError, normalizePurchaseDate, purchaseQuantity, assertPurchaseLines } = require('../../../utils/purchase/purchaseValidation');
+const {
+  purchaseValidationError,
+  normalizePurchaseDate,
+  purchaseQuantity,
+  assertPurchaseLines,
+} = require('../../../utils/purchase/purchaseValidation');
 const {
   purchaseOrderMap,
   purchaseOrderItemMap,
@@ -72,7 +77,9 @@ function assertPurchaseItemPrices(items = []) {
     error.statusCode = 400;
     throw error;
   }
-  items.forEach((item, index) => purchaseQuantity(resolveUnitPrice(item), `第${index + 1}行采购单价`));
+  items.forEach((item, index) =>
+    purchaseQuantity(resolveUnitPrice(item), `第${index + 1}行采购单价`)
+  );
 }
 
 // 获取采购订单列表
@@ -278,20 +285,20 @@ const getOrder = async (req, res) => {
       const [rows] = await pool.query(query, [id]);
 
       if (rows.length === 0) {
-        return ResponseHandler.notFound(res, 'purchase order not found');
+        return ResponseHandler.notFound(res, '采购订单不存在或已被删除');
       }
 
       orderId = rows[0].id;
     }
 
     if (!(await canAccessPurchaseOrder(pool, req, orderId, { accessMode: 'read' }))) {
-      return ResponseHandler.forbidden(res, 'No permission to access this purchase order');
+        return ResponseHandler.forbidden(res, '您没有权限访问该采购订单');
     }
 
     const order = await getOrderById(orderId);
 
     if (!order) {
-      return ResponseHandler.notFound(res, 'purchase order not found');
+      return ResponseHandler.notFound(res, '采购订单不存在或已被删除');
     }
 
     await desensitizeDataForUser(order, req.user, 'view', req.userPermissions);
@@ -306,9 +313,14 @@ const getOrder = async (req, res) => {
 const createOrder = async (req, res) => {
   try {
     const bodyIn = mapKeysToSnake(req.body || {});
-    if (bodyIn.status && bodyIn.status !== 'draft') throw purchaseValidationError('新建采购订单必须从草稿开始，请保存后提交审批');
+    if (bodyIn.status && bodyIn.status !== 'draft')
+      throw purchaseValidationError('新建采购订单必须从草稿开始，请保存后提交审批');
     bodyIn.order_date = normalizePurchaseDate(bodyIn.order_date, '采购日期');
-    bodyIn.expected_delivery_date = normalizePurchaseDate(bodyIn.expected_delivery_date, '预计交货日期', { optional: true });
+    bodyIn.expected_delivery_date = normalizePurchaseDate(
+      bodyIn.expected_delivery_date,
+      '预计交货日期',
+      { optional: true }
+    );
     const {
       order_date: orderDate,
       supplier_id: supplierId,
@@ -327,12 +339,20 @@ const createOrder = async (req, res) => {
     const createdOrder = await DBManager.executeTransaction(async (connection) => {
       const supplierName = await PurchaseOrderService.validateSupplier(connection, supplierId);
       assertPurchaseItemPrices(items);
-      const requisition = await PurchaseOrderService.validateRequisitionAllocation(connection, requisitionId, items);
+      const requisition = await PurchaseOrderService.validateRequisitionAllocation(
+        connection,
+        requisitionId,
+        items
+      );
 
       // Finance postings lock material rows before numbering. Acquire the same
       // locks first so an order's foreign-key check cannot deadlock with GL numbering.
-      const materialIds = [...new Set(items.map(item => Number(item.material_id)))].sort((a, b) => a - b);
-      await connection.query('SELECT id FROM materials WHERE id IN (?) ORDER BY id FOR SHARE', [materialIds]);
+      const materialIds = [...new Set(items.map((item) => Number(item.material_id)))].sort(
+        (a, b) => a - b
+      );
+      await connection.query('SELECT id FROM materials WHERE id IN (?) ORDER BY id FOR SHARE', [
+        materialIds,
+      ]);
 
       // 生成订单号（传入连接确保事务一致性）
       const orderNo = await purchaseModel.generateOrderNo(connection);
@@ -423,7 +443,11 @@ const updateOrder = async (req, res) => {
     const { id } = req.params;
     const bodyIn = mapKeysToSnake(req.body || {});
     bodyIn.order_date = normalizePurchaseDate(bodyIn.order_date, '采购日期');
-    bodyIn.expected_delivery_date = normalizePurchaseDate(bodyIn.expected_delivery_date, '预计交货日期', { optional: true });
+    bodyIn.expected_delivery_date = normalizePurchaseDate(
+      bodyIn.expected_delivery_date,
+      '预计交货日期',
+      { optional: true }
+    );
     const {
       order_date: orderDate,
       supplier_id: supplierId,
@@ -440,13 +464,18 @@ const updateOrder = async (req, res) => {
 
     const updatedOrder = await DBManager.executeTransaction(async (connection) => {
       if (!(await canAccessPurchaseOrder(connection, req, id))) {
-        throw forbiddenError('No permission to modify this purchase order');
+        throw forbiddenError('您没有权限修改该采购订单');
       }
       const currentOrder = await PurchaseOrderService.validateOrderEditable(connection, id);
       const previousRequisitionId = currentOrder.requisition_id;
       const supplierName = await PurchaseOrderService.validateSupplier(connection, supplierId);
       assertPurchaseItemPrices(items || []);
-      const requisition = await PurchaseOrderService.validateRequisitionAllocation(connection, requisitionId, items, Number(id));
+      const requisition = await PurchaseOrderService.validateRequisitionAllocation(
+        connection,
+        requisitionId,
+        items,
+        Number(id)
+      );
       const orderAmounts = calculateLines(items || [], {
         defaultTaxRate:
           bodyTaxRate !== undefined ? bodyTaxRate : financeConfig.get('tax.defaultVATRate', 0.13),
@@ -540,7 +569,7 @@ const deleteOrder = async (req, res) => {
     const { id } = req.params;
 
     if (!(await canAccessPurchaseOrder(pool, req, id))) {
-      return ResponseHandler.forbidden(res, 'No permission to delete this purchase order');
+      return ResponseHandler.forbidden(res, '您没有权限删除该采购订单');
     }
 
     await DBManager.executeTransaction(async (connection) => {
@@ -549,13 +578,13 @@ const deleteOrder = async (req, res) => {
         [id]
       );
       if (orders.length === 0) {
-        throw new Error('purchase order not found');
+        throw new Error('采购订单不存在或已被删除');
       }
       if (!(await canAccessPurchaseOrder(connection, req, id))) {
-        throw forbiddenError('No permission to delete this purchase order');
+        throw forbiddenError('您没有权限删除该采购订单');
       }
       if (!['draft', 'rejected', 'cancelled'].includes(orders[0].status)) {
-        const err = new Error('current purchase order status cannot be deleted');
+        const err = new Error('当前采购订单状态不允许删除');
         err.statusCode = 400;
         throw err;
       }
@@ -574,7 +603,7 @@ const deleteOrder = async (req, res) => {
   } catch (error) {
     logger.error('删除采购订单失败:', error);
     const statusCode =
-      error.statusCode || (error.message === 'purchase order not found' ? 404 : 500);
+      error.statusCode || (error.message === '采购订单不存在或已被删除' ? 404 : 500);
     const errorCode = error.code || (statusCode === 404 ? 'NOT_FOUND' : 'OPERATION_ERROR');
     const message = statusCode < 500 ? error.message : '操作失败';
     return ResponseHandler.error(res, message, errorCode, statusCode, error);
@@ -594,16 +623,16 @@ const updateOrderStatus = async (req, res) => {
     } else if (typeof req.body === 'string') {
       newStatus = req.body;
     } else {
-      return ResponseHandler.error(res, 'invalid status format', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(res, '状态参数格式无效', 'VALIDATION_ERROR', 400);
     }
 
     const validStatuses = Object.values(PURCHASE_STATUS);
     if (!validStatuses.includes(newStatus)) {
-      return ResponseHandler.error(res, 'invalid status', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(res, '状态参数无效', 'VALIDATION_ERROR', 400);
     }
 
     if (!(await canAccessPurchaseOrder(pool, req, id))) {
-      return ResponseHandler.forbidden(res, 'No permission to change this purchase order');
+      return ResponseHandler.forbidden(res, '您没有权限修改该采购订单');
     }
 
     const updatedOrder = await DBManager.executeTransaction(async (connection) => {
@@ -613,11 +642,11 @@ const updateOrderStatus = async (req, res) => {
       );
 
       if (checkRows.length === 0) {
-        throw new Error('purchase order not found');
+        throw new Error('采购订单不存在或已被删除');
       }
 
       if (!(await canAccessPurchaseOrder(connection, req, id))) {
-        throw forbiddenError('No permission to change this purchase order');
+        throw forbiddenError('您没有权限修改该采购订单');
       }
 
       const currentOrder = checkRows[0];
@@ -625,7 +654,9 @@ const updateOrderStatus = async (req, res) => {
 
       // approved 状态保留给工作流回调专用，前端不可直接设置
       if (newStatus === 'approved') {
-        throw purchaseValidationError('approved 状态仅限工作流回调设置，请在订单列表中审批待审节点');
+        throw purchaseValidationError(
+          'approved 状态仅限工作流回调设置，请在订单列表中审批待审节点'
+        );
       }
 
       // 如果状态没有变化，直接返回（允许保持相同状态）
@@ -715,9 +746,9 @@ const updateOrderStatus = async (req, res) => {
   } catch (error) {
     logger.error('更新采购订单状态失败', error);
     const businessErrorMessages = [
-      'purchase order not found',
+      '采购订单不存在或已被删除',
       'approved status',
-      'invalid status',
+      '状态参数无效',
       'purchase order is not fully warehoused',
       '提交审批前请先设置供应商',
       '无效的状态变更',
@@ -728,7 +759,7 @@ const updateOrderStatus = async (req, res) => {
         : businessErrorMessages.some((message) => error.message?.startsWith(message));
     const statusCode =
       error.statusCode ||
-      (error.message === 'purchase order not found' ? 404 : isBusinessError ? 400 : 500);
+      (error.message === '采购订单不存在或已被删除' ? 404 : isBusinessError ? 400 : 500);
     const errorCode =
       statusCode === 404
         ? 'NOT_FOUND'
@@ -765,7 +796,7 @@ const batchUpdateOrderStatus = async (req, res) => {
 
     const validStatuses = Object.values(PURCHASE_STATUS);
     if (!validStatuses.includes(newStatus) || newStatus === 'approved') {
-      return ResponseHandler.error(res, 'invalid status', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(res, '状态参数无效', 'VALIDATION_ERROR', 400);
     }
 
     const result = await DBManager.executeTransaction(async (connection) => {
@@ -781,7 +812,7 @@ const batchUpdateOrderStatus = async (req, res) => {
       for (const id of uniqueIds) {
         const order = orderMap.get(id);
         if (!order) {
-          failures.push({ id, message: 'purchase order not found' });
+          failures.push({ id, message: '采购订单不存在或已被删除' });
           continue;
         }
 
@@ -789,7 +820,7 @@ const batchUpdateOrderStatus = async (req, res) => {
           failures.push({
             id,
             order_no: order.order_no,
-            message: 'No permission to change this purchase order',
+            message: '您没有权限修改该采购订单',
           });
           continue;
         }
@@ -826,8 +857,9 @@ const batchUpdateOrderStatus = async (req, res) => {
         }
 
         if (newStatus === 'cancelled') {
-          try { await PurchaseOrderService.assertOrderCanCancel(connection, id); }
-          catch (error) {
+          try {
+            await PurchaseOrderService.assertOrderCanCancel(connection, id);
+          } catch (error) {
             if (!error.statusCode || error.statusCode >= 500) throw error;
             failures.push({ id, order_no: order.order_no, message: error.message });
             continue;
@@ -908,7 +940,7 @@ const batchUpdateOrderStatus = async (req, res) => {
     logger.error('批量更新采购订单状态失败', error);
     return ResponseHandler.error(
       res,
-      'batch update purchase order status failed',
+      '批量更新采购订单状态失败，请稍后重试',
       'OPERATION_ERROR',
       500,
       error
@@ -1265,7 +1297,7 @@ const getRequisition = async (req, res) => {
     const [rows] = await pool.query(query, [id, 'approved', 'completed']);
 
     if (rows.length === 0) {
-      return ResponseHandler.notFound(res, 'purchase requisition not found');
+    return ResponseHandler.notFound(res, '采购申请不存在或已被删除');
     }
 
     if (
@@ -1423,7 +1455,7 @@ const getLatestPrice = async (req, res) => {
     const supplierId = q.supplierId ?? q.supplier_id;
 
     if (!materialId && !materialCode) {
-      return ResponseHandler.error(res, '缺少必要参数 (物料编码或物料ID)', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(res, '缺少必要参数（物料编码或物料）', 'VALIDATION_ERROR', 400);
     }
 
     const price = await PurchasePriceService.resolvePurchasePrice(pool, {
@@ -1435,7 +1467,7 @@ const getLatestPrice = async (req, res) => {
     return ResponseHandler.success(res, price, 'latest purchase price loaded');
   } catch (error) {
     logger.error('获取最新指导价失败:', error);
-    return ResponseHandler.error(res, 'failed to load latest price', 'SERVER_ERROR', 500, error);
+    return ResponseHandler.error(res, '获取最新采购价格失败，请稍后重试', 'SERVER_ERROR', 500, error);
   }
 };
 
@@ -1451,12 +1483,12 @@ const getLatestPrices = async (req, res) => {
     ];
 
     if (materialIds.length === 0) {
-      return ResponseHandler.error(res, '缺少有效的物料ID数组', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(res, '缺少有效的物料列表', 'VALIDATION_ERROR', 400);
     }
     if (materialIds.length > 100) {
       return ResponseHandler.error(
         res,
-        'batch query cannot exceed 100 materials',
+        '物料批量查询一次最多支持100条',
         'VALIDATION_ERROR',
         400
       );
@@ -1474,7 +1506,7 @@ const getLatestPrices = async (req, res) => {
     return ResponseHandler.success(res, resultMap, 'latest prices loaded');
   } catch (error) {
     logger.error('批量获取最新指导价失败:', error);
-    return ResponseHandler.error(res, 'failed to load latest prices', 'SERVER_ERROR', 500, error);
+    return ResponseHandler.error(res, '获取最新采购价格失败，请稍后重试', 'SERVER_ERROR', 500, error);
   }
 };
 

@@ -106,10 +106,10 @@
           <template #advanced>
           <el-form-item label="设备状态">
             <el-select  v-model="filters.status" placeholder="全部状态" clearable>
-              <el-option label="在线" value="online" />
+              <el-option label="在线" value="normal" />
               <el-option label="离线" value="offline" />
               <el-option label="维护中" value="maintenance" />
-              <el-option label="故障" value="error" />
+              <el-option label="故障维修" value="repair" />
               <el-option label="空闲" value="idle" />
             </el-select>
           </el-form-item>
@@ -162,10 +162,10 @@
               </el-button>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <el-dropdown-item command="online">设为在线</el-dropdown-item>
+                  <el-dropdown-item command="normal">设为在线</el-dropdown-item>
                   <el-dropdown-item command="offline">设为离线</el-dropdown-item>
                   <el-dropdown-item command="maintenance">设为维护</el-dropdown-item>
-                  <el-dropdown-item command="error">设为故障</el-dropdown-item>
+                  <el-dropdown-item command="repair">设为故障维修</el-dropdown-item>
                   <el-dropdown-item command="idle">设为空闲</el-dropdown-item>
                 </el-dropdown-menu>
               </template>
@@ -227,6 +227,7 @@ import { parsePaginatedData, parseResponseData } from '@/utils/responseParser';
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import {
   Monitor, Warning, Bell, Tools, Refresh, ArrowDown
 } from '@element-plus/icons-vue'
@@ -274,7 +275,7 @@ const fetchEquipmentList = async () => {
     equipmentList.value = list
     pagination.total = total
   } catch (error) {
-    ElMessage.error('获取设备列表失败: ' + error.message)
+    ElMessage.error(`获取设备列表失败：${getApiErrorMessage(error, '请稍后重试')}`)
   } finally {
     loading.value = false
   }
@@ -292,7 +293,7 @@ const fetchStatistics = async () => {
 
     // 处理统计数据
     statistics.value = {
-      onlineCount: statusDistribution.find(s => s.status === 'online')?.count || 0,
+      onlineCount: statusDistribution.find(s => s.status === 'normal')?.count || 0,
       offlineCount: statusDistribution.find(s => s.status === 'offline')?.count || 0,
       maintenanceCount: statusDistribution.find(s => s.status === 'maintenance')?.count || 0,
       alarmCount: alarmDistribution.reduce((sum, alarm) => sum + (alarm.count || 0), 0)
@@ -367,7 +368,7 @@ const handleStatusChange = async (equipment, newStatus) => {
     await refreshData()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('更新设备状态失败: ' + error.message)
+      ElMessage.error(`更新设备状态失败：${getApiErrorMessage(error, '请稍后重试')}`)
     }
   }
 }

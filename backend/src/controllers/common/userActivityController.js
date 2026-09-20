@@ -42,17 +42,33 @@ const PROFILE_ACTIVITY_EXCLUDED_PATHS = [
   '/auth/refresh',
 ];
 function normalizeActivityCategory(moduleName, action, pathValue) {
-  const moduleKey = String(moduleName || '').trim().toLowerCase();
-  const actionKey = String(action || '').trim().toLowerCase();
+  const moduleKey = String(moduleName || '')
+    .trim()
+    .toLowerCase();
+  const actionKey = String(action || '')
+    .trim()
+    .toLowerCase();
   const pathKey = String(pathValue || '').toLowerCase();
 
-  if (['login', 'logout'].includes(actionKey) || pathKey.includes('/auth/login') || pathKey.includes('/auth/logout')) {
+  if (
+    ['login', 'logout'].includes(actionKey) ||
+    pathKey.includes('/auth/login') ||
+    pathKey.includes('/auth/logout')
+  ) {
     return 'login';
   }
-  if (['user', 'profile', 'users'].includes(moduleKey) || pathKey.includes('/profile') || pathKey.includes('/users')) {
+  if (
+    ['user', 'profile', 'users'].includes(moduleKey) ||
+    pathKey.includes('/profile') ||
+    pathKey.includes('/users')
+  ) {
     return 'profile';
   }
-  if (['task', 'todo', 'todos', 'tasks'].includes(moduleKey) || pathKey.includes('/todo') || pathKey.includes('/task')) {
+  if (
+    ['task', 'todo', 'todos', 'tasks'].includes(moduleKey) ||
+    pathKey.includes('/todo') ||
+    pathKey.includes('/task')
+  ) {
     return 'task';
   }
   if (moduleKey === 'system' || actionKey === 'activity' || !moduleKey) {
@@ -62,52 +78,56 @@ function normalizeActivityCategory(moduleName, action, pathValue) {
 }
 
 function getActivityActionLabel(action) {
-  const actionKey = String(action || '').trim().toUpperCase();
+  const actionKey = String(action || '')
+    .trim()
+    .toUpperCase();
   const labels = {
-    LOGIN: "登录系统",
-    LOGOUT: "退出系统",
-    ACTIVITY: "访问系统",
-    CREATE: "新建",
-    UPDATE: "更新",
-    DELETE: "删除",
-    VIEW: "查看",
-    READ: "查看",
-    EXPORT: "导出",
-    IMPORT: "导入",
-    APPROVE: "审批通过",
-    REJECT: "审批驳回",
-    SUBMIT: "提交",
-    CANCEL: "取消",
-    PRINT: "打印",
-    ROLE_ASSIGN: "分配角色",
-    PERMISSION_ASSIGN: "分配权限",
+    LOGIN: '登录系统',
+    LOGOUT: '退出系统',
+    ACTIVITY: '访问系统',
+    CREATE: '新建',
+    UPDATE: '更新',
+    DELETE: '删除',
+    VIEW: '查看',
+    READ: '查看',
+    EXPORT: '导出',
+    IMPORT: '导入',
+    APPROVE: '审批通过',
+    REJECT: '审批驳回',
+    SUBMIT: '提交',
+    CANCEL: '取消',
+    PRINT: '打印',
+    ROLE_ASSIGN: '分配角色',
+    PERMISSION_ASSIGN: '分配权限',
   };
-  return labels[actionKey] || (action ? String(action) : "操作");
+  return labels[actionKey] || (action ? String(action) : '操作');
 }
 
 function getActivityModuleLabel(moduleName) {
-  const moduleKey = String(moduleName || '').trim().toLowerCase();
+  const moduleKey = String(moduleName || '')
+    .trim()
+    .toLowerCase();
   const labels = {
-    system: "系统",
-    user: "用户",
-    profile: "个人资料",
-    auth: "认证",
-    todo: "待办",
-    todos: "待办",
-    task: "任务",
-    tasks: "任务",
-    finance: "财务",
-    inventory: "库存",
-    production: "生产",
-    sales: "销售",
-    purchase: "采购",
-    material: "物料",
+    system: '系统',
+    user: '用户',
+    profile: '个人资料',
+    auth: '认证',
+    todo: '待办',
+    todos: '待办',
+    task: '任务',
+    tasks: '任务',
+    finance: '财务',
+    inventory: '库存',
+    production: '生产',
+    sales: '销售',
+    purchase: '采购',
+    material: '物料',
     bom: 'BOM',
-    customer: "客户",
-    supplier: "供应商",
-    pricing: "定价",
+    customer: '客户',
+    supplier: '供应商',
+    pricing: '定价',
   };
-  return labels[moduleKey] || (moduleName ? String(moduleName) : "系统");
+  return labels[moduleKey] || (moduleName ? String(moduleName) : '系统');
 }
 
 function summarizePath(pathValue) {
@@ -132,13 +152,16 @@ function summarizePath(pathValue) {
 }
 
 function formatActivityContent(log) {
-  const actionKey = String(log.action || '').trim().toUpperCase();
+  const actionKey = String(log.action || '')
+    .trim()
+    .toUpperCase();
   const moduleLabel = getActivityModuleLabel(log.module);
   const actionLabel = getActivityActionLabel(log.action);
   const entityType = log.entity_type ? String(log.entity_type).trim() : '';
-  const entityId = log.entity_id != null && String(log.entity_id) !== '' && String(log.entity_id) !== 'N/A'
-    ? String(log.entity_id)
-    : '';
+  const entityId =
+    log.entity_id != null && String(log.entity_id) !== '' && String(log.entity_id) !== 'N/A'
+      ? String(log.entity_id)
+      : '';
   const pathValue = log.path ? String(log.path).trim() : '';
   const pathSummary = summarizePath(pathValue);
 
@@ -171,12 +194,9 @@ function formatActivityContent(log) {
   return parts.filter(Boolean).join(' · ') || actionLabel || '系统操作';
 }
 
-
 // 记录用户活动
 exports.logActivity = async (req, res) => {
   try {
-
-
     // 这里可以扩展为使用专门的活动记录表
     // 目前先返回成功响应
 
@@ -491,7 +511,12 @@ exports.getOnlineTimeRanking = async (req, res) => {
       // 用户指定了日期，直接查询
       targetDate = parseDateOnly(date);
       if (!targetDate) {
-        return ResponseHandler.error(res, '日期格式无效，请使用 YYYY-MM-DD', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(
+          res,
+          '日期格式无效，请使用 YYYY-MM-DD',
+          'VALIDATION_ERROR',
+          400
+        );
       }
       results = await queryRanking(targetDate);
     } else {
@@ -589,7 +614,7 @@ exports.exportActivities = async (req, res) => {
         'Content-Disposition',
         `attachment; filename="user_activities_${new Date().toISOString().split('T')[0]}.csv"`
       );
-      res.send("﻿" + csvContent); // BOM for UTF-8
+      res.send('﻿' + csvContent); // BOM for UTF-8
     } else {
       // JSON格式
       res.setHeader('Content-Type', 'application/json');

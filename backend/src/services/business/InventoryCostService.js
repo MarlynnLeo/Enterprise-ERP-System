@@ -391,7 +391,7 @@ class InventoryCostService {
     );
 
     if (materials.length === 0) {
-      throw new Error(`物料不存在: ID=${materialId}`);
+      throw new Error('所选物料不存在或已停用');
     }
 
     return materials[0];

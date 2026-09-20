@@ -101,6 +101,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { computed, ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { Download, Delete } from '@element-plus/icons-vue'
@@ -136,7 +137,7 @@ const fetchList = async () => {
     total.value = d.total || 0
     totalExact.value = d.totalExact !== false
     hasMore.value = d.hasMore === true
-  } catch (error) { ElMessage.error(error?.message || '加载失败') }
+  } catch (error) { ElMessage.error(getApiErrorMessage(error, '加载失败')) }
   finally { loading.value = false }
 }
 
@@ -170,7 +171,7 @@ const handleSave = async () => {
     }
     await documentApi.create({ ...form.value, file_url: fileUrl || 'manual' })
     ElMessage.success('上传成功'); formVis.value = false; fetchList()
-  } catch (e) { ElMessage.error(e.message || '上传失败') }
+  } catch (e) { ElMessage.error(getApiErrorMessage(e, '上传失败')) }
   finally { saving.value = false }
 }
 

@@ -7,7 +7,8 @@ const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
 const BatchManagementService = require('./BatchManagementService');
 
-const toRows = (result) => (Array.isArray(result?.rows) ? result.rows : (result?.rows ? [result.rows] : []));
+const toRows = (result) =>
+  Array.isArray(result?.rows) ? result.rows : result?.rows ? [result.rows] : [];
 
 class InventoryTraceabilityService {
   /**
@@ -40,6 +41,7 @@ class InventoryTraceabilityService {
         receipt_date,
         items, // [{ material_id, material_code, material_name, quantity, unit, batch_number, unit_cost }]
         operator,
+        operator_id,
       } = receiptData;
 
       const createdBatches = [];
@@ -72,7 +74,7 @@ class InventoryTraceabilityService {
           receipt_id,
           receipt_no,
           inspection_id: item.inspection_id,
-          created_by: operator,
+          created_by: operator_id ?? operator,
         };
 
         // ✅ 传递 connection 给 BatchManagementService
@@ -113,7 +115,7 @@ class InventoryTraceabilityService {
    */
   static async handleProductionInbound(productionData, externalConn = null) {
     const isExternalConn = !!externalConn;
-    const connection = externalConn || await db.pool.getConnection();
+    const connection = externalConn || (await db.pool.getConnection());
 
     try {
       if (!isExternalConn) await connection.beginTransaction();
@@ -138,27 +140,30 @@ class InventoryTraceabilityService {
 
       // 1. 登记成品批次：默认不写库存（库存只由生产入库单确认产生，防双入账）
       const postStock = productionData.postStock === true || productionData.post_stock === true;
-      const productBatch = await BatchManagementService.createBatch({
-        material_id: product_id,
-        material_code: product_code,
-        material_name: product_name,
-        batch_number,
-        original_quantity: produced_quantity,
-        unit,
-        production_date,
-        receipt_date: production_date || new Date(),
-        warehouse_id,
-        warehouse_name,
-        location,
-        unit_cost: 0,
-        transaction_type: 'production_inbound',
-        reference_type: 'production_task',
-        reference_no: production_order_no || `TASK-${production_task_id}`,
-        reference_id: production_task_id,
-        created_by: operator,
-        skipStockPost: !postStock,
-        idempotencyKey: `production_inbound:${production_task_id}:${batch_number}`,
-      }, connection);
+      const productBatch = await BatchManagementService.createBatch(
+        {
+          material_id: product_id,
+          material_code: product_code,
+          material_name: product_name,
+          batch_number,
+          original_quantity: produced_quantity,
+          unit,
+          production_date,
+          receipt_date: production_date || new Date(),
+          warehouse_id,
+          warehouse_name,
+          location,
+          unit_cost: 0,
+          transaction_type: 'production_inbound',
+          reference_type: 'production_task',
+          reference_no: production_order_no || `TASK-${production_task_id}`,
+          reference_id: production_task_id,
+          created_by: operator,
+          skipStockPost: !postStock,
+          idempotencyKey: `production_inbound:${production_task_id}:${batch_number}`,
+        },
+        connection
+      );
 
       // 2. 记录原料消耗关系
       const consumptionRecords = [];
@@ -173,23 +178,26 @@ class InventoryTraceabilityService {
           const materialBatch = materialBatches[0];
 
           // 创建批次关联关系
-          await this.createBatchRelationship({
-            parent_batch_id: materialBatch.id,
-            child_batch_id: productBatch.id,
-            parent_material_code: material.material_code,
-            child_material_code: product_code,
-            parent_batch_number: material.batch_number,
-            child_batch_number: batch_number,
-            relationship_type: 'consume',
-            consumed_quantity: material.consumed_quantity,
-            produced_quantity: produced_quantity,
-            process_type: 'production',
-            reference_type: 'production_task',
-            reference_id: production_task_id,
-            reference_no: production_order_no,
-            operator,
-            remarks: `生产消耗 - ${remarks || ''}`,
-          }, connection);
+          await this.createBatchRelationship(
+            {
+              parent_batch_id: materialBatch.id,
+              child_batch_id: productBatch.id,
+              parent_material_code: material.material_code,
+              child_material_code: product_code,
+              parent_batch_number: material.batch_number,
+              child_batch_number: batch_number,
+              relationship_type: 'consume',
+              consumed_quantity: material.consumed_quantity,
+              produced_quantity: produced_quantity,
+              process_type: 'production',
+              reference_type: 'production_task',
+              reference_id: production_task_id,
+              reference_no: production_order_no,
+              operator,
+              remarks: `生产消耗 - ${remarks || ''}`,
+            },
+            connection
+          );
 
           consumptionRecords.push({
             material_code: material.material_code,
@@ -374,7 +382,9 @@ class InventoryTraceabilityService {
         ORDER BY br.created_at ASC
       `;
 
-      const relationships = toRows(await db.query(query, [batch.material_code, batch.batch_number]));
+      const relationships = toRows(
+        await db.query(query, [batch.material_code, batch.batch_number])
+      );
 
       for (const rel of relationships) {
         const childBatch = {
@@ -463,7 +473,9 @@ class InventoryTraceabilityService {
         ORDER BY br.created_at ASC
       `;
 
-      const relationships = toRows(await db.query(query, [batch.material_code, batch.batch_number]));
+      const relationships = toRows(
+        await db.query(query, [batch.material_code, batch.batch_number])
+      );
 
       for (const rel of relationships) {
         const parentBatch = {

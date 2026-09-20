@@ -42,7 +42,7 @@
           :frame="avatarFrameConfig"
           :avatar="userProfile?.avatar || ''"
           :name="userProfile?.realName || userProfile?.username || ''"
-          :size="64"
+          :size="88"
           class="dash-avatar-frame"
         />
       </div>
@@ -121,14 +121,15 @@ const avatarFrameConfig = computed(() =>
 <style scoped>
 /* 整合的个人信息与天气卡片 - 统一卡片风格 */
 .combined-info-card {
+  container: personal-info / inline-size;
   background: var(--theme-feature-card-bg);
   border-radius: 10px;
-  padding: 15px;
+  padding: 0 15px;
   box-shadow: var(--theme-feature-card-shadow);
   margin-bottom: var(--spacing-lg);
   height: 90px;
   position: relative;
-  overflow: visible;
+  overflow: hidden;
   transition: border-color var(--transition-base) ease, box-shadow var(--transition-base) ease, background-color var(--transition-base) ease;
   border: 1px solid var(--theme-feature-card-border);
 }
@@ -167,7 +168,7 @@ const avatarFrameConfig = computed(() =>
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 15px;
+  gap: 12px;
   color: var(--theme-feature-card-color);
 }
 /* 左侧个人信息 */
@@ -208,8 +209,8 @@ const avatarFrameConfig = computed(() =>
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 72px;
-  height: 100%;
+  width: 88px;
+  height: 88px;
   align-self: center;
   z-index: 2;
   overflow: visible;
@@ -226,7 +227,6 @@ const avatarFrameConfig = computed(() =>
   min-width: 0;
   justify-content: center;
   text-align: right;
-  padding-left: 15px;
 }
 .weather-header-compact {
   display: flex;
@@ -281,36 +281,37 @@ const avatarFrameConfig = computed(() =>
   gap: 12px;
   font-size: 11px;
   opacity: 0.85;
+  white-space: nowrap;
 }
 .weather-detail-icon {
   font-size: 12px;
 }
-/* 响应式媒体查询 */
-@media (max-width: 768px) {
-  .combined-info-card {
-    height: auto;
-    padding: 15px;
-  }
+/* 窄卡片仍保持同一行，不改变统计卡片的统一高度。 */
+@container personal-info (max-width: 360px) {
   .combined-content {
-    flex-direction: column;
-    gap: 15px;
-    text-align: center;
+    gap: 6px;
   }
-  .left-info,
   .right-weather {
-    width: 100%;
-  }
-  .center-avatar {
-    order: -1;
-  }
-  .weather-header-compact {
-    justify-content: center;
-  }
-  .weather-main-compact {
-    justify-content: center;
+    flex: 0 0 100px;
   }
   .weather-details-compact {
-    justify-content: center;
+    gap: 4px;
+    font-size: 10px;
+  }
+}
+@container personal-info (max-width: 280px) {
+  .combined-content {
+    margin-inline: -7px;
+    gap: 4px;
+  }
+  .center-avatar {
+    width: 76px;
+  }
+  .dash-avatar-frame {
+    transform: scale(0.864);
+  }
+  .left-info .name {
+    font-size: 14px;
   }
 }
 </style>

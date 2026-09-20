@@ -7,7 +7,10 @@
 const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
 const PurchaseOrderQuantityService = require('./PurchaseOrderQuantityService');
-const { purchaseValidationError, purchaseQuantity } = require('../../utils/purchase/purchaseValidation');
+const {
+  purchaseValidationError,
+  purchaseQuantity,
+} = require('../../utils/purchase/purchaseValidation');
 
 const QUANTITY_EPSILON = 0.0001;
 
@@ -20,26 +23,44 @@ class PurchaseOrderStatusService {
    * @param {number} receivedQuantity - 收货数量
    * @param {Object} connection - 数据库连接（可选）
    */
-  static async updateOrderItemReceivedQuantity(orderId, materialId, receivedQuantity, connection = null, orderItemId = null) {
+  static async updateOrderItemReceivedQuantity(
+    orderId,
+    materialId,
+    receivedQuantity,
+    connection = null,
+    orderItemId = null
+  ) {
     const client = connection || db.pool;
     const allocation = await PurchaseOrderQuantityService.read(client, orderId);
     const line = allocation.resolve(materialId, orderItemId);
     const quantity = purchaseQuantity(receivedQuantity, '本次到货数量');
     if (line.reserved + quantity > Number(line.item.quantity) + QUANTITY_EPSILON) {
-      throw purchaseValidationError(`收货数量超过订单数量: 订单数量=${line.item.quantity}, 已占用=${line.reserved}, 本次收货=${quantity}`);
+      throw purchaseValidationError(
+        `收货数量超过订单数量: 订单数量=${line.item.quantity}, 已占用=${line.reserved}, 本次收货=${quantity}`
+      );
     }
-    await client.execute('UPDATE purchase_order_items SET received_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-      [Math.max(0, line.received) + quantity, line.item.id]);
+    await client.execute(
+      'UPDATE purchase_order_items SET received_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [Math.max(0, line.received) + quantity, line.item.id]
+    );
     await this.updateOrderStatus(orderId, client);
   }
 
-  static async syncOrderItemReceivedFromReceipts(orderId, materialId, connection = null, orderItemId = null) {
+  static async syncOrderItemReceivedFromReceipts(
+    orderId,
+    materialId,
+    connection = null,
+    orderItemId = null
+  ) {
     const client = connection || db.pool;
     const allocation = await PurchaseOrderQuantityService.read(client, orderId);
     const line = allocation.resolve(materialId, orderItemId);
-    if (line.received > Number(line.item.quantity) + QUANTITY_EPSILON) throw purchaseValidationError('收货单汇总量超过采购订单数量');
-    await client.execute('UPDATE purchase_order_items SET received_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-      [Math.max(0, line.received), line.item.id]);
+    if (line.received > Number(line.item.quantity) + QUANTITY_EPSILON)
+      throw purchaseValidationError('收货单汇总量超过采购订单数量');
+    await client.execute(
+      'UPDATE purchase_order_items SET received_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [Math.max(0, line.received), line.item.id]
+    );
     await this.updateOrderStatus(orderId, client);
   }
 
@@ -60,7 +81,11 @@ class PurchaseOrderStatusService {
         WHERE order_id = ?
       `;
 
-    const [itemsResult] = await client.execute(itemsQuery, [QUANTITY_EPSILON, QUANTITY_EPSILON, orderId]);
+    const [itemsResult] = await client.execute(itemsQuery, [
+      QUANTITY_EPSILON,
+      QUANTITY_EPSILON,
+      orderId,
+    ]);
     const stats = itemsResult && itemsResult[0];
     const itemCount = parseInt(stats?.item_count, 10) || 0;
 
@@ -110,7 +135,18 @@ class PurchaseOrderStatusService {
       ? stats.receivedItems < stats.itemCount
       : stats.totalReceived + QUANTITY_EPSILON < stats.totalQuantity;
     if (hasOutstandingReceivedLine) {
-      return stats.totalReceived > 0 ? 'partial_received' : (['partial_received', 'received', 'inspecting', 'inspected', 'warehousing', 'completed'].includes(currentStatus) ? 'approved' : currentStatus);
+      return stats.totalReceived > 0
+        ? 'partial_received'
+        : [
+              'partial_received',
+              'received',
+              'inspecting',
+              'inspected',
+              'warehousing',
+              'completed',
+            ].includes(currentStatus)
+          ? 'approved'
+          : currentStatus;
     }
 
     if (stats.canComplete) {
@@ -253,20 +289,32 @@ class PurchaseOrderStatusService {
    * @param {number} unqualifiedQuantity - 不合格数量
    * @param {Object} connection - 数据库连接（可选）
    */
-  static async syncOrderItemInspectionQuantityFromInspections(orderId, materialId, connection = null, orderItemId = null) {
+  static async syncOrderItemInspectionQuantityFromInspections(
+    orderId,
+    materialId,
+    connection = null,
+    orderItemId = null
+  ) {
     const client = connection || db.pool;
     const allocation = await PurchaseOrderQuantityService.read(client, orderId);
     const line = allocation.resolve(materialId, orderItemId);
     // Historical inspections include failed deliveries and replacements. Only
     // the net accepted/reserved quantity is limited by the ordered quantity.
-    if (line.reserved > Number(line.item.quantity) + QUANTITY_EPSILON) throw purchaseValidationError('检验放行数量超过采购订单剩余数量');
+    if (line.reserved > Number(line.item.quantity) + QUANTITY_EPSILON)
+      throw purchaseValidationError('检验放行数量超过采购订单剩余数量');
     await client.execute(
       `UPDATE purchase_order_items SET inspected_quantity = ?, qualified_quantity = ?, unqualified_quantity = ?,
         received_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
       [line.inspected, line.qualified, line.unqualified, Math.max(0, line.received), line.item.id]
     );
     await this.updateOrderStatus(orderId, client);
-    return { orderId, materialId, inspectedQuantity: line.inspected, qualifiedQuantity: line.qualified, unqualifiedQuantity: line.unqualified };
+    return {
+      orderId,
+      materialId,
+      inspectedQuantity: line.inspected,
+      qualifiedQuantity: line.qualified,
+      unqualifiedQuantity: line.unqualified,
+    };
   }
 
   /**
@@ -284,20 +332,25 @@ class PurchaseOrderStatusService {
         const inspectedQuantity = parseFloat(inspectionData.quantity) || 0;
 
         if (!materialId) {
-          throw new Error(`质检单缺少物料ID，无法回写采购订单: 订单ID=${orderId}`);
+          throw new Error('质检单缺少物料，无法回写采购订单');
         }
 
         if (inspectedQuantity <= 0) {
-          throw new Error(`质检数量必须大于0，无法回写采购订单: 订单ID=${orderId}, 物料ID=${materialId}`);
+          throw new Error(
+            '质检数量必须大于0，无法回写采购订单'
+          );
         }
 
         await this.syncOrderItemInspectionQuantityFromInspections(
-          orderId, materialId, connection, inspectionData.purchase_order_item_id || null
+          orderId,
+          materialId,
+          connection,
+          inspectionData.purchase_order_item_id || null
         );
 
         logger.info(`[PurchaseOrderStatusService] 订单${orderId}物料${materialId}检验数量已更新`);
       } else if (inspectionData.reference_type === 'purchase_order') {
-        throw new Error('质检单缺少采购订单引用ID，无法回写采购订单');
+        throw new Error('质检单缺少采购订单关联信息，无法回写采购订单');
       }
     } catch (error) {
       logger.error('处理质检完成后的采购订单更新失败:', error);
@@ -312,14 +365,24 @@ class PurchaseOrderStatusService {
    * @param {number} warehousingQuantity - 入库数量
    * @param {Object} connection - 数据库连接（可选）
    */
-  static async updateOrderItemWarehousingQuantity(orderId, materialId, warehousingQuantity, connection = null, orderItemId = null) {
+  static async updateOrderItemWarehousingQuantity(
+    orderId,
+    materialId,
+    warehousingQuantity,
+    connection = null,
+    orderItemId = null
+  ) {
     const client = connection || db.pool;
     const allocation = await PurchaseOrderQuantityService.read(client, orderId);
     const line = allocation.resolve(materialId, orderItemId);
     const quantity = purchaseQuantity(warehousingQuantity, '本次入库数量');
     const total = Number(line.item.warehoused_quantity || 0) + quantity;
-    if (total > Math.max(0, line.received) + QUANTITY_EPSILON) throw purchaseValidationError('入库数量超出已收货合格数量');
-    await client.execute('UPDATE purchase_order_items SET warehoused_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [total, line.item.id]);
+    if (total > Math.max(0, line.received) + QUANTITY_EPSILON)
+      throw purchaseValidationError('入库数量超出已收货合格数量');
+    await client.execute(
+      'UPDATE purchase_order_items SET warehoused_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [total, line.item.id]
+    );
     await this.updateOrderStatus(orderId, client);
   }
 

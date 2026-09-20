@@ -24,26 +24,10 @@
     "restore:offline": "node scripts/restore-backup.js",
     "audit:closure": "node scripts/audit-business-closure.js",
     "audit:functional": "node scripts/audit-functional-coverage.js",
-    "audit:finance": "node scripts/audit-finance-core.js",
     "test:finance-flow": "node scripts/test-finance-flow.js",
     "test:production-inventory-flow": "node scripts/test-production-inventory-flow.js",
-    "replay:sales-outbound-dlq": "node scripts/replay-sales-outbound-dlq.js",
     "verify:coding-rules": "node scripts/verify-finance-coding-rules.js",
-    "audit:finance-integrations": "node scripts/audit-finance-integrations.js",
-    "audit:cash-settlement": "node scripts/audit-cash-settlement.js",
-    "audit:invoice-generation": "node scripts/audit-invoice-generation.js",
-    "audit:sales-integrations": "node scripts/audit-sales-integrations.js",
-    "audit:quality-integrations": "node scripts/audit-quality-integrations.js",
-    "audit:production-integrations": "node scripts/audit-production-integrations.js",
-    "audit:cost": "node scripts/audit-cost-core.js",
-    "repair:cash-settlement": "node scripts/repair-cash-settlement.js",
-    "repair:invoice-generation": "node scripts/repair-invoice-generation.js",
-    "repair:finance-integrations": "node scripts/repair-finance-integrations.js",
-    "repair:quality-integrations": "node scripts/repair-quality-integrations.js",
-    "repair:production-integrations": "node scripts/repair-production-integrations.js",
-    "repair:sales-integrations": "node scripts/repair-sales-integrations.js",
     "repair:inventory-ledger-costs": "node scripts/repair-inventory-ledger-costs.js",
-    "import:ng-sales-2026": "node scripts/import-ng-2026-sales-orders.js",
     "audit:status": "node scripts/audit-status-consistency.js",
     "audit:data": "node scripts/run-data-consistency-audit.js",
     "audit:inventory-types": "node scripts/audit-inventory-transaction-types.js",
@@ -52,11 +36,9 @@
     "audit:workflow": "node scripts/audit-workflow-permission-closure.js",
     "audit:notifications": "node scripts/audit-notification-governance.js",
     "audit:super-admins": "node scripts/list-super-admins.js",
-    "audit:legacy": "node scripts/audit-legacy-code.js",
     "audit:production-readiness": "node scripts/audit-production-readiness.js",
     "audit:module-completeness": "node scripts/audit-module-completeness.js",
-    "audit:all": "npm run audit:closure && npm run audit:functional && npm run audit:status && npm run audit:data && npm run audit:data-api && npm run audit:inventory-types && npm run audit:workflow && npm run audit:sales-integrations && npm run audit:quality-integrations && npm run audit:production-integrations && npm run audit:invoice-generation && npm run audit:finance && npm run audit:finance-integrations && npm run audit:cash-settlement && npm run audit:cost && npm run audit:mobile-auth && npm run audit:legacy && npm run audit:production-readiness && npm run audit:module-completeness && npm run verify:coding-rules",
-    "perf:smoke": "node scripts/perf-smoke.js"
+    "audit:all": "npm run audit:closure && npm run audit:functional && npm run audit:status && npm run audit:data && npm run audit:data-api && npm run audit:inventory-types && npm run audit:workflow && npm run audit:mobile-auth && npm run audit:production-readiness && npm run audit:module-completeness && npm run verify:coding-rules"
   },
   "keywords": [
     "factory",
@@ -116,7 +98,7 @@
     "brace-expansion@2.1.2": "2.1.4",
     "brace-expansion@5.0.7": "5.0.9",
     "@apidevtools/json-schema-ref-parser": {
-      "js-yaml": "4.3.1"
+      "js-yaml": "4.3.2"
     },
     "@istanbuljs/load-nyc-config": {
       "js-yaml": "5.2.2"

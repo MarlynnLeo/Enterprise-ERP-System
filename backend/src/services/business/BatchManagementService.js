@@ -61,7 +61,11 @@ class BatchManagementService {
       const refType =
         reference_type || referenceType || (hasPurchaseReceiptContext ? 'inbound' : 'batch_create');
       let txType = transaction_type || transactionType || 'inbound';
-      if (!transaction_type && !transactionType && (receipt_id || receipt_no || purchase_order_id || purchase_order_no)) {
+      if (
+        !transaction_type &&
+        !transactionType &&
+        (receipt_id || receipt_no || purchase_order_id || purchase_order_no)
+      ) {
         txType = 'purchase_inbound';
       } else if (!transaction_type && !transactionType && refNo.startsWith('PR')) {
         txType = 'production_inbound';
@@ -82,7 +86,7 @@ class BatchManagementService {
             transactionType: txType,
             referenceNo: refNo,
             referenceType: refType,
-            operator: await resolveActorLabel(null, created_by),
+            operator: await resolveActorLabel(connection, created_by),
             remark: `批次入库: ${batch_number}`,
             unitId: unit ? await this._getUnitId(connection, unit) : null,
             batchNumber: batch_number,
@@ -106,7 +110,9 @@ class BatchManagementService {
         );
       }
 
-      logger.info(`Batch created: batchNumber=${batch_number}, originalQuantity=${original_quantity}`);
+      logger.info(
+        `Batch created: batchNumber=${batch_number}, originalQuantity=${original_quantity}`
+      );
 
       if (!isExternalTransaction) {
         await connection.commit();
@@ -139,10 +145,12 @@ class BatchManagementService {
   // 辅助方法：获取单位ID
   static async _getUnitId(connection, unitName) {
     if (!unitName) return null;
-    const [rows] = await connection.execute('SELECT id FROM units WHERE name = ? AND deleted_at IS NULL', [unitName]);
+    const [rows] = await connection.execute(
+      'SELECT id FROM units WHERE name = ? AND deleted_at IS NULL',
+      [unitName]
+    );
     return rows.length > 0 ? rows[0].id : null;
   }
-
 
   /**
    * 根据批次号获取批次记录 (单表架构版本)
@@ -302,10 +310,7 @@ class BatchManagementService {
     try {
       if (ownTransaction) await connection.beginTransaction();
 
-      const {
-        material_id,
-        required_quantity,
-      } = outboundData;
+      const { material_id, required_quantity } = outboundData;
 
       // 在进入 FIFO 视图前，强制对该物料的台账加悲观锁，防止并发分配相同的老批次库存
       await connection.query(
@@ -489,7 +494,6 @@ class BatchManagementService {
             remarks || '批次预留',
           ]
         );
-
 
         reserveRecords.push({
           batch_number: batch.batch_number,

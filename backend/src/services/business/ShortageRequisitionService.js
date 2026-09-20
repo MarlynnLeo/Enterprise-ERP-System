@@ -154,9 +154,7 @@ async function createRequisitionFromOutboundShortage(connection, opts = {}) {
       if (urows[0]) line.unit = urows[0].name;
     }
     if (!line.material_code || !line.material_name) {
-      logger.warn(
-        `[ShortageRequisition] 跳过物料不完整 id=${line.material_id}`
-      );
+      logger.warn(`[ShortageRequisition] 跳过物料不完整 id=${line.material_id}`);
       byMaterial.delete(line.material_id);
     }
   }
@@ -166,10 +164,7 @@ async function createRequisitionFromOutboundShortage(connection, opts = {}) {
   }
 
   // 与低库存预警共用：已有在途请购覆盖的物料只补差额
-  const pendingMap = await getPendingRequisitionQtyByMaterial(
-    connection,
-    [...byMaterial.keys()]
-  );
+  const pendingMap = await getPendingRequisitionQtyByMaterial(connection, [...byMaterial.keys()]);
   const { covered, uncovered } = splitByCoverage(
     [...byMaterial.values()].map((line) => ({
       ...line,
@@ -427,10 +422,7 @@ async function submitDraftRequisitionsForMaterials(connection, materialIds, init
         ...r,
       });
     } catch (e) {
-      logger.error(
-        `[ShortageRequisition] 草稿请购 ${row.requisition_number} 自动提交失败:`,
-        e
-      );
+      logger.error(`[ShortageRequisition] 草稿请购 ${row.requisition_number} 自动提交失败:`, e);
       results.push({
         requisitionId: row.id,
         requisitionNo: row.requisition_number,
@@ -445,7 +437,10 @@ async function submitDraftRequisitionsForMaterials(connection, materialIds, init
 /**
  * 将草稿请购提交工作流（与控制器 updateStatus→submitted 语义一致）
  */
-async function submitRequisitionForApproval(connection, { requisitionId, requisitionNo, initiatorId }) {
+async function submitRequisitionForApproval(
+  connection,
+  { requisitionId, requisitionNo, initiatorId }
+) {
   if (!initiatorId) {
     // 无发起人时尝试取超级管理员
     const [admins] = await connection.execute(

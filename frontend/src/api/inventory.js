@@ -1,6 +1,7 @@
 import { api } from '../services/axiosInstance';
 import { baseDataApi } from './baseData';
 import {  parseListData } from '../utils/responseParser';
+import { getApiErrorMessage } from '../utils/errorHandler';
 
 export const inventoryApi = {
     // 库存查询
@@ -222,7 +223,7 @@ export const inventoryApi = {
                     materialId,
                     locationId: warehouseId,
                     error: true,
-                    errorMessage: error.message
+                    errorMessage: getApiErrorMessage(error, '获取物料库存失败')
                 }
             };
         }

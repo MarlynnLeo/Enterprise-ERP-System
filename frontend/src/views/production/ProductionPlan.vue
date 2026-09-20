@@ -22,6 +22,7 @@ import { Download, Plus } from '@element-plus/icons-vue'
 import { parseQuantity, formatQuantity } from '@/utils/helpers/quantity'
 import { SEARCH_CONFIG, searchMaterials, mapMaterialData } from '@/utils/searchConfig'
 import { parseDataObject, parseListData } from '@/utils/responseParser'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { useFormKeyboardNav } from '@/composables/useFormKeyboardNav'
 // ✅ 键盘导航：Enter 跳转下一字段，最后一个字段按 Enter 自动提交
 const { onFormKeydown: planFormKeydown } = useFormKeyboardNav(() => handleModalOk())
@@ -522,7 +523,7 @@ const calculateMaterials = async () => {
     }
   } catch (error) {
     console.error('计算物料需求失败:', error)
-    ElMessage.error('计算物料需求失败: ' + (error.response?.data?.message || error.message))
+    ElMessage.error(`计算物料需求失败：${getApiErrorMessage(error, '请稍后重试')}`)
     materialList.value = []
   } finally {
     modalLoading.value = false
@@ -845,7 +846,7 @@ const handleModalOk = async () => {
     console.error('错误详情:', error.response?.data)
 
     // 获取详细的错误信息
-    const errorMessage = error.response?.data?.message || error.response?.data?.error || error.message || '未知错误'
+    const errorMessage = getApiErrorMessage(error, '请稍后重试')
 
     ElMessage.error({
       message: `保存生产计划失败: ${errorMessage}`,
@@ -922,7 +923,7 @@ const handleDelete = async (row) => {
     ElMessage.success('删除成功')
     await fetchPlanList()
   } catch (error) {
-    const msg = error.response?.data?.message || error.message || '删除失败'
+    const msg = getApiErrorMessage(error, '删除失败')
     ElMessage.error(msg)
   }
 }
@@ -932,7 +933,7 @@ const handleCancelPlan = async (row) => {
     ElMessage.success('生产计划已取消')
     await fetchPlanList()
   } catch (error) {
-    const msg = error.response?.data?.message || error.message || '取消失败'
+    const msg = getApiErrorMessage(error, '取消失败')
     ElMessage.error(msg)
   }
 }
@@ -1027,7 +1028,7 @@ const confirmPushDown = async () => {
     ElMessage.success(message);
   } catch (error) {
     console.error('下推生成生产任务失败:', error);
-    ElMessage.error('下推失败: ' + (error.response?.data?.message || error.message || '未知错误'));
+    ElMessage.error(`下推失败：${getApiErrorMessage(error, '请稍后重试')}`);
     loading.value = false;
   }
 };
@@ -1209,10 +1210,15 @@ const createPurchaseRequestForMaterial = async (material) => {
       console.error('采购申请API错误:', apiError);
 
       // 检查是否是主键重复错误
+      const duplicateMessage = [
+        apiError.response?.data?.sqlMessage,
+        apiError.response?.data?.error?.message,
+        apiError.response?.data?.error,
+        apiError.message
+      ].filter(value => typeof value === 'string').join(' ')
       if (apiError.response &&
           apiError.response.data &&
-          (apiError.response.data.sqlMessage?.includes('Duplicate entry') ||
-           apiError.response.data.error?.includes('Duplicate entry') ||
+          (duplicateMessage.includes('Duplicate entry') ||
            apiError.response.data.code === 'ER_DUP_ENTRY')) {
 
         // 这是重复申请，可能是多次点击或者已有申请
@@ -1233,7 +1239,7 @@ const createPurchaseRequestForMaterial = async (material) => {
 
   } catch (error) {
     console.error('创建采购申请失败:', error);
-    ElMessage.error('创建采购申请失败: ' + (error.response?.data?.message || error.message));
+    ElMessage.error(`创建采购申请失败：${getApiErrorMessage(error, '请稍后重试')}`);
   } finally {
     modalLoading.value = false;
   }

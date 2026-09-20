@@ -29,7 +29,7 @@ const getList = async (req, res) => {
     return ResponseHandler.success(res, result);
   } catch (error) {
     logger.error('Failed to get NCP list:', error);
-    return ResponseHandler.error(res, 'Failed to get NCP list', 'OPERATION_ERROR', 500, error);
+    return ResponseHandler.error(res, '获取不合格品列表失败', 'OPERATION_ERROR', 500, error);
   }
 };
 
@@ -44,9 +44,9 @@ const getDetails = async (req, res) => {
   } catch (error) {
     logger.error('Failed to get NCP details:', error);
     if (error?.code === 'NCP_NOT_FOUND' || error?.message === 'NCP not found') {
-      return ResponseHandler.notFound(res, 'NCP not found');
+      return ResponseHandler.notFound(res, '不合格品单不存在或已被删除');
     }
-    return ResponseHandler.error(res, 'Failed to get NCP details', 'OPERATION_ERROR', 500, error);
+    return ResponseHandler.error(res, '获取不合格品详情失败', 'OPERATION_ERROR', 500, error);
   }
 };
 
@@ -67,10 +67,10 @@ const create = async (req, res) => {
       result = await NonconformingProduct.create(ncpData);
     }
 
-    return ResponseHandler.success(res, result, 'NCP created successfully');
+    return ResponseHandler.success(res, result, '不合格品单创建成功');
   } catch (error) {
     logger.error('Failed to create NCP:', error);
-    return ResponseHandler.error(res, 'Failed to create NCP', 'OPERATION_ERROR', 500, error);
+    return ResponseHandler.error(res, '创建不合格品单失败', 'OPERATION_ERROR', 500, error);
   }
 };
 
@@ -83,10 +83,10 @@ const update = async (req, res) => {
     const updateData = mapKeysToSnake(req.body || {});
 
     await NonconformingProduct.update(id, updateData);
-    return ResponseHandler.success(res, null, 'NCP updated successfully');
+    return ResponseHandler.success(res, null, '不合格品单更新成功');
   } catch (error) {
     logger.error('Failed to update NCP:', error);
-    return ResponseHandler.error(res, 'Failed to update NCP', 'OPERATION_ERROR', 500, error);
+    return ResponseHandler.error(res, '更新不合格品单失败', 'OPERATION_ERROR', 500, error);
   }
 };
 
@@ -99,12 +99,12 @@ const updateDisposition = async (req, res) => {
     const dispositionData = mapKeysToSnake(req.body || {});
 
     await NonconformingProductService.processDisposition(id, dispositionData);
-    return ResponseHandler.success(res, null, 'Disposition updated successfully');
+    return ResponseHandler.success(res, null, '不合格品处置结果更新成功');
   } catch (error) {
     logger.error('Failed to update disposition:', error);
     return ResponseHandler.error(
       res,
-      'Failed to update disposition',
+      error.message || '更新不合格品处置结果失败',
       'OPERATION_ERROR',
       500,
       error
@@ -121,10 +121,10 @@ const completeHandling = async (req, res) => {
     const completionData = mapKeysToSnake(req.body || {});
 
     await NonconformingProductService.completeHandling(id, completionData);
-    return ResponseHandler.success(res, null, 'NCP handling completed successfully');
+    return ResponseHandler.success(res, null, '不合格品处理完成');
   } catch (error) {
     logger.error('Failed to complete handling:', error);
-    return ResponseHandler.error(res, 'Failed to complete handling', 'OPERATION_ERROR', 500, error);
+    return ResponseHandler.error(res, error.message || '完成不合格品处理失败', 'OPERATION_ERROR', 500, error);
   }
 };
 
@@ -135,10 +135,10 @@ const deleteNcp = async (req, res) => {
   try {
     const { id } = req.params;
     await NonconformingProduct.delete(id);
-    return ResponseHandler.success(res, null, 'NCP deleted successfully');
+    return ResponseHandler.success(res, null, '不合格品单删除成功');
   } catch (error) {
     logger.error('Failed to delete NCP:', error);
-    return ResponseHandler.error(res, 'Failed to delete NCP', 'OPERATION_ERROR', 500, error);
+    return ResponseHandler.error(res, '删除不合格品单失败', 'OPERATION_ERROR', 500, error);
   }
 };
 
@@ -156,7 +156,7 @@ const getStatistics = async (req, res) => {
     return ResponseHandler.success(res, result);
   } catch (error) {
     logger.error('Failed to get statistics:', error);
-    return ResponseHandler.error(res, 'Failed to get statistics', 'OPERATION_ERROR', 500, error);
+    return ResponseHandler.error(res, '获取不合格品统计失败', 'OPERATION_ERROR', 500, error);
   }
 };
 
@@ -170,7 +170,7 @@ const getByInspectionId = async (req, res) => {
     return ResponseHandler.success(res, result);
   } catch (error) {
     logger.error('Failed to get NCPs by inspection:', error);
-    return ResponseHandler.error(res, 'Failed to get NCPs', 'OPERATION_ERROR', 500, error);
+    return ResponseHandler.error(res, '获取检验单关联的不合格品失败', 'OPERATION_ERROR', 500, error);
   }
 };
 
@@ -183,7 +183,7 @@ const getAutoDispositionConfig = async (req, res) => {
     return ResponseHandler.success(res, config, '获取自动处理配置成功');
   } catch (error) {
     logger.error('Failed to get auto disposition config:', error);
-    return ResponseHandler.error(res, 'Failed to get config', 'OPERATION_ERROR', 500, error);
+    return ResponseHandler.error(res, '获取自动处理配置失败', 'OPERATION_ERROR', 500, error);
   }
 };
 
@@ -197,7 +197,7 @@ const updateAutoDispositionConfig = async (req, res) => {
     return ResponseHandler.success(res, result, '更新自动处理配置成功');
   } catch (error) {
     logger.error('Failed to update auto disposition config:', error);
-    return ResponseHandler.error(res, 'Failed to update config', 'OPERATION_ERROR', 500, error);
+    return ResponseHandler.error(res, '更新自动处理配置失败', 'OPERATION_ERROR', 500, error);
   }
 };
 
@@ -220,7 +220,13 @@ const applyConcession = async (req, res) => {
     return ResponseHandler.success(res, null, '特采申请提交成功');
   } catch (error) {
     logger.error('Failed to apply concession:', error);
-    return ResponseHandler.error(res, error.message || '特采申请失败', 'OPERATION_ERROR', 500, error);
+    return ResponseHandler.error(
+      res,
+      error.message || '特采申请失败',
+      'OPERATION_ERROR',
+      500,
+      error
+    );
   }
 };
 
@@ -236,15 +242,30 @@ const approveConcession = async (req, res) => {
     const approverName = await getCurrentUserName(req);
 
     if (!['approved', 'rejected'].includes(status)) {
-      return ResponseHandler.error(res, '审批状态必须为 approved 或 rejected', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(
+        res,
+        '审批状态必须为 approved 或 rejected',
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     const approverId = getAuthenticatedUserId(req);
     await NonconformingProductService.approveConcession(id, { status, approverId, approverName });
-    return ResponseHandler.success(res, null, `特采审批已${status === 'approved' ? '通过' : '驳回'}`);
+    return ResponseHandler.success(
+      res,
+      null,
+      `特采审批已${status === 'approved' ? '通过' : '驳回'}`
+    );
   } catch (error) {
     logger.error('Failed to approve concession:', error);
-    return ResponseHandler.error(res, error.message || '特采审批失败', 'OPERATION_ERROR', 500, error);
+    return ResponseHandler.error(
+      res,
+      error.message || '特采审批失败',
+      'OPERATION_ERROR',
+      500,
+      error
+    );
   }
 };
 

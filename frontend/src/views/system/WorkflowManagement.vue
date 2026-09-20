@@ -181,6 +181,7 @@ import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, onMounted } from 'vue'
 
 import { ElMessage } from 'element-plus/es/components/message/index'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { Edit, Delete } from '@element-plus/icons-vue'
 import { workflowApi } from '@/api/workflow'
 import { systemApi } from '@/api/system'
@@ -351,7 +352,7 @@ const saveTemplate = async () => {
     formVis.value = false
     fetchData()
   } catch (error) {
-    ElMessage.error(error.message || '保存失败')
+    ElMessage.error(getApiErrorMessage(error, '保存失败'))
   } finally {
     saving.value = false
   }

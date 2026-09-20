@@ -36,6 +36,8 @@
         <el-form-item label="设备状态">
           <el-select  v-model="searchForm.status" placeholder="请选择状态" clearable>
             <el-option label="正常" value="normal"></el-option>
+            <el-option label="闲置" value="idle"></el-option>
+            <el-option label="离线" value="offline"></el-option>
             <el-option label="维护中" value="maintenance"></el-option>
             <el-option label="维修中" value="repair"></el-option>
             <el-option label="已报废" value="scrapped"></el-option>
@@ -256,6 +258,8 @@
             <el-form-item label="设备状态" prop="status">
               <el-select v-model="form.status" placeholder="请选择设备状态" class="w-full">
                 <el-option label="正常" value="normal"></el-option>
+                <el-option label="闲置" value="idle"></el-option>
+                <el-option label="离线" value="offline"></el-option>
                 <el-option label="维护中" value="maintenance"></el-option>
                 <el-option label="维修中" value="repair"></el-option>
                 <el-option label="已报废" value="scrapped"></el-option>
@@ -313,7 +317,7 @@
             <el-table-column prop="maintenanceDate" label="维护日期" width="120"></el-table-column>
             <el-table-column prop="maintenanceType" label="维护类型" width="120"></el-table-column>
             <el-table-column prop="maintenancePerson" label="维护人员" width="100"></el-table-column>
-            <el-table-column prop="maintenanceContent" label="维护内容"></el-table-column>
+            <el-table-column prop="description" label="维护内容"></el-table-column>
             <el-table-column prop="nextMaintenanceDate" label="下次维护日期" width="120"></el-table-column>
           </el-table>
         </el-tab-pane>
@@ -322,9 +326,9 @@
           <el-table v-else :data="currentEquipment.failureRecords" border class="w-full">
             <el-table-column prop="failureDate" label="故障日期" width="120"></el-table-column>
             <el-table-column prop="failureType" label="故障类型" width="120"></el-table-column>
-            <el-table-column prop="reporter" label="报告人" width="100"></el-table-column>
-            <el-table-column prop="failureDescription" label="故障描述"></el-table-column>
-            <el-table-column prop="repairResult" label="修复结果" width="120"></el-table-column>
+            <el-table-column prop="reportedBy" label="报告人" width="100"></el-table-column>
+            <el-table-column prop="description" label="故障描述"></el-table-column>
+            <el-table-column prop="resolution" label="修复结果" width="120"></el-table-column>
           </el-table>
         </el-tab-pane>
         <el-tab-pane label="检查记录" name="inspection">
@@ -419,7 +423,7 @@
                 <p>失败原因：</p>
                 <ul>
                   <li v-for="(error, index) in importResult.errors.slice(0, 5)" :key="index">
-                    {{ error }}
+                    {{ getApiErrorMessage(error, '导入失败') }}
                   </li>
                   <li v-if="importResult.errors.length > 5">
                     ...还有 {{ importResult.errors.length - 5 }} 条错误
@@ -457,6 +461,7 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { equipmentApi } from '@/api'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { Plus, Download, Upload, Edit, Delete } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { loadExcelJS } from '@/utils/lazyVendors'
@@ -629,7 +634,7 @@ const submitForm = async () => {
         }
       } catch (error) {
         console.error('保存设备信息失败', error)
-        const errMsg = error.response?.data?.message || error.message || '未知错误'
+        const errMsg = getApiErrorMessage(error, '请检查设备资料后重试')
         ElMessage.error(`保存设备信息失败: ${errMsg}`)
       }
     }
@@ -688,6 +693,8 @@ const handleCurrentChange = (page) => {
 const getStatusType = (status) => {
   const map = {
     normal: 'success',
+    idle: 'info',
+    offline: 'info',
     maintenance: 'warning',
     repair: 'danger',
     scrapped: 'info'
@@ -699,6 +706,8 @@ const getStatusType = (status) => {
 const getStatusText = (status) => {
   const map = {
     normal: '正常',
+    idle: '闲置',
+    offline: '离线',
     maintenance: '维护中',
     repair: '维修中',
     scrapped: '已报废'
@@ -853,6 +862,8 @@ const formatExcelDate = (excelDate) => {
 const mapStatusFromText = (statusText) => {
   const statusMap = {
     '正常': 'normal',
+    '闲置': 'idle',
+    '离线': 'offline',
     '维护中': 'maintenance',
     '维修中': 'repair',
     '已报废': 'scrapped'
@@ -888,7 +899,7 @@ const executeImport = async () => {
     }
   } catch (error) {
     console.error('导入设备失败:', error)
-    ElMessage.error('导入设备失败')
+    ElMessage.error(`导入设备失败：${getApiErrorMessage(error, '请检查导入文件后重试')}`)
   } finally {
     importing.value = false
   }

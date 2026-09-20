@@ -40,8 +40,7 @@ module.exports = {
   createCostCenter: async (req, res) => {
     try {
       const body = mapKeysToSnake(req.body || {});
-      const { code, name, type, parent_id, department_id, manager, manager_id, description } =
-        body;
+      const { code, name, type, parent_id, department_id, manager, manager_id, description } = body;
 
       if (!code || !name) {
         return ResponseHandler.error(res, '成本中心编码和名称不能为空', 'VALIDATION_ERROR', 400);
@@ -75,16 +74,8 @@ module.exports = {
   updateCostCenter: async (req, res) => {
     try {
       const { id } = req.params;
-      const {
-        name,
-        type,
-        parent_id,
-        department_id,
-        manager,
-        manager_id,
-        description,
-        is_active,
-      } = mapKeysToSnake(req.body || {});
+      const { name, type, parent_id, department_id, manager, manager_id, description, is_active } =
+        mapKeysToSnake(req.body || {});
 
       await db.pool.execute(
         `UPDATE cost_centers SET name = ?, type = ?, parent_id = ?, department_id = ?,

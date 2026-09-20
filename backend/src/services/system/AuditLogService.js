@@ -56,9 +56,9 @@ class AuditLogService {
       try {
         const oldPayload = sanitizeAuditValue(params.old_payload || params.oldValue || null);
         const newPayload = sanitizeAuditValue(params.new_payload || params.newValue || null);
-        const diff = params.field_diff || (oldPayload && newPayload
-          ? this.diffObjects(oldPayload, newPayload)
-          : null);
+        const diff =
+          params.field_diff ||
+          (oldPayload && newPayload ? this.diffObjects(oldPayload, newPayload) : null);
         const requestId = params.request_id || params.requestId || null;
         const targetTable = params.target_table || params.entity_type || null;
         const targetId = String(params.target_id || params.entity_id || '').slice(0, 500);
@@ -82,9 +82,9 @@ class AuditLogService {
               targetId,
               targetTable,
               targetId,
-               serializeAuditPayload(oldPayload),
-               serializeAuditPayload(newPayload),
-               serializeAuditPayload(diff),
+              serializeAuditPayload(oldPayload),
+              serializeAuditPayload(newPayload),
+              serializeAuditPayload(diff),
               params.ip_address || '',
               params.user_agent || '',
             ]
@@ -106,7 +106,7 @@ class AuditLogService {
               params.action || 'UNKNOWN',
               targetTable,
               targetId,
-               serializeAuditPayload(newPayload),
+              serializeAuditPayload(newPayload),
               params.ip_address || '',
               params.user_agent || '',
             ]

@@ -91,6 +91,7 @@
 
 import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { Refresh, Timer } from '@element-plus/icons-vue'
 import { equipmentMonitoringAPI } from '@/api/modules/business/equipmentMonitoring'
 import { formatTime } from '@/utils/helpers/dateUtils'
@@ -141,7 +142,7 @@ const fetchRealTimeData = async () => {
     await nextTick()
     updateCharts()
   } catch (error) {
-    ElMessage.error('获取实时数据失败: ' + error.message)
+    ElMessage.error(`获取实时数据失败：${getApiErrorMessage(error, '请稍后重试')}`)
   } finally {
     loading.value = false
   }

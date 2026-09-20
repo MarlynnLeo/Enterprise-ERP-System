@@ -26,7 +26,7 @@ if (!process.env.JWT_REFRESH_SECRET) {
   if (process.env.NODE_ENV === 'production') {
     throw new Error(
       'JWT_REFRESH_SECRET environment variable is required in production. ' +
-      'Using the same secret for access and refresh tokens is a security risk.'
+        'Using the same secret for access and refresh tokens is a security risk.'
     );
   }
   logger.warn(
@@ -35,7 +35,9 @@ if (!process.env.JWT_REFRESH_SECRET) {
 }
 
 if (!ALLOWED_JWT_ALGORITHMS.includes(String(process.env.JWT_ALGORITHM || 'HS256'))) {
-  throw new Error(`Unsupported JWT_ALGORITHM. Allowed values: ${ALLOWED_JWT_ALGORITHMS.join(', ')}`);
+  throw new Error(
+    `Unsupported JWT_ALGORITHM. Allowed values: ${ALLOWED_JWT_ALGORITHMS.join(', ')}`
+  );
 }
 
 for (const [name, value] of Object.entries({

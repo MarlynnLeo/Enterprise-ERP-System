@@ -70,8 +70,8 @@ function containsPriceMutation(value) {
     return value.some((item) => containsPriceMutation(item));
   }
 
-  const hasSensitiveDescriptor = Object.entries(value).some(([key, childValue]) =>
-    SENSITIVE_FIELD_DESCRIPTORS.has(key) && isSensitiveFieldName(childValue)
+  const hasSensitiveDescriptor = Object.entries(value).some(
+    ([key, childValue]) => SENSITIVE_FIELD_DESCRIPTORS.has(key) && isSensitiveFieldName(childValue)
   );
 
   return Object.entries(value).some(([key, childValue]) => {
@@ -98,8 +98,8 @@ function stripBlankSensitiveValues(value) {
     );
   }
 
-  const hasSensitiveDescriptor = Object.entries(value).some(([key, childValue]) =>
-    SENSITIVE_FIELD_DESCRIPTORS.has(key) && isSensitiveFieldName(childValue)
+  const hasSensitiveDescriptor = Object.entries(value).some(
+    ([key, childValue]) => SENSITIVE_FIELD_DESCRIPTORS.has(key) && isSensitiveFieldName(childValue)
   );
 
   let hasForbiddenMutation = false;

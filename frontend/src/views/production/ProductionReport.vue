@@ -445,6 +445,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, onMounted, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -775,7 +776,7 @@ const handleEditReport = (record) => {
   if (!taskExists && taskId != null) {
     taskList.value.unshift({
       id: taskId,
-      code: record.taskCode || `任务 ${taskId}`,
+      code: record.taskCode || '未命名任务',
       productName: record.productName || ''
     })
   }
@@ -815,7 +816,7 @@ const handleDeleteReport = async (record) => {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('删除报工记录失败:', error)
-      ElMessage.error('删除失败: ' + (error.response?.data?.message || error.message))
+      ElMessage.error('删除失败: ' + (getApiErrorMessage(error, '未知错误')))
     }
   }
 }
@@ -958,7 +959,7 @@ const handleReportSubmit = async () => {
     fetchData()
   } catch (error) {
     console.error('报工提交失败:', error)
-    ElMessage.error('操作失败: ' + (error.response?.data?.message || error.message))
+    ElMessage.error('操作失败: ' + (getApiErrorMessage(error, '未知错误')))
   }
 }
 

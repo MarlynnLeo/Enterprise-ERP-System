@@ -317,7 +317,8 @@ const report = {
   sampleRoutes: [...routePaths].filter((p) => p.includes('finance') || p.includes('purchase')).slice(0, 30),
 }
 
-const outJson = path.join(__dirname, 'audit-action-buttons-report.json')
+const outJson = path.join(ROOT, 'reports', 'audit-action-buttons-report.json')
+fs.mkdirSync(path.dirname(outJson), { recursive: true })
 fs.writeFileSync(outJson, JSON.stringify(report, null, 2), 'utf8')
 
 console.log('=== Frontend Action Button Audit v2 ===')

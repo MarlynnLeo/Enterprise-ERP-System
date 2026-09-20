@@ -55,6 +55,12 @@ const getUserId = (req) => req.user?.id || null;
 
 const sanitizeText = (value) => String(value ?? '').trim();
 
+const isValidRequestDate = (value) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+};
+
 const parsePositiveNumber = (value) => {
   const number = Number(value);
   return Number.isFinite(number) && number > 0 ? number : 0;
@@ -277,7 +283,7 @@ const createLeaveRequest = async (req, res) => {
     const employee = await getEmployeeByUser(userId);
     // HTTP camel（兼容旧 leave_type/start_date 字段名）
     const body = mapKeysToSnake(req.body || {});
-    const leaveType = sanitizeText(req.body.type || body.leaveType);
+    const leaveType = sanitizeText(body.type || body.leave_type);
     const startDate = sanitizeText(body.start_date);
     const endDate = sanitizeText(body.end_date);
     const duration = parsePositiveNumber(body.duration);
@@ -286,7 +292,15 @@ const createLeaveRequest = async (req, res) => {
     if (!leaveType) return ResponseHandler.error(res, '请选择请假类型', 'VALIDATION_ERROR', 400);
     if (!startDate) return ResponseHandler.error(res, '请选择开始日期', 'VALIDATION_ERROR', 400);
     if (!endDate) return ResponseHandler.error(res, '请选择结束日期', 'VALIDATION_ERROR', 400);
-    if (new Date(startDate) > new Date(endDate)) {
+    if (!isValidRequestDate(startDate) || !isValidRequestDate(endDate)) {
+      return ResponseHandler.error(
+        res,
+        '请提供有效的请假日期，格式 YYYY-MM-DD',
+        'VALIDATION_ERROR',
+        400
+      );
+    }
+    if (startDate > endDate) {
       return ResponseHandler.error(res, '结束日期不能早于开始日期', 'VALIDATION_ERROR', 400);
     }
     if (!duration)
@@ -373,14 +387,22 @@ const createOvertimeRequest = async (req, res) => {
     const employee = await getEmployeeByUser(userId);
     // HTTP camel → snake
     const body = mapKeysToSnake(req.body || {});
-    const overtimeDate = sanitizeText(req.body.date || body.overtimeDate);
+    const overtimeDate = sanitizeText(body.date || body.overtime_date);
     const startTime = sanitizeText(body.start_time);
     const endTime = sanitizeText(body.end_time);
     const hours = parsePositiveNumber(body.hours);
-    const overtimeType = sanitizeText(req.body.type || body.overtimeType);
+    const overtimeType = sanitizeText(body.type || body.overtime_type);
     const reason = sanitizeText(body.reason);
 
     if (!overtimeDate) return ResponseHandler.error(res, '请选择加班日期', 'VALIDATION_ERROR', 400);
+    if (!isValidRequestDate(overtimeDate)) {
+      return ResponseHandler.error(
+        res,
+        '请提供有效的加班日期，格式 YYYY-MM-DD',
+        'VALIDATION_ERROR',
+        400
+      );
+    }
     if (!hours) return ResponseHandler.error(res, '请填写有效的加班时长', 'VALIDATION_ERROR', 400);
     if (!overtimeType) return ResponseHandler.error(res, '请选择加班类型', 'VALIDATION_ERROR', 400);
     if (!reason) return ResponseHandler.error(res, '请填写加班原因', 'VALIDATION_ERROR', 400);

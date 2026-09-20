@@ -96,7 +96,7 @@ class SalaryService {
         const base = parseFloat(att.base_salary || 0);
         const daysInMonth = parseFloat(att.days_in_month || 21.75);
         const dailyWage = daysInMonth > 0 ? base / daysInMonth : 0;
-        const hourlyWage = parseFloat(att.overtime_rate || 20.0);
+        const hourlyWage = parseFloat(att.overtime_rate ?? 20.0);
 
         // --- B. 请假扣款（仅扣请假天数，不扣公休天数） ---
         // [修复 L2+L3] vacation_days 是公休天数（周末/法定假日），不应扣工资
@@ -109,13 +109,13 @@ class SalaryService {
         const missingCount = parseInt(att.missing_punch_count) || 0;
         // 注意：目前 Excel 只导入了「迟到次数」，无具体分钟数，暂按最低档罚款计算
         // 后续如有分钟级数据可按梯度细化
-        const lateFine = lateCount > 0 ? -(lateCount * (lateTiers[0]?.fine || 10)) : 0;
+        const lateFine = lateCount > 0 ? -(lateCount * (lateTiers[0]?.fine ?? 10)) : 0;
 
         // --- D. 加项 ---
         const overtimePay = parseFloat(att.overtime_hours || 0) * hourlyWage;
-        const positionAllowance = parseFloat(att.position_allowance || 150.0);
-        const housingAllowance = parseFloat(att.housing_allowance || 78.57);
-        const mealAllowance = parseFloat(att.meal_allowance || 102.14);
+        const positionAllowance = parseFloat(att.position_allowance ?? 150.0);
+        const housingAllowance = parseFloat(att.housing_allowance ?? 78.57);
+        const mealAllowance = parseFloat(att.meal_allowance ?? 102.14);
         const personalPerf = 0;
         const teamPerf = 0;
 
@@ -125,7 +125,12 @@ class SalaryService {
         if (lateCount === 0 && missingCount === 0 && leaveDays === 0) {
           // 完全无异常：发满勤奖
           fullAttendance = fullAttBonus;
-        } else if (lateCount > 0 && lateCount <= lateMaxCount && missingCount === 0) {
+        } else if (
+          lateCount > 0 &&
+          lateCount <= lateMaxCount &&
+          missingCount === 0 &&
+          leaveDays === 0
+        ) {
           // 迟到在允许次数内：根据 cancelOnLate 规则决定是否发满勤
           fullAttendance = cancelOnLate ? 0 : fullAttBonus;
         }
@@ -165,7 +170,7 @@ class SalaryService {
         const netSalary = round2(grossSalary + pension + housingFund);
 
         // --- G. 拆分明细 ---
-        const splitBase = parseFloat(att.split_base_salary || base / 2);
+        const splitBase = parseFloat(att.split_base_salary ?? base / 2);
         const splitBonus = round2(
           grossSalary - splitBase - overtimePay - mealAllowance - housingAllowance
         );

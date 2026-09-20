@@ -22,7 +22,7 @@ class NonconformingProduct {
     let connection;
     const useOwnConnection = !externalConnection;
     try {
-      connection = externalConnection || await db.pool.getConnection();
+      connection = externalConnection || (await db.pool.getConnection());
       if (useOwnConnection) {
         await connection.beginTransaction();
       }
@@ -40,16 +40,21 @@ class NonconformingProduct {
         if (materialRows.length > 0) {
           materialName = materialName || materialRows[0].name;
           materialCode = materialCode || materialRows[0].code;
-          logger.info(`NCP material information populated: materialCode=${materialCode}, materialName=${materialName}`);
+          logger.info(
+            `NCP material information populated: materialCode=${materialCode}, materialName=${materialName}`
+          );
         }
       }
 
       // ✅ 全自动防呆溯源逻辑：从生产线发送的不合格品，利用传来的工单编号自动反查历史挂靠供应商
       if (ncpData.source_task_no && (!ncpData.batch_no || !ncpData.supplier_id)) {
         try {
-          logger.info(`NCP source trace started: taskNo=${ncpData.source_task_no}, materialId=${ncpData.material_id}`);
+          logger.info(
+            `NCP source trace started: taskNo=${ncpData.source_task_no}, materialId=${ncpData.material_id}`
+          );
           // 1. 在 `inventory_ledger` 与 `inventory_outbound` 联合查找该物料在此工单领料的最新批次号
-          const [ledgerRows] = await connection.query(`
+          const [ledgerRows] = await connection.query(
+            `
             SELECT il.batch_number
             FROM inventory_ledger il
             JOIN inventory_outbound o ON il.reference_no = o.outbound_no
@@ -58,30 +63,38 @@ class NonconformingProduct {
               AND il.batch_number IS NOT NULL
             ORDER BY il.created_at DESC
             LIMIT 1
-          `, [ncpData.source_task_id, ncpData.material_id]);
+          `,
+            [ncpData.source_task_id, ncpData.material_id]
+          );
 
           if (ledgerRows.length > 0 && ledgerRows[0].batch_number) {
             ncpData.batch_no = ledgerRows[0].batch_number;
             logger.info(`NCP source trace batch resolved: batchNo=${ncpData.batch_no}`);
 
             // 2. 拿着批次号反查采购入库记录拿到供应商（JOIN suppliers 表取权威名称）
-            const [receiptRows] = await connection.query(`
+            const [receiptRows] = await connection.query(
+              `
               SELECT r.supplier_id, COALESCE(s.name, r.supplier_name) AS supplier_name
               FROM purchase_receipts r
               JOIN purchase_receipt_items ri ON r.id = ri.receipt_id
               LEFT JOIN suppliers s ON r.supplier_id = s.id
               WHERE ri.batch_number = ? AND ri.material_id = ?
               LIMIT 1
-            `, [ncpData.batch_no, ncpData.material_id]);
+            `,
+              [ncpData.batch_no, ncpData.material_id]
+            );
 
             if (receiptRows.length > 0) {
               ncpData.supplier_id = receiptRows[0].supplier_id;
               ncpData.supplier_name = receiptRows[0].supplier_name;
               ncpData.responsible_party = 'supplier';
-              logger.info(`NCP source trace supplier resolved from purchase receipt: supplierName=${ncpData.supplier_name}`);
+              logger.info(
+                `NCP source trace supplier resolved from purchase receipt: supplierName=${ncpData.supplier_name}`
+              );
             } else {
               // 备用：从 inventory_ledger 查该批次最初的采购入库(inbound)交易记录
-              const [inboundLedgerRows] = await connection.query(`
+              const [inboundLedgerRows] = await connection.query(
+                `
                 SELECT reference_no
                 FROM inventory_ledger
                 WHERE transaction_type = 'inbound'
@@ -89,29 +102,38 @@ class NonconformingProduct {
                   AND batch_number = ?
                   AND material_id = ?
                 LIMIT 1
-              `, [ncpData.batch_no, ncpData.material_id]);
+              `,
+                [ncpData.batch_no, ncpData.material_id]
+              );
 
               if (inboundLedgerRows.length > 0) {
-                 const receiptNo = inboundLedgerRows[0].reference_no;
-                 const [suppRows] = await connection.query(`
+                const receiptNo = inboundLedgerRows[0].reference_no;
+                const [suppRows] = await connection.query(
+                  `
                     SELECT r.supplier_id, COALESCE(s.name, r.supplier_name) AS supplier_name
                     FROM purchase_receipts r
                     LEFT JOIN suppliers s ON r.supplier_id = s.id
                     WHERE r.receipt_no = ?
                     LIMIT 1
-                 `, [receiptNo]);
-                 if (suppRows.length > 0) {
-                    ncpData.supplier_id = suppRows[0].supplier_id;
-                    ncpData.supplier_name = suppRows[0].supplier_name;
-                    ncpData.responsible_party = 'supplier';
-                    logger.info(`NCP source trace supplier resolved from ledger fallback: supplierName=${ncpData.supplier_name}`);
-                 }
+                 `,
+                  [receiptNo]
+                );
+                if (suppRows.length > 0) {
+                  ncpData.supplier_id = suppRows[0].supplier_id;
+                  ncpData.supplier_name = suppRows[0].supplier_name;
+                  ncpData.responsible_party = 'supplier';
+                  logger.info(
+                    `NCP source trace supplier resolved from ledger fallback: supplierName=${ncpData.supplier_name}`
+                  );
+                }
               } else {
-                 logger.warn('[血缘追溯] 未在采购收货侧查获批号来源，已转入人工核验。');
+                logger.warn('[血缘追溯] 未在采购收货侧查获批号来源，已转入人工核验。');
               }
             }
           } else {
-            logger.warn(`NCP source trace is incomplete: taskNo=${ncpData.source_task_no}, materialId=${ncpData.material_id}`);
+            logger.warn(
+              `NCP source trace is incomplete: taskNo=${ncpData.source_task_no}, materialId=${ncpData.material_id}`
+            );
           }
         } catch (traceError) {
           logger.error('NCP source trace failed:', traceError);
@@ -167,7 +189,8 @@ class NonconformingProduct {
       );
 
       if (ncpData.inspection_id) {
-        await DocumentLinkService.tryAutoLink(DocType.QUALITY_INSPECTION,
+        await DocumentLinkService.tryAutoLink(
+          DocType.QUALITY_INSPECTION,
           ncpData.inspection_id,
           ncpData.inspection_no,
           DocType.NONCONFORMING_PRODUCT,
@@ -321,7 +344,7 @@ class NonconformingProduct {
     let connection;
     const useOwnConnection = !externalConnection;
     try {
-      connection = externalConnection || await db.pool.getConnection();
+      connection = externalConnection || (await db.pool.getConnection());
       if (useOwnConnection) {
         await connection.beginTransaction();
       }

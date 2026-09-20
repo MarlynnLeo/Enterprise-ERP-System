@@ -11,7 +11,8 @@ async function loadUnreconciled(accountId, asOfDate) {
     `SELECT id, transaction_date, transaction_type, amount, description, reference_number, status
      FROM bank_transactions WHERE bank_account_id = ? AND transaction_date <= ?
        AND COALESCE(is_reconciled, 0) = 0 AND status = 'approved'
-     ORDER BY transaction_date, id`, [accountId, asOfDate]
+     ORDER BY transaction_date, id`,
+    [accountId, asOfDate]
   );
   return rows;
 }
@@ -20,7 +21,8 @@ async function loadStatementBalance(accountId, asOfDate) {
   const [rows] = await db.pool.execute(
     `SELECT balance FROM bank_statement_items
      WHERE bank_account_id = ? AND transaction_date <= ? AND balance IS NOT NULL
-     ORDER BY transaction_date DESC, id DESC LIMIT 1`, [accountId, asOfDate]
+     ORDER BY transaction_date DESC, id DESC LIMIT 1`,
+    [accountId, asOfDate]
   );
   return rows.length ? Number(rows[0].balance) : null;
 }
@@ -75,13 +77,13 @@ class BankReconciliationReportService {
       id: r.id,
       date: r.transaction_date,
       type: r.transaction_type || null,
-      amount: (['存款', '转入', '利息', 'income'].includes(r.transaction_type) ? 1 : -1) * Number(r.amount || 0),
+      amount:
+        (['存款', '转入', '利息', 'income'].includes(r.transaction_type) ? 1 : -1) *
+        Number(r.amount || 0),
       description: r.description,
       reference: r.reference_number || null,
     }));
-    const outstandingSum = roundMoney(
-      outstanding.reduce((s, r) => s + Number(r.amount || 0), 0)
-    );
+    const outstandingSum = roundMoney(outstanding.reduce((s, r) => s + Number(r.amount || 0), 0));
 
     return {
       asOfDate,
@@ -101,8 +103,7 @@ class BankReconciliationReportService {
         statementBalance == null
           ? null
           : roundMoney(bookBalance - statementBalance - outstandingSum),
-      note:
-        '简化调节表：账面取账户余额；未达为未对账已审核流水。完整对账单导入后 statementBalance 更准。',
+      note: '简化调节表：账面取账户余额；未达为未对账已审核流水。完整对账单导入后 statementBalance 更准。',
     };
   }
 }

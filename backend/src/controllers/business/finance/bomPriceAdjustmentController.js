@@ -55,11 +55,12 @@ exports.getAdjustments = async (req, res) => {
 exports.saveAdjustment = async (req, res) => {
   let connection;
   try {
-    const { product_id, bom_id, material_id, original_price, adjusted_price, adjustment_reason } = mapKeysToSnake(req.body || {});
+    const { product_id, bom_id, material_id, original_price, adjusted_price, adjustment_reason } =
+      mapKeysToSnake(req.body || {});
 
     // 参数验证
     if (!product_id || !bom_id || !material_id) {
-      return ResponseHandler.error(res, '产品ID、BOM ID和物料ID不能为空', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(res, '产品、BOM和物料不能为空', 'VALIDATION_ERROR', 400);
     }
 
     let originalPrice;
@@ -92,7 +93,12 @@ exports.saveAdjustment = async (req, res) => {
 
     if (bomRows.length === 0) {
       await connection.rollback();
-      return ResponseHandler.error(res, 'BOM物料不属于该产品，不能保存价格调整', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(
+        res,
+        'BOM物料不属于该产品，不能保存价格调整',
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     // 查询当前是否已有生效的调整记录

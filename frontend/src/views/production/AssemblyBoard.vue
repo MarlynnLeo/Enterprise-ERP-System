@@ -162,6 +162,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, computed, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
@@ -185,7 +186,7 @@ const stepInfoVisible = ref(false), currentStep = ref(null), scannedBarcode = re
 const previewVisible = ref(false), previewDoc = ref(null)
 const loadSelectableTasks = async (keyword = '') => {
   try { selectableTasks.value = parseListData(await productionApi.getProductionTasks({ keyword, pageSize: 100 })) }
-  catch (error) { ElMessage.error(error.response?.data?.message || '加载任务失败') }
+  catch (error) { ElMessage.error(getApiErrorMessage(error, '加载任务失败')) }
 }
 const preview = doc => { previewDoc.value = doc; previewVisible.value = true }
 const showStep = row => { currentStep.value = row; scannedBarcode.value = ''; stepInfoVisible.value = true }
@@ -196,7 +197,7 @@ const verifyMaterial = async () => {
     const { data } = await productionAssistApi.scanVerify({ taskId: currentStep.value.taskId, processId: currentStep.value.id, scannedBarcode: scannedBarcode.value.trim() })
     if (data.result === 'pass') { ElMessage.success('物料验证通过'); scannedBarcode.value = '' }
     else ElMessage.warning(data.reason || '物料验证未通过')
-  } catch (error) { ElMessage.error(error.response?.data?.message || '扫码验证失败') }
+  } catch (error) { ElMessage.error(getApiErrorMessage(error, '扫码验证失败')) }
   finally { verifying.value = false }
 }
 const executeStep = async (row, action) => {
@@ -210,7 +211,7 @@ const executeStep = async (row, action) => {
     else ElMessage.success(action === 'start' ? '工序已开始' : '工序已完成')
     await viewTaskSteps(row.taskId)
     await loadBoard()
-  } catch (error) { ElMessage.error(error.response?.data?.message || '工序操作失败') }
+  } catch (error) { ElMessage.error(getApiErrorMessage(error, '工序操作失败')) }
   finally { executingId.value = null }
 }
 const skipStep = async row => {
@@ -220,11 +221,11 @@ const skipStep = async row => {
     if (data.warnings?.length) ElMessage.warning(data.warnings.join('；'))
     await viewTaskSteps(row.taskId)
     await loadBoard()
-  } catch (error) { if (error !== 'cancel' && error !== 'close') ElMessage.error(error.response?.data?.message || '跳过失败') }
+  } catch (error) { if (error !== 'cancel' && error !== 'close') ElMessage.error(getApiErrorMessage(error, '跳过失败')) }
 }
 const generateSteps = async () => {
   try { await assemblyExecutionApi.generateSteps(selectedTaskId.value); await viewTaskSteps(selectedTaskId.value); await loadBoard() }
-  catch (error) { ElMessage.error(error.response?.data?.message || '生成工序失败') }
+  catch (error) { ElMessage.error(getApiErrorMessage(error, '生成工序失败')) }
 }
 
 const loading = ref(false)

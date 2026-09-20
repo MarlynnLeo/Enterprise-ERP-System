@@ -74,22 +74,38 @@ const events = [
   {
     event_type: 'FINANCE_AR_INVOICE_OVERDUE',
     label: '应收发票逾期',
-    variables: ['invoiceId', 'invoiceNumber', 'overdueDays', 'customerName', 'balanceAmount', 'dueDate'],
+    variables: [
+      'invoiceId',
+      'invoiceNumber',
+      'overdueDays',
+      'customerName',
+      'balanceAmount',
+      'dueDate',
+    ],
     category: '财务管理',
     responsibility_code: RESPONSIBILITY_CODES.FINANCE,
     default_title: '应收发票逾期提醒',
-    default_content: '应收发票 ${invoiceNumber} 已逾期 ${overdueDays} 天，客户：${customerName}，余额：¥${balanceAmount}。',
+    default_content:
+      '应收发票 ${invoiceNumber} 已逾期 ${overdueDays} 天，客户：${customerName}，余额：¥${balanceAmount}。',
     default_link: '/finance/ar/invoices',
     source_path: 'invoiceId',
   },
   {
     event_type: 'FINANCE_AP_INVOICE_OVERDUE',
     label: '应付发票逾期',
-    variables: ['invoiceId', 'invoiceNumber', 'overdueDays', 'supplierName', 'balanceAmount', 'dueDate'],
+    variables: [
+      'invoiceId',
+      'invoiceNumber',
+      'overdueDays',
+      'supplierName',
+      'balanceAmount',
+      'dueDate',
+    ],
     category: '财务管理',
     responsibility_code: RESPONSIBILITY_CODES.FINANCE,
     default_title: '应付发票逾期提醒',
-    default_content: '应付发票 ${invoiceNumber} 已逾期 ${overdueDays} 天，供应商：${supplierName}，余额：¥${balanceAmount}。',
+    default_content:
+      '应付发票 ${invoiceNumber} 已逾期 ${overdueDays} 天，供应商：${supplierName}，余额：¥${balanceAmount}。',
     default_link: '/finance/ap/invoices',
     source_path: 'invoiceId',
   },
@@ -118,7 +134,9 @@ const events = [
 ].map((event) => Object.freeze(event));
 
 const EVENTS_BY_TYPE = new Map(events.map((event) => [event.event_type, event]));
-const EVENT_TYPES = Object.freeze(Object.fromEntries(events.map((event) => [event.event_type, event.event_type])));
+const EVENT_TYPES = Object.freeze(
+  Object.fromEntries(events.map((event) => [event.event_type, event.event_type]))
+);
 
 function getEvent(eventType) {
   return EVENTS_BY_TYPE.get(eventType) || null;
@@ -137,12 +155,16 @@ function getEventsByResponsibility(code) {
 }
 
 function getValueByPath(payload, path) {
-  return String(path || '').split('.').reduce((value, key) => value?.[key], payload);
+  return String(path || '')
+    .split('.')
+    .reduce((value, key) => value?.[key], payload);
 }
 
 function getSourceId(eventType, payload) {
   const event = getEvent(eventType);
-  return event ? getValueByPath(payload, event.source_path) : payload?.sourceId || payload?.id || null;
+  return event
+    ? getValueByPath(payload, event.source_path)
+    : payload?.sourceId || payload?.id || null;
 }
 
 module.exports = {

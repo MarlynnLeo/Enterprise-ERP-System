@@ -133,6 +133,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
@@ -203,7 +204,7 @@ const fetchCategories = async () => {
     categoryList.value = parseListData(res, { enableLog: false })
   } catch (error) {
     console.error('获取费用类型失败:', error)
-    ElMessage.error(error.response?.data?.message || error.message || '获取费用类型失败')
+    ElMessage.error(getApiErrorMessage(error, '获取费用类型失败'))
   } finally {
     loading.value = false
   }
@@ -223,7 +224,7 @@ const handleInit = async () => {
     await fetchCategories()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('初始化失败: ' + (error.response?.data?.message || error.message || '未知错误'))
+      ElMessage.error('初始化失败: ' + (getApiErrorMessage(error, '未知错误')))
     }
   } finally {
     loading.value = false
@@ -282,7 +283,7 @@ const handleSave = async () => {
     await fetchCategories()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('保存失败: ' + (error.response?.data?.message || error.message || '未知错误'))
+      ElMessage.error('保存失败: ' + (getApiErrorMessage(error, '未知错误')))
     }
   } finally {
     saving.value = false
@@ -296,7 +297,7 @@ const handleToggleStatus = async (row) => {
     ElMessage.success(row.status === 1 ? '已启用' : '已禁用')
   } catch (error) {
     row.status = previousStatus
-    ElMessage.error('操作失败: ' + (error.response?.data?.message || error.message || '未知错误'))
+    ElMessage.error('操作失败: ' + (getApiErrorMessage(error, '未知错误')))
   }
 }
 
@@ -317,14 +318,14 @@ const handleDelete = async (row) => {
     await fetchCategories()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('删除失败: ' + (error.response?.data?.message || error.message || '未知错误'))
+      ElMessage.error('删除失败: ' + (getApiErrorMessage(error, '未知错误')))
     }
   }
 }
 
 onMounted(() => {
   fetchCategories()
-  loadAccounts().catch(error => ElMessage.error(error.response?.data?.message || error.message || '加载费用科目失败'))
+  loadAccounts().catch(error => ElMessage.error(getApiErrorMessage(error, '加载费用科目失败')))
 })
 </script>
 

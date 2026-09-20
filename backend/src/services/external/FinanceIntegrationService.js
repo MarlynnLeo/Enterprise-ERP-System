@@ -47,13 +47,12 @@ class FinanceIntegrationService {
     });
   }
 
-  static formatMaterialLabel(item, idField = 'material_id') {
+  static formatMaterialLabel(item) {
     const code = item.material_code || item.product_code || '';
     const name = item.material_name || item.product_name || '';
     const specs = item.specs || item.specification || '';
-    const fallbackId = item[idField] || item.material_id || item.product_id;
     const label = [code, name, specs].filter(Boolean).join(' ');
-    return label || (fallbackId ? `material#${fallbackId}` : 'unknown item');
+    return label || '未命名物料';
   }
 
   static resolveTaxAmount(baseAmount, explicitTaxAmount, taxRate) {
@@ -563,7 +562,7 @@ class FinanceIntegrationService {
       0
     );
     if (plannedQuantity <= 0) {
-      throw new Error(`委外加工单 ${receipt.processing_no || processingId} 没有有效成品计划数量`);
+      throw new Error(`委外加工单 ${receipt.processing_no || '该委外加工单'} 没有有效成品计划数量`);
     }
 
     const priorParams = [processingId];
@@ -796,7 +795,7 @@ class FinanceIntegrationService {
             invoiceNumber: legacy.invoice_number,
             amount: legacy.total_amount,
             message:
-              `订单 ${order.order_no || order.id} 已有历史订单级应收（${legacy.invoice_number}），` +
+              `订单 ${order.order_no || '该订单'} 已有历史订单级应收（${legacy.invoice_number}），` +
               `为避免双重应收已跳过出库开票。专业路径应按出库量开票：请将旧票作废/红冲后，` +
               `再在「会计凭证→销售出库单」生成出库级应收。`,
             legacySource: 'sales_order',
@@ -809,7 +808,7 @@ class FinanceIntegrationService {
 
       if (!itemRows.length) {
         await connection.rollback();
-        throw new Error(`出库单 ${outboundData.outbound_no || outboundId} 无明细，不能生成应收`);
+        throw new Error(`出库单 ${outboundData.outbound_no || '该出库单'} 无明细，不能生成应收`);
       }
 
       // 使用实际出库成交价和各来源订单明细税率。
@@ -837,14 +836,14 @@ class FinanceIntegrationService {
         if (unitPrice <= 0) {
           await connection.rollback();
           throw new Error(
-            `出库单 ${outboundData.outbound_no || outboundId} 物料 ${row.material_code || row.material_id} 缺少有效单价`
+            `出库单 ${outboundData.outbound_no || outboundId} 物料“${row.material_code || '所选物料'}”缺少有效单价`
           );
         }
         const lineCents = Math.round(qty * unitPrice * 100);
         subtotalCents += lineCents;
         invoiceItems.push({
           product_id: row.material_id,
-          product_name: row.material_name || row.material_code || `material#${row.material_id}`,
+          product_name: row.material_name || row.material_code || '未命名物料',
           description: `销售出库 ${outboundData.outbound_no || outboundId} ${row.material_name || row.material_code || ''}`,
           quantity: qty,
           unit_price: unitPrice,
@@ -856,7 +855,7 @@ class FinanceIntegrationService {
 
       if (!invoiceItems.length) {
         await connection.rollback();
-        throw new Error(`出库单 ${outboundData.outbound_no || outboundId} 无可开票数量`);
+        throw new Error(`出库单 ${outboundData.outbound_no || '该出库单'} 无可开票数量`);
       }
 
       // 预览确认覆盖（仅认 camelCase：items / taxRate / taxAmount / invoiceDate / notes / accounts）
@@ -879,7 +878,7 @@ class FinanceIntegrationService {
               raw.product_name ||
               raw.material_name ||
               raw.material_code ||
-              (materialId ? `material#${materialId}` : '手工调整行'),
+              (raw.material_name || raw.material_code || '手工调整行'),
             description: raw.description || `销售出库 ${outboundData.outbound_no || outboundId}`,
             quantity: qty,
             unit_price: unitPrice,
@@ -1057,7 +1056,7 @@ class FinanceIntegrationService {
       );
       if (!outboundRows.length) {
         throw new Error(
-          `订单 ${salesOrder.order_no || salesOrder.id} 尚无已完成销售出库单，不能生成收入凭证`
+          `订单 ${salesOrder.order_no || '该订单'} 尚无已完成销售出库单，不能生成收入凭证`
         );
       }
       for (const outbound of outboundRows) {
@@ -1088,7 +1087,7 @@ class FinanceIntegrationService {
       if (outboundAr.length) {
         await connection.rollback();
         throw new Error(
-          `订单 ${salesOrder.order_no || salesOrder.id} 关联出库 ${outboundAr[0].outbound_no} ` +
+          `订单 ${salesOrder.order_no || '该订单'} 关联出库 ${outboundAr[0].outbound_no} ` +
             `已有出库级应收 ${outboundAr[0].invoice_number}，禁止再开订单级应收（防双重确认收入）`
         );
       }
@@ -1165,7 +1164,7 @@ class FinanceIntegrationService {
       if (orderItems.length === 0) {
         await connection.rollback();
         throw new Error(
-          `销售订单 ${salesOrder.order_no || salesOrder.id} 没有明细，不能生成应收发票`
+          `销售订单 ${salesOrder.order_no || '该订单'} 没有明细，不能生成应收发票`
         );
       }
 
@@ -1230,7 +1229,7 @@ class FinanceIntegrationService {
         const qty = parseFloat(item.quantity || 0);
         return {
           product_id: item.material_id,
-          product_name: item.material_name || item.material_code || `material#${item.material_id}`,
+          product_name: item.material_name || item.material_code || '未命名物料',
           description: `销售商品 ${item.material_name || item.material_code}`,
           quantity: qty,
           price: unitPrice,
@@ -1282,7 +1281,9 @@ class FinanceIntegrationService {
    * 生成销售红字发票
    */
   static async generateARCreditNoteFromSalesReturn(salesReturn, options = {}) {
-    const autoGenerate = options.force === true || await SystemConfigService.get('auto_generate_ar_credit_note', false);
+    const autoGenerate =
+      options.force === true ||
+      (await SystemConfigService.get('auto_generate_ar_credit_note', false));
     if (!autoGenerate) return { skipped: true, message: '自动生成红字应收已关闭' };
 
     const connection = await db.pool.getConnection();
@@ -1341,7 +1342,7 @@ class FinanceIntegrationService {
       if (!customerId) {
         await connection.rollback();
         throw new Error(
-          `销售退货单 ${salesReturn.return_no || salesReturn.id} 缺少客户信息，不能生成红字应收发票`
+          `销售退货单 ${salesReturn.return_no || '该销售退货单'} 缺少客户信息，不能生成红字应收发票`
         );
       }
 
@@ -1349,13 +1350,14 @@ class FinanceIntegrationService {
 
       const invoiceNumber = await this.generateInvoiceNumber('AR', connection);
 
-      const returnItems = (await SalesReturnValuationService.getItems(connection, [salesReturn.id]))
-        .map(item => ({ ...item, material_id: item.product_id, return_quantity: item.quantity }));
+      const returnItems = (
+        await SalesReturnValuationService.getItems(connection, [salesReturn.id])
+      ).map((item) => ({ ...item, material_id: item.product_id, return_quantity: item.quantity }));
 
       if (returnItems.length === 0) {
         await connection.rollback();
         throw new Error(
-          `销售退货单 ${salesReturn.return_no || salesReturn.id} 没有物料明细，不能生成红字应收发票`
+          `销售退货单 ${salesReturn.return_no || '该销售退货单'} 没有物料明细，不能生成红字应收发票`
         );
       }
 
@@ -1365,7 +1367,7 @@ class FinanceIntegrationService {
       if (totalAmount === 0) {
         await connection.rollback();
         throw new Error(
-          `销售退货单 ${salesReturn.return_no || salesReturn.id} 退货金额为0，不能生成红字应收发票`
+          `销售退货单 ${salesReturn.return_no || '该销售退货单'} 退货金额为0，不能生成红字应收发票`
         );
       }
 
@@ -1385,7 +1387,10 @@ class FinanceIntegrationService {
         total_amount: creditNoteAmount,
         amount_excluding_tax: -Math.abs(returnAmounts.subtotal),
         tax_amount: -Math.abs(returnAmounts.taxAmount),
-        tax_rate: returnAmounts.subtotal > 0 ? normalizeTaxRate(returnAmounts.taxAmount / returnAmounts.subtotal) : 0,
+        tax_rate:
+          returnAmounts.subtotal > 0
+            ? normalizeTaxRate(returnAmounts.taxAmount / returnAmounts.subtotal)
+            : 0,
         currency_code: financeConfig.get('invoice.defaultCurrency', 'CNY'),
         exchange_rate: 1.0,
         status: '已确认',
@@ -1398,12 +1403,15 @@ class FinanceIntegrationService {
           period_id: currentPeriod?.id ?? null,
           receivable_account_id: receivableAccountId,
           income_account_id: incomeAccountId,
-          output_tax_account_id: returnAmounts.taxAmount > 0 ? (await this.resolveAccountIds(['VAT_OUTPUT_TAX'])).VAT_OUTPUT_TAX : null,
+          output_tax_account_id:
+            returnAmounts.taxAmount > 0
+              ? (await this.resolveAccountIds(['VAT_OUTPUT_TAX'])).VAT_OUTPUT_TAX
+              : null,
           created_by: createdBy,
         },
         items: returnItems.map((item) => ({
           product_id: item.material_id,
-          product_name: item.material_name || item.material_code || `material#${item.material_id}`,
+          product_name: item.material_name || item.material_code || '未命名物料',
           description: `退货冲减 ${item.material_name || item.material_code}`,
           quantity: -parseFloat(item.return_quantity || 0),
           unit_price: parseFloat(item.unit_price || 0),
@@ -1480,17 +1488,19 @@ class FinanceIntegrationService {
       );
       const expectedTotalAmount = roundMoney(expectedSubtotalAmount + expectedTaxAmount);
 
-      const existingInvoice = await this.findExistingInvoiceBySource(
-        connection,
-        'ap_invoices',
-        'purchase_receipt',
-        purchaseReceipt.id
-      ) || await this.findExistingInvoiceBySource(
-        connection,
-        'ap_invoices',
-        'inbound',
-        purchaseReceipt.id
-      );
+      const existingInvoice =
+        (await this.findExistingInvoiceBySource(
+          connection,
+          'ap_invoices',
+          'purchase_receipt',
+          purchaseReceipt.id
+        )) ||
+        (await this.findExistingInvoiceBySource(
+          connection,
+          'ap_invoices',
+          'inbound',
+          purchaseReceipt.id
+        ));
       if (existingInvoice) {
         this.assertMoneyMatches(existingInvoice.total_amount, expectedTotalAmount, '应付发票');
         await DocumentLinkService.tryAutoLink(
@@ -1560,7 +1570,7 @@ class FinanceIntegrationService {
       if (receiptItems.length === 0) {
         await connection.rollback();
         throw new Error(
-          `采购入库单 ${purchaseReceipt.receipt_no || purchaseReceipt.id} 没有明细，不能生成应付发票`
+          `采购入库单 ${purchaseReceipt.receipt_no || '该采购入库单'} 没有明细，不能生成应付发票`
         );
       }
 
@@ -1609,7 +1619,7 @@ class FinanceIntegrationService {
       if (subtotalAmount <= 0) {
         await connection.rollback();
         throw new Error(
-          `采购入库单 ${purchaseReceipt.receipt_no || purchaseReceipt.id} 物料金额为0，不能生成应付发票`
+          `采购入库单 ${purchaseReceipt.receipt_no || '该采购入库单'} 物料金额为0，不能生成应付发票`
         );
       }
       const invoiceDateStr = toLocalDateString(
@@ -1675,7 +1685,7 @@ class FinanceIntegrationService {
           return {
             material_id: item.material_id,
             material_name:
-              item.material_name || item.material_code || `material#${item.material_id}`,
+              item.material_name || item.material_code || '未命名物料',
             description: item.description || `采购物资 ${item.material_name || item.material_code}`,
             quantity: qty,
             price: unitPrice,
@@ -1755,7 +1765,7 @@ class FinanceIntegrationService {
       );
       if (!receiptRows.length) {
         throw new Error(
-          `订单 ${purchaseOrder.order_no || purchaseOrder.id} 尚无已完成采购入库单，不能生成应付凭证`
+          `订单 ${purchaseOrder.order_no || '该订单'} 尚无已完成采购入库单，不能生成应付凭证`
         );
       }
       for (const receipt of receiptRows) {
@@ -1778,7 +1788,7 @@ class FinanceIntegrationService {
       if (receiptAp.length) {
         await connection.rollback();
         throw new Error(
-          `订单 ${purchaseOrder.order_no || purchaseOrder.id} 关联入库 ${receiptAp[0].receipt_no} ` +
+          `订单 ${purchaseOrder.order_no || '该订单'} 关联入库 ${receiptAp[0].receipt_no} ` +
             `已有入库级应付 ${receiptAp[0].invoice_number}，禁止再开订单级应付`
         );
       }
@@ -1861,7 +1871,7 @@ class FinanceIntegrationService {
       if (orderItems.length === 0) {
         await connection.rollback();
         throw new Error(
-          `采购订单 ${purchaseOrder.order_no || purchaseOrder.id} 没有明细，不能生成应付发票`
+          `采购订单 ${purchaseOrder.order_no || '该订单'} 没有明细，不能生成应付发票`
         );
       }
 
@@ -1878,7 +1888,7 @@ class FinanceIntegrationService {
       if (subtotalAmount <= 0) {
         await connection.rollback();
         throw new Error(
-          `采购订单 ${purchaseOrder.order_no || purchaseOrder.id} 物料金额为0，不能生成应付发票`
+          `采购订单 ${purchaseOrder.order_no || '该订单'} 物料金额为0，不能生成应付发票`
         );
       }
 
@@ -1954,7 +1964,7 @@ class FinanceIntegrationService {
           return {
             material_id: item.material_id,
             material_name:
-              item.material_name || item.material_code || `material#${item.material_id}`,
+              item.material_name || item.material_code || '未命名物料',
             description: `采购物资 ${item.material_name || item.material_code}`,
             quantity: qty,
             price: unitPrice,
@@ -2085,18 +2095,21 @@ class FinanceIntegrationService {
       if (returnItems.length === 0) {
         if (!isExternalConn) await connection.rollback();
         throw new Error(
-          `采购退货单 ${purchaseReturn.return_no || purchaseReturn.id} 没有明细，不能生成红字应付发票`
+          `采购退货单 ${purchaseReturn.return_no || '该采购退货单'} 没有明细，不能生成红字应付发票`
         );
       }
 
       // ✅ 精度修复：整数运算
-      const amounts = calculateLines(returnItems.map(item => ({ ...item, quantity: item.return_quantity })), { defaultTaxRate: 0 });
+      const amounts = calculateLines(
+        returnItems.map((item) => ({ ...item, quantity: item.return_quantity })),
+        { defaultTaxRate: 0 }
+      );
       const totalAmount = amounts.totalAmount;
       const creditNoteAmount = -Math.abs(totalAmount);
       if (totalAmount === 0) {
         if (!isExternalConn) await connection.rollback();
         throw new Error(
-          `采购退货单 ${purchaseReturn.return_no || purchaseReturn.id} 金额为0，不能生成红字应付发票`
+          `采购退货单 ${purchaseReturn.return_no || '该采购退货单'} 金额为0，不能生成红字应付发票`
         );
       }
 
@@ -2137,7 +2150,7 @@ class FinanceIntegrationService {
           return {
             material_id: item.material_id,
             material_name:
-              item.material_name || item.material_code || `material#${item.material_id}`,
+              item.material_name || item.material_code || '未命名物料',
             description: `退货冲减 ${item.material_name || item.material_code}`,
             quantity: -qty,
             price: unitPrice,
@@ -2214,7 +2227,7 @@ class FinanceIntegrationService {
         expectedTotalCost <= 0
       ) {
         throw new Error(
-          `销售出库单 ${salesOutbound.outbound_no || salesOutbound.id} 存在零成本库存流水，不能生成销售成本凭证`
+            `销售出库单 ${salesOutbound.outbound_no || '该销售出库单'} 存在零成本库存流水，不能生成销售成本凭证`
         );
       }
       if (expectedTotalCost <= 0) {
@@ -2281,7 +2294,7 @@ class FinanceIntegrationService {
       if (outboundItems.length === 0) {
         await connection.rollback();
         throw new Error(
-          `销售出库单 ${salesOutbound.outbound_no || salesOutbound.id} 没有明细，不能生成销售成本凭证`
+          `销售出库单 ${salesOutbound.outbound_no || '该销售出库单'} 没有明细，不能生成销售成本凭证`
         );
       }
 
@@ -2290,7 +2303,7 @@ class FinanceIntegrationService {
       if (totalCost <= 0) {
         await connection.rollback();
         throw new Error(
-          `销售出库单 ${salesOutbound.outbound_no || salesOutbound.id} 成本为0，不能生成销售成本凭证`
+          `销售出库单 ${salesOutbound.outbound_no || '该销售出库单'} 成本为0，不能生成销售成本凭证`
         );
       }
 
@@ -2413,18 +2426,21 @@ class FinanceIntegrationService {
 
       const invoiceNumber = await this.generateTaxInvoiceNumber(connection);
 
-      const outboundItems = await SalesOutboundValuationService.getItems(connection, [salesOutbound.id]);
+      const outboundItems = await SalesOutboundValuationService.getItems(connection, [
+        salesOutbound.id,
+      ]);
       const amounts = SalesOutboundValuationService.summarize(outboundItems);
       const amountExcludingTax = amounts.subtotal;
       await this.loadConfigurations();
-      const taxRate = amountExcludingTax > 0 ? normalizeTaxRate(amounts.taxAmount / amountExcludingTax) : 0;
+      const taxRate =
+        amountExcludingTax > 0 ? normalizeTaxRate(amounts.taxAmount / amountExcludingTax) : 0;
       const taxRatePercent = roundMoney(taxRate * 100); // 税务发票表使用百分比制
       const taxAmount = amounts.taxAmount;
       const totalAmount = roundMoney(amountExcludingTax + taxAmount);
       if (totalAmount <= 0) {
         await connection.rollback();
         throw new Error(
-          `销售出库单 ${salesOutbound.outbound_no || salesOutbound.id} 金额为0，不能生成销项税务发票`
+            `销售出库单 ${salesOutbound.outbound_no || '该销售出库单'} 金额为0，不能生成销项税务发票`
         );
       }
 
@@ -2432,7 +2448,9 @@ class FinanceIntegrationService {
         invoice_type: '销项',
         invoice_number: invoiceNumber,
         invoice_code: null,
-        invoice_date: toLocalDateString(salesOutbound.outbound_date || salesOutbound.delivery_date || currentDateString()),
+        invoice_date: toLocalDateString(
+          salesOutbound.outbound_date || salesOutbound.delivery_date || currentDateString()
+        ),
         customer_id: salesOutbound.customer_id || null,
         supplier_id: null,
         supplier_or_customer_name: salesOutbound.customer_name || null,
@@ -2557,7 +2575,7 @@ class FinanceIntegrationService {
       if (totalAmount <= 0) {
         await connection.rollback();
         throw new Error(
-          `采购入库单 ${purchaseReceipt.receipt_no || purchaseReceipt.id} 金额为0，不能生成进项税务发票`
+          `采购入库单 ${purchaseReceipt.receipt_no || '该采购入库单'} 金额为0，不能生成进项税务发票`
         );
       }
 
@@ -2617,8 +2635,12 @@ class FinanceIntegrationService {
     try {
       await connection.beginTransaction();
 
-      const [[storedExchange]] = await connection.query('SELECT * FROM sales_exchanges WHERE id=? AND deleted_at IS NULL FOR UPDATE', [salesExchange.id]);
-      if (!storedExchange || storedExchange.status !== 'completed') throw new Error('只有已完成的换货单可以生成差价凭证');
+      const [[storedExchange]] = await connection.query(
+        'SELECT * FROM sales_exchanges WHERE id=? AND deleted_at IS NULL FOR UPDATE',
+        [salesExchange.id]
+      );
+      if (!storedExchange || storedExchange.status !== 'completed')
+        throw new Error('只有已完成的换货单可以生成差价凭证');
       salesExchange = storedExchange;
       const exchangeNo = salesExchange.exchange_no;
       await this.requireApprovedInventoryPosting(connection, 'sales_exchange', exchangeNo);
@@ -2649,13 +2671,19 @@ class FinanceIntegrationService {
 
       // Separate revenue and VAT using the saved line snapshot, including refunds.
       const [totals] = await connection.query(
-        'SELECT item_type,SUM(amount) AS subtotal,SUM(COALESCE(tax_amount,0)) AS tax_amount FROM sales_exchange_items WHERE exchange_id=? GROUP BY item_type', [salesExchange.id]
+        'SELECT item_type,SUM(amount) AS subtotal,SUM(COALESCE(tax_amount,0)) AS tax_amount FROM sales_exchange_items WHERE exchange_id=? GROUP BY item_type',
+        [salesExchange.id]
       );
-      const amounts = type => totals.find(row => row.item_type === type) || {};
-      const revenueDifference = roundMoney(Number(amounts('new').subtotal || 0) - Number(amounts('return').subtotal || 0));
-      const taxDifference = roundMoney(Number(amounts('new').tax_amount || 0) - Number(amounts('return').tax_amount || 0));
+      const amounts = (type) => totals.find((row) => row.item_type === type) || {};
+      const revenueDifference = roundMoney(
+        Number(amounts('new').subtotal || 0) - Number(amounts('return').subtotal || 0)
+      );
+      const taxDifference = roundMoney(
+        Number(amounts('new').tax_amount || 0) - Number(amounts('return').tax_amount || 0)
+      );
       const differenceAmount = roundMoney(revenueDifference + taxDifference);
-      if (differenceAmount !== roundMoney(salesExchange.difference_amount)) throw new Error('换货抬头差价与明细价税合计不一致');
+      if (differenceAmount !== roundMoney(salesExchange.difference_amount))
+        throw new Error('换货抬头差价与明细价税合计不一致');
 
       // Equal gross values can still require a revenue/VAT reclassification.
       if (revenueDifference === 0 && taxDifference === 0) {
@@ -2666,7 +2694,11 @@ class FinanceIntegrationService {
 
       const absDiff = Math.abs(differenceAmount);
 
-      const accountIds = await this.resolveAccountIds(['ACCOUNTS_RECEIVABLE', 'SALES_REVENUE', ...(taxDifference ? ['VAT_OUTPUT_TAX'] : [])]);
+      const accountIds = await this.resolveAccountIds([
+        'ACCOUNTS_RECEIVABLE',
+        'SALES_REVENUE',
+        ...(taxDifference ? ['VAT_OUTPUT_TAX'] : []),
+      ]);
       const description = `销售换货${differenceAmount > 0 ? '补差价' : differenceAmount < 0 ? '退差价' : '价税调整'} - 换货单: ${exchangeNo}`;
 
       // 获取会计期间
@@ -2692,10 +2724,14 @@ class FinanceIntegrationService {
         [accountIds.ACCOUNTS_RECEIVABLE, differenceAmount],
         [accountIds.SALES_REVENUE, -revenueDifference],
         [accountIds.VAT_OUTPUT_TAX, -taxDifference],
-      ].filter(([, balance]) => balance !== 0).map(([accountId, balance]) => ({
-        account_id: accountId, debit_amount: Math.max(balance, 0),
-        credit_amount: Math.max(-balance, 0), description,
-      }));
+      ]
+        .filter(([, balance]) => balance !== 0)
+        .map(([accountId, balance]) => ({
+          account_id: accountId,
+          debit_amount: Math.max(balance, 0),
+          credit_amount: Math.max(-balance, 0),
+          description,
+        }));
 
       const entryId = await financeModel.createEntry(entryData, entryItems, connection);
       const [entries] = await connection.execute(
@@ -2759,7 +2795,11 @@ class FinanceIntegrationService {
       if (shouldManageTransaction) {
         await connection.beginTransaction();
       }
-      await this.requireApprovedInventoryPosting(connection, 'outsourced_processing_material', processing.processing_no);
+      await this.requireApprovedInventoryPosting(
+        connection,
+        'outsourced_processing_material',
+        processing.processing_no
+      );
 
       const existingEntry = await this.findExistingActiveGlEntry(
         connection,
@@ -2805,7 +2845,7 @@ class FinanceIntegrationService {
       if (issueCost.ledgerLines > 0) {
         if (issueCost.invalidCostLines > 0) {
           throw new Error(
-            `委外加工单 ${processing.processing_no || processing.id} 存在零成本发料台账，不能生成外委发料凭证`
+            `委外加工单 ${processing.processing_no || '该委外加工单'} 存在零成本发料台账，不能生成外委发料凭证`
           );
         }
         totalAmount = issueCost.totalCost;
@@ -2824,7 +2864,7 @@ class FinanceIntegrationService {
           await connection.rollback();
         }
         throw new Error(
-          `委外加工单 ${processing.processing_no || processing.id} 发料金额为0，不能生成外委发料凭证`
+          `委外加工单 ${processing.processing_no || '该委外加工单'} 发料金额为0，不能生成外委发料凭证`
         );
       }
 
@@ -2928,7 +2968,11 @@ class FinanceIntegrationService {
       if (shouldManageTransaction) {
         await connection.beginTransaction();
       }
-      await this.requireApprovedInventoryPosting(connection, 'outsourced_processing_receipt', receipt.receipt_no);
+      await this.requireApprovedInventoryPosting(
+        connection,
+        'outsourced_processing_receipt',
+        receipt.receipt_no
+      );
 
       // 批量解析科目ID（1次查询）
       const accountIds = await this.resolveAccountIds([

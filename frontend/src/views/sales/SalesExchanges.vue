@@ -408,7 +408,7 @@
     >
       <div v-loading="detailDialogLoading">
       <el-descriptions :column="3" border v-if="currentExchange">
-        <el-descriptions-item label="换货单号">{{ currentExchange.exchangeNo || currentExchange.id }}</el-descriptions-item>
+        <el-descriptions-item label="换货单号">{{ currentExchange.exchangeNo || '未生成换货单号' }}</el-descriptions-item>
         <el-descriptions-item label="原订单号">{{ currentExchange.orderNo }}</el-descriptions-item>
         <el-descriptions-item label="客户名称">{{ currentExchange.customerName }}</el-descriptions-item>
         <el-descriptions-item label="换货日期">{{ formatDate(currentExchange.exchangeDate) }}</el-descriptions-item>
@@ -634,6 +634,7 @@
   </div>
 </template>
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { parseListData } from '@/utils/responseParser';
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
@@ -988,7 +989,7 @@ const handleProcess = (row) => {
         detailDialogVisible.value = false
         await fetchData()
       } catch (error) {
-        ElMessage.error(error.response?.data?.message || error.message || '处理失败')
+        ElMessage.error(getApiErrorMessage(error, '处理失败'))
       }
     }).catch(() => {})
 }
@@ -1002,7 +1003,7 @@ const handleComplete = (row) => {
         detailDialogVisible.value = false
         await fetchData()
       } catch (error) {
-        ElMessage.error(error.response?.data?.message || error.message || '完成失败')
+        ElMessage.error(getApiErrorMessage(error, '完成失败'))
       }
     }).catch(() => {})
 }
@@ -1017,7 +1018,7 @@ const handleReject = (row) => {
       detailDialogVisible.value = false
       await fetchData()
     } catch (error) {
-      ElMessage.error(error.response?.data?.message || error.message || '拒绝失败')
+      ElMessage.error(getApiErrorMessage(error, '拒绝失败'))
     }
   }).catch(() => {})
 }
@@ -1286,7 +1287,7 @@ const handleSubmit = async () => {
       resetForm()
     } catch (apiError) {
       console.error('API调用失败:', apiError)
-      ElMessage.error(apiError.response?.data?.message || apiError.message || '操作失败')
+      ElMessage.error(getApiErrorMessage(apiError, '操作失败'))
     }
   } catch (error) {
     console.error('表单验证失败:', error)

@@ -120,6 +120,7 @@
     closeToast
   } from 'vant'
   import { qualityApi } from '@/api'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const router = useRouter()
 
@@ -183,7 +184,7 @@
     } catch (error) {
       closeToast()
       console.error('创建过程检验失败:', error)
-      const msg = error?.response?.data?.message || '创建失败，请重试'
+      const msg = getApiErrorMessage(error, '创建失败，请重试')
       showToast(msg)
     } finally {
       submitting.value = false

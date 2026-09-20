@@ -49,7 +49,10 @@ class ReconciliationModel {
     const pagination = parsePagination(filters.page, filters.pageSize);
     const params = [accountId, startDate, endDate];
     const where = 'WHERE bank_account_id = ? AND transaction_date BETWEEN ? AND ?';
-    const [[count]] = await db.pool.execute(`SELECT COUNT(*) AS total FROM bank_statement_items ${where}`, params);
+    const [[count]] = await db.pool.execute(
+      `SELECT COUNT(*) AS total FROM bank_statement_items ${where}`,
+      params
+    );
     const [list] = await db.pool.query(
       `SELECT id, transaction_date, transaction_type AS type, amount, summary,
               reference_number, counterparty, balance, status
@@ -57,7 +60,12 @@ class ReconciliationModel {
        ORDER BY transaction_date DESC, id DESC LIMIT ${pagination.limit} OFFSET ${pagination.offset}`,
       params
     );
-    return { list, total: Number(count.total), page: pagination.page, pageSize: pagination.pageSize };
+    return {
+      list,
+      total: Number(count.total),
+      page: pagination.page,
+      pageSize: pagination.pageSize,
+    };
   }
 
   static async cancelReconciliation(id) {
@@ -235,11 +243,7 @@ class ReconciliationModel {
     );
 
     if (items.length === 0) {
-      throw createReconciliationError(
-        '银行对账单明细不存在或不属于该账户',
-        'NOT_FOUND',
-        404
-      );
+      throw createReconciliationError('银行对账单明细不存在或不属于该账户', 'NOT_FOUND', 404);
     }
 
     const item = items[0];
@@ -299,11 +303,7 @@ class ReconciliationModel {
       );
 
       if (items.length === 0) {
-        throw createReconciliationError(
-          '银行对账单明细不存在或不属于该账户',
-          'NOT_FOUND',
-          404
-        );
+        throw createReconciliationError('银行对账单明细不存在或不属于该账户', 'NOT_FOUND', 404);
       }
 
       const statementItem = items[0];
@@ -352,14 +352,17 @@ class ReconciliationModel {
         throw createReconciliationError(`银行流水 ${unapproved.id} 未审核通过，不能进行对账匹配`);
       }
 
-      const reconciled = transactions.find((transaction) => isReconciledFlag(transaction.is_reconciled));
+      const reconciled = transactions.find((transaction) =>
+        isReconciledFlag(transaction.is_reconciled)
+      );
       if (reconciled) {
         throw createReconciliationError(`银行流水 ${reconciled.id} 已经对账，不能重复匹配`);
       }
 
       const directionMismatch = transactions.find(
         (transaction) =>
-          getBankTransactionDirection(transaction.transaction_type) !== statementItem.transaction_type
+          getBankTransactionDirection(transaction.transaction_type) !==
+          statementItem.transaction_type
       );
       if (directionMismatch) {
         throw createReconciliationError(
@@ -393,10 +396,9 @@ class ReconciliationModel {
         [statementItem.transaction_date, ...transactionIds]
       );
 
-      await connection.execute(
-        "UPDATE bank_statement_items SET status = 'matched' WHERE id = ?",
-        [itemId]
-      );
+      await connection.execute("UPDATE bank_statement_items SET status = 'matched' WHERE id = ?", [
+        itemId,
+      ]);
 
       await connection.commit();
 
@@ -416,7 +418,8 @@ class ReconciliationModel {
 
   static async getReconciliations(filters = {}) {
     try {
-      let query = 'SELECT id, account_id, reconciliation_date, bank_statement_balance, book_balance, difference, status, notes, attachment, created_by, updated_by, created_at, updated_at FROM reconciliations WHERE 1=1';
+      let query =
+        'SELECT id, account_id, reconciliation_date, bank_statement_balance, book_balance, difference, status, notes, attachment, created_by, updated_by, created_at, updated_at FROM reconciliations WHERE 1=1';
       const params = [];
 
       if (filters.accountId) {
@@ -455,7 +458,10 @@ class ReconciliationModel {
 
   static async getReconciliationById(id) {
     try {
-      const [rows] = await db.pool.execute('SELECT id, account_id, reconciliation_date, bank_statement_balance, book_balance, difference, status, notes, attachment, created_by, updated_by, created_at, updated_at FROM reconciliations WHERE id = ?', [id]);
+      const [rows] = await db.pool.execute(
+        'SELECT id, account_id, reconciliation_date, bank_statement_balance, book_balance, difference, status, notes, attachment, created_by, updated_by, created_at, updated_at FROM reconciliations WHERE id = ?',
+        [id]
+      );
       return rows.length > 0 ? rows[0] : null;
     } catch (error) {
       logger.error('Get reconciliation failed:', error);
@@ -468,10 +474,7 @@ class ReconciliationModel {
     try {
       await connection.beginTransaction();
       const createdBy = requirePositiveInteger(data.created_by, 'created_by');
-      const difference = calculateBalanceDifference(
-        data.bank_statement_balance,
-        data.book_balance
-      );
+      const difference = calculateBalanceDifference(data.bank_statement_balance, data.book_balance);
 
       const [result] = await connection.execute(
         `INSERT INTO reconciliations
@@ -505,10 +508,7 @@ class ReconciliationModel {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
-      const difference = calculateBalanceDifference(
-        data.bank_statement_balance,
-        data.book_balance
-      );
+      const difference = calculateBalanceDifference(data.bank_statement_balance, data.book_balance);
 
       const [result] = await connection.execute(
         `UPDATE reconciliations SET

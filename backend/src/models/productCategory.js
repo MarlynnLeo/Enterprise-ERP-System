@@ -185,12 +185,12 @@ const productCategoryModel = {
     if (!Array.isArray(data) || data.length === 0) return [];
 
     const idMap = new Map();
-    data.forEach(item => {
+    data.forEach((item) => {
       idMap.set(item.id, { ...item, children: [] });
     });
 
     const rootNodes = [];
-    idMap.forEach(item => {
+    idMap.forEach((item) => {
       const parentId = item.parent_id;
       const isRoot = !parentId || Number(parentId) === 0 || parentId === rootParentId;
 
@@ -208,7 +208,7 @@ const productCategoryModel = {
     });
 
     const cleanEmptyChildren = (nodes) => {
-      nodes.forEach(node => {
+      nodes.forEach((node) => {
         if (node.children && node.children.length > 0) {
           cleanEmptyChildren(node.children);
         } else {
@@ -254,7 +254,8 @@ const productCategoryModel = {
    */
   async createProductCategory(categoryData) {
     try {
-      const rawParentId = categoryData.parentId !== undefined ? categoryData.parentId : categoryData.parent_id;
+      const rawParentId =
+        categoryData.parentId !== undefined ? categoryData.parentId : categoryData.parent_id;
       const parent_id = rawParentId && Number(rawParentId) > 0 ? Number(rawParentId) : null;
       const name = categoryData.name;
       const code = categoryData.code;
@@ -274,14 +275,7 @@ const productCategoryModel = {
         INSERT INTO categories (parent_id, name, code, level, sort, status)
         VALUES (?, ?, ?, ?, ?, ?)
       `;
-      const queryResult = await pool.query(query, [
-        parent_id,
-        name,
-        code,
-        level,
-        sort,
-        status,
-      ]);
+      const queryResult = await pool.query(query, [parent_id, name, code, level, sort, status]);
 
       let result;
       if (Array.isArray(queryResult)) {
@@ -315,12 +309,19 @@ const productCategoryModel = {
       const existing = await this.getProductCategoryById(id);
       if (!existing) throw new Error('产品分类不存在');
 
-      const rawParentId = categoryData.parentId !== undefined ? categoryData.parentId : categoryData.parent_id;
-      const parent_id = rawParentId !== undefined ? (rawParentId && Number(rawParentId) > 0 ? Number(rawParentId) : null) : existing.parent_id;
+      const rawParentId =
+        categoryData.parentId !== undefined ? categoryData.parentId : categoryData.parent_id;
+      const parent_id =
+        rawParentId !== undefined
+          ? rawParentId && Number(rawParentId) > 0
+            ? Number(rawParentId)
+            : null
+          : existing.parent_id;
       const name = categoryData.name !== undefined ? categoryData.name : existing.name;
       const code = categoryData.code !== undefined ? categoryData.code : existing.code;
       const sort = categoryData.sort !== undefined ? Number(categoryData.sort) : existing.sort;
-      const status = categoryData.status !== undefined ? Number(categoryData.status) : existing.status;
+      const status =
+        categoryData.status !== undefined ? Number(categoryData.status) : existing.status;
 
       // 计算层级
       let level = 1;
@@ -351,7 +352,8 @@ const productCategoryModel = {
   async deleteProductCategory(id) {
     try {
       // 检查是否有子分类
-      const childQuery = 'SELECT COUNT(*) as count FROM categories WHERE parent_id = ? AND deleted_at IS NULL';
+      const childQuery =
+        'SELECT COUNT(*) as count FROM categories WHERE parent_id = ? AND deleted_at IS NULL';
       const childResult = await pool.query(childQuery, [id]);
 
       let childRows;
@@ -427,7 +429,6 @@ const productCategoryModel = {
    */
   async getStatistics() {
     try {
-
       const query = `
         SELECT
           COUNT(*) as total,
@@ -450,7 +451,6 @@ const productCategoryModel = {
       } else {
         rows = result; // 其他格式
       }
-
 
       const data = Array.isArray(rows) && rows.length > 0 ? rows[0] : {};
 

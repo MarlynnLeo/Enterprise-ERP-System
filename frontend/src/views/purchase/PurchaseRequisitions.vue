@@ -466,6 +466,7 @@ import { parseDataObject, parsePaginatedData } from '@/utils/responseParser';
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
 import { loadUserListOptions } from '@/utils/optionLoaders';
 import { formatDate } from '@/utils/helpers/dateUtils'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import printService from '@/services/printService'
 // 初始化 authStore
 
@@ -602,7 +603,7 @@ const loadRequisitions = async (page = pagination.page) => {
       console.error('错误响应状态:', error.response.status);
       console.error('错误响应数据:', error.response.data);
     }
-    ElMessage.error('加载采购申请列表失败');
+    ElMessage.error(`加载采购申请列表失败：${getApiErrorMessage(error, '请稍后重试')}`);
 
     // 加载失败时设置空数据
     requisitions.value = [];
@@ -660,6 +661,15 @@ const getStatusText = (status) => getPurchaseStatusText(status) || getApprovalSt
 // 获取状态类型（用于标签样式）
 
 const getStatusType = (status) => getPurchaseStatusColor(status) || getApprovalStatusColor(status) || 'info';
+
+const getRequisitionErrorMessage = (error, fallback) => {
+  const message = getApiErrorMessage(error, fallback)
+  const invalidMaterial = message.match(/请购物料不存在或已停用[：:]\s*(.+)$/)
+  if (invalidMaterial) {
+    return `申请单中的物料编码“${invalidMaterial[1]}”已不存在或已停用，请编辑申请单后重新选择有效物料。`
+  }
+  return message
+}
 // 显示创建对话框
 
 const showCreateDialog = () => {
@@ -728,7 +738,7 @@ const editRequisition = async (row) => {
     requisitionDialog.isEdit = true;
   } catch (error) {
     console.error('获取采购申请详情失败:', error);
-    ElMessage.error('获取采购申请详情失败');
+    ElMessage.error(`获取采购申请详情失败：${getApiErrorMessage(error, '请稍后重试')}`);
     requisitionDialog.visible = false;
   } finally {
     requisitionDialog.loading = false;
@@ -787,7 +797,7 @@ const submitForm = async () => {
       if (error.response) {
         console.error('错误响应:', error.response.data);
       }
-      ElMessage.error('保存采购申请失败');
+      ElMessage.error(`保存采购申请失败：${getRequisitionErrorMessage(error, '请检查申请内容后重试')}`);
     } finally {
       requisitionDialog.loading = false;
     }
@@ -861,8 +871,8 @@ const fetchMaterialSuggestions = async (query, callback) => {
     // 保存到全局变量供Enter键使用
     filteredProducts.value = suggestions;
     callback(suggestions);
-  } catch {
-    ElMessage.error('搜索物料失败');
+  } catch (error) {
+    ElMessage.error(`搜索物料失败：${getApiErrorMessage(error, '请稍后重试')}`);
     callback([]);
   }
 };
@@ -967,7 +977,7 @@ const viewRequisition = async (row) => {
 
   } catch (error) {
     console.error('获取采购申请详情失败:', error);
-    ElMessage.error('获取采购申请详情失败');
+    ElMessage.error(`获取采购申请详情失败：${getApiErrorMessage(error, '请稍后重试')}`);
     viewDialog.visible = false;
   } finally {
     viewDialog.loading = false;
@@ -1020,6 +1030,7 @@ const handleBatchSubmit = async () => {
     batchLoading.value = true;
     let successCount = 0;
     let failCount = 0;
+    let firstFailureMessage = '';
     for (const req of selectedRequisitions.value) {
       try {
         await purchaseApi.updateRequisitionStatus(req.id, { newStatus: 'submitted' });
@@ -1027,14 +1038,23 @@ const handleBatchSubmit = async () => {
       } catch (error) {
         console.error(`申请单 ${req.requisition_number} 提交失败:`, error);
         failCount++;
+        if (!firstFailureMessage) {
+          firstFailureMessage = getRequisitionErrorMessage(error, '请检查申请内容后重试');
+        }
       }
     }
     if (successCount > 0) {
-      ElMessage.success(`成功提交 ${successCount} 个申请单${failCount > 0 ? `，${failCount} 个失败` : ''}`);
+      if (failCount > 0) {
+        ElMessage.warning(
+          `成功提交 ${successCount} 个申请单，${failCount} 个失败：${firstFailureMessage}`
+        );
+      } else {
+        ElMessage.success(`成功提交 ${successCount} 个申请单`);
+      }
       clearSelection();
       await loadRequisitions();
     } else {
-      ElMessage.error('批量提交失败');
+      ElMessage.error(`批量提交失败：${firstFailureMessage || '请检查申请内容后重试'}`);
     }
   } catch (error) {
     if (error !== 'cancel') {
@@ -1103,7 +1123,7 @@ const updateStatus = async () => {
     loadRequisitions();
   } catch (error) {
     console.error('更新状态失败:', error);
-    ElMessage.error('更新状态失败: ' + (error.response?.data?.error || error.message));
+    ElMessage.error(`更新状态失败：${getRequisitionErrorMessage(error, '请检查申请内容后重试')}`);
   } finally {
     statusDialog.loading = false;
   }
@@ -1127,7 +1147,7 @@ const confirmDelete = (row) => {
         loadRequisitions();
       } catch (error) {
         console.error('删除失败:', error);
-        ElMessage.error('删除失败: ' + (error.response?.data?.error || error.message));
+        ElMessage.error(`删除失败：${getApiErrorMessage(error, '请稍后重试')}`);
       }
     })
     .catch(() => {});
@@ -1187,7 +1207,7 @@ const handlePrintRequisition = async () => {
     printService.previewDocument(html)
   } catch (error) {
     console.error('打印采购申请单失败:', error)
-    ElMessage.error('打印失败: ' + (error.message || '未知错误'))
+    ElMessage.error('打印失败: ' + (getApiErrorMessage(error, '未知错误')))
   } finally {
     printLoading.value = false
   }

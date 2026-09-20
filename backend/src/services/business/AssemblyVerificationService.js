@@ -38,10 +38,19 @@ class AssemblyVerificationService {
 
     let bomCheck;
     if (processId) {
-      const [processes] = await connection.query('SELECT process_snapshot FROM production_processes WHERE id = ? AND task_id = ?', [processId, taskId]);
-      if (!processes.length) throw new BusinessError('工序不属于该生产任务', null, 'INVALID_VERIFICATION_PROCESS', 400);
-      const snapshot = typeof processes[0].process_snapshot === 'string' ? JSON.parse(processes[0].process_snapshot) : processes[0].process_snapshot;
-      const expected = jsonArray(snapshot?.materials).find(row => Number(row.material_id) === Number(material.id));
+      const [processes] = await connection.query(
+        'SELECT process_snapshot FROM production_processes WHERE id = ? AND task_id = ?',
+        [processId, taskId]
+      );
+      if (!processes.length)
+        throw new BusinessError('工序不属于该生产任务', null, 'INVALID_VERIFICATION_PROCESS', 400);
+      const snapshot =
+        typeof processes[0].process_snapshot === 'string'
+          ? JSON.parse(processes[0].process_snapshot)
+          : processes[0].process_snapshot;
+      const expected = jsonArray(snapshot?.materials).find(
+        (row) => Number(row.material_id) === Number(material.id)
+      );
       bomCheck = expected ? [{ bom_detail_id: null, unit_quantity: expected.quantity }] : [];
     } else {
       [bomCheck] = await connection.query(
@@ -52,17 +61,20 @@ class AssemblyVerificationService {
 
     if (bomCheck.length === 0) {
       // 物料不在 BOM 中
-      const log = await this._saveLog({
-        taskId,
-        processId,
-        materialId: material.id,
-        scannedBarcode,
-        expectedBarcode: material.code,
-        result: 'fail',
-        failReason: `物料 ${material.code}(${material.name}) 不在指定的工序用料中`,
-        operatorId,
-        station,
-      }, connection);
+      const log = await this._saveLog(
+        {
+          taskId,
+          processId,
+          materialId: material.id,
+          scannedBarcode,
+          expectedBarcode: material.code,
+          result: 'fail',
+          failReason: `物料 ${material.code}(${material.name}) 不在指定的工序用料中`,
+          operatorId,
+          station,
+        },
+        connection
+      );
       return {
         result: 'fail',
         reason: `物料 ${material.name} 不在指定的工序用料中`,
@@ -72,18 +84,21 @@ class AssemblyVerificationService {
     }
 
     // 4. 验证通过
-    const log = await this._saveLog({
-      taskId,
-      processId,
-      materialId: material.id,
-      scannedBarcode,
-      expectedBarcode: material.code,
-      result: 'pass',
-      failReason: null,
-      operatorId,
-      station,
-      bomDetailId: bomCheck[0].bom_detail_id,
-    }, connection);
+    const log = await this._saveLog(
+      {
+        taskId,
+        processId,
+        materialId: material.id,
+        scannedBarcode,
+        expectedBarcode: material.code,
+        result: 'pass',
+        failReason: null,
+        operatorId,
+        station,
+        bomDetailId: bomCheck[0].bom_detail_id,
+      },
+      connection
+    );
 
     return {
       result: 'pass',

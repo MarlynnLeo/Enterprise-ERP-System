@@ -1,3 +1,4 @@
+import { getApiErrorMessage } from '@/utils/errorHandler'
 /**
  * BOM价格调整相关逻辑复用
  * 包含BOM查看、价格调整、历史记录等功能
@@ -87,7 +88,7 @@ export function useBomAdjustment() {
                 currentProduct.value.strategies = detailRes.data.strategies;
             }
         } catch (error) {
-            ElMessage.error('获取BOM明细失败: ' + (error.response?.data?.message || error.message || '未知错误'));
+            ElMessage.error('获取BOM明细失败: ' + (getApiErrorMessage(error, '未知错误')));
         } finally {
             bomLoading.value = false;
         }
@@ -107,7 +108,7 @@ export function useBomAdjustment() {
             const res = await financeApi.getBomDetails(productId);
             bomPriceData.value = res.data;
         } catch (error) {
-            ElMessage.error('获取BOM明细失败: ' + (error.response?.data?.message || error.message || '未知错误'));
+            ElMessage.error('获取BOM明细失败: ' + (getApiErrorMessage(error, '未知错误')));
         } finally {
             bomPriceLoading.value = false;
         }
@@ -172,7 +173,7 @@ export function useBomAdjustment() {
             return true;
         } catch (error) {
             console.error('保存价格调整失败:', error);
-            ElMessage.error(error.response?.data?.message || '保存失败');
+            ElMessage.error(getApiErrorMessage(error, '保存失败'));
             return false;
         } finally {
             priceAdjustSubmitting.value = false;

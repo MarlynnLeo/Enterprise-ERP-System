@@ -31,9 +31,11 @@ async function getOpenAccountingPeriodId(connection, accountingDate = null) {
   const [periods] = await connection.execute(sql, params);
 
   if (periods.length === 0) {
-    throw new Error(accountingDate
-      ? `No open accounting period found for ${accountingDate}`
-      : 'No open accounting period found');
+    throw new Error(
+      accountingDate
+        ? `No open accounting period found for ${accountingDate}`
+        : 'No open accounting period found'
+    );
   }
 
   return periods[0].id;
@@ -130,22 +132,30 @@ function calculateDepreciationSnapshot(asset, depreciationMonthStart, alreadySub
   );
   const acquisitionDate = asset.acquisition_date ? new Date(asset.acquisition_date) : null;
   const targetDate = new Date(depreciationMonthStart);
-  const usedMonths = acquisitionDate && !Number.isNaN(acquisitionDate.getTime())
-    ? Math.max(
-      0,
-      (targetDate.getFullYear() - acquisitionDate.getFullYear()) * 12 +
-        (targetDate.getMonth() - acquisitionDate.getMonth())
-    )
-    : 0;
-  const normalizedMethod = DEPRECIATION_METHOD_MAP[asset.depreciation_method] || asset.depreciation_method;
+  const usedMonths =
+    acquisitionDate && !Number.isNaN(acquisitionDate.getTime())
+      ? Math.max(
+          0,
+          (targetDate.getFullYear() - acquisitionDate.getFullYear()) * 12 +
+            (targetDate.getMonth() - acquisitionDate.getMonth())
+        )
+      : 0;
+  const normalizedMethod =
+    DEPRECIATION_METHOD_MAP[asset.depreciation_method] || asset.depreciation_method;
 
   let depreciationAmount = 0;
-  if (!alreadySubmitted && normalizedMethod !== 'no_depreciation' && netValueBefore > residualValue && usedMonths < usefulLifeMonths) {
+  if (
+    !alreadySubmitted &&
+    normalizedMethod !== 'no_depreciation' &&
+    netValueBefore > residualValue &&
+    usedMonths < usefulLifeMonths
+  ) {
     if (normalizedMethod === 'double_declining') {
       const remainingMonths = Math.max(usefulLifeMonths - usedMonths, 1);
-      depreciationAmount = remainingMonths <= 24
-        ? (netValueBefore - residualValue) / remainingMonths
-        : netValueBefore * 2 / usefulLifeMonths;
+      depreciationAmount =
+        remainingMonths <= 24
+          ? (netValueBefore - residualValue) / remainingMonths
+          : (netValueBefore * 2) / usefulLifeMonths;
     } else {
       depreciationAmount = (originalValue - residualValue) / usefulLifeMonths;
     }
@@ -248,7 +258,8 @@ const assetsModel = {
 
         // 创建会计分录
         const entryId = await financeModel.createEntry(entryData, entryItems, connection);
-        await DocumentLinkService.tryAutoLink(DocType.ASSET,
+        await DocumentLinkService.tryAutoLink(
+          DocType.ASSET,
           assetId,
           assetData.asset_code,
           DocType.FINANCE_VOUCHER,
@@ -260,7 +271,6 @@ const assetsModel = {
       }
 
       await connection.commit();
-
 
       return assetId;
     } catch (error) {
@@ -388,8 +398,8 @@ const assetsModel = {
 
       // 表结构由 migrations/20260312000008 管理，无需运行时验证
 
-
-      let query = 'SELECT fa.*, ac.name as category_name FROM fixed_assets fa LEFT JOIN asset_categories ac ON fa.category_id = ac.id';
+      let query =
+        'SELECT fa.*, ac.name as category_name FROM fixed_assets fa LEFT JOIN asset_categories ac ON fa.category_id = ac.id';
       const whereConditions = [];
       const params = [];
 
@@ -450,11 +460,11 @@ const assetsModel = {
 
       // 折旧方法中文转英文映射
       const depreciationMethodMap = {
-        '直线法': 'straight_line',
-        '双倍余额递减法': 'double_declining',
-        '年数总和法': 'sum_of_years',
-        '工作量法': 'units_of_production',
-        '不计提': 'no_depreciation',
+        直线法: 'straight_line',
+        双倍余额递减法: 'double_declining',
+        年数总和法: 'sum_of_years',
+        工作量法: 'units_of_production',
+        不计提: 'no_depreciation',
       };
 
       // 创建一个安全的资产对象列表，确保即使数据库字段缺失也能返回所需的字段
@@ -470,23 +480,32 @@ const assetsModel = {
         accumulatedDepreciation: parseFloat(asset.accumulated_depreciation || 0),
         usefulLife: asset.useful_life ? Math.ceil(asset.useful_life / 12) : 5, // 月转年
         salvageValue: parseFloat(asset.salvage_value || 0),
-        salvageRate: Number(asset.acquisition_cost) > 0
-          ? parseFloat((((Number(asset.salvage_value) || 0) / Number(asset.acquisition_cost)) * 100).toFixed(2))
-          : 0,
-        depreciationMethod: depreciationMethodMap[asset.depreciation_method] || asset.depreciation_method || 'straight_line',
+        salvageRate:
+          Number(asset.acquisition_cost) > 0
+            ? parseFloat(
+                (
+                  ((Number(asset.salvage_value) || 0) / Number(asset.acquisition_cost)) *
+                  100
+                ).toFixed(2)
+              )
+            : 0,
+        depreciationMethod:
+          depreciationMethodMap[asset.depreciation_method] ||
+          asset.depreciation_method ||
+          'straight_line',
         location: asset.location_id || '',
         department: asset.department_id ? departmentMap[asset.department_id] || '' : '',
         responsible: asset.custodian || '',
         status: (() => {
           const statusDisplayMap = {
-            '在用': 'in_use',
-            '闲置': 'idle',
-            '维修': 'under_repair',
-            '报废': 'disposed',
-            '已处置': 'disposed',
-            '已出售': 'sold',
-            '已转让': 'transferred',
-            '已捐赠': 'donated',
+            在用: 'in_use',
+            闲置: 'idle',
+            维修: 'under_repair',
+            报废: 'disposed',
+            已处置: 'disposed',
+            已出售: 'sold',
+            已转让: 'transferred',
+            已捐赠: 'donated',
           };
           return statusDisplayMap[asset.status] || asset.status || 'in_use';
         })(),
@@ -523,7 +542,8 @@ const assetsModel = {
 
       // 转换为数据库支持的格式
       const assetType = getAssetTypeText(assetData.asset_type) || '其他';
-      const depreciationMethod = getDepreciationMethodText(assetData.depreciation_method) || '直线法';
+      const depreciationMethod =
+        getDepreciationMethodText(assetData.depreciation_method) || '直线法';
       const status = getAssetStatusText(assetData.status) || '在用';
 
       // 将年转换为月
@@ -603,11 +623,12 @@ const assetsModel = {
       const depreciationMonth = toLocalMonthString(depreciationDate);
 
       // 获取资产信息
-      const [assets] = await connection.query('SELECT id, asset_code, asset_name, asset_type, category_id, acquisition_date, acquisition_cost, depreciation_method, useful_life, salvage_value, current_value, accumulated_depreciation, impairment_amount, location_id, department_id, custodian, status, audit_status, audited_by, audited_at, notes, created_at, updated_at, depreciation_start_date, depreciation_end_date, last_depreciation_date, net_value FROM fixed_assets WHERE id = ? FOR UPDATE', [
-        params.assetId,
-      ]);
+      const [assets] = await connection.query(
+        'SELECT id, asset_code, asset_name, asset_type, category_id, acquisition_date, acquisition_cost, depreciation_method, useful_life, salvage_value, current_value, accumulated_depreciation, impairment_amount, location_id, department_id, custodian, status, audit_status, audited_by, audited_at, notes, created_at, updated_at, depreciation_start_date, depreciation_end_date, last_depreciation_date, net_value FROM fixed_assets WHERE id = ? FOR UPDATE',
+        [params.assetId]
+      );
       if (assets.length === 0) {
-        throw new Error(`资产ID ${params.assetId} 不存在`);
+        throw new Error('资产不存在或已被删除');
       }
 
       const asset = assets[0];
@@ -778,7 +799,8 @@ const assetsModel = {
 
           // 创建会计分录
           const entryId = await financeModel.createEntry(entryData, entryItems, connection);
-          await DocumentLinkService.tryAutoLink(DocType.ASSET,
+          await DocumentLinkService.tryAutoLink(
+            DocType.ASSET,
             params.assetId,
             asset.asset_code,
             DocType.FINANCE_VOUCHER,
@@ -787,7 +809,8 @@ const assetsModel = {
             params.glEntry.created_by || null,
             connection
           );
-          await DocumentLinkService.tryAutoLink(DocType.ASSET_DEPRECIATION,
+          await DocumentLinkService.tryAutoLink(
+            DocType.ASSET_DEPRECIATION,
             depreciationId,
             `${asset.asset_code}-${depreciationMonth}`,
             DocType.FINANCE_VOUCHER,
@@ -884,7 +907,10 @@ const assetsModel = {
         netValueAfter: snapshot.netValueAfter,
         usedMonths: snapshot.usedMonths,
         usefulLife: Math.ceil(snapshot.usefulLifeMonths / 12),
-        salvageRate: snapshot.originalValue > 0 ? roundMoney((snapshot.residualValue / snapshot.originalValue) * 100) : 0,
+        salvageRate:
+          snapshot.originalValue > 0
+            ? roundMoney((snapshot.residualValue / snapshot.originalValue) * 100)
+            : 0,
         depreciationMethod: snapshot.normalizedMethod,
         status: asset.status,
         submitted: Boolean(asset.depreciation_detail_id),
@@ -960,7 +986,11 @@ const assetsModel = {
           continue;
         }
         if (asset.status !== '在用') {
-          skippedAssets.push({ assetId, assetName: asset.asset_name, reason: `资产状态为${asset.status}` });
+          skippedAssets.push({
+            assetId,
+            assetName: asset.asset_name,
+            reason: `资产状态为${asset.status}`,
+          });
           continue;
         }
 
@@ -972,7 +1002,11 @@ const assetsModel = {
         );
 
         if (existingDepreciation.length > 0) {
-          skippedAssets.push({ assetId, assetName: asset.asset_name, reason: `${depreciationMonth}已计提折旧` });
+          skippedAssets.push({
+            assetId,
+            assetName: asset.asset_name,
+            reason: `${depreciationMonth}已计提折旧`,
+          });
           continue;
         }
 
@@ -1097,7 +1131,7 @@ const assetsModel = {
         logger.info(`创建折旧会计分录: ${entryNumber}, 金额: ${totalDepreciationAmount}元`);
 
         // 将生成的有效凭证号和分录主键回写到明细表，保证折旧明细到总账凭证可追溯
-        const depIds = depreciationRecords.map(r => r.depreciationId);
+        const depIds = depreciationRecords.map((r) => r.depreciationId);
         if (depIds.length > 0) {
           const placeholders = depIds.map(() => '?').join(',');
           await connection.execute(
@@ -1108,7 +1142,8 @@ const assetsModel = {
           );
 
           for (const record of depreciationRecords) {
-            await DocumentLinkService.tryAutoLink(DocType.ASSET,
+            await DocumentLinkService.tryAutoLink(
+              DocType.ASSET,
               record.assetId,
               record.assetCode,
               DocType.FINANCE_VOUCHER,
@@ -1117,7 +1152,8 @@ const assetsModel = {
               createdBy,
               connection
             );
-            await DocumentLinkService.tryAutoLink(DocType.ASSET_DEPRECIATION,
+            await DocumentLinkService.tryAutoLink(
+              DocType.ASSET_DEPRECIATION,
               record.depreciationId,
               `${record.assetCode}-${depreciationMonth}`,
               DocType.FINANCE_VOUCHER,
@@ -1164,9 +1200,12 @@ const assetsModel = {
       disposalData.disposal_date = toLocalDateString(disposalData.disposal_date);
 
       // 获取资产信息
-      const [assets] = await connection.query('SELECT id, asset_code, asset_name, asset_type, category_id, acquisition_date, acquisition_cost, depreciation_method, useful_life, salvage_value, current_value, accumulated_depreciation, impairment_amount, location_id, department_id, custodian, status, audit_status, audited_by, audited_at, notes, created_at, updated_at, depreciation_start_date, depreciation_end_date, last_depreciation_date, net_value FROM fixed_assets WHERE id = ? FOR UPDATE', [id]);
+      const [assets] = await connection.query(
+        'SELECT id, asset_code, asset_name, asset_type, category_id, acquisition_date, acquisition_cost, depreciation_method, useful_life, salvage_value, current_value, accumulated_depreciation, impairment_amount, location_id, department_id, custodian, status, audit_status, audited_by, audited_at, notes, created_at, updated_at, depreciation_start_date, depreciation_end_date, last_depreciation_date, net_value FROM fixed_assets WHERE id = ? FOR UPDATE',
+        [id]
+      );
       if (assets.length === 0) {
-        throw new Error(`资产ID ${id} 不存在`);
+        throw new Error('资产不存在或已被删除');
       }
 
       const asset = assets[0];
@@ -1174,11 +1213,11 @@ const assetsModel = {
 
       // 根据处置方式设置对应状态
       const statusMap = {
-        '报废': '报废',
-        '出售': '已出售',
-        '转让': '已转让',
-        '捐赠': '已捐赠',
-        '其他': '已处置'
+        报废: '报废',
+        出售: '已出售',
+        转让: '已转让',
+        捐赠: '已捐赠',
+        其他: '已处置',
       };
       const newStatus = statusMap[disposalData.disposal_method] || '已处置';
       await connection.query(
@@ -1197,7 +1236,8 @@ const assetsModel = {
       // 动态查找会计科目
       const findAccount = async (code) => {
         const [rows] = await connection.query(
-          'SELECT id FROM gl_accounts WHERE account_code = ? AND is_active = true LIMIT 1', [code]
+          'SELECT id FROM gl_accounts WHERE account_code = ? AND is_active = true LIMIT 1',
+          [code]
         );
         return rows.length > 0 ? rows[0].id : null;
       };
@@ -1218,10 +1258,7 @@ const assetsModel = {
       const clearingAccount = await getConfiguredAccount('FIXED_ASSET_CLEARING', '固定资产清理');
       const bankGlAccount = await getConfiguredAccount('BANK_DEPOSIT', '银行存款');
       const nonOpIncomeAccount = await getConfiguredAccount('NON_OPERATING_INCOME', '营业外收入');
-      const nonOpExpenseAccount = await getConfiguredAccount(
-        'NON_OPERATING_EXPENSE',
-        '营业外支出'
-      );
+      const nonOpExpenseAccount = await getConfiguredAccount('NON_OPERATING_EXPENSE', '营业外支出');
 
       const fixedAssetAccountId = fixedAssetAccount.id;
       const accDepAccountId = accDepAccount.id;
@@ -1323,7 +1360,8 @@ const assetsModel = {
         ].filter(hasPositiveAmount);
         const entry1Id = await financeModel.createEntry(entry1Data, entry1Items, connection);
         generatedEntries.push({ entryId: entry1Id, entryNumber: entry1Data.entry_number });
-        await DocumentLinkService.tryAutoLink(DocType.ASSET_DISPOSAL,
+        await DocumentLinkService.tryAutoLink(
+          DocType.ASSET_DISPOSAL,
           id,
           docNumber,
           DocType.FINANCE_VOUCHER,
@@ -1332,7 +1370,8 @@ const assetsModel = {
           createdBy,
           connection
         );
-        await DocumentLinkService.tryAutoLink(DocType.ASSET,
+        await DocumentLinkService.tryAutoLink(
+          DocType.ASSET,
           id,
           asset.asset_code,
           DocType.FINANCE_VOUCHER,
@@ -1419,7 +1458,8 @@ const assetsModel = {
             [disposalAmount, disposalData.disposal_date, disposalData.bank_account_id]
           );
 
-          await DocumentLinkService.tryAutoLink(DocType.ASSET_DISPOSAL,
+          await DocumentLinkService.tryAutoLink(
+            DocType.ASSET_DISPOSAL,
             id,
             docNumber,
             DocType.BANK_TRANSACTION,
@@ -1428,7 +1468,8 @@ const assetsModel = {
             createdBy,
             connection
           );
-          await DocumentLinkService.tryAutoLink(DocType.ASSET_DISPOSAL,
+          await DocumentLinkService.tryAutoLink(
+            DocType.ASSET_DISPOSAL,
             id,
             docNumber,
             DocType.FINANCE_VOUCHER,
@@ -1437,7 +1478,8 @@ const assetsModel = {
             createdBy,
             connection
           );
-          await DocumentLinkService.tryAutoLink(DocType.BANK_TRANSACTION,
+          await DocumentLinkService.tryAutoLink(
+            DocType.BANK_TRANSACTION,
             bankTransactionId,
             bankTransactionNumber,
             DocType.FINANCE_VOUCHER,
@@ -1446,7 +1488,8 @@ const assetsModel = {
             createdBy,
             connection
           );
-          await DocumentLinkService.tryAutoLink(DocType.ASSET,
+          await DocumentLinkService.tryAutoLink(
+            DocType.ASSET,
             id,
             asset.asset_code,
             DocType.BANK_TRANSACTION,
@@ -1511,7 +1554,8 @@ const assetsModel = {
           if (entry3Items) {
             const entry3Id = await financeModel.createEntry(entry3Data, entry3Items, connection);
             generatedEntries.push({ entryId: entry3Id, entryNumber: entry3Data.entry_number });
-            await DocumentLinkService.tryAutoLink(DocType.ASSET_DISPOSAL,
+            await DocumentLinkService.tryAutoLink(
+              DocType.ASSET_DISPOSAL,
               id,
               docNumber,
               DocType.FINANCE_VOUCHER,
@@ -1520,7 +1564,8 @@ const assetsModel = {
               createdBy,
               connection
             );
-            await DocumentLinkService.tryAutoLink(DocType.ASSET,
+            await DocumentLinkService.tryAutoLink(
+              DocType.ASSET,
               id,
               asset.asset_code,
               DocType.FINANCE_VOUCHER,
@@ -1529,7 +1574,9 @@ const assetsModel = {
               createdBy,
               connection
             );
-            logger.info(`资产处置凭证③(结转损益)已生成: ${entry3Data.entry_number}, ${gainLoss > 0 ? '收益' : '损失'}: ¥${Math.abs(gainLoss).toFixed(2)}`);
+            logger.info(
+              `资产处置凭证③(结转损益)已生成: ${entry3Data.entry_number}, ${gainLoss > 0 ? '收益' : '损失'}: ¥${Math.abs(gainLoss).toFixed(2)}`
+            );
           }
         }
 
@@ -1701,7 +1748,6 @@ const assetsModel = {
     }
   },
 
-
   /**
    * 查询固定资产总数
    */
@@ -1733,11 +1779,12 @@ const assetsModel = {
 
       logger.info('开始执行资产调拨，参数:', transferData);
 
-      const [assets] = await connection.query('SELECT id, asset_code, asset_name, asset_type, category_id, acquisition_date, acquisition_cost, depreciation_method, useful_life, salvage_value, current_value, accumulated_depreciation, impairment_amount, location_id, department_id, custodian, status, audit_status, audited_by, audited_at, notes, created_at, updated_at, depreciation_start_date, depreciation_end_date, last_depreciation_date, net_value FROM fixed_assets WHERE id = ? FOR UPDATE', [
-        transferData.assetId,
-      ]);
+      const [assets] = await connection.query(
+        'SELECT id, asset_code, asset_name, asset_type, category_id, acquisition_date, acquisition_cost, depreciation_method, useful_life, salvage_value, current_value, accumulated_depreciation, impairment_amount, location_id, department_id, custodian, status, audit_status, audited_by, audited_at, notes, created_at, updated_at, depreciation_start_date, depreciation_end_date, last_depreciation_date, net_value FROM fixed_assets WHERE id = ? FOR UPDATE',
+        [transferData.assetId]
+      );
       if (assets.length === 0) {
-        throw new Error(`资产ID ${transferData.assetId} 不存在`);
+        throw new Error('资产不存在或已被删除');
       }
 
       const asset = assets[0];
@@ -1794,7 +1841,8 @@ const assetsModel = {
           ]
         );
 
-        await DocumentLinkService.tryAutoLink(DocType.ASSET,
+        await DocumentLinkService.tryAutoLink(
+          DocType.ASSET,
           asset.id,
           asset.asset_code,
           DocType.ASSET_TRANSFER,
@@ -1830,7 +1878,8 @@ const assetsModel = {
       let prefix = 'FA';
       if (categoryId) {
         const [categories] = await db.pool.query(
-          'SELECT code, name FROM asset_categories WHERE id = ?', [categoryId]
+          'SELECT code, name FROM asset_categories WHERE id = ?',
+          [categoryId]
         );
         if (categories.length > 0 && categories[0].code) {
           prefix = categories[0].code.toUpperCase();
@@ -1871,7 +1920,15 @@ const assetsModel = {
         for (const d of details) {
           await dbConn.execute(
             'INSERT INTO asset_change_logs (asset_id, change_type, changed_by, field_name, old_value, new_value, remarks) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [assetId, changeType, String(actor), d.field, String(d.oldVal ?? ''), String(d.newVal ?? ''), remarks]
+            [
+              assetId,
+              changeType,
+              String(actor),
+              d.field,
+              String(d.oldVal ?? ''),
+              String(d.newVal ?? ''),
+              remarks,
+            ]
           );
         }
       }
@@ -1887,7 +1944,8 @@ const assetsModel = {
     try {
       const pagination = parsePagination(page, pageSize, { defaultPageSize: 50, maxPageSize: 100 });
       const [total] = await db.pool.query(
-        'SELECT COUNT(*) as count FROM asset_change_logs WHERE asset_id = ?', [assetId]
+        'SELECT COUNT(*) as count FROM asset_change_logs WHERE asset_id = ?',
+        [assetId]
       );
       const logSql = appendPaginationSQL(
         `SELECT id, asset_id, change_type, change_date, changed_by,
@@ -1914,7 +1972,8 @@ const assetsModel = {
         `SELECT id, asset_id, depreciation_date, depreciation_amount,
                 book_value_before, book_value_after, voucher_no, notes, created_at
          FROM fixed_asset_depreciation_details
-         WHERE asset_id = ? ORDER BY depreciation_date DESC`, [assetId]
+         WHERE asset_id = ? ORDER BY depreciation_date DESC`,
+        [assetId]
       );
       return records;
     } catch (error) {
@@ -1933,9 +1992,12 @@ const assetsModel = {
       impairmentData.impairment_date = toLocalDateString(impairmentData.impairment_date);
 
       // 验证资产是否存在
-      const [assets] = await connection.query('SELECT id, asset_code, asset_name, asset_type, category_id, acquisition_date, acquisition_cost, depreciation_method, useful_life, salvage_value, current_value, accumulated_depreciation, impairment_amount, location_id, department_id, custodian, status, audit_status, audited_by, audited_at, notes, created_at, updated_at, depreciation_start_date, depreciation_end_date, last_depreciation_date, net_value FROM fixed_assets WHERE id = ? FOR UPDATE', [assetId]);
+      const [assets] = await connection.query(
+        'SELECT id, asset_code, asset_name, asset_type, category_id, acquisition_date, acquisition_cost, depreciation_method, useful_life, salvage_value, current_value, accumulated_depreciation, impairment_amount, location_id, department_id, custodian, status, audit_status, audited_by, audited_at, notes, created_at, updated_at, depreciation_start_date, depreciation_end_date, last_depreciation_date, net_value FROM fixed_assets WHERE id = ? FOR UPDATE',
+        [assetId]
+      );
       if (assets.length === 0) {
-        throw new Error(`资产ID ${assetId} 不存在`);
+        throw new Error('资产不存在或已被删除');
       }
 
       const asset = assets[0];
@@ -1980,7 +2042,7 @@ const assetsModel = {
           impairmentData.impairment_date,
           amount,
           impairmentData.reason || null,
-          impairmentData.handled_by || null
+          impairmentData.handled_by || null,
         ]
       );
 
@@ -2033,7 +2095,8 @@ const assetsModel = {
           entry_number: documentNumber,
           entry_date: impairmentData.impairment_date,
           posting_date: impairmentData.impairment_date,
-          document_type: DOCUMENT_TYPE_MAPPING.ASSET_IMPAIRMENT || DOCUMENT_TYPE_MAPPING.ASSET_DEPRECIATION,
+          document_type:
+            DOCUMENT_TYPE_MAPPING.ASSET_IMPAIRMENT || DOCUMENT_TYPE_MAPPING.ASSET_DEPRECIATION,
           document_number: documentNumber,
           period_id: periodId,
           description: `Fixed asset impairment: ${asset.asset_name} (${asset.asset_code})`,
@@ -2064,7 +2127,8 @@ const assetsModel = {
       );
 
       const createdBy = requirePositiveInteger(impairmentData.created_by || 1, 'created_by');
-      await DocumentLinkService.tryAutoLink(DocType.ASSET_IMPAIRMENT,
+      await DocumentLinkService.tryAutoLink(
+        DocType.ASSET_IMPAIRMENT,
         insertResult.insertId,
         documentNumber,
         DocType.FINANCE_VOUCHER,
@@ -2073,7 +2137,8 @@ const assetsModel = {
         createdBy,
         connection
       );
-      await DocumentLinkService.tryAutoLink(DocType.ASSET,
+      await DocumentLinkService.tryAutoLink(
+        DocType.ASSET,
         assetId,
         asset.asset_code,
         DocType.ASSET_IMPAIRMENT,
@@ -2082,7 +2147,8 @@ const assetsModel = {
         createdBy,
         connection
       );
-      await DocumentLinkService.tryAutoLink(DocType.ASSET,
+      await DocumentLinkService.tryAutoLink(
+        DocType.ASSET,
         assetId,
         asset.asset_code,
         DocType.FINANCE_VOUCHER,
@@ -2144,18 +2210,27 @@ const assetsModel = {
 
         let monthTotal = 0;
 
-        assets.forEach(asset => {
+        assets.forEach((asset) => {
           let depAmount = 0;
           const netValue = calculateAssetNetBookValue(asset);
           const depreciableValue = netValue - (asset.salvage_value || 0);
 
-          if (asset.depreciation_method === '直线法' || asset.depreciation_method === 'straight_line') {
+          if (
+            asset.depreciation_method === '直线法' ||
+            asset.depreciation_method === 'straight_line'
+          ) {
             depAmount = depreciableValue / (asset.useful_life || 60);
-          } else if (asset.depreciation_method === '双倍余额递减法' || asset.depreciation_method === 'double_declining') {
+          } else if (
+            asset.depreciation_method === '双倍余额递减法' ||
+            asset.depreciation_method === 'double_declining'
+          ) {
             const monthlyRate = 2 / (asset.useful_life || 60);
             // Basic estimation (doesn't account for accumulated depletion perfectly in forecast without tracking each month per asset)
             depAmount = netValue * monthlyRate;
-          } else if (asset.depreciation_method === '年数总和法' || asset.depreciation_method === 'sum_of_years') {
+          } else if (
+            asset.depreciation_method === '年数总和法' ||
+            asset.depreciation_method === 'sum_of_years'
+          ) {
             depAmount = depreciableValue / (asset.useful_life || 60);
           }
 
@@ -2166,7 +2241,7 @@ const assetsModel = {
 
         forecast.push({
           month: monthStr,
-          amount: Math.round(monthTotal * 100) / 100
+          amount: Math.round(monthTotal * 100) / 100,
         });
       }
 
@@ -2207,7 +2282,7 @@ const assetsModel = {
       return {
         statusStats,
         categoryStats,
-        trendStats
+        trendStats,
       };
     } catch (error) {
       logger.error('获取资产看板统计失败:', error);
@@ -2226,9 +2301,12 @@ const assetsModel = {
       await connection.beginTransaction();
 
       // 1. 获取原资产信息
-      const [assets] = await connection.query('SELECT id, asset_code, asset_name, asset_type, category_id, acquisition_date, acquisition_cost, depreciation_method, useful_life, salvage_value, current_value, accumulated_depreciation, impairment_amount, location_id, department_id, custodian, status, audit_status, audited_by, audited_at, notes, created_at, updated_at, depreciation_start_date, depreciation_end_date, last_depreciation_date, net_value FROM fixed_assets WHERE id = ? FOR UPDATE', [assetId]);
+      const [assets] = await connection.query(
+        'SELECT id, asset_code, asset_name, asset_type, category_id, acquisition_date, acquisition_cost, depreciation_method, useful_life, salvage_value, current_value, accumulated_depreciation, impairment_amount, location_id, department_id, custodian, status, audit_status, audited_by, audited_at, notes, created_at, updated_at, depreciation_start_date, depreciation_end_date, last_depreciation_date, net_value FROM fixed_assets WHERE id = ? FOR UPDATE',
+        [assetId]
+      );
       if (assets.length === 0) {
-        throw new Error(`资产ID ${assetId} 不存在`);
+        throw new Error('资产不存在或已被删除');
       }
 
       const originalAsset = assets[0];
@@ -2245,13 +2323,23 @@ const assetsModel = {
 
       // 计算按比例分配的累计折旧和减值准备
       const splitRatio = splitCost / parseFloat(originalAsset.acquisition_cost);
-      const splitDepreciation = roundMoney(parseFloat(originalAsset.accumulated_depreciation || 0) * splitRatio);
-      const splitImpairment = roundMoney(parseFloat(originalAsset.impairment_amount || 0) * splitRatio);
+      const splitDepreciation = roundMoney(
+        parseFloat(originalAsset.accumulated_depreciation || 0) * splitRatio
+      );
+      const splitImpairment = roundMoney(
+        parseFloat(originalAsset.impairment_amount || 0) * splitRatio
+      );
       const splitCurrentValue = roundMoney(calculateAssetNetBookValue(originalAsset) * splitRatio);
       const remainingCost = roundMoney(parseFloat(originalAsset.acquisition_cost) - splitCost);
-      const remainingDepreciation = roundMoney(parseFloat(originalAsset.accumulated_depreciation || 0) - splitDepreciation);
-      const remainingImpairment = roundMoney(parseFloat(originalAsset.impairment_amount || 0) - splitImpairment);
-      const remainingCurrentValue = roundMoney(calculateAssetNetBookValue(originalAsset) - splitCurrentValue);
+      const remainingDepreciation = roundMoney(
+        parseFloat(originalAsset.accumulated_depreciation || 0) - splitDepreciation
+      );
+      const remainingImpairment = roundMoney(
+        parseFloat(originalAsset.impairment_amount || 0) - splitImpairment
+      );
+      const remainingCurrentValue = roundMoney(
+        calculateAssetNetBookValue(originalAsset) - splitCurrentValue
+      );
 
       // 生成新资产编号
       const codePrefix = originalAsset.asset_code;
@@ -2289,7 +2377,7 @@ const assetsModel = {
           splitData.department_id || originalAsset.department_id,
           splitData.custodian || originalAsset.custodian,
           originalAsset.status,
-          `自资产 ${originalAsset.asset_code} 拆分而来。原因：${splitData.reason || '无'}`
+          `自资产 ${originalAsset.asset_code} 拆分而来。原因：${splitData.reason || '无'}`,
         ]
       );
 
@@ -2304,7 +2392,14 @@ const assetsModel = {
              current_value = ?,
              net_value = ?
          WHERE id = ?`,
-        [remainingCost, remainingDepreciation, remainingImpairment, remainingCurrentValue, remainingCurrentValue, assetId]
+        [
+          remainingCost,
+          remainingDepreciation,
+          remainingImpairment,
+          remainingCurrentValue,
+          remainingCurrentValue,
+          assetId,
+        ]
       );
 
       // 4. 记录拆分变更日志
@@ -2315,7 +2410,13 @@ const assetsModel = {
         assetId,
         '资产拆分',
         userId,
-        [{ field: 'acquisition_cost', oldVal: originalAsset.acquisition_cost, newVal: remainingCost }],
+        [
+          {
+            field: 'acquisition_cost',
+            oldVal: originalAsset.acquisition_cost,
+            newVal: remainingCost,
+          },
+        ],
         changeNotes,
         connection
       );
@@ -2330,7 +2431,8 @@ const assetsModel = {
         connection
       );
 
-      await DocumentLinkService.tryAutoLink(DocType.ASSET,
+      await DocumentLinkService.tryAutoLink(
+        DocType.ASSET,
         assetId,
         originalAsset.asset_code,
         DocType.ASSET,

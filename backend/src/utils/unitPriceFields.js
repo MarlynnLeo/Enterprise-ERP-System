@@ -227,11 +227,7 @@ function sqlTaxRateExpr(tableAlias, table) {
 function resolveTaxRate(source, fallback = 0) {
   if (source === null || source === undefined || source === '') return fallback;
   if (typeof source !== 'object') return toNumber(source, fallback);
-  const raw =
-    source.tax_rate ??
-    source.taxRate ??
-    source.tax_percent ??
-    source.taxPercent;
+  const raw = source.tax_rate ?? source.taxRate ?? source.tax_percent ?? source.taxPercent;
   if (raw === null || raw === undefined || raw === '') return fallback;
   return toNumber(raw, fallback);
 }

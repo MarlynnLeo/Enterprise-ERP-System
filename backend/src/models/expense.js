@@ -75,10 +75,9 @@ async function generateExpensePaymentTransactionNumber(connection) {
 
 async function getEntryNumberById(connection, entryId) {
   if (!entryId) return null;
-  const [entries] = await connection.execute(
-    'SELECT entry_number FROM gl_entries WHERE id = ?',
-    [entryId]
-  );
+  const [entries] = await connection.execute('SELECT entry_number FROM gl_entries WHERE id = ?', [
+    entryId,
+  ]);
   return entries[0]?.entry_number || null;
 }
 
@@ -92,7 +91,8 @@ async function linkExpensePaymentDocuments({
   createdBy,
 }) {
   if (bankTransactionId) {
-    await DocumentLinkService.tryAutoLink(DocType.EXPENSE,
+    await DocumentLinkService.tryAutoLink(
+      DocType.EXPENSE,
       expenseId,
       expense.expense_number,
       DocType.BANK_TRANSACTION,
@@ -106,7 +106,8 @@ async function linkExpensePaymentDocuments({
   if (!glEntryId) return;
 
   const glEntryNumber = await getEntryNumberById(connection, glEntryId);
-  await DocumentLinkService.tryAutoLink(DocType.EXPENSE,
+  await DocumentLinkService.tryAutoLink(
+    DocType.EXPENSE,
     expenseId,
     expense.expense_number,
     DocType.FINANCE_VOUCHER,
@@ -117,7 +118,8 @@ async function linkExpensePaymentDocuments({
   );
 
   if (bankTransactionId) {
-    await DocumentLinkService.tryAutoLink(DocType.BANK_TRANSACTION,
+    await DocumentLinkService.tryAutoLink(
+      DocType.BANK_TRANSACTION,
       bankTransactionId,
       bankTransactionNumber,
       DocType.FINANCE_VOUCHER,
@@ -471,17 +473,25 @@ const expenseModel = {
    */
   async validateExpenseCategoryAccount(code) {
     if (!code) return;
-    const [accounts] = await db.pool.execute('SELECT id, parent_id, is_active FROM gl_accounts WHERE account_code = ?', [code]);
+    const [accounts] = await db.pool.execute(
+      'SELECT id, parent_id, is_active FROM gl_accounts WHERE account_code = ?',
+      [code]
+    );
     let account = accounts[0];
     const visited = new Set();
     while (account) {
       if (!isTruthyFlag(account.is_active) || visited.has(account.id)) break;
       visited.add(account.id);
       if (!account.parent_id) return;
-      const [parents] = await db.pool.execute('SELECT id, parent_id, is_active FROM gl_accounts WHERE id = ?', [account.parent_id]);
+      const [parents] = await db.pool.execute(
+        'SELECT id, parent_id, is_active FROM gl_accounts WHERE id = ?',
+        [account.parent_id]
+      );
       account = parents[0];
     }
-    throw Object.assign(new Error('费用科目不存在或科目及上级科目未启用'), { code: 'VALIDATION_ERROR' });
+    throw Object.assign(new Error('费用科目不存在或科目及上级科目未启用'), {
+      code: 'VALIDATION_ERROR',
+    });
   },
 
   async createExpenseCategory(data) {
@@ -711,7 +721,8 @@ const expenseModel = {
         ${scopeClause.join || ''}
         ${whereClause}
         ORDER BY e.created_at DESC`,
-        safeLimit, safeOffset
+        safeLimit,
+        safeOffset
       );
       const [rows] = await db.pool.execute(paginatedSql, params);
 
@@ -1122,10 +1133,10 @@ const expenseModel = {
 
             expenseAccountId = debitAccounts[0].id;
             glEntryId = await financeModel.createEntry(entryData, entryItems, connection);
-            await connection.execute(
-              'UPDATE bank_transactions SET gl_entry_id = ? WHERE id = ?',
-              [glEntryId, bankTransactionId]
-            );
+            await connection.execute('UPDATE bank_transactions SET gl_entry_id = ? WHERE id = ?', [
+              glEntryId,
+              bankTransactionId,
+            ]);
             logger.info(`[费用付款] 会计凭证已生成: ${expense.expense_number}`);
           } else {
             throw new Error(`没有开放的会计期间，无法生成费用付款凭证: ${expense.expense_number}`);
@@ -1196,7 +1207,10 @@ const expenseModel = {
    */
   async deleteExpense(id) {
     try {
-      const [current] = await db.pool.execute('SELECT status FROM expenses WHERE id = ? AND deleted_at IS NULL', [id]);
+      const [current] = await db.pool.execute(
+        'SELECT status FROM expenses WHERE id = ? AND deleted_at IS NULL',
+        [id]
+      );
       if (!current[0] || !['draft', 'rejected', 'cancelled'].includes(current[0].status)) {
         throw new Error('当前状态不允许删除');
       }
@@ -1229,7 +1243,10 @@ const expenseModel = {
         return { success: true };
       }
 
-      await db.pool.execute("UPDATE expenses SET status = 'cancelled', updated_at = NOW() WHERE id = ?", [id]);
+      await db.pool.execute(
+        "UPDATE expenses SET status = 'cancelled', updated_at = NOW() WHERE id = ?",
+        [id]
+      );
       return { success: true };
     } catch (error) {
       logger.error('取消费用失败:', error);
@@ -1528,10 +1545,15 @@ const expenseModel = {
         reason: `冲销费用付款 - 原因: ${voidReason}`,
       });
       if (reversalBankTransactionId) {
-        const reversed = reversedEntries.find(entry => Number(entry.originalEntryId) === Number(originalBankEntryId))
-          || (reversedEntries.length === 1 ? reversedEntries[0] : null);
+        const reversed =
+          reversedEntries.find(
+            (entry) => Number(entry.originalEntryId) === Number(originalBankEntryId)
+          ) || (reversedEntries.length === 1 ? reversedEntries[0] : null);
         if (!reversed) throw new Error('费用冲销流水缺少对应的冲销凭证');
-        await connection.execute('UPDATE bank_transactions SET gl_entry_id = ? WHERE id = ?', [reversed.entryId, reversalBankTransactionId]);
+        await connection.execute('UPDATE bank_transactions SET gl_entry_id = ? WHERE id = ?', [
+          reversed.entryId,
+          reversalBankTransactionId,
+        ]);
       }
 
       await connection.execute(
@@ -1555,7 +1577,6 @@ const expenseModel = {
       connection.release();
     }
   },
-
 };
 
 module.exports = expenseModel;

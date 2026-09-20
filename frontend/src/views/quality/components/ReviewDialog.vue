@@ -155,6 +155,7 @@
 import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { qualityApi } from '@/api'
 import AttachmentUpload from '@/components/AttachmentUpload.vue'
 import { ATTACHMENT_MAX_SIZE_MB } from '@/constants/attachmentUpload'
@@ -281,7 +282,7 @@ watch(() => props.visible, async (val) => {
       }
     } catch (error) {
       console.error('获取检验单详情失败:', error)
-      ElMessage.error(`获取检验单详情失败: ${error.message}`)
+      ElMessage.error(`获取检验单详情失败：${getApiErrorMessage(error, '请稍后重试')}`)
       dialogVisible.value = false
     }
   }
@@ -423,11 +424,11 @@ const handleSubmit = async () => {
       dialogVisible.value = false
       emit('success')
     } else {
-      ElMessage.error(respData?.message || '复检提交失败')
+      ElMessage.error(getApiErrorMessage(respData, '复检提交失败'))
     }
   } catch (error) {
     console.error('复检提交失败:', error)
-    ElMessage.error(`复检提交失败: ${error.message}`)
+    ElMessage.error(`复检提交失败：${getApiErrorMessage(error, '请稍后重试')}`)
   } finally {
     submitting.value = false
   }
@@ -446,7 +447,7 @@ const handlePartialReviewResult = async (inspectionId, qualifiedQty, unqualified
       ElMessageBox.alert(`复检已完成。\n\n- 合格部分(${qualifiedQty})已由后端创建入库单\n- 不合格部分(${unqualifiedQty})请前往"质量管理 > 不合格品管理"重新处理`, '温馨提示',
         { confirmButtonText: '我知道了', type: 'info' })
     } else {
-      ElMessage.error(`处理失败: ${error.message}`)
+      ElMessage.error(`处理失败：${getApiErrorMessage(error, '请稍后重试')}`)
     }
   }
 }

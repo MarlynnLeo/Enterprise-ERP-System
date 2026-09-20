@@ -191,6 +191,7 @@ import {
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { Refresh } from '@element-plus/icons-vue'
 import { equipmentMonitoringAPI } from '@/api/modules/business/equipmentMonitoring'
 import { formatDateTime } from '@/utils/helpers/dateUtils'
@@ -215,7 +216,7 @@ const fetchEquipmentDetail = async () => {
     const response = await equipmentMonitoringAPI.getEquipmentDetail(props.equipmentId)
     equipment.value = response.data
   } catch (error) {
-    ElMessage.error('获取设备详情失败: ' + error.message)
+    ElMessage.error(`获取设备详情失败：${getApiErrorMessage(error, '请稍后重试')}`)
   } finally {
     loading.value = false
   }
@@ -252,7 +253,7 @@ const acknowledgeAlarm = async (alarmId) => {
     await refreshCurrentData()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('确认报警失败: ' + error.message)
+      ElMessage.error(`确认报警失败：${getApiErrorMessage(error, '请稍后重试')}`)
     }
   }
 }
@@ -277,7 +278,7 @@ const resolveAlarm = async (alarm) => {
     await refreshCurrentData()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('解决报警失败: ' + error.message)
+      ElMessage.error(`解决报警失败：${getApiErrorMessage(error, '请稍后重试')}`)
     }
   }
 }

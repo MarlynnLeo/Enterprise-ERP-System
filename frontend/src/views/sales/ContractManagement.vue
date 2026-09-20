@@ -223,6 +223,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -282,7 +283,7 @@ const submitContract = async (row) => {
     ElMessage.success('已提交审批')
     fetchList()
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || error.message || '提交审批失败')
+    ElMessage.error(getApiErrorMessage(error, '提交审批失败'))
   }
 }
 const fetchList = async () => {
@@ -320,7 +321,7 @@ const handleSave = async () => {
     ElMessage.success('保存成功')
     formVisible.value = false
     fetchList()
-  } catch (e) { ElMessage.error(e.message || '保存失败') }
+  } catch (e) { ElMessage.error(getApiErrorMessage(e, '保存失败')) }
   finally { saving.value = false }
 }
 

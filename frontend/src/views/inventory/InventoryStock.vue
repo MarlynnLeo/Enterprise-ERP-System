@@ -497,6 +497,7 @@ import { ref, onMounted, reactive, computed } from 'vue'
 import { Download, Plus, ArrowDown, Document, Close, Printer, Select, ShoppingCart } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { inventoryApi, baseDataApi } from '@/api'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import InventoryStockAdd from './InventoryStockAdd.vue'
 import { useAuthStore } from '@/stores/auth'
 import { getDocumentType as getDocTypeHelper } from '@/constants/documentTypes'
@@ -663,7 +664,7 @@ const fetchData = async () => {
     updateStatistics()
   } catch (error) {
     console.error('获取库存数据失败:', error)
-    const errorMessage = error.response?.data?.message || '获取库存数据失败'
+    const errorMessage = getApiErrorMessage(error, '获取库存数据失败')
     ElMessage.error(errorMessage)
     tableData.value = []
     pagination.total = 0
@@ -820,7 +821,7 @@ const handleBatchExport = async () => {
     ElMessage.success(`成功导出${materialIds.length}条记录`)
   } catch (error) {
     console.error('批量导出失败:', error)
-    const errorMessage = error.response?.data?.message || '批量导出生成底层 Excel 时出错'
+    const errorMessage = getApiErrorMessage(error, '批量导出生成底层 Excel 时出错')
     ElMessage.error(errorMessage)
   } finally {
     batchLoading.value = false
@@ -910,7 +911,7 @@ const handleViewDetail = async (row) => {
 
   try {
     if (!materialId) {
-      throw new Error('库存行缺少物料ID，请刷新列表后重试')
+      throw new Error('库存行缺少物料信息，请刷新列表后重试')
     }
 
     // 并行获取流水记录、批次库存、采购历史、销售历史
@@ -930,7 +931,7 @@ const handleViewDetail = async (row) => {
     detailRecords.value = parseListData(recordsResponse, { enableLog: false })
   } catch (error) {
     console.error('获取明细失败:', error)
-    ElMessage.error(`获取明细失败: ${error.response?.data?.message || error.message || '未知错误'}`)
+    ElMessage.error(`获取明细失败：${getApiErrorMessage(error, '请稍后重试')}`)
     detailRecords.value = []
     batchInventory.value = []
     purchaseHistory.value = []
@@ -1099,7 +1100,7 @@ const handleExport = async (includeDetails = false, exportType = '库存汇总')
     ElMessage.success('报表下载成功')
   } catch (error) {
     console.error('全量库导表获取失败:', error)
-    const errorMessage = error.response?.data?.message || '获取库存全量数据失败'
+    const errorMessage = getApiErrorMessage(error, '获取库存全量数据失败')
     ElMessage.error(errorMessage)
   }
 }

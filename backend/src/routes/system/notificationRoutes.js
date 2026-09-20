@@ -33,9 +33,17 @@ router.delete('/:id', notificationController.deleteNotification);
 router.post('/batch-delete', notificationController.batchDeleteNotifications);
 
 // 创建通知
-router.post('/', requirePermission('system:notifications:create'), notificationController.createNotification);
+router.post(
+  '/',
+  requirePermission('system:notifications:create'),
+  notificationController.createNotification
+);
 
 // 批量创建通知
-router.post('/batch', requirePermission('system:notifications:create'), notificationController.createBatchNotifications);
+router.post(
+  '/batch',
+  requirePermission('system:notifications:create'),
+  notificationController.createBatchNotifications
+);
 
 module.exports = router;

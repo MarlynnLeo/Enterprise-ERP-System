@@ -7,7 +7,6 @@ const {
   isTerminalStatus,
 } = require('../../src/constants/statusRegistry');
 const { consistencyRules } = require('../../src/services/business/DataConsistencyRules');
-const { legacyCleanupCandidates } = require('../../src/services/business/LegacyCodeCleanupRules');
 
 describe('business closure registry', () => {
   test('every closure has an ordered start-to-end proof path', () => {
@@ -80,15 +79,4 @@ describe('business closure registry', () => {
     }
   });
 
-  test('legacy cleanup candidates are explicit and reference replacements', () => {
-    const paths = new Set();
-
-    for (const candidate of legacyCleanupCandidates) {
-      expect(candidate.path).toMatch(/^(backend|frontend|mobile)\//);
-      expect(paths.has(candidate.path)).toBe(false);
-      paths.add(candidate.path);
-      expect(candidate.replacement).toBeTruthy();
-      expect(candidate.reason).toBeTruthy();
-    }
-  });
 });

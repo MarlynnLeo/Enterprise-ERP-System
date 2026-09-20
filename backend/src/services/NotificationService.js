@@ -108,10 +108,10 @@ class NotificationService {
       );
     }
 
-    const insertedUserIds = targetUserIds
-      .filter((userId) => !existingByUserId.has(Number(userId)));
-    const values = insertedUserIds
-      .map((userId) => buildNotificationValue(userId, notification, sourceType, sourceId));
+    const insertedUserIds = targetUserIds.filter((userId) => !existingByUserId.has(Number(userId)));
+    const values = insertedUserIds.map((userId) =>
+      buildNotificationValue(userId, notification, sourceType, sourceId)
+    );
 
     if (values.length) {
       await pool.query(
@@ -152,11 +152,9 @@ class NotificationService {
           notification,
           sourceType,
           sourceId,
-          dedupeBySource: (job.dedupeBySource === true || options.dedupeBySource === true) && hasSource,
-          dedupeByDay:
-            job.dedupeByDay !== false &&
-            options.dedupeByDay !== false &&
-            hasSource,
+          dedupeBySource:
+            (job.dedupeBySource === true || options.dedupeBySource === true) && hasSource,
+          dedupeByDay: job.dedupeByDay !== false && options.dedupeByDay !== false && hasSource,
         };
       })
       .filter((job) => job.userIds.length && job.notification?.title);
@@ -208,7 +206,10 @@ class NotificationService {
 
     for (const job of normalizedJobs) {
       for (const userId of job.userIds) {
-        const key = job.dedupeByDay || job.dedupeBySource ? `${job.sourceType}:${job.sourceId}:${userId}` : null;
+        const key =
+          job.dedupeByDay || job.dedupeBySource
+            ? `${job.sourceType}:${job.sourceId}:${userId}`
+            : null;
         if (key && (existingKeys.has(key) || pendingKeys.has(key))) {
           skipped += 1;
           continue;

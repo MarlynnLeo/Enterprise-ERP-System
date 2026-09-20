@@ -13,7 +13,6 @@
           :rules="[{ required: true, message: '请选择应收发票' }]"
           @click="openInvoiceSheet"
         />
-        <Field v-model="form.invoiceId" label="发票ID" placeholder="也可手动输入" type="digit" />
       </CellGroup>
 
       <CellGroup inset title="收款信息">
@@ -40,6 +39,7 @@
   import { ActionSheet, Button as VanButton, CellGroup, Field, Form as VanForm, NavBar, showToast } from 'vant'
   import { financeApi } from '@/api'
   import { extractApiList, extractApiData } from '@/utils/apiHelper'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const router = useRouter()
   const submitting = ref(false)
@@ -66,8 +66,8 @@
 
   const selectedInvoiceText = computed(() => {
     const invoice = invoices.value.find((item) => String(item.id) === String(form.invoiceId))
-    if (!invoice) return form.invoiceId ? `发票ID ${form.invoiceId}` : ''
-    return `${invoice.invoiceNumber || invoice.code || invoice.id} · ${invoice.customerName || '客户'}`
+    if (!invoice) return '未选择发票'
+    return `${invoice.invoiceNumber || invoice.code || '未命名发票'} · ${invoice.customerName || '客户'}`
   })
 
   const formatMoney = (value) => {
@@ -78,7 +78,7 @@
 
   const invoiceActions = computed(() =>
     invoices.value.map((invoice) => ({
-      name: `${invoice.invoiceNumber || invoice.id} · ${invoice.customerName || '客户'} · ${formatMoney(invoice.balanceAmount ?? invoice.totalAmount)}`,
+      name: `${invoice.invoiceNumber || invoice.code || '未命名发票'} · ${invoice.customerName || '客户'} · ${formatMoney(invoice.balanceAmount ?? invoice.totalAmount)}`,
       value: invoice.id,
       invoice
     }))
@@ -86,7 +86,7 @@
 
   const openInvoiceSheet = () => {
     if (!invoiceActions.value.length) {
-      showToast('暂无可选发票，可手动填写发票ID')
+      showToast('暂无可选发票，请先创建或检查待收款发票')
       return
     }
     showInvoiceSheet.value = true
@@ -133,7 +133,7 @@
       showToast({ type: 'success', message: '收款已创建' })
       router.replace(id ? `/finance/ar/receipts/${id}` : '/finance/ar/receipts')
     } catch (error) {
-      showToast(error.response?.data?.message || '创建收款失败')
+      showToast(getApiErrorMessage(error, '创建收款失败'))
     } finally {
       submitting.value = false
     }

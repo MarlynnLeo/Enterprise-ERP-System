@@ -277,6 +277,7 @@
   import { baseDataApi, inventoryApi, salesApi, productionApi, qualityApi } from '@/api'
   import { findExactScanMatch } from '@/utils/scanLookup'
   import { extractApiList } from '@/utils/apiHelper'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
   import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 
   // 支持的条码格式列表（包含所有常见一维码和二维码）
@@ -417,7 +418,7 @@
       const response = await productionApi.getProductionTasks({ status: 'in_progress', page: 1, pageSize: 100 })
       assemblyTasks.value = extractApiList(response)
     } catch (error) {
-      showToast(error.response?.data?.message || '生产任务加载失败')
+      showToast(getApiErrorMessage(error, '生产任务加载失败'))
     } finally {
       assemblyTaskLoading.value = false
     }
@@ -450,7 +451,7 @@
       console.error('查询失败:', error)
       showToast({
         type: 'fail',
-        message: error.message || '查询失败'
+        message: getApiErrorMessage(error, '查询失败')
       })
       scanResult.value = ''
       resultData.value = null
@@ -505,7 +506,7 @@
     } catch (err) {
       closeToast()
       console.error('添加到盘点单失败:', err)
-      showToast({ type: 'fail', message: err.message || '添加失败' })
+      showToast({ type: 'fail', message: getApiErrorMessage(err, '添加失败') })
     }
   }
 
@@ -529,7 +530,7 @@
         throw new Error('未找到该物料')
       }
     } catch (error) {
-      throw new Error(error.message || '查询物料失败')
+      throw new Error(getApiErrorMessage(error, '查询物料失败'))
     }
   }
 
@@ -552,7 +553,7 @@
         throw new Error('未找到该库位')
       }
     } catch (error) {
-      throw new Error(error.message || '查询库位失败')
+      throw new Error(getApiErrorMessage(error, '查询库位失败'))
     }
   }
 
@@ -586,7 +587,7 @@
         throw new Error('未找到该订单')
       }
     } catch (error) {
-      throw new Error(error.message || '查询订单失败')
+      throw new Error(getApiErrorMessage(error, '查询订单失败'))
     }
   }
 
@@ -623,12 +624,13 @@
         assemblyResult.value = { success: true, message: `${data.material?.name || '物料'} 匹配 BOM` }
         showToast({ type: 'success', message: '物料匹配' })
       } else {
-        assemblyResult.value = { success: false, message: data.reason || '物料不匹配' }
-        showToast({ type: 'fail', message: data.reason || '物料不匹配' })
+        const reason = getApiErrorMessage(data.reason, '物料不匹配')
+        assemblyResult.value = { success: false, message: reason }
+        showToast({ type: 'fail', message: reason })
       }
       resultData.value = { type: 'assembly' }
     } catch (error) {
-      throw new Error(error.message || '扫码验证失败')
+      throw new Error(getApiErrorMessage(error, '扫码验证失败'))
     }
   }
 

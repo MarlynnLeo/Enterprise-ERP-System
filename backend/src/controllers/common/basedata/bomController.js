@@ -78,7 +78,6 @@ async function cleanupUnusedBomAttachment(fileUrl) {
 }
 
 const bomController = {
-
   async getBomOptions(req, res) {
     try {
       const pageSize = Math.min(
@@ -157,7 +156,7 @@ const bomController = {
 
       // 控制器级输入校验（只认 snake 内部）
       if (!bomData || !bomData.product_id) {
-        return ResponseHandler.error(res, '产品ID为必填项', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(res, '请选择产品', 'VALIDATION_ERROR', 400);
       }
       if (!bomData.version || !String(bomData.version).trim()) {
         return ResponseHandler.error(res, '版本号为必填项', 'VALIDATION_ERROR', 400);
@@ -203,14 +202,12 @@ const bomController = {
       // createBom 会包装为「创建BOM失败: xxx」，以及 MySQL 唯一键冲突
       const raw = error.cause?.message || error.message || '创建BOM失败';
       const msg = String(raw).replace(/^创建BOM失败:\s*/, '');
-      const isDup = error.code === 'ER_DUP_ENTRY' || /Duplicate entry|已存在版本|不能重复/.test(msg);
-      const isValidation =
-        isDup || /不能为空|必填|无效|未维护|循环|不存在|已删除/.test(msg);
+      const isDup =
+        error.code === 'ER_DUP_ENTRY' || /Duplicate entry|已存在版本|不能重复/.test(msg);
+      const isValidation = isDup || /不能为空|必填|无效|未维护|循环|不存在|已删除/.test(msg);
       ResponseHandler.error(
         res,
-        isDup && !/已存在版本/.test(msg)
-          ? '该产品下版本号已存在，请更换版本号后重试'
-          : msg,
+        isDup && !/已存在版本/.test(msg) ? '该产品下版本号已存在，请更换版本号后重试' : msg,
         isValidation ? 'VALIDATION_ERROR' : 'SERVER_ERROR',
         isValidation ? 400 : 500,
         error
@@ -247,7 +244,7 @@ const bomController = {
 
       const bomId = Number(req.params.id);
       if (!Number.isInteger(bomId) || bomId <= 0) {
-        return ResponseHandler.error(res, 'BOM ID 无效', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(res, 'BOM参数无效', 'VALIDATION_ERROR', 400);
       }
       const [[existingBom]] = await pool.execute(
         'SELECT attachment FROM bom_masters WHERE id = ? AND deleted_at IS NULL',
@@ -283,7 +280,8 @@ const bomController = {
       }
       if (
         existingBom.attachment &&
-        FileAccessService.normalizeUploadUrl(existingBom.attachment) !== preparedAttachment.normalized
+        FileAccessService.normalizeUploadUrl(existingBom.attachment) !==
+          preparedAttachment.normalized
       ) {
         await cleanupUnusedBomAttachment(existingBom.attachment);
       }
@@ -305,7 +303,7 @@ const bomController = {
     try {
       const bomId = Number(req.params.id);
       if (!Number.isInteger(bomId) || bomId <= 0) {
-        return ResponseHandler.error(res, 'BOM ID 无效', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(res, 'BOM参数无效', 'VALIDATION_ERROR', 400);
       }
       const [[existingBom]] = await pool.execute(
         'SELECT attachment FROM bom_masters WHERE id = ? AND deleted_at IS NULL',
@@ -349,13 +347,22 @@ const bomController = {
     try {
       const { oldMaterialCode, newMaterialCode } = req.body;
       if (!oldMaterialCode || !newMaterialCode) {
-        return ResponseHandler.error(res, '必须提供被替换和用于替换的物料编码', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(
+          res,
+          '必须提供被替换和用于替换的物料编码',
+          'VALIDATION_ERROR',
+          400
+        );
       }
 
       const bomService = require('../../../services/bomService');
       const result = await bomService.replaceBom(oldMaterialCode, newMaterialCode);
 
-      ResponseHandler.success(res, result, `成功在 ${result.bomsCount} 个BOM中替换了 ${result.affectedRows} 条明细`);
+      ResponseHandler.success(
+        res,
+        result,
+        `成功在 ${result.bomsCount} 个BOM中替换了 ${result.affectedRows} 条明细`
+      );
     } catch (error) {
       logger.error('替换BOM物料失败:', error);
       ResponseHandler.error(res, error.message, 'SERVER_ERROR', 500, error);
@@ -425,7 +432,7 @@ const bomController = {
       const { pool } = require('../../../config/db');
       const bomId = safeParseId(req.params.id);
       if (!Number.isInteger(bomId) || bomId <= 0) {
-        return ResponseHandler.error(res, '无效的BOM ID', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(res, 'BOM参数无效', 'VALIDATION_ERROR', 400);
       }
 
       // 审核BOM：同步设置 status=1 + approved_at + approved_by（INT字段，存用户ID）
@@ -437,7 +444,10 @@ const bomController = {
       // 审核后触发关键后处理（与 createBom/deleteBom 保持一致）
       try {
         const BomExplosionService = require('../../../services/BomExplosionService');
-        const [bomInfo] = await pool.query('SELECT product_id FROM bom_masters WHERE id = ? AND deleted_at IS NULL', [bomId]);
+        const [bomInfo] = await pool.query(
+          'SELECT product_id FROM bom_masters WHERE id = ? AND deleted_at IS NULL',
+          [bomId]
+        );
         if (bomInfo.length > 0) {
           // 更新该产品在其他BOM中的 has_sub_bom 标记
           await BomExplosionService.updateHasSubBomFlag(bomInfo[0].product_id);
@@ -445,11 +455,7 @@ const bomController = {
           await BomExplosionService.invalidateCache(bomId);
         }
       } catch (e) {
-        await DLQService.recordSideEffectFailure(
-          'BOM:approvePostProcess',
-          { bomId },
-          e
-        );
+        await DLQService.recordSideEffectFailure('BOM:approvePostProcess', { bomId }, e);
       }
 
       ResponseHandler.success(res, null, 'BOM审核成功');
@@ -579,7 +585,6 @@ const bomController = {
       // 先使缓存失效
       await BomExplosionService.invalidateCache(parseInt(id));
 
-
       const bom = await bomService.getBomById(id);
       if (!bom) {
         return ResponseHandler.error(res, 'BOM不存在', 'NOT_FOUND', 404);
@@ -612,11 +617,14 @@ const bomController = {
       const { pool } = require('../../../config/db');
       const bomId = safeParseId(req.params.id);
       if (!Number.isInteger(bomId) || bomId <= 0) {
-        return ResponseHandler.error(res, '无效的BOM ID', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(res, 'BOM参数无效', 'VALIDATION_ERROR', 400);
       }
 
       // 反审前获取产品ID用于后处理
-      const [bomInfo] = await pool.query('SELECT product_id FROM bom_masters WHERE id = ? AND deleted_at IS NULL', [bomId]);
+      const [bomInfo] = await pool.query(
+        'SELECT product_id FROM bom_masters WHERE id = ? AND deleted_at IS NULL',
+        [bomId]
+      );
 
       await pool.query(
         'UPDATE bom_masters SET status = 0, approved_at = NULL, approved_by = NULL WHERE id = ?',
@@ -633,11 +641,7 @@ const bomController = {
           await BomExplosionService.invalidateCache(bomId);
         }
       } catch (e) {
-        await DLQService.recordSideEffectFailure(
-          'BOM:unapprovePostProcess',
-          { bomId },
-          e
-        );
+        await DLQService.recordSideEffectFailure('BOM:unapprovePostProcess', { bomId }, e);
       }
 
       ResponseHandler.success(res, null, 'BOM反审核成功');
@@ -646,7 +650,6 @@ const bomController = {
       ResponseHandler.error(res, error.message, 'SERVER_ERROR', 500, error);
     }
   },
-
 
   async getMaterialBom(req, res) {
     try {
@@ -681,7 +684,6 @@ const bomController = {
       ResponseHandler.error(res, error.message, 'SERVER_ERROR', 500, error);
     }
   },
-
 
   async getBomByProductId(req, res) {
     try {
@@ -721,7 +723,6 @@ const bomController = {
       ResponseHandler.error(res, error.message, 'SERVER_ERROR', 500, error);
     }
   },
-
 };
 
 module.exports = bomController;

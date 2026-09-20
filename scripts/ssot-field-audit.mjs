@@ -164,6 +164,7 @@ const report = {
   })),
 };
 
-const outPath = path.join(root, 'scripts', 'ssot-field-audit-report.json');
+const outPath = path.join(root, 'reports', 'ssot-field-audit-report.json');
+fs.mkdirSync(path.dirname(outPath), { recursive: true });
 fs.writeFileSync(outPath, JSON.stringify(report, null, 2));
 console.log(`\nReport written: ${rel(outPath)}`);

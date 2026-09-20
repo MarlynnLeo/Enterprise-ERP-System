@@ -215,6 +215,7 @@
   import dayjs from 'dayjs'
   import { usePagination } from '@/composables/usePagination'
   import { getProductionTaskProgress } from '@/utils/productionTask'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const router = useRouter()
 
@@ -242,7 +243,7 @@
   } = usePagination(productionApi.getProductionTasks)
   const taskList = computed(() => rawTasks.value.map(task => ({
     ...task,
-    code: task.code || task.taskCode || `TASK-${task.id}`,
+    code: task.code || task.taskCode || '未命名任务',
     productName: task.productName || '未知产品',
     quantity: task.quantity || 0,
     completedQuantity: task.completedQuantity || 0,
@@ -362,7 +363,7 @@
       onRefresh()
     } catch (error) {
       console.error('报工失败:', error)
-      showToast(error.response?.data?.message || error.message || '报工失败')
+      showToast(getApiErrorMessage(error, '报工失败'))
     } finally {
       submitting.value = false
     }

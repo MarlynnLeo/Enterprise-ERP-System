@@ -10,15 +10,6 @@ for (const envPath of [path.join(rootDir, '.env'), path.join(repoRoot, '.env')])
     dotenv.config({ path: envPath, override: false });
   }
 }
-let cleanupCandidates = [];
-try {
-  ({ legacyCleanupCandidates: cleanupCandidates = [] } = require('../src/services/business/LegacyCodeCleanupRules'));
-} catch (error) {
-  if (error.code !== 'MODULE_NOT_FOUND') {
-    throw error;
-  }
-  console.warn('Warning: LegacyCodeCleanupRules is missing; legacy cleanup audit will use an empty rule set.');
-}
 
 function walk(dir, predicate, result = []) {
   if (!fs.existsSync(dir)) return result;
@@ -48,14 +39,6 @@ function printHeader(title) {
 
 function printMetric(name, value) {
   console.log(`${name}: ${value}`);
-}
-
-function requireOptional(modulePath) {
-  try {
-    return require(modulePath);
-  } catch (error) {
-    return { error };
-  }
 }
 
 function auditBusinessClosure() {
@@ -88,7 +71,6 @@ function auditBusinessClosure() {
   printMetric('closures', closureIds.length);
   printMetric('status domains', Object.keys(STATUS_REGISTRY).length);
   printMetric('consistency rules', consistencyRules.length);
-  printMetric('cleanup candidates', cleanupCandidates.length);
 
   if (issues.length) {
     console.error('\nIssues:');
@@ -146,16 +128,6 @@ function auditStatusConsistency() {
   } else {
     console.log('Result: OK');
   }
-}
-
-function auditLegacyCode() {
-  printHeader('Legacy Code Audit');
-  for (const candidate of cleanupCandidates) {
-    const exists = fs.existsSync(path.join(repoRoot, candidate.path));
-    console.log(`${exists ? 'present' : 'missing'}: ${candidate.path} -> ${candidate.replacement}`);
-  }
-  printMetric('candidates', cleanupCandidates.length);
-  console.log('Result: OK');
 }
 
 async function auditDataConsistency() {
@@ -333,23 +305,11 @@ function auditMobileAuthSecurity() {
   }
 }
 
-function auditNamedArea(area) {
-  printHeader(`${area} Audit`);
-  const files = walk(path.join(rootDir, 'src'), file => file.endsWith('.js'))
-    .filter(file => relative(file).toLowerCase().includes(area.toLowerCase()));
-  printMetric('matching source files', files.length);
-  files.slice(0, 20).forEach(file => console.log(relative(file)));
-  console.log('Result: OK');
-}
-
 module.exports = {
   auditBusinessClosure,
   auditFunctionalCoverage,
   auditStatusConsistency,
-  auditLegacyCode,
   auditDataConsistency,
   auditDataApiUniformity,
   auditMobileAuthSecurity,
-  auditNamedArea,
-  requireOptional,
 };

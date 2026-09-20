@@ -7,7 +7,6 @@
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 
-
 const { softDelete } = require('../../../utils/softDelete');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 
@@ -17,7 +16,11 @@ const { calculateLines } = require('../../../utils/money');
 const { parsePagination } = require('../../../utils/safePagination');
 const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const { SALES_QUOTATION_TRANSITIONS } = require('../../../constants/statusRegistry');
-const { validationError, assertSalesLineQuantities, assertActiveSalesMaterials } = require('../../../utils/sales/salesValidation');
+const {
+  validationError,
+  assertSalesLineQuantities,
+  assertActiveSalesMaterials,
+} = require('../../../utils/sales/salesValidation');
 
 function assertQuotationItemPrices(items = []) {
   const invalidRows = items
@@ -31,7 +34,9 @@ function assertQuotationItemPrices(items = []) {
     .map(({ index }) => index + 1);
 
   if (invalidRows.length > 0) {
-    const error = new Error(`第 ${invalidRows.join(', ')} 行销售报价单价缺失或无效，请先维护销售价格`);
+    const error = new Error(
+      `第 ${invalidRows.join(', ')} 行销售报价单价缺失或无效，请先维护销售价格`
+    );
     error.statusCode = 400;
     throw error;
   }
@@ -164,7 +169,9 @@ exports.getSalesQuotationStatistics = async (req, res) => {
     const nextFirstDay = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}-01`;
     const ScopeGuard = require('../../../authorization/ScopeGuard');
     const scopeClause = await ScopeGuard.applyListScope(req, 'sales_quotation', {
-      tableAlias: 'q', ownerAlias: 'quotation_stats_owner', accessMode: 'read',
+      tableAlias: 'q',
+      ownerAlias: 'quotation_stats_owner',
+      accessMode: 'read',
     });
 
     // 查询当月报价单数量和金额
@@ -192,9 +199,10 @@ exports.getSalesQuotationStatistics = async (req, res) => {
     const conversionRate = monthlyCount > 0 ? convertedCount / monthlyCount : 0;
     const [statusCounts] = await conn.query(
       `SELECT q.status, COUNT(*) AS count FROM sales_quotations q ${scopeClause.join}
-       WHERE q.deleted_at IS NULL ${scopeClause.where} GROUP BY q.status`, scopeClause.params
+       WHERE q.deleted_at IS NULL ${scopeClause.where} GROUP BY q.status`,
+      scopeClause.params
     );
-    const counts = Object.fromEntries(statusCounts.map(row => [row.status, Number(row.count)]));
+    const counts = Object.fromEntries(statusCounts.map((row) => [row.status, Number(row.count)]));
 
     return ResponseHandler.success(res, {
       monthly_count: monthlyCount,
@@ -202,8 +210,10 @@ exports.getSalesQuotationStatistics = async (req, res) => {
       conversion_rate: conversionRate,
       statusStats: {
         total: statusCounts.reduce((sum, row) => sum + Number(row.count), 0),
-        pending: counts.draft || 0, confirmed: counts.accepted || 0,
-        converted: counts.converted || 0, expired: counts.expired || 0,
+        pending: counts.draft || 0,
+        confirmed: counts.accepted || 0,
+        converted: counts.converted || 0,
+        expired: counts.expired || 0,
       },
     });
   } catch (error) {
@@ -215,13 +225,20 @@ exports.getSalesQuotationStatistics = async (req, res) => {
   }
 };
 
-
 exports.getSalesQuotation = async (req, res) => {
   {
     const { id } = req.params;
     if (id !== null && id !== undefined && id !== '') {
       const ScopeGuard = require('../../../authorization/ScopeGuard');
-      if (!(await ScopeGuard.assertAccess(require('../../../config/db').pool, req, 'sales_quotation', id, { accessMode: 'read' }))) {
+      if (
+        !(await ScopeGuard.assertAccess(
+          require('../../../config/db').pool,
+          req,
+          'sales_quotation',
+          id,
+          { accessMode: 'read' }
+        ))
+      ) {
         return ResponseHandler.forbidden(res, '无权访问该销售报价单');
       }
     }
@@ -271,7 +288,6 @@ exports.getSalesQuotation = async (req, res) => {
   }
 };
 
-
 exports.createSalesQuotation = async (req, res) => {
   // 获取数据库连接
   const conn = await getConnection();
@@ -285,7 +301,8 @@ exports.createSalesQuotation = async (req, res) => {
     assertSalesLineQuantities(quotationItems);
     await assertActiveSalesMaterials(conn, quotationItems);
     if (!quotation.customer_id) throw validationError('请选择客户');
-    if (quotation.status && !['draft', 'sent', 'accepted', '待确认'].includes(quotation.status)) throw validationError('新报价单状态无效');
+    if (quotation.status && !['draft', 'sent', 'accepted', '待确认'].includes(quotation.status))
+      throw validationError('新报价单状态无效');
     assertQuotationItemPrices(quotationItems);
     const quotationAmounts = calculateLines(quotationItems, {
       defaultTaxRate: quotation?.tax_rate ?? quotation?.taxRate ?? 0,
@@ -304,7 +321,7 @@ exports.createSalesQuotation = async (req, res) => {
         quotation.customer_id,
         quotationAmounts.totalAmount,
         formatDateToMySQLDate(quotation.validity_date) ||
-        formatDateToMySQLDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
+          formatDateToMySQLDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
         quotation.status === '待确认' ? 'draft' : quotation.status || 'draft',
         quotation.remarks || '',
         getAuthenticatedUserId(req),
@@ -315,17 +332,25 @@ exports.createSalesQuotation = async (req, res) => {
 
     // ✅ 批量校验产品存在性
     if (quotationItems.length > 0) {
-      const productIds = quotationItems.map(i => i.product_id).filter(Boolean);
+      const productIds = quotationItems.map((i) => i.product_id).filter(Boolean);
       if (productIds.length > 0) {
         const placeholders = productIds.map(() => '?').join(',');
         const [existingProducts] = await conn.query(
-          `SELECT id FROM materials WHERE id IN (${placeholders})`,
+          `SELECT id, code FROM materials WHERE id IN (${placeholders})`,
           productIds
         );
-        const existingIds = new Set(existingProducts.map(p => p.id));
-        const missing = productIds.filter(id => !existingIds.has(id));
+        const existingIds = new Set(existingProducts.map((p) => p.id));
+        const missing = productIds.filter((id) => !existingIds.has(id));
         if (missing.length > 0) {
-          throw new Error(`以下产品ID在物料表中不存在: ${missing.join(', ')}`);
+          const missingCodes = existingProducts
+            .filter((product) => missing.includes(product.id))
+            .map((product) => product.code)
+            .filter(Boolean);
+          throw new Error(
+            missingCodes.length > 0
+              ? `以下产品编码在物料表中不存在: ${missingCodes.join(', ')}`
+              : '所选产品不存在或已停用，请重新选择有效产品'
+          );
         }
       }
 
@@ -367,20 +392,32 @@ exports.createSalesQuotation = async (req, res) => {
     // 回滚事务
     await conn.rollback();
     logger.error('Error creating sales quotation:', error);
-    ResponseHandler.error(res, error.message || 'Error creating sales quotation', 'SERVER_ERROR', error.statusCode || 500, error);
+    ResponseHandler.error(
+      res,
+      error.message || 'Error creating sales quotation',
+      'SERVER_ERROR',
+      error.statusCode || 500,
+      error
+    );
   } finally {
     // 释放连接
     conn.release();
   }
 };
 
-
 exports.updateSalesQuotation = async (req, res) => {
   {
     const { id } = req.params;
     if (id !== null && id !== undefined && id !== '') {
       const ScopeGuard = require('../../../authorization/ScopeGuard');
-      if (!(await ScopeGuard.assertAccess(require('../../../config/db').pool, req, 'sales_quotation', id))) {
+      if (
+        !(await ScopeGuard.assertAccess(
+          require('../../../config/db').pool,
+          req,
+          'sales_quotation',
+          id
+        ))
+      ) {
         return ResponseHandler.forbidden(res, '无权修改该销售报价单');
       }
     }
@@ -414,9 +451,14 @@ exports.updateSalesQuotation = async (req, res) => {
     }
 
     const currentStatus = existingRows[0].status;
-    const nextStatus = quotation.status === '待确认' ? 'draft' : (quotation.status || currentStatus);
-    if (['converted','rejected','expired','cancelled'].includes(currentStatus)) throw validationError('已转换或已关闭的报价单不能修改');
-    if (nextStatus === 'converted' || (nextStatus !== currentStatus && !SALES_QUOTATION_TRANSITIONS[currentStatus]?.includes(nextStatus))) {
+    const nextStatus = quotation.status === '待确认' ? 'draft' : quotation.status || currentStatus;
+    if (['converted', 'rejected', 'expired', 'cancelled'].includes(currentStatus))
+      throw validationError('已转换或已关闭的报价单不能修改');
+    if (
+      nextStatus === 'converted' ||
+      (nextStatus !== currentStatus &&
+        !SALES_QUOTATION_TRANSITIONS[currentStatus]?.includes(nextStatus))
+    ) {
       throw validationError('报价状态转换无效，转订单请使用专用转换操作');
     }
     quotation.status = nextStatus;
@@ -434,7 +476,7 @@ exports.updateSalesQuotation = async (req, res) => {
         quotation.customer_id,
         quotationAmounts.totalAmount,
         formatDateToMySQLDate(quotation.validity_date) ||
-        formatDateToMySQLDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
+          formatDateToMySQLDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
         quotation.status === '待确认' ? 'draft' : quotation.status || 'draft',
         quotation.remarks || '',
         id,
@@ -446,17 +488,25 @@ exports.updateSalesQuotation = async (req, res) => {
 
     // ✅ 批量校验 + 插入
     if (quotationItems.length > 0) {
-      const productIds = quotationItems.map(i => i.product_id).filter(Boolean);
+      const productIds = quotationItems.map((i) => i.product_id).filter(Boolean);
       if (productIds.length > 0) {
         const placeholders = productIds.map(() => '?').join(',');
         const [existingProducts] = await conn.query(
-          `SELECT id FROM materials WHERE id IN (${placeholders})`,
+          `SELECT id, code FROM materials WHERE id IN (${placeholders})`,
           productIds
         );
-        const existingIds = new Set(existingProducts.map(p => p.id));
-        const missing = productIds.filter(id => !existingIds.has(id));
+        const existingIds = new Set(existingProducts.map((p) => p.id));
+        const missing = productIds.filter((id) => !existingIds.has(id));
         if (missing.length > 0) {
-          throw new Error(`以下产品ID在物料表中不存在: ${missing.join(', ')}`);
+          const missingCodes = existingProducts
+            .filter((product) => missing.includes(product.id))
+            .map((product) => product.code)
+            .filter(Boolean);
+          throw new Error(
+            missingCodes.length > 0
+              ? `以下产品编码在物料表中不存在: ${missingCodes.join(', ')}`
+              : '所选产品不存在或已停用，请重新选择有效产品'
+          );
         }
       }
 
@@ -492,7 +542,13 @@ exports.updateSalesQuotation = async (req, res) => {
       await conn.rollback();
     }
     logger.error('Error updating sales quotation:', error);
-    ResponseHandler.error(res, error.message || 'Error updating sales quotation', 'SERVER_ERROR', error.statusCode || 500, error);
+    ResponseHandler.error(
+      res,
+      error.message || 'Error updating sales quotation',
+      'SERVER_ERROR',
+      error.statusCode || 500,
+      error
+    );
   } finally {
     if (conn) {
       conn.release();
@@ -507,7 +563,14 @@ exports.deleteSalesQuotation = async (req, res) => {
     const { id } = req.params;
     if (id !== null && id !== undefined && id !== '') {
       const ScopeGuard = require('../../../authorization/ScopeGuard');
-      if (!(await ScopeGuard.assertAccess(require('../../../config/db').pool, req, 'sales_quotation', id))) {
+      if (
+        !(await ScopeGuard.assertAccess(
+          require('../../../config/db').pool,
+          req,
+          'sales_quotation',
+          id
+        ))
+      ) {
         return ResponseHandler.forbidden(res, '无权删除该销售报价单');
       }
     }
@@ -570,7 +633,14 @@ exports.convertQuotationToOrder = async (req, res) => {
     const { id } = req.params;
     if (id !== null && id !== undefined && id !== '') {
       const ScopeGuard = require('../../../authorization/ScopeGuard');
-      if (!(await ScopeGuard.assertAccess(require('../../../config/db').pool, req, 'sales_quotation', id))) {
+      if (
+        !(await ScopeGuard.assertAccess(
+          require('../../../config/db').pool,
+          req,
+          'sales_quotation',
+          id
+        ))
+      ) {
         return ResponseHandler.forbidden(res, '无权转换该销售报价单');
       }
     }
@@ -601,16 +671,28 @@ exports.convertQuotationToOrder = async (req, res) => {
 
     const quotation = quotationRows[0];
 
-    const [[existingOrder]] = await conn.query('SELECT id, order_no FROM sales_orders WHERE quotation_id = ? ORDER BY id LIMIT 1 FOR UPDATE', [id]);
+    const [[existingOrder]] = await conn.query(
+      'SELECT id, order_no FROM sales_orders WHERE quotation_id = ? ORDER BY id LIMIT 1 FOR UPDATE',
+      [id]
+    );
     if (existingOrder) {
       await conn.commit();
-      return ResponseHandler.success(res, { quotationId: Number(id), orderId: existingOrder.id, orderNo: existingOrder.order_no }, '该报价单已转换为订单');
+      return ResponseHandler.success(
+        res,
+        { quotationId: Number(id), orderId: existingOrder.id, orderNo: existingOrder.order_no },
+        '该报价单已转换为订单'
+      );
     }
 
     // 只允许转换"已确认"状态的报价单
     if (quotation.status !== 'accepted') {
       await conn.rollback();
-      return ResponseHandler.error(res, '只能转换已确认状态的报价单为订单', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(
+        res,
+        '只能转换已确认状态的报价单为订单',
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     // 获取报价单明细
@@ -624,19 +706,27 @@ exports.convertQuotationToOrder = async (req, res) => {
 
     if (itemRows.length === 0) {
       await conn.rollback();
-      return ResponseHandler.error(res, '报价单没有明细项目，无法转换为订单', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(
+        res,
+        '报价单没有明细项目，无法转换为订单',
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     assertSalesLineQuantities(itemRows);
     await assertActiveSalesMaterials(conn, itemRows);
 
     // ✅ 使用统一编码规则引擎生成销售订单号
-    const orderAmounts = calculateLines(itemRows.map((item) => ({
-      material_id: item.product_id,
-      quantity: item.quantity,
-      unit_price: item.unit_price,
-      tax_percent: item.tax_percent,
-    })), { defaultTaxRate: 0 });
+    const orderAmounts = calculateLines(
+      itemRows.map((item) => ({
+        material_id: item.product_id,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        tax_percent: item.tax_percent,
+      })),
+      { defaultTaxRate: 0 }
+    );
 
     const orderNo = await CodeGenerators.generateSalesOrderCode(conn);
 
@@ -703,7 +793,10 @@ exports.convertQuotationToOrder = async (req, res) => {
     try {
       const { autoGenerateFollowUpDocuments } = require('./salesExchangeController');
       const SalesDao = require('../../../database/salesDao');
-      const nextStatus = await autoGenerateFollowUpDocuments(orderId, orderAmounts.items, { ...req.user, id: getAuthenticatedUserId(req) });
+      const nextStatus = await autoGenerateFollowUpDocuments(orderId, orderAmounts.items, {
+        ...req.user,
+        id: getAuthenticatedUserId(req),
+      });
       if (nextStatus) await SalesDao.updateSalesOrderStatus(orderId, nextStatus);
     } catch (error) {
       logger.error('报价转换后的订单备货失败，订单保留草稿供重试:', error);
@@ -718,7 +811,13 @@ exports.convertQuotationToOrder = async (req, res) => {
   } catch (error) {
     await conn.rollback();
     logger.error('Error converting quotation to order:', error);
-    ResponseHandler.error(res, error.message || '报价单转换失败', error.code || 'SERVER_ERROR', error.statusCode || 500, error);
+    ResponseHandler.error(
+      res,
+      error.message || '报价单转换失败',
+      error.code || 'SERVER_ERROR',
+      error.statusCode || 500,
+      error
+    );
   } finally {
     conn.release();
   }

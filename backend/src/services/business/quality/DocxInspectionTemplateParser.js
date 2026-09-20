@@ -134,12 +134,22 @@ class DocxInspectionTemplateParser {
       }
 
       // 检验依据
-      if (rowText.includes('检验依据') || rowText.includes('检验标准') || rowText.includes('检验规范')) {
-        meta.inspectionStandard = rowText.replace(/^.*(?:检验依据|检验标准|检验规范)[：:]\s*/, '').trim();
+      if (
+        rowText.includes('检验依据') ||
+        rowText.includes('检验标准') ||
+        rowText.includes('检验规范')
+      ) {
+        meta.inspectionStandard = rowText
+          .replace(/^.*(?:检验依据|检验标准|检验规范)[：:]\s*/, '')
+          .trim();
       }
 
       // 抽样方案 / AQL
-      if (rowText.includes('抽样方案') || rowText.includes('AQL') || rowText.includes('GB/T 2828')) {
+      if (
+        rowText.includes('抽样方案') ||
+        rowText.includes('AQL') ||
+        rowText.includes('GB/T 2828')
+      ) {
         meta.samplingPlan = rowText.replace(/^.*抽样方案[：:]\s*/, '').trim();
         meta.isAql = true;
         if (meta.samplingPlan.includes('GB/T 2828')) {
@@ -153,7 +163,10 @@ class DocxInspectionTemplateParser {
       const isHeaderRow =
         row.some((c) => /检验项目|项目名称|^项目$/.test(c)) ||
         (row.some((c) => c.includes('项目')) &&
-          row.some((c) => c.includes('标准') || c.includes('要求') || c.includes('方法') || c.includes('器具')));
+          row.some(
+            (c) =>
+              c.includes('标准') || c.includes('要求') || c.includes('方法') || c.includes('器具')
+          ));
       if (isHeaderRow) {
         itemsHeaderIndex = r;
         break;
@@ -172,17 +185,21 @@ class DocxInspectionTemplateParser {
         if (
           itemColIndex === -1 &&
           (/检验项目|项目名称|^项目$/.test(hText) ||
-            (hText.includes('项目') && !hText.includes('数') && !hText.includes('结论') && !hText.includes('明细')))
+            (hText.includes('项目') &&
+              !hText.includes('数') &&
+              !hText.includes('结论') &&
+              !hText.includes('明细')))
         ) {
           itemColIndex = c;
         } else if (
           standardColIndex === -1 &&
-          (/检验要求|技术要求|检验标准|技术标准|标准|要求/.test(hText) && !hText.includes('项目'))
+          /检验要求|技术要求|检验标准|技术标准|标准|要求/.test(hText) &&
+          !hText.includes('项目')
         ) {
           standardColIndex = c;
         } else if (
           methodColIndex === -1 &&
-          (/检测方法|检验方法|检测器具|检验器具|检测工具|检验工具|量具|仪器|^方法$/.test(hText))
+          /检测方法|检验方法|检测器具|检验器具|检测工具|检验工具|量具|仪器|^方法$/.test(hText)
         ) {
           methodColIndex = c;
         }
@@ -438,7 +455,9 @@ class DocxInspectionTemplateParser {
    * @param {string} rootDir - 根目录路径
    * @returns {Array<Object>} 预置文档列表
    */
-  static getPresetDocxList(rootDir = path.resolve(__dirname, '../../../../assets/quality-templates')) {
+  static getPresetDocxList(
+    rootDir = path.resolve(__dirname, '../../../../assets/quality-templates')
+  ) {
     const presetFiles = [];
     const searchDirs = [rootDir, path.join(rootDir, 'docs')];
 

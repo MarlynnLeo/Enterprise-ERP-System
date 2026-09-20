@@ -235,6 +235,7 @@
   import { extractApiData } from '@/utils/apiHelper'
   import { useAuthStore } from '@/stores/auth'
   import { canViewMaterialPrices, formatMaskedPrice } from '@/utils/priceVisibility'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const router = useRouter()
   const route = useRoute()
@@ -290,7 +291,7 @@
       showToast('已提交审批')
       await fetchOrderDetail()
     } catch (e) {
-      if (e !== 'cancel') showToast(e.response?.data?.message || '操作失败')
+      if (e !== 'cancel') showToast(getApiErrorMessage(e, '操作失败'))
     } finally {
       actionLoading.value = false
     }
@@ -305,7 +306,7 @@
       showToast('订单已批准')
       await fetchOrderDetail()
     } catch (e) {
-      if (e !== 'cancel') showToast(e.response?.data?.message || '操作失败')
+      if (e !== 'cancel') showToast(getApiErrorMessage(e, '操作失败'))
     } finally {
       actionLoading.value = false
     }
@@ -320,7 +321,7 @@
       showToast('订单已驳回')
       await fetchOrderDetail()
     } catch (e) {
-      if (e !== 'cancel') showToast(e.response?.data?.message || '操作失败')
+      if (e !== 'cancel') showToast(getApiErrorMessage(e, '操作失败'))
     } finally {
       actionLoading.value = false
     }
@@ -335,7 +336,7 @@
       showToast('订单已删除')
       router.back()
     } catch (e) {
-      if (e !== 'cancel') showToast(e.response?.data?.message || '删除失败')
+      if (e !== 'cancel') showToast(getApiErrorMessage(e, '删除失败'))
     } finally {
       actionLoading.value = false
     }

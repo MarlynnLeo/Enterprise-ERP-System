@@ -67,6 +67,7 @@
   } from 'vant'
   import { useAuthStore } from '@/stores/auth'
   import { authApi } from '@/api'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const router = useRouter()
   const route = useRoute()
@@ -133,7 +134,7 @@
         return
       }
       console.error('修改密码失败:', error)
-      showToast(error.response?.data?.message || error.message || '修改失败，请重试')
+      showToast(getApiErrorMessage(error, '修改失败，请重试'))
     } finally {
       saving.value = false
     }

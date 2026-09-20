@@ -31,7 +31,7 @@
           </div>
           <div class="info-item">
             <span class="label">客户编号</span>
-            <span class="value">#{{ customer.id }}</span>
+            <span class="value">{{ customer.code || customer.customerCode || '未设置客户编号' }}</span>
           </div>
           <div class="info-item" v-if="customer.contactPerson">
             <span class="label">联系人</span>

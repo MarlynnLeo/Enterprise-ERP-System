@@ -226,7 +226,11 @@ router.post(
 router.get('/menus', requirePermission('system:permissions'), systemController.getAllMenus);
 
 // 直接从数据库获取菜单数据 - 需要权限管理权限
-router.get('/menus/direct', requirePermission('system:permissions'), systemController.getMenusDirect);
+router.get(
+  '/menus/direct',
+  requirePermission('system:permissions'),
+  systemController.getMenusDirect
+);
 
 // ✅ 获取菜单详情 - 添加权限检查和ID验证
 router.get(
@@ -269,12 +273,20 @@ router.delete(
 );
 
 // ✅ 导入菜单数据 - 批量导入菜单权限配置
-router.post('/menus/import', requirePermission('system:permissions:manage'), systemController.importMenus);
+router.post(
+  '/menus/import',
+  requirePermission('system:permissions:manage'),
+  systemController.importMenus
+);
 
 // ✅ 新增: 系统设置相关端点（来自 systemRoutes.js）
 router.get('/settings', requirePermission('system:settings:read'), systemController.getSettings);
 
-router.put('/settings', requirePermission('system:settings:write'), systemController.updateSettings);
+router.put(
+  '/settings',
+  requirePermission('system:settings:write'),
+  systemController.updateSettings
+);
 
 // ✅ 新增: 会计科目配置管理端点
 router.get(
@@ -314,9 +326,17 @@ router.post('/backup', requirePermission('system:backup:create'), systemControll
 
 router.get('/backups', requirePermission('system:backup:view'), systemController.getBackups);
 
-router.get('/backups/:filename/verify', requirePermission('system:backup:view'), systemController.verifyBackup);
+router.get(
+  '/backups/:filename/verify',
+  requirePermission('system:backup:view'),
+  systemController.verifyBackup
+);
 
-router.get('/backups/:filename', requirePermission('system:backup:download'), systemController.downloadBackup);
+router.get(
+  '/backups/:filename',
+  requirePermission('system:backup:download'),
+  systemController.downloadBackup
+);
 
 // ⚠️ SQL执行端点已移除（安全原因）
 // 如需执行SQL查询，请使用数据库管理工具或创建专门的API端点
@@ -325,9 +345,21 @@ router.get('/backups/:filename', requirePermission('system:backup:download'), sy
 // ========== 业务类型管理路由 ==========
 // 业务页面与管理页面读取同一张 business_types 表；消费端只需登录。
 router.get('/business-types/dictionary', businessTypeController.getActiveBusinessTypeDictionary);
-router.get('/business-types', requirePermission('system:business-types'), businessTypeController.getAllBusinessTypes);
-router.get('/business-types/groups', requirePermission('system:business-types'), businessTypeController.getBusinessTypeGroups);
-router.get('/business-types/category/:category', requirePermission('system:business-types'), businessTypeController.getBusinessTypesByCategory);
+router.get(
+  '/business-types',
+  requirePermission('system:business-types'),
+  businessTypeController.getAllBusinessTypes
+);
+router.get(
+  '/business-types/groups',
+  requirePermission('system:business-types'),
+  businessTypeController.getBusinessTypeGroups
+);
+router.get(
+  '/business-types/category/:category',
+  requirePermission('system:business-types'),
+  businessTypeController.getBusinessTypesByCategory
+);
 router.put(
   '/business-types/sort',
   requirePermission('system:business-types:update'),

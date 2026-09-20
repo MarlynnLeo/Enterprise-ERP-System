@@ -216,6 +216,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
@@ -277,7 +278,7 @@ async function loadList() {
     list.value = parsed.list
     total.value = parsed.total
   } catch (e) {
-    ElMessage.error(e.message || '加载失败')
+    ElMessage.error(getApiErrorMessage(e, '加载失败'))
   } finally {
     loading.value = false
   }
@@ -329,7 +330,7 @@ async function doCreate() {
     createVisible.value = false
     loadList()
   } catch (e) {
-    ElMessage.error(e?.response?.data?.message || e.message || '创建失败')
+    ElMessage.error(getApiErrorMessage(e, '创建失败'))
   } finally {
     creating.value = false
   }
@@ -342,7 +343,7 @@ async function openDetail(row) {
     detail.value = res?.data || res
     detailVisible.value = true
   } catch (e) {
-    ElMessage.error(e.message || '加载明细失败')
+    ElMessage.error(getApiErrorMessage(e, '加载明细失败'))
   }
 }
 
@@ -366,7 +367,7 @@ async function openEdit(row) {
     editMode.value = true
     detailVisible.value = true
   } catch (e) {
-    ElMessage.error(e.message || '加载明细失败')
+    ElMessage.error(getApiErrorMessage(e, '加载明细失败'))
   }
 }
 
@@ -387,7 +388,7 @@ async function saveLines() {
     ElMessage.success('发票量价已更新，容差已重算')
     loadList()
   } catch (e) {
-    ElMessage.error(e?.response?.data?.message || e.message || '保存失败')
+    ElMessage.error(getApiErrorMessage(e, '保存失败'))
   } finally {
     savingLines.value = false
   }
@@ -415,7 +416,7 @@ async function confirm(row) {
     ElMessage.success('已确认')
     loadList()
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error(e?.response?.data?.message || e.message || '确认失败')
+    if (e !== 'cancel') ElMessage.error(getApiErrorMessage(e, '确认失败'))
   } finally {
     confirmingId.value = null
   }
@@ -428,7 +429,7 @@ async function cancelMatch(row) {
     ElMessage.success('已取消')
     loadList()
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error(e?.response?.data?.message || e.message || '取消失败')
+    if (e !== 'cancel') ElMessage.error(getApiErrorMessage(e, '取消失败'))
   }
 }
 

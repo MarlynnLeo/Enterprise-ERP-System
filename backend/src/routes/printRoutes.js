@@ -35,11 +35,7 @@ const DEFAULT_TEMPLATE_PERMISSIONS = {
     'sales:returns:view',
     'sales:quotations:view',
   ],
-  production: [
-    'production:plans:view',
-    'production:tasks:view',
-    'production:reports:view',
-  ],
+  production: ['production:plans:view', 'production:tasks:view', 'production:reports:view'],
   quality: [
     'quality:inspections:view',
     'quality:incoming:view',
@@ -58,16 +54,18 @@ const DEFAULT_TEMPLATE_PERMISSIONS = {
 
 async function requireDefaultTemplatePermission(req, res, next) {
   try {
-    const moduleName = String(req.query.module || '').trim().toLowerCase();
+    const moduleName = String(req.query.module || '')
+      .trim()
+      .toLowerCase();
     const modulePermissions = DEFAULT_TEMPLATE_PERMISSIONS[moduleName] || [];
-    const requiredPermissions = [
-      'system:print:view',
-      ...modulePermissions,
-    ];
+    const requiredPermissions = ['system:print:view', ...modulePermissions];
 
     const userPermissions = await PermissionService.getUserPermissions(req.user.id);
     if (!PermissionUtils.hasAnyPermission(userPermissions, requiredPermissions)) {
-      return ResponseHandler.forbidden(res, `权限不足，需要权限: ${requiredPermissions.join(', ')}`);
+      return ResponseHandler.forbidden(
+        res,
+        `权限不足，需要权限: ${requiredPermissions.join(', ')}`
+      );
     }
 
     req.userPermissions = userPermissions;
@@ -81,21 +79,70 @@ async function requireDefaultTemplatePermission(req, res, next) {
 router.use(authenticateToken);
 
 // 打印设置路由
-router.get('/settings', requirePermission('system:print:view'), printController.getAllPrintSettings);
-router.get('/settings/:id', requirePermission('system:print:view'), printController.getPrintSettingById);
-router.post('/settings', requirePermission('system:print:create'), printController.createPrintSetting);
-router.put('/settings/:id', requirePermission('system:print:update'), printController.updatePrintSetting);
-router.delete('/settings/:id', requirePermission('system:print:delete'), printController.deletePrintSetting);
+router.get(
+  '/settings',
+  requirePermission('system:print:view'),
+  printController.getAllPrintSettings
+);
+router.get(
+  '/settings/:id',
+  requirePermission('system:print:view'),
+  printController.getPrintSettingById
+);
+router.post(
+  '/settings',
+  requirePermission('system:print:create'),
+  printController.createPrintSetting
+);
+router.put(
+  '/settings/:id',
+  requirePermission('system:print:update'),
+  printController.updatePrintSetting
+);
+router.delete(
+  '/settings/:id',
+  requirePermission('system:print:delete'),
+  printController.deletePrintSetting
+);
 
 // 打印模板路由
-router.get('/templates/default', requireDefaultTemplatePermission, printController.getDefaultTemplateByType);
-router.get('/templates', requirePermission('system:print:view'), printController.getAllPrintTemplates);
-router.get('/templates/:id', requirePermission('system:print:view'), printController.getPrintTemplateById);
-router.post('/templates', requirePermission('system:print:create'), printController.createPrintTemplate);
-router.put('/templates/:id', requirePermission('system:print:update'), printController.updatePrintTemplate);
-router.delete('/templates/:id', requirePermission('system:print:delete'), printController.deletePrintTemplate);
+router.get(
+  '/templates/default',
+  requireDefaultTemplatePermission,
+  printController.getDefaultTemplateByType
+);
+router.get(
+  '/templates',
+  requirePermission('system:print:view'),
+  printController.getAllPrintTemplates
+);
+router.get(
+  '/templates/:id',
+  requirePermission('system:print:view'),
+  printController.getPrintTemplateById
+);
+router.post(
+  '/templates',
+  requirePermission('system:print:create'),
+  printController.createPrintTemplate
+);
+router.put(
+  '/templates/:id',
+  requirePermission('system:print:update'),
+  printController.updatePrintTemplate
+);
+router.delete(
+  '/templates/:id',
+  requirePermission('system:print:delete'),
+  printController.deletePrintTemplate
+);
 
 // 文件上传路由
-router.post('/upload/logo', requirePermission('system:print:update'), FileUploadMiddlewares.logo, printController.uploadLogo);
+router.post(
+  '/upload/logo',
+  requirePermission('system:print:update'),
+  FileUploadMiddlewares.logo,
+  printController.uploadLogo
+);
 
 module.exports = router;

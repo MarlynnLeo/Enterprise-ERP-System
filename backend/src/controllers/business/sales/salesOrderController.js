@@ -24,13 +24,15 @@ const ScopeGuard = require('../../../authorization/ScopeGuard');
 const { STATUS, getConnection, generateSalesOrderNo } = require('./salesShared');
 const { autoGenerateFollowUpDocuments } = require('./salesExchangeController');
 const { generateProductionAndPurchasePlans } = require('./salesPackingController');
-const SYNC_SALES_ORDER_STATUS_DRIFT = false;
 const {
   INVENTORY_RECONCILE_SALES_ORDER_STATUSES,
   assertSalesOrderEditable,
 } = require('../../../utils/sales/salesOrderEditPolicy');
 const { DOCUMENT_LINK_TYPES: DocType } = require('../../../constants/documentLinkTypes');
-const { assertSalesLineQuantities, assertActiveSalesMaterials } = require('../../../utils/sales/salesValidation');
+const {
+  assertSalesLineQuantities,
+  assertActiveSalesMaterials,
+} = require('../../../utils/sales/salesValidation');
 
 async function canAccessSalesOrder(connection, req, id, options = {}) {
   return ScopeGuard.assertAccess(connection, req, 'sales_order', id, options);
@@ -65,17 +67,10 @@ async function prepareGeneratedDocumentsForSalesOrderEdit(connection, salesOrder
      FROM document_links
      WHERE source_type = ? AND source_id = ?
        AND target_type IN (?, ?)`,
-    [
-      DocType.SALES_ORDER,
-      salesOrderId,
-      DocType.PRODUCTION_PLAN,
-      DocType.PURCHASE_REQUISITION,
-    ]
+    [DocType.SALES_ORDER, salesOrderId, DocType.PRODUCTION_PLAN, DocType.PURCHASE_REQUISITION]
   );
 
-  const targets = new Map(
-    links.map((link) => [`${link.target_type}:${link.target_id}`, link])
-  );
+  const targets = new Map(links.map((link) => [`${link.target_type}:${link.target_id}`, link]));
 
   // Document links are the primary relation. The remark lookup keeps older
   // generated documents safe when link creation was deferred or failed.
@@ -109,7 +104,9 @@ async function prepareGeneratedDocumentsForSalesOrderEdit(connection, salesOrder
 
       const plan = plans[0];
       if (plan.status !== 'draft') {
-        const error = new Error(`生产计划 ${link.target_id} 已进入${plan.status}状态，无法通过销售订单修改明细。`);
+        const error = new Error(
+          `生产计划 ${link.target_id} 已进入${plan.status}状态，无法通过销售订单修改明细。`
+        );
         error.statusCode = 400;
         throw error;
       }
@@ -121,7 +118,9 @@ async function prepareGeneratedDocumentsForSalesOrderEdit(connection, salesOrder
         [plan.id]
       );
       if (Number(activeTasks[0]?.count || 0) > 0) {
-        const error = new Error(`生产计划 ${link.target_id} 已生成生产任务，无法修改销售订单明细。`);
+        const error = new Error(
+          `生产计划 ${link.target_id} 已生成生产任务，无法修改销售订单明细。`
+        );
         error.statusCode = 400;
         throw error;
       }
@@ -141,7 +140,9 @@ async function prepareGeneratedDocumentsForSalesOrderEdit(connection, salesOrder
 
       const requisition = requisitions[0];
       if (requisition.status !== 'draft') {
-        const error = new Error(`采购申请 ${link.target_id} 已进入${requisition.status}状态，无法通过销售订单修改明细。`);
+        const error = new Error(
+          `采购申请 ${link.target_id} 已进入${requisition.status}状态，无法通过销售订单修改明细。`
+        );
         error.statusCode = 400;
         throw error;
       }
@@ -295,10 +296,7 @@ exports.getSalesOrders = async (req, res) => {
         pagination.limit,
         pagination.offset
       );
-      const [orders] = await connection.query(
-        ordersQuery,
-        params
-      );
+      const [orders] = await connection.query(ordersQuery, params);
 
       // 如果需要订单明细，批量获取（可选）
       let orderItems = [];
@@ -335,7 +333,6 @@ exports.getSalesOrders = async (req, res) => {
 
       // 校正订单状态展示（GET 不写库）；出参仅 camel（salesOrderMap）
       const { salesOrderMap } = require('../../../utils/sales/salesFieldMap');
-      const statusUpdates = [];
 
       const formattedOrders = orders.map((order) => {
         const items = orderItems.filter((item) => item.order_id === order.id);
@@ -363,21 +360,6 @@ exports.getSalesOrders = async (req, res) => {
           items,
         });
       });
-
-      // Keep order-list reads side-effect free; status drift is reported only in the response.
-      if (SYNC_SALES_ORDER_STATUS_DRIFT && statusUpdates.length > 0) {
-        const groupedByStatus = {};
-        for (const u of statusUpdates) {
-          (groupedByStatus[u.status] ||= []).push(u.id);
-        }
-        for (const [newStatus, orderIds] of Object.entries(groupedByStatus)) {
-          await connection.execute(
-            `UPDATE sales_orders SET status = ?, updated_at = NOW() WHERE id IN (${orderIds.map(() => '?').join(',')})`,
-            [newStatus, ...orderIds]
-          );
-        }
-        logger.info(`📝 订单状态校正: ${statusUpdates.map(u => `#${u.id}→${u.status}`).join(', ')}`);
-      }
 
       // 返回分页格式
       const total = orders.length > 0 ? orders[0].total_count : 0;
@@ -418,15 +400,19 @@ exports.getSalesOrderStatistics = async (req, res) => {
     `);
 
     const stats = rows[0] || {};
-    ResponseHandler.success(res, {
-      total: Number(stats.total) || 0,
-      pending: Number(stats.pending) || 0,
-      confirmed: Number(stats.confirmed) || 0,
-      inProduction: Number(stats.inProduction) || 0,
-      readyToShip: Number(stats.readyToShip) || 0,
-      shipped: Number(stats.shipped) || 0,
-      cancelled: Number(stats.cancelled) || 0,
-    }, '获取销售订单统计成功');
+    ResponseHandler.success(
+      res,
+      {
+        total: Number(stats.total) || 0,
+        pending: Number(stats.pending) || 0,
+        confirmed: Number(stats.confirmed) || 0,
+        inProduction: Number(stats.inProduction) || 0,
+        readyToShip: Number(stats.readyToShip) || 0,
+        shipped: Number(stats.shipped) || 0,
+        cancelled: Number(stats.cancelled) || 0,
+      },
+      '获取销售订单统计成功'
+    );
   } catch (error) {
     logger.error('获取销售订单统计失败:', error);
     ResponseHandler.error(res, '获取销售订单统计失败', 'SERVER_ERROR', 500, error);
@@ -434,7 +420,6 @@ exports.getSalesOrderStatistics = async (req, res) => {
     if (connection) connection.release();
   }
 };
-
 
 exports.getSalesOrder = async (req, res) => {
   try {
@@ -531,9 +516,10 @@ exports.updateOrderStatus = async (req, res) => {
     }
 
     // 检查订单是否存在
-    const [checkResult] = await connection.execute('SELECT status, order_no, created_by FROM sales_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [
-      id,
-    ]);
+    const [checkResult] = await connection.execute(
+      'SELECT status, order_no, created_by FROM sales_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      [id]
+    );
 
     if (checkResult.length === 0) {
       await connection.rollback();
@@ -600,36 +586,41 @@ exports.updateOrderStatus = async (req, res) => {
         const incompleteMaterials = []; // 收集信息不完整的物料
 
         // 批量查出所有物料信息（消除 N+1）
-        const materialIds = orderItems.filter(i => i.material_id).map(i => i.material_id);
+        const materialIds = orderItems.filter((i) => i.material_id).map((i) => i.material_id);
         const matPh = materialIds.map(() => '?').join(',');
-        const [allMaterialInfo] = materialIds.length > 0
-          ? await connection.execute(
-              `SELECT id, code, category_id, unit_id, material_source_id FROM materials WHERE id IN (${matPh})`,
-              materialIds
-            )
-          : [[]];
-        const materialInfoMap = new Map(allMaterialInfo.map(m => [m.id, m]));
+        const [allMaterialInfo] =
+          materialIds.length > 0
+            ? await connection.execute(
+                `SELECT id, code, category_id, unit_id, material_source_id FROM materials WHERE id IN (${matPh})`,
+                materialIds
+              )
+            : [[]];
+        const materialInfoMap = new Map(allMaterialInfo.map((m) => [m.id, m]));
 
         // 批量查出所有物料库存（消除 N+1）
-        const [allStockInfo] = materialIds.length > 0
-          ? await connection.execute(
-              `SELECT material_id, COALESCE(SUM(quantity), 0) as current_quantity
+        const [allStockInfo] =
+          materialIds.length > 0
+            ? await connection.execute(
+                `SELECT material_id, COALESCE(SUM(quantity), 0) as current_quantity
                FROM inventory_ledger WHERE material_id IN (${matPh}) GROUP BY material_id`,
-              materialIds
-            )
-          : [[]];
-        const stockMap = new Map(allStockInfo.map(s => [s.material_id, parseFloat(s.current_quantity) || 0]));
+                materialIds
+              )
+            : [[]];
+        const stockMap = new Map(
+          allStockInfo.map((s) => [s.material_id, parseFloat(s.current_quantity) || 0])
+        );
 
         // 批量 active 预留（扣除本单后的他人占用）
-        const [allReserved] = materialIds.length > 0
-          ? await connection.execute(
-              `SELECT material_id, COALESCE(SUM(reserved_quantity), 0) AS reserved
+        const [allReserved] =
+          materialIds.length > 0
+            ? await connection.execute(
+                `SELECT material_id, COALESCE(SUM(reserved_quantity), 0) AS reserved
                FROM inventory_reservations
                WHERE material_id IN (${matPh}) AND status = 'active' AND order_id <> ?
                GROUP BY material_id`,
-              [...materialIds, id]
-            )
-          : [[]];
+                [...materialIds, id]
+              )
+            : [[]];
         const reservedMap = new Map(
           allReserved.map((r) => [r.material_id, parseFloat(r.reserved) || 0])
         );
@@ -753,7 +744,9 @@ exports.updateOrderStatus = async (req, res) => {
           }
         } else {
           // 库存充足，可以直接发货
-          if ([STATUS.SALES_ORDER.CONFIRMED, STATUS.SALES_ORDER.READY_TO_SHIP].includes(newStatus)) {
+          if (
+            [STATUS.SALES_ORDER.CONFIRMED, STATUS.SALES_ORDER.READY_TO_SHIP].includes(newStatus)
+          ) {
             const reservationResult = await InventoryReservationService.reserveInventoryForOrder(
               id,
               checkResult[0].order_no,
@@ -792,7 +785,11 @@ exports.updateOrderStatus = async (req, res) => {
               locked_by = COALESCE(locked_by, ?),
               lock_reason = COALESCE(lock_reason, ?)
           WHERE id = ? AND deleted_at IS NULL`,
-        [getAuthenticatedUserId(req) || checkResult[0].created_by, 'Auto reserved by fulfillment flow', id]
+        [
+          getAuthenticatedUserId(req) || checkResult[0].created_by,
+          'Auto reserved by fulfillment flow',
+          id,
+        ]
       );
     }
 
@@ -859,9 +856,10 @@ exports.updateOrderStatus = async (req, res) => {
     }
 
     // 获取更新后的订单
-    const [updatedOrder] = await connection.execute('SELECT id, order_no, customer_id, quotation_id, contract_code, total_amount, payment_terms, delivery_date, status, invoice_status, remarks, created_by, created_at, updated_at, is_locked, locked_at, locked_by, lock_reason, tax_rate, tax_amount, subtotal, deleted_at FROM sales_orders WHERE id = ? AND deleted_at IS NULL', [
-      id,
-    ]);
+    const [updatedOrder] = await connection.execute(
+      'SELECT id, order_no, customer_id, quotation_id, contract_code, total_amount, payment_terms, delivery_date, status, invoice_status, remarks, created_by, created_at, updated_at, is_locked, locked_at, locked_by, lock_reason, tax_rate, tax_amount, subtotal, deleted_at FROM sales_orders WHERE id = ? AND deleted_at IS NULL',
+      [id]
+    );
 
     await connection.commit();
     await desensitizeDataForUser(updatedOrder[0], req.user, 'view', req.userPermissions);
@@ -876,16 +874,22 @@ exports.updateOrderStatus = async (req, res) => {
   }
 };
 
-
 exports.createSalesOrder = async (req, res) => {
   try {
     // HTTP camel → 内部结构（salesOrderMap）；DAO 仍用 camel order 对象
-    const mapped = require('../../../utils/sales/salesFieldMap').salesOrderMap.fromApi(req.body || {});
+    const mapped = require('../../../utils/sales/salesFieldMap').salesOrderMap.fromApi(
+      req.body || {}
+    );
     const orderData = req.body || {};
     const itemsIn = mapped.items || orderData.items;
 
     if (mapped.quotation_id) {
-      return ResponseHandler.error(res, '报价来源订单请使用报价单的转订单操作，避免重复生成', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(
+        res,
+        '报价来源订单请使用报价单的转订单操作，避免重复生成',
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     if (!itemsIn || !Array.isArray(itemsIn) || !itemsIn.length) {
@@ -910,10 +914,7 @@ exports.createSalesOrder = async (req, res) => {
       quotationId: mapped.quotation_id ?? orderData.quotationId ?? null,
       contractCode: mapped.contract_code ?? orderData.contractCode ?? orderData.contract_code ?? '',
       totalAmount: mapped.total_amount ?? orderData.totalAmount ?? 0,
-      taxRate:
-        mapped.tax_rate ??
-        orderData.taxRate ??
-        financeConfig.get('tax.defaultVATRate', 0),
+      taxRate: mapped.tax_rate ?? orderData.taxRate ?? financeConfig.get('tax.defaultVATRate', 0),
       taxAmount: mapped.tax_amount ?? orderData.taxAmount ?? 0,
       subtotal: mapped.subtotal ?? orderData.subtotal ?? 0,
       paymentTerms: mapped.payment_terms ?? orderData.paymentTerms ?? '',
@@ -949,7 +950,7 @@ exports.createSalesOrder = async (req, res) => {
         `SELECT id, price FROM materials WHERE id IN (${pricePh})`,
         allMaterialIds
       );
-      priceMap = new Map(priceRows.map(r => [r.id, parseFloat(r.price) || 0]));
+      priceMap = new Map(priceRows.map((r) => [r.id, parseFloat(r.price) || 0]));
     }
 
     const items = [];
@@ -960,13 +961,13 @@ exports.createSalesOrder = async (req, res) => {
 
       if (!item.material_id || item.material_id === null || item.material_id === '') {
         logger.error(`订单项 ${index + 1} 缺少物料ID:`, item);
-        throw new Error(`订单项 ${index + 1} 缺少物料ID，请确保已选择物料`);
+        throw new Error(`订单项 ${index + 1} 未选择物料，请先选择有效物料`);
       }
 
       const materialId = parseInt(item.material_id, 10);
       if (isNaN(materialId) || materialId <= 0) {
         logger.error(`订单项 ${index + 1} 物料ID无效:`, item.material_id);
-        throw new Error(`订单项 ${index + 1} 物料ID无效: ${item.material_id}`);
+        throw new Error(`订单项 ${index + 1} 所选物料无效，请重新选择`);
       }
 
       if (quantity <= 0) {
@@ -1007,9 +1008,13 @@ exports.createSalesOrder = async (req, res) => {
       defaultTaxRate: order.taxRate || financeConfig.get('tax.defaultVATRate', 0),
     });
     items.splice(0, items.length, ...orderAmounts.items);
-    order.taxRate = orderAmounts.subtotal > 0
-      ? normalizeTaxRate(orderAmounts.items.reduce((sum, item) => sum + item.amount * item.tax_percent, 0) / orderAmounts.subtotal)
-      : 0;
+    order.taxRate =
+      orderAmounts.subtotal > 0
+        ? normalizeTaxRate(
+            orderAmounts.items.reduce((sum, item) => sum + item.amount * item.tax_percent, 0) /
+              orderAmounts.subtotal
+          )
+        : 0;
     order.subtotal = orderAmounts.subtotal;
     order.taxAmount = orderAmounts.taxAmount;
     order.totalAmount = orderAmounts.totalAmount;
@@ -1033,14 +1038,25 @@ exports.createSalesOrder = async (req, res) => {
       ResponseHandler.success(res, result, '创建成功', 201);
     } catch (error) {
       logger.error('数据库操作错误:', error);
-      ResponseHandler.error(res, error.message || '创建订单失败', error.code || 'SERVER_ERROR', error.statusCode || 500, error);
+      ResponseHandler.error(
+        res,
+        error.message || '创建订单失败',
+        error.code || 'SERVER_ERROR',
+        error.statusCode || 500,
+        error
+      );
     }
   } catch (error) {
     logger.error('创建销售订单时出错:', error);
-    ResponseHandler.error(res, error.message || '创建销售订单时出错', error.code || 'SERVER_ERROR', error.statusCode || 500, error);
+    ResponseHandler.error(
+      res,
+      error.message || '创建销售订单时出错',
+      error.code || 'SERVER_ERROR',
+      error.statusCode || 500,
+      error
+    );
   }
 };
-
 
 exports.updateSalesOrder = async (req, res) => {
   let connection;
@@ -1087,7 +1103,7 @@ exports.updateSalesOrder = async (req, res) => {
     if (invalidItems.length > 0) {
       return ResponseHandler.error(
         res,
-        `有 ${invalidItems.length} 个物料项缺少物料ID`,
+        `有 ${invalidItems.length} 个物料项未选择物料`,
         'VALIDATION_ERROR',
         400
       );
@@ -1206,7 +1222,13 @@ exports.updateSalesOrder = async (req, res) => {
       await connection.rollback().catch(() => {});
     }
     logger.error('更新销售订单失败:', error);
-    ResponseHandler.error(res, error.message || '更新销售订单失败', error.code || 'SERVER_ERROR', error.statusCode || 500, error);
+    ResponseHandler.error(
+      res,
+      error.message || '更新销售订单失败',
+      error.code || 'SERVER_ERROR',
+      error.statusCode || 500,
+      error
+    );
   } finally {
     if (connection) connection.release();
   }
@@ -1243,7 +1265,12 @@ exports.deleteSalesOrder = async (req, res) => {
     const deletableStatuses = ['draft', 'pending'];
     if (!deletableStatuses.includes(order.status)) {
       await connection.rollback();
-      return ResponseHandler.error(res, `无法删除状态为"${order.status}"的订单。仅草稿和待审核状态的订单可以删除。`, 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(
+        res,
+        `无法删除状态为"${order.status}"的订单。仅草稿和待审核状态的订单可以删除。`,
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     // 3. 检查是否存在关联的出库单
@@ -1253,7 +1280,12 @@ exports.deleteSalesOrder = async (req, res) => {
     );
     if (outboundCheck[0].count > 0) {
       await connection.rollback();
-      return ResponseHandler.error(res, `此订单已有 ${outboundCheck[0].count} 条关联出库单，无法删除。请先删除相关出库单。`, 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(
+        res,
+        `此订单已有 ${outboundCheck[0].count} 条关联出库单，无法删除。请先删除相关出库单。`,
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     // 4. 检查是否存在关联的退货单
@@ -1263,7 +1295,12 @@ exports.deleteSalesOrder = async (req, res) => {
     );
     if (returnCheck[0].count > 0) {
       await connection.rollback();
-      return ResponseHandler.error(res, `此订单已有 ${returnCheck[0].count} 条关联退货单，无法删除。请先处理相关退货单。`, 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(
+        res,
+        `此订单已有 ${returnCheck[0].count} 条关联退货单，无法删除。请先处理相关退货单。`,
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     // 5. 检查是否存在关联的换货单
@@ -1273,7 +1310,12 @@ exports.deleteSalesOrder = async (req, res) => {
     );
     if (exchangeCheck[0].count > 0) {
       await connection.rollback();
-      return ResponseHandler.error(res, `此订单已有 ${exchangeCheck[0].count} 条关联换货单，无法删除。请先处理相关换货单。`, 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(
+        res,
+        `此订单已有 ${exchangeCheck[0].count} 条关联换货单，无法删除。请先处理相关换货单。`,
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     // 6. 删除前释放可能残留的 active 预留（draft/pending 通常无预留，防御性清理）
@@ -1309,7 +1351,6 @@ exports.deleteSalesOrder = async (req, res) => {
   }
 };
 
-
 // 添加总体销售统计数据接口
 
 exports.lockOrder = async (req, res) => {
@@ -1322,7 +1363,10 @@ exports.lockOrder = async (req, res) => {
     const userId = getAuthenticatedUserId(req);
 
     // 检查订单是否存在
-    const [orderResult] = await connection.execute('SELECT id, order_no, customer_id, quotation_id, contract_code, total_amount, payment_terms, delivery_date, status, invoice_status, remarks, created_by, created_at, updated_at, is_locked, locked_at, locked_by, lock_reason, tax_rate, tax_amount, subtotal, deleted_at FROM sales_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]);
+    const [orderResult] = await connection.execute(
+      'SELECT id, order_no, customer_id, quotation_id, contract_code, total_amount, payment_terms, delivery_date, status, invoice_status, remarks, created_by, created_at, updated_at, is_locked, locked_at, locked_by, lock_reason, tax_rate, tax_amount, subtotal, deleted_at FROM sales_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      [id]
+    );
 
     if (orderResult.length === 0) {
       await connection.rollback();
@@ -1347,7 +1391,12 @@ exports.lockOrder = async (req, res) => {
 
     if (!allowedStatuses.includes(order.status)) {
       await connection.rollback();
-      return ResponseHandler.error(res, `订单状态为"${order.status}"，不允许锁定。只有"生产中"和"采购中"的订单才能锁定库存。`, 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(
+        res,
+        `订单状态为"${order.status}"，不允许锁定。只有"生产中"和"采购中"的订单才能锁定库存。`,
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     // 获取订单物料项
@@ -1367,11 +1416,14 @@ exports.lockOrder = async (req, res) => {
 
     if (!reservationResult.success) {
       await connection.rollback();
-      logger.warn('🔒 锁定订单失败 - 库存不足详情:', JSON.stringify({
-        orderId: id,
-        insufficientItems: reservationResult.insufficientItems,
-        reservations: reservationResult.reservations
-      }));
+      logger.warn(
+        '🔒 锁定订单失败 - 库存不足详情:',
+        JSON.stringify({
+          orderId: id,
+          insufficientItems: reservationResult.insufficientItems,
+          reservations: reservationResult.reservations,
+        })
+      );
       return ResponseHandler.error(res, '库存不足，无法锁定订单', 'VALIDATION_ERROR', 400);
     }
 
@@ -1397,7 +1449,7 @@ exports.lockOrder = async (req, res) => {
         partialSuccess: reservationResult.partialSuccess,
         reservations: reservationResult.reservations,
         insufficientItems: reservationResult.insufficientItems,
-      }
+      },
     });
   } catch (error) {
     await connection.rollback();
@@ -1423,7 +1475,10 @@ exports.unlockOrder = async (req, res) => {
     const userId = getAuthenticatedUserId(req);
 
     // 检查订单是否存在
-    const [orderResult] = await connection.execute('SELECT id, order_no, customer_id, quotation_id, contract_code, total_amount, payment_terms, delivery_date, status, invoice_status, remarks, created_by, created_at, updated_at, is_locked, locked_at, locked_by, lock_reason, tax_rate, tax_amount, subtotal, deleted_at FROM sales_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]);
+    const [orderResult] = await connection.execute(
+      'SELECT id, order_no, customer_id, quotation_id, contract_code, total_amount, payment_terms, delivery_date, status, invoice_status, remarks, created_by, created_at, updated_at, is_locked, locked_at, locked_by, lock_reason, tax_rate, tax_amount, subtotal, deleted_at FROM sales_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      [id]
+    );
 
     if (orderResult.length === 0) {
       await connection.rollback();
@@ -1462,10 +1517,14 @@ exports.unlockOrder = async (req, res) => {
 
     await connection.commit();
 
-    return ResponseHandler.success(res, {
+    return ResponseHandler.success(
+      res,
+      {
         orderId: id,
         releaseResult: releaseResult,
-      }, '订单解锁成功');
+      },
+      '订单解锁成功'
+    );
   } catch (error) {
     await connection.rollback();
     logger.error('解锁订单失败:', error);
@@ -1749,7 +1808,6 @@ exports.importOrders = async (req, res) => {
               remarks: row['备注'] || '',
               items: [],
             };
-
           }
 
           // 添加订单明细
@@ -1762,7 +1820,6 @@ exports.importOrders = async (req, res) => {
             remark: row['备注'] || '', // 添加产品级别的备注
             rowNum: rowNum,
           });
-
         } catch (error) {
           logger.error(`验证第${rowNum} 行数据失败: `, error);
           errors.push(`第${rowNum} 行: ${error.message} `);
@@ -1774,9 +1831,10 @@ exports.importOrders = async (req, res) => {
       for (const [, orderData] of Object.entries(ordersByCustomer)) {
         try {
           // 通过客户编码查找客户ID
-          const [customers] = await connection.query('SELECT id FROM customers WHERE code = ? AND deleted_at IS NULL', [
-            orderData.customerCode,
-          ]);
+          const [customers] = await connection.query(
+            'SELECT id FROM customers WHERE code = ? AND deleted_at IS NULL',
+            [orderData.customerCode]
+          );
 
           if (customers.length === 0) {
             // 标记该客户的所有行为错误
@@ -1790,7 +1848,9 @@ exports.importOrders = async (req, res) => {
           }
 
           // 计算订单总金额
-          const totalAmount = require('../../../utils/money').sumMoney(orderData.items.map(item => item.amount));
+          const totalAmount = require('../../../utils/money').sumMoney(
+            orderData.items.map((item) => item.amount)
+          );
 
           // 生成订单编号
           const orderNo = await generateSalesOrderNo(connection);
@@ -1967,7 +2027,8 @@ exports.importOrders = async (req, res) => {
                   if (!isComplete) {
                     hasIncompleteMaterial = true;
                     logger.warn(
-                      `⚠️  物料信息不完整: ${item.material_name} (编码: ${material.code || '无'
+                      `⚠️  物料信息不完整: ${item.material_name} (编码: ${
+                        material.code || '无'
                       }, 分类:${material.category_id || '无'}, 单位:${material.unit_id || '无'}, 来源:${material.material_source_id || '无'})`
                     );
                     continue; // 跳过此物料，不检查库存
@@ -2079,11 +2140,15 @@ exports.importOrders = async (req, res) => {
 
       await connection.commit();
 
-      return ResponseHandler.success(res, {
+      return ResponseHandler.success(
+        res,
+        {
           successCount,
           errorCount,
           errors: errors.slice(0, 10), // 只返回前10个错误
-        }, `导入完成，成功${successCount} 条，失败${errorCount} 条`);
+        },
+        `导入完成，成功${successCount} 条，失败${errorCount} 条`
+      );
     } catch (error) {
       await connection.rollback();
       throw error;

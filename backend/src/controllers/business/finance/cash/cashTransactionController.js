@@ -80,7 +80,16 @@ const cashTransactionController = {
         return ResponseHandler.validationError(res, [{ msg: '无效的交易ID' }]);
       }
 
-      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'cash_transaction', id, '无权访问该现金交易'))) {
+      if (
+        !(await ScopeGuard.denyUnlessAccess(
+          res,
+          db.pool,
+          req,
+          'cash_transaction',
+          id,
+          '无权访问该现金交易'
+        ))
+      ) {
         return;
       }
 
@@ -152,7 +161,16 @@ const cashTransactionController = {
         return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
       }
 
-      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'cash_transaction', id, '无权修改该现金交易'))) {
+      if (
+        !(await ScopeGuard.denyUnlessAccess(
+          res,
+          db.pool,
+          req,
+          'cash_transaction',
+          id,
+          '无权修改该现金交易'
+        ))
+      ) {
         return;
       }
 
@@ -191,7 +209,16 @@ const cashTransactionController = {
         return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
       }
 
-      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'cash_transaction', id, '无权删除该现金交易'))) {
+      if (
+        !(await ScopeGuard.denyUnlessAccess(
+          res,
+          db.pool,
+          req,
+          'cash_transaction',
+          id,
+          '无权删除该现金交易'
+        ))
+      ) {
         return;
       }
 

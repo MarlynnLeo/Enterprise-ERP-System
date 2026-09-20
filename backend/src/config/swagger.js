@@ -81,10 +81,7 @@ const options = {
     security: [{ cookieAuth: [] }, { bearerAuth: [] }],
   },
   // 扫描路由文件中的 @swagger 注解
-  apis: [
-    './src/routes/*.js',
-    './src/routes/**/*.js',
-  ],
+  apis: ['./src/routes/*.js', './src/routes/**/*.js'],
 };
 
 const swaggerSpec = swaggerJsdoc(options);

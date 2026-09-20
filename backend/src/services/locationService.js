@@ -105,7 +105,9 @@ const locationService = {
         params.push(Number(filters.status));
       }
 
-      let query = 'SELECT id, code, name, type, is_default, area, address, warehouse_id, warehouse_name, status, remark, created_at, updated_at, deleted_at FROM locations WHERE ' + conditions.join(' AND ');
+      let query =
+        'SELECT id, code, name, type, is_default, area, address, warehouse_id, warehouse_name, status, remark, created_at, updated_at, deleted_at FROM locations WHERE ' +
+        conditions.join(' AND ');
       query += ' ORDER BY id DESC';
       if (!noPagination) {
         query = appendPaginationSQL(query, pagination.limit, pagination.offset);
@@ -113,7 +115,8 @@ const locationService = {
 
       const [rows] = await pool.query(query, params);
 
-      const countQuery = 'SELECT COUNT(*) as total FROM locations WHERE ' + conditions.join(' AND ');
+      const countQuery =
+        'SELECT COUNT(*) as total FROM locations WHERE ' + conditions.join(' AND ');
 
       const [countResult] = await pool.query(countQuery, params);
       const total = countResult[0].total;
@@ -132,7 +135,10 @@ const locationService = {
 
   async getLocationById(id) {
     try {
-      const [rows] = await pool.query('SELECT id, code, name, type, is_default, area, address, warehouse_id, warehouse_name, status, remark, created_at, updated_at, deleted_at FROM locations WHERE id = ? AND deleted_at IS NULL', [Number(id)]);
+      const [rows] = await pool.query(
+        'SELECT id, code, name, type, is_default, area, address, warehouse_id, warehouse_name, status, remark, created_at, updated_at, deleted_at FROM locations WHERE id = ? AND deleted_at IS NULL',
+        [Number(id)]
+      );
       return rows[0];
     } catch (error) {
       logger.error(`获取库位详情失败 (ID: ${id}):`, error);
@@ -149,9 +155,10 @@ const locationService = {
         throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
       }
 
-      const [existingCode] = await pool.query('SELECT id FROM locations WHERE code = ? AND deleted_at IS NULL', [
-        data.code,
-      ]);
+      const [existingCode] = await pool.query(
+        'SELECT id FROM locations WHERE code = ? AND deleted_at IS NULL',
+        [data.code]
+      );
       if (existingCode.length > 0) {
         throw new Error(`Location code '${data.code}' already exists`);
       }
@@ -182,12 +189,13 @@ const locationService = {
       await connection.beginTransaction();
 
       // 检查库位是否存在
-      const [oldLocation] = await connection.query('SELECT id, code, name, type, is_default, area, address, warehouse_id, warehouse_name, status, remark, created_at, updated_at, deleted_at FROM locations WHERE id = ?', [
-        Number(id),
-      ]);
+      const [oldLocation] = await connection.query(
+        'SELECT id, code, name, type, is_default, area, address, warehouse_id, warehouse_name, status, remark, created_at, updated_at, deleted_at FROM locations WHERE id = ?',
+        [Number(id)]
+      );
 
       if (!oldLocation[0]) {
-        throw new Error(`Location with id ${id} not found`);
+        throw new Error('库位不存在或已被删除');
       }
 
       // 只在更新完整信息时才验证必填字段，更新状态时不需要

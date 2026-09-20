@@ -425,6 +425,7 @@ import { storeToRefs } from 'pinia';
 import { financeApi } from '@/api';
 import printService from '@/services/printService'
 import EntryFormDialog from './entries/EntryFormDialog.vue'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 
 // Props定义
 const props = defineProps({
@@ -611,12 +612,8 @@ const findOpenPeriodByDate = (date) => {
 };
 
 const formatPeriodLabel = (period) => {
-  const name = period.periodName || `期间 ${period.id}`;
+  const name = period.periodName || '未命名会计期间';
   return `${name} (${getPeriodStart(period)} 至 ${getPeriodEnd(period)})`;
-};
-
-const getApiErrorMessage = (error, fallback) => {
-  return error?.response?.data?.message || error?.message || fallback;
 };
 
 const toBooleanFlag = (value) => value === true || value === 1 || value === '1';
@@ -678,7 +675,7 @@ const normalizeEntryRow = (entry) => ({
   documentType: DOCUMENT_TYPE_LABELS[entry.documentType] || entry.documentType,
   documentNumber: entry.documentNumber,
   periodId: entry.periodId,
-  periodName: entry.periodName || `期间 ${entry.periodId}`,
+  periodName: entry.periodName || '未命名会计期间',
   fiscalYear: entry.fiscalYear,
   isPosted: toBooleanFlag(entry.isPosted),
   isReversed: isReversedEntry(entry),
@@ -1020,7 +1017,7 @@ const handleExpandChange = async (row, expandedRows) => {
     } catch (error) {
       console.error(`加载凭证${row.id}明细失败:`, error);
       row.items = [];
-      ElMessage.error(`加载凭证明细失败: ${error.message}`);
+      ElMessage.error(`加载凭证明细失败：${getApiErrorMessage(error, '请稍后重试')}`);
     }
   }
 };

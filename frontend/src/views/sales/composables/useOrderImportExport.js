@@ -5,6 +5,7 @@
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { salesApi } from '@/api'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import dayjs from 'dayjs'
 
 export function useOrderImportExport(fetchDataCallback, searchQuery, statusFilter, operatorFilter, dateRange) {
@@ -51,7 +52,7 @@ export function useOrderImportExport(fetchDataCallback, searchQuery, statusFilte
       window.URL.revokeObjectURL(url)
       ElMessage.success('模板下载成功')
     } catch (error) {
-      ElMessage.error('下载模板失败: ' + (error.response?.data?.message || error.message))
+      ElMessage.error(`下载模板失败：${getApiErrorMessage(error, '请稍后重试')}`)
     }
   }
 
@@ -92,7 +93,9 @@ export function useOrderImportExport(fetchDataCallback, searchQuery, statusFilte
       importResult.value = {
         success: raw.successCount || raw.success || 0,
         failed: raw.errorCount || raw.failed || 0,
-        errors: raw.errors || []
+        errors: (raw.errors || []).map((item) => (
+          typeof item === 'string' ? getApiErrorMessage(item, '导入失败') : item
+        ))
       }
       if (importResult.value.success > 0) {
         ElMessage.success(`成功导入 ${importResult.value.success} 条订单数据`)
@@ -103,7 +106,7 @@ export function useOrderImportExport(fetchDataCallback, searchQuery, statusFilte
       }
     } catch (error) {
       console.error('导入订单失败:', error)
-      ElMessage.error('导入订单失败: ' + (error.response?.data?.message || error.message || '未知错误'))
+      ElMessage.error(`导入订单失败：${getApiErrorMessage(error, '请检查文件内容后重试')}`)
     } finally {
       importing.value = false
     }
@@ -131,7 +134,7 @@ export function useOrderImportExport(fetchDataCallback, searchQuery, statusFilte
       ElMessage.success('导出成功')
     } catch (error) {
       console.error('导出失败:', error)
-      ElMessage.error('导出失败: ' + (error.message || '未知错误'))
+      ElMessage.error(`导出失败：${getApiErrorMessage(error, '请稍后重试')}`)
     }
   }
 

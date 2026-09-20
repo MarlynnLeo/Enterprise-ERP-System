@@ -156,7 +156,9 @@ class TaskRepository {
           processName: p.process_name,
         });
       });
-      tasks.forEach((t) => { t.processes = processesMap[t.id] || []; });
+      tasks.forEach((t) => {
+        t.processes = processesMap[t.id] || [];
+      });
     }
 
     // 计数查询
@@ -323,10 +325,10 @@ class TaskRepository {
    * @param {string} status
    */
   static async updateStatus(conn, id, status) {
-    await conn.query(
-      'UPDATE production_tasks SET status = ? WHERE id = ? AND deleted_at IS NULL',
-      [status, id]
-    );
+    await conn.query('UPDATE production_tasks SET status = ? WHERE id = ? AND deleted_at IS NULL', [
+      status,
+      id,
+    ]);
   }
 
   /**
@@ -444,10 +446,10 @@ class TaskRepository {
    * @param {number} quantity
    */
   static async syncProcessQuantity(conn, taskId, quantity) {
-    await conn.query(
-      'UPDATE production_processes SET quantity = ? WHERE task_id = ?',
-      [quantity, taskId]
-    );
+    await conn.query('UPDATE production_processes SET quantity = ? WHERE task_id = ?', [
+      quantity,
+      taskId,
+    ]);
   }
 
   // ======================== 成本中心 ========================

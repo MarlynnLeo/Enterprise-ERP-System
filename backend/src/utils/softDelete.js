@@ -86,7 +86,9 @@ async function softDeleteBatch(conn, table, pkField, pkValues) {
   const placeholders = pkValues.map(() => '?').join(', ');
   const sql = `UPDATE \`${table}\` SET deleted_at = NOW() WHERE \`${pkField}\` IN (${placeholders}) AND deleted_at IS NULL`;
   const result = normalizeExecResult(await exec.call(conn, sql, pkValues));
-  logger.debug(`[softDelete] ${table}.${pkField} IN (${pkValues.length} ids) → affected=${result.affectedRows}`);
+  logger.debug(
+    `[softDelete] ${table}.${pkField} IN (${pkValues.length} ids) → affected=${result.affectedRows}`
+  );
   return result.affectedRows;
 }
 

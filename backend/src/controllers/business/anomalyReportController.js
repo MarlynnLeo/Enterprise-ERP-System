@@ -45,18 +45,24 @@ module.exports = {
   async create(req, res) {
     try {
       const taskId = req.body?.task_id ?? req.body?.taskId;
-      if (taskId) await (async () => {
-        if (!(await ScopeGuard.assertAccess(pool, req, 'production_task', taskId))) {
-          const error = new Error('无权为该生产任务上报异常');
-          error.statusCode = 403;
-          throw error;
-        }
-      })();
+      if (taskId)
+        await (async () => {
+          if (!(await ScopeGuard.assertAccess(pool, req, 'production_task', taskId))) {
+            const error = new Error('无权为该生产任务上报异常');
+            error.statusCode = 403;
+            throw error;
+          }
+        })();
       const data = await AnomalyReportService.create(req.body, req.user?.id);
       ResponseHandler.success(res, data, '异常上报成功');
     } catch (error) {
       logger.error('异常上报失败:', error);
-      ResponseHandler.error(res, error.message || '异常上报失败', error.statusCode === 403 ? 'FORBIDDEN' : 'OPERATION_ERROR', error.statusCode || 500);
+      ResponseHandler.error(
+        res,
+        error.message || '异常上报失败',
+        error.statusCode === 403 ? 'FORBIDDEN' : 'OPERATION_ERROR',
+        error.statusCode || 500
+      );
     }
   },
 
@@ -68,7 +74,12 @@ module.exports = {
       ResponseHandler.success(res, data, '指派成功');
     } catch (error) {
       logger.error('指派失败:', error);
-      ResponseHandler.error(res, error.message || '指派失败', error.statusCode === 403 ? 'FORBIDDEN' : 'OPERATION_ERROR', error.statusCode || 500);
+      ResponseHandler.error(
+        res,
+        error.message || '指派失败',
+        error.statusCode === 403 ? 'FORBIDDEN' : 'OPERATION_ERROR',
+        error.statusCode || 500
+      );
     }
   },
 
@@ -79,7 +90,12 @@ module.exports = {
       ResponseHandler.success(res, data, '异常已解决');
     } catch (error) {
       logger.error('解决异常失败:', error);
-      ResponseHandler.error(res, error.message || '解决异常失败', error.statusCode === 403 ? 'FORBIDDEN' : 'OPERATION_ERROR', error.statusCode || 500);
+      ResponseHandler.error(
+        res,
+        error.message || '解决异常失败',
+        error.statusCode === 403 ? 'FORBIDDEN' : 'OPERATION_ERROR',
+        error.statusCode || 500
+      );
     }
   },
 
@@ -90,7 +106,12 @@ module.exports = {
       ResponseHandler.success(res, data, '异常已关闭');
     } catch (error) {
       logger.error('关闭异常失败:', error);
-      ResponseHandler.error(res, error.message || '关闭异常失败', error.statusCode === 403 ? 'FORBIDDEN' : 'OPERATION_ERROR', error.statusCode || 500);
+      ResponseHandler.error(
+        res,
+        error.message || '关闭异常失败',
+        error.statusCode === 403 ? 'FORBIDDEN' : 'OPERATION_ERROR',
+        error.statusCode || 500
+      );
     }
   },
 
@@ -101,7 +122,12 @@ module.exports = {
       ResponseHandler.success(res, null, '删除成功');
     } catch (error) {
       logger.error('删除异常失败:', error);
-      ResponseHandler.error(res, error.message || '删除失败', error.statusCode === 403 ? 'FORBIDDEN' : 'OPERATION_ERROR', error.statusCode || 500);
+      ResponseHandler.error(
+        res,
+        error.message || '删除失败',
+        error.statusCode === 403 ? 'FORBIDDEN' : 'OPERATION_ERROR',
+        error.statusCode || 500
+      );
     }
   },
 

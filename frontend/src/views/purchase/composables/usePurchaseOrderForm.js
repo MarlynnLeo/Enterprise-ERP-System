@@ -10,6 +10,7 @@ import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { ElLoading } from 'element-plus/es/components/loading/index'
 import { purchaseApi, supplierApi, baseDataApi } from '@/api'
 import { parseListData, parseResponseData } from '@/utils/responseParser'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { searchMaterials } from '@/utils/searchConfig'
 import { useFinanceStore } from '@/stores/finance'
 import { storeToRefs } from 'pinia'
@@ -590,7 +591,7 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
       if (loadOrdersCallback) loadOrdersCallback()
     } catch (error) {
       console.error('提交表单失败:', error)
-      const errorMsg = error.response?.data?.message || error.message || '提交失败，请检查表单'
+      const errorMsg = getApiErrorMessage(error, '提交失败，请检查表单')
       ElMessage.error(errorMsg)
     }
   }
@@ -690,7 +691,7 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
         requisitionDialogVisible.value = false
         ElMessage.success(`成功添加 ${addedCount} 个物料`)
       } finally { loadingInstance.close() }
-    } catch (error) { console.error('添加物料失败:', error); ElMessage.error('添加物料失败: ' + (error.message || '未知错误')) }
+    } catch (error) { console.error('添加物料失败:', error); ElMessage.error(`添加物料失败：${getApiErrorMessage(error, '请稍后重试')}`) }
   }
 
   return {

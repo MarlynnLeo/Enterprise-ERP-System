@@ -419,8 +419,7 @@ class TraceabilityCore {
     `;
 
     const traceResult = await db.query(traceabilityQuery, [traceabilityId]);
-    const traceData =
-      traceResult.rows && traceResult.rows.length > 0 ? traceResult.rows[0] : null;
+    const traceData = traceResult.rows && traceResult.rows.length > 0 ? traceResult.rows[0] : null;
 
     if (!traceData) {
       return [];

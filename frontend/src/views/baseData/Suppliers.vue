@@ -265,6 +265,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { parsePaginatedData } from '@/utils/responseParser'
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
@@ -499,7 +500,7 @@ const handleToggleStatus = async (row, newStatus) => {
     fetchData();
   } catch (error) {
     console.error(`${action}供应商失败:`, error);
-    ElMessage.error(error.response?.data?.message || `${action}供应商失败`);
+    ElMessage.error(getApiErrorMessage(error, `${action}供应商失败`));
   }
 };
 
@@ -555,7 +556,7 @@ const handleUpload = async () => {
     fetchData(); // 刷新数据
   } catch (error) {
     console.error('导入失败:', error);
-    ElMessage.error('导入失败: ' + (error.response?.data?.message || error.message));
+    ElMessage.error('导入失败: ' + (getApiErrorMessage(error, '未知错误')));
   } finally {
     uploading.value = false;
   }

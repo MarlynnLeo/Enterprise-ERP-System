@@ -355,6 +355,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
@@ -743,7 +744,7 @@ const loadDefaultSalesOutboundTemplate = async () => {
     ElMessage.success('已加载默认销售出库模板')
   } catch (error) {
     console.error('加载默认销售出库模板失败:', error)
-    ElMessage.error(error?.message || error?.response?.data?.message || '加载默认模板失败')
+    ElMessage.error(getApiErrorMessage(error, '加载默认模板失败'))
   }
 }
 

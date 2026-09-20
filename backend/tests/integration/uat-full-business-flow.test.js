@@ -299,7 +299,7 @@ async function passInspection(inspection) {
     ...item,
     result: 'passed',
     is_qualified: 1,
-    actual_value: item.actual_value || item.standard || 'UAT pass',
+    actual_value: item.actualValue || item.standard || 'UAT pass',
     remark: item.remark || 'UAT item passed',
   }));
 
@@ -332,8 +332,11 @@ describeLiveUat('UAT full business flow', () => {
   test('purchase -> inventory -> production -> quality -> sales -> finance -> costing closes the loop', async () => {
     const prefix = `UAT${Date.now()}`;
     Object.assign(context, await prepareUatMasterData(prefix));
+    const businessActor = await createFinanceActor(app, db, prefix, 'operator', 'admin');
+    api = businessActor.api;
     const financeActor = await createFinanceActor(app, db, prefix);
     const financeApi = financeActor.api;
+    const purchaseApprover = await createFinanceActor(app, db, prefix, 'approver', 'admin');
 
     const purchaseOrderRes = await api.post('/api/purchase/orders').send({
       order_date: today(),
@@ -355,7 +358,25 @@ describeLiveUat('UAT full business flow', () => {
     expectHttp(purchaseOrderRes, 201, 'create purchase order');
     const purchaseOrder = dataOf(purchaseOrderRes);
     context.purchaseOrderId = purchaseOrder.id;
-    context.purchaseOrderNo = purchaseOrder.order_no;
+    context.purchaseOrderNo = purchaseOrder.orderNo;
+
+    const submitPurchaseOrder = await api
+      .put(`/api/purchase/orders/${context.purchaseOrderId}/status`)
+      .send({ status: 'pending' });
+    expectHttp(submitPurchaseOrder, 200, 'submit purchase order for approval');
+    const workflowResponse = await api.get(
+      `/api/workflow/business?businessType=purchase_order&businessId=${context.purchaseOrderId}`
+    );
+    expectHttp(workflowResponse, 200, 'load purchase order approval');
+    const purchaseWorkflow = dataOf(workflowResponse);
+    expect(purchaseWorkflow.status).toBe('in_progress');
+    const approvePurchaseOrder = await purchaseApprover.api
+      .post(`/api/workflow/instances/${purchaseWorkflow.id}/approve`)
+      .send({ nodeId: purchaseWorkflow.currentNodeId, action: 'approve', comment: 'UAT approval' });
+    expectHttp(approvePurchaseOrder, 200, 'approve purchase order with a separate actor');
+    expect(dataOf(approvePurchaseOrder).status).toBe('approved');
+    expect((await scalar('SELECT status FROM purchase_orders WHERE id = ?', [context.purchaseOrderId])).status)
+      .toBe('approved');
 
     const purchaseReceiptRes = await api
       .post('/api/purchase/receipts')
@@ -410,6 +431,11 @@ describeLiveUat('UAT full business flow', () => {
       [context.rawMaterialId, context.rawLocationId]
     );
     expect(Number(rawStockAfterPurchase.qty)).toBeCloseTo(context.purchaseQty, 3);
+    const purchaseOperator = await scalar(
+      'SELECT operator FROM inventory_ledger WHERE reference_no = ? AND material_id = ? LIMIT 1',
+      [context.purchaseReceiptNo, context.rawMaterialId]
+    );
+    expect(purchaseOperator.operator).toBe(businessActor.username);
 
     const apRes = await api.post(
       `/api/finance/integration/ap-invoice/${context.purchaseReceiptId}`
@@ -461,6 +487,11 @@ describeLiveUat('UAT full business flow', () => {
     });
     expectHttp(productionOutboundRes, 201, 'create production material outbound');
     context.productionOutboundId = dataOf(productionOutboundRes).id;
+    const productionOperator = await scalar(
+      'SELECT operator FROM inventory_outbound WHERE id = ?',
+      [context.productionOutboundId]
+    );
+    expect(productionOperator.operator).toBe(businessActor.username);
     context.productionOutboundNo = dataOf(productionOutboundRes).outboundNo;
 
     const confirmProductionOutboundRes = await api
@@ -559,7 +590,7 @@ describeLiveUat('UAT full business flow', () => {
     });
     expectHttp(fgInboundRes, [200, 201], 'create finished goods inbound from quality');
     context.finishedInboundId = dataOf(fgInboundRes).id;
-    context.finishedInboundNo = dataOf(fgInboundRes).inboundNo || dataOf(fgInboundRes).inbound_no;
+    context.finishedInboundNo = dataOf(fgInboundRes).inboundNo;
 
     const confirmFgInboundRes = await api
       .put(`/api/inventory/inbound/status/${context.finishedInboundId}`)
@@ -598,41 +629,41 @@ describeLiveUat('UAT full business flow', () => {
     expectHttp(salesOrderRes, 201, 'create sales order');
     const salesOrder = dataOf(salesOrderRes);
     context.salesOrderId = salesOrder.id;
-    context.salesOrderNo = salesOrder.order_no;
+    context.salesOrderNo = salesOrder.orderNo;
 
     const salesOutboundRes = await api.post('/api/sales/outbound').send({
-      order_id: context.salesOrderId,
-      delivery_date: today(),
+      orderId: context.salesOrderId,
+      deliveryDate: today(),
       status: 'draft',
       remarks: `${prefix} sales outbound`,
       items: [
         {
-          material_id: context.productId,
+          materialId: context.productId,
           quantity: context.salesQty,
-          unit_price: 30,
-          source_order_id: context.salesOrderId,
-          source_order_no: context.salesOrderNo,
+          unitPrice: 30,
+          sourceOrderId: context.salesOrderId,
+          sourceOrderNo: context.salesOrderNo,
         },
       ],
     });
     expectHttp(salesOutboundRes, 201, 'create sales outbound');
     context.salesOutboundId = dataOf(salesOutboundRes).id;
-    context.salesOutboundNo = dataOf(salesOutboundRes).outboundNo || dataOf(salesOutboundRes).outbound_no;
+    context.salesOutboundNo = dataOf(salesOutboundRes).outboundNo;
 
     const processingSalesOutboundRes = await api
       .put(`/api/sales/outbound/${context.salesOutboundId}`)
       .send({
-        order_id: context.salesOrderId,
-        delivery_date: today(),
+        orderId: context.salesOrderId,
+        deliveryDate: today(),
         status: 'processing',
         remarks: `${prefix} sales outbound processing`,
         items: [
           {
-            material_id: context.productId,
+            materialId: context.productId,
             quantity: context.salesQty,
-            unit_price: 30,
-            source_order_id: context.salesOrderId,
-            source_order_no: context.salesOrderNo,
+            unitPrice: 30,
+            sourceOrderId: context.salesOrderId,
+            sourceOrderNo: context.salesOrderNo,
           },
         ],
       });
@@ -641,17 +672,17 @@ describeLiveUat('UAT full business flow', () => {
     const completeSalesOutboundRes = await api
       .put(`/api/sales/outbound/${context.salesOutboundId}`)
       .send({
-        order_id: context.salesOrderId,
-        delivery_date: today(),
+        orderId: context.salesOrderId,
+        deliveryDate: today(),
         status: 'completed',
         remarks: `${prefix} sales outbound completed`,
         items: [
           {
-            material_id: context.productId,
+            materialId: context.productId,
             quantity: context.salesQty,
-            unit_price: 30,
-            source_order_id: context.salesOrderId,
-            source_order_no: context.salesOrderNo,
+            unitPrice: 30,
+            sourceOrderId: context.salesOrderId,
+            sourceOrderNo: context.salesOrderNo,
           },
         ],
       });

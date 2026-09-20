@@ -6,11 +6,12 @@
  * contracts cannot silently drift from the routes that are actually used.
  */
 
-const freezeType = (type) => Object.freeze({
-  extensions: Object.freeze([...type.extensions]),
-  mimeTypes: Object.freeze([...type.mimeTypes]),
-  maxSize: type.maxSize,
-});
+const freezeType = (type) =>
+  Object.freeze({
+    extensions: Object.freeze([...type.extensions]),
+    mimeTypes: Object.freeze([...type.mimeTypes]),
+    maxSize: type.maxSize,
+  });
 
 const FILE_TYPES = Object.freeze({
   IMAGE: freezeType({

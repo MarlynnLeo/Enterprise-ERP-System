@@ -135,7 +135,7 @@ class TraceabilityHandler {
       // 生产环节是追溯的核心
       // 当生产任务完成时，通常会产生新的成品批次
 
-      const {  productCode, productName, batchNumber, productionDate } = data;
+      const { productCode, productName, batchNumber, productionDate } = data;
 
       if (!productCode || !batchNumber) {
         return { success: false, message: '缺少产品编码或批次号' };
@@ -181,10 +181,14 @@ class TraceabilityHandler {
     try {
       const { material_id, batch_no, reference_id, inbound_no } = data;
 
-      logger.info(`处理退料追溯 | 类型:${triggerType} | 物料:${material_id} | 批次:${batch_no} | 入库单:${inbound_no}`);
+      logger.info(
+        `处理退料追溯 | 类型:${triggerType} | 物料:${material_id} | 批次:${batch_no} | 入库单:${inbound_no}`
+      );
 
       if (!batch_no) {
-        throw new Error(`退料追溯缺少批次号: materialId=${material_id}, referenceId=${reference_id}`);
+        throw new Error(
+          `退料追溯缺少批次号: materialId=${material_id}, referenceId=${reference_id}`
+        );
       }
 
       logger.info(`[退料追溯] 物料 ${material_id} 已成功关联原始发料批次: ${batch_no}`);

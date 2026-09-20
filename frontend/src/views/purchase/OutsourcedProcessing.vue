@@ -593,6 +593,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView';
 import { formatLocalDate } from '@/utils/format';
 import { formatDate } from '@/utils/helpers/dateUtils';
@@ -869,7 +870,7 @@ const handleResubmitProcessing = async (status) => {
     await fetchProcessingList();
     await handleViewProcessing({ id: viewData.id });
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || '重新提交审核失败');
+    ElMessage.error(getApiErrorMessage(error, '重新提交审核失败'));
   }
 };
 
@@ -1079,7 +1080,7 @@ const handleProcessingSubmit = async () => {
       fetchProcessingList();
     } catch (error) {
       console.error('保存委外加工单失败:', error);
-      ElMessage.error('保存委外加工单失败: ' + (error.response?.data?.message || error.message));
+      ElMessage.error('保存委外加工单失败: ' + (getApiErrorMessage(error, '未知错误')));
     } finally {
       processing.value = false;
     }
@@ -1160,7 +1161,7 @@ const updateProcessingStatus = async (row, status) => {
     await fetchProcessingList();
   } catch (error) {
     console.error('状态更新失败:', error);
-    ElMessage.error('状态更新失败: ' + (error.response?.data?.message || error.message));
+    ElMessage.error('状态更新失败: ' + (getApiErrorMessage(error, '未知错误')));
   }
 };
 
@@ -1196,7 +1197,7 @@ const handleDeleteProcessing = (row) => {
       fetchProcessingList();
     } catch (error) {
       console.error('删除失败:', error);
-      ElMessage.error('删除失败: ' + (error.response?.data?.message || error.message));
+      ElMessage.error('删除失败: ' + (getApiErrorMessage(error, '未知错误')));
     }
   }).catch(() => {});
 };

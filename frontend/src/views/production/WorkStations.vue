@@ -149,6 +149,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, reactive, onMounted } from 'vue'
 import { Plus, Edit, Delete } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -227,7 +228,7 @@ const handleSave = async () => {
     loadStatus()
     loadLines()
   } catch (e) {
-    ElMessage.error(e?.response?.data?.message || '保存失败')
+    ElMessage.error(getApiErrorMessage(e, '保存失败'))
   } finally {
     saving.value = false
   }
@@ -240,7 +241,7 @@ const handleDelete = async (id) => {
     loadList()
     loadStatus()
   } catch (e) {
-    ElMessage.error(e?.response?.data?.message || '删除失败')
+    ElMessage.error(getApiErrorMessage(e, '删除失败'))
   }
 }
 

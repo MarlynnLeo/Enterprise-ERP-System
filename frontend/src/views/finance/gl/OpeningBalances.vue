@@ -222,6 +222,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { formatCurrency, formatLocalDate } from '@/utils/format'
@@ -365,7 +366,7 @@ const loadPreview = async () => {
       opening_direction: item.openingDirection || getDefaultDirection(item)
     }))
   } catch (error) {
-    ElMessage.error('加载期初余额预览失败: ' + (error.message || '未知错误'))
+    ElMessage.error('加载期初余额预览失败: ' + (getApiErrorMessage(error, '未知错误')))
   } finally {
     loading.value = false
   }
@@ -395,7 +396,7 @@ const handleBatchSave = async () => {
     ElMessage.success('期初余额完成')
     loadPreview()
   } catch (error) {
-    ElMessage.error('初始化失败: ' + (error.message || '未知错误'))
+    ElMessage.error('初始化失败: ' + (getApiErrorMessage(error, '未知错误')))
   } finally {
     saving.value = false
   }

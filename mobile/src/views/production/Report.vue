@@ -116,6 +116,7 @@
   import { useRoute, useRouter } from 'vue-router'
   import { NavBar, Field, CellGroup, Popup, Button as VanButton, Icon, showToast } from 'vant'
   import { productionApi } from '@/api'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const router = useRouter()
   const route = useRoute()
@@ -188,7 +189,7 @@
       router.go(-1)
     } catch (e) {
       console.error('报工失败:', e)
-      showToast(e.response?.data?.message || e.message || '报工失败')
+      showToast(getApiErrorMessage(e, '报工失败'))
     } finally {
       submitting.value = false
     }

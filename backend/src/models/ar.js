@@ -811,7 +811,7 @@ const arModel = {
           });
         } catch (revErr) {
           // 历史数据可能无 GL 凭证；其余冲销失败必须阻断作废，避免账实不一致
-          if (!/未找到|不存在|not found|NO_ENTRY|无可冲销/i.test(String(revErr.message || ''))) {
+          if (revErr.code !== 'VOUCHER_NOT_FOUND') {
             throw revErr;
           }
           logger.warn(`[AR] 作废时未找到可冲销凭证: ${revErr.message}`);
@@ -1162,7 +1162,7 @@ const arModel = {
         );
 
         if (invoices.length === 0) {
-          throw new Error(`发票ID ${item.invoice_id} 不存在`);
+          throw new Error('发票不存在或已被删除');
         }
 
         const invoice = invoices[0];
@@ -1180,11 +1180,12 @@ const arModel = {
         const line = receiptData.is_refund
           ? parseRefundLine(item, invoice, 'sales_return')
           : parseSettlementLine(item);
-        if (!receiptData.is_refund) assertWithinBalance(
-          line.settlementCents,
-          toCents(invoice.balance_amount),
-          `发票 ${invoice.invoice_number} 收款核销金额`
-        );
+        if (!receiptData.is_refund)
+          assertWithinBalance(
+            line.settlementCents,
+            toCents(invoice.balance_amount),
+            `发票 ${invoice.invoice_number} 收款核销金额`
+          );
 
         await connection.execute(
           'INSERT INTO ar_receipt_items (receipt_id, invoice_id, amount, discount_amount) VALUES (?, ?, ?, ?)',
@@ -1194,7 +1195,11 @@ const arModel = {
         const paidAmountCents = toCents(invoice.paid_amount) + line.settlementCents;
         const totalAmountCents = toCents(invoice.total_amount);
         const newPaidAmount = fromCents(paidAmountCents);
-        const newBalanceAmount = fromCents(totalAmountCents < 0 ? totalAmountCents - paidAmountCents : Math.max(0, totalAmountCents - paidAmountCents));
+        const newBalanceAmount = fromCents(
+          totalAmountCents < 0
+            ? totalAmountCents - paidAmountCents
+            : Math.max(0, totalAmountCents - paidAmountCents)
+        );
         const newStatus = invoiceStatusAfterSettlement(paidAmountCents, totalAmountCents);
 
         await connection.execute(
@@ -1219,7 +1224,7 @@ const arModel = {
         );
 
         if (bankAccounts.length === 0) {
-          throw new Error(`银行账户ID ${receiptData.bank_account_id} 不存在`);
+          throw new Error('银行账户不存在或已停用');
         }
 
         const bankAccount = bankAccounts[0];
@@ -1232,7 +1237,8 @@ const arModel = {
           throw new Error(`银行账户 "${bankAccount.account_name}" 已被冻结，无法用于收款`);
         }
 
-        if (totalCashCents < 0) assertBankBalanceSufficient(toCents(bankAccount.current_balance), -totalCashCents);
+        if (totalCashCents < 0)
+          assertBankBalanceSufficient(toCents(bankAccount.current_balance), -totalCashCents);
 
         // 创建银行交易记录（仅实收金额，不含折扣）
         const [bankTransactionResult] = await connection.execute(
@@ -1277,7 +1283,7 @@ const arModel = {
           document_type: DOCUMENT_TYPE_MAPPING.SALES_COLLECTION,
           document_number: receiptData.receipt_number,
           period_id: glEntry.period_id,
-          description: `客户 ${receiptData.customer_name} ${receiptData.is_refund ? "退款" : "收款"}`,
+          description: `客户 ${receiptData.customer_name} ${receiptData.is_refund ? '退款' : '收款'}`,
           created_by: glEntry.created_by,
           status: 'posted',
           is_posted: 1,
@@ -1684,16 +1690,24 @@ const arModel = {
         if (invoices.length === 0) continue;
 
         const invoice = invoices[0];
-        const settleBackCents = Number(item.item_amount) < 0 ? toCents(item.item_amount) : parseSettlementLine({
-          amount: item.item_amount,
-          discount_amount: item.item_discount_amount,
-        }).settlementCents;
-        const paidAmountCents = toCents(invoice.total_amount) < 0
-          ? Math.min(0, toCents(invoice.paid_amount) - settleBackCents)
-          : Math.max(0, toCents(invoice.paid_amount) - settleBackCents);
+        const settleBackCents =
+          Number(item.item_amount) < 0
+            ? toCents(item.item_amount)
+            : parseSettlementLine({
+                amount: item.item_amount,
+                discount_amount: item.item_discount_amount,
+              }).settlementCents;
+        const paidAmountCents =
+          toCents(invoice.total_amount) < 0
+            ? Math.min(0, toCents(invoice.paid_amount) - settleBackCents)
+            : Math.max(0, toCents(invoice.paid_amount) - settleBackCents);
         const totalAmountCents = toCents(invoice.total_amount);
         const newPaidAmount = fromCents(paidAmountCents);
-        const newBalanceAmount = fromCents(totalAmountCents < 0 ? totalAmountCents - paidAmountCents : Math.max(0, totalAmountCents - paidAmountCents));
+        const newBalanceAmount = fromCents(
+          totalAmountCents < 0
+            ? totalAmountCents - paidAmountCents
+            : Math.max(0, totalAmountCents - paidAmountCents)
+        );
         const newStatus = invoiceStatusAfterSettlement(paidAmountCents, totalAmountCents);
 
         await connection.execute(

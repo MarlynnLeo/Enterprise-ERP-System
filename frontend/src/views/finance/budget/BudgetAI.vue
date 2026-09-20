@@ -488,6 +488,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, onMounted, onBeforeUnmount, nextTick, h } from 'vue'
 import { useRouter } from 'vue-router'
 import { financeApi } from '@/api/finance'
@@ -750,7 +751,7 @@ const fetchRecommendation = async () => {
     ElMessage.success(`AI 已生成${res.data?.recommendations?.length || 0}个科目的预算建议`)
     renderRecCharts()
     fetchUsageStats()
-  } catch (e) { ElMessage.error('AI 预算建议生成失败: ' + (e.response?.data?.message || e.message)); console.error(e) }
+  } catch (e) { ElMessage.error('AI 预算建议生成失败: ' + (getApiErrorMessage(e, '未知错误'))); console.error(e) }
   finally { loading.value.recommendation = false }
 }
 
@@ -788,7 +789,7 @@ const createBudgetFromAI = async () => {
       router.push('/finance/budget/list')
     } catch { /* 用户选择留在当前页 */ }
   } catch (e) {
-    ElMessage.error('预算创建失败: ' + (e.response?.data?.message || e.message))
+    ElMessage.error('预算创建失败: ' + (getApiErrorMessage(e, '未知错误')))
   } finally {
     loading.value.createBudget = false
   }
@@ -803,7 +804,7 @@ const fetchAnomalies = async () => {
     count > 0 ? ElMessage.warning(`AI 检测到${count}个异常项`) : ElMessage.success('AI 未检测到异常')
     renderAnomalyChart()
     fetchUsageStats()
-  } catch (e) { ElMessage.error('AI 异常检测失败: ' + (e.response?.data?.message || e.message)); console.error(e) }
+  } catch (e) { ElMessage.error('AI 异常检测失败: ' + (getApiErrorMessage(e, '未知错误'))); console.error(e) }
   finally { loading.value.anomalies = false }
 }
 
@@ -816,7 +817,7 @@ const fetchOptimization = async () => {
     renderHealthGauge()
     renderSankeyChart()
     fetchUsageStats()
-  } catch (e) { ElMessage.error('AI 优化分析失败: ' + (e.response?.data?.message || e.message)); console.error(e) }
+  } catch (e) { ElMessage.error('AI 优化分析失败: ' + (getApiErrorMessage(e, '未知错误'))); console.error(e) }
   finally { loading.value.optimization = false }
 }
 
@@ -828,7 +829,7 @@ const fetchComparison = async () => {
     ElMessage.success(`AI 已完成${cmpYear1.value}vs${cmpYear2.value}对比分析`)
     renderComparisonChart()
     fetchUsageStats()
-  } catch (e) { ElMessage.error('AI 年度对比失败: ' + (e.response?.data?.message || e.message)); console.error(e) }
+  } catch (e) { ElMessage.error('AI 年度对比失败: ' + (getApiErrorMessage(e, '未知错误'))); console.error(e) }
   finally { loading.value.comparison = false }
 }
 
@@ -839,7 +840,7 @@ const fetchReport = async () => {
     report.value = res.data
     ElMessage.success('AI 综合报告已生成')
     fetchUsageStats()
-  } catch (e) { ElMessage.error('AI 综合报告失败: ' + (e.response?.data?.message || e.message)); console.error(e) }
+  } catch (e) { ElMessage.error('AI 综合报告失败: ' + (getApiErrorMessage(e, '未知错误'))); console.error(e) }
   finally { loading.value.report = false }
 }
 

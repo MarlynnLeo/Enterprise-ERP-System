@@ -16,6 +16,11 @@ router.post('/', authenticateToken, requirePermission('contract:create'), ctrl.c
 router.put('/:id', authenticateToken, requirePermission('contract:edit'), ctrl.update);
 router.delete('/:id', authenticateToken, requirePermission('contract:delete'), ctrl.delete);
 router.put('/:id/status', authenticateToken, requirePermission('contract:edit'), ctrl.updateStatus);
-router.post('/:id/executions', authenticateToken, requirePermission('contract:edit'), ctrl.addExecution);
+router.post(
+  '/:id/executions',
+  authenticateToken,
+  requirePermission('contract:edit'),
+  ctrl.addExecution
+);
 
 module.exports = router;

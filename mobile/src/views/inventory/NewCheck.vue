@@ -124,6 +124,7 @@
     showToast
   } from 'vant'
   import { inventoryApi } from '@/api'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   // 获取当前日期 YYYY-MM-DD
   const getCurrentDate = () => new Date().toISOString().slice(0, 10)
@@ -228,7 +229,7 @@
       }
     } catch (error) {
       console.error('提交盘点单失败:', error)
-      showToast('提交盘点单失败：' + (error.message || '未知错误'))
+      showToast(`提交盘点单失败：${getApiErrorMessage(error, '未知错误')}`)
     } finally {
       submitting.value = false
     }

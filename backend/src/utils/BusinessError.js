@@ -79,7 +79,7 @@ class BusinessError extends Error {
     const isBiz = BusinessError.is(error);
     const statusCode = isBiz ? BusinessError.statusCodeOf(error) : 500;
     const errorCode = isBiz ? BusinessError.codeOf(error, 'VALIDATION_ERROR') : 'SERVER_ERROR';
-    const message = isBiz ? (error.message || fallbackMessage) : fallbackMessage;
+    const message = isBiz ? error.message || fallbackMessage : fallbackMessage;
     return ResponseHandler.error(res, message, errorCode, statusCode, error);
   }
 }

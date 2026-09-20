@@ -140,6 +140,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus/es/components/message/index';
 import { Monitor, Goods } from '@element-plus/icons-vue';
@@ -200,7 +201,7 @@ const fetchHistory = async () => {
     pagination.total = total || 0;
   } catch (error) {
     console.error('获取采购历史失败:', error);
-    ElMessage.error('获取历史记录失败: ' + (error.message || '未知网络错误'));
+    ElMessage.error('获取历史记录失败: ' + (getApiErrorMessage(error, '未知网络错误')));
   } finally {
     loading.value = false;
   }

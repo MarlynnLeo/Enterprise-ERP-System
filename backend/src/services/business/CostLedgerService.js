@@ -61,7 +61,8 @@ class CostLedgerService {
       }
 
       // 查询明细
-      const sql = appendPaginationSQL(`
+      const sql = appendPaginationSQL(
+        `
                 SELECT
                     pt.id as task_id,
                     pt.code as task_code,
@@ -84,7 +85,10 @@ class CostLedgerService {
                 LEFT JOIN cost_centers cc ON pt.cost_center_id = cc.id
                 WHERE ${whereClause} AND pt.status = 'completed'
                 ORDER BY pt.updated_at DESC
-            `, pagination.limit, pagination.offset);
+            `,
+        pagination.limit,
+        pagination.offset
+      );
 
       const countSql = `
                 SELECT COUNT(*) as total
@@ -218,9 +222,9 @@ class CostLedgerService {
       // ✅ 安全修复：严格白名单控制 dateFormat 和 interval 单位
       // 不再使用用户输入直接拼接 SQL
       const PERIOD_CONFIG = {
-        day:   { dateFormat: '%Y-%m-%d', intervalUnit: 'DAY' },
-        week:  { dateFormat: '%Y-W%V',   intervalUnit: 'WEEK' },
-        month: { dateFormat: '%Y-%m',    intervalUnit: 'MONTH' },
+        day: { dateFormat: '%Y-%m-%d', intervalUnit: 'DAY' },
+        week: { dateFormat: '%Y-W%V', intervalUnit: 'WEEK' },
+        month: { dateFormat: '%Y-%m', intervalUnit: 'MONTH' },
       };
       const config = PERIOD_CONFIG[period] || PERIOD_CONFIG.month;
 

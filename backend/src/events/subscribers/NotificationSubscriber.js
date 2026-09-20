@@ -84,7 +84,10 @@ class NotificationSubscriber {
         await this._processRule(eventName, rule, payload, { allowRealtimePush });
       }
     } catch (error) {
-      logger.warn(`[NotificationSubscriber] ${eventName} 通知处理失败，等待领域事件重试:`, error.message);
+      logger.warn(
+        `[NotificationSubscriber] ${eventName} 通知处理失败，等待领域事件重试:`,
+        error.message
+      );
       throw error;
     }
   }
@@ -145,7 +148,6 @@ class NotificationSubscriber {
       throw error;
     }
   }
-
 }
 
 module.exports = new NotificationSubscriber();

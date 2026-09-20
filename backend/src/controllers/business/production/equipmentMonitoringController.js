@@ -7,8 +7,10 @@ const { logger } = require('../../../utils/logger');
 const { parsePagination } = require('../../../utils/safePagination');
 
 const equipmentMonitoringService = require('../../../services/business/EquipmentMonitoringService');
-// const { validateData, ValidationRules } = require('../../../utils/validator');
-const { EQUIPMENT_STATUS } = require('../../../constants/systemConstants');
+const {
+  EQUIPMENT_STATUSES,
+  normalizeEquipmentStatus,
+} = require('../../../utils/production/equipmentStatus');
 
 /**
  * 获取设备列表
@@ -20,8 +22,9 @@ const getEquipmentList = async (req, res) => {
       maxPageSize: 100,
     });
     const filters = {
-      equipment_type: req.query.equipment_type,
+      equipment_type: req.query.equipmentType || req.query.equipment_type,
       status: req.query.status,
+      location: req.query.location,
       location_id: req.query.location_id,
       workshop_id: req.query.workshop_id,
       page: pagination.page,
@@ -135,7 +138,7 @@ const batchRecordEquipmentData = async (req, res) => {
         results.push({
           parameterCode: dataPoint.parameterCode,
           success: false,
-          error: error.message,
+          error: '设备数据记录失败，请检查设备和数据点后重试',
         });
       }
     }
@@ -223,7 +226,8 @@ const resolveAlarm = async (req, res) => {
 const updateEquipmentStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, reason } = req.body;
+    const { reason } = req.body;
+    const status = normalizeEquipmentStatus(req.body.status);
     const userId = req.user?.id;
 
     if (!id || !status) {
@@ -231,8 +235,7 @@ const updateEquipmentStatus = async (req, res) => {
     }
 
     // 验证状态值（使用统一常量）
-    const validStatuses = Object.keys(EQUIPMENT_STATUS);
-    if (!validStatuses.includes(status)) {
+    if (!EQUIPMENT_STATUSES.includes(status)) {
       return ResponseHandler.error(res, '无效的设备状态', 'VALIDATION_ERROR', 400);
     }
 
@@ -246,7 +249,13 @@ const updateEquipmentStatus = async (req, res) => {
     ResponseHandler.success(res, result, '更新设备状态成功');
   } catch (error) {
     logger.error('更新设备状态失败:', error);
-    ResponseHandler.error(res, '更新设备状态失败', 'SERVER_ERROR', 500, error);
+    ResponseHandler.error(
+      res,
+      error.statusCode ? error.message : '更新设备状态失败',
+      error.code || 'SERVER_ERROR',
+      error.statusCode || 500,
+      error
+    );
   }
 };
 
@@ -310,7 +319,7 @@ const getEquipmentHealth = async (req, res) => {
     }
 
     // 检查设备状态
-    if (equipment.status === 'error') {
+    if (normalizeEquipmentStatus(equipment.status) === 'repair') {
       healthScore -= 40;
       healthStatus = 'critical';
       issues.push('设备故障');
@@ -328,7 +337,7 @@ const getEquipmentHealth = async (req, res) => {
 
     const healthData = {
       equipmentId: id,
-      equipmentName: equipment.equipment_name,
+      equipmentName: equipment.name,
       healthScore,
       healthStatus,
       issues,

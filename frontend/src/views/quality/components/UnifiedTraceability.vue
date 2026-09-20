@@ -267,6 +267,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -326,7 +327,7 @@ const handleSearch = async () => {
     }
   } catch (error) {
     traceabilityData.value = null
-    ElMessage.error('查询失败: ' + (error.response?._message || error.response?.data?.message || error.message))
+    ElMessage.error(`查询失败：${getApiErrorMessage(error, '请稍后重试')}`)
     traceabilityData.value = null
   } finally {
     loading.value = false

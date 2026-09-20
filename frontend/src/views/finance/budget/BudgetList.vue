@@ -174,6 +174,7 @@ import {
 } from '@/constants/systemConstants';
 import { formatAmount } from '@/utils/format'
 import { Edit, Upload, Check, VideoPlay, CircleClose, Delete } from '@element-plus/icons-vue'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 
 const dictStore = useDictionaryStore()
 const router = useRouter();
@@ -240,7 +241,7 @@ const handleEdit = (row) => {
   router.push(`/finance/budget/edit/${row.id}`);
 };
 const getErrorMessage = (error, fallback) => {
-  return error.response?.data?.message || error.response?.data?.error || fallback;
+  return getApiErrorMessage(error, fallback);
 };
 
 // 提交审批

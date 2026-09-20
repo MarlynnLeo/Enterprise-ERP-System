@@ -20,12 +20,18 @@ FROM nginx:1.27-alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
+# Vite preserves public file modes from the release archive. The nginx worker
+# must be able to traverse directories and read assets even after a 077 umask.
+RUN find /usr/share/nginx/html -type d -exec chmod 755 {} + && \
+    find /usr/share/nginx/html -type f -exec chmod 644 {} +
+
 RUN apk add --no-cache tzdata
 ENV TZ=Asia/Shanghai
 
 EXPOSE 80
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:80/ || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:80/ && \
+      wget --no-verbose --tries=1 --spider http://localhost:80/avatar-frames/rainbow-star.png || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]

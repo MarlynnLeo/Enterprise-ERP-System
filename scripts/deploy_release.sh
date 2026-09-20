@@ -218,9 +218,16 @@ for service in "${SELECTED_SERVICES[@]}"; do build_image "$service"; done
 
 PHASE=candidate-validation
 record_state running
-docker run --rm --entrypoint /bin/sh "kacon-erp-frontend:candidate-$RUN_ID" -c '
+docker run --rm --user nginx --entrypoint /bin/sh "kacon-erp-frontend:candidate-$RUN_ID" -c '
   set -eu
-  test -f /usr/share/nginx/html/version.json
+  test -r /usr/share/nginx/html/version.json
+  test -r /usr/share/nginx/html/avatar-frames/rainbow-star.png
+  test -r /usr/share/nginx/html/default-avatar.webp
+  test -r /usr/share/nginx/html/favicon.svg
+  asset_list=$(find /usr/share/nginx/html -type f)
+  printf "%s\n" "$asset_list" | while IFS= read -r asset; do
+    test -r "$asset" || { echo "Static asset is unreadable by nginx: $asset" >&2; exit 1; }
+  done
   grep -R -l -a "data-sidebar-performance" /usr/share/nginx/html/assets >/dev/null
   ! grep -R -l -a "default-openeds" /usr/share/nginx/html/assets >/dev/null
 '

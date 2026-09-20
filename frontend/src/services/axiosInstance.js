@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { API_CONFIG, normalizeApiRequestUrl } from '@/config/app';
 import { applyRequestOptimizer, clearAllRequestCaches } from '@/utils/requestOptimizer';
+import { getApiErrorMessage } from '@/utils/errorHandler';
 import { ElMessage } from 'element-plus/es/components/message/index';
 import 'element-plus/es/components/message/style/css';
 // 使用环境变量，如果没有设置则使用相对路径
@@ -9,10 +10,21 @@ const UNSAFE_METHODS = new Set(['post', 'put', 'patch', 'delete']);
 const ABSOLUTE_URL_PATTERN = /^[a-z][a-z\d+\-.]*:/i;
 let csrfToken = '';
 let csrfTokenPromise = null;
+let csrfGeneration = 0;
+let authGeneration = 0;
 
-export const resetCsrfToken = () => {
+// Login/logout invalidate the principal; token rotation keeps the same principal.
+export const resetCsrfToken = ({ sessionChanged = true } = {}) => {
+    if (sessionChanged) authGeneration++;
+    csrfGeneration++;
     csrfToken = '';
     csrfTokenPromise = null;
+};
+
+const assertRequestSession = (config) => {
+    if (config?._authGeneration !== undefined && config._authGeneration !== authGeneration) {
+        throw new axios.CanceledError('登录状态已变更，请重新提交操作');
+    }
 };
 
 const getWindowOrigin = () => (
@@ -84,32 +96,52 @@ const fetchCsrfToken = async () => {
     if (csrfToken) return csrfToken;
 
     if (!csrfTokenPromise) {
-        csrfTokenPromise = (async () => {
+        const generation = csrfGeneration;
+        const principal = authGeneration;
+        const assertCurrentSession = () => {
+            if (principal !== authGeneration) {
+                throw new axios.CanceledError('登录状态已变更，请重新提交操作');
+            }
+        };
+        const pending = (async () => {
             try {
-                csrfToken = await requestCsrfTokenOnce();
+                const token = await requestCsrfTokenOnce();
+                assertCurrentSession();
+                if (generation !== csrfGeneration) return fetchCsrfToken();
+                csrfToken = token;
                 return csrfToken;
             } catch {
+                assertCurrentSession();
+                if (generation !== csrfGeneration) return fetchCsrfToken();
                 // 后端刚重启或代理瞬断时重试一次
                 await new Promise((resolve) => setTimeout(resolve, 400));
+                assertCurrentSession();
+                if (generation !== csrfGeneration) return fetchCsrfToken();
                 try {
-                    csrfToken = await requestCsrfTokenOnce();
+                    const token = await requestCsrfTokenOnce();
+                    assertCurrentSession();
+                    if (generation !== csrfGeneration) return fetchCsrfToken();
+                    csrfToken = token;
                     return csrfToken;
                 } catch (secondError) {
+                    assertCurrentSession();
+                    if (generation !== csrfGeneration) return fetchCsrfToken();
                     csrfToken = '';
                     const status = secondError?.response?.status;
                     const message =
                         status === 404
                             ? '无法获取安全令牌（/api/csrf-token 404）。请确认后端已启动（默认端口 8080），并刷新页面后重试。'
-                            : `无法获取安全令牌: ${secondError?.response?.data?.message || secondError?.message || '网络错误'}`;
+                            : `无法获取安全令牌：${getApiErrorMessage(secondError, '网络错误')}`;
                     const error = new Error(message);
                     error.response = secondError?.response;
                     error.cause = secondError;
                     throw error;
                 }
             } finally {
-                csrfTokenPromise = null;
+                if (csrfTokenPromise === pending) csrfTokenPromise = null;
             }
         })();
+        csrfTokenPromise = pending;
     }
 
     return csrfTokenPromise;
@@ -146,6 +178,23 @@ export const fastApi = axios.create({
     retryDelay: API_CONFIG.fastRetryDelayMs,
     withCredentials: true  // ✅ 重要：允许发送Cookie
 });
+const normalizeClientError = (error) => {
+    const message = getApiErrorMessage(error, '操作失败');
+    if (!message) return error;
+
+    // 老页面仍可能直接读取 response.data.message。统一把该字段规范化，
+    // 这样错误码和开发环境中的 error 对象不会绕过统一错误解析直接展示。
+    error.message = message;
+    const data = error.response?.data;
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+        data.message = message;
+        if ('msg' in data) data.msg = message;
+        if (data.error && typeof data.error === 'object') data.error.message = message;
+        else if (typeof data.error === 'string') data.error = message;
+    }
+    return error;
+};
+
 /**
  * 统一解包 ResponseHandler 格式的响应
  *
@@ -175,7 +224,7 @@ const unwrapResponse = (response) => {
             const error = new Error(responseData.message || '操作失败');
             error.response = response;
             error.code = responseData.errorCode || 'BUSINESS_ERROR';
-            throw error;
+            throw normalizeClientError(error);
         }
     }
     // 非 ResponseHandler 格式，直接返回（兼容直接返回数据的接口）
@@ -298,7 +347,7 @@ const refreshSessionOnce = async () => {
                         // Avoid the response interceptor re-entering refresh on 401.
                         _retry: true,
                     });
-                    resetCsrfToken();
+                    resetCsrfToken({ sessionChanged: false });
                     return;
                 } catch (error) {
                     lastError = error;
@@ -334,6 +383,8 @@ const refreshSessionOnce = async () => {
 // 通用拦截器配置函数
 const setupInterceptors = (apiInstance) => {
     apiInstance.interceptors.request.use(async (config) => {
+        config._authGeneration ??= authGeneration;
+        assertRequestSession(config);
         config.url = normalizeApiRequestUrl(config.url);
 
         const isTrustedApiRequest = isCredentialedApiRequest(config);
@@ -348,6 +399,7 @@ const setupInterceptors = (apiInstance) => {
         if (shouldAttachCsrfToken(config, isTrustedApiRequest)) {
             try {
                 const csrf = await fetchCsrfToken();
+                assertRequestSession(config);
                 if (csrf) {
                     config.headers['X-CSRF-Token'] = csrf;
                 }
@@ -363,17 +415,23 @@ const setupInterceptors = (apiInstance) => {
     });
     apiInstance.interceptors.response.use(
         (response) => {
+            assertRequestSession(response.config);
             // ✅ 统一解包 ResponseHandler 格式
             // 解包后 response.data 就是实际的业务数据
             // 前端代码统一使用 response.data 获取数据
             return unwrapResponse(response);
         },
         async (error) => {
+            if (axios.isCancel(error)) return Promise.reject(error);
+            // 非 2xx 响应不会经过 unwrapResponse，统一保留后端返回的中文提示，
+            // 避免页面只能看到 Axios 技术错误或错误代码。
+            normalizeClientError(error);
             const originalRequest = error.config || {};
+            assertRequestSession(originalRequest);
             const requestUrl = String(originalRequest.url || '');
             const csrfErrorCode = error.response?.data?.errorCode || error.response?.data?.code;
             if (error.response?.status === 403 && csrfErrorCode === 'INVALID_CSRF_TOKEN' && !originalRequest._csrfRetry) {
-                resetCsrfToken();
+                resetCsrfToken({ sessionChanged: false });
                 originalRequest._csrfRetry = true;
                 originalRequest.headers = originalRequest.headers || {};
                 delete originalRequest.headers['X-CSRF-Token'];
@@ -409,6 +467,7 @@ const setupInterceptors = (apiInstance) => {
                     return apiInstance(originalRequest);
                 } catch (refreshError) {
                     processRefreshQueue(refreshError);
+                    assertRequestSession(originalRequest);
                     clearAllRequestCaches();
                     try {
                         // 动态导入避免循环依赖
@@ -443,9 +502,7 @@ const setupInterceptors = (apiInstance) => {
             ) {
                 originalRequest._forbiddenToastShown = true;
                 const msg =
-                    error.response?.data?.message ||
-                    error.response?.data?.error ||
-                    '您没有权限执行此操作';
+                    getApiErrorMessage(error, '您没有权限执行此操作');
                 ElMessage.error(msg);
             }
 

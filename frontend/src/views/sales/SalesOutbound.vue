@@ -654,6 +654,7 @@ import printService from '@/services/printService'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
 import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue'
 import { getCommonStatusText } from '@/constants/systemConstants'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 // 状态变量
 const loading = ref(false)
 const orders = ref([])
@@ -991,7 +992,7 @@ const showEditDialog = async (row) => {
       remarks: data.remarks || '', relatedOrders, items,
     }
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || error.message || '获取出库单详情失败')
+    ElMessage.error(getApiErrorMessage(error, '获取出库单详情失败'))
     dialogVisible.value = false
   } finally { dialogLoading.value = false }
 }
@@ -1167,7 +1168,7 @@ const addOrderToOutbound = async () => {
     customerOptions.value = [currentCustomer.value]
     selectedOrderId.value = ''
     ElMessage.success(`已添加订单 ${order.orderNo}，包含 ${lines.length} 个待发货物料`)
-  } catch (error) { ElMessage.error(error.response?.data?.message || error.message || '添加订单失败') }
+  } catch (error) { ElMessage.error(getApiErrorMessage(error, '添加订单失败')) }
 }
 // 计算属性：获取唯一客户数量
 const _uniqueCustomers = computed(() => {
@@ -1330,7 +1331,7 @@ const fetchCustomerProducts = async (searchKeyword = '') => {
     ElMessage.success(`获取到 ${products.length} 个产品${searchText}`)
   } catch (error) {
     console.error('获取客户产品失败:', error)
-    ElMessage.error('获取客户产品失败: ' + (error.message || '未知错误'))
+    ElMessage.error('获取客户产品失败: ' + (getApiErrorMessage(error, '未知错误')))
     customerProducts.value = []
   } finally {
     customerProductsLoading.value = false
@@ -1468,8 +1469,7 @@ const handleStatusChange = async (row, status) => {
   } catch (error) {
     console.error('状态更新失败:', error)
     const errorData = error.response?.data
-    const rawMsg = errorData?.message || (typeof errorData?.error === 'string' ? errorData.error : errorData?.error?.message) || error.message || '状态更新失败'
-    const errorMsg = typeof rawMsg === 'string' ? rawMsg : JSON.stringify(rawMsg)
+    const errorMsg = getApiErrorMessage(error, '状态更新失败')
 
     // 处理库存相关错误
     if (error.response?.status === 400) {
@@ -1541,7 +1541,7 @@ const printOutbound = async (row) => {
     printService.previewDocument(html)
     ElMessage.success('销售出库单打印预览已打开')
   } catch (error) {
-    ElMessage.error('打印失败: ' + (error.message || '未知错误'))
+    ElMessage.error('打印失败: ' + (getApiErrorMessage(error, '未知错误')))
     console.error('打印出库单失败:', error)
   }
 }

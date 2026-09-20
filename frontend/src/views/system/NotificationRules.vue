@@ -287,6 +287,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { Search, Setting, Edit, Delete, Promotion } from '@element-plus/icons-vue'
 import { notificationRuleApi } from '@/api/notificationRule'
 import {
@@ -360,7 +361,7 @@ function groupBy(items, keyGetter) {
 }
 
 function formatUser(user) {
-  return `${user.realName || user.username || `用户${user.id}`}（${user.departmentName || '未分配部门'}）`
+  return `${user.realName || user.username || '未命名用户'}（${user.departmentName || '未分配部门'}）`
 }
 
 function recipientSummary(row) {
@@ -369,7 +370,7 @@ function recipientSummary(row) {
   const source = row.recipientType === RECIPIENT_TYPES.ROLE ? options.value.roles : row.recipientType === RECIPIENT_TYPES.DEPARTMENT ? options.value.departments : options.value.users
   return config.map((id) => {
     const item = source.find((candidate) => Number(candidate.id) === Number(id))
-    return item ? (row.recipientType === RECIPIENT_TYPES.USER ? formatUser(item) : item.name) : `ID:${id}`
+    return item ? (row.recipientType === RECIPIENT_TYPES.USER ? formatUser(item) : item.name) : '未命名接收人'
   }).join('、')
 }
 
@@ -440,7 +441,7 @@ async function previewResponsibility() {
     }))
   } catch (error) {
     responsibilityPreview.value = null
-    ElMessage.warning(error.response?.data?.message || '无法预览责任范围')
+    ElMessage.warning(getApiErrorMessage(error, '无法预览责任范围'))
   }
 }
 
@@ -454,7 +455,7 @@ async function saveResponsibility() {
     responsibilityVisible.value = false
     await loadMetadata()
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || '责任组保存失败')
+    ElMessage.error(getApiErrorMessage(error, '责任组保存失败'))
   } finally {
     responsibilitySaving.value = false
   }
@@ -498,7 +499,7 @@ async function previewRecipients() {
     }))
   } catch (error) {
     preview.value = null
-    ElMessage.warning(error.response?.data?.message || '无法预览当前收件范围')
+    ElMessage.warning(getApiErrorMessage(error, '无法预览当前收件范围'))
   }
 }
 
@@ -518,7 +519,7 @@ async function saveRule() {
     formVisible.value = false
     await fetchData()
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || error.message || '保存失败')
+    ElMessage.error(getApiErrorMessage(error, '保存失败'))
   } finally {
     saving.value = false
   }
@@ -540,7 +541,7 @@ async function toggleActive(id, value) {
     ElMessage.success(value ? '规则已启用' : '规则已禁用')
     await fetchData()
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || '启停失败，规则可能未通过收件范围校验')
+    ElMessage.error(getApiErrorMessage(error, '启停失败，规则可能未通过收件范围校验'))
     await fetchData()
   }
 }
@@ -551,7 +552,7 @@ async function sendTest(id) {
     await notificationRuleApi.sendTest(id)
     ElMessage.success('测试通知已发送给当前用户')
   } catch (error) {
-    if (error !== 'cancel' && error !== 'close') ElMessage.error(error.response?.data?.message || '测试发送失败')
+    if (error !== 'cancel' && error !== 'close') ElMessage.error(getApiErrorMessage(error, '测试发送失败'))
   }
 }
 

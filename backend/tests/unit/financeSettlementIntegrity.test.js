@@ -32,6 +32,22 @@ describe('finance settlement integrity', () => {
     expect(fromCents(line.settlementCents)).toBe(1000);
   });
 
+  test.each(['invalid', '10abc', '', ' ', null, undefined, false, [], NaN, Infinity])(
+    '拒绝无效实收实付金额 %p，不能将其当作零现金核销', (amount) => {
+      expect(() => parseSettlementLine({ amount, discount_amount: 10 })).toThrow(/有效数字/);
+    }
+  );
+
+  test.each(['invalid', ' ', false, [], NaN, Infinity])('拒绝无效折扣 %p', (discount) => {
+    expect(() => parseSettlementLine({ amount: 10, discount_amount: discount })).toThrow(/有效数字/);
+  });
+
+  test('拒绝四舍五入为零的负金额和超出整数精度的核销', () => {
+    expect(() => parseSettlementLine({ amount: -0.001, discount_amount: 10 })).toThrow(/负数/);
+    expect(() => parseSettlementLine({ amount: 1e20 })).toThrow(/精确计算范围/);
+    expect(parseSettlementLine({ amount: '0', discountAmount: '10.50' }).settlementCents).toBe(1050);
+  });
+
   test('发票状态随核销进度变化', () => {
     expect(invoiceStatusAfterSettlement(0, 100000)).toBe(INVOICE_STATUS.CONFIRMED);
     expect(invoiceStatusAfterSettlement(40000, 100000)).toBe(INVOICE_STATUS.PARTIAL_PAID);

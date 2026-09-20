@@ -204,6 +204,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, reactive, computed, onMounted } from 'vue'
 import { Plus, InfoFilled, Check } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -296,7 +297,7 @@ const submitCreate = async () => {
         dialogVisible.value = false
         loadInventories()
       } catch (err) {
-        ElMessage.error(err.response?.data?.message || '创建失败，可能存在未完成的盘点单')
+        ElMessage.error(getApiErrorMessage(err, '创建失败，可能存在未完成的盘点单'))
       } finally {
         submitLoading.value = false
       }
@@ -414,7 +415,7 @@ const completeInventory = async () => {
       detailVisible.value = false
       loadInventories()
     } catch (err) {
-      ElMessage.error(err.response?.data?.message || '完成盘点失败')
+      ElMessage.error(getApiErrorMessage(err, '完成盘点失败'))
     } finally {
       completeLoading.value = false
     }

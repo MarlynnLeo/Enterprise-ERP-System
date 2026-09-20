@@ -30,9 +30,7 @@ class FinanceDocumentStatusService {
       [receiptId, ...INACTIVE_INVOICE_STATUSES]
     );
 
-    const taxTypes = taxRelatedDocumentTypeMatchList(
-      TAX_RELATED_DOCUMENT_TYPES.PURCHASE_RECEIPT
-    );
+    const taxTypes = taxRelatedDocumentTypeMatchList(TAX_RELATED_DOCUMENT_TYPES.PURCHASE_RECEIPT);
     const taxPh = taxTypes.map(() => '?').join(', ');
     const [tax] = await db.pool.execute(
       `SELECT id, invoice_number, status, total_amount
@@ -107,9 +105,7 @@ class FinanceDocumentStatusService {
       [outboundId, ...INACTIVE_INVOICE_STATUSES]
     );
 
-    const taxTypes = taxRelatedDocumentTypeMatchList(
-      TAX_RELATED_DOCUMENT_TYPES.SALES_OUTBOUND
-    );
+    const taxTypes = taxRelatedDocumentTypeMatchList(TAX_RELATED_DOCUMENT_TYPES.SALES_OUTBOUND);
     const taxPh = taxTypes.map(() => '?').join(', ');
     const [tax] = await db.pool.execute(
       `SELECT id, invoice_number, status

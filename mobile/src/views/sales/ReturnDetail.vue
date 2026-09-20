@@ -16,7 +16,7 @@
           {{ getDictText(SALES_RETURN_STATUS, detail.status) }}
         </div>
         <div class="detail-code">
-          {{ detail.returnNo || detail.returnCode || `退货单#${detail.id}` }}
+          {{ detail.returnNo || detail.returnCode || '未生成退货单号' }}
         </div>
       </div>
 
@@ -32,7 +32,7 @@
         <Cell
           v-for="(item, index) in detail.items"
           :key="index"
-          :title="item.materialName || item.productName || item.materialName || item.productName || `物料#${item.materialId}`"
+          :title="item.materialName || item.productName || item.materialCode || item.productCode || '未命名物料'"
           :value="`${item.quantity} ${item.unit || '件'}`"
           :label="`退货原因: ${item.reason || '--'}`"
         />
@@ -81,6 +81,7 @@
   import { canViewMaterialPrices, formatMaskedPrice } from '@/utils/priceVisibility'
   import { extractApiData } from '@/utils/apiHelper'
   import { SALES_RETURN_STATUS, getDictText, getDictClass } from '@/constants/dict'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const route = useRoute()
   const router = useRouter()
@@ -108,11 +109,14 @@
       }
     } catch (error) {
       detail.value = null
-      errorMessage.value = error?.response?.status === 403
+      const fallback = error?.response?.status === 403
         ? '没有权限查看此销售退货单'
         : error?.response?.status === 404
           ? '销售退货单不存在或已被删除'
           : '加载失败，请重试'
+      errorMessage.value = error?.response?.status === 403 || error?.response?.status === 404
+        ? fallback
+        : getApiErrorMessage(error, fallback)
       showToast(errorMessage.value)
     } finally {
       loading.value = false
@@ -130,7 +134,7 @@
       showToast('审批通过')
       await loadDetail()
     } catch (e) {
-      if (e !== 'cancel') showToast(e.response?.data?.message || '操作失败')
+      if (e !== 'cancel') showToast(getApiErrorMessage(e, '操作失败'))
     } finally {
       actionLoading.value = false
     }
@@ -145,7 +149,7 @@
       showToast('已拒绝')
       await loadDetail()
     } catch (e) {
-      if (e !== 'cancel') showToast(e.response?.data?.message || '操作失败')
+      if (e !== 'cancel') showToast(getApiErrorMessage(e, '操作失败'))
     } finally {
       actionLoading.value = false
     }
@@ -160,7 +164,7 @@
       showToast('退货完成')
       await loadDetail()
     } catch (e) {
-      if (e !== 'cancel') showToast(e.response?.data?.message || '操作失败')
+      if (e !== 'cancel') showToast(getApiErrorMessage(e, '操作失败'))
     } finally {
       actionLoading.value = false
     }

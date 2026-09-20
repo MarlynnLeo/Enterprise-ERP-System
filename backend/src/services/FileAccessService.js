@@ -26,12 +26,24 @@ const FILE_OBJECT_POLICIES = Object.freeze({
   process_template: Object.freeze({
     table: 'process_templates',
     deletedAtColumn: 'deleted_at',
-    viewPermissions: ['basedata:processtemplates:view', 'basedata:process-templates:view', 'production:routes:view', 'production:process:view', 'production:assembly:view'],
+    viewPermissions: [
+      'basedata:processtemplates:view',
+      'basedata:process-templates:view',
+      'production:routes:view',
+      'production:process:view',
+      'production:assembly:view',
+    ],
   }),
   process_template_detail: Object.freeze({
     table: 'process_template_details',
     deletedAtColumn: false,
-    viewPermissions: ['basedata:processtemplates:view', 'basedata:process-templates:view', 'production:routes:view', 'production:process:view', 'production:assembly:view'],
+    viewPermissions: [
+      'basedata:processtemplates:view',
+      'basedata:process-templates:view',
+      'production:routes:view',
+      'production:process:view',
+      'production:assembly:view',
+    ],
   }),
   purchase_requisition: Object.freeze({ scopePolicy: 'purchase_requisition' }),
   purchase_order: Object.freeze({ scopePolicy: 'purchase_order' }),
@@ -311,7 +323,10 @@ function normalizeRecordPayload(payload) {
     fileUrl: normalizedUrl,
     businessType: binding.businessType,
     businessId: binding.businessId,
-    source: String(payload?.source || 'upload').trim().slice(0, 50) || 'upload',
+    source:
+      String(payload?.source || 'upload')
+        .trim()
+        .slice(0, 50) || 'upload',
     uploadedBy: parseNullableId(payload?.uploadedBy),
     isPublic: Number(payload?.isPublic) === 1 ? 1 : 0,
     metadataJson,
@@ -422,8 +437,10 @@ class FileAccessService {
 
   static canViewBusinessType(businessType, userPermissions = []) {
     const requiredPermissions = viewPermissionsForBusinessType(businessType);
-    return requiredPermissions.length > 0 &&
-      PermissionUtils.hasAnyPermission(userPermissions, requiredPermissions);
+    return (
+      requiredPermissions.length > 0 &&
+      PermissionUtils.hasAnyPermission(userPermissions, requiredPermissions)
+    );
   }
 
   static removeLocalFile(fileUrl) {
@@ -441,11 +458,13 @@ class FileAccessService {
 
     const descriptor = FILE_OBJECT_POLICIES[binding.businessType];
     if (!descriptor) return false;
-    const policy = descriptor.scopePolicy ? ScopeGuard.getPolicy(descriptor.scopePolicy) : descriptor;
+    const policy = descriptor.scopePolicy
+      ? ScopeGuard.getPolicy(descriptor.scopePolicy)
+      : descriptor;
     return DataScopeService.assertRecordExists(pool, policy.table, binding.businessId, {
       idColumn: policy.idColumn || 'id',
       deletedAtColumn:
-        policy.deletedAtColumn === false ? false : (policy.deletedAtColumn || 'deleted_at'),
+        policy.deletedAtColumn === false ? false : policy.deletedAtColumn || 'deleted_at',
       extraSoftDelete: policy.extraSoftDelete || null,
     });
   }
@@ -537,12 +556,14 @@ class FileAccessService {
         error.code = 'BUSINESS_TYPE_PERMISSION_DENIED';
         throw error;
       }
-      if (!(await this.assertBusinessObjectAccess(
-        req,
-        binding.businessType,
-        binding.businessId,
-        'write'
-      ))) {
+      if (
+        !(await this.assertBusinessObjectAccess(
+          req,
+          binding.businessType,
+          binding.businessId,
+          'write'
+        ))
+      ) {
         const error = new Error('无权关联该业务对象');
         error.code = 'BUSINESS_OBJECT_ACCESS_DENIED';
         throw error;
@@ -587,7 +608,10 @@ class FileAccessService {
    * inside the caller's transaction.  The owner check prevents a user from
    * claiming another user's temporary upload by guessing its URL.
    */
-  static async bindExistingUploadInTransaction(connection, { userId, fileUrl, businessType, businessId }) {
+  static async bindExistingUploadInTransaction(
+    connection,
+    { userId, fileUrl, businessType, businessId }
+  ) {
     const binding = validateBusinessBinding(businessType, businessId);
     if (!binding.valid || !binding.bound) {
       const error = new Error('业务附件绑定参数无效');
@@ -788,11 +812,11 @@ class FileAccessService {
       const rawUrl =
         typeof attachment === 'string'
           ? attachment
-          : attachment?.url ??
+          : (attachment?.url ??
             attachment?.fileUrl ??
             attachment?.file_url ??
             attachment?.path ??
-            attachment?.filePath;
+            attachment?.filePath);
       const normalizedUrl = normalizeUploadUrl(rawUrl);
       if (!normalizedUrl || seen.has(normalizedUrl)) continue;
       seen.add(normalizedUrl);
@@ -859,11 +883,7 @@ class FileAccessService {
     return requested.map((attachment) => attachment.url);
   }
 
-  static async markBusinessAttachmentsDeletedInTransaction(
-    connection,
-    businessType,
-    businessId
-  ) {
+  static async markBusinessAttachmentsDeletedInTransaction(connection, businessType, businessId) {
     const binding = validateBusinessBinding(businessType, businessId);
     if (!binding.valid || !binding.bound) return 0;
     const [result] = await connection.execute(

@@ -59,6 +59,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { productionAssistApi } from '@/api/productionAssist'
@@ -68,14 +69,14 @@ const loading = ref(false)
 const result = ref(null)
 
 const checkReadiness = async () => {
-  if (!taskId.value) return ElMessage.warning('请输入任务ID')
+  if (!taskId.value) return ElMessage.warning('请选择生产任务')
   loading.value = true
   result.value = null
   try {
     const res = await productionAssistApi.checkReadiness(taskId.value)
     result.value = res.data || res
   } catch (err) {
-    ElMessage.error(err.response?.data?.message || '检查失败')
+    ElMessage.error(getApiErrorMessage(err, '检查失败'))
   } finally {
     loading.value = false
   }

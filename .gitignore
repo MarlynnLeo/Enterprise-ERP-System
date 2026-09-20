@@ -59,6 +59,9 @@ _*.cjs
 
 # Local full-audit transcripts are reproducible CI output, not source artifacts.
 /full-*.txt
+/full-*.json
+reports/
+/_qa_ref_*/
 
 # Local deployment packages and browser automation artifacts.
 *.tar.gz

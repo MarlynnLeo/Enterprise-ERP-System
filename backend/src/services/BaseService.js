@@ -67,11 +67,14 @@ class BaseService {
    */
   sanitizeSelectFields(fields) {
     if (!fields || fields === '*') return '*';
-    return fields.split(',').map(f => {
-      const trimmed = f.trim();
-      this.assertIdentifier(trimmed, 'select field', { qualified: true });
-      return trimmed;
-    }).join(', ');
+    return fields
+      .split(',')
+      .map((f) => {
+        const trimmed = f.trim();
+        this.assertIdentifier(trimmed, 'select field', { qualified: true });
+        return trimmed;
+      })
+      .join(', ');
   }
 
   /**
@@ -164,9 +167,7 @@ class BaseService {
       // ✅ 软删除: 自动过滤已删除记录
       const sdFilter = this._softDeleteFilter();
       if (sdFilter) {
-        whereClause = whereClause
-          ? `${whereClause} AND ${sdFilter}`
-          : `WHERE ${sdFilter}`;
+        whereClause = whereClause ? `${whereClause} AND ${sdFilter}` : `WHERE ${sdFilter}`;
       }
 
       let sql = `SELECT ${this.sanitizeSelectFields(fields)} FROM ${this.tableName} ${whereClause} ${orderClause}`;
@@ -185,10 +186,7 @@ class BaseService {
         const countSql = `SELECT COUNT(*) as total FROM ${this.tableName} ${whereClause}`;
         // ✅ 修复: LIMIT/OFFSET 是直接拼入 SQL 的，不在 params 中
         // 所以 COUNT 查询应使用完整的 params，不需要 slice
-        const [countResult] = await connection.execute(
-          countSql,
-          params
-        );
+        const [countResult] = await connection.execute(countSql, params);
         total = countResult[0].total;
       }
 
@@ -233,9 +231,7 @@ class BaseService {
       let whereClause = this.buildWhereClause(conditions, params);
       const sdFilter = this._softDeleteFilter();
       if (sdFilter) {
-        whereClause = whereClause
-          ? `${whereClause} AND ${sdFilter}`
-          : `WHERE ${sdFilter}`;
+        whereClause = whereClause ? `${whereClause} AND ${sdFilter}` : `WHERE ${sdFilter}`;
       }
       const sql = `SELECT ${this.sanitizeSelectFields(fields)} FROM ${this.tableName} ${whereClause} LIMIT 1`;
 
@@ -416,9 +412,7 @@ class BaseService {
       let whereClause = this.buildWhereClause(conditions, params);
       const sdFilter = this._softDeleteFilter();
       if (sdFilter) {
-        whereClause = whereClause
-          ? `${whereClause} AND ${sdFilter}`
-          : `WHERE ${sdFilter}`;
+        whereClause = whereClause ? `${whereClause} AND ${sdFilter}` : `WHERE ${sdFilter}`;
       }
       const sql = `SELECT COUNT(*) as total FROM ${this.tableName} ${whereClause}`;
 

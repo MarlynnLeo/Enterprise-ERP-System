@@ -22,9 +22,7 @@ module.exports = {
   server: {
     port: apiPort,
     publicApiBaseUrl:
-      process.env.PUBLIC_API_BASE_URL ||
-      process.env.API_BASE_URL ||
-      defaultPublicApiBaseUrl,
+      process.env.PUBLIC_API_BASE_URL || process.env.API_BASE_URL || defaultPublicApiBaseUrl,
     timeoutMs: parsePositiveInt(process.env.SERVER_TIMEOUT_MS, 120000),
     nodemonRestartDelayMs: parsePositiveInt(process.env.NODEMON_RESTART_DELAY_MS, 500),
     gcIntervalMs: parsePositiveInt(process.env.GC_INTERVAL_MS, 30 * 60 * 1000),

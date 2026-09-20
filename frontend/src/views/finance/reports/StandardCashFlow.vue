@@ -148,6 +148,7 @@ import { ElMessage } from 'element-plus/es/components/message/index';
 import { financeApi } from '@/api';
 import printService from '@/services/printService';
 import { loadExcelJS } from '@/utils/lazyVendors';
+import { getApiErrorMessage } from '@/utils/errorHandler'
 
 // 查询参数
 const queryParams = reactive({
@@ -197,7 +198,7 @@ const generateReport = async () => {
     }
   } catch (error) {
     console.error('生成报表失败:', error);
-    ElMessage.error('生成报表失败: ' + (error.response?.data?.message || error.message));
+    ElMessage.error('生成报表失败: ' + (getApiErrorMessage(error, '未知错误')));
   } finally {
     loading.value = false;
   }

@@ -26,17 +26,9 @@ const ROLE_TO_ACCOUNT_KEY = Object.freeze({
   [ENTRY_ROLES.INCOME]: 'incomeAccountId',
 });
 
-const AP_ROLE_ORDER = Object.freeze([
-  ENTRY_ROLES.COST,
-  ENTRY_ROLES.TAX,
-  ENTRY_ROLES.PAYABLE,
-]);
+const AP_ROLE_ORDER = Object.freeze([ENTRY_ROLES.COST, ENTRY_ROLES.TAX, ENTRY_ROLES.PAYABLE]);
 
-const AR_ROLE_ORDER = Object.freeze([
-  ENTRY_ROLES.RECEIVABLE,
-  ENTRY_ROLES.INCOME,
-  ENTRY_ROLES.TAX,
-]);
+const AR_ROLE_ORDER = Object.freeze([ENTRY_ROLES.RECEIVABLE, ENTRY_ROLES.INCOME, ENTRY_ROLES.TAX]);
 
 function money(n) {
   return roundMoney(n);
@@ -219,7 +211,7 @@ function normalizeLineItem(raw = {}, source = {}) {
     raw.material_name,
     raw.product_name,
     raw.material_code,
-    materialId ? `material#${materialId}` : null
+    '未命名物料'
   );
 
   return {
@@ -271,7 +263,11 @@ function accountsFromEntryLines(entryLines = []) {
 
 function normalizeAccounts(raw = {}, fromLines = {}) {
   const candidates = {
-    costAccountId: firstDefined(raw.costAccountId, raw.purchase_cost_account_id, fromLines.costAccountId),
+    costAccountId: firstDefined(
+      raw.costAccountId,
+      raw.purchase_cost_account_id,
+      fromLines.costAccountId
+    ),
     taxAccountId: firstDefined(
       raw.taxAccountId,
       raw.input_tax_account_id,
@@ -309,9 +305,7 @@ function normalizeOverrideRow(row = {}) {
   if (!row || typeof row !== 'object') return null;
 
   // 对外契约：camelCase；读入时仅兼容极少数历史键，写出一律 camelCase
-  const entryLines = Array.isArray(row.entryLines)
-    ? row.entryLines.map(normalizeEntryLine)
-    : [];
+  const entryLines = Array.isArray(row.entryLines) ? row.entryLines.map(normalizeEntryLine) : [];
 
   const fromLines = accountsFromEntryLines(entryLines);
   const accounts = normalizeAccounts(row.accounts || {}, fromLines);
@@ -332,11 +326,7 @@ function normalizeOverrideRow(row = {}) {
   // 明细未税合计（权威）
   const itemsSubtotal = items.length ? sumBy(items, 'amount') : undefined;
   const subtotal =
-    itemsSubtotal != null
-      ? itemsSubtotal
-      : row.subtotal != null
-        ? money(row.subtotal)
-        : undefined;
+    itemsSubtotal != null ? itemsSubtotal : row.subtotal != null ? money(row.subtotal) : undefined;
 
   let taxAmount =
     taxAmountRaw !== undefined && taxAmountRaw !== null && taxAmountRaw !== ''
@@ -423,9 +413,7 @@ function resolveMergedPayload(rawOverrides, ids = []) {
     const docItems = allItems
       .filter((it) => Number(it.source_id) === Number(id))
       .map((it) => normalizeLineItem(it, { id }));
-    const subtotal = docItems.length
-      ? sumBy(docItems, 'amount')
-      : 0;
+    const subtotal = docItems.length ? sumBy(docItems, 'amount') : 0;
     return { id, subtotal, items: docItems };
   });
 
@@ -580,11 +568,7 @@ function mergeDraftsIntoVoucher(businessType, readyDrafts, isAp) {
 
   const rates = readyDrafts.map((d) => toNumber(d.taxRate, 0));
   const sameRate = rates.every((r) => Math.abs(r - rates[0]) < 1e-6);
-  const taxRate = sameRate
-    ? rates[0]
-    : subtotal > 0
-      ? money(taxAmount / subtotal)
-      : rates[0] || 0;
+  const taxRate = sameRate ? rates[0] : subtotal > 0 ? money(taxAmount / subtotal) : rates[0] || 0;
 
   const roleOrder = isAp ? AP_ROLE_ORDER : AR_ROLE_ORDER;
   const roleMap = new Map();
@@ -632,9 +616,7 @@ function mergeDraftsIntoVoucher(businessType, readyDrafts, isAp) {
   for (const line of roleMap.values()) {
     ordered.push({ ...line, editable: true });
   }
-  const entryLines = ordered.filter(
-    (l) => l.debit_amount > 0 || l.credit_amount > 0
-  );
+  const entryLines = ordered.filter((l) => l.debit_amount > 0 || l.credit_amount > 0);
 
   const accounts = {
     ...(readyDrafts[0].accounts || {}),
@@ -647,7 +629,10 @@ function mergeDraftsIntoVoucher(businessType, readyDrafts, isAp) {
     ? `供应商 ${partyLabel} 应付账款（合并入库 ${docsLabel}）`
     : `客户 ${partyLabel} 应收账款（合并出库 ${docsLabel}）`;
 
-  const dates = readyDrafts.map((d) => d.entryDate).filter(Boolean).sort();
+  const dates = readyDrafts
+    .map((d) => d.entryDate)
+    .filter(Boolean)
+    .sort();
   const entryDate = dates[dates.length - 1] || null;
 
   return {

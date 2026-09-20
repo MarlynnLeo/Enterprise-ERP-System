@@ -120,6 +120,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus/es/components/message/index'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { api } from '../../services/axiosInstance'
 
 const router = useRouter()
@@ -519,7 +520,7 @@ async function startDiagnosis() {
 [发现问题]: ${issues.join('; ') || '无'}
 [优化建议]: ${suggestions.join('; ') || '继续观察具体业务页面'}`
   } catch (error) {
-    ElMessage.error(`诊断过程出错: ${error.message}`)
+    ElMessage.error(`诊断过程出错：${getApiErrorMessage(error, '请稍后重试')}`)
   } finally {
     testing.value = false
   }

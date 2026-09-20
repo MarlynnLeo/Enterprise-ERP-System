@@ -30,7 +30,12 @@ function normalizeConfig(input) {
     const value = Number(config[key]);
     config[key] = Number.isFinite(value) ? Math.min(Math.max(value, 0), 1) : DEFAULTS[key];
   }
-  for (const key of ['minimumPopulation', 'maxTargetsPerRule', 'optionLimit', 'realtimeWindowMinutes']) {
+  for (const key of [
+    'minimumPopulation',
+    'maxTargetsPerRule',
+    'optionLimit',
+    'realtimeWindowMinutes',
+  ]) {
     const value = Number(config[key]);
     config[key] = Number.isInteger(value) && value > 0 ? value : DEFAULTS[key];
   }
@@ -43,10 +48,9 @@ function normalizeConfig(input) {
 class NotificationGovernanceConfig {
   async get() {
     if (this.cache && this.expiresAt > Date.now()) return this.cache;
-    const [rows] = await pool.query(
-      'SELECT value FROM system_settings WHERE `key` = ? LIMIT 1',
-      [NOTIFICATION_SETTING_KEYS.GOVERNANCE]
-    );
+    const [rows] = await pool.query('SELECT value FROM system_settings WHERE `key` = ? LIMIT 1', [
+      NOTIFICATION_SETTING_KEYS.GOVERNANCE,
+    ]);
     this.cache = normalizeConfig(rows[0]?.value);
     this.expiresAt = Date.now() + CACHE_TTL_MS;
     return this.cache;

@@ -216,6 +216,7 @@
   } from 'vant'
   import { productionApi } from '@/api'
   import dayjs from 'dayjs'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   // 状态/标签
   const categoryLabel = { quality: '质量', equipment: '设备', material: '物料', safety: '安全', process: '工艺', other: '其他' }
@@ -331,7 +332,7 @@
       loadData(true)
       loadStats()
     } catch (err) {
-      showToast(err.response?.data?.message || '上报失败')
+      showToast(getApiErrorMessage(err, '上报失败'))
     } finally {
       submitting.value = false
     }

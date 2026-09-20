@@ -29,6 +29,7 @@
   import { useRouter } from 'vue-router'
   import { ActionSheet, Button as VanButton, CellGroup, Field, Form as VanForm, NavBar, showToast } from 'vant'
   import { financeApi } from '@/api'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const router = useRouter()
   const submitting = ref(false)
@@ -103,7 +104,7 @@
       showToast({ type: 'success', message: '现金交易已创建' })
       router.replace(id ? `/finance/cash/cash-transactions/${id}` : '/finance/cash/cash-transactions')
     } catch (error) {
-      showToast(error.response?.data?.message || '创建现金交易失败')
+      showToast(getApiErrorMessage(error, '创建现金交易失败'))
     } finally {
       submitting.value = false
     }

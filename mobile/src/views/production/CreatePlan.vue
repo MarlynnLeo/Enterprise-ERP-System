@@ -211,6 +211,7 @@
   } from 'vant'
   import { productionApi, baseDataApi } from '@/api'
   import { extractApiData, extractApiList } from '@/utils/apiHelper'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const router = useRouter()
   const formRef = ref()
@@ -362,10 +363,10 @@
       console.error('错误详情:', error.response?.data)
 
       if (error.response?.status === 404) {
-        const errorMsg = error.response?.data?.message || '该产品没有配置BOM，无法计算物料需求'
+        const errorMsg = getApiErrorMessage(error, '该产品没有配置BOM，无法计算物料需求')
         showToast(errorMsg)
       } else {
-        const errorMsg = error.response?.data?.message || '计算物料需求失败'
+        const errorMsg = getApiErrorMessage(error, '计算物料需求失败')
         showToast(errorMsg)
       }
       materialRequirements.value = []
@@ -415,7 +416,7 @@
     } catch (error) {
       closeToast()
       console.error('创建生产计划失败:', error)
-      showToast(error.response?.data?.message || '创建生产计划失败')
+      showToast(getApiErrorMessage(error, '创建生产计划失败'))
     } finally {
       submitting.value = false
     }

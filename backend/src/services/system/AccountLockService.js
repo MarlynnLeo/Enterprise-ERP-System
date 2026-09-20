@@ -15,9 +15,7 @@ const { normalizeUsername } = require('../../utils/usernameSecurity');
 
 // 配置：与 security.PASSWORD_POLICY.maxAttempts 对齐（可用环境变量覆盖）
 const MAX_FAILED_ATTEMPTS =
-  parseInt(process.env.LOGIN_MAX_FAILED_ATTEMPTS, 10) ||
-  Number(PASSWORD_POLICY?.maxAttempts) ||
-  5;
+  parseInt(process.env.LOGIN_MAX_FAILED_ATTEMPTS, 10) || Number(PASSWORD_POLICY?.maxAttempts) || 5;
 const LOCK_DURATION_MINUTES = parseInt(process.env.LOGIN_LOCK_DURATION_MINUTES) || 15;
 const LOCK_DURATION_MS = LOCK_DURATION_MINUTES * 60 * 1000;
 const LOCK_DURATION_SECONDS = LOCK_DURATION_MINUTES * 60;
@@ -55,9 +53,10 @@ function isLockedRow(row) {
   if (!row) return false;
   if (Number(row.login_locked) === 1) return true;
   if (!row.locked_until) return false;
-  const timestamp = row.locked_until instanceof Date
-    ? row.locked_until.getTime()
-    : new Date(row.locked_until).getTime();
+  const timestamp =
+    row.locked_until instanceof Date
+      ? row.locked_until.getTime()
+      : new Date(row.locked_until).getTime();
   return Number.isFinite(timestamp) && timestamp > Date.now();
 }
 
@@ -99,9 +98,7 @@ async function setAuxiliaryRecord(username, record) {
   const client = await getClient();
   if (client) {
     try {
-      const ttl = record.lockedUntil
-        ? LOCK_DURATION_SECONDS + 300
-        : 1800;
+      const ttl = record.lockedUntil ? LOCK_DURATION_SECONDS + 300 : 1800;
       await client.setEx(`${KEY_PREFIX}${username}`, ttl, JSON.stringify(record));
       return;
     } catch (error) {
@@ -165,7 +162,10 @@ class AccountLockService {
     const record = await getAuxiliaryRecord(username);
     if (!record || !record.lockedUntil) return { locked: false, remainingMinutes: 0 };
     if (Date.now() < Number(record.lockedUntil)) {
-      return { locked: true, remainingMinutes: Math.ceil((Number(record.lockedUntil) - Date.now()) / 60000) };
+      return {
+        locked: true,
+        remainingMinutes: Math.ceil((Number(record.lockedUntil) - Date.now()) / 60000),
+      };
     }
     await clearAuxiliaryRecord(username);
     return { locked: false, remainingMinutes: 0 };
@@ -226,7 +226,11 @@ class AccountLockService {
 
       await connection.rollback();
     } catch (error) {
-      try { await connection.rollback(); } catch { /* preserve original error */ }
+      try {
+        await connection.rollback();
+      } catch {
+        /* preserve original error */
+      }
       throw error;
     } finally {
       connection.release();
@@ -337,8 +341,10 @@ class AccountLockService {
     const now = Date.now();
     const expireThreshold = 30 * 60 * 1000;
     memoryStore.forEach((record, username) => {
-      if ((record.lockedUntil && now > record.lockedUntil) ||
-          (record.lastFailedAt && (now - record.lastFailedAt) > expireThreshold)) {
+      if (
+        (record.lockedUntil && now > record.lockedUntil) ||
+        (record.lastFailedAt && now - record.lastFailedAt > expireThreshold)
+      ) {
         memoryStore.delete(username);
       }
     });

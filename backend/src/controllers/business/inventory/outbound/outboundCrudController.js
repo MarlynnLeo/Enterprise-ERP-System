@@ -12,7 +12,10 @@ const db = require('../../../../config/db');
 const { softDelete } = require('../../../../utils/softDelete');
 const InventoryService = require('../../../../services/InventoryService');
 const { getCurrentUserName } = require('../../../../utils/userHelper');
-const { checkAndUpdateTaskStatus, _syncProductionStatus } = require('../inventoryConsistencyController');
+const {
+  checkAndUpdateTaskStatus,
+  _syncProductionStatus,
+} = require('../inventoryConsistencyController');
 const ScopeGuard = require('../../../../authorization/ScopeGuard');
 
 const {
@@ -58,8 +61,8 @@ const OUTBOUND_FINANCE_STATUS_TEXT = Object.freeze({
 
 const getOutboundDisplayStatusText = (outbound) => {
   if (
-    ['completed', 'partial_completed'].includes(outbound.status)
-    && OUTBOUND_FINANCE_STATUS_TEXT[outbound.finance_status]
+    ['completed', 'partial_completed'].includes(outbound.status) &&
+    OUTBOUND_FINANCE_STATUS_TEXT[outbound.finance_status]
   ) {
     return OUTBOUND_FINANCE_STATUS_TEXT[outbound.finance_status];
   }
@@ -137,7 +140,8 @@ const getOutboundList = async (req, res) => {
     params.push(...scopeClause.params);
 
     // 获取出库单主表数据（包含操作人信息和生产组信息）
-    const listQuery = appendPaginationSQL(`
+    const listQuery = appendPaginationSQL(
+      `
       SELECT
         o.id,
         o.outbound_no,
@@ -187,7 +191,10 @@ const getOutboundList = async (req, res) => {
       ${whereClause}
       GROUP BY o.id, o.outbound_no, o.outbound_date, o.status, outbound_posting.finance_status, o.operator, o.remark, o.created_at, o.updated_at, o.reference_id, o.reference_type, p.code, p.specs, pt.quantity, pg.name
       ORDER BY o.created_at DESC
-    `, pagination.limit, pagination.offset);
+    `,
+      pagination.limit,
+      pagination.offset
+    );
 
     // LIMIT/OFFSET 使用参数化查询；count 查询不包含分页参数
     const filterParams = [...params];
@@ -259,8 +266,7 @@ const getOutboundList = async (req, res) => {
       api.productionGroupNames = item.production_group_names ?? null;
       api.productCode = item.product_code ?? null;
       api.productSpecs = item.product_specs ?? null;
-      api.productQuantity =
-        item.product_quantity != null ? Number(item.product_quantity) : null;
+      api.productQuantity = item.product_quantity != null ? Number(item.product_quantity) : null;
       api.itemsCount = Number(item.items_count) || 0;
       api.totalQuantity = Number(item.total_quantity) || 0;
       api.itemUnitName = item.item_unit_name ?? null;
@@ -439,7 +445,16 @@ const getOutboundDetail = async (req, res) => {
     await connection.beginTransaction(); // 添加事务，确保INSERT操作能正确提交
     const { id } = req.params;
 
-    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'inventory_outbound', id, '无权访问该出库单'))) {
+    if (
+      !(await ScopeGuard.denyUnlessAccess(
+        res,
+        connection,
+        req,
+        'inventory_outbound',
+        id,
+        '无权访问该出库单'
+      ))
+    ) {
       await connection.rollback();
       return;
     }
@@ -611,9 +626,24 @@ const updateOutbound = async (req, res) => {
     if (!Number.isInteger(numericId) || numericId <= 0) {
       return ResponseHandler.error(res, '无效的出库单ID', 'VALIDATION_ERROR', 400);
     }
-    const { outbound_date, status, operator, remark = null, items } = mapKeysToSnake(req.body || {});
+    const {
+      outbound_date,
+      status,
+      operator,
+      remark = null,
+      items,
+    } = mapKeysToSnake(req.body || {});
 
-    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'inventory_outbound', id, '无权修改该出库单'))) {
+    if (
+      !(await ScopeGuard.denyUnlessAccess(
+        res,
+        connection,
+        req,
+        'inventory_outbound',
+        id,
+        '无权修改该出库单'
+      ))
+    ) {
       return;
     }
 
@@ -709,8 +739,13 @@ const updateOutbound = async (req, res) => {
       await connection.execute('DELETE FROM inventory_outbound_items WHERE outbound_id = ?', [id]);
 
       // 批量预取物料信息（消除循环内 N+1 查询）
-      const itemMaterialIds = items.map((i) => Number(i.material_id)).filter((id) => Number.isInteger(id) && id > 0);
-      const itemMaterialInfoMap = await InventoryService.getBatchMaterialInfo(itemMaterialIds, connection);
+      const itemMaterialIds = items
+        .map((i) => Number(i.material_id))
+        .filter((id) => Number.isInteger(id) && id > 0);
+      const itemMaterialInfoMap = await InventoryService.getBatchMaterialInfo(
+        itemMaterialIds,
+        connection
+      );
 
       // 重新插入明细
       for (const item of items) {
@@ -722,7 +757,7 @@ const updateOutbound = async (req, res) => {
 
         const matInfo = itemMaterialInfoMap.get(materialId);
         if (!matInfo) {
-          throw new Error(`物料 ${materialId} 不存在或已被停用`);
+          throw new Error('所选物料不存在或已停用，请重新选择有效物料');
         }
 
         // 如果没有提供单位，使用物料的默认单位
@@ -732,14 +767,23 @@ const updateOutbound = async (req, res) => {
         const locationId = matInfo.locationId;
 
         if (!locationId) {
-          throw new Error(`物料 ${matInfo.code || materialId} 未配置默认仓库，请在【物料管理】中设置存放仓库后再操作`);
+          throw new Error(
+            `物料 ${matInfo.code || '所选物料'} 未配置默认仓库，请在【物料管理】中设置存放仓库后再操作`
+          );
         }
 
         const itemRemark = item.remark ?? item.remarks ?? null;
 
         await connection.execute(
           'INSERT INTO inventory_outbound_items (outbound_id, material_id, quantity, planned_quantity, actual_quantity, unit_id, remark) VALUES (?, ?, ?, ?, 0, ?, ?)',
-          [id, materialId, quantity, item.planned_quantity != null ? parseFloat(item.planned_quantity) : quantity, unitId, itemRemark]
+          [
+            id,
+            materialId,
+            quantity,
+            item.planned_quantity != null ? parseFloat(item.planned_quantity) : quantity,
+            unitId,
+            itemRemark,
+          ]
         );
       }
     } else {
@@ -806,15 +850,17 @@ const _createOutbound = async (outboundData) => {
     const outboundNo = await CodeGenerators.generateInventoryOutboundCode(connection);
 
     // 获取操作人信息
-    const operator = await resolveActorLabel(connection, outboundData.operator);
+    const operator = await resolveActorLabel(
+      connection,
+      outboundData.created_by,
+      outboundData.operator
+    );
 
     // 创建仅允许草稿/已确认；完成扣库必须走状态接口，避免 CRUD 与 status 双路径
     const requestedStatus = outboundData.status || STATUS.OUTBOUND.DRAFT;
     const allowedCreateStatuses = [STATUS.OUTBOUND.DRAFT, STATUS.OUTBOUND.CONFIRMED];
     if (!allowedCreateStatuses.includes(requestedStatus)) {
-      throw new Error(
-        '创建出库单仅允许 draft/confirmed，完成/取消请使用出库状态接口或撤销接口'
-      );
+      throw new Error('创建出库单仅允许 draft/confirmed，完成/取消请使用出库状态接口或撤销接口');
     }
     const status = requestedStatus;
 
@@ -828,10 +874,12 @@ const _createOutbound = async (outboundData) => {
     const productionTaskId = outboundData.productionTaskId || null;
 
     if (outboundData.request && productionTaskId) {
-      if (!(await assertOutboundSourceAccess(connection, outboundData.request, {
-        reference_type: 'production_task',
-        reference_id: productionTaskId,
-      }))) {
+      if (
+        !(await assertOutboundSourceAccess(connection, outboundData.request, {
+          reference_type: 'production_task',
+          reference_id: productionTaskId,
+        }))
+      ) {
         const sourceError = new Error('无权创建该生产任务的出库单');
         sourceError.statusCode = 403;
         sourceError.code = 'SOURCE_OBJECT_ACCESS_DENIED';
@@ -842,7 +890,6 @@ const _createOutbound = async (outboundData) => {
     // referenceId 使用生产任务 ID，保持出库单与生产任务关联
     const referenceId = productionTaskId;
     let referenceType = null;
-
 
     if (productionTaskId) {
       referenceType = 'production_task';
@@ -875,7 +922,7 @@ const _createOutbound = async (outboundData) => {
             materialName: r.materialName || itemNameMap.get(Number(r.materialId)) || '',
           }));
           const excessDetails = enrichedExcess
-            .map((r) => r.message || `物料ID:${r.materialId} 超出 ${r.excessQty}`)
+            .map((r) => r.message || `${r.materialName || r.materialCode || '所选物料'}超出 ${r.excessQty}`)
             .join('; ');
 
           logger.warn(`检测到超额领料: ${excessDetails}`);
@@ -901,7 +948,6 @@ const _createOutbound = async (outboundData) => {
           outboundData.isExcess = 1;
         }
       }
-
 
       // 创建生产出库单 → 任务进入发料中（状态机）
       try {
@@ -945,7 +991,8 @@ const _createOutbound = async (outboundData) => {
 
     // 插入出库单主表（含出库类型标记；HTTP 入参只认 camel）
     const outboundType = outboundData.outboundType || 'manual';
-    const createdBy = outboundData.createdBy ?? outboundData.created_by ?? outboundData.userId ?? null;
+    const createdBy =
+      outboundData.createdBy ?? outboundData.created_by ?? outboundData.userId ?? null;
     const [result] = await connection.execute(
       `INSERT INTO inventory_outbound
         (outbound_no, outbound_date, status, outbound_type, operator, remark, reference_id, reference_type, production_task_id, issue_reason, is_excess, created_by)
@@ -1012,13 +1059,13 @@ const _createOutbound = async (outboundData) => {
       materialLocationMap[id] = info.locationId;
     }
 
-    // 记录不存在或没有默认库位的物料ID
+    // 记录不存在或没有默认库位的物料编码
     const missingMaterials = [];
 
     // 插入出库单明细
     for (const item of outboundData.items) {
       if (!item.materialId) {
-        throw new Error('每个出库项目必须包含物料ID和数量');
+        throw new Error('每个出库项目必须选择物料并填写数量');
       }
 
       const matInfo = materialInfoMap.get(item.materialId);
@@ -1042,11 +1089,13 @@ const _createOutbound = async (outboundData) => {
       let locationId = materialLocationMap[item.materialId];
       if (!locationId && actualQuantity > 0) {
         if (status === STATUS.OUTBOUND.CONFIRMED) {
-          throw new Error(`物料ID ${item.materialId} 不存在或没有设置默认库位`);
+          throw new Error(
+            `物料“${matInfo?.code || '所选物料'}”不存在或没有设置默认库位，请先维护物料资料`
+          );
         }
         // 草稿允许暂无库位
         locationId = null;
-        missingMaterials.push(item.materialId);
+        missingMaterials.push(matInfo?.code || '所选物料');
       }
 
       // 确保remark不是undefined，如果是undefined则设为null
@@ -1066,8 +1115,8 @@ const _createOutbound = async (outboundData) => {
 
         // 获取物料信息用于错误提示 (直接从已加载的缓存中取)
         const _materialName = matInfo
-            ? `${matInfo.code || ''} - ${matInfo.name || ''}`
-            : `物料ID ${item.materialId}`;
+          ? `${matInfo.code || ''} - ${matInfo.name || ''}`
+          : '所选物料';
 
         // 移除库存检查，允许出库数量大于库存数量
         // 这样可以支持预出库、负库存等业务场景
@@ -1136,7 +1185,7 @@ const _createOutbound = async (outboundData) => {
     // 添加警告信息
     let warning = null;
     if (missingMaterials.length > 0) {
-      warning = `以下物料ID不存在或没有设置默认库位：${missingMaterials.join(', ')}。出库单已创建为草稿状态，请先添加这些物料或设置默认库位。`;
+      warning = `以下物料编码不存在或没有设置默认库位：${missingMaterials.join(', ')}。出库单已创建为草稿状态，请先维护物料资料或设置默认库位。`;
     }
 
     return {
@@ -1173,11 +1222,10 @@ const createOutbound = async (req, res) => {
 
     // _createOutbound 内部用 camel 适配对象（字段名与 _createOutbound 读取一致）
     const issueReason =
-      mapped.issue_reason ??
-      req.body?.issueReason ??
-      req.body?.issue_reason ??
-      null;
-    const { assertShopFloorOutbound } = require('../../../../authorization/shopFloorMaterialRequest');
+      mapped.issue_reason ?? req.body?.issueReason ?? req.body?.issue_reason ?? null;
+    const {
+      assertShopFloorOutbound,
+    } = require('../../../../authorization/shopFloorMaterialRequest');
     const adaptedData = {
       outboundDate: formatDateForDB(mapped.outbound_date),
       status: mapped.status || 'draft',
@@ -1249,7 +1297,6 @@ const createOutbound = async (req, res) => {
       statusCode = 400;
     } else if (
       error.message &&
-      error.message.includes('物料ID') &&
       error.message.includes('不存在或没有设置默认库位')
     ) {
       statusCode = 400;
@@ -1287,7 +1334,16 @@ const deleteOutbound = async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'inventory_outbound', id, '无权删除该出库单'))) {
+    if (
+      !(await ScopeGuard.denyUnlessAccess(
+        res,
+        connection,
+        req,
+        'inventory_outbound',
+        id,
+        '无权删除该出库单'
+      ))
+    ) {
       return;
     }
 
@@ -1379,10 +1435,10 @@ const deleteOutbound = async (req, res) => {
           const currentPlanStatus = planCheck[0].status;
 
           if (['material_issuing', 'preparing'].includes(currentPlanStatus)) {
-            await connection.execute('UPDATE production_plans SET status = ? WHERE id = ? AND deleted_at IS NULL', [
-              'draft',
-              reference_id,
-            ]);
+            await connection.execute(
+              'UPDATE production_plans SET status = ? WHERE id = ? AND deleted_at IS NULL',
+              ['draft', reference_id]
+            );
             logger.info(`生产计划 ${reference_id} 状态已回退: ${currentPlanStatus} → draft`);
           }
         }

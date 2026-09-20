@@ -157,8 +157,8 @@ const formatStatus = (status) => {
 
 const getStatusTag = (status) => {
   const success = ['normal', 'completed', 'pass', 'active']
-  const warning = ['maintenance', 'planned', 'pending', 'repair', 'abnormal']
-  const danger = ['failed', 'scrapped', 'overdue', 'reported']
+  const warning = ['maintenance', 'planned', 'pending', 'in_progress', 'conditional_pass']
+  const danger = ['fail', 'failed', 'repair', 'abnormal', 'scrapped', 'overdue', 'reported']
   if (success.includes(status)) return 'success'
   if (warning.includes(status)) return 'warning'
   if (danger.includes(status)) return 'danger'

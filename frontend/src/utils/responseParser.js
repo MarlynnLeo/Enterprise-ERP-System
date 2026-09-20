@@ -1,4 +1,5 @@
 import { diagnosticLogger } from '@/utils/logger';
+import { getApiErrorMessage } from '@/utils/errorHandler';
 /**
  * 响应数据解析工具
  * @module utils/responseParser
@@ -226,9 +227,7 @@ export const isResponseSuccess = (response) => {
  * }
  */
 export const getResponseError = (response, defaultMessage = '操作失败') => {
-  return response?.data?.message ||
-    response?.data?.error ||
-    defaultMessage;
+  return getApiErrorMessage(response?.response ? response : { response }, defaultMessage);
 };
 
 /**

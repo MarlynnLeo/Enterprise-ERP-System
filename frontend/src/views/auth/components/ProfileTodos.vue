@@ -251,6 +251,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
@@ -486,7 +487,7 @@ async function submitTodo() {
     emit('changed')
   } catch (error) {
     console.error('Save profile todo failed:', error)
-    ElMessage.error(error.response?.data?.message || '待办事项保存失败')
+    ElMessage.error(getApiErrorMessage(error, '待办事项保存失败'))
   } finally {
     saving.value = false
   }
@@ -540,14 +541,14 @@ function getParticipantNames(todo) {
     .map((participant) => {
       const name = getUserDisplayName(participant.user)
       const userId = participant.userId ?? participant.userId
-      return name || (userId ? `用户 ${userId}` : '')
+      return name || '未命名用户'
     })
     .filter(Boolean)
 }
 
 function getUserDisplayName(user) {
   if (!user) return ''
-  return user.realName || user.username || user.email || (user.id ? `用户 ${user.id}` : '')
+  return user.realName || user.username || user.email || '未命名用户'
 }
 
 function getPriorityText(priority) {

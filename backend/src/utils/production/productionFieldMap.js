@@ -10,7 +10,9 @@ const productionTaskMap = {
     if (row == null) return null;
     if (Array.isArray(row)) return row.map((r) => productionTaskMap.toApi(r));
     const firstPlannedProcess = Array.isArray(row.processes)
-      ? row.processes.find((p) => p.status !== 'cancelled' && (p.planned_start_time || p.plannedStartTime))
+      ? row.processes.find(
+          (p) => p.status !== 'cancelled' && (p.planned_start_time || p.plannedStartTime)
+        )
       : null;
     return {
       id: row.id,
@@ -36,7 +38,8 @@ const productionTaskMap = {
       manager: row.manager ?? row.operator_name ?? null,
       operatorName: row.operator_name ?? row.manager ?? null,
       startDate: formatDate(row.start_date ?? row.plan_start_time),
-      plannedStartTime: firstPlannedProcess?.planned_start_time ?? firstPlannedProcess?.plannedStartTime ?? null,
+      plannedStartTime:
+        firstPlannedProcess?.planned_start_time ?? firstPlannedProcess?.plannedStartTime ?? null,
       expectedEndDate: formatDate(row.expected_end_date ?? row.plan_end_time),
       actualStartTime: row.actual_start_time ?? row.actual_start_time ?? null,
       actualEndDate: formatDate(row.actual_end_date ?? row.actual_end_time),
@@ -66,11 +69,15 @@ const productionTaskMap = {
             templateDetailId: p.template_detail_id ?? null,
             processSnapshot: p.process_snapshot ?? null,
             plannedQuantity:
-              p.planned_quantity != null ? toNumber(p.planned_quantity, 0) : p.quantity != null ? toNumber(p.quantity, 0) : null,
+              p.planned_quantity != null
+                ? toNumber(p.planned_quantity, 0)
+                : p.quantity != null
+                  ? toNumber(p.quantity, 0)
+                  : null,
             completedQuantity:
               p.completed_quantity != null ? toNumber(p.completed_quantity, 0) : null,
           }))
-        : row.processes ?? undefined,
+        : (row.processes ?? undefined),
     };
   },
   fromApi(body = {}) {

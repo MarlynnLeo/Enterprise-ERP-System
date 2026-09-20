@@ -2,7 +2,11 @@ function budgetDepartmentExpression(budgetAlias = 'b', detailAlias = 'bd') {
   return `COALESCE(${detailAlias}.department_id, ${budgetAlias}.department_id)`;
 }
 
-function budgetDepartmentPredicate(budgetAlias = 'b', detailAlias = 'bd', costCenterAlias = 'cc_budget') {
+function budgetDepartmentPredicate(
+  budgetAlias = 'b',
+  detailAlias = 'bd',
+  costCenterAlias = 'cc_budget'
+) {
   const departmentExpr = budgetDepartmentExpression(budgetAlias, detailAlias);
   return `(
                 ${departmentExpr} IS NULL
@@ -18,8 +22,8 @@ function budgetDetailActualAmountSql({
   excludeEntryId = null,
 } = {}) {
   const excludedId = Number(excludeEntryId);
-  const excludeCurrentEntry = Number.isSafeInteger(excludedId) && excludedId > 0
-    ? `AND ge.id <> ${excludedId}` : '';
+  const excludeCurrentEntry =
+    Number.isSafeInteger(excludedId) && excludedId > 0 ? `AND ge.id <> ${excludedId}` : '';
   return `COALESCE(
             (
               SELECT SUM(COALESCE(gei.debit_amount, 0) - COALESCE(gei.credit_amount, 0))

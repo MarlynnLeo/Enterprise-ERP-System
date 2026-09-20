@@ -7,7 +7,9 @@ const RECIPIENT_TYPES = new Set(Object.values(RECIPIENT_TYPE_VALUES));
 
 function normalizeIds(values) {
   const list = Array.isArray(values) ? values : values ? [values] : [];
-  return [...new Set(list.map(Number).filter((id) => Number.isInteger(id) && id > 0))].sort((a, b) => a - b);
+  return [...new Set(list.map(Number).filter((id) => Number.isInteger(id) && id > 0))].sort(
+    (a, b) => a - b
+  );
 }
 
 function normalizePermissions(values) {
@@ -35,7 +37,8 @@ class NotificationRecipientService {
       const permissionParams = [permissions];
 
       const wildcardConditions = permissions.map(
-        () => "(RIGHT(p.code, 2) = ':*' AND ? LIKE CONCAT(LEFT(p.code, CHAR_LENGTH(p.code) - 1), '%'))"
+        () =>
+          "(RIGHT(p.code, 2) = ':*' AND ? LIKE CONCAT(LEFT(p.code, CHAR_LENGTH(p.code) - 1), '%'))"
       );
       permissionConditions.push(`(${wildcardConditions.join(' OR ')})`);
       permissionParams.push(...permissions);
@@ -92,10 +95,7 @@ class NotificationRecipientService {
   async filterActiveUserIds(userIds) {
     const ids = normalizeIds(userIds);
     if (!ids.length) return [];
-    const [users] = await pool.query(
-      'SELECT id FROM users WHERE id IN (?) AND status = 1',
-      [ids]
-    );
+    const [users] = await pool.query('SELECT id FROM users WHERE id IN (?) AND status = 1', [ids]);
     return users.map((user) => Number(user.id));
   }
 
@@ -136,7 +136,9 @@ class NotificationRecipientService {
   async preview(recipientType, recipientConfig, options = {}) {
     const recipientIds = await this.resolveRecipients(recipientType, recipientConfig, options);
     const recipients = await this.getRecipientDetails(recipientIds);
-    const [[activeUsers]] = await pool.query('SELECT COUNT(*) AS total FROM users WHERE status = 1');
+    const [[activeUsers]] = await pool.query(
+      'SELECT COUNT(*) AS total FROM users WHERE status = 1'
+    );
     const totalActiveUsers = Number(activeUsers.total || 0);
     const ratio = totalActiveUsers ? recipients.length / totalActiveUsers : 0;
     const governance = await NotificationGovernanceConfig.get();
@@ -146,7 +148,10 @@ class NotificationRecipientService {
     if (!recipients.length) {
       warnings.push('当前配置没有匹配到启用用户');
     }
-    if (totalActiveUsers >= governance.minimumPopulation && ratio >= governance.broadcastWarningRatio) {
+    if (
+      totalActiveUsers >= governance.minimumPopulation &&
+      ratio >= governance.broadcastWarningRatio
+    ) {
       warnings.push(`接收人数占启用用户的 ${Math.round(ratio * 100)}%，请确认发送范围`);
     }
 
@@ -155,7 +160,8 @@ class NotificationRecipientService {
       totalActiveUsers,
       ratio,
       isBroadcast: totalActiveUsers > 0 && recipients.length === totalActiveUsers,
-      exceedsBroadcastThreshold: totalActiveUsers >= governance.minimumPopulation && ratio >= threshold,
+      exceedsBroadcastThreshold:
+        totalActiveUsers >= governance.minimumPopulation && ratio >= threshold,
       recipients,
       warnings,
     };
@@ -166,9 +172,10 @@ class NotificationRecipientService {
       throw validationError('不支持的接收人类型');
     }
 
-    const config = recipientType === RECIPIENT_TYPE_VALUES.PERMISSION
-      ? normalizePermissions(recipientConfig)
-      : normalizeIds(recipientConfig);
+    const config =
+      recipientType === RECIPIENT_TYPE_VALUES.PERMISSION
+        ? normalizePermissions(recipientConfig)
+        : normalizeIds(recipientConfig);
 
     if (!config.length) {
       throw validationError('接收人配置不能为空');
@@ -181,8 +188,11 @@ class NotificationRecipientService {
     if (recipientType === RECIPIENT_TYPE_VALUES.PERMISSION) {
       const [rows] = await pool.query('SELECT code FROM permissions WHERE status = 1');
       const activeCodes = new Set(rows.map((row) => row.code));
-      const invalid = config.filter((code) =>
-        !PermissionService.expandPermissionsWithAliases([code]).some((candidate) => activeCodes.has(candidate))
+      const invalid = config.filter(
+        (code) =>
+          !PermissionService.expandPermissionsWithAliases([code]).some((candidate) =>
+            activeCodes.has(candidate)
+          )
       );
       if (invalid.length) throw validationError(`无效或已停用的权限码: ${invalid.join(', ')}`);
       return config;
@@ -244,8 +254,16 @@ class NotificationRecipientService {
 
     return {
       permissions: permissions[0],
-      roles: roles[0].map((row) => ({ ...row, id: Number(row.id), active_user_count: Number(row.active_user_count) })),
-      departments: departments[0].map((row) => ({ ...row, id: Number(row.id), active_user_count: Number(row.active_user_count) })),
+      roles: roles[0].map((row) => ({
+        ...row,
+        id: Number(row.id),
+        active_user_count: Number(row.active_user_count),
+      })),
+      departments: departments[0].map((row) => ({
+        ...row,
+        id: Number(row.id),
+        active_user_count: Number(row.active_user_count),
+      })),
       users: users[0].map((row) => ({ ...row, id: Number(row.id) })),
     };
   }

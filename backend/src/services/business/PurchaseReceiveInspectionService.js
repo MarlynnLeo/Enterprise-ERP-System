@@ -27,15 +27,18 @@ class PurchaseReceiveInspectionService {
       throw createBusinessError('缺少物料收货信息');
     }
 
-    const receivingItems = items
-      .map((item, index) => ({
-        ...item,
-        // 收货明细入参只认 camel（控制器边界已 fromApi）
-        material_id: Number(item.materialId || 0),
-        receive_quantity: purchaseQuantity(item.receiveQuantity ?? item.quantity, `第${index + 1}行到货数量`),
-      }));
+    const receivingItems = items.map((item, index) => ({
+      ...item,
+      // 收货明细入参只认 camel（控制器边界已 fromApi）
+      material_id: Number(item.materialId || 0),
+      receive_quantity: purchaseQuantity(
+        item.receiveQuantity ?? item.quantity,
+        `第${index + 1}行到货数量`
+      ),
+    }));
 
-    if (receivingItems.some(item => !Number.isInteger(item.material_id) || item.material_id <= 0)) throw createBusinessError('请为每一条到货明细选择有效物料');
+    if (receivingItems.some((item) => !Number.isInteger(item.material_id) || item.material_id <= 0))
+      throw createBusinessError('请为每一条到货明细选择有效物料');
 
     if (receivingItems.length === 0) {
       throw createBusinessError('没有有效的收货物料');
@@ -53,7 +56,8 @@ class PurchaseReceiveInspectionService {
       if (order.status === 'completed') {
         throw createBusinessError('已完成的采购订单不能再次收货');
       }
-      if (['draft', 'pending', 'rejected'].includes(order.status)) throw createBusinessError('采购订单尚未审批通过，不能登记到货');
+      if (['draft', 'pending', 'rejected'].includes(order.status))
+        throw createBusinessError('采购订单尚未审批通过，不能登记到货');
       order = await this.resolveMissingOrderSupplier(connection, order, receivingItems);
       if (!order.supplier_code) {
         throw createBusinessError('供应商缺少编码，无法生成可追溯的来料批次号');
@@ -62,9 +66,18 @@ class PurchaseReceiveInspectionService {
       const inspections = [];
 
       for (const item of receivingItems) {
-        const itemContext = await this.getOrderItemContext(connection, cleanOrderId, item.material_id, item.orderItemId);
+        const itemContext = await this.getOrderItemContext(
+          connection,
+          cleanOrderId,
+          item.material_id,
+          item.orderItemId
+        );
         await PurchaseOrderStatusService.updateOrderItemReceivedQuantity(
-          cleanOrderId, item.material_id, item.receive_quantity, connection, itemContext.order_item_id
+          cleanOrderId,
+          item.material_id,
+          item.receive_quantity,
+          connection,
+          itemContext.order_item_id
         );
 
         // 明细入参 camel；库上下文 snake
@@ -93,10 +106,7 @@ class PurchaseReceiveInspectionService {
           note: `采购收货自动生成来料检验单 - 供应商: ${order.supplier_name}`,
         };
 
-        const inspection = await QualityInspection.createInspection(
-          inspectionPayload,
-          connection
-        );
+        const inspection = await QualityInspection.createInspection(inspectionPayload, connection);
 
         if (inspection.is_exempt) {
           await InspectionClosureService.closeIfTerminal(
@@ -187,9 +197,13 @@ class PurchaseReceiveInspectionService {
         materialCode: item.material_code || item.materialCode,
       }))
     );
-    const supplierIds = [...new Set(resolvedPrices
-      .map((priceInfo) => Number(priceInfo?.supplier_id))
-      .filter((supplierId) => Number.isInteger(supplierId) && supplierId > 0))];
+    const supplierIds = [
+      ...new Set(
+        resolvedPrices
+          .map((priceInfo) => Number(priceInfo?.supplier_id))
+          .filter((supplierId) => Number.isInteger(supplierId) && supplierId > 0)
+      ),
+    ];
 
     if (supplierIds.length === 0) {
       throw createBusinessError('供应商缺少编码，无法生成可追溯的来料批次号');
@@ -251,7 +265,7 @@ class PurchaseReceiveInspectionService {
     );
 
     if (!rows || rows.length === 0) {
-      throw createBusinessError(`采购订单物料不存在: 物料ID=${materialId}`);
+      throw createBusinessError('采购订单物料不存在或已停用，请重新选择有效物料');
     }
 
     if (rows.length > 1) throw createBusinessError('同物料存在多条采购明细，请指定订单明细ID');
@@ -260,9 +274,10 @@ class PurchaseReceiveInspectionService {
 
   static async generateBatchNo(connection, supplierCode, supplierId) {
     const date = new Date();
-    const dateStr = `${String(date.getFullYear()).slice(-2)}${String(
-      date.getMonth() + 1
-    ).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`;
+    const dateStr = `${String(date.getFullYear()).slice(-2)}${String(date.getMonth() + 1).padStart(
+      2,
+      '0'
+    )}${String(date.getDate()).padStart(2, '0')}`;
 
     // 基于已生成批次号取序号数值最大值（而非检验单行数），避免软删除导致计数回退撞号、并发重号
     const likePrefix = `PUR-${supplierCode}-${dateStr}-`;

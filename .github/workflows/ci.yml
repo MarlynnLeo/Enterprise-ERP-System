@@ -18,6 +18,8 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
+      - name: Check repository conventions
+        run: npm run check:repository && npm run check:dual-case && npm run check:app-dialog && npm run check:theme-tokens
       - run: npm run test:release
 
   backend:
@@ -70,6 +72,10 @@ jobs:
       - name: Lint backend
         working-directory: backend
         run: npm run lint
+
+      - name: Check backend formatting
+        working-directory: backend
+        run: npm run format:check
 
       - name: Verify immutable migrations
         working-directory: backend

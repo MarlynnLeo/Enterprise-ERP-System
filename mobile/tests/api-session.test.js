@@ -54,19 +54,47 @@ describe('mobile API cookie and CSRF recovery', () => {
     expect(api.defaults.adapter.mock.calls[0][0].url).toBe('/auth/profile')
   })
 
-  test('does not reuse a stale in-flight CSRF response after session reset', async () => {
+  test('cancels a write waiting for CSRF when its session changes', async () => {
     const oldToken = deferred()
     axios.get.mockReturnValueOnce(oldToken.promise)
       .mockResolvedValueOnce({ data: { csrfToken: 'new-token' } })
     const first = api.post('/inventory/check', {})
+    const cancelled = expect(first).rejects.toMatchObject({ code: 'ERR_CANCELED' })
     await flushPromises()
     resetCsrfToken()
     await api.post('/inventory/check', {})
     oldToken.resolve({ data: { csrfToken: 'old-token' } })
-    await first
+    await cancelled
     await api.post('/inventory/check', {})
     expect(api.defaults.adapter.mock.calls.map(([config]) => config.headers.get('X-CSRF-Token')))
-      .toEqual(['new-token', 'new-token', 'new-token'])
+      .toEqual(['new-token', 'new-token'])
+  })
+
+  test('cancels a write when a cached CSRF token resolves across a session change', async () => {
+    await api.post('/warm', {})
+    const payment = api.post('/payment', { amount: 100 })
+    const cancelled = expect(payment).rejects.toMatchObject({ code: 'ERR_CANCELED' })
+    await Promise.resolve()
+    resetCsrfToken()
+    await cancelled
+    expect(api.defaults.adapter).toHaveBeenCalledTimes(1)
+  })
+
+  test.each([401, 403])('never replays a previous-session payment after a %s response', async status => {
+    let rejectWrite
+    const pending = new Promise((_, reject) => { rejectWrite = reject })
+    api.defaults.adapter.mockReturnValueOnce(pending)
+    const payment = api.post('/payment', { amount: 100 })
+    const cancelled = expect(payment).rejects.toMatchObject({ code: 'ERR_CANCELED' })
+    await flushPromises()
+    const config = api.defaults.adapter.mock.calls[0][0]
+    resetCsrfToken()
+    rejectWrite(new axios.AxiosError('Old request failed', 'ERR_BAD_REQUEST', config, {}, {
+      config, status, headers: {}, data: { code: 'INVALID_CSRF_TOKEN' }
+    }))
+    await cancelled
+    expect(api.defaults.adapter).toHaveBeenCalledTimes(1)
+    expect(axios.get).toHaveBeenCalledTimes(1)
   })
 
   test('retries an invalid CSRF token only once with a fresh token', async () => {

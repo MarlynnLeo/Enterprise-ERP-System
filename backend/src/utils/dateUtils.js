@@ -19,9 +19,8 @@ function parseLocalDate(value) {
 }
 
 function toLocalDateString(value = new Date()) {
-  const date = value === undefined || value === null || value === ''
-    ? new Date()
-    : parseLocalDate(value);
+  const date =
+    value === undefined || value === null || value === '' ? new Date() : parseLocalDate(value);
 
   if (Number.isNaN(date.getTime())) {
     throw new Error(`Invalid date: ${value}`);

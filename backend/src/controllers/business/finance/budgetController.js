@@ -83,12 +83,7 @@ const budgetController = {
         mappedDetails
       );
 
-      return ResponseHandler.success(
-        res,
-        { id: budgetId, budgetNo },
-        '创建预算成功',
-        201
-      );
+      return ResponseHandler.success(res, { id: budgetId, budgetNo }, '创建预算成功', 201);
     } catch (error) {
       logger.error('创建预算失败:', error);
       return sendBudgetBusinessError(res, error, '创建预算失败');
@@ -217,7 +212,12 @@ const budgetController = {
         return ResponseHandler.error(res, '预算不存在', 'NOT_FOUND', 404);
       }
       if (!budgetModel.isBudgetStatus(budget.status, BUDGET_STATUS_CODE.DRAFT)) {
-        return ResponseHandler.error(res, '只有草稿状态的预算才能提交审批', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(
+          res,
+          '只有草稿状态的预算才能提交审批',
+          'VALIDATION_ERROR',
+          400
+        );
       }
 
       // 校验必须有明细
@@ -225,9 +225,13 @@ const budgetController = {
         return ResponseHandler.error(res, '预算没有明细项，无法提交审批', 'VALIDATION_ERROR', 400);
       }
 
-      const success = await budgetModel.updateBudgetStatus(id, BUDGET_STATUS_CODE.PENDING_APPROVAL, {
-        approval_status: '审批中',
-      });
+      const success = await budgetModel.updateBudgetStatus(
+        id,
+        BUDGET_STATUS_CODE.PENDING_APPROVAL,
+        {
+          approval_status: '审批中',
+        }
+      );
 
       if (success) {
         return ResponseHandler.success(res, null, '提交审批成功');
@@ -428,13 +432,16 @@ const budgetController = {
       const budgetYear = req.query.budgetYear || req.query.year;
       const parsedBudgetYear = parseInt(budgetYear, 10);
 
-      if (!Number.isInteger(parsedBudgetYear) || parsedBudgetYear < 1900 || parsedBudgetYear > 2100) {
+      if (
+        !Number.isInteger(parsedBudgetYear) ||
+        parsedBudgetYear < 1900 ||
+        parsedBudgetYear > 2100
+      ) {
         return ResponseHandler.error(res, '缺少预算年度参数', 'VALIDATION_ERROR', 400);
       }
 
-      const comparison = await BudgetAnalysisService.getDepartmentBudgetComparison(
-        parsedBudgetYear
-      );
+      const comparison =
+        await BudgetAnalysisService.getDepartmentBudgetComparison(parsedBudgetYear);
 
       return ResponseHandler.success(res, comparison);
     } catch (error) {
@@ -616,17 +623,22 @@ const budgetController = {
       }
 
       // 查找科目代码对应的account_id
-      const codes = recommendations.map(r => r.account_code);
+      const codes = recommendations.map((r) => r.account_code);
       const placeholders = codes.map(() => '?').join(',');
       const [accounts] = await db.pool.execute(
         `SELECT id, account_code FROM gl_accounts WHERE account_code IN (${placeholders})`,
         codes
       );
       const codeToId = {};
-      accounts.forEach(a => { codeToId[a.account_code] = a.id; });
+      accounts.forEach((a) => {
+        codeToId[a.account_code] = a.id;
+      });
 
       // 计算总预算
-      const totalAmount = recommendations.reduce((sum, r) => sum + (parseFloat(r.recommended_budget) || 0), 0);
+      const totalAmount = recommendations.reduce(
+        (sum, r) => sum + (parseFloat(r.recommended_budget) || 0),
+        0
+      );
 
       // 构建预算数据
       const budgetData = {
@@ -643,12 +655,14 @@ const budgetController = {
       };
 
       // 构建明细数据
-      const details = recommendations.map(r => ({
-        account_id: codeToId[r.account_code],
-        budget_amount: parseFloat(r.recommended_budget) || 0,
-        warning_threshold: 80,
-        description: `${r.account_name || r.account_code} - AI建议 (置信度:${r.confidence || '中'})`,
-      })).filter(d => d.account_id); // 过滤掉找不到的科目
+      const details = recommendations
+        .map((r) => ({
+          account_id: codeToId[r.account_code],
+          budget_amount: parseFloat(r.recommended_budget) || 0,
+          warning_threshold: 80,
+          description: `${r.account_name || r.account_code} - AI建议 (置信度:${r.confidence || '中'})`,
+        }))
+        .filter((d) => d.account_id); // 过滤掉找不到的科目
 
       // 生成预算编号并创建
       const budgetNo = await BudgetControlService.generateBudgetNo(budget_year);
@@ -657,7 +671,12 @@ const budgetController = {
       const budgetId = await budgetModel.createBudget(budgetData, details);
 
       logger.info(`AI预算创建成功: 预算#${budgetId} ${budgetNo}，${details.length}个明细`);
-      return ResponseHandler.success(res, { id: budgetId, budget_no: budgetNo }, 'AI预算创建成功', 201);
+      return ResponseHandler.success(
+        res,
+        { id: budgetId, budget_no: budgetNo },
+        'AI预算创建成功',
+        201
+      );
     } catch (error) {
       logger.error('AI预算创建失败:', error);
       return ResponseHandler.error(res, 'AI预算创建失败', 'SERVER_ERROR', 500, error);

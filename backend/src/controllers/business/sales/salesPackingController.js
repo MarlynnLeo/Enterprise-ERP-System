@@ -25,7 +25,6 @@ async function generatePurchaseRequisitionNo(connection) {
 
 exports.getPackingLists = async (req, res) => {
   try {
-
     const {
       page = 1,
       pageSize = 20,
@@ -33,7 +32,9 @@ exports.getPackingLists = async (req, res) => {
       status = '',
       startDate = '',
       endDate = '',
-      customerId = '', sort = 'packingListNo', order = 'desc',
+      customerId = '',
+      sort = 'packingListNo',
+      order = 'desc',
     } = req.query;
 
     // 确保分页参数是有效的数字
@@ -78,7 +79,12 @@ exports.getPackingLists = async (req, res) => {
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')} ` : '';
 
-    const sortColumn = { packingListNo: 'pl.packing_list_no', packingDate: 'pl.packing_date', createdAt: 'pl.created_at' }[sort] || 'pl.packing_list_no';
+    const sortColumn =
+      {
+        packingListNo: 'pl.packing_list_no',
+        packingDate: 'pl.packing_date',
+        createdAt: 'pl.created_at',
+      }[sort] || 'pl.packing_list_no';
     const direction = String(order).toLowerCase() === 'asc' ? 'ASC' : 'DESC';
     // Sort identifiers come only from the allowlist above.
     const sql = `
@@ -91,7 +97,6 @@ exports.getPackingLists = async (req, res) => {
       ORDER BY ${sortColumn} ${direction}, pl.id ${direction}
       LIMIT ${currentPageSize} OFFSET ${offset}
       `;
-
 
     const [rows] =
       queryParams.length > 0 ? await db.pool.execute(sql, queryParams) : await db.pool.execute(sql);
@@ -147,7 +152,6 @@ exports.getPackingLists = async (req, res) => {
 
 exports.getPackingList = async (req, res) => {
   try {
-
     const { id } = req.params;
 
     // 获取装箱单基本信息
@@ -202,28 +206,45 @@ exports.createPackingList = async (req, res) => {
   try {
     const result = await PackingListService.create(req.body, getRequestActorLabel(req));
     return ResponseHandler.success(res, result, '装箱单创建成功', 201);
-  } catch (error) { return BusinessError.handleError(res, error, '创建装箱单失败', ResponseHandler); }
+  } catch (error) {
+    return BusinessError.handleError(res, error, '创建装箱单失败', ResponseHandler);
+  }
 };
 
 exports.updatePackingList = async (req, res) => {
   try {
-    const result = await PackingListService.update(req.params.id, req.body, getRequestActorLabel(req));
+    const result = await PackingListService.update(
+      req.params.id,
+      req.body,
+      getRequestActorLabel(req)
+    );
     return ResponseHandler.success(res, result, '装箱单更新成功');
-  } catch (error) { return BusinessError.handleError(res, error, '更新装箱单失败', ResponseHandler); }
+  } catch (error) {
+    return BusinessError.handleError(res, error, '更新装箱单失败', ResponseHandler);
+  }
 };
 
 exports.deletePackingList = async (req, res) => {
   try {
     await PackingListService.delete(req.params.id);
     return ResponseHandler.success(res, null, '装箱单删除成功');
-  } catch (error) { return BusinessError.handleError(res, error, '删除装箱单失败', ResponseHandler); }
+  } catch (error) {
+    return BusinessError.handleError(res, error, '删除装箱单失败', ResponseHandler);
+  }
 };
 
 exports.updatePackingListStatus = async (req, res) => {
   try {
-    const result = await PackingListService.changeStatus(req.params.id, req.body.status, getRequestActorLabel(req), req.body.remark);
+    const result = await PackingListService.changeStatus(
+      req.params.id,
+      req.body.status,
+      getRequestActorLabel(req),
+      req.body.remark
+    );
     return ResponseHandler.success(res, result, '装箱单状态已更新');
-  } catch (error) { return BusinessError.handleError(res, error, '更新装箱单状态失败', ResponseHandler); }
+  } catch (error) {
+    return BusinessError.handleError(res, error, '更新装箱单状态失败', ResponseHandler);
+  }
 };
 
 /**
@@ -335,7 +356,7 @@ async function calculateAndInsertMaterialsForPlan(connection, planId, productId,
       );
 
       const productInfo =
-        products.length > 0 ? `${products[0].code} - ${products[0].name} ` : `ID: ${productId} `;
+        products.length > 0 ? `${products[0].code} - ${products[0].name} ` : '所选产品 ';
       throw new Error(`产品 ${productInfo} 未找到有效的BOM配置，不能生成生产计划物料需求`);
     }
 
@@ -366,7 +387,7 @@ async function calculateAndInsertMaterialsForPlan(connection, planId, productId,
     );
 
     if (bomDetails.length === 0) {
-      throw new Error(`BOM ID ${bomId} 中没有物料明细，不能生成生产计划物料需求`);
+      throw new Error('BOM中没有物料明细，不能生成生产计划物料需求');
     }
 
     // 插入物料需求记录
@@ -384,7 +405,9 @@ async function calculateAndInsertMaterialsForPlan(connection, planId, productId,
       );
     }
 
-    logger.info(`Production plan material requirements saved: planId=${planId}, count=${bomDetails.length}`);
+    logger.info(
+      `Production plan material requirements saved: planId=${planId}, count=${bomDetails.length}`
+    );
   } catch (error) {
     logger.error('计算生产计划物料需求失败:', error);
     throw error;
@@ -424,7 +447,9 @@ async function generateProductionAndPurchasePlans(
     // 处理自产物料 - 逐个生成生产计划（防重复：检查同物料+同销售订单是否已有未完成生产计划）
     if (internalMaterials.length > 0) {
       try {
-        logger.info(`Production plan generation started for internal materials: count=${internalMaterials.length}`);
+        logger.info(
+          `Production plan generation started for internal materials: count=${internalMaterials.length}`
+        );
         let createdCount = 0;
         let skippedCount = 0;
 
@@ -499,7 +524,8 @@ async function generateProductionAndPurchasePlans(
             logger.info(
               `  ✅ 生产计划创建成功: ${planNo} (物料: ${material_name}, 数量: ${shortage}，已计算物料需求)`
             );
-            await DocumentLinkService.tryAutoLink(DocType.SALES_ORDER,
+            await DocumentLinkService.tryAutoLink(
+              DocType.SALES_ORDER,
               salesOrderId,
               salesOrderNo,
               DocType.PRODUCTION_PLAN,
@@ -510,12 +536,17 @@ async function generateProductionAndPurchasePlans(
             );
             createdCount++;
           } catch (planError) {
-            logger.error(`Production plan creation failed: materialName=${material_name}`, planError.message);
+            logger.error(
+              `Production plan creation failed: materialName=${material_name}`,
+              planError.message
+            );
             throw planError;
           }
         }
 
-        logger.info(`Production plan processing completed: createdCount=${createdCount}, skippedCount=${skippedCount}`);
+        logger.info(
+          `Production plan processing completed: createdCount=${createdCount}, skippedCount=${skippedCount}`
+        );
       } catch (batchError) {
         logger.error('Batch production plan number generation failed:', batchError.message);
         throw batchError;
@@ -528,7 +559,7 @@ async function generateProductionAndPurchasePlans(
         // ✅ 防重复检查：过滤已在同销售订单来源的采购申请中的物料
         let filteredMaterials = externalMaterials;
         try {
-          const matIds = externalMaterials.map(m => m.material_id);
+          const matIds = externalMaterials.map((m) => m.material_id);
           const [existingReqItems] = await connection.execute(
             `SELECT pri.material_id, SUM(pri.quantity) as total_qty
              FROM purchase_requisition_items pri
@@ -541,8 +572,10 @@ async function generateProductionAndPurchasePlans(
           );
 
           if (existingReqItems.length > 0) {
-            const existingMap = new Map(existingReqItems.map(r => [r.material_id, Number(r.total_qty)]));
-            filteredMaterials = externalMaterials.filter(item => {
+            const existingMap = new Map(
+              existingReqItems.map((r) => [r.material_id, Number(r.total_qty)])
+            );
+            filteredMaterials = externalMaterials.filter((item) => {
               const existingQty = existingMap.get(item.material_id);
               if (existingQty && existingQty >= item.shortage) {
                 logger.info(
@@ -563,7 +596,9 @@ async function generateProductionAndPurchasePlans(
         }
 
         if (filteredMaterials.length === 0) {
-          logger.info('All externally purchased materials already have purchase requisitions; skipping creation');
+          logger.info(
+            'All externally purchased materials already have purchase requisitions; skipping creation'
+          );
         } else {
           const reqNo = await generatePurchaseRequisitionNo(connection);
 
@@ -578,13 +613,18 @@ async function generateProductionAndPurchasePlans(
   VALUES(?, ?, ?, ?, ?, ?, ?, NOW())
           `;
 
-          logger.info(`Purchase requisition creation started for external materials: count=${filteredMaterials.length}`);
+          logger.info(
+            `Purchase requisition creation started for external materials: count=${filteredMaterials.length}`
+          );
 
           // 构建备注内容（简化版，因为合同编码已独立）
           const requisitionRemark = `由销售订单${salesOrderNo} 自动生成`;
 
           // 使用当前用户信息，并从数据库查询真实姓名
-          const requester = userInfo.username || userInfo.realName || await resolveActorLabel(connection, userInfo.id, userInfo.username);
+          const requester =
+            userInfo.username ||
+            userInfo.realName ||
+            (await resolveActorLabel(connection, userInfo.id, userInfo.username));
           let realName = userInfo.real_name || '系统';
 
           // 如果userInfo中没有real_name，尝试从数据库查询
@@ -648,10 +688,13 @@ async function generateProductionAndPurchasePlans(
               shortage,
             ]);
 
-            logger.info(`Purchase requisition item added: materialName=${material_name}, quantity=${shortage}`);
+            logger.info(
+              `Purchase requisition item added: materialName=${material_name}, quantity=${shortage}`
+            );
           }
 
-          await DocumentLinkService.tryAutoLink(DocType.SALES_ORDER,
+          await DocumentLinkService.tryAutoLink(
+            DocType.SALES_ORDER,
             salesOrderId,
             salesOrderNo,
             DocType.PURCHASE_REQUISITION,
@@ -660,7 +703,9 @@ async function generateProductionAndPurchasePlans(
             userInfo.id || userInfo.userId || null,
             connection
           );
-          logger.info(`Purchase requisition created: requisitionNo=${reqNo}, itemCount=${filteredMaterials.length}`);
+          logger.info(
+            `Purchase requisition created: requisitionNo=${reqNo}, itemCount=${filteredMaterials.length}`
+          );
         }
       } catch (reqError) {
         logger.error('Purchase requisition creation failed:', reqError.message);
@@ -668,7 +713,9 @@ async function generateProductionAndPurchasePlans(
       }
     }
 
-    logger.info(`Sales order production plan and purchase requisition generation completed: salesOrderId=${salesOrderId}`);
+    logger.info(
+      `Sales order production plan and purchase requisition generation completed: salesOrderId=${salesOrderId}`
+    );
   } catch (error) {
     logger.error('生成生产计划和采购申请失败:', error);
     throw error;

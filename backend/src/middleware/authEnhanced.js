@@ -48,7 +48,7 @@ async function loadVerifiedAccessUser(decoded) {
   const [users] = await retryTransientDatabaseRead(
     () =>
       pool.execute(
-         `SELECT id, username, real_name, status, token_version,
+        `SELECT id, username, real_name, status, token_version,
                  force_password_change, password_changed_at, password_expires_at
          FROM users
          WHERE id = ?
@@ -205,12 +205,13 @@ const authenticateRefreshToken = async (req, res, next) => {
     }
 
     const [users] = await retryTransientDatabaseRead(
-      () => pool.execute(
-        `SELECT id, status, token_version, force_password_change,
+      () =>
+        pool.execute(
+          `SELECT id, status, token_version, force_password_change,
                 password_changed_at, password_expires_at
            FROM users WHERE id = ? LIMIT 1`,
-        [userId]
-      ),
+          [userId]
+        ),
       {
         onRetry: (error, attempt, delayMs) => {
           logger.warn('Refresh token verification will retry after a transient database error', {

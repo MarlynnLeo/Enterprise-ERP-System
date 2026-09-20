@@ -11,6 +11,12 @@ const { validateRequiredFields, validateEnum } = require('../../../utils/validat
 const { handleError } = require('./shared/errorHandler');
 const { softDelete } = require('../../../utils/softDelete');
 const { mapKeysToSnake } = require('../../../utils/fieldMap');
+const {
+  EQUIPMENT_STATUSES,
+  normalizeEquipmentStatus,
+  normalizeMaintenanceType,
+  normalizeInspectionResult,
+} = require('../../../utils/production/equipmentStatus');
 
 const { pool } = require('../../../config/db');
 
@@ -31,11 +37,11 @@ const normalizeListStatus = (status) => (status && status !== 'all' ? status : '
 
 const sendPagedEquipmentRecords = (res, rows, total, page, pageSize) => {
   return ResponseHandler.success(res, {
-      list: rows,
-      total,
-      page,
-      pageSize,
-    });
+    list: rows,
+    total,
+    page,
+    pageSize,
+  });
 };
 
 const normalizeEquipmentTypeStatus = (status) => (status && status !== 'all' ? status : '');
@@ -54,7 +60,9 @@ exports.getEquipmentTypes = async (req, res) => {
     }
 
     if (search) {
-      conditions.push('(et.code LIKE ? OR et.name LIKE ? OR et.manufacturer LIKE ? OR et.description LIKE ?)');
+      conditions.push(
+        '(et.code LIKE ? OR et.name LIKE ? OR et.manufacturer LIKE ? OR et.description LIKE ?)'
+      );
       const keyword = `%${search}%`;
       params.push(keyword, keyword, keyword, keyword);
     }
@@ -83,7 +91,9 @@ exports.getEquipmentTypes = async (req, res) => {
 
 exports.createEquipmentType = async (req, res) => {
   try {
-    const code = String(req.body.code || '').trim().toUpperCase();
+    const code = String(req.body.code || '')
+      .trim()
+      .toUpperCase();
     const name = String(req.body.name || '').trim();
     const manufacturer = String(req.body.manufacturer || '').trim();
     const description = String(req.body.description || '').trim();
@@ -122,11 +132,17 @@ exports.getEquipmentList = async (req, res) => {
   try {
     const { page, pageSize, offset } = parsePagination(req.query);
     const { code = '', name = '', location = '' } = req.query;
-    const status = normalizeListStatus(req.query.status);
+    const search = String(req.query.keyword || req.query.search || '').trim();
+    const status = normalizeEquipmentStatus(normalizeListStatus(req.query.status));
 
     // 构建查询条件
     const conditions = ['deleted_at IS NULL'];
     const params = [];
+
+    if (search) {
+      conditions.push('(code LIKE ? OR name LIKE ?)');
+      params.push(`%${search}%`, `%${search}%`);
+    }
 
     if (code) {
       conditions.push('code LIKE ?');
@@ -174,7 +190,8 @@ exports.getMaintenanceRecords = async (req, res) => {
   try {
     const { page, pageSize, offset } = parsePagination(req.query);
     const { search = '', equipment_id = '' } = req.query;
-    const status = normalizeListStatus(req.query.status);
+    const requestedStatus = normalizeListStatus(req.query.status);
+    const status = requestedStatus === 'planned' ? 'pending' : requestedStatus;
     const conditions = [];
     const params = [];
 
@@ -189,7 +206,9 @@ exports.getMaintenanceRecords = async (req, res) => {
     }
 
     if (search) {
-      conditions.push('(e.name LIKE ? OR e.code LIKE ? OR em.maintenance_type LIKE ? OR em.maintenance_person LIKE ?)');
+      conditions.push(
+        '(e.name LIKE ? OR e.code LIKE ? OR em.maintenance_type LIKE ? OR em.maintenance_staff LIKE ?)'
+      );
       const keyword = `%${search}%`;
       params.push(keyword, keyword, keyword, keyword);
     }
@@ -203,7 +222,7 @@ exports.getMaintenanceRecords = async (req, res) => {
       params
     );
     const [rows] = await pool.query(
-      `SELECT em.*, e.name AS equipmentName, e.code AS equipmentCode
+      `SELECT em.*, em.maintenance_staff AS maintenance_person, e.name AS equipmentName, e.code AS equipmentCode
        FROM equipment_maintenance em
        JOIN equipment e ON e.id = em.equipment_id AND e.deleted_at IS NULL
        ${whereClause}
@@ -237,7 +256,9 @@ exports.getFailureRecords = async (req, res) => {
     }
 
     if (search) {
-      conditions.push('(e.name LIKE ? OR e.code LIKE ? OR ef.failure_type LIKE ? OR ef.description LIKE ? OR ef.reported_by LIKE ?)');
+      conditions.push(
+        '(e.name LIKE ? OR e.code LIKE ? OR ef.failure_type LIKE ? OR ef.description LIKE ? OR ef.reported_by LIKE ?)'
+      );
       const keyword = `%${search}%`;
       params.push(keyword, keyword, keyword, keyword, keyword);
     }
@@ -270,7 +291,7 @@ exports.getInspectionRecords = async (req, res) => {
   try {
     const { page, pageSize, offset } = parsePagination(req.query);
     const { search = '', equipment_id = '' } = req.query;
-    const status = normalizeListStatus(req.query.status);
+    const status = normalizeInspectionResult(normalizeListStatus(req.query.status));
     const conditions = [];
     const params = [];
 
@@ -299,8 +320,8 @@ exports.getInspectionRecords = async (req, res) => {
       params
     );
     const [rows] = await pool.query(
-      `SELECT ei.*, ei.inspection_result AS status, ei.inspection_date AS checkDate, ei.inspector AS checker,
-              COALESCE(ei.remarks, '') AS resultDesc,
+      `SELECT ei.*, ei.inspection_result AS status, ei.inspection_result AS result, ei.inspection_date AS checkDate, ei.inspector AS checker,
+              COALESCE(NULLIF(ei.action_taken, ''), NULLIF(ei.abnormal_items, ''), NULLIF(ei.inspection_items, ''), ei.remarks, '') AS resultDesc,
               e.name AS equipmentName, e.code AS equipmentCode
        FROM equipment_inspection ei
        JOIN equipment e ON e.id = ei.equipment_id AND e.deleted_at IS NULL
@@ -323,7 +344,10 @@ exports.getEquipmentById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const [rows] = await pool.query('SELECT id, code, name, model, manufacturer, purchase_date, inspection_date, next_inspection_date, location, status, responsible_person, description, specs, created_at, updated_at, is_active, deleted_at FROM equipment WHERE id = ? AND deleted_at IS NULL', [id]);
+    const [rows] = await pool.query(
+      'SELECT id, code, name, model, manufacturer, purchase_date, inspection_date, next_inspection_date, location, status, responsible_person, description, specs, created_at, updated_at, is_active, deleted_at FROM equipment WHERE id = ? AND deleted_at IS NULL',
+      [id]
+    );
 
     if (rows.length === 0) {
       return ResponseHandler.error(res, '设备不存在', 'NOT_FOUND', 404);
@@ -331,7 +355,7 @@ exports.getEquipmentById = async (req, res) => {
 
     // 获取设备维护记录
     const [maintenanceRecords] = await pool.query(
-      'SELECT id, equipment_id, maintenance_type, maintenance_date, completed_date, maintenance_staff, description, parts_replaced, cost, status, created_at, updated_at FROM equipment_maintenance WHERE equipment_id = ? ORDER BY maintenance_date DESC',
+      'SELECT id, equipment_id, maintenance_type, maintenance_date, completed_date, maintenance_staff AS maintenance_person, next_maintenance_date, remarks, description, parts_replaced, cost, status, created_at, updated_at FROM equipment_maintenance WHERE equipment_id = ? ORDER BY maintenance_date DESC',
       [id]
     );
 
@@ -343,7 +367,7 @@ exports.getEquipmentById = async (req, res) => {
 
     // 获取设备检查记录
     const [inspectionRecords] = await pool.query(
-      'SELECT id, equipment_id, inspection_date, inspector, inspection_result, remarks, next_inspection_date, created_at, updated_at FROM equipment_inspection WHERE equipment_id = ? ORDER BY inspection_date DESC',
+      'SELECT id, equipment_id, inspection_date, inspector, inspection_result AS result, inspection_type, inspection_items, abnormal_items, action_taken, remarks, next_inspection_date, created_at, updated_at FROM equipment_inspection WHERE equipment_id = ? ORDER BY inspection_date DESC',
       [id]
     );
 
@@ -399,8 +423,16 @@ exports.createEquipment = async (req, res) => {
       return ResponseHandler.error(res, '设备编号和设备名称为必填项', 'VALIDATION_ERROR', 400);
     }
 
+    const equipmentStatus = normalizeEquipmentStatus(status || 'normal');
+    if (!EQUIPMENT_STATUSES.includes(equipmentStatus)) {
+      return ResponseHandler.error(res, '无效的设备状态', 'VALIDATION_ERROR', 400);
+    }
+
     // 检查设备编号是否已存在
-    const [existingEquipment] = await pool.query('SELECT id FROM equipment WHERE code = ? AND deleted_at IS NULL', [code]);
+    const [existingEquipment] = await pool.query(
+      'SELECT id FROM equipment WHERE code = ? AND deleted_at IS NULL',
+      [code]
+    );
 
     if (existingEquipment.length > 0) {
       return ResponseHandler.error(res, '设备编号已存在', 'VALIDATION_ERROR', 400);
@@ -442,7 +474,7 @@ exports.createEquipment = async (req, res) => {
         formattedInspectionDate,
         formattedNextInspectionDate,
         location,
-        status || 'normal',
+        equipmentStatus,
         responsible_person,
         specs,
         description,
@@ -488,8 +520,16 @@ exports.updateEquipment = async (req, res) => {
       description,
     } = mapKeysToSnake(req.body || {});
 
+    const equipmentStatus = normalizeEquipmentStatus(status);
+    if (!EQUIPMENT_STATUSES.includes(equipmentStatus)) {
+      return ResponseHandler.error(res, '无效的设备状态', 'VALIDATION_ERROR', 400);
+    }
+
     // 检查设备是否存在
-    const [existingEquipment] = await pool.query('SELECT id FROM equipment WHERE id = ? AND deleted_at IS NULL', [id]);
+    const [existingEquipment] = await pool.query(
+      'SELECT id FROM equipment WHERE id = ? AND deleted_at IS NULL',
+      [id]
+    );
 
     if (existingEquipment.length === 0) {
       return ResponseHandler.error(res, '设备不存在', 'NOT_FOUND', 404);
@@ -539,7 +579,7 @@ exports.updateEquipment = async (req, res) => {
         formattedInspectionDate,
         formattedNextInspectionDate,
         location,
-        status,
+        equipmentStatus,
         responsible_person,
         specs,
         description,
@@ -561,7 +601,10 @@ exports.deleteEquipment = async (req, res) => {
     const { id } = req.params;
 
     // 检查设备是否存在
-    const [existingEquipment] = await pool.query('SELECT id FROM equipment WHERE id = ? AND deleted_at IS NULL', [id]);
+    const [existingEquipment] = await pool.query(
+      'SELECT id FROM equipment WHERE id = ? AND deleted_at IS NULL',
+      [id]
+    );
 
     if (existingEquipment.length === 0) {
       return ResponseHandler.error(res, '设备不存在', 'NOT_FOUND', 404);
@@ -584,25 +627,27 @@ exports.deleteEquipment = async (req, res) => {
 exports.updateEquipmentStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const status = normalizeEquipmentStatus(req.body.status);
 
     if (!status) {
       return ResponseHandler.error(res, '状态不能为空', 'VALIDATION_ERROR', 400);
     }
 
     // 检查设备是否存在
-    const [existingEquipment] = await pool.query('SELECT id FROM equipment WHERE id = ? AND deleted_at IS NULL', [id]);
+    const [existingEquipment] = await pool.query(
+      'SELECT id FROM equipment WHERE id = ? AND deleted_at IS NULL',
+      [id]
+    );
 
     if (existingEquipment.length === 0) {
       return ResponseHandler.error(res, '设备不存在', 'NOT_FOUND', 404);
     }
 
     // ✅ 安全修复：添加状态白名单校验，防止任意状态值注入
-    const VALID_EQUIPMENT_STATUSES = ['normal', 'maintenance', 'repair', 'scrapped', 'idle'];
-    if (!VALID_EQUIPMENT_STATUSES.includes(status)) {
+    if (!EQUIPMENT_STATUSES.includes(status)) {
       return ResponseHandler.error(
         res,
-        `无效的设备状态: "${status}"，允许的状态: ${VALID_EQUIPMENT_STATUSES.join(', ')}`,
+        `无效的设备状态: "${status}"，允许的状态: ${EQUIPMENT_STATUSES.join(', ')}`,
         'VALIDATION_ERROR',
         400
       );
@@ -650,12 +695,14 @@ exports.getEquipmentStats = async (req, res) => {
  * 添加设备维护记录
  */
 exports.addMaintenanceRecord = async (req, res) => {
+  let connection;
   try {
     const { equipment_id } = req.params;
     const {
       maintenance_type,
       maintenance_date,
       maintenance_person,
+      maintenance_staff,
       description,
       cost,
       parts_replaced,
@@ -664,35 +711,55 @@ exports.addMaintenanceRecord = async (req, res) => {
       remarks,
     } = mapKeysToSnake(req.body || {});
 
-    // 检查设备是否存在
-    const [existingEquipment] = await pool.query('SELECT id FROM equipment WHERE id = ? AND deleted_at IS NULL', [
-      equipment_id,
-    ]);
+    const maintenanceType = normalizeMaintenanceType(maintenance_type);
+    const maintenanceStatus = !status || status === 'planned' ? 'pending' : status;
+    if (
+      !['routine', 'preventive', 'corrective'].includes(maintenanceType) ||
+      !['pending', 'in_progress', 'completed'].includes(maintenanceStatus) ||
+      !maintenance_date
+    ) {
+      return ResponseHandler.error(
+        res,
+        '请提供有效的维护类型、日期和状态',
+        'VALIDATION_ERROR',
+        400
+      );
+    }
+
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+    // 锁定设备，避免建单与设备归档交错。
+    const [existingEquipment] = await connection.query(
+      'SELECT id FROM equipment WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      [equipment_id]
+    );
 
     if (existingEquipment.length === 0) {
+      await connection.rollback();
       return ResponseHandler.error(res, '设备不存在', 'NOT_FOUND', 404);
     }
 
     // 插入维护记录
-    const [result] = await pool.query(
+    const [result] = await connection.query(
       `INSERT INTO equipment_maintenance (
-        equipment_id, maintenance_type, maintenance_date, maintenance_person,
+        equipment_id, maintenance_type, maintenance_date, maintenance_staff,
         description, cost, parts_replaced, next_maintenance_date, status, remarks
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         equipment_id,
-        maintenance_type,
+        maintenanceType,
         maintenance_date,
-        maintenance_person,
+        maintenance_person || maintenance_staff || null,
         description,
         cost,
         parts_replaced,
         next_maintenance_date,
-        status || 'planned',
+        maintenanceStatus,
         remarks,
       ]
     );
 
+    await connection.commit();
     ResponseHandler.success(
       res,
       {
@@ -706,7 +773,10 @@ exports.addMaintenanceRecord = async (req, res) => {
       201
     );
   } catch (error) {
+    if (connection) await connection.rollback();
     handleDatabaseError(error, res);
+  } finally {
+    if (connection) connection.release();
   }
 };
 
@@ -731,9 +801,10 @@ exports.addFailureRecord = async (req, res) => {
     } = mapKeysToSnake(req.body || {});
 
     // 检查设备是否存在
-    const [existingEquipment] = await pool.query('SELECT id FROM equipment WHERE id = ? AND deleted_at IS NULL', [
-      equipment_id,
-    ]);
+    const [existingEquipment] = await pool.query(
+      'SELECT id FROM equipment WHERE id = ? AND deleted_at IS NULL',
+      [equipment_id]
+    );
 
     if (existingEquipment.length === 0) {
       return ResponseHandler.error(res, '设备不存在', 'NOT_FOUND', 404);
@@ -747,7 +818,7 @@ exports.addFailureRecord = async (req, res) => {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         equipment_id,
-        failure_date,
+        failure_date || new Date(),
         failure_type,
         description,
         reported_by,
@@ -782,6 +853,7 @@ exports.addFailureRecord = async (req, res) => {
  * 添加设备检查记录
  */
 exports.addInspectionRecord = async (req, res) => {
+  let connection;
   try {
     const { equipment_id } = req.params;
     const {
@@ -790,41 +862,77 @@ exports.addInspectionRecord = async (req, res) => {
       inspection_type,
       inspection_items,
       result,
+      inspection_result,
+      description,
       abnormal_items,
+      abnormal_detail,
       action_taken,
       next_inspection_date,
       remarks,
     } = mapKeysToSnake(req.body || {});
 
-    // 检查设备是否存在
-    const [existingEquipment] = await pool.query('SELECT id FROM equipment WHERE id = ? AND deleted_at IS NULL', [
-      equipment_id,
-    ]);
+    const inspectionResult = normalizeInspectionResult(result || inspection_result);
+    if (
+      !['pass', 'conditional_pass', 'fail'].includes(inspectionResult) ||
+      !inspection_date ||
+      !inspector
+    ) {
+      return ResponseHandler.error(
+        res,
+        '请提供有效的检查日期、检查人和检查结果',
+        'VALIDATION_ERROR',
+        400
+      );
+    }
+
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+    const [existingEquipment] = await connection.query(
+      'SELECT id FROM equipment WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      [equipment_id]
+    );
 
     if (existingEquipment.length === 0) {
+      await connection.rollback();
       return ResponseHandler.error(res, '设备不存在', 'NOT_FOUND', 404);
     }
 
     // 插入检查记录
-    const [result_insert] = await pool.query(
+    const [result_insert] = await connection.query(
       `INSERT INTO equipment_inspection (
         equipment_id, inspection_date, inspector, inspection_type,
-        inspection_items, result, abnormal_items, action_taken, next_inspection_date, remarks
+        inspection_items, inspection_result, abnormal_items, action_taken, next_inspection_date, remarks
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         equipment_id,
         inspection_date,
         inspector,
         inspection_type,
-        inspection_items,
-        result,
-        abnormal_items,
+        inspection_items || description || null,
+        inspectionResult,
+        abnormal_items || abnormal_detail || null,
         action_taken,
         next_inspection_date,
         remarks,
       ]
     );
 
+    // 补录历史检查不能覆盖更新的设备检查日程。
+    await connection.query(
+      `UPDATE equipment SET
+         next_inspection_date = CASE WHEN inspection_date IS NULL OR inspection_date <= ?
+           THEN COALESCE(?, next_inspection_date) ELSE next_inspection_date END,
+         inspection_date = GREATEST(COALESCE(inspection_date, ?), ?), updated_at = NOW()
+       WHERE id = ? AND deleted_at IS NULL`,
+      [
+        inspection_date,
+        next_inspection_date || null,
+        inspection_date,
+        inspection_date,
+        equipment_id,
+      ]
+    );
+    await connection.commit();
     ResponseHandler.success(
       res,
       {
@@ -838,7 +946,10 @@ exports.addInspectionRecord = async (req, res) => {
       201
     );
   } catch (error) {
+    if (connection) await connection.rollback();
     handleDatabaseError(error, res);
+  } finally {
+    if (connection) connection.release();
   }
 };
 
@@ -863,7 +974,8 @@ exports.importEquipment = async (req, res) => {
 
     try {
       for (let i = 0; i < equipments.length; i++) {
-        const equipment = equipments[i];
+        const equipment = mapKeysToSnake(equipments[i] || {});
+        equipment.status = normalizeEquipmentStatus(equipment.status || 'normal');
 
         try {
           // 使用统一验证工具验证必填字段
@@ -891,8 +1003,7 @@ exports.importEquipment = async (req, res) => {
           }
 
           // 使用统一验证工具验证状态值
-          const validStatuses = ['normal', 'maintenance', 'repair', 'scrapped'];
-          const statusError = validateEnum(equipment.status, validStatuses, '设备状态');
+          const statusError = validateEnum(equipment.status, EQUIPMENT_STATUSES, '设备状态');
 
           if (statusError) {
             errors.push(`第${i + 1}行：${statusError.message}`);
@@ -937,12 +1048,16 @@ exports.importEquipment = async (req, res) => {
       // 提交事务
       await connection.commit();
 
-      return ResponseHandler.success(res, {
+      return ResponseHandler.success(
+        res,
+        {
           total: equipments.length,
           success: successCount,
           failed: failedCount,
           errors: errors,
-        }, `导入完成：成功 ${successCount} 条，失败 ${failedCount} 条`);
+        },
+        `导入完成：成功 ${successCount} 条，失败 ${failedCount} 条`
+      );
     } catch (transactionError) {
       // 回滚事务
       await connection.rollback();

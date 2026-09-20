@@ -6,6 +6,7 @@ import { createApp, defineAsyncComponent } from 'vue'
 import { createPinia } from 'pinia'
 import { ElLoading } from 'element-plus/es/components/loading/index'
 import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import 'element-plus/theme-chalk/el-loading.css'
 import 'element-plus/theme-chalk/el-message-box.css'
 import 'element-plus/theme-chalk/el-message.css'
@@ -45,11 +46,73 @@ import './assets/stat-cards.css'
 
 import permissionDirective from './directives/permission'
 import { setupErrorReporter } from '@/utils/errorReporter'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { setupReleaseRecovery } from '@/utils/releaseRecovery'
 import { installNavigationErrorHandler } from '@/utils/navigationError'
 import { startOperationColumnAutoWidth } from '@/plugins/operationColumnAutoWidth'
 
 setupReleaseRecovery()
+
+// 兼容历史页面仍直接把 Error / response.data.message 传给 Element Plus 的写法。
+// 统一在 UI 出口再次解析，避免错误码、英文异常和内部 ID 绕过 Axios 拦截器展示给用户。
+const normalizeUserFacingMessage = (value, fallback = '操作失败') => {
+  if (typeof value === 'string') return getApiErrorMessage(value, fallback)
+  if (value instanceof Error) return getApiErrorMessage(value, fallback)
+  if (value && typeof value === 'object' && (
+    'response' in value ||
+    'errorCode' in value ||
+    'code' in value ||
+    'message' in value ||
+    'msg' in value ||
+    'error' in value
+  )) {
+    return getApiErrorMessage(value, fallback)
+  }
+  return value
+}
+
+const wrapUserMessage = (method) => {
+  const original = ElMessage[method]
+  if (typeof original !== 'function' || original.__safeWrapped) return
+  const wrapped = (options, ...args) => {
+    if (options instanceof Error) {
+      return original(normalizeUserFacingMessage(options), ...args)
+    }
+    if (typeof options === 'string') {
+      return original(normalizeUserFacingMessage(options), ...args)
+    }
+    if (options && typeof options === 'object' && 'message' in options) {
+      return original({
+        ...options,
+        // message 也可能是 VNode；只解析字符串和错误对象，避免破坏合法的富文本消息。
+        message: normalizeUserFacingMessage(options.message, options.message || '操作失败'),
+      }, ...args)
+    }
+    return original(options, ...args)
+  }
+  wrapped.__safeWrapped = true
+  ElMessage[method] = wrapped
+}
+
+wrapUserMessage('error')
+wrapUserMessage('warning')
+
+const wrapMessageBox = (method) => {
+  const original = ElMessageBox[method]
+  if (typeof original !== 'function' || original.__safeWrapped) return
+  const wrapped = (message, ...args) => original.call(
+    ElMessageBox,
+    normalizeUserFacingMessage(message),
+    ...args
+  )
+  wrapped.__safeWrapped = true
+  ElMessageBox[method] = wrapped
+}
+
+// 部分老页面直接把接口返回的 message 放进 alert/confirm，这里再兜底一次。
+wrapMessageBox('alert')
+wrapMessageBox('confirm')
+wrapMessageBox('prompt')
 
 const app = createApp(App)
 const pinia = createPinia()

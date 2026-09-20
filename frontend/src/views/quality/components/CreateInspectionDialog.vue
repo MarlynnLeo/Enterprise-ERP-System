@@ -107,6 +107,7 @@
 import { ref, reactive, computed } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { qualityApi, purchaseApi, baseDataApi } from '@/api'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { parseListData } from '@/utils/responseParser'
 import { generateBatchNumber as generateBatchNumberHelper } from '@/utils/inspectionHelpers'
 import dayjs from 'dayjs'
@@ -185,7 +186,7 @@ const fetchPurchaseOrders = async () => {
       purchaseOrderOptions.value = []
     }
   } catch (error) {
-    ElMessage.error(`获取采购单失败: ${error.message}`)
+    ElMessage.error(`获取采购单失败：${getApiErrorMessage(error, '请稍后重试')}`)
     purchaseOrderOptions.value = []
   }
 }
@@ -218,7 +219,7 @@ const handlePurchaseOrderChange = async (value) => {
       try {
         form.batchNo = await generateBatchNumber(form.supplierCode, form.supplierId)
       } catch (error) {
-        ElMessage.error(error.message)
+        ElMessage.error(getApiErrorMessage(error, '请稍后重试'))
       }
     } else {
       ElMessage.warning('供应商编码缺失，请维护供应商编码或手工录入批次号')
@@ -261,7 +262,7 @@ const fetchOrderMaterials = async (orderNo) => {
     }
   } catch (error) {
     console.error('获取采购单物料失败:', error)
-    ElMessage.error(`获取物料列表失败: ${error.message}`)
+    ElMessage.error(`获取物料列表失败：${getApiErrorMessage(error, '请稍后重试')}`)
     materialOptions.value = []
   }
 }
@@ -294,7 +295,7 @@ const handleMaterialChange = async (value) => {
       try {
         form.batchNo = await generateBatchNumber(form.supplierCode, form.supplierId)
       } catch (error) {
-        ElMessage.error(error.message)
+        ElMessage.error(getApiErrorMessage(error, '请稍后重试'))
       }
     }
   } else {
@@ -356,11 +357,11 @@ const submitForm = async () => {
       dialogVisible.value = false
       emit('success')
     } else {
-      ElMessage.error(respData?.message || '检验单创建失败')
+      ElMessage.error(getApiErrorMessage(respData, '检验单创建失败'))
     }
   } catch (error) {
     console.error('检验单创建失败:', error)
-    ElMessage.error(`检验单创建失败: ${error.message}`)
+    ElMessage.error(`检验单创建失败：${getApiErrorMessage(error, '请稍后重试')}`)
   } finally {
     submitting.value = false
   }

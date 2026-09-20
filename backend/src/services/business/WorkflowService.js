@@ -18,12 +18,7 @@ class WorkflowService {
   static BUSINESS_STATUS_MAP = BUSINESS_STATUS_MAP;
 }
 
-Object.assign(
-  WorkflowService.prototype,
-  templateMethods,
-  instanceMethods,
-  businessMethods
-);
+Object.assign(WorkflowService.prototype, templateMethods, instanceMethods, businessMethods);
 
 const workflowService = new WorkflowService();
 workflowService.BUSINESS_STATUS_MAP = BUSINESS_STATUS_MAP;

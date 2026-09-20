@@ -27,8 +27,11 @@ class GlobalConfigManager {
       );
       if (accSettings.length > 0 && accSettings[0].value) {
         try {
-          // eslint-disable-next-line no-control-regex -- intentionally strips unsafe control characters from persisted JSON.
-          const cleanValue = accSettings[0].value.replace(new RegExp('[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]', 'g'), '');
+          const cleanValue = accSettings[0].value.replace(
+            // eslint-disable-next-line no-control-regex -- intentionally strips unsafe control characters from persisted JSON.
+            new RegExp('[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]', 'g'),
+            ''
+          );
           const dbConfig = JSON.parse(cleanValue);
           accountCodes = { ...accountCodes, ...dbConfig };
         } catch (e) {
@@ -44,8 +47,10 @@ class GlobalConfigManager {
       );
 
       if (cstSettings.length === 0) {
-         logger.error('Fatal configuration error: valid cost_settings were not loaded; startup refused to prevent unconfigured costing.');
-         throw new Error('Missing Cost Settings in SSOT Initialization');
+        logger.error(
+          'Fatal configuration error: valid cost_settings were not loaded; startup refused to prevent unconfigured costing.'
+        );
+        throw new Error('Missing Cost Settings in SSOT Initialization');
       }
 
       const row = cstSettings[0];
@@ -64,9 +69,9 @@ class GlobalConfigManager {
       // 3. 构建原子化配置树
       const mergedConfig = {
         accounting: {
-          accounts: accountCodes
+          accounts: accountCodes,
         },
-        cost: costSettings
+        cost: costSettings,
       };
 
       // 4. 深度冻结 (不可变保证)
@@ -85,7 +90,7 @@ class GlobalConfigManager {
    */
   getConfig() {
     if (!this.isInitialized) {
-      throw new Error("❌ GlobalConfig 未经初始化被调用 (违背 SSOT 契约)");
+      throw new Error('❌ GlobalConfig 未经初始化被调用 (违背 SSOT 契约)');
     }
     return this.config;
   }
@@ -99,7 +104,7 @@ class GlobalConfigManager {
   }
 
   _deepFreeze(obj) {
-    Object.keys(obj).forEach(prop => {
+    Object.keys(obj).forEach((prop) => {
       const val = obj[prop];
       if (val !== null && typeof val === 'object') {
         this._deepFreeze(val);

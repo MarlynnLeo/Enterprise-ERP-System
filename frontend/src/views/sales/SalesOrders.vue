@@ -606,7 +606,7 @@
           <h5>失败详情：</h5>
           <ul>
             <li v-for="(err, index) in importResult.errors" :key="index">
-              第 {{ err.row || (index + 1) }} 行：{{ err.message }}
+              第 {{ err.row || (index + 1) }} 行：{{ getApiErrorMessage(err, '导入失败') }}
             </li>
           </ul>
         </div>
@@ -626,6 +626,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { formatCurrency } from '@/utils/format'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { moveOrderItemColumn, restoreOrderItemColumns } from '@/utils/orderItemColumns'
 import { salesApi } from '@/api'
 import { usePaginatedFetching } from '@/composables/useDataFetching'
@@ -924,7 +925,7 @@ const handlePrintOrder = async () => {
     printService.previewDocument(html)
   } catch (error) {
     console.error('打印销售订单失败:', error)
-    ElMessage.error('打印失败: ' + (error.message || '未知错误'))
+    ElMessage.error('打印失败: ' + (getApiErrorMessage(error, '未知错误')))
   } finally {
     printLoading.value = false
   }

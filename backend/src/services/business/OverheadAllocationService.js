@@ -228,7 +228,8 @@ class OverheadAllocationService {
       }
 
       // 优先级排序：product_id 精确匹配 > product_category 匹配 > 全局默认
-      sql += ' ORDER BY ISNULL(product_id) ASC, ISNULL(product_category) ASC, priority DESC, ISNULL(cost_center_id) ASC LIMIT 1';
+      sql +=
+        ' ORDER BY ISNULL(product_id) ASC, ISNULL(product_category) ASC, priority DESC, ISNULL(cost_center_id) ASC LIMIT 1';
 
       const [configs] = await db.pool.execute(sql, sqlParams);
 
@@ -261,10 +262,10 @@ class OverheadAllocationService {
           overhead = Precision.mul(params.materialCost || 0, parseFloat(config.rate));
           break;
         default:
-          throw new BusinessError(
-            `遇到未受支持的费用分摊计算基准: ${config.allocation_base}`,
-            { route: '/finance/cost/settings', buttonText: '修改基准设定' }
-          );
+          throw new BusinessError(`遇到未受支持的费用分摊计算基准: ${config.allocation_base}`, {
+            route: '/finance/cost/settings',
+            buttonText: '修改基准设定',
+          });
       }
 
       // 保留2位小数

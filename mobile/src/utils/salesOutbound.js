@@ -1,4 +1,5 @@
 import { formatDate } from './format'
+import { getApiErrorMessage } from './errorHandler'
 
 export const SALES_OUTBOUND_STATUS_TRANSITIONS = {
   draft: ['processing', 'cancelled'],
@@ -21,8 +22,7 @@ export const buildSalesOutboundStatusPayload = (outbound = {}, status) => ({
 
 export const getSalesOutboundErrorMessage = (error, fallback = '操作失败') => {
   const data = error?.response?.data || {}
-  const message = [data.message, data.error?.message, data.error, error?.message]
-    .find(value => typeof value === 'string' && value.trim()) || fallback
+  const message = getApiErrorMessage(error, fallback)
   const details = data.error?.details || data.details || data.data || data
   const { materialCode, materialName } = details
 

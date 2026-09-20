@@ -82,7 +82,7 @@ describe('unifiedErrorHandler production safety', () => {
 
     const response = res.json.mock.calls[0]?.[0];
     if (response) {
-      expect(response.message).toBe('Invalid email format');
+      expect(response.message).toBe('提交内容有误，请检查后重试');
       expect(response.stack).toBeUndefined();
     }
   });

@@ -59,20 +59,56 @@ router.post(
 );
 
 // 定时任务管理
-router.get('/scheduled-tasks/status', requirePermission('finance:automation:view'), FinanceAutomationController.getScheduledTaskStatus);
-router.post('/scheduled-tasks/start', requirePermission('finance:automation:execute'), FinanceAutomationController.startScheduledTasks);
-router.post('/scheduled-tasks/stop', requirePermission('finance:automation:execute'), FinanceAutomationController.stopScheduledTasks);
-router.post('/scheduled-tasks/restart/:taskName', requirePermission('finance:automation:execute'), FinanceAutomationController.restartScheduledTask);
+router.get(
+  '/scheduled-tasks/status',
+  requirePermission('finance:automation:view'),
+  FinanceAutomationController.getScheduledTaskStatus
+);
+router.post(
+  '/scheduled-tasks/start',
+  requirePermission('finance:automation:execute'),
+  FinanceAutomationController.startScheduledTasks
+);
+router.post(
+  '/scheduled-tasks/stop',
+  requirePermission('finance:automation:execute'),
+  FinanceAutomationController.stopScheduledTasks
+);
+router.post(
+  '/scheduled-tasks/restart/:taskName',
+  requirePermission('finance:automation:execute'),
+  FinanceAutomationController.restartScheduledTask
+);
 
 // ==================== 成本闭环模块 ====================
 // 在制品成本
-router.post('/wip/calculate', requirePermission('finance:cost:execute'), requirePermission(PRICE_UPDATE_PERMISSIONS), FinanceAutomationController.calculateWIPCost);
-router.post('/wip/voucher/:periodId', requirePermission('finance:cost:execute'), requirePermission(PRICE_UPDATE_PERMISSIONS), FinanceAutomationController.generateWIPVoucher);
+router.post(
+  '/wip/calculate',
+  requirePermission('finance:cost:execute'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  FinanceAutomationController.calculateWIPCost
+);
+router.post(
+  '/wip/voucher/:periodId',
+  requirePermission('finance:cost:execute'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  FinanceAutomationController.generateWIPVoucher
+);
 
 // 成本差异分摊
-router.post('/variance/:periodId', requirePermission('finance:cost:execute'), requirePermission(PRICE_UPDATE_PERMISSIONS), FinanceAutomationController.allocateVariance);
+router.post(
+  '/variance/:periodId',
+  requirePermission('finance:cost:execute'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  FinanceAutomationController.allocateVariance
+);
 
 // 月末成本结转（一键执行 WIP计算 + WIP凭证 + 差异分摊）
-router.post('/cost-closing/:periodId', requirePermission('finance:cost:execute'), requirePermission(PRICE_UPDATE_PERMISSIONS), FinanceAutomationController.executeCostClosing);
+router.post(
+  '/cost-closing/:periodId',
+  requirePermission('finance:cost:execute'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  FinanceAutomationController.executeCostClosing
+);
 
 module.exports = router;

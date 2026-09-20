@@ -354,6 +354,7 @@ import { parseListData, parsePaginatedData, parseResponseData } from '@/utils/re
 import { buildResourceUrl } from '@/config/app'
 import { isPreviewableAttachmentImage } from '@/utils/attachmentPreview'
 import { BOM_DIALOG_WIDTH } from '@/constants/bom'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 const props = defineProps({
   modelValue: Boolean,
   editData: {
@@ -1032,12 +1033,7 @@ const submitForm = async () => {
         handleClose()
       } catch (error) {
         console.error('提交失败:', error)
-        const msg =
-          error?.response?.data?.message ||
-          error?.response?.data?.error?.message ||
-          error?.message ||
-          '操作失败'
-        ElMessage.error(String(msg).replace(/^创建BOM失败:\s*/, ''))
+        ElMessage.error(getApiErrorMessage(error, '操作失败').replace(/^创建BOM失败:\s*/, ''))
       } finally {
         submitting.value = false
       }

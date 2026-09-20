@@ -149,10 +149,10 @@ const productSalesTraceabilityController = {
         `);
 
         return ResponseHandler.success(res, {
-            statistics: salesStats[0] || {},
-            recent_sales: recentSales,
-            top_products: topProducts,
-          });
+          statistics: salesStats[0] || {},
+          recent_sales: recentSales,
+          top_products: topProducts,
+        });
       } finally {
         connection.release();
       }
@@ -161,7 +161,6 @@ const productSalesTraceabilityController = {
       ResponseHandler.error(res, '获取销售统计失败', 'SERVER_ERROR', 500, error);
     }
   },
-
 
   /**
    * 获取原材料到客户的完整追溯链路
@@ -212,7 +211,12 @@ const productSalesTraceabilityController = {
       }
 
       if (traceChain.length === 0) {
-        return ResponseHandler.error(res, `未找到原材料 ${materialCode} - ${batchNumber} 的追溯记录`, 'NOT_FOUND', 404);
+        return ResponseHandler.error(
+          res,
+          `未找到原材料 ${materialCode} - ${batchNumber} 的追溯记录`,
+          'NOT_FOUND',
+          404
+        );
       }
 
       // 按成品批次分组
@@ -250,21 +254,21 @@ const productSalesTraceabilityController = {
       });
 
       return ResponseHandler.success(res, {
-          material_info: {
-            code: materialCode,
-            batch: batchNumber,
-          },
-          trace_chain: Object.values(groupedTrace),
-          summary: {
-            products_produced: Object.keys(groupedTrace).length,
-            total_customers: new Set(
-              traceChain.filter((r) => r.customer_name).map((r) => r.customer_name)
-            ).size,
-            total_sales: traceChain
-              .filter((r) => r.allocated_quantity)
-              .reduce((sum, r) => sum + parseFloat(r.allocated_quantity), 0),
-          },
-        });
+        material_info: {
+          code: materialCode,
+          batch: batchNumber,
+        },
+        trace_chain: Object.values(groupedTrace),
+        summary: {
+          products_produced: Object.keys(groupedTrace).length,
+          total_customers: new Set(
+            traceChain.filter((r) => r.customer_name).map((r) => r.customer_name)
+          ).size,
+          total_sales: traceChain
+            .filter((r) => r.allocated_quantity)
+            .reduce((sum, r) => sum + parseFloat(r.allocated_quantity), 0),
+        },
+      });
     } catch (error) {
       logger.error('获取原材料到客户追溯失败:', error);
       ResponseHandler.error(res, '获取原材料到客户追溯失败', 'SERVER_ERROR', 500, error);

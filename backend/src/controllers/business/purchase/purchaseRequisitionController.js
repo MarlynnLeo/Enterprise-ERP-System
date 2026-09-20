@@ -15,7 +15,10 @@ const { softDelete } = require('../../../utils/softDelete');
 const purchaseModel = require('../../../models/purchase');
 const { getRequestActorLabel } = require('../../../utils/userUtils');
 const { purchaseRequisitionMap } = require('../../../utils/purchase/purchaseFieldMap');
-const { normalizePurchaseDate, normalizeRequisitionMaterials } = require('../../../utils/purchase/purchaseValidation');
+const {
+  normalizePurchaseDate,
+  normalizeRequisitionMaterials,
+} = require('../../../utils/purchase/purchaseValidation');
 
 const toNullableInteger = (value) => {
   if (value === undefined || value === null || value === '') return null;
@@ -28,13 +31,10 @@ const toNullableInteger = (value) => {
  * 历史 bug：mapKeysToSnake 后仍读 materialId → 全部写成 null
  */
 const pickMaterialLineFields = (material = {}) => {
-  const materialId = toNullableInteger(
-    material.materialId ?? material.material_id ?? material.id
-  );
+  const materialId = toNullableInteger(material.materialId ?? material.material_id ?? material.id);
   const materialCode = material.materialCode ?? material.material_code ?? material.code ?? '';
   const materialName = material.materialName ?? material.material_name ?? material.name ?? '';
-  const specification =
-    material.specification ?? material.specs ?? material.material_specs ?? '';
+  const specification = material.specification ?? material.specs ?? material.material_specs ?? '';
   const unit = material.unit ?? material.unit_name ?? '';
   const unitId = toNullableInteger(material.unitId ?? material.unit_id);
   const quantityRaw = material.quantity ?? material.qty ?? 0;
@@ -102,9 +102,9 @@ const attachOrderedQuantities = async (connection, items) => {
      GROUP BY po.requisition_id, poi.material_id`,
     requisitionIds
   );
-  const remaining = new Map(orderedRows.map((row) => [
-    `${row.requisition_id}:${row.material_id}`, Number(row.ordered_qty),
-  ]));
+  const remaining = new Map(
+    orderedRows.map((row) => [`${row.requisition_id}:${row.material_id}`, Number(row.ordered_qty)])
+  );
   // 同一物料拆成多行时，已采购量按明细顺序分配，不能每行重复计入。
   for (const item of items) {
     const key = `${item.requisition_id}:${item.material_id}`;
@@ -115,9 +115,9 @@ const attachOrderedQuantities = async (connection, items) => {
 };
 
 const orderProgress = (items) => {
-  const fullyOrdered = items.length > 0 && items.every(
-    (item) => Number(item.ordered_quantity || 0) + 0.000001 >= Number(item.quantity)
-  );
+  const fullyOrdered =
+    items.length > 0 &&
+    items.every((item) => Number(item.ordered_quantity || 0) + 0.000001 >= Number(item.quantity));
   return {
     is_fully_ordered: fullyOrdered,
     is_partially_ordered: !fullyOrdered && items.some((item) => item.ordered_quantity > 0),
@@ -309,7 +309,11 @@ const getRequisition = async (req, res) => {
     const { id } = req.params;
     if (id !== null && id !== undefined && id !== '') {
       const ScopeGuard = require('../../../authorization/ScopeGuard');
-      if (!(await ScopeGuard.assertAccess(db.pool, req, 'purchase_requisition', id, { accessMode: 'read' }))) {
+      if (
+        !(await ScopeGuard.assertAccess(db.pool, req, 'purchase_requisition', id, {
+          accessMode: 'read',
+        }))
+      ) {
         return ResponseHandler.forbidden(res, '无权访问该采购申请');
       }
     }
@@ -319,7 +323,8 @@ const getRequisition = async (req, res) => {
     const { id } = req.params;
 
     // 获取申请单基本信息
-    const query = 'SELECT id, requisition_number, request_date, requester, contract_code, real_name, remarks, status, source_type, source_id, source_material_id, created_at, updated_at, deleted_at FROM purchase_requisitions WHERE id = ? AND deleted_at IS NULL';
+    const query =
+      'SELECT id, requisition_number, request_date, requester, contract_code, real_name, remarks, status, source_type, source_id, source_material_id, created_at, updated_at, deleted_at FROM purchase_requisitions WHERE id = ? AND deleted_at IS NULL';
     const [rows] = await db.pool.execute(query, [id]);
 
     if (rows.length === 0) {
@@ -527,7 +532,10 @@ const createRequisition = async (req, res) => {
             throw sourceError;
           }
         } catch (queryError) {
-          logger.error('Failed to resolve sales order number for purchase requisition:', queryError);
+          logger.error(
+            'Failed to resolve sales order number for purchase requisition:',
+            queryError
+          );
           throw queryError;
         }
       }
@@ -553,7 +561,7 @@ const createRequisition = async (req, res) => {
       sourceInfo?.sourceType || null,
       sourceInfo?.sourceId || null,
       sourceInfo?.sourceMaterialId || null,
-    ownerStamp.created_by,
+      ownerStamp.created_by,
     ]);
 
     const requisitionId = result.insertId;
@@ -567,14 +575,7 @@ const createRequisition = async (req, res) => {
 
       for (const material of materials) {
         const line = pickMaterialLineFields(material);
-        let {
-          materialId,
-          materialCode,
-          materialName,
-          specification,
-          unit,
-          unitId,
-        } = line;
+        let { materialId, materialCode, materialName, specification, unit, unitId } = line;
         const quantity = line.quantity;
 
         // 有 materialId 时从主数据补全编码/名称
@@ -611,7 +612,7 @@ const createRequisition = async (req, res) => {
         if (!materialId || !materialCode || !materialName) {
           throw Object.assign(
             new Error(
-              `请购物料信息不完整：materialId=${materialId}, code=${materialCode}, name=${materialName}`
+              `请购物料“${materialCode || materialName || '所选物料'}”资料不完整，请编辑申请单后重新选择有效物料`
             ),
             { statusCode: 400, code: 'VALIDATION_ERROR' }
           );
@@ -750,7 +751,8 @@ const updateRequisition = async (req, res) => {
     const finalContractCode = contract_code || null;
 
     // 检查申请单是否存在及其状态
-    const checkQuery = 'SELECT status FROM purchase_requisitions WHERE id = ? AND deleted_at IS NULL FOR UPDATE';
+    const checkQuery =
+      'SELECT status FROM purchase_requisitions WHERE id = ? AND deleted_at IS NULL FOR UPDATE';
     const [checkRows] = await connection.execute(checkQuery, [id]);
 
     if (checkRows.length === 0) {
@@ -806,7 +808,7 @@ const updateRequisition = async (req, res) => {
         if (!line.materialId || !line.materialCode || !line.materialName) {
           throw Object.assign(
             new Error(
-              `请购物料信息不完整：materialId=${line.materialId}, code=${line.materialCode}, name=${line.materialName}`
+              `请购物料“${line.materialCode || line.materialName || '所选物料'}”资料不完整，请编辑申请单后重新选择有效物料`
             ),
             { statusCode: 400, code: 'VALIDATION_ERROR' }
           );
@@ -857,7 +859,13 @@ const updateRequisition = async (req, res) => {
   } catch (error) {
     if (connection) await connection.rollback();
     logger.error('更新采购申请失败:', error);
-    return ResponseHandler.error(res, error.statusCode < 500 ? error.message : '操作失败', error.code || 'OPERATION_ERROR', error.statusCode || 500, error);
+    return ResponseHandler.error(
+      res,
+      error.statusCode < 500 ? error.message : '操作失败',
+      error.code || 'OPERATION_ERROR',
+      error.statusCode || 500,
+      error
+    );
   } finally {
     if (connection) connection.release();
   }
@@ -884,7 +892,8 @@ const deleteRequisition = async (req, res) => {
     const { id } = req.params;
 
     // 检查申请单是否存在及其状态
-    const checkQuery = 'SELECT status FROM purchase_requisitions WHERE id = ? AND deleted_at IS NULL FOR UPDATE';
+    const checkQuery =
+      'SELECT status FROM purchase_requisitions WHERE id = ? AND deleted_at IS NULL FOR UPDATE';
     const [checkRows] = await connection.execute(checkQuery, [id]);
 
     if (checkRows.length === 0) {
@@ -943,7 +952,8 @@ const updateRequisitionStatus = async (req, res) => {
     }
 
     // 检查申请单是否存在
-    const checkQuery = 'SELECT status FROM purchase_requisitions WHERE id = ? AND deleted_at IS NULL FOR UPDATE';
+    const checkQuery =
+      'SELECT status FROM purchase_requisitions WHERE id = ? AND deleted_at IS NULL FOR UPDATE';
     const [checkRows] = await connection.execute(checkQuery, [id]);
 
     if (checkRows.length === 0) {
@@ -962,27 +972,40 @@ const updateRequisitionStatus = async (req, res) => {
     // ✅ 审批结果状态只能由工作流回调变更，前端不可直接设置
     if (['approved', 'rejected'].includes(newStatus)) {
       await connection.rollback();
-      return ResponseHandler.error(res, '审批通过/拒绝只能通过工作流完成，请先提交审批(submitted)', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(
+        res,
+        '审批通过/拒绝只能通过工作流完成，请先提交审批(submitted)',
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     // 状态流转规则（前端可操作的转换）
     const allowedTransitions = {
-      draft:     ['submitted'],      // 草稿 → 提交审批
-      submitted: [],                  // 已提交 → 等待工作流处理，前端不可操作
-      approved:  [],                  // 已批准 → 由工作流管理，前端不可操作
-      rejected:  ['draft'],           // 已拒绝 → 退回草稿重新编辑
-      completed: [],                  // 已完成 → 终态
+      draft: ['submitted'], // 草稿 → 提交审批
+      submitted: [], // 已提交 → 等待工作流处理，前端不可操作
+      approved: [], // 已批准 → 由工作流管理，前端不可操作
+      rejected: ['draft'], // 已拒绝 → 退回草稿重新编辑
+      completed: [], // 已完成 → 终态
     };
     const allowed = allowedTransitions[currentStatus] || [];
     if (!allowed.includes(newStatus)) {
       await connection.rollback();
-      return ResponseHandler.error(res, `不允许从 [${currentStatus}] 转换到 [${newStatus}]`, 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(
+        res,
+        `不允许从 [${currentStatus}] 转换到 [${newStatus}]`,
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     // 提交审批时发起工作流
     let finalStatus = newStatus;
     if (newStatus === 'submitted') {
-      const [submissionItems] = await connection.query('SELECT material_id, quantity FROM purchase_requisition_items WHERE requisition_id = ? FOR UPDATE', [id]);
+      const [submissionItems] = await connection.query(
+        'SELECT material_id, quantity FROM purchase_requisition_items WHERE requisition_id = ? FOR UPDATE',
+        [id]
+      );
       await normalizeRequisitionMaterials(connection, submissionItems);
       const WorkflowService = require('../../../services/business/WorkflowService');
       const userId = req.user?.userId || req.user?.id;
@@ -996,8 +1019,12 @@ const updateRequisitionStatus = async (req, res) => {
         [id]
       );
       const wfResult = await WorkflowService.tryStartWorkflow(
-        'purchase_requisition', id, reqNo,
-        `采购申请 ${reqNo} 审批`, userId, connection
+        'purchase_requisition',
+        id,
+        reqNo,
+        `采购申请 ${reqNo} 审批`,
+        userId,
+        connection
       );
       if (wfResult.auto_approved) {
         finalStatus = 'approved';
@@ -1012,12 +1039,13 @@ const updateRequisitionStatus = async (req, res) => {
     `;
     await connection.execute(updateQuery, [finalStatus, id]);
 
-
     // 如果状态变更为已批准，自动生成采购订单
     let generatedOrders = [];
     if (finalStatus === 'approved') {
       try {
-        const { generateOrdersFromRequisition } = require('../../../services/business/RequisitionAutoOrderService');
+        const {
+          generateOrdersFromRequisition,
+        } = require('../../../services/business/RequisitionAutoOrderService');
         generatedOrders = await generateOrdersFromRequisition(id, connection);
       } catch (autoGenerateError) {
         logger.error('自动生成采购订单失败:', autoGenerateError);
@@ -1061,7 +1089,8 @@ const updateRequisitionStatus = async (req, res) => {
 const getRequisitionById = async (id) => {
   try {
     // 获取申请单基本信息
-    const query = 'SELECT id, requisition_number, request_date, requester, contract_code, real_name, remarks, status, source_type, source_id, source_material_id, created_at, updated_at, deleted_at FROM purchase_requisitions WHERE id = ? AND deleted_at IS NULL';
+    const query =
+      'SELECT id, requisition_number, request_date, requester, contract_code, real_name, remarks, status, source_type, source_id, source_material_id, created_at, updated_at, deleted_at FROM purchase_requisitions WHERE id = ? AND deleted_at IS NULL';
     const [rows] = await db.pool.execute(query, [id]);
 
     if (rows.length === 0) {
@@ -1134,7 +1163,8 @@ const getRequisitionItems = async (req, res) => {
 const createRequisitionItem = async (req, res) => {
   try {
     const { id } = req.params;
-    const { material_id, material_code, material_name, specification, unit, unit_id, quantity } = mapKeysToSnake(req.body || {});
+    const { material_id, material_code, material_name, specification, unit, unit_id, quantity } =
+      mapKeysToSnake(req.body || {});
 
     const query = `
       INSERT INTO purchase_requisition_items
@@ -1169,7 +1199,8 @@ const createRequisitionItem = async (req, res) => {
 const updateRequisitionItem = async (req, res) => {
   try {
     const { itemId } = req.params;
-    const { material_id, material_code, material_name, specification, unit, unit_id, quantity } = mapKeysToSnake(req.body || {});
+    const { material_id, material_code, material_name, specification, unit, unit_id, quantity } =
+      mapKeysToSnake(req.body || {});
 
     const query = `
       UPDATE purchase_requisition_items

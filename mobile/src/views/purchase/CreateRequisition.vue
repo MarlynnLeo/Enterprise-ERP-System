@@ -64,12 +64,15 @@
             />
           </div>
           <Field
-            v-model="item.materialId"
-            label="物料ID"
-            placeholder="必填(数字)"
-            type="digit"
-            :rules="[{ required: true, message: '请输入物料ID' }]"
+            v-model="item.materialName"
+            label="选择物料"
+            placeholder="请选择物料"
+            readonly
+            is-link
+            @click="openMaterialPicker(index)"
+            :rules="[{ required: true, message: '请选择物料' }]"
           />
+          <div v-if="item.materialCode" class="material-code">物料编码：{{ item.materialCode }}</div>
           <Field
             v-model="item.quantity"
             label="申请数量"
@@ -104,6 +107,38 @@
         />
       </Popup>
 
+      <Popup v-model:show="showMaterialPicker" position="bottom" :style="{ height: '70%' }">
+        <div class="material-picker">
+          <div class="picker-header">
+            <span @click="showMaterialPicker = false">取消</span>
+            <span class="picker-title">选择物料</span>
+            <span @click="confirmMaterial">确定</span>
+          </div>
+          <Search
+            v-model="materialSearchValue"
+            placeholder="搜索物料名称或编码"
+            @search="searchMaterials"
+          />
+          <div class="picker-content">
+            <div
+              v-for="material in materialList"
+              :key="material.id"
+              class="material-option"
+              :class="{ active: tempSelectedMaterial?.id === material.id }"
+              @click="tempSelectedMaterial = material"
+            >
+              <div>
+                <div class="material-name">{{ material.name || '未命名物料' }}</div>
+                <div class="material-code">{{ material.code || '无编码' }}</div>
+                <div v-if="material.specs" class="material-spec">{{ material.specs }}</div>
+              </div>
+              <span>{{ material.unit || '件' }}</span>
+            </div>
+            <Empty v-if="materialList.length === 0" description="暂无可用物料" />
+          </div>
+        </div>
+      </Popup>
+
       <div class="submit-wrapper">
         <Button round block type="primary" native-type="submit" :loading="submitting">
           提交申请
@@ -116,8 +151,10 @@
 <script setup>
   import { ref, reactive } from 'vue'
   import { useRouter } from 'vue-router'
-  import { NavBar, Form, Field, CellGroup, Button, Popup, DatePicker, Icon, showToast } from 'vant'
-  import { purchaseApi } from '@/api'
+  import { NavBar, Form, Field, CellGroup, Button, Popup, DatePicker, Icon, Search, Empty, showToast } from 'vant'
+  import { purchaseApi, baseDataApi } from '@/api'
+  import { extractApiList } from '@/utils/apiHelper'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const router = useRouter()
   const submitting = ref(false)
@@ -125,6 +162,10 @@
   const showDatePicker = ref(false)
   const showItemDatePicker = ref(false)
   const activeItemIndex = ref(-1)
+  const showMaterialPicker = ref(false)
+  const materialSearchValue = ref('')
+  const materialList = ref([])
+  const tempSelectedMaterial = ref(null)
 
   const today = new Date()
   const minDate = new Date(today.getFullYear() - 1, today.getMonth(), 1)
@@ -142,7 +183,7 @@
     requester: '',
     department: '',
     remarks: '',
-    items: [{ materialId: '', quantity: '', requiredDate: '' }]
+    items: [{ materialId: '', materialCode: '', materialName: '', quantity: '', requiredDate: '' }]
   })
 
   const onDateConfirm = ({ selectedValues }) => {
@@ -163,11 +204,46 @@
   }
 
   const addItem = () => {
-    form.items.push({ materialId: '', quantity: '', requiredDate: '' })
+    form.items.push({ materialId: '', materialCode: '', materialName: '', quantity: '', requiredDate: '' })
   }
 
   const removeItem = (index) => {
     form.items.splice(index, 1)
+  }
+
+  const searchMaterials = async () => {
+    try {
+      const keyword = materialSearchValue.value.trim()
+      const response = await baseDataApi.getMaterials({
+        page: 1,
+        pageSize: 50,
+        status: 1,
+        ...(keyword ? { name: keyword, code: keyword, specs: keyword } : {})
+      })
+      materialList.value = extractApiList(response)
+    } catch (error) {
+      console.error('搜索物料失败:', error)
+      showToast(getApiErrorMessage(error, '搜索物料失败'))
+    }
+  }
+
+  const openMaterialPicker = async (index) => {
+    activeItemIndex.value = index
+    const item = form.items[index]
+    tempSelectedMaterial.value = item.materialId
+      ? { id: item.materialId, code: item.materialCode, name: item.materialName }
+      : null
+    showMaterialPicker.value = true
+    if (!materialList.value.length) await searchMaterials()
+  }
+
+  const confirmMaterial = () => {
+    if (!tempSelectedMaterial.value || activeItemIndex.value < 0) return
+    const item = form.items[activeItemIndex.value]
+    item.materialId = tempSelectedMaterial.value.id
+    item.materialCode = tempSelectedMaterial.value.code || ''
+    item.materialName = tempSelectedMaterial.value.name || tempSelectedMaterial.value.code || '未命名物料'
+    showMaterialPicker.value = false
   }
 
   const onSubmit = async () => {
@@ -196,7 +272,7 @@
         router.back()
       }, 1000)
     } catch (error) {
-      showToast('提交失败: ' + (error.message || '系统错误'))
+      showToast(`提交失败：${getApiErrorMessage(error, '系统错误')}`)
     } finally {
       submitting.value = false
     }
@@ -214,6 +290,48 @@
     margin-bottom: 8px;
     border-bottom: 1px dashed var(--van-border-color);
     padding-bottom: 8px;
+  }
+  .material-code {
+    padding: 0 16px 8px;
+    color: var(--van-text-color-2);
+    font-size: 12px;
+  }
+  .material-picker {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+  .picker-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--van-border-color);
+  }
+  .picker-title {
+    font-weight: 600;
+  }
+  .picker-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 16px 24px;
+  }
+  .material-option {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--van-border-color);
+  }
+  .material-option.active {
+    color: var(--van-primary-color);
+  }
+  .material-name {
+    font-weight: 600;
+  }
+  .material-spec {
+    color: var(--van-text-color-2);
+    font-size: 12px;
   }
   .item-header {
     display: flex;

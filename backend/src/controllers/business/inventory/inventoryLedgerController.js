@@ -22,9 +22,7 @@ async function appendLedgerLocationScope() {
   return undefined;
 }
 
-const {
-  getInventoryTransactionTypeText,
-} = require('../../../constants/systemConstants');
+const { getInventoryTransactionTypeText } = require('../../../constants/systemConstants');
 
 // 引入库存一致性校验服务
 
@@ -33,7 +31,6 @@ const {
 // 引入重构后的入库处理服务
 
 // 引入状态映射工具和状态常量
-
 
 /**
  * 获取物料的批次号（FIFO原则）
@@ -120,9 +117,10 @@ const _getStockStatistics = async (req, res) => {
     const connection = await db.pool.getConnection();
     try {
       // 并行执行四组查询：基础统计、金额总计、分类金额 Top5、仓库金额
-      const [statsResult, valueResult, categoryValueResult, locationValueResult] = await Promise.all([
-        // 1. 原有基础数量统计
-        connection.execute(`
+      const [statsResult, valueResult, categoryValueResult, locationValueResult] =
+        await Promise.all([
+          // 1. 原有基础数量统计
+          connection.execute(`
           SELECT
             (SELECT COUNT(id) FROM materials m WHERE 1 = 1${materialScope}) as total_items,
             (SELECT COUNT(DISTINCT location_id) FROM inventory_ledger WHERE 1 = 1${ledgerScopeNoAlias}) as total_locations,
@@ -142,8 +140,8 @@ const _getStockStatistics = async (req, res) => {
             GROUP BY m.id, m.safety_stock
           ) AS stock_summary
         `),
-        // 2. 库存总金额
-        connection.execute(`
+          // 2. 库存总金额
+          connection.execute(`
           SELECT
             COALESCE(SUM(current_stock.quantity * IFNULL(m.cost_price, 0)), 0) as totalValue
           FROM (
@@ -156,8 +154,8 @@ const _getStockStatistics = async (req, res) => {
           ) current_stock
           LEFT JOIN materials m ON current_stock.material_id = m.id
         `),
-        // 3. 按分类汇总金额 Top 5
-        connection.execute(`
+          // 3. 按分类汇总金额 Top 5
+          connection.execute(`
           SELECT
             COALESCE(c.name, '未分类') as category_name,
             COALESCE(SUM(current_stock.quantity * IFNULL(m.cost_price, 0)), 0) as total_value,
@@ -176,8 +174,8 @@ const _getStockStatistics = async (req, res) => {
           ORDER BY total_value DESC
           LIMIT 5
         `),
-        // 4. 按仓库汇总金额
-        connection.execute(`
+          // 4. 按仓库汇总金额
+          connection.execute(`
           SELECT
             COALESCE(l.name, '未分配库位') as location_name,
             COALESCE(SUM(current_stock.quantity * IFNULL(m.cost_price, 0)), 0) as total_value,
@@ -193,8 +191,8 @@ const _getStockStatistics = async (req, res) => {
           LEFT JOIN locations l ON current_stock.location_id = l.id
           GROUP BY current_stock.location_id, l.name
           ORDER BY total_value DESC
-        `)
-      ]);
+        `),
+        ]);
 
       const statistics = {
         totalItems: statsResult[0][0].total_items || 0,
@@ -203,16 +201,16 @@ const _getStockStatistics = async (req, res) => {
         outOfStock: statsResult[0][0].out_of_stock || 0,
         // 金额统计
         totalValue: parseFloat(valueResult[0][0].totalValue) || 0,
-        totalValueByCategory: categoryValueResult[0].map(row => ({
+        totalValueByCategory: categoryValueResult[0].map((row) => ({
           name: row.category_name,
           value: parseFloat(row.total_value) || 0,
-          itemCount: parseInt(row.item_count) || 0
+          itemCount: parseInt(row.item_count) || 0,
         })),
-        totalValueByLocation: locationValueResult[0].map(row => ({
+        totalValueByLocation: locationValueResult[0].map((row) => ({
           name: row.location_name,
           value: parseFloat(row.total_value) || 0,
-          itemCount: parseInt(row.item_count) || 0
-        }))
+          itemCount: parseInt(row.item_count) || 0,
+        })),
       };
 
       ResponseHandler.success(res, statistics, '获取库存统计成功');
@@ -299,7 +297,9 @@ const getTransactionList = async (req, res) => {
     const params = [];
 
     if (startDate && endDate) {
-      conditions.push('COALESCE(inventory_ledger.transaction_date, DATE(inventory_ledger.created_at)) BETWEEN ? AND ?');
+      conditions.push(
+        'COALESCE(inventory_ledger.transaction_date, DATE(inventory_ledger.created_at)) BETWEEN ? AND ?'
+      );
       params.push(startDate, endDate);
     }
 
@@ -325,7 +325,13 @@ const getTransactionList = async (req, res) => {
       params.push(locationId);
     }
 
-    await appendLedgerLocationScope(req, 'inventory_ledger.location_id', locationId, conditions, params);
+    await appendLedgerLocationScope(
+      req,
+      'inventory_ledger.location_id',
+      locationId,
+      conditions,
+      params
+    );
 
     const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
@@ -392,8 +398,9 @@ const getTransactionList = async (req, res) => {
     // 处理数据 - 添加交易类型名称
     const formattedTransactions = transactions.map((trans) => {
       // 根据交易类型添加交易类型名称，特殊处理采购退货
-      const transactionTypeName = inventoryTypeMap[trans.transactionType]
-        || getInventoryTransactionTypeText(trans.transactionType);
+      const transactionTypeName =
+        inventoryTypeMap[trans.transactionType] ||
+        getInventoryTransactionTypeText(trans.transactionType);
 
       // 统一格式转换，确保数字字段是数字而不是字符串，但保留null和undefined
       const beforeQuantity =
@@ -458,15 +465,16 @@ const getTransactionList = async (req, res) => {
     const transferTypes = inventoryTypeRules
       .filter((item) => item.category === 'transfer')
       .map((item) => item.code);
-    const increasePlaceholders = increaseTypes.length ? increaseTypes.map(() => '?').join(', ') : null;
-    const decreasePlaceholders = decreaseTypes.length ? decreaseTypes.map(() => '?').join(', ') : null;
-    const transferPlaceholders = transferTypes.length ? transferTypes.map(() => '?').join(', ') : null;
-    const statsQueryParams = [
-      ...increaseTypes,
-      ...decreaseTypes,
-      ...transferTypes,
-      ...statsParams,
-    ];
+    const increasePlaceholders = increaseTypes.length
+      ? increaseTypes.map(() => '?').join(', ')
+      : null;
+    const decreasePlaceholders = decreaseTypes.length
+      ? decreaseTypes.map(() => '?').join(', ')
+      : null;
+    const transferPlaceholders = transferTypes.length
+      ? transferTypes.map(() => '?').join(', ')
+      : null;
+    const statsQueryParams = [...increaseTypes, ...decreaseTypes, ...transferTypes, ...statsParams];
 
     // 查询所有统计数据 - 使用新的单表架构
     const [statsResult] = await connection.query(
@@ -722,12 +730,14 @@ const getTransactionStats = async (req, res) => {
     }
 
     // 处理类型分布数据为饼图格式
-    const typeDistributionData = Object.values(typeDistribution.reduce((result, item) => {
-      const name = inventoryTypeMap[item.type] || getInventoryTransactionTypeText(item.type);
-      if (!result[name]) result[name] = { name, value: 0 };
-      result[name].value += Number(item.count || 0);
-      return result;
-    }, {}));
+    const typeDistributionData = Object.values(
+      typeDistribution.reduce((result, item) => {
+        const name = inventoryTypeMap[item.type] || getInventoryTransactionTypeText(item.type);
+        if (!result[name]) result[name] = { name, value: 0 };
+        result[name].value += Number(item.count || 0);
+        return result;
+      }, {})
+    );
 
     // 处理统计数据为柱状图格式
     const amountStatsData = amountStats.map((item) => ({
@@ -907,7 +917,6 @@ const exportInventoryReport = async (req, res) => {
       `;
     }
 
-
     const [rows] = await connection.execute(query, params);
     reportData = rows;
 
@@ -1045,7 +1054,9 @@ const exportTransactionReport = async (req, res) => {
     const params = [];
 
     if (startDate && endDate) {
-      conditions.push('COALESCE(inventory_ledger.transaction_date, DATE(inventory_ledger.created_at)) BETWEEN ? AND ?');
+      conditions.push(
+        'COALESCE(inventory_ledger.transaction_date, DATE(inventory_ledger.created_at)) BETWEEN ? AND ?'
+      );
       params.push(startDate, endDate);
     }
 
@@ -1064,10 +1075,15 @@ const exportTransactionReport = async (req, res) => {
       params.push(locationId);
     }
 
-    await appendLedgerLocationScope(req, 'inventory_ledger.location_id', locationId, conditions, params);
+    await appendLedgerLocationScope(
+      req,
+      'inventory_ledger.location_id',
+      locationId,
+      conditions,
+      params
+    );
 
     const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
-
 
     // 查询流水数据，无分页限制
     const [rawTransactions] = await connection.query(
@@ -1152,8 +1168,8 @@ const exportTransactionReport = async (req, res) => {
       物料编码: t.material_code,
       物料名称: t.material_name,
       规格: t.specs,
-      流水类型: inventoryTypeMap[t.transaction_type]
-        || getInventoryTransactionTypeText(t.transaction_type),
+      流水类型:
+        inventoryTypeMap[t.transaction_type] || getInventoryTransactionTypeText(t.transaction_type),
       数量: t.quantity,
       变动前数量: t.before_quantity,
       变动后数量: t.after_quantity,
@@ -1857,8 +1873,7 @@ const calculatePeriodInventoryBatch = async (
 
 // 计算期间统计数据
 const calculatePeriodStatistics = (items = []) => {
-  const sum = (field) =>
-    items.reduce((total, item) => total + (parseFloat(item[field]) || 0), 0);
+  const sum = (field) => items.reduce((total, item) => total + (parseFloat(item[field]) || 0), 0);
 
   const totalItems = items.length;
   const totalBeginningValue = sum('beginningValue');
@@ -1878,8 +1893,7 @@ const calculatePeriodStatistics = (items = []) => {
     totalOutboundValue,
     totalEndingQuantity,
     totalEndingValue,
-    avgTurnoverRate:
-      totalItems > 0 ? parseFloat((turnoverRateTotal / totalItems).toFixed(2)) : 0,
+    avgTurnoverRate: totalItems > 0 ? parseFloat((turnoverRateTotal / totalItems).toFixed(2)) : 0,
   };
 };
 
@@ -1927,7 +1941,8 @@ const getInventoryLedger = async (req, res) => {
     }
 
     // 构建查询条件
-    let whereClause = 'WHERE COALESCE(t.transaction_date, DATE(t.created_at)) >= ? AND COALESCE(t.transaction_date, DATE(t.created_at)) <= ?';
+    let whereClause =
+      'WHERE COALESCE(t.transaction_date, DATE(t.created_at)) >= ? AND COALESCE(t.transaction_date, DATE(t.created_at)) <= ?';
     const params = [defaultStartDate, defaultEndDate];
 
     if (materialId) {
@@ -1952,7 +1967,13 @@ const getInventoryLedger = async (req, res) => {
 
     const ledgerScopeConditions = [];
     const ledgerScopeParams = [];
-    await appendLedgerLocationScope(req, 't.location_id', locationId, ledgerScopeConditions, ledgerScopeParams);
+    await appendLedgerLocationScope(
+      req,
+      't.location_id',
+      locationId,
+      ledgerScopeConditions,
+      ledgerScopeParams
+    );
     if (ledgerScopeConditions.length) {
       whereClause += ` AND ${ledgerScopeConditions.join(' AND ')}`;
       params.push(...ledgerScopeParams);
@@ -2042,8 +2063,9 @@ const getInventoryLedger = async (req, res) => {
       const afterQty = parseFloat(item.after_quantity || 0);
 
       // 交易类型名称来自系统业务类型规则，固定常量仅作容灾兜底。
-      const transactionTypeText = inventoryTypeMap[item.transactionType]
-        || getInventoryTransactionTypeText(item.transactionType);
+      const transactionTypeText =
+        inventoryTypeMap[item.transactionType] ||
+        getInventoryTransactionTypeText(item.transactionType);
 
       return {
         ...item,
@@ -2114,7 +2136,13 @@ const getMaterialLedger = async (req, res) => {
 
     const ledgerScopeConditions = [];
     const ledgerScopeParams = [];
-    await appendLedgerLocationScope(req, 'l.location_id', '', ledgerScopeConditions, ledgerScopeParams);
+    await appendLedgerLocationScope(
+      req,
+      'l.location_id',
+      '',
+      ledgerScopeConditions,
+      ledgerScopeParams
+    );
     if (ledgerScopeConditions.length) {
       whereClause += ` AND ${ledgerScopeConditions.join(' AND ')}`;
       queryParams.push(...ledgerScopeParams);
@@ -2208,7 +2236,13 @@ const getMovements = async (req, res) => {
 
     const ledgerScopeConditions = [];
     const ledgerScopeParams = [];
-    await appendLedgerLocationScope(req, 'l.location_id', locationId, ledgerScopeConditions, ledgerScopeParams);
+    await appendLedgerLocationScope(
+      req,
+      'l.location_id',
+      locationId,
+      ledgerScopeConditions,
+      ledgerScopeParams
+    );
     if (ledgerScopeConditions.length) {
       whereClause += ` AND ${ledgerScopeConditions.join(' AND ')}`;
       queryParams.push(...ledgerScopeParams);
@@ -2307,7 +2341,6 @@ const getMovements = async (req, res) => {
   }
 };
 // 统一的库存充足性检查
-
 
 module.exports = {
   _insertInventoryLedgerLocal,

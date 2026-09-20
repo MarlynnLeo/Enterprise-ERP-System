@@ -1,6 +1,10 @@
 const db = require('../../config/db');
 const CostAccountingService = require('./CostAccountingService');
-const { INCOMING_INSPECTION_COUNTED_STATUSES, PURCHASE_RECEIPT_COUNTED_STATUSES, sqlStringList } = require('../../constants/qualityReceipt');
+const {
+  INCOMING_INSPECTION_COUNTED_STATUSES,
+  PURCHASE_RECEIPT_COUNTED_STATUSES,
+  sqlStringList,
+} = require('../../constants/qualityReceipt');
 
 const CHECK_DEFINITIONS = [
   {
@@ -326,7 +330,8 @@ class CostClosingService {
       [period.id]
     );
     const openTaskCount = await this.countRows(connection, openTaskSql, [period.end_date]);
-    const wipIssueCount = openTaskCount > 0 && toNumber(wipSummary.snapshot_count) === 0 ? openTaskCount : 0;
+    const wipIssueCount =
+      openTaskCount > 0 && toNumber(wipSummary.snapshot_count) === 0 ? openTaskCount : 0;
 
     const voucherIssueSql = `
       SELECT ws.period_id, SUM(ws.wip_total_cost) AS total_wip
@@ -348,43 +353,59 @@ class CostClosingService {
          )`;
 
     const checks = [];
-    const definitions = Object.fromEntries(CHECK_DEFINITIONS.map((definition) => [definition.key, definition]));
+    const definitions = Object.fromEntries(
+      CHECK_DEFINITIONS.map((definition) => [definition.key, definition])
+    );
 
-    checks.push(this.buildCheck(
-      definitions.purchaseAmount,
-      await this.countRows(connection, purchaseIssueSql, purchaseParams),
-      await this.sampleRows(connection, purchaseIssueSql, purchaseParams)
-    ));
-    checks.push(this.buildCheck(
-      definitions.inventoryCost,
-      await this.countRows(connection, inventoryIssueSql, inventoryParams),
-      await this.sampleRows(connection, inventoryIssueSql, inventoryParams)
-    ));
-    checks.push(this.buildCheck(
-      definitions.standardCost,
-      await this.countRows(connection, standardIssueSql),
-      await this.sampleRows(connection, standardIssueSql)
-    ));
-    checks.push(this.buildCheck(
-      definitions.actualCost,
-      await this.countRows(connection, actualIssueSql, periodParams),
-      await this.sampleRows(connection, actualIssueSql, periodParams)
-    ));
-    checks.push(this.buildCheck(
-      definitions.variance,
-      await this.countRows(connection, varianceIssueSql, varianceParams),
-      await this.sampleRows(connection, varianceIssueSql, varianceParams)
-    ));
-    checks.push(this.buildCheck(
-      definitions.wip,
-      wipIssueCount,
-      wipIssueCount > 0 ? await this.sampleRows(connection, openTaskSql, [period.end_date]) : []
-    ));
-    checks.push(this.buildCheck(
-      definitions.voucher,
-      await this.countRows(connection, voucherIssueSql, [period.id]),
-      await this.sampleRows(connection, voucherIssueSql, [period.id])
-    ));
+    checks.push(
+      this.buildCheck(
+        definitions.purchaseAmount,
+        await this.countRows(connection, purchaseIssueSql, purchaseParams),
+        await this.sampleRows(connection, purchaseIssueSql, purchaseParams)
+      )
+    );
+    checks.push(
+      this.buildCheck(
+        definitions.inventoryCost,
+        await this.countRows(connection, inventoryIssueSql, inventoryParams),
+        await this.sampleRows(connection, inventoryIssueSql, inventoryParams)
+      )
+    );
+    checks.push(
+      this.buildCheck(
+        definitions.standardCost,
+        await this.countRows(connection, standardIssueSql),
+        await this.sampleRows(connection, standardIssueSql)
+      )
+    );
+    checks.push(
+      this.buildCheck(
+        definitions.actualCost,
+        await this.countRows(connection, actualIssueSql, periodParams),
+        await this.sampleRows(connection, actualIssueSql, periodParams)
+      )
+    );
+    checks.push(
+      this.buildCheck(
+        definitions.variance,
+        await this.countRows(connection, varianceIssueSql, varianceParams),
+        await this.sampleRows(connection, varianceIssueSql, varianceParams)
+      )
+    );
+    checks.push(
+      this.buildCheck(
+        definitions.wip,
+        wipIssueCount,
+        wipIssueCount > 0 ? await this.sampleRows(connection, openTaskSql, [period.end_date]) : []
+      )
+    );
+    checks.push(
+      this.buildCheck(
+        definitions.voucher,
+        await this.countRows(connection, voucherIssueSql, [period.id]),
+        await this.sampleRows(connection, voucherIssueSql, [period.id])
+      )
+    );
 
     return checks;
   }

@@ -63,7 +63,11 @@ const getSettings = async (req, res) => {
 const getBusinessOptions = async (req, res) => {
   try {
     await financeConfig.loadFromDatabase(db);
-    ResponseHandler.success(res, pickBusinessOptions(financeConfig.getAll()), '获取业务财务选项成功');
+    ResponseHandler.success(
+      res,
+      pickBusinessOptions(financeConfig.getAll()),
+      '获取业务财务选项成功'
+    );
   } catch (error) {
     logger.error('获取业务财务选项失败:', error);
     ResponseHandler.error(res, '获取业务财务选项失败', 'SERVER_ERROR', 500, error);

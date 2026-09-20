@@ -271,6 +271,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
@@ -474,7 +475,7 @@ async function handleCalendarImpact(impact) {
     ElMessage.success(`已重排 ${scheduledCount} 个任务${skippedCount ? `，${skippedCount} 个跳过` : ''}`)
     await Promise.all([fetchCalendars(), fetchOverrides()])
   } catch (e) {
-    ElMessage.error('重排失败: ' + (e.message || '未知错误'))
+    ElMessage.error('重排失败: ' + (getApiErrorMessage(e, '未知错误')))
   } finally {
     saving.value = false
   }
@@ -594,7 +595,7 @@ async function handleSave() {
     await fetchOverrides()
     await handleCalendarImpact(data.impact)
   } catch (e) {
-    ElMessage.error('更新失败: ' + (e.message || '未知错误'))
+    ElMessage.error('更新失败: ' + (getApiErrorMessage(e, '未知错误')))
   } finally {
     saving.value = false
   }
@@ -665,7 +666,7 @@ async function handleSaveDay() {
     await fetchOverrides()
     await handleCalendarImpact(data.impact)
   } catch (e) {
-    ElMessage.error('保存失败: ' + (e.message || '未知错误'))
+    ElMessage.error('保存失败: ' + (getApiErrorMessage(e, '未知错误')))
   } finally {
     saving.value = false
   }

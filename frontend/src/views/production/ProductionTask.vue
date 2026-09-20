@@ -767,6 +767,7 @@ import { useFormKeyboardNav } from '@/composables/useFormKeyboardNav'
 import { useTableColumnWidths } from '@/composables/useTableColumnWidths'
 import printService from '@/services/printService'
 import { useAuthStore } from '@/stores/auth'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 
 // 获取当前登录用户
 const authStore = useAuthStore()
@@ -954,7 +955,7 @@ const submitShopRequest = async () => {
         : '补料申请已提交，等待仓库确认出库')
       shopRequestVisible.value = false
     } catch (error) {
-      ElMessage.error(error.response?.data?.message || error.message || '提交失败')
+      ElMessage.error(getApiErrorMessage(error, '提交失败'))
     } finally {
       shopRequestSaving.value = false
     }
@@ -1119,7 +1120,7 @@ const fetchTaskList = async () => {
     updateTaskStats(responseData?.statistics)
   } catch (error) {
     console.error('获取生产任务列表失败:', error)
-    ElMessage.error(`获取生产任务列表失败: ${error.message}`)
+    ElMessage.error(`获取生产任务列表失败：${getApiErrorMessage(error, '请稍后重试')}`)
   } finally {
     loading.value = false
   }
@@ -1132,7 +1133,7 @@ const getTaskCode = async () => {
     return response.data.code
   } catch (error) {
     console.error('获取任务编号失败:', error)
-    ElMessage.error(`获取任务编号失败: ${error.message}`)
+    ElMessage.error(`获取任务编号失败：${getApiErrorMessage(error, '请稍后重试')}`)
     return null
   }
 }
@@ -1404,7 +1405,7 @@ const handleModalOk = async () => {
     // 统计数据已在 fetchTaskList 中更新
   } catch (error) {
     console.error('提交表单失败:', error)
-    ElMessage.error(error.response?.data?.message || '提交表单失败')
+    ElMessage.error(getApiErrorMessage(error, '提交表单失败'))
   }
 }
 
@@ -1423,7 +1424,7 @@ const handleDelete = async (row) => {
     fetchTaskList()
   } catch (error) {
     console.error('删除生产任务失败:', error)
-    ElMessage.error('删除失败: ' + (error.response?.data?.message || error.message))
+    ElMessage.error('删除失败: ' + (getApiErrorMessage(error, '未知错误')))
   }
 }
 
@@ -1599,7 +1600,7 @@ const executeBatchSchedule = async () => {
     }
   } catch (error) {
     console.error('批量排程失败:', error)
-    ElMessage.error('批量排程失败: ' + (error.response?.data?.message || error.message))
+    ElMessage.error('批量排程失败: ' + (getApiErrorMessage(error, '未知错误')))
   } finally {
     batchScheduleLoading.value = false
   }
@@ -1769,7 +1770,7 @@ const handleMaterialIssue = async () => {
   } catch (error) {
     console.error('发料失败:', error)
     console.error('错误详情:', error.response?.data)
-    ElMessage.error('发料失败: ' + (error.response?.data?.error || error.response?.data?.message || error.message))
+    ElMessage.error(`发料失败: ${getApiErrorMessage(error, '请稍后重试')}`)
   } finally {
     materialIssueLoading.value = false
   }
@@ -1803,7 +1804,7 @@ const submitOutbound = async (outboundData, task) => {
     if (errorCode === 'EXCESS_ISSUE') {
       const excessItems = errorData.details || []
       const excessDesc = excessItems.map(item =>
-        `• ${item.materialName || item.materialCode || `物料ID ${item.materialId}`}：${item.message || `超出 ${item.excessQty}`}`
+        `• ${item.materialName || item.materialCode || item.code || '未命名物料'}：${item.message || `超出 ${item.excessQty}`}`
       ).join('\n')
 
       try {
@@ -1876,7 +1877,7 @@ const printTaskDetail = async () => {
     printService.previewDocument(htmlContent);
 
   } catch (error) {
-    ElMessage.error('打印失败: ' + (error.response?.data?.message || error.message));
+    ElMessage.error('打印失败: ' + (getApiErrorMessage(error, '未知错误')));
   }
 }
 

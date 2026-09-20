@@ -45,9 +45,10 @@ class PurchaseOrderService {
    */
   static async getSupplierInfo(connection, supplierId) {
     try {
-      const [rows] = await connection.query('SELECT name FROM suppliers WHERE id = ? AND deleted_at IS NULL AND status = 1', [
-        supplierId,
-      ]);
+      const [rows] = await connection.query(
+        'SELECT name FROM suppliers WHERE id = ? AND deleted_at IS NULL AND status = 1',
+        [supplierId]
+      );
       return rows[0] || null;
     } catch (error) {
       logger.error(`查询供应商信息失败，供应商ID: ${supplierId}`, error);
@@ -70,12 +71,12 @@ class PurchaseOrderService {
       [requisitionId]
     );
     if (requisitionRows.length === 0) {
-      throw createBusinessError(`purchase requisition not found: ${requisitionId}`, 404);
+      throw createBusinessError('采购申请不存在或已被删除', 404);
     }
     const currentStatus = requisitionRows[0].status;
     if (!['approved', 'completed'].includes(currentStatus)) {
       throw createBusinessError(
-        `purchase requisition ${requisitionId} status ${currentStatus} cannot be linked to purchase orders`
+        '当前采购申请状态不允许生成采购订单'
       );
     }
 
@@ -86,7 +87,7 @@ class PurchaseOrderService {
       [requisitionId]
     );
     if (requisitionItems.length === 0) {
-      throw createBusinessError(`purchase requisition ${requisitionId} has no material items`);
+      throw createBusinessError('采购申请没有有效的物料明细');
     }
 
     const [orderedItems] = await connection.query(
@@ -104,7 +105,7 @@ class PurchaseOrderService {
     requisitionItems.forEach((item) => {
       const key = this.getPrimaryMaterialMatchKey(item);
       if (!key) {
-        throw createBusinessError('purchase requisition item is missing material identity');
+        throw createBusinessError('采购申请明细缺少有效物料');
       }
       requiredQuantityByKey.set(
         key,
@@ -141,7 +142,7 @@ class PurchaseOrderService {
         [nextStatus, requisitionId]
       );
       if (!updateResult || updateResult.affectedRows === 0) {
-        throw createBusinessError(`failed to update purchase requisition status: ${requisitionId}`);
+        throw createBusinessError('更新采购申请状态失败，请刷新后重试');
       }
     }
 
@@ -171,42 +172,84 @@ class PurchaseOrderService {
     return null;
   }
 
-  static async validateRequisitionAllocation(connection, requisitionId, items, excludeOrderId = null) {
+  static async validateRequisitionAllocation(
+    connection,
+    requisitionId,
+    items,
+    excludeOrderId = null
+  ) {
     if (!requisitionId) return null;
     const [requisitions] = await connection.query(
-      'SELECT id, requisition_number, status FROM purchase_requisitions WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [requisitionId]
+      'SELECT id, requisition_number, status FROM purchase_requisitions WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      [requisitionId]
     );
     const requisition = requisitions[0];
     if (!requisition) throw createBusinessError('采购申请不存在', 404);
-    if (!['approved', 'completed'].includes(requisition.status)) throw createBusinessError('只能从已批准的采购申请生成订单');
-    const [requested] = await connection.query('SELECT material_id, quantity FROM purchase_requisition_items WHERE requisition_id = ? FOR UPDATE', [requisitionId]);
+    if (!['approved', 'completed'].includes(requisition.status))
+      throw createBusinessError('只能从已批准的采购申请生成订单');
+    const [requested] = await connection.query(
+      'SELECT material_id, material_code, quantity FROM purchase_requisition_items WHERE requisition_id = ? FOR UPDATE',
+      [requisitionId]
+    );
     const [allocated] = await connection.query(
       `SELECT poi.material_id, poi.quantity FROM purchase_order_items poi
          JOIN purchase_orders po ON po.id = poi.order_id
         WHERE po.requisition_id = ? AND po.deleted_at IS NULL AND po.status <> 'cancelled'
-          AND (? IS NULL OR po.id <> ?) FOR UPDATE`, [requisitionId, excludeOrderId, excludeOrderId]
+          AND (? IS NULL OR po.id <> ?) FOR UPDATE`,
+      [requisitionId, excludeOrderId, excludeOrderId]
     );
     const capacity = new Map();
-    for (const item of requested) capacity.set(Number(item.material_id), (capacity.get(Number(item.material_id)) || 0) + Number(item.quantity));
-    for (const item of allocated) capacity.set(Number(item.material_id), (capacity.get(Number(item.material_id)) || 0) - Number(item.quantity));
+    const materialCodeById = new Map();
+    for (const item of requested)
+      materialCodeById.set(Number(item.material_id), String(item.material_code || '').trim());
+    for (const item of requested)
+      capacity.set(
+        Number(item.material_id),
+        (capacity.get(Number(item.material_id)) || 0) + Number(item.quantity)
+      );
+    for (const item of allocated)
+      capacity.set(
+        Number(item.material_id),
+        (capacity.get(Number(item.material_id)) || 0) - Number(item.quantity)
+      );
     for (const item of items) {
       const materialId = Number(item.material_id ?? item.materialId);
       const remaining = capacity.get(materialId);
       if (remaining === undefined) throw createBusinessError('采购订单包含不属于来源申请的物料');
       const quantity = purchaseQuantity(item.quantity);
-      if (quantity > remaining + 0.0001) throw createBusinessError(`采购数量超过申请剩余可采购量：物料${materialId}，可采购${Math.max(remaining, 0)}，本次${quantity}`);
+      if (quantity > remaining + 0.0001)
+        {
+          const materialCode = String(
+            item.material_code ?? item.materialCode ?? materialCodeById.get(materialId) ?? ''
+          ).trim();
+        throw createBusinessError(
+          `采购数量超过申请剩余可采购量：物料“${materialCode || '所选物料'}”，可采购${Math.max(remaining, 0)}，本次${quantity}`
+        );
+        }
       capacity.set(materialId, remaining - quantity);
     }
     return requisition;
   }
 
   static async assertOrderCanCancel(connection, orderId) {
-    const [items] = await connection.query('SELECT received_quantity, warehoused_quantity FROM purchase_order_items WHERE order_id = ? FOR UPDATE', [orderId]);
-    if (items.some(item => Number(item.received_quantity) > 0.0001 || Number(item.warehoused_quantity) > 0.0001)) {
+    const [items] = await connection.query(
+      'SELECT received_quantity, warehoused_quantity FROM purchase_order_items WHERE order_id = ? FOR UPDATE',
+      [orderId]
+    );
+    if (
+      items.some(
+        (item) =>
+          Number(item.received_quantity) > 0.0001 || Number(item.warehoused_quantity) > 0.0001
+      )
+    ) {
       throw createBusinessError('采购订单已有收货或入库数量，请先处理收货、退货后再取消');
     }
-    const [receipts] = await connection.query("SELECT id FROM purchase_receipts WHERE order_id = ? AND deleted_at IS NULL AND status <> 'cancelled' LIMIT 1 FOR UPDATE", [orderId]);
-    if (receipts.length) throw createBusinessError('采购订单仍有关联收货单，请先处理收货单后再取消');
+    const [receipts] = await connection.query(
+      "SELECT id FROM purchase_receipts WHERE order_id = ? AND deleted_at IS NULL AND status <> 'cancelled' LIMIT 1 FOR UPDATE",
+      [orderId]
+    );
+    if (receipts.length)
+      throw createBusinessError('采购订单仍有关联收货单，请先处理收货单后再取消');
   }
 
   /**
@@ -225,7 +268,7 @@ class PurchaseOrderService {
       [status, requisitionId]
     );
     if (!updateResult || updateResult.affectedRows === 0) {
-      throw createBusinessError(`failed to update purchase requisition status: ${requisitionId}`);
+      throw createBusinessError('更新采购申请状态失败，请刷新后重试');
     }
     return { requisitionId, status };
   }
@@ -254,20 +297,26 @@ class PurchaseOrderService {
       (unit_price !== null && unit_price !== undefined && unit_price !== '') ||
       (item.unitPrice !== null && item.unitPrice !== undefined && item.unitPrice !== '');
     if (!hasRaw) {
-      throw createBusinessError(`物料 ${material_code || material_id} 的单价缺失，请先维护采购价格`);
+      throw createBusinessError(
+        `物料 ${material_code || '所选物料'} 的单价缺失，请先维护采购价格`
+      );
     }
     const itemPrice = resolveUnitPrice(item, { fallback: Number.NaN });
-    const itemQuantity = purchaseQuantity(quantity, `物料 ${material_code || material_id} 的数量`);
+    const itemQuantity = purchaseQuantity(quantity, `物料 ${material_code || '所选物料'} 的数量`);
     const itemTaxRate = normalizeTaxRate(item.tax_rate ?? item.taxPercent ?? item.tax_percent, 0);
-    const itemAmount = totalPrice !== undefined
-      ? roundMoney(totalPrice)
-      : lineAmount(itemQuantity, itemPrice);
-    const itemTaxAmount = item.tax_amount !== undefined || item.taxAmount !== undefined
-      ? roundMoney(item.tax_amount ?? item.taxAmount)
-      : taxAmount(itemAmount, itemTaxRate);
+    const itemAmount =
+      totalPrice !== undefined ? roundMoney(totalPrice) : lineAmount(itemQuantity, itemPrice);
+    const itemTaxAmount =
+      item.tax_amount !== undefined || item.taxAmount !== undefined
+        ? roundMoney(item.tax_amount ?? item.taxAmount)
+        : taxAmount(itemAmount, itemTaxRate);
 
     const materialInfo = await this.getMaterialInfo(connection, material_id);
-    if (!materialInfo) throw createBusinessError(`物料不存在或已停用：${material_id}`);
+    if (!materialInfo) {
+      throw createBusinessError(
+        `物料“${material_code || '所选物料'}”不存在或已停用，请重新选择有效物料`
+      );
+    }
     const itemCode = materialInfo.code;
     const itemName = materialInfo.name;
     const itemSpec = specification || materialInfo.specs || '';
@@ -275,7 +324,9 @@ class PurchaseOrderService {
 
     // 检查必须字段
     if (!itemCode || !itemName) {
-      throw createBusinessError(`物料信息不完整，ID: ${material_id}, 编码: ${itemCode}, 名称: ${itemName}`);
+      throw createBusinessError(
+        `物料信息不完整：${itemCode || '所选物料'}，请先完善物料基础资料`
+      );
     }
 
     // 数据完整性校验：价格和数量必须为非负数
@@ -346,7 +397,9 @@ class PurchaseOrderService {
       return;
     }
 
-    const placeholders = processedItems.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+    const placeholders = processedItems
+      .map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .join(', ');
     const values = [];
     for (const item of processedItems) {
       values.push(
@@ -407,12 +460,13 @@ class PurchaseOrderService {
    * @throws {Error} 订单不存在或状态不可编辑时抛出错误
    */
   static async validateOrderEditable(connection, orderId) {
-    const [checkRows] = await connection.query('SELECT status, requisition_id FROM purchase_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [
-      orderId,
-    ]);
+    const [checkRows] = await connection.query(
+      'SELECT status, requisition_id FROM purchase_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      [orderId]
+    );
 
     if (checkRows.length === 0) {
-      throw createBusinessError('purchase order not found', 404);
+      throw createBusinessError('采购订单不存在或已被删除', 404);
     }
 
     const currentStatus = checkRows[0].status;

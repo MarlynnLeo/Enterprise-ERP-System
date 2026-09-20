@@ -63,38 +63,70 @@ router.get(
   batchTraceabilityController.getBatchDetails
 );
 
-router.get('/batch/aging-report', requirePermission('quality:traceability:view'), batchTraceabilityController.getBatchAgingReport);
+router.get(
+  '/batch/aging-report',
+  requirePermission('quality:traceability:view'),
+  batchTraceabilityController.getBatchAgingReport
+);
 
 // 新增：支持路径参数的批次查询路由
-router.get('/batch/:materialCode/:batchNumber', requirePermission('quality:traceability:view'), batchTraceabilityController.getBatchDetailsByPath);
+router.get(
+  '/batch/:materialCode/:batchNumber',
+  requirePermission('quality:traceability:view'),
+  batchTraceabilityController.getBatchDetailsByPath
+);
 
 router.get(
   '/fifo/preview',
   requirePermission('quality:traceability:view'),
   [
-    query('materialId').notEmpty().isInt().withMessage('物料ID必须是整数'),
+    query('materialId').notEmpty().isInt().withMessage('请选择有效物料'),
     query('requiredQuantity').notEmpty().isFloat({ min: 0 }).withMessage('需要数量必须大于0'),
     validateInput,
   ],
   batchTraceabilityController.getFIFOOutboundPreview
 );
 
-router.post('/fifo/batch-preview', requirePermission('quality:traceability:view'), batchTraceabilityController.getBatchFIFOOutboundPreview);
+router.post(
+  '/fifo/batch-preview',
+  requirePermission('quality:traceability:view'),
+  batchTraceabilityController.getBatchFIFOOutboundPreview
+);
 router.post(
   '/inventory/check-availability',
   requirePermission('quality:traceability:view'),
   batchTraceabilityController.checkInventoryAvailability
 );
 // 出库处理相关路由
-router.post('/outbound/production', requirePermission('quality:traceability:create'), batchTraceabilityController.processProductionOutbound);
-router.post('/outbound/sales', requirePermission('quality:traceability:create'), batchTraceabilityController.processSalesOutbound);
+router.post(
+  '/outbound/production',
+  requirePermission('quality:traceability:create'),
+  batchTraceabilityController.processProductionOutbound
+);
+router.post(
+  '/outbound/sales',
+  requirePermission('quality:traceability:create'),
+  batchTraceabilityController.processSalesOutbound
+);
 
 // 入库处理相关路由
-router.post('/inbound/purchase', requirePermission('quality:traceability:create'), batchTraceabilityController.handlePurchaseReceipt);
-router.post('/inbound/production', requirePermission('quality:traceability:create'), batchTraceabilityController.handleProductionInbound);
+router.post(
+  '/inbound/purchase',
+  requirePermission('quality:traceability:create'),
+  batchTraceabilityController.handlePurchaseReceipt
+);
+router.post(
+  '/inbound/production',
+  requirePermission('quality:traceability:create'),
+  batchTraceabilityController.handleProductionInbound
+);
 
 // 批次管理相关路由
-router.post('/batch/reserve', requirePermission('quality:traceability:update'), batchTraceabilityController.reserveBatch);
+router.post(
+  '/batch/reserve',
+  requirePermission('quality:traceability:update'),
+  batchTraceabilityController.reserveBatch
+);
 
 // 导出相关路由
 router.get(
@@ -128,9 +160,17 @@ router.get(
   requirePermission('quality:traceability:view'),
   productSalesTraceabilityController.getMaterialToCustomerTrace
 );
-router.get('/customers', requirePermission('quality:traceability:view'), productSalesTraceabilityController.getCustomerList);
+router.get(
+  '/customers',
+  requirePermission('quality:traceability:view'),
+  productSalesTraceabilityController.getCustomerList
+);
 
 // 获取最新批次列表(用于快速查询)
-router.get('/latest-batches', requirePermission('quality:traceability:view'), batchTraceabilityController.getLatestBatches);
+router.get(
+  '/latest-batches',
+  requirePermission('quality:traceability:view'),
+  batchTraceabilityController.getLatestBatches
+);
 
 module.exports = router;

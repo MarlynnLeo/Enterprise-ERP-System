@@ -22,7 +22,8 @@ const CHAT_SEND_PERMISSIONS = ['chat:send', 'chat:access', 'system:notifications
 const MAX_CHAT_MESSAGE_LENGTH = 2000;
 const ALLOWED_CLIENT_MESSAGE_TYPES = new Set(['text']);
 const SOCKET_AUTH_REFRESH_INTERVAL_MS = 30 * 1000;
-const SOCKET_MAX_CONNECTIONS_PER_IP = Number.parseInt(process.env.SOCKET_MAX_CONNECTIONS_PER_IP, 10) || 25;
+const SOCKET_MAX_CONNECTIONS_PER_IP =
+  Number.parseInt(process.env.SOCKET_MAX_CONNECTIONS_PER_IP, 10) || 25;
 const socketConnectionsByIp = new Map();
 
 // Do not trust a client supplied X-Forwarded-For value.  The HTTP server's
@@ -119,7 +120,11 @@ async function refreshSocketAuthorization(socket) {
     [socket.userId]
   );
   const user = users[0];
-  if (!user || Number(user.status) !== 1 || Number(socket.tokenVersion) !== Number(user.token_version || 0)) {
+  if (
+    !user ||
+    Number(user.status) !== 1 ||
+    Number(socket.tokenVersion) !== Number(user.token_version || 0)
+  ) {
     socket.disconnect(true);
     return false;
   }
@@ -278,7 +283,8 @@ function initSocket(httpServer) {
         );
         const sender = userRows[0] || {};
 
-        const preview = type === 'text' ? content.substring(0, 100) : `[${type === 'image' ? '图片' : '文件'}]`;
+        const preview =
+          type === 'text' ? content.substring(0, 100) : `[${type === 'image' ? '图片' : '文件'}]`;
 
         // 更新会话最后消息
         await pool.execute(

@@ -1,14 +1,10 @@
 import { getCurrentScope, onScopeDispose, reactive, watch } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { workflowApi } from '@/api/workflow'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 
 function approvalErrorMessage(error) {
-  return (
-    error?.response?.data?.message ||
-    error?.response?.data?.error?.message ||
-    error?.message ||
-    '审批操作失败'
-  )
+  return getApiErrorMessage(error, '审批操作失败')
 }
 
 export function useBusinessApproval({ businessType, onSuccess } = {}) {

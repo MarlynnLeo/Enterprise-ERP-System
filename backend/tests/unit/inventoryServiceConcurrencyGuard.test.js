@@ -9,6 +9,20 @@ describe('InventoryService concurrency guard', () => {
     jest.restoreAllMocks();
   });
 
+  it.each([Infinity, -Infinity, 'Infinity', NaN, '0', '', null])(
+    'rejects invalid or zero ledger quantities before touching the database: %s',
+    async (quantity) => {
+      const connection = { execute: jest.fn(), query: jest.fn() };
+      await expect(InventoryService.updateStock({
+        materialId: 1001, locationId: 7, quantity,
+        transactionType: 'purchase_inbound', referenceNo: 'TEST-IN-1', operator: 1,
+        batchNumber: 'BATCH-1',
+      }, connection)).rejects.toThrow('无效的数量');
+      expect(connection.execute).not.toHaveBeenCalled();
+      expect(connection.query).not.toHaveBeenCalled();
+    }
+  );
+
   it('locks the stock location before reading quantity and rejects insufficient stock before ledger writes', async () => {
     const order = [];
     const connection = {

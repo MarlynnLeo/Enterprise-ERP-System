@@ -9,7 +9,7 @@
     <div v-else-if="equipment" class="content">
       <CellGroup inset title="基本信息">
         <Cell title="设备名称" :value="equipment.name || '-'" />
-        <Cell title="设备编码" :value="equipment.equipmentCode || '-'" />
+        <Cell title="设备编码" :value="equipment.code || '-'" />
         <Cell title="型号" :value="equipment.model || '-'" />
         <Cell title="状态" :value="getStatusText(equipment.status)" />
         <Cell title="所在位置" :value="equipment.location || equipment.locationName || '-'" />
@@ -17,10 +17,9 @@
       </CellGroup>
 
       <CellGroup inset title="维护信息">
-        <Cell title="购置日期" :value="formatDate(equipment.purchase_date)" />
-        <Cell title="启用日期" :value="formatDate(equipment.useDate)" />
-        <Cell title="上次保养" :value="formatDate(equipment.last_maintenance_date)" />
-        <Cell title="下次保养" :value="formatDate(equipment.next_maintenance_date)" />
+        <Cell title="购置日期" :value="formatDate(equipment.purchaseDate)" />
+        <Cell title="最近点检" :value="formatDate(equipment.inspectionDate)" />
+        <Cell title="下次点检" :value="formatDate(equipment.nextInspectionDate)" />
       </CellGroup>
 
       <CellGroup v-if="equipment.remark || equipment.description" inset title="备注">
@@ -49,6 +48,7 @@
   const getStatusText = (status) => {
     const map = {
       normal: '正常',
+      offline: '离线',
       maintenance: '保养中',
       repair: '维修中',
       idle: '闲置',

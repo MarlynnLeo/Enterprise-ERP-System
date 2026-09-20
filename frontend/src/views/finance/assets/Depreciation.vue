@@ -133,7 +133,7 @@
         <el-table-column prop="categoryName" label="资产类别" width="110">
           <template #default="scope">
             <span v-if="scope.row.categoryName">{{ scope.row.categoryName }}</span>
-            <span v-else-if="scope.row.categoryId || scope.row.categoryId" class="text-muted">ID: {{ scope.row.categoryId || scope.row.categoryId }}</span>
+            <span v-else-if="scope.row.categoryId || scope.row.categoryId" class="text-muted">未命名类别</span>
             <span v-else class="text-muted">未分类</span>
           </template>
         </el-table-column>
@@ -234,6 +234,7 @@ import { formatCurrency, formatLocalMonth } from '@/utils/format'
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index';
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { Coin, Loading } from '@element-plus/icons-vue';
 import { financeApi } from '@/api/finance';
 import { buildApiUrl } from '@/config/app';
@@ -375,13 +376,13 @@ const calculateDepreciation = async () => {
     if (error.response) {
       const { status, data } = error.response;
       console.error(`服务器返回状态码 ${status}:`, data);
-      ElMessage.error(`获取资产数据失败: ${data?.message || '服务器错误'}`);
+      ElMessage.error(`获取资产数据失败：${getApiErrorMessage(error, '服务器错误')}`);
     } else if (error.request) {
       console.error('未收到服务器响应:', error.request);
       ElMessage.error('服务器未响应，请检查网络连接');
     } else {
       console.error('请求配置错误:', error.message);
-      ElMessage.error(`请求错误: ${error.message}`);
+      ElMessage.error(`请求错误：${getApiErrorMessage(error, '请稍后重试')}`);
     }
   } finally {
     loading.value = false;

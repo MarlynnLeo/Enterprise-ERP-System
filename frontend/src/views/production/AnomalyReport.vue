@@ -152,6 +152,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -223,7 +224,7 @@ const submitReport = async () => {
     formVis.value = false
     fetchData()
     fetchStats()
-  } catch (err) { ElMessage.error(err.response?.data?.message || '上报失败') }
+  } catch (err) { ElMessage.error(getApiErrorMessage(err, '上报失败')) }
   finally { saving.value = false }
 }
 

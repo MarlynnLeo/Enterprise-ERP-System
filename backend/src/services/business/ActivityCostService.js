@@ -49,7 +49,8 @@ class ActivityCostService {
    * 获取单个作业详情
    */
   async getActivityById(id) {
-    const query = 'SELECT id, code, name, description, cost_pool, cost_driver_type, driver_rate, status, created_at, updated_at, deleted_at FROM cost_activities WHERE id = ? AND deleted_at IS NULL';
+    const query =
+      'SELECT id, code, name, description, cost_pool, cost_driver_type, driver_rate, status, created_at, updated_at, deleted_at FROM cost_activities WHERE id = ? AND deleted_at IS NULL';
     const result = await db.query(query, [id]);
     return result.rows?.[0] || null;
   }
@@ -61,7 +62,10 @@ class ActivityCostService {
     const { code, name, description, cost_pool, cost_driver_type, driver_rate, status = 1 } = data;
 
     // 检查编码唯一性
-    const existCheck = await db.query('SELECT id FROM cost_activities WHERE code = ? AND deleted_at IS NULL', [code]);
+    const existCheck = await db.query(
+      'SELECT id FROM cost_activities WHERE code = ? AND deleted_at IS NULL',
+      [code]
+    );
     if (existCheck.rows && existCheck.rows.length > 0) {
       throw new Error('作业编码已存在');
     }
@@ -90,10 +94,10 @@ class ActivityCostService {
     const { code, name, description, cost_pool, cost_driver_type, driver_rate, status } = data;
 
     // 检查编码唯一性
-    const existCheck = await db.query('SELECT id FROM cost_activities WHERE code = ? AND id != ? AND deleted_at IS NULL', [
-      code,
-      id,
-    ]);
+    const existCheck = await db.query(
+      'SELECT id FROM cost_activities WHERE code = ? AND id != ? AND deleted_at IS NULL',
+      [code, id]
+    );
     if (existCheck.rows && existCheck.rows.length > 0) {
       throw new Error('作业编码已存在');
     }

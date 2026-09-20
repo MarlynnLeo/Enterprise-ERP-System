@@ -20,197 +20,198 @@ const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
 const { assertAIConfigured, getAIModel } = require('../../config/aiConfig');
 const UnifiedAIClient = require('../ai/UnifiedAIClient');
-const {
-    budgetDetailActualAmountSql,
-} = require('../../utils/finance/budgetUsageSql');
+const { budgetDetailActualAmountSql } = require('../../utils/finance/budgetUsageSql');
 const crypto = require('crypto');
 
 const getAIConfig = () => assertAIConfigured('Budget AI service');
 
 // 速率限制配置
 const RATE_LIMIT_CONFIG = {
-    maxRetries: 3,              // 最大重试次数
-    baseDelayMs: 3000,          // 基础等待时间（3秒）
-    maxDelayMs: 30000,          // 最大等待时间（30秒）
-    minRequestIntervalMs: 1500, // 请求最小间隔（1.5秒）
+  maxRetries: 3, // 最大重试次数
+  baseDelayMs: 3000, // 基础等待时间（3秒）
+  maxDelayMs: 30000, // 最大等待时间（30秒）
+  minRequestIntervalMs: 1500, // 请求最小间隔（1.5秒）
 };
 
 // 缓存配置
 const CACHE_TTL_MS = 30 * 60 * 1000; // 缓存有效期30分钟
 
 class BudgetAIService {
+  // ==================== 基础设施 ====================
 
-    // ==================== 基础设施 ====================
+  // 上次请求时间戳，用于控制请求频率
+  static _lastRequestTime = 0;
 
-    // 上次请求时间戳，用于控制请求频率
-    static _lastRequestTime = 0;
+  // 内存缓存 Map<string, { data, timestamp }>
+  static _cache = new Map();
 
-    // 内存缓存 Map<string, { data, timestamp }>
-    static _cache = new Map();
+  // 累计Token用量统计
+  static _totalUsage = {
+    prompt_tokens: 0,
+    completion_tokens: 0,
+    reasoning_tokens: 0,
+    total_tokens: 0,
+    call_count: 0,
+  };
 
-    // 累计Token用量统计
-    static _totalUsage = {
-        prompt_tokens: 0,
-        completion_tokens: 0,
-        reasoning_tokens: 0,
-        total_tokens: 0,
-        call_count: 0,
-    };
+  /**
+   * 延迟指定毫秒
+   */
+  static _sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
 
-    /**
-     * 延迟指定毫秒
-     */
-    static _sleep(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
+  /**
+   * 请求间隔限流
+   */
+  static async _throttle() {
+    const now = Date.now();
+    const elapsed = now - this._lastRequestTime;
+    if (elapsed < RATE_LIMIT_CONFIG.minRequestIntervalMs) {
+      const waitTime = RATE_LIMIT_CONFIG.minRequestIntervalMs - elapsed;
+      logger.info(`[AI限流] 距上次请求仅${elapsed}ms，等待${waitTime}ms...`);
+      await this._sleep(waitTime);
     }
+    this._lastRequestTime = Date.now();
+  }
 
-    /**
-     * 请求间隔限流
-     */
-    static async _throttle() {
-        const now = Date.now();
-        const elapsed = now - this._lastRequestTime;
-        if (elapsed < RATE_LIMIT_CONFIG.minRequestIntervalMs) {
-            const waitTime = RATE_LIMIT_CONFIG.minRequestIntervalMs - elapsed;
-            logger.info(`[AI限流] 距上次请求仅${elapsed}ms，等待${waitTime}ms...`);
-            await this._sleep(waitTime);
+  /**
+   * 缓存读取
+   * @param {string} key - 缓存键
+   * @returns {Object|null} 缓存数据或null
+   */
+  static _getCache(key) {
+    const entry = this._cache.get(key);
+    if (!entry) return null;
+    if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
+      this._cache.delete(key);
+      return null;
+    }
+    logger.info(`[AI缓存] 命中缓存: ${key}`);
+    return entry.data;
+  }
+
+  /**
+   * 缓存写入
+   */
+  static _setCache(key, data) {
+    this._cache.set(key, { data, timestamp: Date.now() });
+    // 清理过期缓存
+    for (const [k, v] of this._cache.entries()) {
+      if (Date.now() - v.timestamp > CACHE_TTL_MS) {
+        this._cache.delete(k);
+      }
+    }
+  }
+
+  /**
+   * 获取Token用量统计
+   */
+  static getUsageStats() {
+    return { ...this._totalUsage };
+  }
+
+  // ==================== 核心AI调用 ====================
+
+  /**
+   * 调用统一 AI 大模型（含指数退避重试、请求限流、Token追踪）
+   * @param {string} systemPrompt - 系统提示词
+   * @param {string} userPrompt - 用户消息（包含数据）
+   * @returns {Promise<{content: string, usage: Object}>} AI回复内容和Token用量
+   */
+  static async callAI(systemPrompt, userPrompt) {
+    const { model, provider } = getAIConfig();
+
+    for (let attempt = 0; attempt <= RATE_LIMIT_CONFIG.maxRetries; attempt++) {
+      try {
+        await this._throttle();
+
+        const result = await UnifiedAIClient.createChatCompletion({
+          serviceName: 'Budget AI service',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature: 0.3,
+          stream: false,
+          retries: 0,
+        });
+        const { content, usage } = result;
+
+        this._totalUsage.prompt_tokens += usage.prompt_tokens;
+        this._totalUsage.completion_tokens += usage.completion_tokens;
+        this._totalUsage.reasoning_tokens += usage.reasoning_tokens;
+        this._totalUsage.total_tokens += usage.total_tokens;
+        this._totalUsage.call_count += 1;
+
+        logger.info(
+          `[AI] 调用成功 | Provider:${provider} | 模型:${model} | Token: 输入${usage.prompt_tokens} 输出${usage.completion_tokens} 总计${usage.total_tokens}`
+        );
+        return { content, usage };
+      } catch (error) {
+        if (error.status === 429 && attempt < RATE_LIMIT_CONFIG.maxRetries) {
+          const jitter = crypto.randomInt(0, 1000);
+          const delayMs = Math.min(
+            RATE_LIMIT_CONFIG.baseDelayMs * Math.pow(2, attempt) + jitter,
+            RATE_LIMIT_CONFIG.maxDelayMs
+          );
+          logger.warn(
+            `[AI] 触发速率限制(429)，第${attempt + 1}次重试，等待${Math.round(delayMs)}ms...`
+          );
+          await this._sleep(delayMs);
+          continue;
         }
-        this._lastRequestTime = Date.now();
-    }
 
-    /**
-     * 缓存读取
-     * @param {string} key - 缓存键
-     * @returns {Object|null} 缓存数据或null
-     */
-    static _getCache(key) {
-        const entry = this._cache.get(key);
-        if (!entry) return null;
-        if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
-            this._cache.delete(key);
-            return null;
+        if (
+          attempt < RATE_LIMIT_CONFIG.maxRetries &&
+          (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' || error.name === 'AbortError')
+        ) {
+          logger.warn(`[AI] 网络异常或超时，第${attempt + 1}次重试...`);
+          await this._sleep(RATE_LIMIT_CONFIG.baseDelayMs);
+          continue;
         }
-        logger.info(`[AI缓存] 命中缓存: ${key}`);
-        return entry.data;
+
+        logger.error('AI调用异常:', error.message);
+        throw error;
+      }
     }
+  }
 
-    /**
-     * 缓存写入
-     */
-    static _setCache(key, data) {
-        this._cache.set(key, { data, timestamp: Date.now() });
-        // 清理过期缓存
-        for (const [k, v] of this._cache.entries()) {
-            if (Date.now() - v.timestamp > CACHE_TTL_MS) {
-                this._cache.delete(k);
-            }
-        }
+  /**
+   * 从AI回复中提取JSON
+   */
+  static extractJSON(text) {
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[1]);
+      }
+      const braceMatch = text.match(/\{[\s\S]*\}/);
+      if (braceMatch) {
+        return JSON.parse(braceMatch[0]);
+      }
+      throw new Error('无法从AI回复中提取JSON', { cause: e });
     }
+  }
 
-    /**
-     * 获取Token用量统计
-     */
-    static getUsageStats() {
-        return { ...this._totalUsage };
-    }
+  // ==================== 业务功能 ====================
 
-    // ==================== 核心AI调用 ====================
+  /**
+   * 生成预算编制建议
+   */
+  static async generateBudgetRecommendation(targetYear, departmentId = null) {
+    const cacheKey = `recommendation:${targetYear}:${departmentId || 'all'}`;
+    const cached = this._getCache(cacheKey);
+    if (cached) return cached;
 
-    /**
-     * 调用统一 AI 大模型（含指数退避重试、请求限流、Token追踪）
-     * @param {string} systemPrompt - 系统提示词
-     * @param {string} userPrompt - 用户消息（包含数据）
-     * @returns {Promise<{content: string, usage: Object}>} AI回复内容和Token用量
-     */
-    static async callAI(systemPrompt, userPrompt) {
-        const { model, provider } = getAIConfig();
+    try {
+      // 1. 获取历史数据
+      const lookbackYears = 3;
+      const startYear = targetYear - lookbackYears;
 
-        for (let attempt = 0; attempt <= RATE_LIMIT_CONFIG.maxRetries; attempt++) {
-            try {
-                await this._throttle();
-
-                const result = await UnifiedAIClient.createChatCompletion({
-                    serviceName: 'Budget AI service',
-                    messages: [
-                        { role: 'system', content: systemPrompt },
-                        { role: 'user', content: userPrompt },
-                    ],
-                    temperature: 0.3,
-                    stream: false,
-                    retries: 0,
-                });
-                const { content, usage } = result;
-
-                this._totalUsage.prompt_tokens += usage.prompt_tokens;
-                this._totalUsage.completion_tokens += usage.completion_tokens;
-                this._totalUsage.reasoning_tokens += usage.reasoning_tokens;
-                this._totalUsage.total_tokens += usage.total_tokens;
-                this._totalUsage.call_count += 1;
-
-                logger.info(`[AI] 调用成功 | Provider:${provider} | 模型:${model} | Token: 输入${usage.prompt_tokens} 输出${usage.completion_tokens} 总计${usage.total_tokens}`);
-                return { content, usage };
-            } catch (error) {
-                if (error.status === 429 && attempt < RATE_LIMIT_CONFIG.maxRetries) {
-                    const jitter = crypto.randomInt(0, 1000);
-                    const delayMs = Math.min(
-                        RATE_LIMIT_CONFIG.baseDelayMs * Math.pow(2, attempt) + jitter,
-                        RATE_LIMIT_CONFIG.maxDelayMs
-                    );
-                    logger.warn(`[AI] 触发速率限制(429)，第${attempt + 1}次重试，等待${Math.round(delayMs)}ms...`);
-                    await this._sleep(delayMs);
-                    continue;
-                }
-
-                if (
-                    attempt < RATE_LIMIT_CONFIG.maxRetries &&
-                    (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' || error.name === 'AbortError')
-                ) {
-                    logger.warn(`[AI] 网络异常或超时，第${attempt + 1}次重试...`);
-                    await this._sleep(RATE_LIMIT_CONFIG.baseDelayMs);
-                    continue;
-                }
-
-                logger.error('AI调用异常:', error.message);
-                throw error;
-            }
-        }
-    }
-
-    /**
-     * 从AI回复中提取JSON
-     */
-    static extractJSON(text) {
-        try {
-            return JSON.parse(text);
-        } catch (e) {
-            const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-            if (jsonMatch) {
-                return JSON.parse(jsonMatch[1]);
-            }
-            const braceMatch = text.match(/\{[\s\S]*\}/);
-            if (braceMatch) {
-                return JSON.parse(braceMatch[0]);
-            }
-            throw new Error('无法从AI回复中提取JSON', { cause: e });
-        }
-    }
-
-    // ==================== 业务功能 ====================
-
-    /**
-     * 生成预算编制建议
-     */
-    static async generateBudgetRecommendation(targetYear, departmentId = null) {
-        const cacheKey = `recommendation:${targetYear}:${departmentId || 'all'}`;
-        const cached = this._getCache(cacheKey);
-        if (cached) return cached;
-
-        try {
-            // 1. 获取历史数据
-            const lookbackYears = 3;
-            const startYear = targetYear - lookbackYears;
-
-            let historicalQuery = `
+      let historicalQuery = `
                 SELECT
                     ga.id as account_id, ga.account_code, ga.account_name,
                     YEAR(ge.entry_date) as year,
@@ -225,50 +226,52 @@ class BudgetAIService {
                     AND ga.is_active = true
                     AND ge.is_posted = 1
             `;
-            const params = [startYear, targetYear];
+      const params = [startYear, targetYear];
 
-            if (departmentId) {
-                historicalQuery += ' AND (gei.cost_center_id = ? OR cc_budget_ai.department_id = ?)';
-                params.push(departmentId, departmentId);
-            }
+      if (departmentId) {
+        historicalQuery += ' AND (gei.cost_center_id = ? OR cc_budget_ai.department_id = ?)';
+        params.push(departmentId, departmentId);
+      }
 
-            historicalQuery += ' GROUP BY ga.id, ga.account_code, ga.account_name, YEAR(ge.entry_date) ORDER BY ga.account_code, year';
+      historicalQuery +=
+        ' GROUP BY ga.id, ga.account_code, ga.account_name, YEAR(ge.entry_date) ORDER BY ga.account_code, year';
 
-            const [historicalData] = await db.pool.execute(historicalQuery, params);
+      const [historicalData] = await db.pool.execute(historicalQuery, params);
 
-            // 按科目整理数据
-            const accountMap = {};
-            historicalData.forEach(row => {
-                if (!accountMap[row.account_id]) {
-                    accountMap[row.account_id] = {
-                        account_code: row.account_code,
-                        account_name: row.account_name,
-                        yearly_spending: {},
-                    };
-                }
-                const amount = Math.max(parseFloat(row.total_debit) - parseFloat(row.total_credit), 0);
-                accountMap[row.account_id].yearly_spending[row.year] = Math.round(amount * 100) / 100;
-            });
+      // 按科目整理数据
+      const accountMap = {};
+      historicalData.forEach((row) => {
+        if (!accountMap[row.account_id]) {
+          accountMap[row.account_id] = {
+            account_code: row.account_code,
+            account_name: row.account_name,
+            yearly_spending: {},
+          };
+        }
+        const amount = Math.max(parseFloat(row.total_debit) - parseFloat(row.total_credit), 0);
+        accountMap[row.account_id].yearly_spending[row.year] = Math.round(amount * 100) / 100;
+      });
 
-            const accountsSummary = Object.values(accountMap).map(a => ({
-                code: a.account_code,
-                name: a.account_name,
-                spending: a.yearly_spending,
-            }));
+      const accountsSummary = Object.values(accountMap).map((a) => ({
+        code: a.account_code,
+        name: a.account_name,
+        spending: a.yearly_spending,
+      }));
 
-            if (accountsSummary.length === 0) {
-                return {
-                    target_year: targetYear,
-                    ai_model: getAIModel(),
-                    recommendations: [],
-                    ai_summary: '没有找到历史支出数据，无法生成预算建议。请确保系统中有过去几年的会计分录记录。',
-                    data_source: '无可用数据',
-                    usage: null,
-                };
-            }
+      if (accountsSummary.length === 0) {
+        return {
+          target_year: targetYear,
+          ai_model: getAIModel(),
+          recommendations: [],
+          ai_summary:
+            '没有找到历史支出数据，无法生成预算建议。请确保系统中有过去几年的会计分录记录。',
+          data_source: '无可用数据',
+          usage: null,
+        };
+      }
 
-            // 2. 构建AI提示词
-            const systemPrompt = `你是一位资深的企业财务预算分析师，擅长根据历史财务数据制定预算方案。
+      // 2. 构建AI提示词
+      const systemPrompt = `你是一位资深的企业财务预算分析师，擅长根据历史财务数据制定预算方案。
 请根据提供的历史支出数据，为目标年度生成详细的预算编制建议。
 
 你必须返回标准JSON格式（不要包含markdown代码块标记），结构如下：
@@ -291,7 +294,7 @@ class BudgetAIService {
   "trend_analysis": "整体趋势分析（80-120字，描述支出趋势走向）"
 }`;
 
-            const userPrompt = `请为${targetYear}年编制预算建议。
+      const userPrompt = `请为${targetYear}年编制预算建议。
 
 历史支出数据（${startYear}-${targetYear - 1}年）：
 ${JSON.stringify(accountsSummary, null, 2)}
@@ -304,62 +307,68 @@ ${departmentId ? `仅针对部门ID: ${departmentId}` : '全公司范围'}
 3. 行业通用的预算编制经验
 4. 风险预留和优化空间`;
 
-            // 3. 调用AI
-            logger.info(`[AI预算建议] 开始为${targetYear}年生成建议，${accountsSummary.length}个科目...`);
-            const { content: aiResponse, usage } = await this.callAI(systemPrompt, userPrompt);
-            const result = this.extractJSON(aiResponse);
+      // 3. 调用AI
+      logger.info(`[AI预算建议] 开始为${targetYear}年生成建议，${accountsSummary.length}个科目...`);
+      const { content: aiResponse, usage } = await this.callAI(systemPrompt, userPrompt);
+      const result = this.extractJSON(aiResponse);
 
-            // 用真实科目名称补全AI返回数据（AI可能遗漏account_name）
-            const codeToName = {};
-            Object.values(accountMap).forEach(a => { codeToName[a.account_code] = a.account_name; });
-            if (result.recommendations) {
-                result.recommendations.forEach(r => {
-                    if (!r.account_name && r.account_code && codeToName[r.account_code]) {
-                        r.account_name = codeToName[r.account_code];
-                    }
-                });
-            }
+      // 用真实科目名称补全AI返回数据（AI可能遗漏account_name）
+      const codeToName = {};
+      Object.values(accountMap).forEach((a) => {
+        codeToName[a.account_code] = a.account_name;
+      });
+      if (result.recommendations) {
+        result.recommendations.forEach((r) => {
+          if (!r.account_name && r.account_code && codeToName[r.account_code]) {
+            r.account_name = codeToName[r.account_code];
+          }
+        });
+      }
 
-            const response = {
-                target_year: targetYear,
-                department_id: departmentId,
-                analysis_period: `${startYear}-${targetYear - 1}`,
-                ai_model: getAIModel(),
-                total_recommended_budget: result.total_recommended_budget,
-                overall_analysis: result.overall_analysis,
-                trend_analysis: result.trend_analysis || '',
-                recommendations: result.recommendations || [],
-                risk_warnings: result.risk_warnings || [],
-                optimization_tips: result.optimization_tips || [],
-                summary: {
-                    total_accounts: (result.recommendations || []).length,
-                    high_confidence: (result.recommendations || []).filter(r => r.confidence === '高').length,
-                    medium_confidence: (result.recommendations || []).filter(r => r.confidence === '中').length,
-                    low_confidence: (result.recommendations || []).filter(r => r.confidence === '低').length,
-                },
-                data_source: `${accountsSummary.length}个科目，${lookbackYears}年历史数据`,
-                usage,
-            };
+      const response = {
+        target_year: targetYear,
+        department_id: departmentId,
+        analysis_period: `${startYear}-${targetYear - 1}`,
+        ai_model: getAIModel(),
+        total_recommended_budget: result.total_recommended_budget,
+        overall_analysis: result.overall_analysis,
+        trend_analysis: result.trend_analysis || '',
+        recommendations: result.recommendations || [],
+        risk_warnings: result.risk_warnings || [],
+        optimization_tips: result.optimization_tips || [],
+        summary: {
+          total_accounts: (result.recommendations || []).length,
+          high_confidence: (result.recommendations || []).filter((r) => r.confidence === '高')
+            .length,
+          medium_confidence: (result.recommendations || []).filter((r) => r.confidence === '中')
+            .length,
+          low_confidence: (result.recommendations || []).filter((r) => r.confidence === '低')
+            .length,
+        },
+        data_source: `${accountsSummary.length}个科目，${lookbackYears}年历史数据`,
+        usage,
+      };
 
-            this._setCache(cacheKey, response);
-            return response;
-        } catch (error) {
-            logger.error('AI预算建议生成失败:', error);
-            throw error;
-        }
+      this._setCache(cacheKey, response);
+      return response;
+    } catch (error) {
+      logger.error('AI预算建议生成失败:', error);
+      throw error;
     }
+  }
 
-    /**
-     * 预算异常检测
-     */
-    static async detectAnomalies(budgetId) {
-        const cacheKey = `anomalies:${budgetId}`;
-        const cached = this._getCache(cacheKey);
-        if (cached) return cached;
+  /**
+   * 预算异常检测
+   */
+  static async detectAnomalies(budgetId) {
+    const cacheKey = `anomalies:${budgetId}`;
+    const cached = this._getCache(cacheKey);
+    if (cached) return cached;
 
-        try {
-            // 1. 获取预算执行数据
-            const [details] = await db.pool.execute(`
+    try {
+      // 1. 获取预算执行数据
+      const [details] = await db.pool.execute(
+        `
                 SELECT
                     bd.*, ga.account_code, ga.account_name,
                     d.name as department_name,
@@ -373,37 +382,39 @@ ${departmentId ? `仅针对部门ID: ${departmentId}` : '全公司范围'}
                 LEFT JOIN departments d ON bd.department_id = d.id
                 WHERE bd.budget_id = ?
                 ORDER BY execution_rate DESC
-            `, [budgetId]);
+            `,
+        [budgetId]
+      );
 
-            const [budgetInfo] = await db.pool.execute(
-                'SELECT budget_name, budget_year, total_amount FROM budgets WHERE id = ?',
-                [budgetId]
-            );
+      const [budgetInfo] = await db.pool.execute(
+        'SELECT budget_name, budget_year, total_amount FROM budgets WHERE id = ?',
+        [budgetId]
+      );
 
-            if (details.length === 0) {
-                return {
-                    budget_id: budgetId,
-                    ai_model: getAIModel(),
-                    anomalies: [],
-                    ai_summary: '该预算没有明细数据，无法进行异常检测。',
-                    summary: { total: 0, critical: 0, warning: 0, info: 0 },
-                    usage: null,
-                };
-            }
+      if (details.length === 0) {
+        return {
+          budget_id: budgetId,
+          ai_model: getAIModel(),
+          anomalies: [],
+          ai_summary: '该预算没有明细数据，无法进行异常检测。',
+          summary: { total: 0, critical: 0, warning: 0, info: 0 },
+          usage: null,
+        };
+      }
 
-            // 2. 整理数据
-            const executionData = details.map(d => ({
-                code: d.account_code,
-                name: d.account_name,
-                department: d.department_name || '全公司',
-                budget: parseFloat(d.budget_amount),
-                used: parseFloat(d.actual_used),
-                remaining: parseFloat(d.budget_amount) - parseFloat(d.actual_used),
-                rate: parseFloat(d.execution_rate),
-            }));
+      // 2. 整理数据
+      const executionData = details.map((d) => ({
+        code: d.account_code,
+        name: d.account_name,
+        department: d.department_name || '全公司',
+        budget: parseFloat(d.budget_amount),
+        used: parseFloat(d.actual_used),
+        remaining: parseFloat(d.budget_amount) - parseFloat(d.actual_used),
+        rate: parseFloat(d.execution_rate),
+      }));
 
-            // 3. 构建AI提示词
-            const systemPrompt = `你是一位资深的企业财务风控分析师，擅长从预算执行数据中发现异常和风险。
+      // 3. 构建AI提示词
+      const systemPrompt = `你是一位资深的企业财务风控分析师，擅长从预算执行数据中发现异常和风险。
 请分析以下预算执行数据，找出所有异常项目并给出专业的诊断和建议。
 
 你必须返回标准JSON格式（不要包含markdown代码块标记），结构如下：
@@ -433,8 +444,8 @@ ${departmentId ? `仅针对部门ID: ${departmentId}` : '全公司范围'}
 - 警告：执行率>90% 或 执行率<15%且预算金额>5000
 - 提示：明显偏离平均水平的项目`;
 
-            const budgetName = budgetInfo[0]?.budget_name || '未知预算';
-            const userPrompt = `预算名称: ${budgetName}
+      const budgetName = budgetInfo[0]?.budget_name || '未知预算';
+      const userPrompt = `预算名称: ${budgetName}
 预算总额: ¥${budgetInfo[0]?.total_amount || 0}
 
 预算执行明细（共${executionData.length}项）：
@@ -446,64 +457,65 @@ ${JSON.stringify(executionData, null, 2)}
 3. 同部门不同科目之间的不协调
 4. 可能导致年度超支的隐患`;
 
-            // 4. 调用AI
-            logger.info(`[AI异常检测] 开始检测预算#${budgetId}，${executionData.length}个明细项...`);
-            const { content: aiResponse, usage } = await this.callAI(systemPrompt, userPrompt);
-            const result = this.extractJSON(aiResponse);
+      // 4. 调用AI
+      logger.info(`[AI异常检测] 开始检测预算#${budgetId}，${executionData.length}个明细项...`);
+      const { content: aiResponse, usage } = await this.callAI(systemPrompt, userPrompt);
+      const result = this.extractJSON(aiResponse);
 
-            const rates = executionData.map(d => d.rate);
-            const mean = rates.length > 0 ? rates.reduce((a, b) => a + b, 0) / rates.length : 0;
+      const rates = executionData.map((d) => d.rate);
+      const mean = rates.length > 0 ? rates.reduce((a, b) => a + b, 0) / rates.length : 0;
 
-            const response = {
-                budget_id: budgetId,
-                budget_name: budgetName,
-                ai_model: getAIModel(),
-                risk_score: result.risk_score || 0,
-                statistics: {
-                    mean_execution_rate: Math.round(mean * 100) / 100,
-                    total_items: details.length,
-                    max_rate: Math.max(...rates),
-                    min_rate: Math.min(...rates),
-                },
-                overall_assessment: result.overall_assessment,
-                normal_items_summary: result.normal_items_summary || '',
-                anomalies: result.anomalies || [],
-                management_advice: result.management_advice || [],
-                // 散点图数据：每个明细的 { 预算金额, 执行率, 科目名 }
-                scatter_data: executionData.map(d => ({
-                    name: d.name,
-                    budget: d.budget,
-                    rate: d.rate,
-                    department: d.department,
-                })),
-                summary: {
-                    total: (result.anomalies || []).length,
-                    critical: (result.anomalies || []).filter(a => a.severity === '严重').length,
-                    warning: (result.anomalies || []).filter(a => a.severity === '警告').length,
-                    info: (result.anomalies || []).filter(a => a.severity === '提示').length,
-                },
-                usage,
-            };
+      const response = {
+        budget_id: budgetId,
+        budget_name: budgetName,
+        ai_model: getAIModel(),
+        risk_score: result.risk_score || 0,
+        statistics: {
+          mean_execution_rate: Math.round(mean * 100) / 100,
+          total_items: details.length,
+          max_rate: Math.max(...rates),
+          min_rate: Math.min(...rates),
+        },
+        overall_assessment: result.overall_assessment,
+        normal_items_summary: result.normal_items_summary || '',
+        anomalies: result.anomalies || [],
+        management_advice: result.management_advice || [],
+        // 散点图数据：每个明细的 { 预算金额, 执行率, 科目名 }
+        scatter_data: executionData.map((d) => ({
+          name: d.name,
+          budget: d.budget,
+          rate: d.rate,
+          department: d.department,
+        })),
+        summary: {
+          total: (result.anomalies || []).length,
+          critical: (result.anomalies || []).filter((a) => a.severity === '严重').length,
+          warning: (result.anomalies || []).filter((a) => a.severity === '警告').length,
+          info: (result.anomalies || []).filter((a) => a.severity === '提示').length,
+        },
+        usage,
+      };
 
-            this._setCache(cacheKey, response);
-            return response;
-        } catch (error) {
-            logger.error('AI异常检测失败:', error);
-            throw error;
-        }
+      this._setCache(cacheKey, response);
+      return response;
+    } catch (error) {
+      logger.error('AI异常检测失败:', error);
+      throw error;
     }
+  }
 
-    /**
-     * 预算优化建议
-     */
-    static async optimizeBudgetAllocation(budgetId) {
-        const cacheKey = `optimization:${budgetId}`;
-        const cached = this._getCache(cacheKey);
-        if (cached) return cached;
+  /**
+   * 预算优化建议
+   */
+  static async optimizeBudgetAllocation(budgetId) {
+    const cacheKey = `optimization:${budgetId}`;
+    const cached = this._getCache(cacheKey);
+    if (cached) return cached;
 
-        try {
-            // 1. 获取数据
-            const [details] = await db.pool.execute(`
+    try {
+      // 1. 获取数据
+      const [details] = await db.pool.execute(
+        `
                 SELECT
                     bd.*, ga.account_code, ga.account_name,
                     d.name as department_name,
@@ -516,41 +528,43 @@ ${JSON.stringify(executionData, null, 2)}
                 LEFT JOIN gl_accounts ga ON bd.account_id = ga.id
                 LEFT JOIN departments d ON bd.department_id = d.id
                 WHERE bd.budget_id = ?
-            `, [budgetId]);
+            `,
+        [budgetId]
+      );
 
-            const [budgetInfo] = await db.pool.execute(
-                'SELECT budget_name, budget_year, total_amount, start_date, end_date FROM budgets WHERE id = ?',
-                [budgetId]
-            );
+      const [budgetInfo] = await db.pool.execute(
+        'SELECT budget_name, budget_year, total_amount, start_date, end_date FROM budgets WHERE id = ?',
+        [budgetId]
+      );
 
-            if (details.length === 0) {
-                return {
-                    budget_id: budgetId,
-                    ai_model: getAIModel(),
-                    health_score: 0,
-                    health_level: '无数据',
-                    ai_analysis: '该预算没有明细数据，无法进行优化分析。',
-                    adjustments: [],
-                    usage: null,
-                };
-            }
+      if (details.length === 0) {
+        return {
+          budget_id: budgetId,
+          ai_model: getAIModel(),
+          health_score: 0,
+          health_level: '无数据',
+          ai_analysis: '该预算没有明细数据，无法进行优化分析。',
+          adjustments: [],
+          usage: null,
+        };
+      }
 
-            // 2. 整理数据
-            const executionData = details.map(d => ({
-                code: d.account_code,
-                name: d.account_name,
-                department: d.department_name || '全公司',
-                budget: parseFloat(d.budget_amount),
-                used: parseFloat(d.actual_used),
-                remaining: parseFloat(d.budget_amount) - parseFloat(d.actual_used),
-                rate: parseFloat(d.execution_rate),
-            }));
+      // 2. 整理数据
+      const executionData = details.map((d) => ({
+        code: d.account_code,
+        name: d.account_name,
+        department: d.department_name || '全公司',
+        budget: parseFloat(d.budget_amount),
+        used: parseFloat(d.actual_used),
+        remaining: parseFloat(d.budget_amount) - parseFloat(d.actual_used),
+        rate: parseFloat(d.execution_rate),
+      }));
 
-            const totalBudget = executionData.reduce((s, d) => s + d.budget, 0);
-            const totalUsed = executionData.reduce((s, d) => s + d.used, 0);
+      const totalBudget = executionData.reduce((s, d) => s + d.budget, 0);
+      const totalUsed = executionData.reduce((s, d) => s + d.used, 0);
 
-            // 3. 构建AI提示词
-            const systemPrompt = `你是一位资深的企业财务优化顾问，擅长预算资金调配和效率优化。
+      // 3. 构建AI提示词
+      const systemPrompt = `你是一位资深的企业财务优化顾问，擅长预算资金调配和效率优化。
 请分析预算执行数据，给出预算健康度评分和资金优化调配方案。
 
 你必须返回标准JSON格式（不要包含markdown代码块标记），结构如下：
@@ -592,12 +606,12 @@ ${JSON.stringify(executionData, null, 2)}
 - 30-49: 问题较多，需要干预
 - 0-29: 严重偏离，需全面检视`;
 
-            const budgetName = budgetInfo[0]?.budget_name || '未知预算';
-            const userPrompt = `预算名称: ${budgetName}
+      const budgetName = budgetInfo[0]?.budget_name || '未知预算';
+      const userPrompt = `预算名称: ${budgetName}
 预算年度: ${budgetInfo[0]?.budget_year || ''}
 预算周期: ${budgetInfo[0]?.start_date || ''} 至 ${budgetInfo[0]?.end_date || ''}
 预算总额: ¥${totalBudget.toFixed(2)}
-已使用: ¥${totalUsed.toFixed(2)}（总体执行率: ${totalBudget > 0 ? (totalUsed / totalBudget * 100).toFixed(1) : 0}%）
+已使用: ¥${totalUsed.toFixed(2)}（总体执行率: ${totalBudget > 0 ? ((totalUsed / totalBudget) * 100).toFixed(1) : 0}%）
 
 预算执行明细（共${executionData.length}项）：
 ${JSON.stringify(executionData, null, 2)}
@@ -607,218 +621,238 @@ ${JSON.stringify(executionData, null, 2)}
 2. 具体的资金调配方案（从宽裕科目调出到紧张科目）
 3. 管理层面的战略建议`;
 
-            // 4. 调用AI
-            logger.info(`[AI优化建议] 开始分析预算#${budgetId}...`);
-            const { content: aiResponse, usage } = await this.callAI(systemPrompt, userPrompt);
-            const result = this.extractJSON(aiResponse);
+      // 4. 调用AI
+      logger.info(`[AI优化建议] 开始分析预算#${budgetId}...`);
+      const { content: aiResponse, usage } = await this.callAI(systemPrompt, userPrompt);
+      const result = this.extractJSON(aiResponse);
 
-            const response = {
-                budget_id: budgetId,
-                budget_name: budgetName,
-                ai_model: getAIModel(),
-                health_score: result.health_score || 0,
-                health_level: result.health_level || '未知',
-                overall_analysis: result.overall_analysis || '',
-                distribution: result.distribution || {},
-                transferable_amount: (result.adjustments || [])
-                    .filter(a => a.suggested_amount < 0)
-                    .reduce((s, a) => s + Math.abs(a.suggested_amount), 0),
-                shortfall_amount: (result.adjustments || [])
-                    .filter(a => a.suggested_amount > 0)
-                    .reduce((s, a) => s + a.suggested_amount, 0),
-                adjustments: result.adjustments || [],
-                strategic_suggestions: result.strategic_suggestions || [],
-                // 桑基图数据
-                sankey_data: this._buildSankeyData(result.adjustments || []),
-                summary: {
-                    total_budget: totalBudget,
-                    total_used: totalUsed,
-                    overall_rate: totalBudget > 0 ? Math.round(totalUsed / totalBudget * 10000) / 100 : 0,
-                },
-                usage,
-            };
+      const response = {
+        budget_id: budgetId,
+        budget_name: budgetName,
+        ai_model: getAIModel(),
+        health_score: result.health_score || 0,
+        health_level: result.health_level || '未知',
+        overall_analysis: result.overall_analysis || '',
+        distribution: result.distribution || {},
+        transferable_amount: (result.adjustments || [])
+          .filter((a) => a.suggested_amount < 0)
+          .reduce((s, a) => s + Math.abs(a.suggested_amount), 0),
+        shortfall_amount: (result.adjustments || [])
+          .filter((a) => a.suggested_amount > 0)
+          .reduce((s, a) => s + a.suggested_amount, 0),
+        adjustments: result.adjustments || [],
+        strategic_suggestions: result.strategic_suggestions || [],
+        // 桑基图数据
+        sankey_data: this._buildSankeyData(result.adjustments || []),
+        summary: {
+          total_budget: totalBudget,
+          total_used: totalUsed,
+          overall_rate: totalBudget > 0 ? Math.round((totalUsed / totalBudget) * 10000) / 100 : 0,
+        },
+        usage,
+      };
 
-            this._setCache(cacheKey, response);
-            return response;
-        } catch (error) {
-            logger.error('AI预算优化分析失败:', error);
-            throw error;
+      this._setCache(cacheKey, response);
+      return response;
+    } catch (error) {
+      logger.error('AI预算优化分析失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 构建桑基图数据
+   */
+  static _buildSankeyData(adjustments) {
+    if (!adjustments || adjustments.length === 0) return null;
+    const sources = adjustments.filter((a) => a.suggested_amount < 0); // 调出
+    const targets = adjustments.filter((a) => a.suggested_amount > 0); // 调入
+    if (sources.length === 0 || targets.length === 0) return null;
+
+    const nodes = [];
+    const links = [];
+    const nodeSet = new Set();
+
+    sources.forEach((s) => {
+      const name = `${s.account_name}(调出)`;
+      if (!nodeSet.has(name)) {
+        nodes.push({ name });
+        nodeSet.add(name);
+      }
+    });
+    targets.forEach((t) => {
+      const name = `${t.account_name}(调入)`;
+      if (!nodeSet.has(name)) {
+        nodes.push({ name });
+        nodeSet.add(name);
+      }
+    });
+
+    // 按比例分配资金流
+    const totalOut = sources.reduce((s, a) => s + Math.abs(a.suggested_amount), 0);
+    sources.forEach((src) => {
+      const srcRatio = Math.abs(src.suggested_amount) / totalOut;
+      targets.forEach((tgt) => {
+        const flowAmount = Math.round(tgt.suggested_amount * srcRatio);
+        if (flowAmount > 0) {
+          links.push({
+            source: `${src.account_name}(调出)`,
+            target: `${tgt.account_name}(调入)`,
+            value: flowAmount,
+          });
         }
-    }
+      });
+    });
 
-    /**
-     * 构建桑基图数据
-     */
-    static _buildSankeyData(adjustments) {
-        if (!adjustments || adjustments.length === 0) return null;
-        const sources = adjustments.filter(a => a.suggested_amount < 0); // 调出
-        const targets = adjustments.filter(a => a.suggested_amount > 0); // 调入
-        if (sources.length === 0 || targets.length === 0) return null;
+    return { nodes, links };
+  }
 
-        const nodes = [];
-        const links = [];
-        const nodeSet = new Set();
+  static _toNumber(value) {
+    const number = parseFloat(value);
+    return Number.isFinite(number) ? number : 0;
+  }
 
-        sources.forEach(s => {
-            const name = `${s.account_name}(调出)`;
-            if (!nodeSet.has(name)) { nodes.push({ name }); nodeSet.add(name); }
-        });
-        targets.forEach(t => {
-            const name = `${t.account_name}(调入)`;
-            if (!nodeSet.has(name)) { nodes.push({ name }); nodeSet.add(name); }
-        });
+  static _roundMoney(value) {
+    return Math.round(this._toNumber(value) * 100) / 100;
+  }
 
-        // 按比例分配资金流
-        const totalOut = sources.reduce((s, a) => s + Math.abs(a.suggested_amount), 0);
-        sources.forEach(src => {
-            const srcRatio = Math.abs(src.suggested_amount) / totalOut;
-            targets.forEach(tgt => {
-                const flowAmount = Math.round(tgt.suggested_amount * srcRatio);
-                if (flowAmount > 0) {
-                    links.push({
-                        source: `${src.account_name}(调出)`,
-                        target: `${tgt.account_name}(调入)`,
-                        value: flowAmount,
-                    });
-                }
-            });
-        });
+  static _roundRate(value) {
+    return Math.round(this._toNumber(value) * 100) / 100;
+  }
 
-        return { nodes, links };
-    }
+  static _percentChange(previous, current) {
+    const oldValue = this._toNumber(previous);
+    const newValue = this._toNumber(current);
+    if (oldValue === 0 && newValue === 0) return 0;
+    if (oldValue === 0) return 100;
+    return this._roundRate(((newValue - oldValue) / Math.abs(oldValue)) * 100);
+  }
 
-    static _toNumber(value) {
-        const number = parseFloat(value);
-        return Number.isFinite(number) ? number : 0;
-    }
+  static _buildYearComparisonSummary(comparisonData) {
+    const summary = comparisonData.reduce(
+      (acc, row) => {
+        acc.year1_total_budget += this._toNumber(row.y1_budget);
+        acc.year1_total_used += this._toNumber(row.y1_used);
+        acc.year2_total_budget += this._toNumber(row.y2_budget);
+        acc.year2_total_used += this._toNumber(row.y2_used);
+        return acc;
+      },
+      {
+        year1_total_budget: 0,
+        year1_total_used: 0,
+        year2_total_budget: 0,
+        year2_total_used: 0,
+        total_accounts: comparisonData.length,
+      }
+    );
 
-    static _roundMoney(value) {
-        return Math.round(this._toNumber(value) * 100) / 100;
-    }
+    summary.year1_total_budget = this._roundMoney(summary.year1_total_budget);
+    summary.year1_total_used = this._roundMoney(summary.year1_total_used);
+    summary.year2_total_budget = this._roundMoney(summary.year2_total_budget);
+    summary.year2_total_used = this._roundMoney(summary.year2_total_used);
+    summary.budget_change_rate = this._percentChange(
+      summary.year1_total_budget,
+      summary.year2_total_budget
+    );
+    summary.used_change_rate = this._percentChange(
+      summary.year1_total_used,
+      summary.year2_total_used
+    );
+    summary.year1_execution_rate =
+      summary.year1_total_budget > 0
+        ? this._roundRate((summary.year1_total_used / summary.year1_total_budget) * 100)
+        : 0;
+    summary.year2_execution_rate =
+      summary.year2_total_budget > 0
+        ? this._roundRate((summary.year2_total_used / summary.year2_total_budget) * 100)
+        : 0;
 
-    static _roundRate(value) {
-        return Math.round(this._toNumber(value) * 100) / 100;
-    }
+    return summary;
+  }
 
-    static _percentChange(previous, current) {
-        const oldValue = this._toNumber(previous);
-        const newValue = this._toNumber(current);
-        if (oldValue === 0 && newValue === 0) return 0;
-        if (oldValue === 0) return 100;
-        return this._roundRate(((newValue - oldValue) / Math.abs(oldValue)) * 100);
-    }
-
-    static _buildYearComparisonSummary(comparisonData) {
-        const summary = comparisonData.reduce(
-            (acc, row) => {
-                acc.year1_total_budget += this._toNumber(row.y1_budget);
-                acc.year1_total_used += this._toNumber(row.y1_used);
-                acc.year2_total_budget += this._toNumber(row.y2_budget);
-                acc.year2_total_used += this._toNumber(row.y2_used);
-                return acc;
-            },
-            {
-                year1_total_budget: 0,
-                year1_total_used: 0,
-                year2_total_budget: 0,
-                year2_total_used: 0,
-                total_accounts: comparisonData.length,
-            }
+  static _buildYearComparisonFallback(year1, year2, comparisonData, reason, usage = null) {
+    const summary = this._buildYearComparisonSummary(comparisonData);
+    const changedRows = comparisonData
+      .map((row) => {
+        const budgetDelta = this._roundMoney(
+          this._toNumber(row.y2_budget) - this._toNumber(row.y1_budget)
         );
-
-        summary.year1_total_budget = this._roundMoney(summary.year1_total_budget);
-        summary.year1_total_used = this._roundMoney(summary.year1_total_used);
-        summary.year2_total_budget = this._roundMoney(summary.year2_total_budget);
-        summary.year2_total_used = this._roundMoney(summary.year2_total_used);
-        summary.budget_change_rate = this._percentChange(
-            summary.year1_total_budget,
-            summary.year2_total_budget
+        const usedDelta = this._roundMoney(
+          this._toNumber(row.y2_used) - this._toNumber(row.y1_used)
         );
-        summary.used_change_rate = this._percentChange(
-            summary.year1_total_used,
-            summary.year2_total_used
+        const rateDelta = this._roundRate(
+          this._toNumber(row.y2_rate) - this._toNumber(row.y1_rate)
         );
-        summary.year1_execution_rate = summary.year1_total_budget > 0
-            ? this._roundRate((summary.year1_total_used / summary.year1_total_budget) * 100)
-            : 0;
-        summary.year2_execution_rate = summary.year2_total_budget > 0
-            ? this._roundRate((summary.year2_total_used / summary.year2_total_budget) * 100)
-            : 0;
-
-        return summary;
-    }
-
-    static _buildYearComparisonFallback(year1, year2, comparisonData, reason, usage = null) {
-        const summary = this._buildYearComparisonSummary(comparisonData);
-        const changedRows = comparisonData
-            .map((row) => {
-                const budgetDelta = this._roundMoney(this._toNumber(row.y2_budget) - this._toNumber(row.y1_budget));
-                const usedDelta = this._roundMoney(this._toNumber(row.y2_used) - this._toNumber(row.y1_used));
-                const rateDelta = this._roundRate(this._toNumber(row.y2_rate) - this._toNumber(row.y1_rate));
-                return {
-                    account_code: row.code,
-                    account_name: row.name,
-                    budgetDelta,
-                    usedDelta,
-                    rateDelta,
-                };
-            })
-            .sort((a, b) => Math.abs(b.budgetDelta) + Math.abs(b.usedDelta) - Math.abs(a.budgetDelta) - Math.abs(a.usedDelta))
-            .slice(0, 8);
-
-        const keyChanges = changedRows.map((row) => {
-            let changeType = '基本稳定';
-            const dominantDelta = Math.abs(row.budgetDelta) >= Math.abs(row.usedDelta)
-                ? row.budgetDelta
-                : row.usedDelta;
-            if (dominantDelta > 0) changeType = '增长';
-            if (dominantDelta < 0) changeType = '下降';
-            if (Math.abs(row.rateDelta) >= 20) changeType = '执行率波动';
-
-            return {
-                account_code: row.account_code,
-                account_name: row.account_name,
-                change_type: changeType,
-                description: `预算变动 ${row.budgetDelta}，实际执行变动 ${row.usedDelta}，执行率变动 ${row.rateDelta} 个百分点。`,
-            };
-        });
-
-        const budgetDirection = summary.budget_change_rate >= 0 ? '增长' : '下降';
-        const usedDirection = summary.used_change_rate >= 0 ? '增长' : '下降';
-
         return {
-            year1,
-            year2,
-            ai_model: getAIModel(),
-            overall_comparison: `AI分析暂不可用，已根据系统预算数据生成本地年度对比。预算总额${budgetDirection}${Math.abs(summary.budget_change_rate)}%，实际执行${usedDirection}${Math.abs(summary.used_change_rate)}%。`,
-            key_changes: keyChanges,
-            trend_insights: [
-                `年度预算执行率从 ${summary.year1_execution_rate}% 变为 ${summary.year2_execution_rate}%。`,
-                `本地分析覆盖 ${summary.total_accounts} 个预算科目，优先展示金额或执行率变化较大的项目。`,
-            ],
-            recommendations: [
-                '对金额变化较大的科目复核预算编制依据和实际业务驱动因素。',
-                '对执行率明显偏离的科目补充原因说明，并在下一轮预算编制中调整口径。',
-            ],
-            comparison_data: comparisonData,
-            summary,
-            usage,
-            fallback: true,
-            fallback_reason: reason || 'AI响应无法解析为标准JSON',
+          account_code: row.code,
+          account_name: row.name,
+          budgetDelta,
+          usedDelta,
+          rateDelta,
         };
-    }
+      })
+      .sort(
+        (a, b) =>
+          Math.abs(b.budgetDelta) +
+          Math.abs(b.usedDelta) -
+          Math.abs(a.budgetDelta) -
+          Math.abs(a.usedDelta)
+      )
+      .slice(0, 8);
 
-    /**
-     * 年度对比分析
-     */
-    static async compareYearlyBudgets(year1, year2) {
-        const cacheKey = `comparison:${year1}:${year2}`;
-        const cached = this._getCache(cacheKey);
-        if (cached) return cached;
+    const keyChanges = changedRows.map((row) => {
+      let changeType = '基本稳定';
+      const dominantDelta =
+        Math.abs(row.budgetDelta) >= Math.abs(row.usedDelta) ? row.budgetDelta : row.usedDelta;
+      if (dominantDelta > 0) changeType = '增长';
+      if (dominantDelta < 0) changeType = '下降';
+      if (Math.abs(row.rateDelta) >= 20) changeType = '执行率波动';
 
-        try {
-            // 获取两个年度的预算执行数据
-            const [data] = await db.pool.execute(`
+      return {
+        account_code: row.account_code,
+        account_name: row.account_name,
+        change_type: changeType,
+        description: `预算变动 ${row.budgetDelta}，实际执行变动 ${row.usedDelta}，执行率变动 ${row.rateDelta} 个百分点。`,
+      };
+    });
+
+    const budgetDirection = summary.budget_change_rate >= 0 ? '增长' : '下降';
+    const usedDirection = summary.used_change_rate >= 0 ? '增长' : '下降';
+
+    return {
+      year1,
+      year2,
+      ai_model: getAIModel(),
+      overall_comparison: `AI分析暂不可用，已根据系统预算数据生成本地年度对比。预算总额${budgetDirection}${Math.abs(summary.budget_change_rate)}%，实际执行${usedDirection}${Math.abs(summary.used_change_rate)}%。`,
+      key_changes: keyChanges,
+      trend_insights: [
+        `年度预算执行率从 ${summary.year1_execution_rate}% 变为 ${summary.year2_execution_rate}%。`,
+        `本地分析覆盖 ${summary.total_accounts} 个预算科目，优先展示金额或执行率变化较大的项目。`,
+      ],
+      recommendations: [
+        '对金额变化较大的科目复核预算编制依据和实际业务驱动因素。',
+        '对执行率明显偏离的科目补充原因说明，并在下一轮预算编制中调整口径。',
+      ],
+      comparison_data: comparisonData,
+      summary,
+      usage,
+      fallback: true,
+      fallback_reason: reason || 'AI响应无法解析为标准JSON',
+    };
+  }
+
+  /**
+   * 年度对比分析
+   */
+  static async compareYearlyBudgets(year1, year2) {
+    const cacheKey = `comparison:${year1}:${year2}`;
+    const cached = this._getCache(cacheKey);
+    if (cached) return cached;
+
+    try {
+      // 获取两个年度的预算执行数据
+      const [data] = await db.pool.execute(
+        `
                 SELECT
                     b.budget_year,
                     ga.account_code, ga.account_name,
@@ -832,34 +866,37 @@ ${JSON.stringify(executionData, null, 2)}
                 LEFT JOIN gl_accounts ga ON bd.account_id = ga.id
                 WHERE b.budget_year IN (?, ?)
                 ORDER BY ga.account_code, b.budget_year
-            `, [year1, year2]);
+            `,
+        [year1, year2]
+      );
 
-            if (data.length === 0) {
-                return {
-                    year1, year2,
-                    ai_model: getAIModel(),
-                    comparison: [],
-                    ai_analysis: '没有找到这两个年度的预算数据。',
-                    usage: null,
-                };
-            }
+      if (data.length === 0) {
+        return {
+          year1,
+          year2,
+          ai_model: getAIModel(),
+          comparison: [],
+          ai_analysis: '没有找到这两个年度的预算数据。',
+          usage: null,
+        };
+      }
 
-            // 按科目整理对比数据
-            const comparisonMap = {};
-            data.forEach(row => {
-                const key = row.account_code;
-                if (!comparisonMap[key]) {
-                    comparisonMap[key] = { code: row.account_code, name: row.account_name };
-                }
-                const prefix = String(row.budget_year) === String(year1) ? 'y1' : 'y2';
-                comparisonMap[key][`${prefix}_budget`] = parseFloat(row.budget_amount);
-                comparisonMap[key][`${prefix}_used`] = parseFloat(row.actual_used);
-                comparisonMap[key][`${prefix}_rate`] = parseFloat(row.execution_rate);
-            });
+      // 按科目整理对比数据
+      const comparisonMap = {};
+      data.forEach((row) => {
+        const key = row.account_code;
+        if (!comparisonMap[key]) {
+          comparisonMap[key] = { code: row.account_code, name: row.account_name };
+        }
+        const prefix = String(row.budget_year) === String(year1) ? 'y1' : 'y2';
+        comparisonMap[key][`${prefix}_budget`] = parseFloat(row.budget_amount);
+        comparisonMap[key][`${prefix}_used`] = parseFloat(row.actual_used);
+        comparisonMap[key][`${prefix}_rate`] = parseFloat(row.execution_rate);
+      });
 
-            const comparisonData = Object.values(comparisonMap);
+      const comparisonData = Object.values(comparisonMap);
 
-            const systemPrompt = `你是一位资深的企业财务分析师，擅长预算年度对比分析。
+      const systemPrompt = `你是一位资深的企业财务分析师，擅长预算年度对比分析。
 分析两个年度的预算和实际执行数据，找出关键变化和趋势。
 
 你必须返回标准JSON格式（不要包含markdown代码块标记），结构如下：
@@ -877,7 +914,7 @@ ${JSON.stringify(executionData, null, 2)}
   "recommendations": ["改进建议1", "改进建议2"]
 }`;
 
-            const userPrompt = `请对比${year1}年和${year2}年的预算执行情况：
+      const userPrompt = `请对比${year1}年和${year2}年的预算执行情况：
 
 ${JSON.stringify(comparisonData, null, 2)}
 
@@ -889,64 +926,67 @@ ${JSON.stringify(comparisonData, null, 2)}
 3. 哪些科目需要特别关注
 4. 整体趋势研判`;
 
-            logger.info(`[AI年度对比] 开始对比${year1}年和${year2}年...`);
-            let result;
-            let usage = null;
-            try {
-                const aiResult = await this.callAI(systemPrompt, userPrompt);
-                usage = aiResult.usage;
-                result = this.extractJSON(aiResult.content);
-            } catch (aiError) {
-                logger.warn('AI年度对比分析降级为本地数据分析:', aiError.message);
-                const response = this._buildYearComparisonFallback(
-                    year1,
-                    year2,
-                    comparisonData,
-                    aiError.message,
-                    usage
-                );
-                this._setCache(cacheKey, response);
-                return response;
-            }
+      logger.info(`[AI年度对比] 开始对比${year1}年和${year2}年...`);
+      let result;
+      let usage = null;
+      try {
+        const aiResult = await this.callAI(systemPrompt, userPrompt);
+        usage = aiResult.usage;
+        result = this.extractJSON(aiResult.content);
+      } catch (aiError) {
+        logger.warn('AI年度对比分析降级为本地数据分析:', aiError.message);
+        const response = this._buildYearComparisonFallback(
+          year1,
+          year2,
+          comparisonData,
+          aiError.message,
+          usage
+        );
+        this._setCache(cacheKey, response);
+        return response;
+      }
 
-            const summary = this._buildYearComparisonSummary(comparisonData);
+      const summary = this._buildYearComparisonSummary(comparisonData);
 
-            const response = {
-                year1, year2,
-                ai_model: getAIModel(),
-                overall_comparison: result.overall_comparison || '',
-                key_changes: result.key_changes || [],
-                trend_insights: result.trend_insights || [],
-                recommendations: result.recommendations || [],
-                comparison_data: comparisonData, // 图表用原始数据
-                summary,
-                usage,
-            };
+      const response = {
+        year1,
+        year2,
+        ai_model: getAIModel(),
+        overall_comparison: result.overall_comparison || '',
+        key_changes: result.key_changes || [],
+        trend_insights: result.trend_insights || [],
+        recommendations: result.recommendations || [],
+        comparison_data: comparisonData, // 图表用原始数据
+        summary,
+        usage,
+      };
 
-            this._setCache(cacheKey, response);
-            return response;
-        } catch (error) {
-            logger.error('AI年度对比分析失败:', error);
-            throw error;
-        }
+      this._setCache(cacheKey, response);
+      return response;
+    } catch (error) {
+      logger.error('AI年度对比分析失败:', error);
+      throw error;
     }
+  }
 
-    /**
-     * 综合报告生成 - 一键生成完整的AI分析报告
-     */
-    static async generateComprehensiveReport(budgetId) {
-        const cacheKey = `comprehensive:${budgetId}`;
-        const cached = this._getCache(cacheKey);
-        if (cached) return cached;
+  /**
+   * 综合报告生成 - 一键生成完整的AI分析报告
+   */
+  static async generateComprehensiveReport(budgetId) {
+    const cacheKey = `comprehensive:${budgetId}`;
+    const cached = this._getCache(cacheKey);
+    if (cached) return cached;
 
-        try {
-            // 获取预算完整数据
-            const [budgetInfo] = await db.pool.execute(
-                'SELECT id, budget_no, budget_name, budget_year, budget_type, department_id, start_date, end_date, total_amount, used_amount, remaining_amount, status, approval_status, description, created_by, approved_by, approved_at, created_at, updated_at FROM budgets WHERE id = ?', [budgetId]
-            );
-            if (!budgetInfo.length) throw new Error('预算不存在');
+    try {
+      // 获取预算完整数据
+      const [budgetInfo] = await db.pool.execute(
+        'SELECT id, budget_no, budget_name, budget_year, budget_type, department_id, start_date, end_date, total_amount, used_amount, remaining_amount, status, approval_status, description, created_by, approved_by, approved_at, created_at, updated_at FROM budgets WHERE id = ?',
+        [budgetId]
+      );
+      if (!budgetInfo.length) throw new Error('预算不存在');
 
-            const [details] = await db.pool.execute(`
+      const [details] = await db.pool.execute(
+        `
                 SELECT
                     bd.*, ga.account_code, ga.account_name,
                     d.name as department_name,
@@ -960,31 +1000,33 @@ ${JSON.stringify(comparisonData, null, 2)}
                 LEFT JOIN departments d ON bd.department_id = d.id
                 WHERE bd.budget_id = ?
                 ORDER BY execution_rate DESC
-            `, [budgetId]);
+            `,
+        [budgetId]
+      );
 
-            if (details.length === 0) {
-                return {
-                    budget_id: budgetId,
-                    ai_model: getAIModel(),
-                    report: { summary: '该预算没有明细数据，无法生成综合报告。' },
-                    usage: null,
-                };
-            }
+      if (details.length === 0) {
+        return {
+          budget_id: budgetId,
+          ai_model: getAIModel(),
+          report: { summary: '该预算没有明细数据，无法生成综合报告。' },
+          usage: null,
+        };
+      }
 
-            const executionData = details.map(d => ({
-                code: d.account_code,
-                name: d.account_name,
-                department: d.department_name || '全公司',
-                budget: parseFloat(d.budget_amount),
-                used: parseFloat(d.actual_used),
-                remaining: parseFloat(d.budget_amount) - parseFloat(d.actual_used),
-                rate: parseFloat(d.execution_rate),
-            }));
+      const executionData = details.map((d) => ({
+        code: d.account_code,
+        name: d.account_name,
+        department: d.department_name || '全公司',
+        budget: parseFloat(d.budget_amount),
+        used: parseFloat(d.actual_used),
+        remaining: parseFloat(d.budget_amount) - parseFloat(d.actual_used),
+        rate: parseFloat(d.execution_rate),
+      }));
 
-            const totalBudget = executionData.reduce((s, d) => s + d.budget, 0);
-            const totalUsed = executionData.reduce((s, d) => s + d.used, 0);
+      const totalBudget = executionData.reduce((s, d) => s + d.budget, 0);
+      const totalUsed = executionData.reduce((s, d) => s + d.used, 0);
 
-            const systemPrompt = `你是一位资深的企业CFO顾问，需要为管理层撰写一份专业的预算分析综合报告。
+      const systemPrompt = `你是一位资深的企业CFO顾问，需要为管理层撰写一份专业的预算分析综合报告。
 报告需要全面、数据驱动、可操作。
 
 你必须返回标准JSON格式（不要包含markdown代码块标记），结构如下：
@@ -1018,15 +1060,15 @@ ${JSON.stringify(comparisonData, null, 2)}
   "outlook": "未来展望（100-150字）"
 }`;
 
-            const budget = budgetInfo[0];
-            const userPrompt = `请为以下预算生成综合分析报告：
+      const budget = budgetInfo[0];
+      const userPrompt = `请为以下预算生成综合分析报告：
 
 预算名称: ${budget.budget_name}
 预算年度: ${budget.budget_year}
 预算周期: ${budget.start_date} 至 ${budget.end_date}
 预算总额: ¥${totalBudget.toFixed(2)}
 已使用: ¥${totalUsed.toFixed(2)}
-整体执行率: ${totalBudget > 0 ? (totalUsed / totalBudget * 100).toFixed(1) : 0}%
+整体执行率: ${totalBudget > 0 ? ((totalUsed / totalBudget) * 100).toFixed(1) : 0}%
 
 预算执行明细（共${executionData.length}项）：
 ${JSON.stringify(executionData, null, 2)}
@@ -1038,34 +1080,34 @@ ${JSON.stringify(executionData, null, 2)}
 4. 后续行动计划
 5. 未来展望`;
 
-            logger.info(`[AI综合报告] 开始生成预算#${budgetId}的综合报告...`);
-            const { content: aiResponse, usage } = await this.callAI(systemPrompt, userPrompt);
-            const result = this.extractJSON(aiResponse);
+      logger.info(`[AI综合报告] 开始生成预算#${budgetId}的综合报告...`);
+      const { content: aiResponse, usage } = await this.callAI(systemPrompt, userPrompt);
+      const result = this.extractJSON(aiResponse);
 
-            const response = {
-                budget_id: budgetId,
-                budget_name: budget.budget_name,
-                budget_year: budget.budget_year,
-                ai_model: getAIModel(),
-                generated_at: new Date().toISOString(),
-                report: result,
-                execution_data: executionData,
-                summary: {
-                    total_budget: totalBudget,
-                    total_used: totalUsed,
-                    overall_rate: totalBudget > 0 ? Math.round(totalUsed / totalBudget * 10000) / 100 : 0,
-                    total_items: executionData.length,
-                },
-                usage,
-            };
+      const response = {
+        budget_id: budgetId,
+        budget_name: budget.budget_name,
+        budget_year: budget.budget_year,
+        ai_model: getAIModel(),
+        generated_at: new Date().toISOString(),
+        report: result,
+        execution_data: executionData,
+        summary: {
+          total_budget: totalBudget,
+          total_used: totalUsed,
+          overall_rate: totalBudget > 0 ? Math.round((totalUsed / totalBudget) * 10000) / 100 : 0,
+          total_items: executionData.length,
+        },
+        usage,
+      };
 
-            this._setCache(cacheKey, response);
-            return response;
-        } catch (error) {
-            logger.error('AI综合报告生成失败:', error);
-            throw error;
-        }
+      this._setCache(cacheKey, response);
+      return response;
+    } catch (error) {
+      logger.error('AI综合报告生成失败:', error);
+      throw error;
     }
+  }
 }
 
 module.exports = BudgetAIService;

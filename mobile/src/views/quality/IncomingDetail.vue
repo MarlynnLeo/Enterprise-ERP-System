@@ -294,6 +294,7 @@
   import { qualityApi } from '@/api'
   import { buildResourceUrl } from '@/config/app'
   import { extractApiData, extractApiList } from '@/utils/apiHelper'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
   import { useAuthStore } from '@/stores/auth'
   import {
     isNumericInspectionItem,
@@ -440,7 +441,7 @@
           successCount += 1
         } catch (error) {
           failureCount += 1
-          firstFailureMessage ||= error.response?.data?.message || error.message || ''
+          firstFailureMessage ||= getApiErrorMessage(error, '')
           console.error(`照片上传失败（${file.name}）:`, error)
         }
       }
@@ -456,7 +457,7 @@
     } catch (err) {
       closeToast()
       console.error('照片上传失败:', err)
-      const msg = err.response?.data?.message || err.message || '照片上传失败'
+      const msg = getApiErrorMessage(err, '照片上传失败')
       showToast(msg)
     } finally {
       uploadingPhotoCount.value = Math.max(0, uploadingPhotoCount.value - files.length)
@@ -780,7 +781,7 @@
       }
     } catch (error) {
       console.error('开始检验失败:', error)
-      const msg = error.response?.data?.message || '操作失败'
+      const msg = getApiErrorMessage(error, '操作失败')
       showToast(msg)
     } finally {
       actionLoading.value = false
@@ -866,7 +867,7 @@
     } catch (error) {
       if (error === 'cancel') return
       console.error('提交检验失败:', error)
-      const msg = error.response?.data?.message || '提交失败'
+      const msg = getApiErrorMessage(error, '提交失败')
       showToast(msg)
     } finally {
       actionLoading.value = false

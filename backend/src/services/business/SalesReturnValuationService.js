@@ -36,14 +36,16 @@ class SalesReturnValuationService {
         WHERE sri.return_id IN (?) ORDER BY sri.id`,
       [returnIds]
     );
-    return calculateLines(items.map(item => {
-      const unitPrice = Precision.round(Number(item.unit_price), 4);
-      return { ...item, unit_price: unitPrice };
-    })).items;
+    return calculateLines(
+      items.map((item) => {
+        const unitPrice = Precision.round(Number(item.unit_price), 4);
+        return { ...item, unit_price: unitPrice };
+      })
+    ).items;
   }
 
   static total(items) {
-    return sumMoney(items.map(item => item.total_amount ?? item.amount));
+    return sumMoney(items.map((item) => item.total_amount ?? item.amount));
   }
 }
 

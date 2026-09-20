@@ -46,7 +46,9 @@ async function getRedisClient() {
       client.on('reconnecting', () => logger.warn('Redis 重连中…'));
 
       await client.connect();
-      logger.info(`Redis connected (${process.env.REDIS_HOST || DEFAULT_REDIS_HOST}:${process.env.REDIS_PORT || 6379})`);
+      logger.info(
+        `Redis connected (${process.env.REDIS_HOST || DEFAULT_REDIS_HOST}:${process.env.REDIS_PORT || 6379})`
+      );
       return client;
     } catch (err) {
       logger.error('Redis 连接失败，限流将回退到内存:', err.message);

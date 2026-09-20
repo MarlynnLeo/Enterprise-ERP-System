@@ -16,7 +16,6 @@ const buildDingtalkUrl = (endpoint) => {
 // DingTalk certificate verification is controlled by dingtalkConfig.rejectUnauthorized.
 
 class DingtalkSyncService {
-
   // 通用 HTTPS 请求封装
   static async requestJSON(method, urlString, queryParams = {}, bodyObj = null) {
     const response = await request(method, urlString, {
@@ -30,7 +29,9 @@ class DingtalkSyncService {
     });
 
     if (!Number.isInteger(response.status) || response.status < 200 || response.status >= 300) {
-      const error = new Error(`DingTalk HTTP request failed with status ${response.status || 'unknown'}`);
+      const error = new Error(
+        `DingTalk HTTP request failed with status ${response.status || 'unknown'}`
+      );
       error.code = 'DINGTALK_HTTP_ERROR';
       error.status = response.status;
       throw error;
@@ -63,8 +64,14 @@ class DingtalkSyncService {
   // 获取子部门
   static async listSubDepartments(accessToken, deptId) {
     const url = buildDingtalkUrl('/topapi/v2/department/listsub');
-    const resp = await this.requestJSON('POST', url, { access_token: accessToken }, { dept_id: deptId });
-    if (resp.errcode !== 0) throw new Error(`获取子部门失败: errcode=${resp.errcode}, errmsg=${resp.errmsg}`);
+    const resp = await this.requestJSON(
+      'POST',
+      url,
+      { access_token: accessToken },
+      { dept_id: deptId }
+    );
+    if (resp.errcode !== 0)
+      throw new Error(`获取子部门失败: errcode=${resp.errcode}, errmsg=${resp.errmsg}`);
 
     const result = resp.result;
     logger.debug('[Dingtalk] Sub-department response received', {
@@ -82,15 +89,15 @@ class DingtalkSyncService {
     // 兼容多种返回格式
     // 格式1: result 直接是部门对象数组 [{dept_id:123, name:'xxx'}, ...]
     if (Array.isArray(result)) {
-      return result.map(d => Number(d.dept_id));
+      return result.map((d) => Number(d.dept_id));
     }
     // 格式2: result.dept_id_list 是 ID 数组
     if (result && Array.isArray(result.dept_id_list)) {
-      return result.dept_id_list.map(id => Number(id));
+      return result.dept_id_list.map((id) => Number(id));
     }
     // 格式3: result.department 是部门对象数组（兼容旧版）
     if (result && Array.isArray(result.department)) {
-      return result.department.map(d => Number(d.dept_id));
+      return result.department.map((d) => Number(d.dept_id));
     }
     return [];
   }
@@ -126,10 +133,19 @@ class DingtalkSyncService {
     while (hasMore) {
       pageCount += 1;
       if (pageCount > 1000) throw new Error('DingTalk user pagination exceeded safe page limit');
-      const resp = await this.requestJSON('POST', url, { access_token: accessToken }, {
-        dept_id: deptId, cursor, size: pageSize, language: 'zh_CN',
-      });
-      if (resp.errcode !== 0) throw new Error(`获取部门用户失败: errcode=${resp.errcode}, errmsg=${resp.errmsg}`);
+      const resp = await this.requestJSON(
+        'POST',
+        url,
+        { access_token: accessToken },
+        {
+          dept_id: deptId,
+          cursor,
+          size: pageSize,
+          language: 'zh_CN',
+        }
+      );
+      if (resp.errcode !== 0)
+        throw new Error(`获取部门用户失败: errcode=${resp.errcode}, errmsg=${resp.errmsg}`);
 
       const result = resp.result;
       if (!result || typeof result !== 'object' || Array.isArray(result)) {
@@ -146,7 +162,11 @@ class DingtalkSyncService {
             ? result.next_cursor
             : result.nextCursor;
         const normalizedCursor = Number(nextCursor);
-        if (!Number.isInteger(normalizedCursor) || normalizedCursor < 0 || seenCursors.has(normalizedCursor)) {
+        if (
+          !Number.isInteger(normalizedCursor) ||
+          normalizedCursor < 0 ||
+          seenCursors.has(normalizedCursor)
+        ) {
           throw new Error('DingTalk user pagination returned an invalid or repeated cursor');
         }
         cursor = normalizedCursor;
@@ -165,12 +185,16 @@ class DingtalkSyncService {
     const deptIds = await this.getAllDepartmentIds(accessToken, DINGTALK_ROOT_DEPT_ID);
 
     // 获取每个部门的名称和父子关系
-    const deptNameMap = {};   // deptId -> deptName
+    const deptNameMap = {}; // deptId -> deptName
     const deptParentMap = {}; // deptId -> parentDeptId
     for (const deptId of deptIds) {
       try {
-        const resp = await this.requestJSON('POST', buildDingtalkUrl('/topapi/v2/department/get'),
-          { access_token: accessToken }, { dept_id: deptId });
+        const resp = await this.requestJSON(
+          'POST',
+          buildDingtalkUrl('/topapi/v2/department/get'),
+          { access_token: accessToken },
+          { dept_id: deptId }
+        );
         if (resp.errcode === 0 && resp.result) {
           deptNameMap[deptId] = (resp.result.name || '').trim();
           deptParentMap[deptId] = resp.result.parent_id || DINGTALK_ROOT_DEPT_ID;
@@ -218,7 +242,10 @@ class DingtalkSyncService {
 
       // 4. 自动创建本地部门
       try {
-        const [result] = await pool.query('INSERT INTO departments (name, status) VALUES (?, ?)', [name, 1]);
+        const [result] = await pool.query('INSERT INTO departments (name, status) VALUES (?, ?)', [
+          name,
+          1,
+        ]);
         const newId = result.insertId;
         localDeptMap[name] = newId;
         logger.info(`[部门] 自动创建本地部门: ${name} (ID: ${newId})`);
@@ -261,7 +288,10 @@ class DingtalkSyncService {
         // 通过智能匹配找到本地部门ID
         const departmentId = await matchLocalDept(user._dingDeptId);
 
-        const [existing] = await connection.query('SELECT id FROM hr_employees WHERE employee_no = ?', [userId]);
+        const [existing] = await connection.query(
+          'SELECT id FROM hr_employees WHERE employee_no = ?',
+          [userId]
+        );
 
         if (existing.length > 0) {
           // 更新人员名称/状态/部门
@@ -272,10 +302,21 @@ class DingtalkSyncService {
           upCount++;
         } else {
           // 新增人员（含部门）
-          await connection.query(`
+          await connection.query(
+            `
             INSERT INTO hr_employees (employee_no, name, department_id, base_salary, split_base_salary, insurance_type, employment_status)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-          `, [userId, name, departmentId, DEFAULT_EMPLOYEE.baseSalary, DEFAULT_EMPLOYEE.splitBaseSalary, DEFAULT_EMPLOYEE.insuranceType, 'active']);
+          `,
+            [
+              userId,
+              name,
+              departmentId,
+              DEFAULT_EMPLOYEE.baseSalary,
+              DEFAULT_EMPLOYEE.splitBaseSalary,
+              DEFAULT_EMPLOYEE.insuranceType,
+              'active',
+            ]
+          );
           newCount++;
         }
       }
@@ -290,16 +331,20 @@ class DingtalkSyncService {
     }
   }
 
-
   // ==================== 考勤同步 ====================
 
   // 通过 getupdatedata 逐用户逐日获取考勤结果
   static async fetchUserDayAttendance(accessToken, userId, dateStr) {
     const url = buildDingtalkUrl('/topapi/attendance/getupdatedata');
-    const resp = await this.requestJSON('POST', url, { access_token: accessToken }, {
-      userid: userId,
-      work_date: dateStr,
-    });
+    const resp = await this.requestJSON(
+      'POST',
+      url,
+      { access_token: accessToken },
+      {
+        userid: userId,
+        work_date: dateStr,
+      }
+    );
     if (resp.errcode !== 0) return null;
     return resp.result || null;
   }
@@ -312,13 +357,13 @@ class DingtalkSyncService {
       const date = new Date(year, month - 1, d);
       const day = date.getDay();
       if (day !== 0 && day !== 6) {
-        const pad = n => (n < 10 ? '0' + n : '' + n);
+        const pad = (n) => (n < 10 ? '0' + n : '' + n);
         workdays.push(`${year}-${pad(month)}-${pad(d)}`);
       }
     }
     // 只取到今天为止（不查未来日期）
     const todayStr = new Date().toISOString().split('T')[0];
-    return workdays.filter(d => d <= todayStr);
+    return workdays.filter((d) => d <= todayStr);
   }
 
   // 主流程：从钉钉拉取考勤，写入 hr_attendance
@@ -336,7 +381,7 @@ class DingtalkSyncService {
     );
     if (employees.length === 0) throw new Error('没有在职员工，请先同步花名册');
 
-    const userIdList = employees.map(e => e.employee_no).filter(Boolean);
+    const userIdList = employees.map((e) => e.employee_no).filter(Boolean);
     logger.info(`[考勤] 在职员工 ${userIdList.length} 人`);
 
     // 2. 获取工作日列表
@@ -352,7 +397,7 @@ class DingtalkSyncService {
     // 3. 逐用户逐日拉取考勤 (使用 getupdatedata API)
     const userStats = {};
     let apiCalls = 0;
-    const empNoToId = new Map(employees.map(e => [e.employee_no, e.id]));
+    const empNoToId = new Map(employees.map((e) => [e.employee_no, e.id]));
 
     for (let i = 0; i < userIdList.length; i++) {
       const userId = userIdList[i];
@@ -362,12 +407,12 @@ class DingtalkSyncService {
 
       userStats[userId] = {
         employee_id: empNoToId.get(userId),
-        normalDays: 0,     // 正常出勤天数
-        lateDays: 0,       // 迟到次数
-        earlyDays: 0,      // 早退次数
-        absentDays: 0,     // 缺卡/旷工次数
-        leaveDays: 0,      // 请假天数
-        overtimeHours: 0,  // 加班时数
+        normalDays: 0, // 正常出勤天数
+        lateDays: 0, // 迟到次数
+        earlyDays: 0, // 早退次数
+        absentDays: 0, // 缺卡/旷工次数
+        leaveDays: 0, // 请假天数
+        overtimeHours: 0, // 加班时数
       };
 
       for (const dateStr of workdays) {
@@ -401,7 +446,7 @@ class DingtalkSyncService {
           const tagName = appr.tag_name || '';
           const duration = parseFloat(appr.duration || 0);
           if (tagName.includes('请假') || tagName.includes('假')) {
-            userStats[userId].leaveDays += (duration / 8); // 时长换算天
+            userStats[userId].leaveDays += duration / 8; // 时长换算天
           }
           if (tagName.includes('加班')) {
             userStats[userId].overtimeHours += duration;
@@ -425,12 +470,14 @@ class DingtalkSyncService {
         const leaveDays = Math.round((stat.leaveDays || 0) * 10) / 10;
         const absentCount = Math.round(((stat.absentDays || 0) / 2) * 10) / 10; // 上下班各一次，除2
         const totalLeave = leaveDays + absentCount;
-        const hasAbnormal = (stat.lateDays || 0) > 0 || (stat.earlyDays || 0) > 0 || (stat.absentDays || 0) > 0;
+        const hasAbnormal =
+          (stat.lateDays || 0) > 0 || (stat.earlyDays || 0) > 0 || (stat.absentDays || 0) > 0;
         // 满勤：无异常且无请假
-        const fullAttendance = (hasAbnormal || totalLeave > 0) ? 0 : 1;
+        const fullAttendance = hasAbnormal || totalLeave > 0 ? 0 : 1;
         const publicHolidays = daysInMonth - weekdays; // 公休天数
 
-        await connection.query(`
+        await connection.query(
+          `
           INSERT INTO hr_attendance (employee_id, period, days_in_month, leave_days, vacation_days, overtime_hours, full_attendance, status)
           VALUES (?, ?, ?, ?, ?, ?, ?, 'confirmed')
           ON DUPLICATE KEY UPDATE
@@ -440,7 +487,17 @@ class DingtalkSyncService {
             overtime_hours = VALUES(overtime_hours),
             full_attendance = VALUES(full_attendance),
             status = 'confirmed'
-        `, [emp.id, period, DEFAULT_EMPLOYEE.monthlyWorkDays, totalLeave, publicHolidays, stat.overtimeHours || 0, fullAttendance]);
+        `,
+          [
+            emp.id,
+            period,
+            DEFAULT_EMPLOYEE.monthlyWorkDays,
+            totalLeave,
+            publicHolidays,
+            stat.overtimeHours || 0,
+            fullAttendance,
+          ]
+        );
         savedCount++;
       }
 
@@ -465,7 +522,6 @@ class DingtalkSyncService {
     }
     return weekdays;
   }
-
 }
 
 module.exports = DingtalkSyncService;

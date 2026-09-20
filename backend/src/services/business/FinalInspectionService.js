@@ -47,7 +47,7 @@ class FinalInspectionService {
       [taskId]
     );
     if (tasks.length === 0) {
-      throw new Error(`生产任务不存在: ${taskId}`);
+      throw new Error('生产任务不存在或已被删除');
     }
     const task = tasks[0];
     const templateData = await resolveTemplateData(

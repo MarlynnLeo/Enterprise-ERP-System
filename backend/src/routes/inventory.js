@@ -116,7 +116,12 @@ router.get(
   '/locations',
   authenticateToken,
   requirePermission(
-    ['inventory:stock:view', 'inventory:report:view', 'purchase:receipts:view', 'purchase:orders:view'],
+    [
+      'inventory:stock:view',
+      'inventory:report:view',
+      'purchase:receipts:view',
+      'purchase:orders:view',
+    ],
     'any'
   ),
   inventoryStockController.getLocations
@@ -184,7 +189,12 @@ router.get(
 );
 
 // 获取带库存的物料列表
-router.get('/materials-with-stock', authenticateToken, requirePermission('inventory:stock:view'), inventoryStockController.getMaterialsWithStock);
+router.get(
+  '/materials-with-stock',
+  authenticateToken,
+  requirePermission('inventory:stock:view'),
+  inventoryStockController.getMaterialsWithStock
+);
 
 // 更新出库单
 router.put(
@@ -289,7 +299,12 @@ router.get(
 );
 
 // 获取物料列表
-router.get('/materials', authenticateToken, requirePermission('inventory:stock:view'), inventoryStockController.getMaterialsList);
+router.get(
+  '/materials',
+  authenticateToken,
+  requirePermission('inventory:stock:view'),
+  inventoryStockController.getMaterialsList
+);
 
 // 库存调整
 router.post(
@@ -391,32 +406,137 @@ router.get(
 );
 
 // 批量获取物料库存
-router.post('/stock/batch', authenticateToken, requirePermission('inventory:stock:view'), inventoryBatchController.getBatchMaterialStock);
+router.post(
+  '/stock/batch',
+  authenticateToken,
+  requirePermission('inventory:stock:view'),
+  inventoryBatchController.getBatchMaterialStock
+);
 
 // 库存调拨相关路由
-router.get('/transfer', authenticateToken, requirePermission('inventory:transfer:view'), inventoryTransferController.getTransferList);
-router.get('/transfer/statistics', authenticateToken, requirePermission('inventory:transfer:view'), inventoryTransferController.getTransferStatistics);
-router.get('/transfer/:id', authenticateToken, requirePermission('inventory:transfer:view'), inventoryTransferController.getTransferDetail);
-router.post('/transfer', authenticateToken, requirePermission('inventory:transfer:create'), inventoryTransferController.createTransfer);
-router.put('/transfer/:id', authenticateToken, requirePermission('inventory:transfer:update'), inventoryTransferController.updateTransfer);
-router.delete('/transfer/:id', authenticateToken, requirePermission('inventory:transfer:delete'), inventoryTransferController.deleteTransfer);
-router.put('/transfer/:id/status', authenticateToken, requirePermission('inventory:transfer:update'), inventoryTransferController.updateTransferStatus);
+router.get(
+  '/transfer',
+  authenticateToken,
+  requirePermission('inventory:transfer:view'),
+  inventoryTransferController.getTransferList
+);
+router.get(
+  '/transfer/statistics',
+  authenticateToken,
+  requirePermission('inventory:transfer:view'),
+  inventoryTransferController.getTransferStatistics
+);
+router.get(
+  '/transfer/:id',
+  authenticateToken,
+  requirePermission('inventory:transfer:view'),
+  inventoryTransferController.getTransferDetail
+);
+router.post(
+  '/transfer',
+  authenticateToken,
+  requirePermission('inventory:transfer:create'),
+  inventoryTransferController.createTransfer
+);
+router.put(
+  '/transfer/:id',
+  authenticateToken,
+  requirePermission('inventory:transfer:update'),
+  inventoryTransferController.updateTransfer
+);
+router.delete(
+  '/transfer/:id',
+  authenticateToken,
+  requirePermission('inventory:transfer:delete'),
+  inventoryTransferController.deleteTransfer
+);
+router.put(
+  '/transfer/:id/status',
+  authenticateToken,
+  requirePermission('inventory:transfer:update'),
+  inventoryTransferController.updateTransferStatus
+);
 // 调拨单导出和批量删除
-router.post('/transfers/details', authenticateToken, requirePermission('inventory:transfer:view'), inventoryTransferController.getTransferDetails);
-router.post('/transfers/export', authenticateToken, requirePermission('inventory:transfer:export'), inventoryTransferController.exportTransfers);
-router.post('/transfers/batch-delete', authenticateToken, requirePermission('inventory:transfer:delete'), inventoryTransferController.batchDeleteTransfers);
+router.post(
+  '/transfers/details',
+  authenticateToken,
+  requirePermission('inventory:transfer:view'),
+  inventoryTransferController.getTransferDetails
+);
+router.post(
+  '/transfers/export',
+  authenticateToken,
+  requirePermission('inventory:transfer:export'),
+  inventoryTransferController.exportTransfers
+);
+router.post(
+  '/transfers/batch-delete',
+  authenticateToken,
+  requirePermission('inventory:transfer:delete'),
+  inventoryTransferController.batchDeleteTransfers
+);
 
 // 库存盘点相关路由
-router.get('/check/statistics', authenticateToken, requirePermission('inventory:check:view'), inventoryCheckController.getCheckStatistics);
-router.get('/check', authenticateToken, requirePermission('inventory:check:view'), inventoryCheckController.getCheckList);
-router.get('/check/:id', authenticateToken, requirePermission('inventory:check:view'), inventoryCheckController.getCheckDetail);
-router.post('/check', authenticateToken, requirePermission('inventory:check:create'), inventoryCheckController.createCheck);
-router.post('/check/:id/items', authenticateToken, requirePermission('inventory:check:update'), inventoryCheckController.addCheckItem);
-router.put('/check/:id', authenticateToken, requirePermission('inventory:check:update'), inventoryCheckController.updateCheck);
-router.put('/check/:id/status', authenticateToken, requirePermission('inventory:check:update'), inventoryCheckController.updateCheckStatus);
-router.delete('/check/:id', authenticateToken, requirePermission('inventory:check:delete'), inventoryCheckController.deleteCheck);
-router.post('/check/:id/result', authenticateToken, requirePermission('inventory:check:update'), inventoryCheckController.submitCheckResult);
-router.post('/check/:id/adjust', authenticateToken, requirePermission('inventory:check:update'), inventoryCheckController.adjustInventory);
+router.get(
+  '/check/statistics',
+  authenticateToken,
+  requirePermission('inventory:check:view'),
+  inventoryCheckController.getCheckStatistics
+);
+router.get(
+  '/check',
+  authenticateToken,
+  requirePermission('inventory:check:view'),
+  inventoryCheckController.getCheckList
+);
+router.get(
+  '/check/:id',
+  authenticateToken,
+  requirePermission('inventory:check:view'),
+  inventoryCheckController.getCheckDetail
+);
+router.post(
+  '/check',
+  authenticateToken,
+  requirePermission('inventory:check:create'),
+  inventoryCheckController.createCheck
+);
+router.post(
+  '/check/:id/items',
+  authenticateToken,
+  requirePermission('inventory:check:update'),
+  inventoryCheckController.addCheckItem
+);
+router.put(
+  '/check/:id',
+  authenticateToken,
+  requirePermission('inventory:check:update'),
+  inventoryCheckController.updateCheck
+);
+router.put(
+  '/check/:id/status',
+  authenticateToken,
+  requirePermission('inventory:check:update'),
+  inventoryCheckController.updateCheckStatus
+);
+router.delete(
+  '/check/:id',
+  authenticateToken,
+  requirePermission('inventory:check:delete'),
+  inventoryCheckController.deleteCheck
+);
+router.post(
+  '/check/:id/result',
+  authenticateToken,
+  requirePermission('inventory:check:update'),
+  inventoryCheckController.submitCheckResult
+);
+router.post(
+  '/check/:id/adjust',
+  authenticateToken,
+  requirePermission('inventory:check:update'),
+  inventoryCheckController.adjustInventory
+);
 
 // 手工出入库相关路由
 router.get(
@@ -464,10 +584,20 @@ router.post(
 );
 
 // 批量库存查询（优化版）
-router.post('/batch-query', authenticateToken, requirePermission('inventory:stock:view'), inventoryBatchController.getBatchInventory);
+router.post(
+  '/batch-query',
+  authenticateToken,
+  requirePermission('inventory:stock:view'),
+  inventoryBatchController.getBatchInventory
+);
 
 // 获取指定仓库的库存
-router.get('/stock/by-location', authenticateToken, requirePermission('inventory:stock:view'), inventoryStockController.getStockByLocation);
+router.get(
+  '/stock/by-location',
+  authenticateToken,
+  requirePermission('inventory:stock:view'),
+  inventoryStockController.getStockByLocation
+);
 
 // 缓存管理路由已移除
 
@@ -512,7 +642,13 @@ router.get(
       ResponseHandler.success(res, result);
     } catch (error) {
       logger.error('获取年度结存状态失败:', error);
-      ResponseHandler.error(res, error.message || '获取年度结存状态失败', 'SERVER_ERROR', 500, error);
+      ResponseHandler.error(
+        res,
+        error.message || '获取年度结存状态失败',
+        'SERVER_ERROR',
+        500,
+        error
+      );
     }
   }
 );
@@ -529,7 +665,13 @@ router.get(
       ResponseHandler.success(res, result, '获取年度库存结存预览成功');
     } catch (error) {
       logger.error('获取年度库存结存预览失败:', error);
-      ResponseHandler.error(res, error.message || '获取年度库存结存预览失败', 'SERVER_ERROR', 500, error);
+      ResponseHandler.error(
+        res,
+        error.message || '获取年度库存结存预览失败',
+        'SERVER_ERROR',
+        500,
+        error
+      );
     }
   }
 );
@@ -582,7 +724,13 @@ router.post(
       ResponseHandler.success(res, result, '年度库存结存反冻结成功');
     } catch (error) {
       logger.error('年度库存结存反冻结失败:', error);
-      ResponseHandler.error(res, error.message || '年度库存结存反冻结失败', 'SERVER_ERROR', 500, error);
+      ResponseHandler.error(
+        res,
+        error.message || '年度库存结存反冻结失败',
+        'SERVER_ERROR',
+        500,
+        error
+      );
     }
   }
 );
@@ -598,7 +746,13 @@ router.get(
       ResponseHandler.success(res, result);
     } catch (error) {
       logger.error('获取年度结存明细失败:', error);
-      ResponseHandler.error(res, error.message || '获取年度结存明细失败', 'SERVER_ERROR', 500, error);
+      ResponseHandler.error(
+        res,
+        error.message || '获取年度结存明细失败',
+        'SERVER_ERROR',
+        500,
+        error
+      );
     }
   }
 );
@@ -616,7 +770,13 @@ router.get(
       ResponseHandler.success(res, data);
     } catch (error) {
       logger.error('导出年度结存报表失败:', error);
-      ResponseHandler.error(res, error.message || '导出年度结存报表失败', 'SERVER_ERROR', 500, error);
+      ResponseHandler.error(
+        res,
+        error.message || '导出年度结存报表失败',
+        'SERVER_ERROR',
+        500,
+        error
+      );
     }
   }
 );
@@ -657,7 +817,13 @@ router.post(
       ResponseHandler.success(res, result, result.message);
     } catch (error) {
       logger.error('自动生成采购申请失败:', error);
-      ResponseHandler.error(res, error.message || '自动生成采购申请失败', 'SERVER_ERROR', 500, error);
+      ResponseHandler.error(
+        res,
+        error.message || '自动生成采购申请失败',
+        'SERVER_ERROR',
+        500,
+        error
+      );
     }
   }
 );
@@ -674,7 +840,13 @@ router.get(
       ResponseHandler.success(res, result);
     } catch (error) {
       logger.error('检查批次过期预警失败:', error);
-      ResponseHandler.error(res, error.message || '检查批次过期预警失败', 'SERVER_ERROR', 500, error);
+      ResponseHandler.error(
+        res,
+        error.message || '检查批次过期预警失败',
+        'SERVER_ERROR',
+        500,
+        error
+      );
     }
   }
 );

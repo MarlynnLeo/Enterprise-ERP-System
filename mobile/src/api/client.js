@@ -8,6 +8,7 @@
 import axios from 'axios'
 import { showToast } from 'vant'
 import { API_CONFIG, normalizeApiRequestUrl } from '@/config/app'
+import { normalizeApiError } from '@/utils/errorHandler'
 
 // ==================== 创建 Axios 实例 ====================
 
@@ -30,11 +31,19 @@ const unsafeMethods = new Set(['post', 'put', 'patch', 'delete'])
 let csrfToken = ''
 let csrfTokenPromise = null
 let csrfGeneration = 0
+let authGeneration = 0
 
-export const resetCsrfToken = () => {
+export const resetCsrfToken = ({ sessionChanged = true } = {}) => {
+  if (sessionChanged) authGeneration++
   csrfGeneration++
   csrfToken = ''
   csrfTokenPromise = null
+}
+
+const assertRequestSession = (config) => {
+  if (config?._authGeneration !== undefined && config._authGeneration !== authGeneration) {
+    throw new axios.CanceledError('登录状态已变更，请重新提交操作')
+  }
 }
 
 const clearLegacyTokenStorage = () => {
@@ -81,10 +90,14 @@ const fetchCsrfToken = async () => {
   if (csrfToken) return csrfToken
   if (!csrfTokenPromise) {
     const generation = csrfGeneration
+    const principal = authGeneration
     const pending = axios.get(resolveCsrfTokenUrl(), {
       timeout: API_CONFIG.timeout,
       withCredentials: true
     }).then((response) => {
+      if (principal !== authGeneration) {
+        throw new axios.CanceledError('登录状态已变更，请重新提交操作')
+      }
       if (generation !== csrfGeneration) return fetchCsrfToken()
       const body = response.data || {}
       const token = body.csrfToken || body.token || body.data?.csrfToken || body.data?.token || ''
@@ -103,6 +116,8 @@ const fetchCsrfToken = async () => {
 
 api.interceptors.request.use(
   async (config) => {
+    config._authGeneration ??= authGeneration
+    assertRequestSession(config)
     clearLegacyTokenStorage()
     config.url = normalizeApiRequestUrl(config.url)
     const method = (config.method || 'get').toLowerCase()
@@ -110,9 +125,10 @@ api.interceptors.request.use(
     const isAuthBootstrapRequest =
       url.includes('/csrf-token') ||
       url.includes('/auth/login')
-    // 从 sessionStorage 获取 JWT token（与 auth store 保持一致）
+    // HttpOnly Cookie 会话的写请求需要匹配当前会话的 CSRF 令牌。
     if (unsafeMethods.has(method) && !config.skipCsrf && !isAuthBootstrapRequest) {
       const csrf = await fetchCsrfToken()
+      assertRequestSession(config)
       if (csrf) {
         config.headers = config.headers || {}
         config.headers['X-CSRF-Token'] = csrf
@@ -144,6 +160,7 @@ const processQueue = (error) => {
 
 api.interceptors.response.use(
   (response) => {
+    assertRequestSession(response.config)
     // 解包后端 ResponseHandler 格式
     // 格式: { success: true, data: {...}, message: "..." }
     const responseData = response.data
@@ -162,6 +179,7 @@ api.interceptors.response.use(
         const error = new Error(responseData.message || '操作失败')
         error.response = response
         error.code = responseData.errorCode || 'BUSINESS_ERROR'
+        normalizeApiError(error)
         throw error
       }
     }
@@ -169,8 +187,10 @@ api.interceptors.response.use(
     return response
   },
   async (error) => {
+    if (axios.isCancel(error)) return Promise.reject(error)
     const originalRequest = error.config || {}
-    let errorMessage = '服务器错误，请稍后再试'
+    assertRequestSession(originalRequest)
+    let errorMessage = normalizeApiError(error, '服务器错误，请稍后再试')
 
     if (error.response) {
       const status = error.response.status
@@ -204,12 +224,13 @@ api.interceptors.response.use(
           await api.post('/auth/refresh')
           // Refresh may rotate CSRF cookie; drop cached token so the retry
           // and subsequent unsafe requests pick up a fresh value.
-          resetCsrfToken()
+          resetCsrfToken({ sessionChanged: false })
           // 响应拦截器已经解包，直接使用 data
           processQueue(null)
           return api(originalRequest)
         } catch (refreshError) {
           processQueue(refreshError, null)
+          assertRequestSession(originalRequest)
           // 刷新失败，清除所有认证信息并跳转登录
           clearClientAuthState()
 
@@ -255,25 +276,29 @@ api.interceptors.response.use(
         const csrfErrorCode = error.response.data?.errorCode || error.response.data?.code
         if (csrfErrorCode === 'INVALID_CSRF_TOKEN' && !originalRequest._csrfRetry) {
           // CSRF token 失效，清除缓存后重新获取并重试一次
-          resetCsrfToken()
+          resetCsrfToken({ sessionChanged: false })
           originalRequest._csrfRetry = true
           try {
             const newCsrf = await fetchCsrfToken()
+            assertRequestSession(originalRequest)
             if (newCsrf) {
               originalRequest.headers = originalRequest.headers || {}
               delete originalRequest.headers['x-csrf-token']
               originalRequest.headers['X-CSRF-Token'] = newCsrf
               return api(originalRequest)
             }
-          } catch {
+          } catch (csrfError) {
+            if (axios.isCancel(csrfError)) return Promise.reject(csrfError)
             // 重新获取 CSRF token 失败，走下面的错误提示
           }
         }
-        errorMessage = '没有权限执行此操作'
+        errorMessage = normalizeApiError(error, '没有权限执行此操作')
       } else if (status === 404) {
-        errorMessage = '请求的资源不存在'
-      } else if (error.response.data && error.response.data.message) {
-        errorMessage = error.response.data.message
+        // 优先保留后端给出的业务中文提示（例如物料编码/业务单号），
+        // 只有没有可读消息时才使用通用 404 文案。
+        errorMessage = normalizeApiError(error, '请求的数据不存在或已被删除')
+      } else {
+        errorMessage = normalizeApiError(error, errorMessage)
       }
     } else if (error.request) {
       // 请求已发送但未收到响应

@@ -498,6 +498,7 @@
   </div>
 </template>
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
 //
@@ -925,7 +926,7 @@ const handleView = async (row) => {
     detailsVisible.value = true
   } catch (error) {
     console.error('获取装箱单详情失败:', error)
-    ElMessage.error('获取装箱单详情失败: ' + (error.message || '未知错误'))
+    ElMessage.error('获取装箱单详情失败: ' + (getApiErrorMessage(error, '未知错误')))
   } finally {
     detailsLoading.value = false
   }
@@ -950,7 +951,7 @@ const loadExpandedDetails = async (row, expandedRows) => {
   if (!expandedRows.includes(row) || row.details || row.detailsLoading) return
   row.detailsLoading = true
   try { row.details = (await salesApi.getPackingList(row.id)).data.details || [] }
-  catch (error) { ElMessage.error(error.message || '获取装箱明细失败') }
+  catch (error) { ElMessage.error(getApiErrorMessage(error, '获取装箱明细失败')) }
   finally { row.detailsLoading = false }
 }
 const handleViewSalesOrder = row => {
@@ -994,7 +995,7 @@ const handleChangeStatus = async (row) => {
     await fetchData()
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') {
-      ElMessage.error(action.label + '失败: ' + (error.message || '未知错误'))
+      ElMessage.error(action.label + '失败: ' + (getApiErrorMessage(error, '未知错误')))
     }
   } finally {
     statusActionId.value = null

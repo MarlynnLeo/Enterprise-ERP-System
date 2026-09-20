@@ -24,16 +24,15 @@ function toGlAccountApi(row) {
     accountName: row.account_name ?? row.accountName ?? null,
     accountType: row.account_type ?? row.accountType ?? null,
     parentId: row.parent_id ?? row.parentId ?? null,
-    isDebit: row.is_debit != null ? toBool(row.is_debit) : row.isDebit ?? null,
-    isActive: row.is_active != null ? toBool(row.is_active) : row.isActive ?? null,
+    isDebit: row.is_debit != null ? toBool(row.is_debit) : (row.isDebit ?? null),
+    isActive: row.is_active != null ? toBool(row.is_active) : (row.isActive ?? null),
     currencyCode: row.currency_code ?? row.currencyCode ?? null,
     description: row.description ?? null,
     type: row.type ?? null,
     openingDebit: row.opening_debit != null ? toNumber(row.opening_debit, 0) : null,
     openingCredit: row.opening_credit != null ? toNumber(row.opening_credit, 0) : null,
     openingBalanceDate: formatDate(row.opening_balance_date ?? row.openingBalanceDate),
-    openingBalanceSet:
-      row.opening_balance_set != null ? toBool(row.opening_balance_set) : null,
+    openingBalanceSet: row.opening_balance_set != null ? toBool(row.opening_balance_set) : null,
     hasCustomer: row.has_customer != null ? toBool(row.has_customer) : null,
     hasSupplier: row.has_supplier != null ? toBool(row.has_supplier) : null,
     hasEmployee: row.has_employee != null ? toBool(row.has_employee) : null,
@@ -90,7 +89,9 @@ function toGlEntryItemApi(item = {}) {
     accountCode: item.account_code ?? item.accountCode ?? null,
     accountName: item.account_name ?? item.accountName ?? null,
     accountIsActive:
-      item.account_is_active != null ? toBool(item.account_is_active) : item.accountIsActive ?? null,
+      item.account_is_active != null
+        ? toBool(item.account_is_active)
+        : (item.accountIsActive ?? null),
     debitAmount: toNumber(item.debit_amount ?? item.debitAmount, 0),
     creditAmount: toNumber(item.credit_amount ?? item.creditAmount, 0),
     currencyCode: item.currency_code ?? item.currencyCode ?? null,
@@ -172,9 +173,11 @@ function fromGlEntryListQuery(query = {}) {
     filters.period_id = parseInt(query.periodId, 10);
   }
   if (query.isPosted !== undefined && query.isPosted !== '') {
-    filters.is_posted = query.isPosted === true || query.isPosted === 'true' || query.isPosted === 1;
+    filters.is_posted =
+      query.isPosted === true || query.isPosted === 'true' || query.isPosted === 1;
   } else if (query.is_posted !== undefined && query.is_posted !== '') {
-    filters.is_posted = query.is_posted === true || query.is_posted === 'true' || query.is_posted === 1;
+    filters.is_posted =
+      query.is_posted === true || query.is_posted === 'true' || query.is_posted === 1;
   }
   return filters;
 }
@@ -188,7 +191,8 @@ function toBankTransactionApi(row) {
     transactionNumber: row.transaction_number ?? row.transactionNumber ?? null,
     transactionDate: formatDate(row.transaction_date ?? row.transactionDate),
     transactionType: row.transaction_type ?? row.transactionType ?? null,
-    transactionCategory: row.category ?? row.transaction_category ?? row.transactionCategory ?? null,
+    transactionCategory:
+      row.category ?? row.transaction_category ?? row.transactionCategory ?? null,
     paymentMethod: row.payment_method ?? row.paymentMethod ?? null,
     bankAccountId: row.bank_account_id ?? row.bankAccountId ?? null,
     accountName: row.account_name ?? row.accountName ?? null,
@@ -225,7 +229,10 @@ function toBudgetDetailApi(row = {}) {
     departmentName: row.department_name ?? row.departmentName ?? null,
     budgetAmount,
     usedAmount,
-    remainingAmount: toNumber(row.remaining_amount ?? row.remainingAmount, budgetAmount - usedAmount),
+    remainingAmount: toNumber(
+      row.remaining_amount ?? row.remainingAmount,
+      budgetAmount - usedAmount
+    ),
     actualAmount: toNumber(row.actual_amount ?? row.actualAmount, 0),
     executionRate:
       row.execution_rate != null
@@ -261,7 +268,10 @@ function toBudgetApi(row) {
     endDate: formatDate(row.end_date ?? row.endDate),
     totalAmount,
     usedAmount,
-    remainingAmount: toNumber(row.remaining_amount ?? row.remainingAmount, totalAmount - usedAmount),
+    remainingAmount: toNumber(
+      row.remaining_amount ?? row.remainingAmount,
+      totalAmount - usedAmount
+    ),
     status: row.status ?? null,
     creatorName: row.creator_name ?? row.creatorName ?? null,
     approverName: row.approver_name ?? row.approverName ?? null,

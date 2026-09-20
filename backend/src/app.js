@@ -31,7 +31,9 @@ if (process.env.NODE_ENV === 'production') {
     // Secure cookie mode remains forced in production; this warning makes a
     // missing edge trust-boundary configuration visible during deployment.
     // Do not silently fall back to trust-proxy=1.
-    process.emitWarning('TRUST_PROXY_CIDRS is not configured; forwarded client headers are not trusted');
+    process.emitWarning(
+      'TRUST_PROXY_CIDRS is not configured; forwarded client headers are not trusted'
+    );
   }
 }
 
@@ -146,7 +148,6 @@ app.use(
   })
 );
 
-
 // Only advertise HSTS on actual HTTPS requests so internal HTTP entry points
 // are not permanently upgraded by the browser.
 app.use((req, res, next) => {
@@ -231,7 +232,9 @@ if (process.env.ENABLE_INPUT_SANITIZATION !== 'false') {
   app.use(detectSQLInjection);
   app.use(xssDetection);
   app.use(validateAndSanitizeInput);
-  logger.info('Input security middleware enabled: path traversal, SQL injection, XSS, and sanitization');
+  logger.info(
+    'Input security middleware enabled: path traversal, SQL injection, XSS, and sanitization'
+  );
 }
 
 // 添加响应格式化中间件
@@ -348,20 +351,16 @@ app.use(onlineTimeTracker.createMiddleware());
 app.use(prometheusMiddleware);
 
 // Prometheus 指标端点：一律要求认证 + system:monitor（禁止仅凭内网 IP 免鉴权）
-app.get(
-  '/metrics',
-  metricsAuth,
-  metricsPermission,
-  async (_, res) => {
-    try {
-      res.set('Content-Type', prometheusService.getContentType());
-      const metrics = await prometheusService.getMetrics();
-      res.end(metrics);
-    } catch (error) {
-      res.status(500).end(error.message);
-    }
+app.get('/metrics', metricsAuth, metricsPermission, async (_, res) => {
+  try {
+    res.set('Content-Type', prometheusService.getContentType());
+    const metrics = await prometheusService.getMetrics();
+    res.end(metrics);
+  } catch (error) {
+    logger.error('Prometheus 指标生成失败:', error);
+    res.status(500).end('服务器暂时不可用，请稍后重试');
   }
-);
+});
 
 // 健康检查端点（/api/* 与根路径别名并存，兼容 LB / K8s / 代理剥前缀）
 const publicPingHandler = (_, res) => {
@@ -516,7 +515,10 @@ app.get('/api', (_, res) => {
     message: 'KACON ERP API',
     health: '/api/health',
     ping: '/api/ping',
-    docs: process.env.NODE_ENV !== 'production' || process.env.ENABLE_API_DOCS === 'true' ? '/api-docs' : undefined,
+    docs:
+      process.env.NODE_ENV !== 'production' || process.env.ENABLE_API_DOCS === 'true'
+        ? '/api-docs'
+        : undefined,
     timestamp: new Date().toISOString(),
   });
 });

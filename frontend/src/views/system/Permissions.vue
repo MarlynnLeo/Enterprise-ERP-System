@@ -606,6 +606,7 @@ import {
 import { systemApi } from '@/api';
 import menuPermissions from '../../utils/menuPermissions';
 import { useAuthStore } from '../../stores/auth';
+import { getApiErrorMessage } from '@/utils/errorHandler'
 // 权限store
 const _authStore = useAuthStore();
 // 菜单类型标签组件
@@ -923,7 +924,7 @@ const loadMenus = async () => {
     if (error.response?.status === 401) {
       ElMessage.error('请先登录');
     } else {
-      ElMessage.error('加载菜单失败：' + (error.response?.data?.message || error.message));
+      ElMessage.error(`加载菜单失败：${getApiErrorMessage(error, '请稍后重试')}`);
     }
     menuTree.value = []; // 确保菜单树是空数组而不是undefined
   } finally {
@@ -1058,7 +1059,7 @@ const handleToggleMenuStatus = async (row) => {
     loadMenus();
   } catch (error) {
     console.error(`${statusText}菜单失败:`, error);
-    ElMessage.error(error.response?.data?.message || `${statusText}失败`);
+    ElMessage.error(getApiErrorMessage(error, `${statusText}失败`));
   }
 };
 // 分配权限
@@ -1142,7 +1143,7 @@ const handleRolePermission = async (row) => {
     if (error.response?.status === 401) {
       ElMessage.error('请先登录');
     } else {
-      ElMessage.error('获取角色权限失败：' + (error.response?.data?.message || error.message));
+      ElMessage.error(`获取角色权限失败：${getApiErrorMessage(error, '请稍后重试')}`);
     }
   }
 };
@@ -1188,7 +1189,7 @@ const _setTreeCheckedStatus = () => {
   } catch (error) {
     console.error('设置选中状态失败:', error);
     console.error('错误详情:', {
-      message: error.message,
+      message: getApiErrorMessage(error, '保存失败'),
       stack: error.stack,
       permissionTreeRef: permissionTreeRef.value ? '存在' : '不存在',
       selectedMenuIds: selectedMenuIds.value ? selectedMenuIds.value.length : 0,
@@ -1227,11 +1228,7 @@ const saveRole = async () => {
     }
     console.error('保存角色失败:', error);
     // 提取后端返回的错误信息
-    const errorMsg =
-      error.response?.data?.error ||
-      error.response?.data?.message ||
-      error.message ||
-      '保存角色失败';
+    const errorMsg = getApiErrorMessage(error, '保存角色失败');
     // 如果是重复提交错误（409状态码），显示警告
     if (error.response?.status === 409) {
       ElMessage.warning(errorMsg);
@@ -1284,7 +1281,7 @@ const saveRolePermission = async () => {
         // 获取这些菜单的名称用于显示
         const uncheckedNames = uncheckedIds.map((id) => {
           const node = permissionTreeRef.value.getNode(id);
-          return node ? node.data.name : `菜单ID:${id}`;
+          return node ? node.data.name : '未命名菜单';
         });
 
         // 显示提示，确保用户知道哪些权限被取消了
@@ -1306,12 +1303,12 @@ const saveRolePermission = async () => {
     // 收集菜单名称用于确认提示
     const checkedMenuNames = menuIds.map((id) => {
       const node = permissionTreeRef.value.getNode(id);
-      return node ? node.data.name : `菜单ID:${id}`;
+      return node ? node.data.name : '未命名菜单';
     });
 
     const halfCheckedMenuNames = halfMenuIds.map((id) => {
       const node = permissionTreeRef.value.getNode(id);
-      return node ? node.data.name : `菜单ID:${id}`;
+      return node ? node.data.name : '未命名菜单';
     });
 
     const buildPermissionSection = (title, names, itemStyle = {}) => {
@@ -1341,7 +1338,7 @@ const saveRolePermission = async () => {
     if (uncheckedIds.length > 0) {
       const uncheckedNames = uncheckedIds.map((id) => {
         const node = permissionTreeRef.value.getNode(id);
-        return node ? node.data.name : `菜单ID:${id}`;
+        return node ? node.data.name : '未命名菜单';
       });
       confirmMessage.children.push(
         buildPermissionSection(`已取消的权限(${uncheckedIds.length})：`, uncheckedNames, {
@@ -1387,11 +1384,11 @@ const saveRolePermission = async () => {
   } catch (error) {
     console.error('保存角色权限失败:', error);
     console.error('错误详情:', {
-      message: error.message,
+      message: getApiErrorMessage(error, '保存失败'),
       response: error.response?.data,
       status: error.response?.status,
     });
-    ElMessage.error('保存角色权限失败: ' + (error.response?.data?.message || error.message));
+    ElMessage.error(`保存角色权限失败：${getApiErrorMessage(error, '请稍后重试')}`);
     permissionSaveLoading.value = false;
   }
 };
@@ -1480,7 +1477,7 @@ const submitRolePermissions = async (menuIds, halfCheckedIds, uncheckedIds = [])
     permissionSaveLoading.value = false;
   } catch (error) {
     console.error('提交权限数据失败:', error);
-    ElMessage.error('提交权限数据失败: ' + (error.response?.data?.message || error.message));
+    ElMessage.error(`提交权限数据失败：${getApiErrorMessage(error, '请稍后重试')}`);
     permissionSaveLoading.value = false;
   }
 };
@@ -1551,7 +1548,7 @@ const handleDeleteMenu = (row) => {
         loadMenus(); // 重新加载菜单数据
       } catch (error) {
         console.error('删除失败:', error);
-        ElMessage.error('删除失败: ' + error.message);
+        ElMessage.error(`删除失败：${getApiErrorMessage(error, '请稍后重试')}`);
       }
     })
     .catch(() => {});
@@ -1593,11 +1590,7 @@ const saveMenu = async () => {
     }
     console.error('保存菜单失败:', error);
     // 提取后端返回的错误信息
-    const errorMsg =
-      error.response?.data?.error ||
-      error.response?.data?.message ||
-      error.message ||
-      '保存菜单失败';
+    const errorMsg = getApiErrorMessage(error, '保存菜单失败');
     // 如果是重复提交错误（409状态码），显示警告
     if (error.response?.status === 409) {
       ElMessage.warning(errorMsg);
@@ -1653,7 +1646,7 @@ const importMenuData = async () => {
         loadMenus(); // 重新加载菜单数据
       } catch (error) {
         console.error('导入菜单数据失败:', error);
-        ElMessage.error('导入菜单数据失败: ' + error.message);
+        ElMessage.error(`导入菜单数据失败：${getApiErrorMessage(error, '请稍后重试')}`);
       }
     })
     .catch(() => {});
@@ -1797,7 +1790,7 @@ const onPermissionDialogOpened = async () => {
       }
       setRolePermissionBaseline(currentRole.value.id, selectedMenuIds.value);
     } catch (error) {
-      ElMessage.error('获取角色权限失败：' + (error.response?.data?.message || error.message));
+      ElMessage.error(`获取角色权限失败：${getApiErrorMessage(error, '请稍后重试')}`);
     }
     // 确保 selectedMenuIds 的值是普通数组而不是响应式Proxy对象
     if (selectedMenuIds.value && selectedMenuIds.value.length > 0) {
@@ -2027,7 +2020,7 @@ const refreshMenuTree = async () => {
     }
   } catch (error) {
     console.error('刷新菜单树失败:', error);
-    ElMessage.error('刷新菜单树失败: ' + error.message);
+    ElMessage.error(`刷新菜单树失败：${getApiErrorMessage(error, '请稍后重试')}`);
   }
 };
 // 同步树状态到当前对话框的响应式变量

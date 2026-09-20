@@ -37,7 +37,9 @@ const inspectionMethodService = {
         params.push(Number(filters.status));
       }
 
-      let query = 'SELECT id, name, code, sort, status, description, created_at, updated_at, deleted_at FROM inspection_methods WHERE ' + conditions.join(' AND ');
+      let query =
+        'SELECT id, name, code, sort, status, description, created_at, updated_at, deleted_at FROM inspection_methods WHERE ' +
+        conditions.join(' AND ');
       query = appendPaginationSQL(
         query + ' ORDER BY sort ASC, id DESC',
         pagination.limit,
@@ -47,7 +49,8 @@ const inspectionMethodService = {
       const [rows] = await pool.query(query, params);
 
       // 获取总数
-      const countQuery = 'SELECT COUNT(*) as total FROM inspection_methods WHERE ' + conditions.join(' AND ');
+      const countQuery =
+        'SELECT COUNT(*) as total FROM inspection_methods WHERE ' + conditions.join(' AND ');
       const [countResult] = await pool.query(countQuery, params);
       const total = countResult[0].total;
 
@@ -68,7 +71,10 @@ const inspectionMethodService = {
    */
   async getInspectionMethodById(id) {
     try {
-      const [rows] = await pool.query('SELECT id, name, code, sort, status, description, created_at, updated_at, deleted_at FROM inspection_methods WHERE id = ? AND deleted_at IS NULL', [id]);
+      const [rows] = await pool.query(
+        'SELECT id, name, code, sort, status, description, created_at, updated_at, deleted_at FROM inspection_methods WHERE id = ? AND deleted_at IS NULL',
+        [id]
+      );
       return rows.length > 0 ? rows[0] : null;
     } catch (error) {
       logger.error('getInspectionMethodById error:', error);

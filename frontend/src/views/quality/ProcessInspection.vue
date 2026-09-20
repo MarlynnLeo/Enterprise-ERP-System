@@ -313,6 +313,7 @@ import { productionApi } from '@/api/production'
 import printService from '@/services/printService'
 import { parseResponseData } from '@/utils/responseParser'
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import FinanceQueryCard from '@/components/common/FinanceQueryCard.vue'
 import AttachmentUpload from '@/components/AttachmentUpload.vue'
 
@@ -715,7 +716,7 @@ const handlePunchIn = async (row) => {
   } catch (error) {
     console.error('打卡失败:', error)
     // 处理10分钟限制的错误提示
-    const errorMessage = error.response?.data?.message || error.response?.data?.error || error.message || '打卡失败'
+    const errorMessage = getApiErrorMessage(error, '打卡失败')
     if (error.response?.status === 429 || errorMessage.includes('10分钟')) {
       ElMessage.warning(errorMessage)
     } else {
@@ -796,10 +797,9 @@ const handleJudge = async (row) => {
   } catch (err) {
     if (err === 'close') return // 关闭弹窗忽略
     console.error('判定失败:', err)
-    const msg =
-      err?.response?.data?.message ||
-      err?.message ||
-      (err?.response?.status === 404 ? '接口不存在或后端未启动，请检查服务后刷新重试' : '判定操作失败')
+    const msg = err?.response?.status === 404
+      ? '接口不存在或后端未启动，请检查服务后刷新重试'
+      : getApiErrorMessage(err, '判定操作失败')
     ElMessage.error(msg)
   }
 }

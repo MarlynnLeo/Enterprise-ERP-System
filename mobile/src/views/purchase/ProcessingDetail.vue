@@ -27,7 +27,7 @@
         <div v-if="materials.length" class="items">
           <div v-for="item in materials" :key="item.id || item.materialId" class="item-row">
             <div>
-              <div class="item-title">{{ item.materialName || `物料#${item.materialId}` }}</div>
+              <div class="item-title">{{ item.materialName || item.materialCode || '未命名物料' }}</div>
               <div class="item-subtitle">{{ item.materialCode || item.specification || '-' }}</div>
             </div>
             <strong>{{ item.quantity || item.plannedQuantity || 0 }} {{ item.unitName || item.unit || item.unitName || '' }}</strong>
@@ -40,7 +40,7 @@
         <div v-if="products.length" class="items">
           <div v-for="item in products" :key="item.id || item.productId" class="item-row">
             <div>
-              <div class="item-title">{{ item.productName || `成品#${item.productId}` }}</div>
+              <div class="item-title">{{ item.productName || item.productCode || item.materialName || item.materialCode || '未命名成品' }}</div>
               <div class="item-subtitle">{{ item.productCode || item.specification || '-' }}</div>
             </div>
             <strong>{{ item.quantity || item.plannedQuantity || 0 }} {{ item.unitName || item.unit || item.unitName || '' }}</strong>
@@ -66,6 +66,7 @@
   import { Button, Cell, CellGroup, Empty, Loading, NavBar, Tag, showConfirmDialog, showToast } from 'vant'
   import { purchaseApi } from '@/api'
   import { extractApiData } from '@/utils/apiHelper'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const route = useRoute()
   const router = useRouter()
@@ -108,7 +109,10 @@
       showToast({ type: 'success', message: '状态已更新' })
       await fetchDetail()
     } catch (error) {
-      if (error !== 'cancel') console.error('更新外协加工状态失败', error)
+      if (error !== 'cancel') {
+        console.error('更新外协加工状态失败', error)
+        showToast({ type: 'fail', message: getApiErrorMessage(error, '更新外协加工状态失败') })
+      }
     } finally {
       submitting.value = false
     }

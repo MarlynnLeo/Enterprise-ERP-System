@@ -15,83 +15,88 @@ const { parsePagination, appendPaginationSQL } = require('../../../utils/safePag
  * 根据总分自动判定等级
  */
 function calculateGrade(totalScore) {
-    if (totalScore >= 90) return 'A';
-    if (totalScore >= 75) return 'B';
-    if (totalScore >= 60) return 'C';
-    return 'D';
+  if (totalScore >= 90) return 'A';
+  if (totalScore >= 75) return 'B';
+  if (totalScore >= 60) return 'C';
+  return 'D';
 }
 
 const supplierQualityController = {
-    /**
-     * 获取供应商质量得分列表
-     */
-    async getScores(req, res) {
-        try {
-            const { page = 1, pageSize = 20, supplier_id, period, grade } = req.query;
-            const pagination = parsePagination(page, pageSize, {
-                defaultPageSize: 20,
-                maxPageSize: 100,
-            });
+  /**
+   * 获取供应商质量得分列表
+   */
+  async getScores(req, res) {
+    try {
+      const { page = 1, pageSize = 20, supplier_id, period, grade } = req.query;
+      const pagination = parsePagination(page, pageSize, {
+        defaultPageSize: 20,
+        maxPageSize: 100,
+      });
 
-            let whereClause = 'WHERE 1=1';
-            const params = [];
+      let whereClause = 'WHERE 1=1';
+      const params = [];
 
-            if (supplier_id) {
-                whereClause += ' AND sqs.supplier_id = ?';
-                params.push(supplier_id);
-            }
-            if (period) {
-                whereClause += ' AND sqs.period = ?';
-                params.push(period);
-            }
-            if (grade) {
-                whereClause += ' AND sqs.grade = ?';
-                params.push(grade);
-            }
+      if (supplier_id) {
+        whereClause += ' AND sqs.supplier_id = ?';
+        params.push(supplier_id);
+      }
+      if (period) {
+        whereClause += ' AND sqs.period = ?';
+        params.push(period);
+      }
+      if (grade) {
+        whereClause += ' AND sqs.grade = ?';
+        params.push(grade);
+      }
 
-            const countResult = await db.query(
-                `SELECT COUNT(*) as total FROM supplier_quality_scores sqs ${whereClause}`, params
-            );
-            const total = (countResult.rows && countResult.rows[0]?.total) || 0;
+      const countResult = await db.query(
+        `SELECT COUNT(*) as total FROM supplier_quality_scores sqs ${whereClause}`,
+        params
+      );
+      const total = (countResult.rows && countResult.rows[0]?.total) || 0;
 
-            const result = await db.query(
-                appendPaginationSQL(`
+      const result = await db.query(
+        appendPaginationSQL(
+          `
         SELECT sqs.*, s.name as supplier_name, s.code as supplier_code
         FROM supplier_quality_scores sqs
         LEFT JOIN suppliers s ON sqs.supplier_id = s.id
         ${whereClause}
         ORDER BY sqs.period DESC, sqs.total_score DESC
-      `, pagination.limit, pagination.offset),
-                params
-            );
+      `,
+          pagination.limit,
+          pagination.offset
+        ),
+        params
+      );
 
-            ResponseHandler.paginated(
-                res,
-                result.rows || [],
-                parseInt(total),
-                pagination.page,
-                pagination.pageSize,
-                '获取供应商质量得分列表成功'
-            );
-        } catch (error) {
-            logger.error('获取供应商质量得分失败:', error);
-            ResponseHandler.error(res, '获取供应商质量得分失败', 'SERVER_ERROR', 500, error);
-        }
-    },
+      ResponseHandler.paginated(
+        res,
+        result.rows || [],
+        parseInt(total),
+        pagination.page,
+        pagination.pageSize,
+        '获取供应商质量得分列表成功'
+      );
+    } catch (error) {
+      logger.error('获取供应商质量得分失败:', error);
+      ResponseHandler.error(res, '获取供应商质量得分失败', 'SERVER_ERROR', 500, error);
+    }
+  },
 
-    /**
-     * 获取单个供应商的历史得分 (趋势)
-     */
-    async getSupplierTrend(req, res) {
-        try {
-            const { supplierId } = req.params;
-            const { months = 12 } = req.query;
+  /**
+   * 获取单个供应商的历史得分 (趋势)
+   */
+  async getSupplierTrend(req, res) {
+    try {
+      const { supplierId } = req.params;
+      const { months = 12 } = req.query;
 
-            // 安全转换为整数以避免 SQL 注入，但传给 mysql2 驱动时转为字符串格式
-            const limit = Math.max(1, Math.min(60, parseInt(months, 10) || 12));
+      // 安全转换为整数以避免 SQL 注入，但传给 mysql2 驱动时转为字符串格式
+      const limit = Math.max(1, Math.min(60, parseInt(months, 10) || 12));
 
-            const result = await db.query(
-                `
+      const result = await db.query(
+        `
         SELECT sqs.*, s.name as supplier_name
         FROM supplier_quality_scores sqs
         LEFT JOIN suppliers s ON sqs.supplier_id = s.id
@@ -99,29 +104,29 @@ const supplierQualityController = {
         ORDER BY sqs.period DESC
         LIMIT ${limit}
       `,
-                [supplierId]
-            );
+        [supplierId]
+      );
 
-            ResponseHandler.success(res, result.rows || [], '获取供应商趋势成功');
-        } catch (error) {
-            logger.error('获取供应商趋势失败:', error);
-            ResponseHandler.error(res, '获取供应商趋势失败', 'SERVER_ERROR', 500, error);
-        }
-    },
+      ResponseHandler.success(res, result.rows || [], '获取供应商趋势成功');
+    } catch (error) {
+      logger.error('获取供应商趋势失败:', error);
+      ResponseHandler.error(res, '获取供应商趋势失败', 'SERVER_ERROR', 500, error);
+    }
+  },
 
-    /**
-     * 获取某月排名
-     */
-    async getRanking(req, res) {
-        try {
-            const { period } = req.query;
+  /**
+   * 获取某月排名
+   */
+  async getRanking(req, res) {
+    try {
+      const { period } = req.query;
 
-            if (!period) {
-                return ResponseHandler.error(res, '统计周期不能为空', 'VALIDATION_ERROR', 400);
-            }
+      if (!period) {
+        return ResponseHandler.error(res, '统计周期不能为空', 'VALIDATION_ERROR', 400);
+      }
 
-            const result = await db.query(
-                `
+      const result = await db.query(
+        `
         SELECT sqs.*, s.name as supplier_name, s.code as supplier_code,
           RANK() OVER (ORDER BY sqs.total_score DESC) as ranking
         FROM supplier_quality_scores sqs
@@ -129,58 +134,63 @@ const supplierQualityController = {
         WHERE sqs.period = ?
         ORDER BY sqs.total_score DESC
       `,
-                [period]
-            );
+        [period]
+      );
 
-            ResponseHandler.success(res, result.rows || [], '获取供应商排名成功');
-        } catch (error) {
-            logger.error('获取供应商排名失败:', error);
-            ResponseHandler.error(res, '获取供应商排名失败', 'SERVER_ERROR', 500, error);
-        }
-    },
+      ResponseHandler.success(res, result.rows || [], '获取供应商排名成功');
+    } catch (error) {
+      logger.error('获取供应商排名失败:', error);
+      ResponseHandler.error(res, '获取供应商排名失败', 'SERVER_ERROR', 500, error);
+    }
+  },
 
-    /**
-     * 按月自动计算供应商质量得分
-     * 权重: 质量60% + 交付25% + 响应15%
-     *
-     * 数据来源:
-     *   - 供应商列表: purchase_orders (同月有采购的供应商)
-     *   - 质量维度: quality_inspections (incoming, 通过 supplier_id 关联；若无则从采购订单统计)
-     *   - 交付维度: purchase_orders (status + delivery dates)
-     *   - 响应维度: eight_d_reports (同月)
-     */
-    async calculateMonthlyScores(req, res) {
-        try {
-            const { period } = req.body; // YYYY-MM
+  /**
+   * 按月自动计算供应商质量得分
+   * 权重: 质量60% + 交付25% + 响应15%
+   *
+   * 数据来源:
+   *   - 供应商列表: purchase_orders (同月有采购的供应商)
+   *   - 质量维度: quality_inspections (incoming, 通过 supplier_id 关联；若无则从采购订单统计)
+   *   - 交付维度: purchase_orders (status + delivery dates)
+   *   - 响应维度: eight_d_reports (同月)
+   */
+  async calculateMonthlyScores(req, res) {
+    try {
+      const { period } = req.body; // YYYY-MM
 
-            if (!period || !/^\d{4}-\d{2}$/.test(period)) {
-                return ResponseHandler.error(res, '请提供有效的统计周期 (YYYY-MM)', 'VALIDATION_ERROR', 400);
-            }
+      if (!period || !/^\d{4}-\d{2}$/.test(period)) {
+        return ResponseHandler.error(
+          res,
+          '请提供有效的统计周期 (YYYY-MM)',
+          'VALIDATION_ERROR',
+          400
+        );
+      }
 
-            const startDate = `${period}-01`;
-            const endDate = `${period}-31`;
+      const startDate = `${period}-01`;
+      const endDate = `${period}-31`;
 
-            // 从采购订单中获取本月有采购的供应商
-            const suppliers = await db.query(
-                `
+      // 从采购订单中获取本月有采购的供应商
+      const suppliers = await db.query(
+        `
         SELECT DISTINCT po.supplier_id
         FROM purchase_orders po
         WHERE po.supplier_id IS NOT NULL
           AND po.order_date BETWEEN ? AND ?
       `,
-                [startDate, endDate]
-            );
+        [startDate, endDate]
+      );
 
-            const supplierIds = (suppliers.rows || []).map(r => r.supplier_id).filter(Boolean);
+      const supplierIds = (suppliers.rows || []).map((r) => r.supplier_id).filter(Boolean);
 
-            if (supplierIds.length === 0) {
-                return ResponseHandler.success(res, { updated: 0 }, '本月暂无采购数据');
-            }
+      if (supplierIds.length === 0) {
+        return ResponseHandler.success(res, { updated: 0 }, '本月暂无采购数据');
+      }
 
-            // ✅ 性能优化: 批量查询所有供应商数据，消除 N+1
-            // 1. 批量来料质量统计
-            const qiBatch = await db.query(
-                `
+      // ✅ 性能优化: 批量查询所有供应商数据，消除 N+1
+      // 1. 批量来料质量统计
+      const qiBatch = await db.query(
+        `
         SELECT
           COALESCE(qi.supplier_id, po.supplier_id) as supplier_id,
           COUNT(*) as total_lots,
@@ -194,14 +204,16 @@ const supplierQualityController = {
           AND qi.created_at BETWEEN ? AND ?
         GROUP BY COALESCE(qi.supplier_id, po.supplier_id)
       `,
-                [...supplierIds, startDate, endDate]
-            );
-            const qiMap = {};
-            (qiBatch.rows || []).forEach(r => { qiMap[r.supplier_id] = r; });
+        [...supplierIds, startDate, endDate]
+      );
+      const qiMap = {};
+      (qiBatch.rows || []).forEach((r) => {
+        qiMap[r.supplier_id] = r;
+      });
 
-            // 2. 批量交付统计
-            const deliveryBatch = await db.query(
-                `
+      // 2. 批量交付统计
+      const deliveryBatch = await db.query(
+        `
         SELECT
           supplier_id,
           COUNT(*) as total_deliveries,
@@ -211,14 +223,16 @@ const supplierQualityController = {
           AND order_date BETWEEN ? AND ?
         GROUP BY supplier_id
       `,
-                [...supplierIds, startDate, endDate]
-            );
-            const deliveryMap = {};
-            (deliveryBatch.rows || []).forEach(r => { deliveryMap[r.supplier_id] = r; });
+        [...supplierIds, startDate, endDate]
+      );
+      const deliveryMap = {};
+      (deliveryBatch.rows || []).forEach((r) => {
+        deliveryMap[r.supplier_id] = r;
+      });
 
-            // 3. 批量 8D 响应统计
-            const eightDBatch = await db.query(
-                `
+      // 3. 批量 8D 响应统计
+      const eightDBatch = await db.query(
+        `
         SELECT
           supplier_id,
           COUNT(*) as total_8d,
@@ -229,57 +243,62 @@ const supplierQualityController = {
           AND created_at BETWEEN ? AND ?
         GROUP BY supplier_id
       `,
-                [...supplierIds, startDate, endDate]
-            );
-            const eightDMap = {};
-            (eightDBatch.rows || []).forEach(r => { eightDMap[r.supplier_id] = r; });
+        [...supplierIds, startDate, endDate]
+      );
+      const eightDMap = {};
+      (eightDBatch.rows || []).forEach((r) => {
+        eightDMap[r.supplier_id] = r;
+      });
 
-            let updated = 0;
+      let updated = 0;
 
-            // 4. 在内存中计算每个供应商的评分
-            for (const sid of supplierIds) {
-                // 质量数据
-                const qi = qiMap[sid];
-                let totalLots = 0, acceptedLots = 0, totalQty = 0, defectQty = 0;
-                if (qi && parseInt(qi.total_lots) > 0) {
-                    totalLots = parseInt(qi.total_lots);
-                    acceptedLots = parseInt(qi.accepted_lots) || 0;
-                    totalQty = parseFloat(qi.total_qty) || 0;
-                    defectQty = parseFloat(qi.defect_qty) || 0;
-                } else {
-                    // 回退：从交付数据中估算
-                    const d = deliveryMap[sid];
-                    if (d) {
-                        totalLots = parseInt(d.total_deliveries) || 0;
-                        acceptedLots = parseInt(d.on_time_deliveries) || 0;
-                    }
-                }
+      // 4. 在内存中计算每个供应商的评分
+      for (const sid of supplierIds) {
+        // 质量数据
+        const qi = qiMap[sid];
+        let totalLots = 0,
+          acceptedLots = 0,
+          totalQty = 0,
+          defectQty = 0;
+        if (qi && parseInt(qi.total_lots) > 0) {
+          totalLots = parseInt(qi.total_lots);
+          acceptedLots = parseInt(qi.accepted_lots) || 0;
+          totalQty = parseFloat(qi.total_qty) || 0;
+          defectQty = parseFloat(qi.defect_qty) || 0;
+        } else {
+          // 回退：从交付数据中估算
+          const d = deliveryMap[sid];
+          if (d) {
+            totalLots = parseInt(d.total_deliveries) || 0;
+            acceptedLots = parseInt(d.on_time_deliveries) || 0;
+          }
+        }
 
-                const ppm = totalQty > 0 ? (defectQty / totalQty) * 1000000 : 0;
-                const lotAcceptRate = totalLots > 0 ? (acceptedLots / totalLots) * 100 : 100;
+        const ppm = totalQty > 0 ? (defectQty / totalQty) * 1000000 : 0;
+        const lotAcceptRate = totalLots > 0 ? (acceptedLots / totalLots) * 100 : 100;
 
-                // 交付数据
-                const d = deliveryMap[sid] || {};
-                const totalDeliveries = parseInt(d.total_deliveries) || 0;
-                const onTimeDeliveries = parseInt(d.on_time_deliveries) || 0;
-                const deliveryRate = totalDeliveries > 0 ? (onTimeDeliveries / totalDeliveries) * 100 : 100;
+        // 交付数据
+        const d = deliveryMap[sid] || {};
+        const totalDeliveries = parseInt(d.total_deliveries) || 0;
+        const onTimeDeliveries = parseInt(d.on_time_deliveries) || 0;
+        const deliveryRate = totalDeliveries > 0 ? (onTimeDeliveries / totalDeliveries) * 100 : 100;
 
-                // 8D 数据
-                const e = eightDMap[sid] || {};
-                const total8d = parseInt(e.total_8d) || 0;
-                const closed8dOnTime = parseInt(e.closed_on_time) || 0;
-                const avg8dDays = parseFloat(e.avg_days) || 0;
+        // 8D 数据
+        const e = eightDMap[sid] || {};
+        const total8d = parseInt(e.total_8d) || 0;
+        const closed8dOnTime = parseInt(e.closed_on_time) || 0;
+        const avg8dDays = parseFloat(e.avg_days) || 0;
 
-                // 评分
-                const qualityScore = Math.min(lotAcceptRate, 100);
-                const deliveryScore = Math.min(deliveryRate, 100);
-                const responseScore = total8d > 0 ? Math.min((closed8dOnTime / total8d) * 100, 100) : 100;
-                const totalScore = qualityScore * 0.6 + deliveryScore * 0.25 + responseScore * 0.15;
-                const grade = calculateGrade(totalScore);
+        // 评分
+        const qualityScore = Math.min(lotAcceptRate, 100);
+        const deliveryScore = Math.min(deliveryRate, 100);
+        const responseScore = total8d > 0 ? Math.min((closed8dOnTime / total8d) * 100, 100) : 100;
+        const totalScore = qualityScore * 0.6 + deliveryScore * 0.25 + responseScore * 0.15;
+        const grade = calculateGrade(totalScore);
 
-                // 写入或更新计分卡
-                await db.query(
-                    `
+        // 写入或更新计分卡
+        await db.query(
+          `
           INSERT INTO supplier_quality_scores
             (supplier_id, period, total_lots, accepted_lots, rejected_lots, total_qty, defect_qty,
              ppm, lot_accept_rate, total_deliveries, on_time_deliveries, delivery_rate,
@@ -299,26 +318,39 @@ const supplierQualityController = {
             response_score = VALUES(response_score), total_score = VALUES(total_score),
             grade = VALUES(grade), updated_at = NOW()
         `,
-                    [
-                        sid, period,
-                        totalLots, acceptedLots, totalLots - acceptedLots, totalQty, defectQty,
-                        parseFloat(ppm.toFixed(2)), parseFloat(lotAcceptRate.toFixed(2)),
-                        totalDeliveries, onTimeDeliveries, parseFloat(deliveryRate.toFixed(2)),
-                        total8d, closed8dOnTime, parseFloat(avg8dDays.toFixed(1)),
-                        parseFloat(qualityScore.toFixed(2)), parseFloat(deliveryScore.toFixed(2)),
-                        parseFloat(responseScore.toFixed(2)), parseFloat(totalScore.toFixed(2)), grade,
-                    ]
-                );
+          [
+            sid,
+            period,
+            totalLots,
+            acceptedLots,
+            totalLots - acceptedLots,
+            totalQty,
+            defectQty,
+            parseFloat(ppm.toFixed(2)),
+            parseFloat(lotAcceptRate.toFixed(2)),
+            totalDeliveries,
+            onTimeDeliveries,
+            parseFloat(deliveryRate.toFixed(2)),
+            total8d,
+            closed8dOnTime,
+            parseFloat(avg8dDays.toFixed(1)),
+            parseFloat(qualityScore.toFixed(2)),
+            parseFloat(deliveryScore.toFixed(2)),
+            parseFloat(responseScore.toFixed(2)),
+            parseFloat(totalScore.toFixed(2)),
+            grade,
+          ]
+        );
 
-                updated++;
-            }
+        updated++;
+      }
 
-            ResponseHandler.success(res, { updated, period }, `已计算 ${updated} 个供应商的质量得分`);
-        } catch (error) {
-            logger.error('计算供应商月度得分失败:', error);
-            ResponseHandler.error(res, '计算供应商月度得分失败', 'SERVER_ERROR', 500, error);
-        }
-    },
+      ResponseHandler.success(res, { updated, period }, `已计算 ${updated} 个供应商的质量得分`);
+    } catch (error) {
+      logger.error('计算供应商月度得分失败:', error);
+      ResponseHandler.error(res, '计算供应商月度得分失败', 'SERVER_ERROR', 500, error);
+    }
+  },
 };
 
 module.exports = supplierQualityController;

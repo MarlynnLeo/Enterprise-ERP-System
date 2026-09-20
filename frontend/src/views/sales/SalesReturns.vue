@@ -207,7 +207,7 @@
     >
       <div v-if="currentReturn" v-loading="detailsLoading">
         <el-descriptions :column="2" border>
-          <el-descriptions-item label="退货单号">{{ currentReturn.returnNo || currentReturn.id }}</el-descriptions-item>
+          <el-descriptions-item label="退货单号">{{ currentReturn.returnNo || '未生成退货单号' }}</el-descriptions-item>
           <el-descriptions-item label="关联订单号">{{ currentReturn.orderNo || '-' }}</el-descriptions-item>
           <el-descriptions-item label="客户名称">{{ currentReturn.customerName || '-' }}</el-descriptions-item>
           <el-descriptions-item label="退货日期">{{ formatDate(currentReturn.returnDate) }}</el-descriptions-item>
@@ -395,7 +395,7 @@ const handleGenerateCreditNote = async (row) => {
     const result = await financeApi.integration.generateARCreditNoteFromSalesReturn(row.id)
     ElMessage.success(result.message || '红字应收与会计凭证生成成功')
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || '生成红字应收失败')
+    ElMessage.error(getApiErrorMessage(error, '生成红字应收失败'))
   } finally {
     creditNoteLoadingId.value = null
   }
@@ -423,6 +423,7 @@ const visibleReturnItems = computed(() => createForm.items.filter(item => Number
 import { getSalesStatusText, getSalesStatusColor, getSalesReturnStatusText, getSalesReturnStatusColor, SALES_RETURN_STATUS_OPTIONS } from '@/constants/systemConstants'
 import { parseResponseData } from '@/utils/responseParser'
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 const outboundDialog = reactive({
   visible: false,
   keyword: '',
@@ -634,8 +635,7 @@ const submitCreate = async () => {
     await fetchData()
   } catch (e) {
     console.error('创建退货单失败:', e)
-    const errorMessage = e.response?.data?.message || e.response?.data?.error?.message || '创建退货单失败'
-    ElMessage.error(errorMessage)
+    ElMessage.error(getApiErrorMessage(e, '创建退货单失败'))
   }
 }
 // 搜索方法
@@ -672,8 +672,8 @@ const fetchData = async () => {
     returnRecords.value = items.map((it, idx) => ({
       ...it,
       id: it.id || `RET_${idx}`, // 保持数字ID用于API调用
-      returnNo: it.returnNo || it.id || `RET_${idx}`, // 显示用的退货单号
-      orderNo: it.orderNo || it.orderId || '-',
+      returnNo: it.returnNo || `待生成-${idx + 1}`, // 显示用的退货单号，不回退到内部ID
+      orderNo: it.orderNo || '-',
       customerName: it.customerName || '-',
       returnDate: it.returnDate,
       returnAmount: isBlankAmount(it.totalAmount) ? null : Number(it.totalAmount),
@@ -775,7 +775,7 @@ const handleApprove = (row) => {
   }).then(async () => {
     try {
       await updateReturnStatus(row, 'approved')
-      ElMessage.success(`退货单 ${row.returnNo || row.id} 已审批通过`)
+      ElMessage.success(`退货单 ${row.returnNo || '未命名'} 已审批通过`)
     } catch {
       ElMessage.error('审批失败，请重试')
     }
@@ -797,7 +797,7 @@ const handleReject = (row) => {
       const newRemarks = (fullReturnData.remarks || '') + `\n拒绝原因：${rejectReason}`
 
       await updateReturnStatus(row, 'rejected', newRemarks)
-      ElMessage.success(`退货单 ${row.returnNo || row.id} 已拒绝`)
+      ElMessage.success(`退货单 ${row.returnNo || '未命名'} 已拒绝`)
     } catch {
       ElMessage.error('拒绝失败，请重试')
     }
@@ -813,7 +813,7 @@ const handleComplete = (row) => {
   }).then(async () => {
     try {
       await updateReturnStatus(row, 'completed')
-      ElMessage.success(`退货单 ${row.returnNo || row.id} 已完成`)
+      ElMessage.success(`退货单 ${row.returnNo || '未命名'} 已完成`)
     } catch {
       ElMessage.error('完成失败，请重试')
     }
@@ -859,7 +859,7 @@ const handlePrintReturn = async () => {
     printService.previewDocument(html)
   } catch (error) {
     console.error('打印退货单失败:', error)
-    ElMessage.error('打印失败: ' + (error.message || '未知错误'))
+    ElMessage.error(`打印失败：${getApiErrorMessage(error, '请稍后重试')}`)
   } finally {
     printLoading.value = false
   }

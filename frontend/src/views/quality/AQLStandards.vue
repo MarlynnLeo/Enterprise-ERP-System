@@ -182,6 +182,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, computed, onMounted } from 'vue';
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -302,7 +303,7 @@ const handleSubmit = () => {
       fetchData();
     } catch (error) {
       console.error('Submit failed:', error);
-      ElMessage.error(error.message || '操作失败');
+      ElMessage.error(getApiErrorMessage(error, '操作失败'));
     } finally {
       submitting.value = false;
     }

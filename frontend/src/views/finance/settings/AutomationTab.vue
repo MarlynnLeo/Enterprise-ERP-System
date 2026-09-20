@@ -536,6 +536,7 @@ import { ref, reactive, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index';
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import {
   Refresh,
   Money,
@@ -628,7 +629,7 @@ const startScheduledTasks = async () => {
     await refreshTaskStatus();
   } catch (error) {
     console.error('启动定时任务失败:', error);
-    ElMessage.error(error.message || '启动定时任务失败');
+    ElMessage.error(getApiErrorMessage(error, '启动定时任务失败'));
   } finally {
     taskActionLoading.value = false;
   }
@@ -649,7 +650,7 @@ const stopScheduledTasks = async () => {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('停止定时任务失败:', error);
-      ElMessage.error(error.message || '停止定时任务失败');
+      ElMessage.error(getApiErrorMessage(error, '停止定时任务失败'));
     }
   } finally {
     taskActionLoading.value = false;
@@ -720,7 +721,7 @@ const retryFailedJobs = async () => {
     await loadFailedJobs();
   } catch (error) {
     console.error('重试自动化失败任务失败:', error);
-    ElMessage.error(error.response?.data?.message || '重试自动化失败任务失败');
+      ElMessage.error(getApiErrorMessage(error, '重试自动化失败任务失败'));
   } finally {
     retryFailedJobsLoading.value = false;
   }
@@ -738,7 +739,7 @@ const resolveFailedJob = async (row) => {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('标记自动化失败任务失败:', error);
-      ElMessage.error(error.response?.data?.message || '标记自动化失败任务失败');
+      ElMessage.error(getApiErrorMessage(error, '标记自动化失败任务失败'));
     }
   } finally {
     resolveJobLoadingId.value = null;
@@ -770,8 +771,8 @@ const executeRepairGeneration = async () => {
     await loadFailedJobs();
   } catch (error) {
     console.error('补生成财务单据失败:', error);
-    ElMessage.error(error.response?.data?.message || '补生成财务单据失败');
-    addToHistory('repair', String(sourceId), 'failed', error.message || '执行失败');
+      ElMessage.error(getApiErrorMessage(error, '补生成财务单据失败'));
+    addToHistory('repair', String(sourceId), 'failed', getApiErrorMessage(error, '执行失败'));
   } finally {
     repairLoading.value = false;
   }
@@ -808,7 +809,7 @@ const executeDepreciation = async () => {
     if (error !== 'cancel') {
       console.error('折旧计提执行失败:', error);
       ElMessage.error('折旧计提执行失败');
-      addToHistory('depreciation', depreciationForm.month, 'failed', error.message || '执行失败');
+      addToHistory('depreciation', depreciationForm.month, 'failed', getApiErrorMessage(error, '执行失败'));
     }
   } finally {
     depreciationLoading.value = false;
@@ -873,7 +874,7 @@ const executeProductionCost = async () => {
     if (error !== 'cancel') {
       console.error('生产成本分录生成失败:', error);
       ElMessage.error('生产成本分录生成失败');
-      addToHistory('production', productionForm.taskId, 'failed', error.message || '执行失败');
+      addToHistory('production', productionForm.taskId, 'failed', getApiErrorMessage(error, '执行失败'));
     }
   } finally {
     productionLoading.value = false;
@@ -944,8 +945,8 @@ const executeFinanceYearEnd = async () => {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('年度结转执行失败:', error);
-      ElMessage.error(error.response?.data?.message || '年度结转执行失败');
-      addToHistory('financeYearEnd', `${yearEndForm.year}年度`, 'failed', error.message || '执行失败');
+      ElMessage.error(getApiErrorMessage(error, '年度结转执行失败'));
+      addToHistory('financeYearEnd', `${yearEndForm.year}年度`, 'failed', getApiErrorMessage(error, '执行失败'));
     }
   } finally {
     financeYearEndLoading.value = false;
@@ -992,8 +993,8 @@ const executeInventoryYearEnd = async () => {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('库存结存执行失败:', error);
-      ElMessage.error(error.response?.data?.message || '库存结存执行失败');
-      addToHistory('inventoryYearEnd', `${inventoryYearEndForm.year}年度`, 'failed', error.message || '执行失败');
+      ElMessage.error(getApiErrorMessage(error, '库存结存执行失败'));
+      addToHistory('inventoryYearEnd', `${inventoryYearEndForm.year}年度`, 'failed', getApiErrorMessage(error, '执行失败'));
     }
   } finally {
     inventoryYearEndLoading.value = false;
@@ -1021,7 +1022,7 @@ const freezeInventoryYearEnd = async () => {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('结存冻结失败:', error);
-      ElMessage.error(error.response?.data?.message || '结存冻结失败');
+      ElMessage.error(getApiErrorMessage(error, '结存冻结失败'));
     }
   } finally {
     inventoryFreezeLoading.value = false;

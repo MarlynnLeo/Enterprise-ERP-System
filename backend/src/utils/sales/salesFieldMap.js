@@ -11,7 +11,8 @@ const salesOrderItemMap = {
     const line = mapLineUnitPrice(body, 'unit_price');
     const row = {
       id: body.id,
-      material_id: body.materialId != null ? toNumber(body.materialId, body.materialId) : body.material_id,
+      material_id:
+        body.materialId != null ? toNumber(body.materialId, body.materialId) : body.material_id,
       quantity: line.quantity,
       unit_price: line.unit_price,
       amount: line.amount,
@@ -43,7 +44,7 @@ const salesOrderItemMap = {
       unitPrice,
       amount,
       totalPrice: row.total_price != null ? toNumber(row.total_price, 0) : amount,
-      taxRate: row.tax_percent != null ? toNumber(row.tax_percent, 0) : row.taxRate ?? null,
+      taxRate: row.tax_percent != null ? toNumber(row.tax_percent, 0) : (row.taxRate ?? null),
       remarks: row.remarks ?? row.remark ?? null,
     };
   },
@@ -54,15 +55,30 @@ const salesOrderMap = {
     const row = {
       id: body.id,
       order_no: body.orderNo ?? body.order_no,
-      customer_id: (body.customerId ?? body.customer_id) != null ? toNumber(body.customerId ?? body.customer_id, body.customerId ?? body.customer_id) : undefined,
-      quotation_id: (body.quotationId ?? body.quotation_id) != null ? toNumber(body.quotationId ?? body.quotation_id, body.quotationId ?? body.quotation_id) : undefined,
+      customer_id:
+        (body.customerId ?? body.customer_id) != null
+          ? toNumber(body.customerId ?? body.customer_id, body.customerId ?? body.customer_id)
+          : undefined,
+      quotation_id:
+        (body.quotationId ?? body.quotation_id) != null
+          ? toNumber(body.quotationId ?? body.quotation_id, body.quotationId ?? body.quotation_id)
+          : undefined,
       contract_code: body.contractCode ?? body.contract_code,
-      total_amount: (body.totalAmount ?? body.total_amount) != null ? toNumber(body.totalAmount ?? body.total_amount, 0) : undefined,
-      subtotal: (body.subtotal) != null ? toNumber(body.subtotal, 0) : undefined,
-      tax_amount: (body.taxAmount ?? body.tax_amount) != null ? toNumber(body.taxAmount ?? body.tax_amount, 0) : undefined,
+      total_amount:
+        (body.totalAmount ?? body.total_amount) != null
+          ? toNumber(body.totalAmount ?? body.total_amount, 0)
+          : undefined,
+      subtotal: body.subtotal != null ? toNumber(body.subtotal, 0) : undefined,
+      tax_amount:
+        (body.taxAmount ?? body.tax_amount) != null
+          ? toNumber(body.taxAmount ?? body.tax_amount, 0)
+          : undefined,
       tax_rate: body.taxRate ?? body.tax_rate,
       payment_terms: body.paymentTerms ?? body.payment_terms,
-      delivery_date: (body.deliveryDate ?? body.delivery_date) != null ? formatDate(body.deliveryDate ?? body.delivery_date) : undefined,
+      delivery_date:
+        (body.deliveryDate ?? body.delivery_date) != null
+          ? formatDate(body.deliveryDate ?? body.delivery_date)
+          : undefined,
       status: body.status,
       remarks: body.remarks ?? body.remark ?? body.notes,
       created_by: body.createdBy ?? body.created_by,
@@ -107,7 +123,7 @@ const salesOrderMap = {
       createdAt: row.created_at ?? null,
       updatedAt: row.updated_at ?? null,
       isLocked: row.is_locked != null ? Boolean(row.is_locked) : null,
-      lockedAt: row.locked_at ? formatDate(row.locked_at) : row.locked_at ?? null,
+      lockedAt: row.locked_at ? formatDate(row.locked_at) : (row.locked_at ?? null),
       lockedBy: row.locked_by ?? null,
       lockReason: row.lock_reason ?? null,
       lockedByName: row.locked_by_name ?? null,
@@ -162,8 +178,20 @@ const salesOutboundItemMap = {
   toApi(row) {
     if (row == null) return null;
     const productId = row.product_id ?? row.productId ?? null;
-    const materialCode = row.material_code ?? row.materialCode ?? row.product_code ?? row.productCode ?? row.code ?? null;
-    const materialName = row.material_name ?? row.materialName ?? row.product_name ?? row.productName ?? row.name ?? null;
+    const materialCode =
+      row.material_code ??
+      row.materialCode ??
+      row.product_code ??
+      row.productCode ??
+      row.code ??
+      null;
+    const materialName =
+      row.material_name ??
+      row.materialName ??
+      row.product_name ??
+      row.productName ??
+      row.name ??
+      null;
     const specification = row.specification ?? row.specs ?? row.product_specs ?? null;
     const unitName = row.unit_name ?? row.unitName ?? row.unit ?? null;
     return {
@@ -192,13 +220,13 @@ const salesOutboundItemMap = {
       unitId: row.unit_id ?? row.unitId ?? null,
       unitName,
       unit: unitName,
-      returnedQuantity:
-        row.returned_quantity != null ? toNumber(row.returned_quantity, 0) : null,
+      returnedQuantity: row.returned_quantity != null ? toNumber(row.returned_quantity, 0) : null,
       returnableQuantity:
         row.returnable_quantity != null ? toNumber(row.returnable_quantity, 0) : null,
       orderedQuantity: row.ordered_quantity != null ? toNumber(row.ordered_quantity, 0) : null,
       shippedQuantity: row.shipped_quantity != null ? toNumber(row.shipped_quantity, 0) : null,
-      remainingQuantity: row.remaining_quantity != null ? toNumber(row.remaining_quantity, 0) : null,
+      remainingQuantity:
+        row.remaining_quantity != null ? toNumber(row.remaining_quantity, 0) : null,
     };
   },
 };
@@ -256,7 +284,7 @@ const salesOutboundMap = {
             orderNo: o.order_no ?? o.orderNo ?? null,
             customerName: o.customer_name ?? o.customerName ?? null,
           }))
-        : row.related_order_details ?? null,
+        : (row.related_order_details ?? null),
       createdBy: row.created_by ?? null,
       createdAt: row.created_at ?? null,
       updatedAt: row.updated_at ?? null,
@@ -324,8 +352,7 @@ const salesReturnMap = {
       return_no: body.returnNo,
       return_date: body.returnDate != null ? formatDate(body.returnDate) : undefined,
       order_id: body.orderId != null ? toNumber(body.orderId, body.orderId) : undefined,
-      outbound_id:
-        body.outboundId != null ? toNumber(body.outboundId, body.outboundId) : undefined,
+      outbound_id: body.outboundId != null ? toNumber(body.outboundId, body.outboundId) : undefined,
       return_reason: body.returnReason,
       status: body.status,
       remarks: body.remarks ?? body.remark,
@@ -402,9 +429,9 @@ const salesExchangeItemMap = {
       productCode: row.product_code ?? null,
       productName: row.product_name ?? null,
       specification: row.specification ?? null,
-      originalQuantity:
-        row.original_quantity != null ? toNumber(row.original_quantity, 0) : null,
-      returnableQuantity: row.returnable_quantity != null ? toNumber(row.returnable_quantity, 0) : null,
+      originalQuantity: row.original_quantity != null ? toNumber(row.original_quantity, 0) : null,
+      returnableQuantity:
+        row.returnable_quantity != null ? toNumber(row.returnable_quantity, 0) : null,
       quantity: toNumber(row.quantity, 0),
       unitPrice: row.unit_price != null ? toNumber(row.unit_price, 0) : null,
       amount: row.amount != null ? toNumber(row.amount, 0) : null,
@@ -462,8 +489,7 @@ const salesExchangeMap = {
       remarks: row.remarks ?? null,
       returnAmount: row.return_amount != null ? toNumber(row.return_amount, 0) : null,
       newAmount: row.new_amount != null ? toNumber(row.new_amount, 0) : null,
-      differenceAmount:
-        row.difference_amount != null ? toNumber(row.difference_amount, 0) : null,
+      differenceAmount: row.difference_amount != null ? toNumber(row.difference_amount, 0) : null,
       createdBy: row.created_by ?? null,
       createdAt: row.created_at ?? null,
       updatedAt: row.updated_at ?? null,

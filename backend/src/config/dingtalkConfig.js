@@ -15,7 +15,9 @@ const parseNonNegativeInt = (value, fallback) => {
 };
 
 const normalizeApiBaseUrl = (value) => {
-  const raw = String(value || 'https://oapi.dingtalk.com').trim().replace(/\/+$/, '');
+  const raw = String(value || 'https://oapi.dingtalk.com')
+    .trim()
+    .replace(/\/+$/, '');
   const parsed = new URL(raw);
   if (!['http:', 'https:'].includes(parsed.protocol)) {
     throw new Error('DINGTALK_API_BASE_URL must use http or https');

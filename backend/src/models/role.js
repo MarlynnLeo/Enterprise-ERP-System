@@ -106,7 +106,7 @@ const setRoleMenus = async (roleId, menuIds = []) => {
         const existingIds = new Set(existingMenus.map((row) => Number(row.id)));
         const missingIds = scopedMenuIds.filter((menuId) => !existingIds.has(menuId));
         if (missingIds.length > 0) {
-          throw new Error(`invalid menuIds: ${missingIds.join(',')}`);
+          throw new Error('包含不存在的菜单权限，请刷新后重试');
         }
 
         const values = scopedMenuIds.map(() => '(?, ?)').join(',');

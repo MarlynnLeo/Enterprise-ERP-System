@@ -120,7 +120,11 @@ class FinanceEnhancementController {
   static async rejectInventoryPosting(req, res) {
     try {
       const actor = InventoryPostingService.actorFromRequest(req);
-      const result = await InventoryPostingService.reject(req.params.id, actor, req.body?.remark || '');
+      const result = await InventoryPostingService.reject(
+        req.params.id,
+        actor,
+        req.body?.remark || ''
+      );
       return ResponseHandler.success(res, result, '库存过账已驳回');
     } catch (error) {
       return respondServiceError(res, error, '驳回库存过账失败');
@@ -130,7 +134,11 @@ class FinanceEnhancementController {
   static async reverseInventoryPosting(req, res) {
     try {
       const actor = InventoryPostingService.actorFromRequest(req);
-      const result = await InventoryPostingService.reverse(req.params.id, actor, req.body?.remark || '');
+      const result = await InventoryPostingService.reverse(
+        req.params.id,
+        actor,
+        req.body?.remark || ''
+      );
       return ResponseHandler.success(res, result, '反审核申请已提交，待财务审批后正式冲销库存');
     } catch (error) {
       return respondServiceError(res, error, '库存过账反审核失败');
@@ -144,14 +152,7 @@ class FinanceEnhancementController {
     try {
       const { list, total, page, pageSize } =
         await ManualVoucherService.listEligiblePurchaseReceipts(req.query);
-      return ResponseHandler.paginated(
-        res,
-        list,
-        total,
-        page,
-        pageSize,
-        '可生成凭证的采购入库单'
-      );
+      return ResponseHandler.paginated(res, list, total, page, pageSize, '可生成凭证的采购入库单');
     } catch (error) {
       return respondServiceError(res, error, '获取可生成凭证采购入库单失败');
     }
@@ -160,16 +161,10 @@ class FinanceEnhancementController {
   /** 专业主路径：可生成凭证的销售出库单 */
   static async listEligibleSalesOutboundsForVoucher(req, res) {
     try {
-      const { list, total, page, pageSize } =
-        await ManualVoucherService.listEligibleSalesOutbounds(req.query);
-      return ResponseHandler.paginated(
-        res,
-        list,
-        total,
-        page,
-        pageSize,
-        '可生成凭证的销售出库单'
+      const { list, total, page, pageSize } = await ManualVoucherService.listEligibleSalesOutbounds(
+        req.query
       );
+      return ResponseHandler.paginated(res, list, total, page, pageSize, '可生成凭证的销售出库单');
     } catch (error) {
       return respondServiceError(res, error, '获取可生成凭证销售出库单失败');
     }
@@ -178,8 +173,9 @@ class FinanceEnhancementController {
   /** 例外：订单级销售（不推荐主路径） */
   static async listEligibleSalesOrdersForVoucher(req, res) {
     try {
-      const { list, total, page, pageSize } =
-        await ManualVoucherService.listEligibleSalesOrders(req.query);
+      const { list, total, page, pageSize } = await ManualVoucherService.listEligibleSalesOrders(
+        req.query
+      );
       return ResponseHandler.paginated(res, list, total, page, pageSize, '可生成凭证的销售订单');
     } catch (error) {
       return respondServiceError(res, error, '获取可生成凭证销售订单失败');
@@ -189,8 +185,9 @@ class FinanceEnhancementController {
   /** 例外：订单级采购（不推荐主路径） */
   static async listEligiblePurchaseOrdersForVoucher(req, res) {
     try {
-      const { list, total, page, pageSize } =
-        await ManualVoucherService.listEligiblePurchaseOrders(req.query);
+      const { list, total, page, pageSize } = await ManualVoucherService.listEligiblePurchaseOrders(
+        req.query
+      );
       return ResponseHandler.paginated(res, list, total, page, pageSize, '可生成凭证的采购订单');
     } catch (error) {
       return respondServiceError(res, error, '获取可生成凭证采购订单失败');
@@ -271,15 +268,41 @@ class FinanceEnhancementController {
     try {
       const returnId = safeParseId(req.params.returnId);
       const ScopeGuard = require('../../../authorization/ScopeGuard');
-      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'sales_return', returnId, '无权访问该销售退货单', { accessMode: 'read' }))) return;
+      if (
+        !(await ScopeGuard.denyUnlessAccess(
+          res,
+          db.pool,
+          req,
+          'sales_return',
+          returnId,
+          '无权访问该销售退货单',
+          { accessMode: 'read' }
+        ))
+      )
+        return;
       const [[salesReturn]] = await db.pool.query(
-        'SELECT * FROM sales_returns WHERE id=? AND deleted_at IS NULL', [returnId]
+        'SELECT * FROM sales_returns WHERE id=? AND deleted_at IS NULL',
+        [returnId]
       );
       if (!salesReturn) return ResponseHandler.notFound(res, '销售退货单不存在');
-      if (salesReturn.status !== 'completed') return ResponseHandler.error(res, '退货完成并经财务审核后才能生成红字应收', 'INVALID_STATUS', 400);
+      if (salesReturn.status !== 'completed')
+        return ResponseHandler.error(
+          res,
+          '退货完成并经财务审核后才能生成红字应收',
+          'INVALID_STATUS',
+          400
+        );
       const FinanceIntegrationService = require('../../../services/external/FinanceIntegrationService');
-      const result = await FinanceIntegrationService.generateARCreditNoteFromSalesReturn(salesReturn, { force: true });
-      return respondGenerateResult(res, result, '红字应收与会计凭证生成成功', '该销售退货单已生成红字应收');
+      const result = await FinanceIntegrationService.generateARCreditNoteFromSalesReturn(
+        salesReturn,
+        { force: true }
+      );
+      return respondGenerateResult(
+        res,
+        result,
+        '红字应收与会计凭证生成成功',
+        '该销售退货单已生成红字应收'
+      );
     } catch (error) {
       return respondServiceError(res, error, '从销售退货单生成红字应收失败');
     }
@@ -446,11 +469,7 @@ class FinanceEnhancementController {
     try {
       const ThreeWayMatchService = require('../../../services/finance/ThreeWayMatchService');
       const id = safeParseId(req.params.id);
-      const data = await ThreeWayMatchService.cancel(
-        id,
-        req.user?.id,
-        req.body?.reason || ''
-      );
+      const data = await ThreeWayMatchService.cancel(id, req.user?.id, req.body?.reason || '');
       return ResponseHandler.success(res, data, '三单匹配已取消');
     } catch (error) {
       return respondServiceError(res, error, '取消三单匹配失败');
@@ -544,7 +563,13 @@ class FinanceEnhancementController {
       ResponseHandler.success(res, result, '获取年度结转状态成功');
     } catch (error) {
       logger.error('获取年度结转状态失败:', error);
-      ResponseHandler.error(res, error.message || '获取年度结转状态失败', 'SERVER_ERROR', 500, error);
+      ResponseHandler.error(
+        res,
+        error.message || '获取年度结转状态失败',
+        'SERVER_ERROR',
+        500,
+        error
+      );
     }
   }
 
@@ -642,13 +667,21 @@ class FinanceEnhancementController {
           status: row.status === 200 || row.status === null ? 'success' : 'failed',
           result: requestData.message || row.operation,
           executedAt: row.executed_at,
-          executedBy: (row.executed_by || getRequestActorLabel(req) || null),
+          executedBy: row.executed_by || getRequestActorLabel(req) || null,
         };
       });
 
-      ResponseHandler.paginated(res, history, countResult[0].total, pageNum, pageSizeNum, '获取执行历史成功', {
-        items: history,
-      });
+      ResponseHandler.paginated(
+        res,
+        history,
+        countResult[0].total,
+        pageNum,
+        pageSizeNum,
+        '获取执行历史成功',
+        {
+          items: history,
+        }
+      );
     } catch (error) {
       logger.error('获取执行历史失败:', error);
       ResponseHandler.error(res, error.message || '获取执行历史失败', 'SERVER_ERROR', 500, error);
@@ -665,7 +698,13 @@ class FinanceEnhancementController {
       ResponseHandler.success(res, result, '库存成本重新计算完成');
     } catch (error) {
       logger.error('重新计算库存成本失败:', error);
-      ResponseHandler.error(res, error.message || '重新计算库存成本失败', 'SERVER_ERROR', 500, error);
+      ResponseHandler.error(
+        res,
+        error.message || '重新计算库存成本失败',
+        'SERVER_ERROR',
+        500,
+        error
+      );
     }
   }
 
@@ -705,7 +744,13 @@ class FinanceEnhancementController {
       ResponseHandler.success(res, dashboardData, '财务仪表板数据获取成功');
     } catch (error) {
       logger.error('获取财务仪表板数据失败:', error);
-      ResponseHandler.error(res, error.message || '获取财务仪表板数据失败', 'SERVER_ERROR', 500, error);
+      ResponseHandler.error(
+        res,
+        error.message || '获取财务仪表板数据失败',
+        'SERVER_ERROR',
+        500,
+        error
+      );
     }
   }
 
@@ -719,7 +764,13 @@ class FinanceEnhancementController {
       ResponseHandler.success(res, null, '财务增强功能初始化完成');
     } catch (error) {
       logger.error('初始化财务增强功能失败:', error);
-      ResponseHandler.error(res, error.message || '初始化财务增强功能失败', 'SERVER_ERROR', 500, error);
+      ResponseHandler.error(
+        res,
+        error.message || '初始化财务增强功能失败',
+        'SERVER_ERROR',
+        500,
+        error
+      );
     }
   }
 }

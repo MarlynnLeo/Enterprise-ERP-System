@@ -125,7 +125,9 @@ class QualityInspection {
   }
 
   static _normalizeItemResult(result) {
-    const normalized = String(result || '').trim().toLowerCase();
+    const normalized = String(result || '')
+      .trim()
+      .toLowerCase();
     if (PASS_ITEM_RESULTS.has(normalized)) return 'passed';
     if (FAIL_ITEM_RESULTS.has(normalized)) return 'failed';
     return null;
@@ -140,9 +142,7 @@ class QualityInspection {
 
     const unjudged = items.filter((item) => !this._normalizeItemResult(item.result));
     if (unjudged.length > 0) {
-      throw this._createValidationError(
-        `还有 ${unjudged.length} 个检验项目未判定，不能关闭检验单`
-      );
+      throw this._createValidationError(`还有 ${unjudged.length} 个检验项目未判定，不能关闭检验单`);
     }
 
     const failedItems = items.filter((item) => this._normalizeItemResult(item.result) === 'failed');
@@ -199,11 +199,11 @@ class QualityInspection {
       const rawUrl =
         typeof attachment === 'string'
           ? attachment
-          : attachment?.url ??
+          : (attachment?.url ??
             attachment?.fileUrl ??
             attachment?.file_url ??
             attachment?.path ??
-            attachment?.filePath;
+            attachment?.filePath);
       if (rawUrl === undefined || rawUrl === null || String(rawUrl).trim() === '') continue;
 
       const normalizedUrl = FileAccessService.normalizeUploadUrl(rawUrl);
@@ -303,7 +303,6 @@ class QualityInspection {
 
     // 根据传入的额外参数决定是否加载供应商和参考数据
     const includeSupplier = filters.include_supplier === true;
-
 
     // 构建基础查询
     let query = `
@@ -570,7 +569,10 @@ class QualityInspection {
           attachments: (attachments || []).map((att) => {
             let meta;
             try {
-              meta = typeof att.metadata === 'string' ? JSON.parse(att.metadata || '{}') : (att.metadata || {});
+              meta =
+                typeof att.metadata === 'string'
+                  ? JSON.parse(att.metadata || '{}')
+                  : att.metadata || {};
             } catch {
               meta = {};
             }
@@ -602,7 +604,12 @@ class QualityInspection {
     return InspectionTemplateResolver.getInspectionMaterialId(inspection);
   }
 
-  static async findMatchingInspectionTemplate(connection, inspectionType, materialId, explicitTemplateId = null) {
+  static async findMatchingInspectionTemplate(
+    connection,
+    inspectionType,
+    materialId,
+    explicitTemplateId = null
+  ) {
     return InspectionTemplateResolver.findMatchingTemplate(
       connection,
       inspectionType,
@@ -619,7 +626,7 @@ class QualityInspection {
     let connection;
     const useOwnConnection = !externalConnection;
     try {
-      connection = externalConnection || await db.pool.getConnection();
+      connection = externalConnection || (await db.pool.getConnection());
       if (useOwnConnection) {
         await connection.beginTransaction();
       }
@@ -667,7 +674,9 @@ class QualityInspection {
           );
         } else {
           const sourceLabel = isOutsourcedIncoming ? '委外入库单' : '采购订单';
-          throw this._createValidationError(`来料检验单缺少有效${sourceLabel}引用: ${inspection.reference_no}`);
+          throw this._createValidationError(
+            `来料检验单缺少有效${sourceLabel}引用: ${inspection.reference_no}`
+          );
         }
       }
 
@@ -735,7 +744,9 @@ class QualityInspection {
             // 覆盖单据状态以自动合格
             inspection.status = 'passed';
             inspection.inspector_name = '系统(自动免检)';
-            inspection.note = (inspection.note ? inspection.note + ' | ' : '') + '依据物料免检配置，系统自动判定合格';
+            inspection.note =
+              (inspection.note ? inspection.note + ' | ' : '') +
+              '依据物料免检配置，系统自动判定合格';
           } else if (methodCode === 'sampling') {
             isSampling = true;
             logger.info(
@@ -749,16 +760,18 @@ class QualityInspection {
       // DataScope owner: explicit inspector first, then the source document owner.
       let inspectorId = firstValidUserId(inspection.inspector_id);
       if (!inspectorId) {
-        const sourceTable = inspection.inspection_type === 'incoming'
-          ? this._isOutsourcedIncoming(inspection)
-            ? null
-            : 'purchase_orders'
-          : inspection.task_id || inspection.reference_id
-            ? 'production_tasks'
-            : null;
-        const sourceId = inspection.inspection_type === 'incoming'
-          ? inspection.reference_id
-          : inspection.task_id || inspection.reference_id;
+        const sourceTable =
+          inspection.inspection_type === 'incoming'
+            ? this._isOutsourcedIncoming(inspection)
+              ? null
+              : 'purchase_orders'
+            : inspection.task_id || inspection.reference_id
+              ? 'production_tasks'
+              : null;
+        const sourceId =
+          inspection.inspection_type === 'incoming'
+            ? inspection.reference_id
+            : inspection.task_id || inspection.reference_id;
 
         if (sourceTable && sourceId) {
           const [sourceRows] = await connection.query(
@@ -819,7 +832,8 @@ class QualityInspection {
           inspection.inspection_type === 'first_article' || inspection.is_first_article ? 1 : 0,
           inspection.first_article_qty ?? 5,
           inspection.is_full_inspection ? 1 : 0,
-          inspection.first_article_result || (inspection.inspection_type === 'first_article' ? 'pending' : null),
+          inspection.first_article_result ||
+            (inspection.inspection_type === 'first_article' ? 'pending' : null),
           inspection.production_can_continue ? 1 : 0,
           inspection.is_aql || 0, // AQL抽样开关
           inspection.aql_level || null, // AQL级别
@@ -860,9 +874,15 @@ class QualityInspection {
           updateValues
         );
 
-        if (!inspection.items || !Array.isArray(inspection.items) || inspection.items.length === 0) {
+        if (
+          !inspection.items ||
+          !Array.isArray(inspection.items) ||
+          inspection.items.length === 0
+        ) {
           inspection.items = await this.getTemplateItems(connection, appliedTemplate.id);
-          logger.info(`自动引用检验模板 ${appliedTemplate.template_name}，加载 ${inspection.items.length} 个检验项目`);
+          logger.info(
+            `自动引用检验模板 ${appliedTemplate.template_name}，加载 ${inspection.items.length} 个检验项目`
+          );
         }
       }
 
@@ -923,9 +943,9 @@ class QualityInspection {
               item.method || item.inspection_method || null,
               itemType,
               isCritical,
-              item.dimension_value === '' ? null : item.dimension_value ?? null,
-              item.tolerance_upper === '' ? null : item.tolerance_upper ?? null,
-              item.tolerance_lower === '' ? null : item.tolerance_lower ?? null,
+              item.dimension_value === '' ? null : (item.dimension_value ?? null),
+              item.tolerance_upper === '' ? null : (item.tolerance_upper ?? null),
+              item.tolerance_lower === '' ? null : (item.tolerance_lower ?? null),
               itemResult,
               actualValue,
               remark,
@@ -935,11 +955,18 @@ class QualityInspection {
 
           // 同时写入动态测量子表 (quality_inspection_measurements)
           const insertedItemId = itemResultDb.insertId;
-          const measurements = Array.isArray(item.measurements) ? item.measurements.slice(0, 6) : [];
+          const measurements = Array.isArray(item.measurements)
+            ? item.measurements.slice(0, 6)
+            : [];
           // 优先使用 measurements 数组，其次回退到 measure_1~6
           if (measurements.length > 0) {
             for (const m of measurements) {
-              if (m?.measured_value === null || m?.measured_value === undefined || m?.measured_value === '') continue;
+              if (
+                m?.measured_value === null ||
+                m?.measured_value === undefined ||
+                m?.measured_value === ''
+              )
+                continue;
               await connection.query(
                 `INSERT INTO quality_inspection_measurements (item_id, sample_no, measured_value, measured_by)
                  VALUES (?, ?, ?, ?)`,
@@ -1028,7 +1055,7 @@ class QualityInspection {
         hasActualDate: Boolean(data.actual_date),
       });
 
-      connection = externalConnection || await db.pool.getConnection();
+      connection = externalConnection || (await db.pool.getConnection());
       if (useOwnConnection) {
         await connection.beginTransaction();
       }
@@ -1048,11 +1075,9 @@ class QualityInspection {
 
         // 修复历史记录中 source_type 为空的情况；若 reference_no 对应委外
         // 入库单则立即回写委外来源，否则按采购来源兼容旧数据。
-        inspection.source_type = await resolveInspectionSourceType(
-          connection,
-          inspection,
-          { persist: true }
-        );
+        inspection.source_type = await resolveInspectionSourceType(connection, inspection, {
+          persist: true,
+        });
 
         const effectiveStatus = Object.prototype.hasOwnProperty.call(data, 'status')
           ? data.status
@@ -1137,11 +1162,11 @@ class QualityInspection {
                 item.method || item.inspection_method || null,
                 itemType,
                 isCritical,
-                item.dimension_value === '' ? null : item.dimension_value ?? null,
-                item.tolerance_upper === '' ? null : item.tolerance_upper ?? null,
-                item.tolerance_lower === '' ? null : item.tolerance_lower ?? null,
+                item.dimension_value === '' ? null : (item.dimension_value ?? null),
+                item.tolerance_upper === '' ? null : (item.tolerance_upper ?? null),
+                item.tolerance_lower === '' ? null : (item.tolerance_lower ?? null),
                 item.result || null,
-                item.actual_value === '' ? null : item.actual_value ?? null,
+                item.actual_value === '' ? null : (item.actual_value ?? null),
                 remark,
                 ...fixedMeasurements,
               ]
@@ -1149,10 +1174,17 @@ class QualityInspection {
 
             // 同时写入动态测量子表
             const updatedItemId = updatedItemResult.insertId;
-            const measurements = Array.isArray(item.measurements) ? item.measurements.slice(0, 6) : [];
+            const measurements = Array.isArray(item.measurements)
+              ? item.measurements.slice(0, 6)
+              : [];
             if (measurements.length > 0) {
               for (const m of measurements) {
-                if (m?.measured_value === null || m?.measured_value === undefined || m?.measured_value === '') continue;
+                if (
+                  m?.measured_value === null ||
+                  m?.measured_value === undefined ||
+                  m?.measured_value === ''
+                )
+                  continue;
                 await connection.execute(
                   `INSERT INTO quality_inspection_measurements (item_id, sample_no, measured_value, measured_by)
                    VALUES (?, ?, ?, ?)`,
@@ -1183,10 +1215,7 @@ class QualityInspection {
           const incomingQty = Number(
             data.qualified_quantity ?? inspection.qualified_quantity ?? inspection.quantity ?? 0
           );
-          if (
-            incomingQty > 0 &&
-            ['passed', 'partial', 'completed'].includes(String(data.status))
-          ) {
+          if (incomingQty > 0 && ['passed', 'partial', 'completed'].includes(String(data.status))) {
             const ProductionInboundService = require('../services/business/ProductionInboundService');
             const inboundCreatedBy = firstValidUserId(data.inspector_id, inspection.inspector_id);
             await ProductionInboundService.createDraftFromIncomingInspection(connection, {
@@ -1271,10 +1300,9 @@ class QualityInspection {
                     data.inspector_id,
                     inspection.inspector_id
                   );
-                  const operator =
-                    data.inspector_name || inspection.inspector_name || '系统';
+                  const operator = data.inspector_name || inspection.inspector_name || '系统';
                   if (!inboundCreatedBy) {
-                    throw new Error('终检单缺少检验员用户ID，不能自动创建生产入库单');
+                    throw new Error('终检单缺少检验员用户信息，不能自动创建生产入库单');
                   }
 
                   await ProductionInboundService.createDraftFromFinalInspection(connection, {
@@ -1471,7 +1499,7 @@ class QualityInspection {
           WHERE pp.task_id IN(?)
           ORDER BY pp.sequence
         `,
-          [productionOrders.map(po => po.id)]
+          [productionOrders.map((po) => po.id)]
         );
         const processes = processesResult.rows || [];
 

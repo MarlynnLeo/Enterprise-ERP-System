@@ -392,9 +392,7 @@ class DataScopeService {
 
     const idColumn = options.idColumn || 'id';
     const deletedAtColumn =
-      options.deletedAtColumn === false
-        ? null
-        : options.deletedAtColumn || 'deleted_at';
+      options.deletedAtColumn === false ? null : options.deletedAtColumn || 'deleted_at';
     const extraSoftDelete = options.extraSoftDelete || null;
     const q = (identifier) => `\`${String(identifier).replace(/`/g, '``')}\``;
 
@@ -434,9 +432,7 @@ class DataScopeService {
     ].filter((column, index, list) => column && list.indexOf(column) === index);
     const requireAllLocations = Boolean(options.requireAllLocations);
     const deletedAtColumn =
-      options.deletedAtColumn === false
-        ? null
-        : options.deletedAtColumn || 'deleted_at';
+      options.deletedAtColumn === false ? null : options.deletedAtColumn || 'deleted_at';
     const extraSoftDelete = options.extraSoftDelete || null;
 
     if (Number(scope.type) === DATA_SCOPE.SELF) {

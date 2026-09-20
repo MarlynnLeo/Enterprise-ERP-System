@@ -25,7 +25,9 @@ const SENSITIVE_KEY_PARTS = Object.freeze([
 ]);
 
 function isSensitiveKey(key) {
-  const normalized = String(key || '').replace(/[\s-]/g, '_').toLowerCase();
+  const normalized = String(key || '')
+    .replace(/[\s-]/g, '_')
+    .toLowerCase();
   return SENSITIVE_KEY_PARTS.some((part) => normalized.includes(part));
 }
 

@@ -59,7 +59,10 @@ class BankAccountModel {
    */
   static async getBankAccountById(id) {
     try {
-      const [accounts] = await db.pool.execute('SELECT id, account_number, account_name, bank_name, branch_name, currency_code, current_balance, opening_balance, account_type, is_active, contact_person, contact_phone, notes, created_at, updated_at, created_by, updated_by, last_transaction_date FROM bank_accounts WHERE id = ?', [id]);
+      const [accounts] = await db.pool.execute(
+        'SELECT id, account_number, account_name, bank_name, branch_name, currency_code, current_balance, opening_balance, account_type, is_active, contact_person, contact_phone, notes, created_at, updated_at, created_by, updated_by, last_transaction_date FROM bank_accounts WHERE id = ?',
+        [id]
+      );
       return accounts.length > 0 ? accounts[0] : null;
     } catch (error) {
       logger.error('获取银行账户失败:', error);
@@ -145,7 +148,6 @@ class BankAccountModel {
     }
   }
 
-
   /**
    * 更新银行账户
    */
@@ -224,12 +226,11 @@ class BankAccountModel {
 
     try {
       // 先检查账户是否存在
-      const [accounts] = await conn.execute(
-        'SELECT id FROM bank_accounts WHERE id = ?',
-        [accountId]
-      );
+      const [accounts] = await conn.execute('SELECT id FROM bank_accounts WHERE id = ?', [
+        accountId,
+      ]);
       if (accounts.length === 0) {
-        throw new Error(`银行账户ID ${accountId} 不存在`);
+        throw new Error('银行账户不存在或已停用');
       }
 
       const balanceChange = parseFloat(amount);

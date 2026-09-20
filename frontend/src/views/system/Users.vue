@@ -248,6 +248,7 @@ import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { Plus, Check, Close, Edit, Key, Unlock } from '@element-plus/icons-vue';
 import { systemApi } from '@/api';
 import { getUserStatusText, getUserStatusColor } from '@/constants/systemConstants';
+import { getApiErrorMessage } from '@/utils/errorHandler'
 // 权限计算属性
 
 
@@ -419,16 +420,9 @@ const loadDepartmentOptions = async () => {
     }));
 
     } catch (error) {
-    console.error('加载部门列表失败:', error);
-    departmentOptions.value = []; // 确保出错时也是空数组
-    if (error.response) {
-      console.error('服务器响应:', error.response.data);
-      ElMessage.error(`加载部门列表失败: ${error.response.status} - ${error.response.data?.message || error.message}`);
-    } else if (error.request) {
-      ElMessage.error('服务器无响应，请检查网络连接');
-    } else {
-      ElMessage.error('加载部门列表失败: ' + error.message);
-    }
+      console.error('加载部门列表失败:', error);
+      departmentOptions.value = []; // 确保出错时也是空数组
+      ElMessage.error(`加载部门列表失败: ${getApiErrorMessage(error, '请稍后重试')}`);
   }
 };
 
@@ -463,14 +457,7 @@ const loadRoleOptions = async () => {
   } catch (error) {
     console.error('加载角色列表失败:', error);
     roleOptions.value = []; // 确保出错时也是空数组
-    if (error.response) {
-      console.error('服务器响应:', error.response.data);
-      ElMessage.error(`加载角色列表失败: ${error.response.status} - ${error.response.data?.message || error.message}`);
-    } else if (error.request) {
-      ElMessage.error('服务器无响应，请检查网络连接');
-    } else {
-      ElMessage.error('加载角色列表失败: ' + error.message);
-    }
+    ElMessage.error(`加载角色列表失败: ${getApiErrorMessage(error, '请稍后重试')}`);
   }
 };
 
@@ -542,12 +529,7 @@ const loadUserDataForDialog = async (row, displayTitle) => {
     dialogVisible.value = true;
   } catch (error) {
     console.error('获取用户详情失败:', error);
-    if (error.response) {
-      console.error('服务器响应:', error.response.data);
-      ElMessage.error(`获取用户详情失败: ${error.response.status} - ${error.response.data?.message || error.message}`);
-    } else {
-      ElMessage.error('获取用户详情失败: ' + (error.message || '未知错误'));
-    }
+    ElMessage.error(`获取用户详情失败: ${getApiErrorMessage(error, '请稍后重试')}`);
   }
 };
 
@@ -576,10 +558,7 @@ const handleToggleStatus = (row) => {
       console.error(`${statusText}失败:`, error)
 
       // 提取后端返回的错误信息
-      const errorMsg = error.response?.data?.error ||
-                       error.response?.data?.message ||
-                       error.message ||
-                       `${statusText}失败`
+      const errorMsg = getApiErrorMessage(error, `${statusText}失败`)
 
       ElMessage.error(errorMsg)
     }
@@ -608,10 +587,7 @@ const handleResetPassword = (row) => {
       console.error('密码重置失败:', error)
 
       // 提取后端返回的错误信息
-      const errorMsg = error.response?.data?.error ||
-                       error.response?.data?.message ||
-                       error.message ||
-                       '密码重置失败'
+      const errorMsg = getApiErrorMessage(error, '密码重置失败')
 
       ElMessage.error(errorMsg)
     }
@@ -638,7 +614,7 @@ const handleUnlockLogin = (row) => {
     } catch (error) {
       console.error('解除登录限制失败:', error)
       ElMessage.error(
-        error.response?.data?.message || error.message || '解除登录限制失败'
+        getApiErrorMessage(error, '解除登录限制失败')
       )
     }
   }).catch(() => {})
@@ -707,10 +683,7 @@ const saveUser = async () => {
     console.error('保存用户失败:', error)
 
     // 提取后端返回的错误信息
-    const errorMsg = error.response?.data?.error ||
-                     error.response?.data?.message ||
-                     error.message ||
-                     '保存用户失败'
+    const errorMsg = getApiErrorMessage(error, '保存用户失败')
 
     // 如果是重复提交错误（409状态码），显示警告
     if (error.response?.status === 409) {

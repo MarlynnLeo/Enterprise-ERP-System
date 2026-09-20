@@ -103,7 +103,7 @@ router.get('/health', authenticateToken, requirePermission('system:monitor'), (r
     res.status(500).json({
       status: 'unhealthy',
       timestamp: new Date().toISOString(),
-      error: error.message,
+      error: '健康检查失败，请稍后重试',
     });
   }
 });

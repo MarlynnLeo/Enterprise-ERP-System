@@ -9,11 +9,14 @@ const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
 const { mapKeysToSnake } = require('../../utils/fieldMap');
 
-
 module.exports = {
   async getList(req, res) {
-    try { ResponseHandler.success(res, await ContractService.getList(req.query, req)); }
-    catch (e) { logger.error('获取合同列表失败:', e); ResponseHandler.error(res, e.message, e.code || 'SERVER_ERROR', e.statusCode || 500, e); }
+    try {
+      ResponseHandler.success(res, await ContractService.getList(req.query, req));
+    } catch (e) {
+      logger.error('获取合同列表失败:', e);
+      ResponseHandler.error(res, e.message, e.code || 'SERVER_ERROR', e.statusCode || 500, e);
+    }
   },
 
   async getById(req, res) {
@@ -26,7 +29,10 @@ module.exports = {
         userPermissions: req.userPermissions,
       });
       ResponseHandler.success(res, data);
-    } catch (e) { logger.error('获取合同详情失败:', e); ResponseHandler.error(res, e.message, e.code || 'SERVER_ERROR', e.statusCode || 500, e); }
+    } catch (e) {
+      logger.error('获取合同详情失败:', e);
+      ResponseHandler.error(res, e.message, e.code || 'SERVER_ERROR', e.statusCode || 500, e);
+    }
   },
 
   async create(req, res) {
@@ -34,21 +40,30 @@ module.exports = {
       const userId = req.user?.userId || req.user?.id;
       const data = await ContractService.create(mapKeysToSnake(req.body || {}), userId, req);
       ResponseHandler.success(res, data, '创建成功', 201);
-    } catch (e) { logger.error('创建合同失败:', e); ResponseHandler.error(res, e.message, e.code || 'SERVER_ERROR', e.statusCode || 500, e); }
+    } catch (e) {
+      logger.error('创建合同失败:', e);
+      ResponseHandler.error(res, e.message, e.code || 'SERVER_ERROR', e.statusCode || 500, e);
+    }
   },
 
   async update(req, res) {
     try {
       const data = await ContractService.update(req.params.id, mapKeysToSnake(req.body || {}), req);
       ResponseHandler.success(res, data, '更新成功');
-    } catch (e) { logger.error('更新合同失败:', e); ResponseHandler.error(res, e.message, e.code || 'SERVER_ERROR', e.statusCode || 500, e); }
+    } catch (e) {
+      logger.error('更新合同失败:', e);
+      ResponseHandler.error(res, e.message, e.code || 'SERVER_ERROR', e.statusCode || 500, e);
+    }
   },
 
   async delete(req, res) {
     try {
       await ContractService.delete(req.params.id, req);
       ResponseHandler.success(res, null, '删除成功');
-    } catch (e) { logger.error('删除合同失败:', e); ResponseHandler.error(res, e.message, e.code || 'SERVER_ERROR', e.statusCode || 500, e); }
+    } catch (e) {
+      logger.error('删除合同失败:', e);
+      ResponseHandler.error(res, e.message, e.code || 'SERVER_ERROR', e.statusCode || 500, e);
+    }
   },
 
   async updateStatus(req, res) {
@@ -56,14 +71,24 @@ module.exports = {
       const userId = req.user?.userId || req.user?.id;
       const data = await ContractService.updateStatus(req.params.id, req.body.status, userId, req);
       ResponseHandler.success(res, data, '状态已更新');
-    } catch (e) { logger.error('更新合同状态失败:', e); ResponseHandler.error(res, e.message, e.code || 'SERVER_ERROR', e.statusCode || 500, e); }
+    } catch (e) {
+      logger.error('更新合同状态失败:', e);
+      ResponseHandler.error(res, e.message, e.code || 'SERVER_ERROR', e.statusCode || 500, e);
+    }
   },
 
   async addExecution(req, res) {
     try {
-      const data = await ContractService.addExecution(req.params.id, mapKeysToSnake(req.body || {}), req);
+      const data = await ContractService.addExecution(
+        req.params.id,
+        mapKeysToSnake(req.body || {}),
+        req
+      );
       ResponseHandler.success(res, data, '执行记录已添加');
-    } catch (e) { logger.error('添加执行记录失败:', e); ResponseHandler.error(res, e.message, e.code || 'SERVER_ERROR', e.statusCode || 500, e); }
+    } catch (e) {
+      logger.error('添加执行记录失败:', e);
+      ResponseHandler.error(res, e.message, e.code || 'SERVER_ERROR', e.statusCode || 500, e);
+    }
   },
 
   async getExpiring(req, res) {
@@ -71,6 +96,9 @@ module.exports = {
       const days = req.query.days || 30;
       const data = await ContractService.getExpiring(days, req);
       ResponseHandler.success(res, data);
-    } catch (e) { logger.error('获取到期合同失败:', e); ResponseHandler.error(res, e.message, e.code || 'SERVER_ERROR', e.statusCode || 500, e); }
+    } catch (e) {
+      logger.error('获取到期合同失败:', e);
+      ResponseHandler.error(res, e.message, e.code || 'SERVER_ERROR', e.statusCode || 500, e);
+    }
   },
 };

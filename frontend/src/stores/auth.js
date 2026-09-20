@@ -99,6 +99,12 @@ export const useAuthStore = defineStore('auth', () => {
   const permissionsLoading = ref(false) // 权限是否正在加载
   // 本会话是否已向后端校验过 Cookie（冷启动防伪登录）
   const sessionProbed = ref(false)
+  let authGeneration = 0
+  let profileGeneration = 0
+  let permissionsGeneration = 0
+  let _userProfilePromise = null
+  let _lastProfileFetchTime = 0
+  let _permissionsPromise = null
 
   // O(1) 权限查询：页面上 v-permission / 路由守卫会高频调用，不能每次线性扫大数组
   let permissionSet = new Set(permissions.value)
@@ -150,6 +156,12 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const clearClientSession = () => {
+    authGeneration++
+    profileGeneration++
+    permissionsGeneration++
+    _userProfilePromise = null
+    _permissionsPromise = null
+    _lastProfileFetchTime = 0
     token.value = ''
     user.value = null
     permissions.value = []
@@ -167,18 +179,19 @@ export const useAuthStore = defineStore('auth', () => {
 
   // 登录
   const login = async (credentials) => {
+    // Invalidate pending work before switching the cookie session.
+    clearClientSession()
+    const generation = authGeneration
     try {
-      // 切换账号前清除旧主体，避免旧用户状态继续驱动权限判断。
-      clearClientSession()
-
       const response = await userApi.login(credentials)
+      if (generation !== authGeneration) throw new Error('登录状态已变更，请重新登录')
       resetCsrfToken()
 
       // 拦截器已解包，response.data 就是 { user }
       const data = response.data
 
       // 保存用户信息
-      user.value = normalizeUserData(data.user)
+      user.value = normalizeUserData(data?.user)
       if (!user.value) {
         throw new Error('登录响应缺少用户信息')
       }
@@ -196,27 +209,30 @@ export const useAuthStore = defineStore('auth', () => {
         }
       }
 
+      if (generation !== authGeneration) throw new Error('登录状态已变更，请重新登录')
       return true
     } catch (error) {
+      if (generation === authGeneration) clearClientSession()
       throw error
     }
   }
 
   // 登出
   const logout = async () => {
+    clearClientSession()
     try {
       await userApi.logout()
     } catch (error) {
       console.error('登出请求失败:', error)
-    } finally {
-      clearClientSession()
     }
   }
 
   // 更新用户信息
   const updateUser = async (userData) => {
+    const generation = authGeneration
     try {
       const response = await userApi.updateProfile(userData)
+      if (generation !== authGeneration) return false
       // 拦截器已解包，response.data 就是用户信息
       user.value = normalizeUserData(response.data)
       tokenManager.setUser(user.value)
@@ -239,9 +255,6 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // 获取用户信息（同时作为 Cookie 会话探测，并发请求共享同一 Promise）
-  let _userProfilePromise = null
-  let _lastProfileFetchTime = 0
-
   const fetchUserProfile = async (includePermissions = false, force = false, skipAuthRedirect = false) => {
     const now = Date.now()
     if (!force && user.value && sessionProbed.value && (now - _lastProfileFetchTime < 10000)) {
@@ -252,12 +265,19 @@ export const useAuthStore = defineStore('auth', () => {
     }
 
     if (_userProfilePromise && !force) {
-      return _userProfilePromise
+      const loaded = await _userProfilePromise
+      if (loaded && includePermissions) await fetchUserPermissions()
+      return loaded
     }
 
-    _userProfilePromise = (async () => {
+    const generation = authGeneration
+    const requestId = ++profileGeneration
+    const isCurrent = () => generation === authGeneration && requestId === profileGeneration
+    const pending = (async () => {
       try {
         const response = await userApi.getProfileFast({ skipAuthRedirect })
+        if (!isCurrent()) return false
+        if (!response.data?.id) throw new Error('用户资料数据格式不正确')
         user.value = normalizeUserData(response.data)
         tokenManager.setUser(user.value)
         if (user.value?.id) {
@@ -270,26 +290,28 @@ export const useAuthStore = defineStore('auth', () => {
           await fetchUserPermissions()
         }
 
-        return true
+        return isCurrent()
       } catch (error) {
+        if (!isCurrent()) return false
         clearClientSession()
         throw error
       } finally {
-        _userProfilePromise = null
+        if (isCurrent()) _userProfilePromise = null
       }
     })()
-
-    return _userProfilePromise
+    _userProfilePromise = pending
+    return pending
   }
 
   // 获取用户权限（Promise 缓存，避免轮询）
-  let _permissionsPromise = null
   const fetchUserPermissions = async (force = false) => {
     // 所有用户都从后端获取权限列表,由后端决定是否给予管理员权限
+    if (!isAuthenticated.value) return false
 
     // 如果强制刷新，重置加载状态和缓存的 Promise
     if (force) {
       permissionsLoaded.value = false
+      permissionsGeneration++
       _permissionsPromise = null
     }
 
@@ -302,33 +324,32 @@ export const useAuthStore = defineStore('auth', () => {
       return _permissionsPromise
     }
 
-    _permissionsPromise = _doFetchPermissions()
+    _permissionsPromise = _doFetchPermissions(authGeneration, ++permissionsGeneration)
     return _permissionsPromise
   }
 
   // 实际执行权限加载的内部函数
-  const _doFetchPermissions = async () => {
+  const _doFetchPermissions = async (generation, requestId) => {
+    const isCurrent = () => generation === authGeneration && requestId === permissionsGeneration
     try {
       permissionsLoading.value = true
 
       const response = await userApi.getPermissions()
+      if (!isCurrent()) return false
       const data = response.data
 
-      // 处理不同的权限数据格式
-      if (Array.isArray(data)) {
-        permissions.value = data
-      } else if (data && data.permissions && Array.isArray(data.permissions)) {
-        permissions.value = data.permissions
-      } else {
-        console.error('获取到的权限数据格式不正确:', data)
+      const permissionList = Array.isArray(data) ? data : data?.permissions
+      if (!Array.isArray(permissionList) || permissionList.some(permission => typeof permission !== 'string')) {
         throw new Error('权限数据格式不正确')
       }
+      permissions.value = permissionList
 
       rebuildPermissionIndex(permissions.value)
       permissionManager.setUserPermissions(permissions.value)
       permissionsLoaded.value = true
       return true
     } catch (error) {
+      if (!isCurrent()) return false
       console.error('获取用户权限失败:', error)
 
       permissions.value = []
@@ -338,8 +359,10 @@ export const useAuthStore = defineStore('auth', () => {
 
       throw error
     } finally {
-      permissionsLoading.value = false
-      _permissionsPromise = null
+      if (isCurrent()) {
+        permissionsLoading.value = false
+        _permissionsPromise = null
+      }
     }
   }
 
@@ -365,6 +388,10 @@ export const useAuthStore = defineStore('auth', () => {
     if (!permission) {
       return true
     }
+    if (Array.isArray(permission)) {
+      return permission.some(item => hasPermission(item))
+    }
+    if (typeof permission !== 'string') return false
 
     if (permissionSet.has('*') || permissionSet.has(permission)) {
       return true
@@ -386,6 +413,10 @@ export const useAuthStore = defineStore('auth', () => {
     if (!permission) {
       return false
     }
+    if (Array.isArray(permission)) {
+      return permission.some(item => hasChildPermission(item))
+    }
+    if (typeof permission !== 'string') return false
 
     if (permissionSet.has('*') || permissionSet.has(`${permission}:*`)) {
       return true

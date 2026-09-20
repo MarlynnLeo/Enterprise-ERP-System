@@ -32,16 +32,26 @@ class AnomalyReportService {
     let where = 'WHERE ar.deleted_at IS NULL';
     const values = [];
 
-    if (status) { where += ' AND ar.status = ?'; values.push(status); }
-    if (category) { where += ' AND ar.category = ?'; values.push(category); }
-    if (severity) { where += ' AND ar.severity = ?'; values.push(severity); }
+    if (status) {
+      where += ' AND ar.status = ?';
+      values.push(status);
+    }
+    if (category) {
+      where += ' AND ar.category = ?';
+      values.push(category);
+    }
+    if (severity) {
+      where += ' AND ar.severity = ?';
+      values.push(severity);
+    }
     if (keyword) {
       where += ' AND (ar.title LIKE ? OR ar.code LIKE ?)';
       values.push(`%${keyword}%`, `%${keyword}%`);
     }
 
     const [[{ total }]] = await pool.query(
-      `SELECT COUNT(*) as total FROM anomaly_reports ar ${where}`, values
+      `SELECT COUNT(*) as total FROM anomaly_reports ar ${where}`,
+      values
     );
 
     const [list] = await pool.query(
@@ -87,9 +97,17 @@ class AnomalyReportService {
     const [result] = await pool.query(
       `INSERT INTO anomaly_reports (code, task_id, category, severity, title, description, location, images, reported_by)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [code, data.task_id || null, data.category, data.severity || 'medium',
-       data.title, data.description, data.location || null,
-       data.images ? JSON.stringify(data.images) : null, userId]
+      [
+        code,
+        data.task_id || null,
+        data.category,
+        data.severity || 'medium',
+        data.title,
+        data.description,
+        data.location || null,
+        data.images ? JSON.stringify(data.images) : null,
+        userId,
+      ]
     );
 
     // 发送事件通知
@@ -148,9 +166,7 @@ class AnomalyReportService {
 
   /** 软删除 */
   static async delete(id) {
-    await pool.query(
-      'UPDATE anomaly_reports SET deleted_at = NOW() WHERE id = ?', [id]
-    );
+    await pool.query('UPDATE anomaly_reports SET deleted_at = NOW() WHERE id = ?', [id]);
   }
 
   /** 统计仪表板 */
@@ -159,7 +175,9 @@ class AnomalyReportService {
       `SELECT status, COUNT(*) AS count FROM anomaly_reports WHERE deleted_at IS NULL GROUP BY status`
     );
     const stats = { open: 0, processing: 0, resolved: 0, closed: 0 };
-    rows.forEach(r => { stats[r.status] = r.count; });
+    rows.forEach((r) => {
+      stats[r.status] = r.count;
+    });
     return stats;
   }
 }

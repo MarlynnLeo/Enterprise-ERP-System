@@ -34,9 +34,7 @@ const {
   batchOutbound,
 } = require('./outbound/outboundBomController');
 
-const {
-  getTaskMaterialIssueRecords,
-} = require('./outbound/outboundHelpers');
+const { getTaskMaterialIssueRecords } = require('./outbound/outboundHelpers');
 
 module.exports = {
   getOutboundList,

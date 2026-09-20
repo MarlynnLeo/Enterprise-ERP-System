@@ -330,6 +330,7 @@
   } from 'vant'
   import { purchaseApi, baseDataApi } from '@/api'
   import { extractApiData, extractApiList } from '@/utils/apiHelper'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const router = useRouter()
   const route = useRoute()
@@ -653,7 +654,7 @@
         : []
     } catch (error) {
       console.error('加载采购订单失败:', error)
-      showToast(error.response?.data?.message || '加载采购订单失败')
+      showToast(getApiErrorMessage(error, '加载采购订单失败'))
     }
   }
 
@@ -715,7 +716,7 @@
     } catch (error) {
       closeToast()
       console.error(isEdit.value ? '更新采购订单失败:' : '创建采购订单失败:', error)
-      showToast(error.response?.data?.message || (isEdit.value ? '更新采购订单失败' : '创建采购订单失败'))
+      showToast(getApiErrorMessage(error, isEdit.value ? '更新采购订单失败' : '创建采购订单失败'))
     } finally {
       submitting.value = false
     }

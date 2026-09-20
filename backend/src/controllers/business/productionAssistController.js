@@ -12,7 +12,7 @@ const BusinessError = require('../../utils/BusinessError');
 async function assertTaskWriteAccess(req, taskId) {
   const normalized = Number(taskId);
   if (!Number.isInteger(normalized) || normalized <= 0) {
-    const error = new Error('生产任务 ID 无效');
+    const error = new Error('生产任务参数无效');
     error.statusCode = 400;
     throw error;
   }
@@ -38,7 +38,8 @@ module.exports = {
   async checkReadinessBatch(req, res) {
     try {
       const { taskIds } = req.body;
-      if (!Array.isArray(taskIds)) return ResponseHandler.error(res, 'taskIds 必须为数组', 'VALIDATION_ERROR', 400);
+      if (!Array.isArray(taskIds))
+        return ResponseHandler.error(res, 'taskIds 必须为数组', 'VALIDATION_ERROR', 400);
       const results = await MaterialReadinessService.checkBatch(taskIds);
       ResponseHandler.success(res, results);
     } catch (error) {

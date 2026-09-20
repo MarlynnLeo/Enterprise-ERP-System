@@ -2,7 +2,7 @@ import { baseDataApi } from './baseData';
 
 const ensureSupplierId = (id) => {
     if (!id) {
-        throw new Error('Missing supplier id');
+        throw new Error('请选择供应商');
     }
     return id;
 };

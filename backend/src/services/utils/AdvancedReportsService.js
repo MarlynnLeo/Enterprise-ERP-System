@@ -167,7 +167,8 @@ class AdvancedReportsService {
         accountsReceivable,
         inventory,
         currentAssets,
-        fixedAssets: fixedAssetsGross - Math.abs(accumulatedDepreciation) - Math.abs(fixedAssetImpairment),
+        fixedAssets:
+          fixedAssetsGross - Math.abs(accumulatedDepreciation) - Math.abs(fixedAssetImpairment),
         totalAssets: assets.totalBalance || 0,
       },
       liabilities: {
@@ -195,9 +196,7 @@ class AdvancedReportsService {
     if (prefixes.length === 0) return 0;
 
     return accounts
-      .filter((account) =>
-        prefixes.some((prefix) => String(account.code || '').startsWith(prefix))
-      )
+      .filter((account) => prefixes.some((prefix) => String(account.code || '').startsWith(prefix)))
       .reduce((sum, account) => sum + parseFloat(account.currentBalance || 0), 0);
   }
 

@@ -10,7 +10,9 @@ const TAG_LENGTH = 16;
 const HEADER_LENGTH = MAGIC.length + IV_LENGTH;
 
 function getEncryptionMode() {
-  const configured = String(process.env.BACKUP_ENCRYPTION_MODE || '').trim().toLowerCase();
+  const configured = String(process.env.BACKUP_ENCRYPTION_MODE || '')
+    .trim()
+    .toLowerCase();
   if (configured === 'required' || configured === 'optional' || configured === 'disabled') {
     return configured;
   }

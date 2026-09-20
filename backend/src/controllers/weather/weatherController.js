@@ -97,10 +97,11 @@ const formatWindDirection = (degrees) => {
   return directions[index];
 };
 
-const mapWeatherCode = (weatherCode) => WMO_WEATHER_MAP[Number(weatherCode)] || {
-  description: '未知',
-  weatherCode: 'cloudy',
-};
+const mapWeatherCode = (weatherCode) =>
+  WMO_WEATHER_MAP[Number(weatherCode)] || {
+    description: '未知',
+    weatherCode: 'cloudy',
+  };
 
 const getCachedWeather = (cacheKey) => {
   const cached = weatherCache.get(cacheKey);

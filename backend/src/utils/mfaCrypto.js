@@ -39,7 +39,12 @@ function encryptSecret(value) {
   const cipher = crypto.createCipheriv('aes-256-gcm', getMfaEncryptionKey(), iv);
   const ciphertext = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
   const tag = cipher.getAuthTag();
-  return [VERSION, iv.toString('base64url'), tag.toString('base64url'), ciphertext.toString('base64url')].join('.');
+  return [
+    VERSION,
+    iv.toString('base64url'),
+    tag.toString('base64url'),
+    ciphertext.toString('base64url'),
+  ].join('.');
 }
 
 function decryptSecret(serialized) {

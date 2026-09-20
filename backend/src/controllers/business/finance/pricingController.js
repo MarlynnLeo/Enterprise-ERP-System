@@ -21,7 +21,10 @@ exports.getPricingList = async (req, res) => {
   let connection;
   try {
     const { search, filterType } = req.query;
-    const pagination = parsePagination(req.query.page, req.query.pageSize, { defaultPageSize: 20, maxPageSize: 100 });
+    const pagination = parsePagination(req.query.page, req.query.pageSize, {
+      defaultPageSize: 20,
+      maxPageSize: 100,
+    });
 
     connection = await getConnection();
 
@@ -42,7 +45,8 @@ exports.getPricingList = async (req, res) => {
       applyFilterLater = true; // 成本变动需要计算后筛选
     } else if (filterType === 'low_margin') {
       const threshold = Number.isFinite(lowMarginThreshold) ? lowMarginThreshold : 10;
-      whereClause += ' AND pp.id IS NOT NULL AND pp.profit_margin IS NOT NULL AND pp.profit_margin < ?';
+      whereClause +=
+        ' AND pp.id IS NOT NULL AND pp.profit_margin IS NOT NULL AND pp.profit_margin < ?';
       params.push(threshold);
     }
 
@@ -193,7 +197,10 @@ exports.getPricingDetail = async (req, res) => {
     connection = await getConnection();
 
     // 1. 获取产品基本信息
-    const [products] = await connection.query('SELECT id, product_category_id, code, name, category_id, material_source_id, inspection_method_id, supplier_id, production_group_id, manager_id, location_detail, safety_stock, unit_id, location_id, specs, drawing_no, color_code, material_type, price, cost_price, min_stock, max_stock, status, remark, created_at, updated_at, location_name, tax_rate, deleted_at FROM materials WHERE id = ? AND deleted_at IS NULL', [productId]);
+    const [products] = await connection.query(
+      'SELECT id, product_category_id, code, name, category_id, material_source_id, inspection_method_id, supplier_id, production_group_id, manager_id, location_detail, safety_stock, unit_id, location_id, specs, drawing_no, color_code, material_type, price, cost_price, min_stock, max_stock, status, remark, created_at, updated_at, location_name, tax_rate, deleted_at FROM materials WHERE id = ? AND deleted_at IS NULL',
+      [productId]
+    );
     if (products.length === 0) {
       return ResponseHandler.error(res, '产品不存在', 'NOT_FOUND', 404);
     }
@@ -571,16 +578,8 @@ exports.createPricing = async (req, res) => {
 
     // 价格验证（读取用户定价策略设置）
     try {
-      const userSettings = await loadUserPricingSettings(
-        connection,
-        getAuthenticatedUserId(req)
-      );
-      const validation = validatePricing(
-        costPrice,
-        suggestedPrice,
-        profitMargin,
-        userSettings
-      );
+      const userSettings = await loadUserPricingSettings(connection, getAuthenticatedUserId(req));
+      const validation = validatePricing(costPrice, suggestedPrice, profitMargin, userSettings);
       if (validation.warning) {
         logger.warn(validation.warning);
       }
@@ -590,7 +589,10 @@ exports.createPricing = async (req, res) => {
 
     await connection.beginTransaction();
 
-    const [products] = await connection.query('SELECT id FROM materials WHERE id = ? AND deleted_at IS NULL', [product_id]);
+    const [products] = await connection.query(
+      'SELECT id FROM materials WHERE id = ? AND deleted_at IS NULL',
+      [product_id]
+    );
     if (products.length === 0) {
       await connection.rollback();
       return ResponseHandler.error(res, '产品不存在', 'NOT_FOUND', 404);
@@ -694,7 +696,7 @@ exports.getPricingHistory = async (req, res) => {
     );
 
     // 批量获取所有历史记录的策略字段（消除 N+1）
-    const pricingIds = history.filter(r => r.id).map(r => r.id);
+    const pricingIds = history.filter((r) => r.id).map((r) => r.id);
     const strategiesMap = new Map();
     if (pricingIds.length > 0) {
       const placeholders = pricingIds.map(() => '?').join(',');
@@ -715,8 +717,11 @@ exports.getPricingHistory = async (req, res) => {
       for (const s of allStrategies) {
         if (!strategiesMap.has(s.pricing_id)) strategiesMap.set(s.pricing_id, []);
         strategiesMap.get(s.pricing_id).push({
-          field_name: s.field_name, field_label: s.field_label,
-          field_type: s.field_type, field_value: s.field_value, unit: s.unit
+          field_name: s.field_name,
+          field_label: s.field_label,
+          field_type: s.field_type,
+          field_value: s.field_value,
+          unit: s.unit,
         });
       }
     }

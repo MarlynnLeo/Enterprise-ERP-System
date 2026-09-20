@@ -14,17 +14,53 @@ router.get(
   equipmentMonitoringController.getEquipmentList
 );
 
-router.get('/equipment/:id', requirePermission('production:equipment:view'), equipmentMonitoringController.getEquipmentDetail);
-router.get('/equipment/:id/realtime-data', requirePermission('production:equipment:view'), equipmentMonitoringController.getEquipmentRealTimeData);
-router.get('/equipment/:id/health', requirePermission('production:equipment:view'), equipmentMonitoringController.getEquipmentHealth);
-router.put('/equipment/:id/status', requirePermission('production:equipment:update'), equipmentMonitoringController.updateEquipmentStatus);
+router.get(
+  '/equipment/:id',
+  requirePermission('production:equipment:view'),
+  equipmentMonitoringController.getEquipmentDetail
+);
+router.get(
+  '/equipment/:id/realtime-data',
+  requirePermission('production:equipment:view'),
+  equipmentMonitoringController.getEquipmentRealTimeData
+);
+router.get(
+  '/equipment/:id/health',
+  requirePermission('production:equipment:view'),
+  equipmentMonitoringController.getEquipmentHealth
+);
+router.put(
+  '/equipment/:id/status',
+  requirePermission('production:equipment:update'),
+  equipmentMonitoringController.updateEquipmentStatus
+);
 
-router.post('/equipment/:id/data', requirePermission('production:equipment:update'), equipmentMonitoringController.recordEquipmentData);
-router.post('/equipment/:id/data/batch', requirePermission('production:equipment:update'), equipmentMonitoringController.batchRecordEquipmentData);
+router.post(
+  '/equipment/:id/data',
+  requirePermission('production:equipment:update'),
+  equipmentMonitoringController.recordEquipmentData
+);
+router.post(
+  '/equipment/:id/data/batch',
+  requirePermission('production:equipment:update'),
+  equipmentMonitoringController.batchRecordEquipmentData
+);
 
-router.get('/alarms', requirePermission('production:equipment:view'), equipmentMonitoringController.getEquipmentAlarms);
-router.put('/alarms/:id/acknowledge', requirePermission('production:equipment:update'), equipmentMonitoringController.acknowledgeAlarm);
-router.put('/alarms/:id/resolve', requirePermission('production:equipment:update'), equipmentMonitoringController.resolveAlarm);
+router.get(
+  '/alarms',
+  requirePermission('production:equipment:view'),
+  equipmentMonitoringController.getEquipmentAlarms
+);
+router.put(
+  '/alarms/:id/acknowledge',
+  requirePermission('production:equipment:update'),
+  equipmentMonitoringController.acknowledgeAlarm
+);
+router.put(
+  '/alarms/:id/resolve',
+  requirePermission('production:equipment:update'),
+  equipmentMonitoringController.resolveAlarm
+);
 
 router.get(
   '/statistics',

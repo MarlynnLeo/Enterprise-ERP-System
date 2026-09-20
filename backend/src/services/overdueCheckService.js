@@ -21,9 +21,9 @@ const { EVENT_TYPES } = require('../events/NotificationEventRegistry');
  * @returns {number} 0=普通, 1=重要, 2=紧急
  */
 function getOverduePriority(overdueDays) {
-  if (overdueDays >= 90) return 2;  // 紧急
-  if (overdueDays >= 30) return 1;  // 重要
-  return 0;                          // 普通
+  if (overdueDays >= 90) return 2; // 紧急
+  if (overdueDays >= 30) return 1; // 重要
+  return 0; // 普通
 }
 
 /**
@@ -63,9 +63,10 @@ async function checkOverdueInvoices({ model, type, label, counterpartyField, cou
       const overdueDays = calculateOverdueDays(invoice.due_date, today);
       const priority = getOverduePriority(overdueDays);
       const counterpartyName = invoice[counterpartyField] || '未知';
-      const eventName = type === 'ar'
-        ? EVENT_TYPES.FINANCE_AR_INVOICE_OVERDUE
-        : EVENT_TYPES.FINANCE_AP_INVOICE_OVERDUE;
+      const eventName =
+        type === 'ar'
+          ? EVENT_TYPES.FINANCE_AR_INVOICE_OVERDUE
+          : EVENT_TYPES.FINANCE_AP_INVOICE_OVERDUE;
       const payload = {
         invoiceId: invoice.id,
         invoiceNumber: invoice.invoice_number,

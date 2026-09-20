@@ -214,6 +214,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { parsePaginatedData } from '@/utils/responseParser';
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
@@ -352,7 +353,7 @@ const fetchData = async () => {
     pagination.total = total;
   } catch (error) {
     console.error('获取库位列表失败:', error);
-    ElMessage.error(`获取库位列表失败: ${error.message}`);
+    ElMessage.error(`获取库位列表失败：${getApiErrorMessage(error, '请稍后重试')}`);
   } finally {
     loading.value = false;
   }
@@ -417,7 +418,7 @@ const handleDelete = async (row) => {
     fetchData();
   } catch (error) {
     console.error('删除库位失败:', error);
-    ElMessage.error(error.response?.data?.message || `删除库位失败: ${error.message}`);
+    ElMessage.error(`删除库位失败：${getApiErrorMessage(error, '请稍后重试')}`);
   }
 };
 
@@ -438,7 +439,7 @@ const handleToggleStatus = (row) => {
       fetchData();
     } catch (error) {
       console.error(`${action}库位失败:`, error);
-      ElMessage.error(error.response?.data?.message || `${action}库位失败`);
+      ElMessage.error(getApiErrorMessage(error, `${action}库位失败`));
     }
   }).catch(() => {});
 };
@@ -496,9 +497,7 @@ const submitForm = async () => {
         await fetchData();
       } catch (error) {
         console.error('保存库位失败:', error);
-        const errorMsg = error.response?.data?.message ||
-                         error.message ||
-                         '操作失败，请重试';
+        const errorMsg = getApiErrorMessage(error, '操作失败，请重试');
         ElMessage.error(`保存库位失败: ${errorMsg}`);
       } finally {
         loading.value = false;

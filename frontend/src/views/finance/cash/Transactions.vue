@@ -540,7 +540,7 @@
                 <div v-if="importResult.data.errors && importResult.data.errors.length > 0">
                   <p class="mt-10 font-weight-700">错误详情:</p>
                   <ul class="error-list">
-                    <li v-for="error in importResult.data.errors" :key="error">{{ error }}</li>
+                    <li v-for="(error, index) in importResult.data.errors" :key="index">{{ getApiErrorMessage(error, '导入失败') }}</li>
                   </ul>
                 </div>
               </div>
@@ -671,6 +671,7 @@ import { useRouter } from 'vue-router';
 import printService from '@/services/printService';
 import { buildApiUrl } from '@/config/app';
 import { loadExcelJS } from '@/utils/lazyVendors';
+import { getApiErrorMessage } from '@/utils/errorHandler';
 // 权限store
 const authStore = useAuthStore();
 const router = useRouter();
@@ -977,7 +978,7 @@ const approveTransferRequest = async (row) => {
     await Promise.all([loadTransferRequests(), loadTransactions()]);
   } catch (error) {
     if (error === 'cancel' || error === 'close') return;
-    ElMessage.error(error.response?.data?.message || error.message || '审核资金调拨失败');
+    ElMessage.error(getApiErrorMessage(error, '审核资金调拨失败'));
   } finally {
     transferActionLoading.value = null;
   }
@@ -1002,7 +1003,7 @@ const rejectTransferRequest = async (row) => {
     await loadTransferRequests();
   } catch (error) {
     if (error === 'cancel' || error === 'close') return;
-    ElMessage.error(error.response?.data?.message || error.message || '驳回资金调拨失败');
+    ElMessage.error(getApiErrorMessage(error, '驳回资金调拨失败'));
   } finally {
     transferActionLoading.value = null;
   }
@@ -1074,7 +1075,7 @@ const handleEdit = async (row) => {
     await nextTick();
     transactionFormRef.value?.clearValidate();
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || error.message || '获取交易详情失败');
+    ElMessage.error(getApiErrorMessage(error, '获取交易详情失败'));
   }
 };
 // 重置交易表单
@@ -1160,7 +1161,7 @@ const saveTransaction = async () => {
     dialogVisible.value = false;
     await Promise.all([loadTransactions(), loadTransferRequests()]);
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || error.message || '保存交易失败');
+    ElMessage.error(getApiErrorMessage(error, '保存交易失败'));
   } finally {
     saveLoading.value = false;
   }
@@ -1264,7 +1265,7 @@ const submitForAudit = async (row) => {
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') {
       console.error('提交审核失败:', error);
-      ElMessage.error(error.response?.data?.message || error.message || '提交审核失败');
+      ElMessage.error(getApiErrorMessage(error, '提交审核失败'));
     }
   }
 };
@@ -1304,7 +1305,7 @@ const handleAudit = (row) => {
         done();
       } catch (error) {
         console.error('审核失败:', error);
-        ElMessage.error(error.response?.data?.message || error.message || '审核操作失败');
+        ElMessage.error(getApiErrorMessage(error, '审核操作失败'));
       } finally {
         instance.confirmButtonLoading = false;
         instance.cancelButtonLoading = false;
@@ -1375,10 +1376,10 @@ const handleImport = async () => {
     console.error('导入失败:', error);
     importResult.value = {
       success: false,
-      message: error.message || '导入失败',
+      message: getApiErrorMessage(error, '导入失败'),
       data: null,
     };
-    ElMessage.error(error.message || '导入失败');
+    ElMessage.error(getApiErrorMessage(error, '导入失败'));
   } finally {
     importLoading.value = false;
   }
@@ -1508,7 +1509,7 @@ const printBankStatement = async () => {
     ElMessage.success(`准备打印 ${printData.length} 条交易记录`);
   } catch (error) {
     console.error('打印失败:', error);
-    ElMessage.error('打印失败: ' + (error.message || '未知错误'));
+    ElMessage.error('打印失败: ' + (getApiErrorMessage(error, '未知错误')));
   }
 };
 // 跳转到关联发票

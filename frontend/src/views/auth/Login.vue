@@ -131,6 +131,7 @@ import { ElMessage } from 'element-plus/es/components/message/index'
 import { useAuthStore } from '../../stores/auth'
 import { useDictionaryStore } from '../../stores/dictionary'
 import { unifiedStorage } from '@/utils/unifiedStorage'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -178,7 +179,7 @@ function saveCredentials() {
 function resolveLoginError(error) {
   if (error.response) {
     const status = error.response.status
-    const message = error.response.data?.message || error.response.data?.error || ''
+    const message = getApiErrorMessage(error, '')
     const statusMessageMap = {
       400: '请求参数错误',
       401: message || '用户名或密码错误',

@@ -162,7 +162,7 @@
               type="primary"
               @click="viewRequisition(scope.row.requisitionId)"
             >
-              {{ scope.row.requisitionNumber || `申请单-${scope.row.requisitionId}` }}
+              {{ scope.row.requisitionNumber || '来源申请单未编号' }}
             </el-link>
             <span v-else>-</span>
           </template>
@@ -916,7 +916,7 @@ async function loadOrders() {
       const formattedOrders = orderItems.map(order => {
         const requisitionId = order.requisitionId
         const requisitionNumber = order.requisitionNumber ||
-          (requisitionId ? `申请单-${requisitionId}` : '')
+          (requisitionId ? '来源申请单未编号' : '')
         return {
           ...order,
           requisitionNumber

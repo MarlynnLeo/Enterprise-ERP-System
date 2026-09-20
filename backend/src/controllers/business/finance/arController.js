@@ -23,6 +23,7 @@ const {
 } = require('../../../constants/financeConstants');
 const ScopeGuard = require('../../../authorization/ScopeGuard');
 const db = require('../../../config/db');
+const { parseSettlementLine } = require('../../../utils/finance/settlementMath');
 const {
   fromInvoiceApi,
   toInvoiceApi,
@@ -494,11 +495,12 @@ const arController = {
         return ResponseHandler.error(res, '缺少收款日期', 'VALIDATION_ERROR', 400);
       }
 
-      // 单独检查金额 - 实收与折扣合计须为正
-      const amount = parseFloat(receiptData.amount);
-      if (isNaN(amount) || amount < 0) {
-        return ResponseHandler.error(res, '收款金额不能为负数', 'VALIDATION_ERROR', 400);
-      }
+      const line = parseSettlementLine({
+        amount: receiptData.amount,
+        discountAmount: receiptData.discountAmount,
+      });
+      const amount = line.cashAmount;
+      const discountAmount = line.discountAmount;
 
       // 获取发票信息（收款前校验发票行级权限）
       if (
@@ -544,16 +546,7 @@ const arController = {
       }
 
       // 检查收款核销金额（实收+折扣）是否超过未收余额 (精度修复: 分/整数比对)
-      const amountCents = Math.round(amount * 100);
-      const discountAmount = parseFloat(receiptData.discountAmount || 0);
-      if (isNaN(discountAmount) || discountAmount < 0) {
-        return ResponseHandler.error(res, '折扣金额不能为负数', 'VALIDATION_ERROR', 400);
-      }
-      const discountCents = Math.round(discountAmount * 100);
-      if (amountCents === 0 && discountCents === 0) {
-        return ResponseHandler.error(res, '收款金额与折扣金额不能同时为0', 'VALIDATION_ERROR', 400);
-      }
-      const settlementCents = amountCents + discountCents;
+      const settlementCents = line.settlementCents;
       const balanceAmountCents = Math.round(balanceAmount * 100);
       if (settlementCents > balanceAmountCents) {
         return ResponseHandler.error(
@@ -613,7 +606,7 @@ const arController = {
         customer_id: invoice.customerId,
         customer_name: invoice.customerName || '未知客户',
         receipt_date: receiptData.receiptDate,
-        total_amount: parseFloat(receiptData.amount),
+        total_amount: amount,
         payment_method: paymentMethod,
         reference_number: receiptData.referenceNumber || null,
         bank_account_id: receiptData.bankAccountId || null,
@@ -625,7 +618,7 @@ const arController = {
       const receiptItems = [
         {
           invoice_id: receiptData.invoiceId,
-          amount: parseFloat(receiptData.amount),
+          amount,
           discount_amount: discountAmount,
         },
       ];

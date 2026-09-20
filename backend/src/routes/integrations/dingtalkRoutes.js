@@ -71,7 +71,7 @@ router.post('/callback', async (req, res) => {
     res.json({ errcode: 0, errmsg: 'success' });
   } catch (error) {
     logger.error('[Dingtalk Callback] 处理回调失败:', error);
-    res.status(500).json({ errcode: 500, errmsg: error.message });
+    res.status(500).json({ errcode: 500, errmsg: '回调处理失败，请稍后重试' });
   }
 });
 
@@ -175,7 +175,7 @@ router.post(
       );
     } catch (error) {
       logger.error('[Dingtalk] 手动同步失败:', error);
-      ResponseHandler.error(res, error.message, 'SERVER_ERROR', 500, error);
+      ResponseHandler.error(res, '同步钉钉审批状态失败，请稍后重试', 'SERVER_ERROR', 500, error);
     }
   }
 );
@@ -210,7 +210,7 @@ router.post(
       );
     } catch (error) {
       logger.error('[Dingtalk] 从钉钉导入失败:', error);
-      ResponseHandler.error(res, error.message, 'SERVER_ERROR', 500, error);
+      ResponseHandler.error(res, '导入钉钉审批失败，请稍后重试', 'SERVER_ERROR', 500, error);
     }
   }
 );

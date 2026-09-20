@@ -21,14 +21,19 @@ const MATERIAL_ALLOCATION_PLAN_STATUSES = Object.freeze([
  * 智能净需求 MRP 推演引擎 (Option 3: 动态库存抵扣式算法)
  * 完全解决父子组件的双重计算问题 (Double Counting)
  */
-async function calculateMaterialRequirementsWithStock(productId, bomId, quantity, planIdToExclude = null) {
+async function calculateMaterialRequirementsWithStock(
+  productId,
+  bomId,
+  quantity,
+  planIdToExclude = null
+) {
   // 1. 利用现有的粗展平获取涉及到的所有可能物料的字典，便于一次性查库存
   const explosionResult = await BomExplosionService.explodeBom(productId, bomId, quantity, false);
   if (!explosionResult || explosionResult.length === 0) {
     return [];
   }
 
-  const allMaterialIds = [...new Set(explosionResult.map(item => item.material_id))];
+  const allMaterialIds = [...new Set(explosionResult.map((item) => item.material_id))];
   const materialInfoMap = new Map();
   const materialTraceMap = new Map();
   for (const item of explosionResult) {
@@ -38,7 +43,7 @@ async function calculateMaterialRequirementsWithStock(productId, bomId, quantity
         name: item.material_name,
         specification: item.material_specs || '',
         specs: item.material_specs || '',
-        unit: item.unit_name || ''
+        unit: item.unit_name || '',
       });
     }
 
@@ -48,7 +53,7 @@ async function calculateMaterialRequirementsWithStock(productId, bomId, quantity
         paths: [],
         parentMaterialIds: new Set(),
         sourceBomIds: new Set(),
-        isLeaf: item.is_leaf !== false
+        isLeaf: item.is_leaf !== false,
       });
     }
     const trace = materialTraceMap.get(item.material_id);
@@ -75,11 +80,11 @@ async function calculateMaterialRequirementsWithStock(productId, bomId, quantity
     ? 'COALESCE(ppm.issue_quantity, ppm.required_quantity, 0)'
     : 'COALESCE(ppm.required_quantity, 0)';
 
-  let allocationExcludeClause = "";
+  let allocationExcludeClause = '';
   const queryParams = [MATERIAL_ALLOCATION_PLAN_STATUSES];
   if (planIdToExclude) {
-     allocationExcludeClause = ` AND pp.id != ? `;
-     queryParams.push(planIdToExclude);
+    allocationExcludeClause = ` AND pp.id != ? `;
+    queryParams.push(planIdToExclude);
   }
   queryParams.push(allMaterialIds);
 
@@ -118,7 +123,7 @@ async function calculateMaterialRequirementsWithStock(productId, bomId, quantity
     dynamicStockMap.set(row.material_id, Number(row.available_quantity) || 0);
     originalStockMap.set(row.material_id, {
       stockQuantity: Number(row.stock_quantity) || 0,
-      availableQuantity: Number(row.available_quantity) || 0
+      availableQuantity: Number(row.available_quantity) || 0,
     });
   }
 
@@ -126,7 +131,7 @@ async function calculateMaterialRequirementsWithStock(productId, bomId, quantity
   const netReqMap = new Map();
   await BomExplosionService.explodeBom(productId, bomId, quantity, false, {
     netStockMap: dynamicStockMap,
-    netReqMap: netReqMap
+    netReqMap: netReqMap,
   });
 
   // 4. 重组干净的完美视图供落盘和展示
@@ -136,11 +141,26 @@ async function calculateMaterialRequirementsWithStock(productId, bomId, quantity
 
     // 兜底查询 (极小概率某级半成品由于引用异常未在预展出现)
     if (!info) {
-      const [matInfo] = await pool.query(`SELECT m.code, m.name, m.specs, u.name as unit_name FROM materials m LEFT JOIN units u ON m.unit_id = u.id WHERE m.id = ?`, [matId]);
+      const [matInfo] = await pool.query(
+        `SELECT m.code, m.name, m.specs, u.name as unit_name FROM materials m LEFT JOIN units u ON m.unit_id = u.id WHERE m.id = ?`,
+        [matId]
+      );
       if (matInfo.length > 0) {
-        info = { code: matInfo[0].code, name: matInfo[0].name, specification: matInfo[0].specs, specs: matInfo[0].specs, unit: matInfo[0].unit_name };
+        info = {
+          code: matInfo[0].code,
+          name: matInfo[0].name,
+          specification: matInfo[0].specs,
+          specs: matInfo[0].specs,
+          unit: matInfo[0].unit_name,
+        };
       } else {
-        info = { code: 'N/A', name: `未知物料ID: ${matId}`, specification: '', specs: '', unit: '' };
+        info = {
+          code: 'N/A',
+          name: '未知物料',
+          specification: '',
+          specs: '',
+          unit: '',
+        };
       }
     }
 
@@ -150,14 +170,16 @@ async function calculateMaterialRequirementsWithStock(productId, bomId, quantity
       paths: [],
       parentMaterialIds: new Set(),
       sourceBomIds: new Set(),
-      isLeaf: true
+      isLeaf: true,
     };
     const bomPaths = trace.paths.length > 0 ? trace.paths : [info.code].filter(Boolean);
 
     const plannedQuantity = roundQuantity(Number(req.requiredQuantity) || 0);
     const issueQuantity = roundQuantity(Number(req.issueQuantity) || 0);
     const shortageQuantity = roundQuantity(Number(req.shortageQuantity) || 0);
-    const grossRequiredQuantity = roundQuantity(Number(req.grossRequiredQuantity) || plannedQuantity);
+    const grossRequiredQuantity = roundQuantity(
+      Number(req.grossRequiredQuantity) || plannedQuantity
+    );
 
     // 只挑选要求数量严格大于零的数据汇入生产清单
     if (plannedQuantity > 0) {
@@ -180,7 +202,7 @@ async function calculateMaterialRequirementsWithStock(productId, bomId, quantity
         sourceBomIds: [...trace.sourceBomIds],
         isLeaf: trace.isLeaf,
         stockQuantity: roundQuantity(stock.stockQuantity),
-        availableQuantity: roundQuantity(stock.availableQuantity)
+        availableQuantity: roundQuantity(stock.availableQuantity),
       });
     }
   }
@@ -203,7 +225,7 @@ async function resolveBomForProduct(productId, providedBomId = null, db = pool) 
       [providedBomId]
     );
     if (bomMasters.length === 0) {
-      throw new Error(`指定的 BOM (ID: ${providedBomId}) 不存在或已删除`);
+      throw new Error('指定的 BOM 不存在或已删除，请重新选择有效 BOM');
     }
     return { bomId: bomMasters[0].id, bomVersion: bomMasters[0].version || '' };
   }
@@ -218,13 +240,24 @@ async function resolveBomForProduct(productId, providedBomId = null, db = pool) 
 /**
  * 计算并插入物料需求 (生产计划控制器调用)
  */
-async function calculateAndInsertMaterials(connection, planId, productId, quantity, providedBomId = null) {
+async function calculateAndInsertMaterials(
+  connection,
+  planId,
+  productId,
+  quantity,
+  providedBomId = null
+) {
   try {
     // 复用统一 BOM 解析 API
     const { bomId, bomVersion } = await resolveBomForProduct(productId, providedBomId, connection);
 
     // 调用最强净需求 MRP 物料推演
-    const materialRequirements = await calculateMaterialRequirementsWithStock(productId, bomId, quantity, planId);
+    const materialRequirements = await calculateMaterialRequirementsWithStock(
+      productId,
+      bomId,
+      quantity,
+      planId
+    );
 
     const [planMaterialColumns] = await connection.query(
       `
@@ -269,7 +302,9 @@ async function calculateAndInsertMaterials(connection, planId, productId, quanti
       }
     }
 
-    logger.info(`净推演算料完毕: planId=${planId}, 生成真实需发料记录 ${materialRequirements.length} 条 (采用bomId=${bomId})`);
+    logger.info(
+      `净推演算料完毕: planId=${planId}, 生成真实需发料记录 ${materialRequirements.length} 条 (采用bomId=${bomId})`
+    );
 
     return { bomId, bomVersion };
   } catch (error) {
@@ -281,5 +316,5 @@ async function calculateAndInsertMaterials(connection, planId, productId, quanti
 module.exports = {
   calculateMaterialRequirementsWithStock,
   calculateAndInsertMaterials,
-  resolveBomForProduct
+  resolveBomForProduct,
 };

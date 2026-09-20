@@ -41,8 +41,7 @@ const INSPECTION_INBOUND_POLICY = Object.freeze({
   [QUALITY_INSPECTION_TYPES.FINAL]: Object.freeze({
     inboundType: INBOUND_TYPE_KEYS.PRODUCTION,
     referenceType: DOCUMENT_REFERENCE_TYPES.PRODUCTION_TASK,
-    resolveReferenceId: (inspection) =>
-      inspection?.reference_id || inspection?.task_id || null,
+    resolveReferenceId: (inspection) => inspection?.reference_id || inspection?.task_id || null,
   }),
   [QUALITY_INSPECTION_TYPES.INCOMING]: Object.freeze({
     inboundType: INBOUND_TYPE_KEYS.PURCHASE,

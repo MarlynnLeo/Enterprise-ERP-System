@@ -40,7 +40,10 @@ class NotificationRuleController {
   /** 创建规则 */
   async createRule(req, res) {
     try {
-      const rule = await NotificationRuleService.createRule(mapKeysToSnake(req.body || {}), req.user?.id);
+      const rule = await NotificationRuleService.createRule(
+        mapKeysToSnake(req.body || {}),
+        req.user?.id
+      );
       await AuditService.logFromRequest(
         req,
         AuditModule.SYSTEM,
@@ -54,7 +57,12 @@ class NotificationRuleController {
     } catch (error) {
       logger.error('创建通知规则失败:', error);
       const isValidation = error.message && !error.message.includes('ER_');
-      ResponseHandler.error(res, error.message || '创建通知规则失败', isValidation ? 'VALIDATION_ERROR' : undefined, isValidation ? 400 : 500);
+      ResponseHandler.error(
+        res,
+        error.message || '创建通知规则失败',
+        isValidation ? 'VALIDATION_ERROR' : undefined,
+        isValidation ? 400 : 500
+      );
     }
   }
 
@@ -62,7 +70,10 @@ class NotificationRuleController {
   async updateRule(req, res) {
     try {
       const oldRule = await NotificationRuleService.getRuleById(req.params.id);
-      const rule = await NotificationRuleService.updateRule(req.params.id, mapKeysToSnake(req.body || {}));
+      const rule = await NotificationRuleService.updateRule(
+        req.params.id,
+        mapKeysToSnake(req.body || {})
+      );
       if (!rule) {
         return ResponseHandler.notFound(res, '通知规则不存在');
       }
@@ -79,7 +90,12 @@ class NotificationRuleController {
     } catch (error) {
       logger.error('更新通知规则失败:', error);
       const isValidation = error.message && !error.message.includes('ER_');
-      ResponseHandler.error(res, error.message || '更新通知规则失败', isValidation ? 'VALIDATION_ERROR' : undefined, isValidation ? 400 : 500);
+      ResponseHandler.error(
+        res,
+        error.message || '更新通知规则失败',
+        isValidation ? 'VALIDATION_ERROR' : undefined,
+        isValidation ? 400 : 500
+      );
     }
   }
 
@@ -158,7 +174,9 @@ class NotificationRuleController {
   /** 预览实际接收人 */
   async previewRecipients(req, res) {
     try {
-      const preview = await NotificationRuleService.previewRecipients(mapKeysToSnake(req.body || {}));
+      const preview = await NotificationRuleService.previewRecipients(
+        mapKeysToSnake(req.body || {})
+      );
       ResponseHandler.success(res, preview);
     } catch (error) {
       logger.error('预览通知接收人失败:', error);

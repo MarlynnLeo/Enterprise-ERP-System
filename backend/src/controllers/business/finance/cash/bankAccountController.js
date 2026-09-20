@@ -152,7 +152,9 @@ const bankAccountController = {
         branch_name: body.branch_name,
         currency_code: body.currency_code || financeConfig.get('account.defaultCurrency', 'CNY'),
         current_balance: parseFloat(body.initial_balance || body.current_balance || 0),
-        opening_balance: parseFloat(body.initial_balance || body.opening_balance || body.current_balance || 0),
+        opening_balance: parseFloat(
+          body.initial_balance || body.opening_balance || body.current_balance || 0
+        ),
         account_type: normalizeBankAccountType(body.account_type),
         is_active: body.is_active !== undefined ? body.is_active : true,
         contact_person: body.contact_person,
@@ -224,7 +226,11 @@ const bankAccountController = {
 
       if (updated) {
         const updatedAccount = await BankAccountModel.getBankAccountById(id);
-        ResponseHandler.success(res, formatBankAccountForClient(updatedAccount), '银行账户更新成功');
+        ResponseHandler.success(
+          res,
+          formatBankAccountForClient(updatedAccount),
+          '银行账户更新成功'
+        );
       } else {
         ResponseHandler.error(res, '银行账户更新失败', 'SERVER_ERROR', 500);
       }
@@ -260,7 +266,11 @@ const bankAccountController = {
       if (updated) {
         // 获取更新后的完整信息
         const updatedAccount = await BankAccountModel.getBankAccountById(id);
-        ResponseHandler.success(res, formatBankAccountForClient(updatedAccount), '银行账户状态更新成功');
+        ResponseHandler.success(
+          res,
+          formatBankAccountForClient(updatedAccount),
+          '银行账户状态更新成功'
+        );
       } else {
         ResponseHandler.error(res, '银行账户状态更新失败', 'SERVER_ERROR', 500);
       }

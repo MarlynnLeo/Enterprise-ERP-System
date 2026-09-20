@@ -14,11 +14,31 @@ const businessClosures = {
     start: 'purchaseRequisition',
     end: 'glEntry',
     steps: [
-      { object: 'purchaseRequisition', statusDomain: 'purchaseRequisition', requiredFields: ['id', 'status'] },
-      { object: 'purchaseOrder', statusDomain: 'purchaseOrder', requiredFields: ['id', 'order_no', 'status'] },
-      { object: 'purchaseReceipt', statusDomain: 'purchaseReceipt', requiredFields: ['id', 'receipt_no', 'status'] },
-      { object: 'inventoryInbound', statusDomain: 'inventoryInbound', requiredFields: ['id', 'status'] },
-      { object: 'financeInvoice', statusDomain: 'financeInvoice', requiredFields: ['id', 'status', 'total_amount', 'balance_amount'] },
+      {
+        object: 'purchaseRequisition',
+        statusDomain: 'purchaseRequisition',
+        requiredFields: ['id', 'status'],
+      },
+      {
+        object: 'purchaseOrder',
+        statusDomain: 'purchaseOrder',
+        requiredFields: ['id', 'order_no', 'status'],
+      },
+      {
+        object: 'purchaseReceipt',
+        statusDomain: 'purchaseReceipt',
+        requiredFields: ['id', 'receipt_no', 'status'],
+      },
+      {
+        object: 'inventoryInbound',
+        statusDomain: 'inventoryInbound',
+        requiredFields: ['id', 'status'],
+      },
+      {
+        object: 'financeInvoice',
+        statusDomain: 'financeInvoice',
+        requiredFields: ['id', 'status', 'total_amount', 'balance_amount'],
+      },
       { object: 'glEntry', statusDomain: 'glEntry', requiredFields: ['id', 'status'] },
     ],
     invariants: [
@@ -35,9 +55,21 @@ const businessClosures = {
     end: 'glEntry',
     steps: [
       { object: 'salesQuotation', requiredFields: ['id', 'status'] },
-      { object: 'salesOrder', statusDomain: 'salesOrder', requiredFields: ['id', 'order_no', 'status'] },
-      { object: 'inventoryOutbound', statusDomain: 'inventoryOutbound', requiredFields: ['id', 'status'] },
-      { object: 'financeInvoice', statusDomain: 'financeInvoice', requiredFields: ['id', 'status', 'total_amount', 'balance_amount'] },
+      {
+        object: 'salesOrder',
+        statusDomain: 'salesOrder',
+        requiredFields: ['id', 'order_no', 'status'],
+      },
+      {
+        object: 'inventoryOutbound',
+        statusDomain: 'inventoryOutbound',
+        requiredFields: ['id', 'status'],
+      },
+      {
+        object: 'financeInvoice',
+        statusDomain: 'financeInvoice',
+        requiredFields: ['id', 'status', 'total_amount', 'balance_amount'],
+      },
       { object: 'glEntry', statusDomain: 'glEntry', requiredFields: ['id', 'status'] },
     ],
     invariants: [
@@ -49,17 +81,38 @@ const businessClosures = {
   },
   planToProduce: {
     name: 'Plan to Produce',
-    purpose: 'Planned demand becomes issued materials, reported work, quality result, and finished goods.',
+    purpose:
+      'Planned demand becomes issued materials, reported work, quality result, and finished goods.',
     start: 'productionPlan',
     end: 'inventoryInbound',
     steps: [
-      { object: 'productionPlan', statusDomain: 'productionPlan', requiredFields: ['id', 'status', 'quantity'] },
-      { object: 'productionTask', statusDomain: 'productionTask', requiredFields: ['id', 'status', 'quantity'] },
-      { object: 'inventoryOutbound', statusDomain: 'inventoryOutbound', requiredFields: ['id', 'status'] },
-      { object: 'productionProcess', statusDomain: 'productionProcess', requiredFields: ['id', 'status'] },
+      {
+        object: 'productionPlan',
+        statusDomain: 'productionPlan',
+        requiredFields: ['id', 'status', 'quantity'],
+      },
+      {
+        object: 'productionTask',
+        statusDomain: 'productionTask',
+        requiredFields: ['id', 'status', 'quantity'],
+      },
+      {
+        object: 'inventoryOutbound',
+        statusDomain: 'inventoryOutbound',
+        requiredFields: ['id', 'status'],
+      },
+      {
+        object: 'productionProcess',
+        statusDomain: 'productionProcess',
+        requiredFields: ['id', 'status'],
+      },
       { object: 'productionReport', requiredFields: ['id', 'completed_quantity'] },
       { object: 'qualityInspection', requiredFields: ['id', 'status'] },
-      { object: 'inventoryInbound', statusDomain: 'inventoryInbound', requiredFields: ['id', 'status'] },
+      {
+        object: 'inventoryInbound',
+        statusDomain: 'inventoryInbound',
+        requiredFields: ['id', 'status'],
+      },
     ],
     invariants: [
       'Material issue completion must be backed by outbound ledger evidence.',
@@ -69,15 +122,35 @@ const businessClosures = {
   },
   inventoryControl: {
     name: 'Inventory Control',
-    purpose: 'All quantity movements are ledger-backed and reversible only by controlled documents.',
+    purpose:
+      'All quantity movements are ledger-backed and reversible only by controlled documents.',
     start: 'inventoryInbound',
     end: 'inventoryLedger',
     steps: [
-      { object: 'inventoryInbound', statusDomain: 'inventoryInbound', requiredFields: ['id', 'status'] },
-      { object: 'inventoryOutbound', statusDomain: 'inventoryOutbound', requiredFields: ['id', 'status'] },
-      { object: 'inventoryTransfer', statusDomain: 'inventoryTransfer', requiredFields: ['id', 'status'] },
-      { object: 'inventoryCheck', statusDomain: 'inventoryCheck', requiredFields: ['id', 'status'] },
-      { object: 'inventoryLedger', requiredFields: ['id', 'material_id', 'quantity', 'transaction_type'] },
+      {
+        object: 'inventoryInbound',
+        statusDomain: 'inventoryInbound',
+        requiredFields: ['id', 'status'],
+      },
+      {
+        object: 'inventoryOutbound',
+        statusDomain: 'inventoryOutbound',
+        requiredFields: ['id', 'status'],
+      },
+      {
+        object: 'inventoryTransfer',
+        statusDomain: 'inventoryTransfer',
+        requiredFields: ['id', 'status'],
+      },
+      {
+        object: 'inventoryCheck',
+        statusDomain: 'inventoryCheck',
+        requiredFields: ['id', 'status'],
+      },
+      {
+        object: 'inventoryLedger',
+        requiredFields: ['id', 'material_id', 'quantity', 'transaction_type'],
+      },
     ],
     invariants: [
       'Completed movement documents must have ledger entries.',
@@ -87,7 +160,8 @@ const businessClosures = {
   },
   qualityClosedLoop: {
     name: 'Quality Closed Loop',
-    purpose: 'Quality defects are contained, dispositioned, corrected, and closed with traceability.',
+    purpose:
+      'Quality defects are contained, dispositioned, corrected, and closed with traceability.',
     start: 'qualityInspection',
     end: 'eightDReport',
     steps: [
@@ -96,7 +170,11 @@ const businessClosures = {
       { object: 'reworkTask', requiredFields: ['id', 'status'] },
       { object: 'replacementOrder', requiredFields: ['id', 'status'] },
       { object: 'scrapRecord', requiredFields: ['id', 'status'] },
-      { object: 'eightDReport', statusDomain: 'eightDReport', requiredFields: ['id', 'status', 'current_phase'] },
+      {
+        object: 'eightDReport',
+        statusDomain: 'eightDReport',
+        requiredFields: ['id', 'status', 'current_phase'],
+      },
     ],
     invariants: [
       'NCP terminal quantity must be fully dispositioned.',
@@ -111,7 +189,10 @@ const businessClosures = {
     end: 'financialReport',
     steps: [
       { object: 'glEntry', statusDomain: 'glEntry', requiredFields: ['id', 'status'] },
-      { object: 'glEntryItem', requiredFields: ['entry_id', 'account_id', 'debit_amount', 'credit_amount'] },
+      {
+        object: 'glEntryItem',
+        requiredFields: ['entry_id', 'account_id', 'debit_amount', 'credit_amount'],
+      },
       { object: 'financePeriod', statusDomain: 'financePeriod', requiredFields: ['id', 'status'] },
       { object: 'financialReport', requiredFields: ['period_id'] },
     ],

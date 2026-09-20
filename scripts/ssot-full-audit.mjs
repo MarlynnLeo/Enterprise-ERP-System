@@ -203,7 +203,8 @@ const out = {
   redundantMapKeysToCamelSample: cap(report.redundantMapKeysToCamel, 30),
 };
 
-const outPath = path.join(root, 'scripts', 'ssot-full-audit-report.json');
+const outPath = path.join(root, 'reports', 'ssot-full-audit-report.json');
+fs.mkdirSync(path.dirname(outPath), { recursive: true });
 fs.writeFileSync(outPath, JSON.stringify(out, null, 2));
 
 console.log('=== SSOT FULL AUDIT SUMMARY ===');

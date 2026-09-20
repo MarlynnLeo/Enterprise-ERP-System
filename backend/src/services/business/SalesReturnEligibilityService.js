@@ -1,14 +1,17 @@
 'use strict';
 
-const validationError = message => Object.assign(new Error(message), {
-  statusCode: 400, code: 'VALIDATION_ERROR',
-});
+const validationError = (message) =>
+  Object.assign(new Error(message), {
+    statusCode: 400,
+    code: 'VALIDATION_ERROR',
+  });
 
 /** 退货和换货共用销售额度；调用方必须在同一事务中校验并保存。 */
 class SalesReturnEligibilityService {
-  static async assertReturnable(connection, {
-    orderId, outboundId = null, items, excludeReturnId = null, excludeExchangeId = null,
-  }) {
+  static async assertReturnable(
+    connection,
+    { orderId, outboundId = null, items, excludeReturnId = null, excludeExchangeId = null }
+  ) {
     if (!Number.isSafeInteger(Number(orderId)) || Number(orderId) <= 0) {
       throw validationError('请选择有效的原销售订单');
     }
@@ -24,34 +27,58 @@ class SalesReturnEligibilityService {
     for (const item of items) {
       const productId = Number(item.product_id ?? item.material_id);
       const quantity = Number(item.quantity);
-      if (!Number.isSafeInteger(productId) || productId <= 0 || !Number.isSafeInteger(quantity) || quantity <= 0) {
+      if (
+        !Number.isSafeInteger(productId) ||
+        productId <= 0 ||
+        !Number.isSafeInteger(quantity) ||
+        quantity <= 0
+      ) {
         throw validationError('退回商品必须有效，数量必须为正整数');
       }
       grouped.set(productId, (grouped.get(productId) || 0) + quantity);
     }
 
     const availability = await this.getAvailability(connection, {
-      orderId, outboundId, productIds: [...grouped.keys()], excludeReturnId, excludeExchangeId,
-      order, lock: true,
+      orderId,
+      outboundId,
+      productIds: [...grouped.keys()],
+      excludeReturnId,
+      excludeExchangeId,
+      order,
+      lock: true,
     });
     for (const [productId, quantity] of grouped) {
       const remaining = availability.get(productId);
-      if (!(remaining.orderedQuantity > 0)) throw validationError(`原销售订单中不存在有效商品 ${productId}`);
+      if (!(remaining.orderedQuantity > 0))
+        throw validationError('原销售订单中不存在有效商品，请重新选择有效商品');
       if (quantity > remaining.availableQuantity) {
-        throw validationError(`商品 ${productId} 本次退回 ${quantity}，超过已出库可退数量 ${remaining.availableQuantity}（含已有退货、换货申请）`);
+        throw validationError(
+          `所选商品本次退回 ${quantity}，超过已出库可退数量 ${remaining.availableQuantity}（含已有退货、换货申请）`
+        );
       }
     }
     return order;
   }
 
   /** The page and write validation share the same return/exchange quota. */
-  static async getAvailability(connection, {
-    orderId, outboundId = null, productIds, excludeReturnId = null, excludeExchangeId = null,
-    order = null, lock = false,
-  }) {
+  static async getAvailability(
+    connection,
+    {
+      orderId,
+      outboundId = null,
+      productIds,
+      excludeReturnId = null,
+      excludeExchangeId = null,
+      order = null,
+      lock = false,
+    }
+  ) {
     const locking = lock ? ' FOR UPDATE' : '';
     if (!order) {
-      [[order]] = await connection.query('SELECT id, order_no FROM sales_orders WHERE id=? AND deleted_at IS NULL', [orderId]);
+      [[order]] = await connection.query(
+        'SELECT id, order_no FROM sales_orders WHERE id=? AND deleted_at IS NULL',
+        [orderId]
+      );
     }
     const availability = new Map();
     if (!order) return availability;
@@ -59,7 +86,8 @@ class SalesReturnEligibilityService {
       const [[sold]] = await connection.query(
         `SELECT COALESCE(SUM(soi.quantity), 0) AS quantity
            FROM sales_order_items soi JOIN materials m ON m.id = soi.material_id AND m.deleted_at IS NULL
-          WHERE soi.order_id = ? AND soi.material_id = ?${locking}`, [orderId, productId]
+          WHERE soi.order_id = ? AND soi.material_id = ?${locking}`,
+        [orderId, productId]
       );
 
       const [[shipped]] = await connection.query(
@@ -88,14 +116,23 @@ class SalesReturnEligibilityService {
             AND m.id = ? AND (? IS NULL OR e.id <> ?)${locking}`,
         [outboundId, orderId, order.order_no, productId, excludeExchangeId, excludeExchangeId]
       );
-      const orderRemaining = Math.min(Number(sold.quantity), Number(shipped.quantity)) - Number(returned.quantity) - Number(exchanged.quantity);
-      const outboundReturned = Number(returned.outbound_quantity) + Number(exchanged.outbound_quantity);
+      const orderRemaining =
+        Math.min(Number(sold.quantity), Number(shipped.quantity)) -
+        Number(returned.quantity) -
+        Number(exchanged.quantity);
+      const outboundReturned =
+        Number(returned.outbound_quantity) + Number(exchanged.outbound_quantity);
       const outboundRemaining = Number(shipped.outbound_quantity) - outboundReturned;
       availability.set(productId, {
-        orderedQuantity: Number(sold.quantity), shippedQuantity: Number(shipped.quantity),
-        returnedQuantity: Number(returned.quantity), exchangedQuantity: Number(exchanged.quantity),
+        orderedQuantity: Number(sold.quantity),
+        shippedQuantity: Number(shipped.quantity),
+        returnedQuantity: Number(returned.quantity),
+        exchangedQuantity: Number(exchanged.quantity),
         outboundReturnedQuantity: outboundReturned,
-        availableQuantity: Math.max(0, outboundId ? Math.min(orderRemaining, outboundRemaining) : orderRemaining),
+        availableQuantity: Math.max(
+          0,
+          outboundId ? Math.min(orderRemaining, outboundRemaining) : orderRemaining
+        ),
       });
     }
     return availability;

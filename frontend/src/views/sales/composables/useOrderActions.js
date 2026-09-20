@@ -11,6 +11,7 @@ import { salesApi } from '@/api'
 import { checkInventory } from '@/composables/useInventoryCheck'
 import { clearAllRequestCaches } from '@/utils/requestOptimizer'
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 
 export function useOrderActions(fetchDataCallback, tableData) {
   // 详情对话框控制
@@ -82,14 +83,7 @@ export function useOrderActions(fetchDataCallback, tableData) {
     } catch (error) {
       if (error === 'cancel' || String(error).includes('cancel')) return
       console.error('确认订单时出错:', error)
-      let errorMessage = '确认订单失败'
-      if (error.response?.data) {
-        const errorData = error.response.data
-        if (errorData.message) errorMessage = errorData.message
-        else if (errorData.error) errorMessage = errorData.error
-      } else if (error.message) {
-        errorMessage = `确认订单失败: ${error.message}`
-      }
+      const errorMessage = getApiErrorMessage(error, '确认订单失败')
       if (errorMessage.includes('\n')) {
         ElMessageBox.alert(errorMessage, '确认订单失败', {
           confirmButtonText: '知道了',
@@ -123,9 +117,7 @@ export function useOrderActions(fetchDataCallback, tableData) {
           await refreshList()
         } catch (error) {
           console.error('取消订单时出错:', error)
-          ElMessage.error(
-            '取消订单失败: ' + (error.response?.data?.message || error.message || '未知错误')
-          )
+          ElMessage.error(`取消订单失败: ${getApiErrorMessage(error, '未知错误')}`)
         } finally {
           actionLoadingId.value = null
         }
@@ -159,16 +151,7 @@ export function useOrderActions(fetchDataCallback, tableData) {
     } catch (error) {
       if (error === 'cancel') return
       console.error('创建出库单失败:', error)
-      let errorMsg = '网络错误或服务器异常'
-      if (error.response?.data) {
-        errorMsg =
-          error.response.data.error ||
-          error.response.data.message ||
-          error.response.data.msg ||
-          errorMsg
-      } else if (error.message) {
-        errorMsg = error.message
-      }
+        const errorMsg = getApiErrorMessage(error, '网络错误或服务器异常')
       if (error.response?.status === 409) {
         ElMessageBox.alert(errorMsg, '发货限制', { confirmButtonText: '我知道了', type: 'warning' })
       } else {
@@ -216,8 +199,7 @@ export function useOrderActions(fetchDataCallback, tableData) {
     } catch (error) {
       if (error === 'cancel' || error === 'close') return
       console.error('锁定订单失败:', error)
-      const errorData = error.response?.data
-      const errorMessage = '锁定订单失败: ' + (errorData?.message || error.message || '未知错误')
+      const errorMessage = `锁定订单失败：${getApiErrorMessage(error, '请稍后重试')}`
       if (errorData?.insufficientItems && errorData.insufficientItems.length > 0) {
         const insufficientDetails = errorData.insufficientItems
           .map(
@@ -257,9 +239,7 @@ export function useOrderActions(fetchDataCallback, tableData) {
     } catch (error) {
       if (error === 'cancel' || error === 'close') return
       console.error('解锁订单失败:', error)
-      ElMessage.error(
-        '解锁订单失败: ' + (error.response?.data?.message || error.message || '未知错误')
-      )
+      ElMessage.error(`解锁订单失败：${getApiErrorMessage(error, '请稍后重试')}`)
     } finally {
       actionLoadingId.value = null
     }
@@ -301,7 +281,7 @@ export function useOrderActions(fetchDataCallback, tableData) {
       setCurrentViewOrder(row)
     } catch (error) {
       console.error('获取订单详情失败:', error)
-      ElMessage.error('获取订单详情失败: ' + (error.message || '未知错误'))
+      ElMessage.error(`获取订单详情失败：${getApiErrorMessage(error, '请稍后重试')}`)
     } finally {
       detailsLoading.value = false
     }

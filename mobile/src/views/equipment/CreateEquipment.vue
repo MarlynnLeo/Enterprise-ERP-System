@@ -71,6 +71,7 @@
   const statusOptions = [
     { text: '正常', value: 'normal' },
     { text: '闲置', value: 'idle' },
+    { text: '离线', value: 'offline' },
     { text: '保养中', value: 'maintenance' },
     { text: '维修中', value: 'repair' },
     { text: '报废', value: 'scrapped' }
@@ -84,9 +85,10 @@
   }
 
   const handleSubmit = async () => {
+    if (submitting.value) return
+    submitting.value = true
     try {
       await formRef.value?.validate()
-      submitting.value = true
       await equipmentApi.createEquipment({
         ...form,
         code: form.code.trim(),

@@ -11,7 +11,10 @@ const InventoryService = require('../../../../services/InventoryService');
 const AsyncTaskService = require('../../../../services/business/AsyncTaskService');
 const businessConfig = require('../../../../config/businessConfig');
 const { INVENTORY_OUTBOUND_TRANSITIONS } = require('../../../../constants/statusRegistry');
-const { checkAndUpdateTaskStatus, _syncProductionStatus } = require('../inventoryConsistencyController');
+const {
+  checkAndUpdateTaskStatus,
+  _syncProductionStatus,
+} = require('../inventoryConsistencyController');
 
 const {
   getMaterialInfoMap,
@@ -72,13 +75,32 @@ const updateOutboundStatus = async (req, res) => {
     }
 
     if (newStatus === STATUS.OUTBOUND.REVERSED) {
-      return ResponseHandler.error(res, '冲销必须提交撤销申请，并由财务审核通过后执行', 'REVERSAL_APPROVAL_REQUIRED', 400);
+      return ResponseHandler.error(
+        res,
+        '冲销必须提交撤销申请，并由财务审核通过后执行',
+        'REVERSAL_APPROVAL_REQUIRED',
+        400
+      );
     }
     if (newStatus === STATUS.OUTBOUND.PARTIAL_COMPLETED) {
-      return ResponseHandler.error(res, '部分完成由完成出库时自动计算，不能直接设置', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(
+        res,
+        '部分完成由完成出库时自动计算，不能直接设置',
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
-    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'inventory_outbound', id, '无权变更该出库单状态'))) {
+    if (
+      !(await ScopeGuard.denyUnlessAccess(
+        res,
+        connection,
+        req,
+        'inventory_outbound',
+        id,
+        '无权变更该出库单状态'
+      ))
+    ) {
       return;
     }
 
@@ -275,7 +297,6 @@ const updateOutboundStatus = async (req, res) => {
       await _syncProductionStatus(connection, newStatus, referenceId);
     }
 
-
     // 如果出库单关联了生产计划（直接关联，非通过任务），也更新计划和任务状态
     if (
       referenceId &&
@@ -310,10 +331,10 @@ const updateOutboundStatus = async (req, res) => {
           );
 
           for (const task of tasks) {
-            await connection.execute('UPDATE production_tasks SET status = ? WHERE id = ? AND deleted_at IS NULL', [
-              dbStatus,
-              task.id,
-            ]);
+            await connection.execute(
+              'UPDATE production_tasks SET status = ? WHERE id = ? AND deleted_at IS NULL',
+              [dbStatus, task.id]
+            );
             logger.debug(`生产任务 ${task.id} 状态已更新为 ${dbStatus}（出库单完成）`);
           }
         }
@@ -346,12 +367,7 @@ const updateOutboundStatus = async (req, res) => {
 
       if (itemCount === 0) {
         await connection.rollback();
-        return ResponseHandler.error(
-          res,
-          '出库单没有明细，不能完成出库',
-          'VALIDATION_ERROR',
-          400
-        );
+        return ResponseHandler.error(res, '出库单没有明细，不能完成出库', 'VALIDATION_ERROR', 400);
       } else {
         // 获取出库明细项(包含planned_quantity和actual_quantity，支持部分发料)
         const [items] = await connection.execute(
@@ -369,7 +385,7 @@ const updateOutboundStatus = async (req, res) => {
         );
 
         if (!outboundInfo || outboundInfo.length === 0) {
-          throw new Error(`找不到出库单信息: ${id}`);
+          throw new Error('出库单不存在或已被删除');
         }
 
         // 判断是否是生产出库（包括production_task和production_plan）
@@ -380,7 +396,7 @@ const updateOutboundStatus = async (req, res) => {
           isBatchProductionOutbound;
 
         // ========== 通过 InventoryService 统一获取物料信息和库存 ==========
-        const materialIds = items.map(i => i.material_id);
+        const materialIds = items.map((i) => i.material_id);
         const materialMap = new Map();
         const stockMap = new Map();
 
@@ -388,7 +404,13 @@ const updateOutboundStatus = async (req, res) => {
           // 通过服务层批量获取物料仓库和单位信息
           const materialInfoMap = await getMaterialInfoMap(connection, materialIds);
           for (const [id, info] of materialInfoMap) {
-            materialMap.set(id, { id, location_id: info.locationId, unit_id: info.unitId });
+            materialMap.set(id, {
+              id,
+              code: info.code,
+              name: info.name,
+              location_id: info.locationId,
+              unit_id: info.unitId,
+            });
           }
 
           // 通过服务层批量获取默认仓库的库存
@@ -405,16 +427,17 @@ const updateOutboundStatus = async (req, res) => {
 
         // 非生产出库时，根据出库单的 reference_type 动态判定交易类型（提到循环外，避免每次迭代重建）
         const outboundTransactionTypeMap = {
-          'purchase_return': 'purchase_return',
-          'sales_order': 'sales_outbound',
-          'sales': 'sales_outbound',
-          'transfer': 'transfer',
+          purchase_return: 'purchase_return',
+          sales_order: 'sales_outbound',
+          sales: 'sales_outbound',
+          transfer: 'transfer',
         };
         const dynamicTransactionType = isProductionOutbound
           ? 'production_outbound'
-          : (outboundTransactionTypeMap[referenceType] || 'outbound');
+          : outboundTransactionTypeMap[referenceType] || 'outbound';
 
         for (const item of items) {
+          const materialLabel = materialMap.get(item.material_id)?.code || '所选物料';
           try {
             // 从预加载的 Map 获取物料默认库位（不再逐条查询）
             const matInfo = materialMap.get(item.material_id);
@@ -430,7 +453,7 @@ const updateOutboundStatus = async (req, res) => {
             // 只有actual_quantity > 0时才扣减库存
             if (actualQuantity > 0) {
               if (!locationId) {
-                throw new Error(`物料 ${item.material_id} 未配置默认仓库，请在物料管理中设置`);
+                throw new Error(`物料 ${matInfo?.code || '所选物料'} 未配置默认仓库，请在物料管理中设置`);
               }
 
               // 完成时按现有库存折算：能发多少发多少，差额记缺料（生产发料/超额场景）
@@ -482,6 +505,7 @@ const updateOutboundStatus = async (req, res) => {
                     operator: outboundInfo[0].operator,
                     referenceType,
                     unitId: item.unit_id,
+                    materialCode: materialLabel,
                     issueReason: checkResult[0].issue_reason,
                     isExcess: checkResult[0].is_excess,
                   });
@@ -511,10 +535,9 @@ const updateOutboundStatus = async (req, res) => {
             }
           } catch (itemError) {
             logger.error(`处理物料 ${item.material_id} 时出错:`, itemError);
-            const err = new Error(
-              `物料 ${item.material_id} 出库处理失败: ${itemError.message}`,
-              { cause: itemError }
-            );
+            const err = new Error(`物料 ${materialLabel} 出库处理失败：${itemError.message}`, {
+              cause: itemError,
+            });
             err.statusCode = itemError.statusCode || 500;
             err.code = itemError.code;
             throw err;
@@ -630,9 +653,7 @@ const updateOutboundStatus = async (req, res) => {
               `出库 ${outboundNo} 缺料自动请购: ${prResult.requisitionNo} (${prResult.itemCount} 项) status=${prResult.status} submitted=${prResult.submitted}`
             );
           } else {
-            logger.info(
-              `出库 ${outboundNo} 未自动请购: ${prResult?.reason || 'unknown'}`
-            );
+            logger.info(`出库 ${outboundNo} 未自动请购: ${prResult?.reason || 'unknown'}`);
           }
         } catch (prErr) {
           // 请购失败不阻断出库结案（缺料记录已落库）
@@ -641,7 +662,9 @@ const updateOutboundStatus = async (req, res) => {
 
         // 如果关联了生产任务,更新任务状态为material_partial_issued
         if (referenceId && referenceType === 'production_task') {
-          const { promoteTaskStatus } = require('../../../../services/business/TaskLifecycleService');
+          const {
+            promoteTaskStatus,
+          } = require('../../../../services/business/TaskLifecycleService');
           await promoteTaskStatus(connection, referenceId, 'material_partial_issued', {
             onlyFrom: [
               'pending',
@@ -808,7 +831,6 @@ const updateOutboundStatus = async (req, res) => {
       }
     }
 
-
     // ========== 提交事务 ==========
     await connection.commit();
 
@@ -877,9 +899,7 @@ const batchUpdateOutboundStatus = async (req, res) => {
     const { ids, newStatus } = req.body || {};
 
     // 验证参数
-    const normalizedIds = Array.isArray(ids)
-      ? [...new Set(ids.map((id) => Number(id)))]
-      : [];
+    const normalizedIds = Array.isArray(ids) ? [...new Set(ids.map((id) => Number(id)))] : [];
     if (
       normalizedIds.length === 0 ||
       (Array.isArray(ids) && ids.length > MAX_BATCH_OUTBOUND_IDS) ||
@@ -952,8 +972,7 @@ const batchUpdateOutboundStatus = async (req, res) => {
     }
 
     const invalidTransitions = outbounds.filter(
-      (outbound) =>
-        !INVENTORY_OUTBOUND_TRANSITIONS[outbound.status]?.includes(newStatus)
+      (outbound) => !INVENTORY_OUTBOUND_TRANSITIONS[outbound.status]?.includes(newStatus)
     );
     if (invalidTransitions.length > 0) {
       await connection.rollback();
@@ -1002,9 +1021,7 @@ const batchDeleteOutbound = async (req, res) => {
     const { ids } = req.body || {};
 
     // 验证参数
-    const normalizedIds = Array.isArray(ids)
-      ? [...new Set(ids.map((id) => Number(id)))]
-      : [];
+    const normalizedIds = Array.isArray(ids) ? [...new Set(ids.map((id) => Number(id)))] : [];
     if (
       normalizedIds.length === 0 ||
       (Array.isArray(ids) && ids.length > MAX_BATCH_OUTBOUND_IDS) ||
@@ -1113,17 +1130,34 @@ const cancelOutbound = async (req, res) => {
       return ResponseHandler.error(res, '无效的出库单ID', 'VALIDATION_ERROR', 400);
     }
     const { force = false, createReissue } = req.body || {};
-    if (typeof force !== 'boolean' || (createReissue !== undefined && typeof createReissue !== 'boolean')) {
+    if (
+      typeof force !== 'boolean' ||
+      (createReissue !== undefined && typeof createReissue !== 'boolean')
+    ) {
       return ResponseHandler.error(res, 'force 必须为布尔值', 'VALIDATION_ERROR', 400);
     }
     if (createReissue === true) {
-      return ResponseHandler.error(res, '撤销接口不支持重发，请直接提交撤销申请', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(
+        res,
+        '撤销接口不支持重发，请直接提交撤销申请',
+        'VALIDATION_ERROR',
+        400
+      );
     }
     if (!(await hasOutboundCancelPermission(req))) {
       return ResponseHandler.forbidden(res, '无权撤销出库单');
     }
 
-    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'inventory_outbound', id, '无权撤销该出库单'))) {
+    if (
+      !(await ScopeGuard.denyUnlessAccess(
+        res,
+        connection,
+        req,
+        'inventory_outbound',
+        id,
+        '无权撤销该出库单'
+      ))
+    ) {
       return;
     }
 
@@ -1166,23 +1200,44 @@ const cancelOutbound = async (req, res) => {
     }
     if (![STATUS.OUTBOUND.COMPLETED, STATUS.OUTBOUND.PARTIAL_COMPLETED].includes(status)) {
       await connection.rollback();
-      return ResponseHandler.error(res, '只能撤销已完成或部分完成的出库单', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(
+        res,
+        '只能撤销已完成或部分完成的出库单',
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     if (reference_type === 'batch_production_tasks') {
       if (batchTaskIds.length === 0) {
         await connection.rollback();
-        return ResponseHandler.error(res, '批量发料单缺少来源生产任务，无法安全撤销', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(
+          res,
+          '批量发料单缺少来源生产任务，无法安全撤销',
+          'VALIDATION_ERROR',
+          400
+        );
       }
-      if (!(await ScopeGuard.denyUnlessAllAccess(
-        res, connection, req, 'production_task', batchTaskIds, '无权撤销该批量出库关联的生产任务'
-      ))) {
+      if (
+        !(await ScopeGuard.denyUnlessAllAccess(
+          res,
+          connection,
+          req,
+          'production_task',
+          batchTaskIds,
+          '无权撤销该批量出库关联的生产任务'
+        ))
+      ) {
         await connection.rollback();
         return;
       }
     }
 
-    await InventoryPostingReversalClosureService.assertOutboundReversalAllowed(connection, outbound, { force });
+    await InventoryPostingReversalClosureService.assertOutboundReversalAllowed(
+      connection,
+      outbound,
+      { force }
+    );
 
     const InventoryPostingService = require('../../../../services/InventoryPostingService');
     const posting = await InventoryPostingService.requireApprovedForTransaction(connection, {
@@ -1223,7 +1278,6 @@ const cancelOutbound = async (req, res) => {
         '出库反审核申请已提交，待财务审批后冲销库存并完成业务收尾'
       );
     }
-
   } catch (error) {
     await connection.rollback();
     logger.error('撤销出库失败:', error);

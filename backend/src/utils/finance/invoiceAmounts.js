@@ -4,8 +4,14 @@
  * 合计 = 明细未税合计 + 税额
  */
 
-const { lineAmount, normalizeTaxRate, taxAmount, roundMoney, toNumber, sumMoney } =
-  require('../money');
+const {
+  lineAmount,
+  normalizeTaxRate,
+  taxAmount,
+  roundMoney,
+  toNumber,
+  sumMoney,
+} = require('../money');
 const { resolveUnitPrice } = require('../unitPriceFields');
 
 /**
@@ -89,7 +95,7 @@ function applyNormalizedInvoiceAmounts(invoiceData = {}) {
     explicitTaxAmount: invoiceData.tax_amount ?? invoiceData.taxAmount,
     explicitTotalAmount: invoiceData.items?.length
       ? undefined
-      : invoiceData.total_amount ?? invoiceData.totalAmount,
+      : (invoiceData.total_amount ?? invoiceData.totalAmount),
     amount_excluding_tax: invoiceData.amount_excluding_tax,
     subtotal: invoiceData.subtotal,
   });

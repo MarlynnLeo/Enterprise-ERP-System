@@ -20,11 +20,11 @@ function normalizeNumber(value, fallback = 0) {
 function validateDispositionPayload(dispositionData = {}) {
   const disposition = dispositionData.disposition;
   if (!VALID_DISPOSITIONS.includes(disposition)) {
-    throw new Error('Invalid NCP disposition');
+    throw new Error('不合格品处置方式无效');
   }
 
   if (!dispositionData.disposition_reason || !String(dispositionData.disposition_reason).trim()) {
-    throw new Error('Disposition reason is required');
+    throw new Error('请填写不合格品处置原因');
   }
 
   if (!dispositionData.responsible_party) {
@@ -35,7 +35,7 @@ function validateDispositionPayload(dispositionData = {}) {
     dispositionData.responsible_party === 'supplier' ||
     SUPPLIER_REQUIRED_DISPOSITIONS.includes(disposition);
   if (requiresSupplier && !dispositionData.supplier_id) {
-    throw new Error('Supplier is required for supplier-related NCP disposition');
+    throw new Error('退货或换货处置必须选择供应商');
   }
 }
 

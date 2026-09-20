@@ -72,6 +72,7 @@ import { Upload, Document, Delete, Download } from '@element-plus/icons-vue';
 import { commonApi } from '@/api';
 import { buildResourceUrl } from '@/config/app';
 import { isPreviewableAttachmentImage } from '@/utils/attachmentPreview';
+import { getApiErrorMessage } from '@/utils/errorHandler';
 import {
   ATTACHMENT_ACCEPT,
   ATTACHMENT_EXTENSIONS,
@@ -222,14 +223,14 @@ const handleSuccess = (response, file) => {
     ElMessage.success('上传成功');
   } else {
     releaseUploadSlot(file);
-    ElMessage.error(response?.message || '上传失败');
+    ElMessage.error(getApiErrorMessage(response, '上传失败'));
   }
 };
 
 const handleError = (error, file) => {
   releaseUploadSlot(file);
   console.error('Upload error:', error);
-  ElMessage.error('上传失败，请重试');
+  ElMessage.error(getApiErrorMessage(error, '上传失败，请重试'));
 };
 
 const handleExceed = () => {

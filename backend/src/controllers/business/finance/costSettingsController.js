@@ -79,7 +79,12 @@ module.exports = {
 
       // 验证参数
       if (overheadRate === undefined || laborRate === undefined) {
-        return ResponseHandler.error(res, '请提供制造费用分摊率和人工费率', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(
+          res,
+          '请提供制造费用分摊率和人工费率',
+          'VALIDATION_ERROR',
+          400
+        );
       }
 
       // 校验拆分比例（三项之和必须等于 1.0）
@@ -89,8 +94,13 @@ module.exports = {
       if (isNaN(mr) || isNaN(lr) || isNaN(or)) {
         return ResponseHandler.error(res, '请提供完整的成本拆分比例', 'VALIDATION_ERROR', 400);
       }
-      if (Math.abs((mr + lr + or) - 1.0) > 0.001) {
-        return ResponseHandler.error(res, `成本拆分比例之和必须等于1.0（当前: ${(mr + lr + or).toFixed(4)}）`, 'VALIDATION_ERROR', 400);
+      if (Math.abs(mr + lr + or - 1.0) > 0.001) {
+        return ResponseHandler.error(
+          res,
+          `成本拆分比例之和必须等于1.0（当前: ${(mr + lr + or).toFixed(4)}）`,
+          'VALIDATION_ERROR',
+          400
+        );
       }
 
       // 检查是否存在激活的设置

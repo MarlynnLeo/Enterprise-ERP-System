@@ -17,7 +17,7 @@
           {{ statusMap[detail.status] || detail.status }}
         </div>
         <div class="detail-code">
-          {{ detail.requisitionNumber || detail.requisitionCode || detail.code || `申请#${detail.id}` }}
+          {{ detail.requisitionNumber || detail.requisitionCode || detail.code || '未生成申请单号' }}
         </div>
       </div>
 
@@ -33,7 +33,7 @@
       <CellGroup inset title="需求明细" v-if="detail.items && detail.items.length > 0">
         <div v-for="(item, index) in detail.items" :key="index" class="item-card">
           <Cell
-            :title="item.materialName || `物料#${item.materialId}`"
+            :title="item.materialName || item.materialCode || '未命名物料'"
             :value="`${item.quantity} ${item.unit || '件'}`"
           />
           <Cell
@@ -93,6 +93,7 @@
   import { NavBar, CellGroup, Cell, Button, Loading, Empty, showToast, showConfirmDialog } from 'vant'
   import { purchaseApi } from '@/api'
   import { extractApiData } from '@/utils/apiHelper'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const route = useRoute()
   const router = useRouter()
@@ -128,11 +129,14 @@
     } catch (error) {
       console.error('加载采购申请详情失败:', error)
       detail.value = null
-      errorMessage.value = error?.response?.status === 403
+      const fallback = error?.response?.status === 403
         ? '没有权限查看此采购申请'
         : error?.response?.status === 404
           ? '采购申请不存在或已被删除'
           : '加载失败，请重试'
+      errorMessage.value = error?.response?.status === 403 || error?.response?.status === 404
+        ? fallback
+        : getApiErrorMessage(error, fallback)
       showToast(errorMessage.value)
     } finally {
       loading.value = false
@@ -150,7 +154,7 @@
       showToast('已提交审批')
       await loadDetail()
     } catch (e) {
-      if (e !== 'cancel') showToast(e.response?.data?.message || '操作失败')
+      if (e !== 'cancel') showToast(getApiErrorMessage(e, '操作失败'))
     } finally {
       actionLoading.value = false
     }
@@ -165,7 +169,7 @@
       showToast('已退回草稿')
       await loadDetail()
     } catch (e) {
-      if (e !== 'cancel') showToast(e.response?.data?.message || '操作失败')
+      if (e !== 'cancel') showToast(getApiErrorMessage(e, '操作失败'))
     } finally {
       actionLoading.value = false
     }
@@ -180,7 +184,7 @@
       showToast('已删除')
       router.back()
     } catch (e) {
-      if (e !== 'cancel') showToast(e.response?.data?.message || '删除失败')
+      if (e !== 'cancel') showToast(getApiErrorMessage(e, '删除失败'))
     } finally {
       actionLoading.value = false
     }

@@ -83,7 +83,11 @@ module.exports = {
       const { period } = req.query;
       const { year, month, startDate, endDate } = CostAccountingService.parsePeriodRange(period);
       const compositionFields = ['materialCost', 'laborCost', 'overheadCost'];
-      const stats = await CostAccountingService.getCostSummaryForPeriod(startDate, endDate, compositionFields);
+      const stats = await CostAccountingService.getCostSummaryForPeriod(
+        startDate,
+        endDate,
+        compositionFields
+      );
 
       ResponseHandler.success(res, {
         period: `${year}-${month}`,

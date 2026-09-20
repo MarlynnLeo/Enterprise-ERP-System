@@ -179,7 +179,10 @@ function createFieldMap(schema = {}) {
     // 先全量 snake→camel，再用 schema 覆盖类型/日期规范化
     const api = mapKeysToCamel(row);
     for (const [dbKey, apiKey] of Object.entries(dbToApi)) {
-      if (!Object.prototype.hasOwnProperty.call(row, dbKey) && !Object.prototype.hasOwnProperty.call(row, apiKey)) {
+      if (
+        !Object.prototype.hasOwnProperty.call(row, dbKey) &&
+        !Object.prototype.hasOwnProperty.call(row, apiKey)
+      ) {
         continue;
       }
       let raw = Object.prototype.hasOwnProperty.call(row, dbKey) ? row[dbKey] : row[apiKey];

@@ -24,6 +24,8 @@
     filterTabs: [
       { label: '全部', value: 'all' },
       { label: '正常', value: 'normal' },
+      { label: '闲置', value: 'idle' },
+      { label: '离线', value: 'offline' },
       { label: '保养中', value: 'maintenance' },
       { label: '维修中', value: 'repair' },
       { label: '报废', value: 'scrapped' }
@@ -47,6 +49,7 @@
           type: 'status',
           map: {
             normal: { text: '正常', color: 'success' },
+            offline: { text: '离线', color: 'default' },
             maintenance: { text: '保养中', color: 'warning' },
             idle: { text: '闲置', color: 'default' },
             repair: { text: '维修中', color: 'danger' },

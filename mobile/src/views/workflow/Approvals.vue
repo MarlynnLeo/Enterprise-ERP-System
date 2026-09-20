@@ -98,6 +98,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showToast, showSuccessToast, showConfirmDialog } from 'vant'
 import { workflowApi } from '@/api/modules/workflow'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 
 const route = useRoute()
 const router = useRouter()
@@ -173,7 +174,7 @@ function instanceIdOf(row) {
 
 function nodeIdOf(row) {
   if (!row) return null
-  // 与 PC WorkflowApprovalCenter 一致：待审行 id 即节点 id
+  // 待审行 id 即审批节点 id。
   return row.nodeId || row.id || row.currentNodeId || null
 }
 
@@ -218,7 +219,7 @@ async function fetchPage(reset = false) {
     if (items.length < pageSize) finished.value = true
     else page.value += 1
   } catch (e) {
-    showToast(e?.message || '加载失败')
+    showToast(getApiErrorMessage(e, '加载失败'))
     finished.value = true
   } finally {
     loading.value = false
@@ -248,7 +249,7 @@ async function openDetail(row) {
     detail.value = res.data?.data || res.data
     detailVis.value = true
   } catch (e) {
-    showToast(e?.message || '加载详情失败')
+    showToast(getApiErrorMessage(e, '加载详情失败'))
   }
 }
 
@@ -282,7 +283,7 @@ async function onSubmitAction(action) {
     await fetchPage(true)
     return true
   } catch (e) {
-    showToast(e?.response?.data?.message || e?.message || '提交失败')
+    showToast(getApiErrorMessage(e, '提交失败'))
     return false
   } finally {
     saving.value = false
@@ -301,7 +302,7 @@ async function onWithdraw(row) {
     showSuccessToast('已撤回')
     await fetchPage(true)
   } catch (e) {
-    if (e !== 'cancel') showToast(e?.message || '撤回失败')
+    if (e !== 'cancel') showToast(getApiErrorMessage(e, '撤回失败'))
   }
 }
 
@@ -331,7 +332,7 @@ async function handleDeepLinkQuery() {
         }
       }
     } catch (e) {
-      showToast(e?.message || '未找到审批实例')
+      showToast(getApiErrorMessage(e, '未找到审批实例'))
       return
     }
   } else {

@@ -47,7 +47,13 @@ const TASK_STATE_MACHINE = {
   // 发料中：仓库正在出库
   material_issuing: ['material_partial_issued', 'material_issued', 'preparing', 'cancelled'],
   // 部分发料：可继续发料或确认已发完
-  material_partial_issued: ['material_issuing', 'material_issued', 'in_progress', 'cancelled'],
+  material_partial_issued: [
+    'material_issuing',
+    'material_issued',
+    'in_progress',
+    'preparing',
+    'cancelled',
+  ],
   // 已发料：物料齐套，可开始生产
   material_issued: ['in_progress', 'preparing', 'cancelled'],
   // 生产中：完工数量走 completeTask；状态只能进待检/暂停，禁止 PUT 直达 completed
@@ -250,10 +256,7 @@ async function promoteTaskToInspection(connection, taskId, options = {}) {
     throw new Error('promoteTaskToInspection 必须在事务中调用');
   }
 
-  const {
-    setCompletedQuantityToPlan = false,
-    requireOpenInspectionClear = true,
-  } = options;
+  const { setCompletedQuantityToPlan = false, requireOpenInspectionClear = true } = options;
 
   const [taskRows] = await connection.query(
     `SELECT id, code, status, quantity, completed_quantity, plan_id, product_id
@@ -264,7 +267,7 @@ async function promoteTaskToInspection(connection, taskId, options = {}) {
   );
 
   if (taskRows.length === 0) {
-    throw new Error(`生产任务不存在: ${taskId}`);
+    throw new Error('生产任务不存在或已被删除');
   }
 
   const task = taskRows[0];
@@ -340,7 +343,7 @@ async function promoteTaskToInProgress(connection, taskId) {
     [taskId]
   );
   if (taskRows.length === 0) {
-    throw new Error(`生产任务不存在: ${taskId}`);
+    throw new Error('生产任务不存在或已被删除');
   }
 
   const task = taskRows[0];
@@ -392,7 +395,7 @@ async function promoteTaskStatus(connection, taskId, targetStatus, options = {})
     [taskId]
   );
   if (taskRows.length === 0) {
-    throw new Error(`生产任务不存在: ${taskId}`);
+    throw new Error('生产任务不存在或已被删除');
   }
 
   const task = taskRows[0];
@@ -422,9 +425,7 @@ async function promoteTaskStatus(connection, taskId, targetStatus, options = {})
     await syncPlanStatus(task.plan_id, connection);
   }
 
-  logger.info(
-    `[任务生命周期] 任务 ${task.code}(${taskId}) ${task.status} → ${targetStatus}`
-  );
+  logger.info(`[任务生命周期] 任务 ${task.code}(${taskId}) ${task.status} → ${targetStatus}`);
   return { promoted: true, status: targetStatus };
 }
 
@@ -486,7 +487,7 @@ async function promoteTaskToward(connection, taskId, targetStatus, options = {})
     [taskId]
   );
   if (taskRows.length === 0) {
-    throw new Error(`生产任务不存在: ${taskId}`);
+    throw new Error('生产任务不存在或已被删除');
   }
 
   const startStatus = taskRows[0].status;
@@ -496,16 +497,12 @@ async function promoteTaskToward(connection, taskId, targetStatus, options = {})
 
   const path = findTransitionPath(startStatus, targetStatus);
   if (!path) {
-    logger.warn(
-      `[任务生命周期] 不可达: ${taskRows[0].code} ${startStatus} → ${targetStatus}`
-    );
+    logger.warn(`[任务生命周期] 不可达: ${taskRows[0].code} ${startStatus} → ${targetStatus}`);
     return { promoted: false, status: startStatus, reason: 'unreachable' };
   }
 
   const requireOpenInspectionClear =
-    options.requireOpenInspectionClear !== undefined
-      ? options.requireOpenInspectionClear
-      : false;
+    options.requireOpenInspectionClear !== undefined ? options.requireOpenInspectionClear : false;
   const setCompletedQuantityToPlan = !!options.setCompletedQuantityToPlan;
   const strict = options.strict !== false;
 

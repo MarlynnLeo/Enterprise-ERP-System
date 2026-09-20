@@ -37,7 +37,7 @@ async function runMigrations() {
     const [batchNo, migrations] = await knex.migrate.latest();
     if (migrations.length > 0) {
       logger.info(`Database migrations completed. Batch: ${batchNo}, files: ${migrations.length}`);
-      migrations.forEach(migration => logger.info(`Migration executed: ${migration}`));
+      migrations.forEach((migration) => logger.info(`Migration executed: ${migration}`));
     } else {
       logger.info('Database schema is already up to date.');
     }

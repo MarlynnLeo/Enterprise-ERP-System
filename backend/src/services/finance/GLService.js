@@ -206,7 +206,11 @@ class GLService {
             `第${index + 1}行币种 ${currencyCode} 暂未启用本位币换算，禁止直接写入总账以免报表错计`
           );
         }
-        if (!Number.isFinite(exchangeRate) || exchangeRate <= 0 || Math.abs(exchangeRate - 1) > 0.000001) {
+        if (
+          !Number.isFinite(exchangeRate) ||
+          exchangeRate <= 0 ||
+          Math.abs(exchangeRate - 1) > 0.000001
+        ) {
           throw new BusinessError(`第${index + 1}行人民币汇率必须为1`);
         }
 
@@ -303,15 +307,13 @@ class GLService {
 
       const { resolveActorUserId } = require('../../utils/userUtils');
       // resolveActorUserId 是 async，必须 await；否则 createdById 为 Promise，写入会异常/挂起
-      const createdById = await resolveActorUserId(
-        conn,
-        entryData.created_by,
-        entryData.posted_by
-      );
+      const createdById = await resolveActorUserId(conn, entryData.created_by, entryData.posted_by);
       const isPosted = shouldPostEntry(entryData);
       const postingMethod = entryData.posting_method || (isPosted ? 'automatic' : null);
-      const postedBy = entryData.posted_by ? Number.parseInt(entryData.posted_by, 10) || null : null;
-      const postedAt = isPosted ? (entryData.posted_at || new Date()) : null;
+      const postedBy = entryData.posted_by
+        ? Number.parseInt(entryData.posted_by, 10) || null
+        : null;
+      const postedAt = isPosted ? entryData.posted_at || new Date() : null;
 
       const accountPlaceholders = accountIds.map(() => '?').join(',');
       const [activeAccounts] = await conn.query(
@@ -321,18 +323,14 @@ class GLService {
       const activeAccountIds = new Set(activeAccounts.map((account) => Number(account.id)));
       const missingAccountIds = accountIds.filter((accountId) => !activeAccountIds.has(accountId));
       if (missingAccountIds.length > 0) {
-        throw new Error(`会计科目不存在或未启用: ${missingAccountIds.join(', ')}`);
+        throw new Error('会计科目不存在或未启用，请检查科目配置');
       }
 
       // 5. 凭证字号：禁止对 gl_entries 做 MAX...FOR UPDATE（间隙锁会拖死合并长事务）
       const voucherWord = entryData.voucher_word || '记';
       let voucherNumber = entryData.voucher_number;
       if (!voucherNumber) {
-        voucherNumber = await this.nextVoucherNumber(
-          conn,
-          resolvedPeriodId || 0,
-          voucherWord
-        );
+        voucherNumber = await this.nextVoucherNumber(conn, resolvedPeriodId || 0, voucherWord);
       }
 
       // 6. 凭证编号
@@ -374,7 +372,7 @@ class GLService {
           entryData.transaction_id || null,
           voucherWord,
           voucherNumber,
-          isPosted ? 'posted' : (entryData.status || 'draft'),
+          isPosted ? 'posted' : entryData.status || 'draft',
           isPosted ? 1 : 0,
           postedBy,
           postedAt,

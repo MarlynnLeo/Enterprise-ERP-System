@@ -19,19 +19,38 @@ const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const { currentDateString, toLocalDateString } = require('../../../utils/dateUtils');
 const { getRequestActorLabel } = require('../../../utils/userUtils');
 
-const DISPOSED_ASSET_STATUSES = new Set(['报废', '已处置', '已出售', '已转让', '已捐赠', 'disposed', 'sold', 'transferred', 'donated']);
+const DISPOSED_ASSET_STATUSES = new Set([
+  '报废',
+  '已处置',
+  '已出售',
+  '已转让',
+  '已捐赠',
+  'disposed',
+  'sold',
+  'transferred',
+  'donated',
+]);
 
 function calculateAssetNetBookValue(asset) {
   const acquisitionCost = Number(asset.acquisition_cost) || 0;
   const accumulatedDepreciation = Number(asset.accumulated_depreciation) || 0;
   const impairmentAmount = Number(asset.impairment_amount) || 0;
-  return Math.round(Math.max(0, acquisitionCost - accumulatedDepreciation - impairmentAmount) * 100) / 100;
+  return (
+    Math.round(Math.max(0, acquisitionCost - accumulatedDepreciation - impairmentAmount) * 100) /
+    100
+  );
 }
 
 function toAssetApi(asset) {
   const statusMap = {
-    在用: 'in_use', 闲置: 'idle', 维修: 'under_repair', 报废: 'disposed',
-    已处置: 'disposed', 已出售: 'sold', 已转让: 'transferred', 已捐赠: 'donated',
+    在用: 'in_use',
+    闲置: 'idle',
+    维修: 'under_repair',
+    报废: 'disposed',
+    已处置: 'disposed',
+    已出售: 'sold',
+    已转让: 'transferred',
+    已捐赠: 'donated',
   };
   const originalValue = Number(asset.acquisition_cost) || 0;
   return {
@@ -50,9 +69,10 @@ function toAssetApi(asset) {
     responsible: asset.custodian || '',
     // getAssetById already converts the stored months to years.
     usefulLife: asset.useful_life,
-    salvageRate: originalValue > 0
-      ? Math.round(((Number(asset.salvage_value) || 0) / originalValue) * 10000) / 100
-      : 0,
+    salvageRate:
+      originalValue > 0
+        ? Math.round(((Number(asset.salvage_value) || 0) / originalValue) * 10000) / 100
+        : 0,
     depreciationMethod: asset.depreciation_method,
     status: statusMap[asset.status] || asset.status || 'in_use',
     notes: asset.notes || '',
@@ -115,7 +135,7 @@ const assetsController = {
       const asset = await assetsModel.getAssetById(assetId);
 
       if (!asset) {
-        return ResponseHandler.error(res, `未找到ID为${assetId}的资产`, 'NOT_FOUND', 404);
+        return ResponseHandler.error(res, '资产不存在或已被删除', 'NOT_FOUND', 404);
       }
 
       return ResponseHandler.success(res, toAssetApi(asset), '获取固定资产详情成功');
@@ -159,7 +179,12 @@ const assetsController = {
         );
 
         if (existingAssets && existingAssets.length > 0) {
-          return ResponseHandler.error(res, `资产编码 ${req.body.assetCode} 已存在`, 'VALIDATION_ERROR', 400);
+          return ResponseHandler.error(
+            res,
+            `资产编码 ${req.body.assetCode} 已存在`,
+            'VALIDATION_ERROR',
+            400
+          );
         }
       } catch {
         // 继续执行，不中断流程
@@ -169,9 +194,10 @@ const assetsController = {
       let assetType = req.body.assetType;
       if (!assetType && req.body.categoryId) {
         try {
-          const [categories] = await db.pool.query('SELECT id, name, code, default_useful_life, default_depreciation_method, default_salvage_rate, description, created_at, updated_at FROM asset_categories WHERE id = ?', [
-            req.body.categoryId,
-          ]);
+          const [categories] = await db.pool.query(
+            'SELECT id, name, code, default_useful_life, default_depreciation_method, default_salvage_rate, description, created_at, updated_at FROM asset_categories WHERE id = ?',
+            [req.body.categoryId]
+          );
 
           if (categories && categories.length > 0) {
             // 根据类别设置默认的资产类型
@@ -239,7 +265,13 @@ const assetsController = {
       const assetId = await assetsModel.createAsset(assetData);
 
       // 记录变动日志
-      await assetsModel.addChangeLog(assetId, '创建', await getCurrentUserName(req), [], `新建资产: ${assetData.asset_name}`);
+      await assetsModel.addChangeLog(
+        assetId,
+        '创建',
+        await getCurrentUserName(req),
+        [],
+        `新建资产: ${assetData.asset_name}`
+      );
 
       // 获取创建的资产完整信息
       const asset = await assetsModel.getAssetById(assetId);
@@ -298,7 +330,7 @@ const assetsController = {
       // 检查资产是否存在
       const existingAsset = await assetsModel.getAssetById(assetId);
       if (!existingAsset) {
-        return ResponseHandler.error(res, `未找到ID为${assetId}的资产`, 'NOT_FOUND', 404);
+        return ResponseHandler.error(res, '资产不存在或已被删除', 'NOT_FOUND', 404);
       }
 
       // 检查审核状态，已审核资产不允许编辑
@@ -307,7 +339,10 @@ const assetsController = {
       }
 
       const salvageRate = req.body.salvageRate == null ? null : Number(req.body.salvageRate);
-      if (salvageRate !== null && (!Number.isFinite(salvageRate) || salvageRate < 0 || salvageRate > 100)) {
+      if (
+        salvageRate !== null &&
+        (!Number.isFinite(salvageRate) || salvageRate < 0 || salvageRate > 100)
+      ) {
         return ResponseHandler.error(res, '残值率必须在0到100之间', 'VALIDATION_ERROR', 400);
       }
 
@@ -354,9 +389,11 @@ const assetsController = {
         acquisition_date: req.body.purchaseDate || existingAsset.acquisition_date,
         depreciation_method: req.body.depreciationMethod || existingAsset.depreciation_method,
         useful_life: parseInt(req.body.usefulLife) || existingAsset.useful_life,
-        salvage_value: salvageRate === null
-          ? existingAsset.salvage_value
-          : Number(req.body.originalValue ?? existingAsset.acquisition_cost) * (salvageRate / 100),
+        salvage_value:
+          salvageRate === null
+            ? existingAsset.salvage_value
+            : Number(req.body.originalValue ?? existingAsset.acquisition_cost) *
+              (salvageRate / 100),
         location_id: locationId,
         department_id: departmentId,
         custodian: req.body.responsible || existingAsset.custodian,
@@ -404,17 +441,17 @@ const assetsController = {
       // 首先检查资产是否存在
       const asset = await assetsModel.getAssetById(assetId);
       if (!asset) {
-        return ResponseHandler.error(res, `未找到ID为${assetId}的资产`, 'NOT_FOUND', 404);
+        return ResponseHandler.error(res, '资产不存在或已被删除', 'NOT_FOUND', 404);
       }
 
       try {
-        const depreciationDate = toLocalDateString(req.body?.depreciationDate || currentDateString());
-        const depreciationMonth = depreciationDate.slice(0, 7);
-        const result = await assetsModel.submitDepreciation(
-          depreciationMonth,
-          [{ id: assetId }],
-          { created_by: getAuthenticatedUserId(req) }
+        const depreciationDate = toLocalDateString(
+          req.body?.depreciationDate || currentDateString()
         );
+        const depreciationMonth = depreciationDate.slice(0, 7);
+        const result = await assetsModel.submitDepreciation(depreciationMonth, [{ id: assetId }], {
+          created_by: getAuthenticatedUserId(req),
+        });
 
         // 获取更新后的资产信息
         const updatedAsset = await assetsModel.getAssetById(assetId);
@@ -633,8 +670,14 @@ const assetsController = {
 
       // 设置响应头
       const fileName = `折旧数据_${depreciationDate}.xlsx`;
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`);
+      res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      );
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`
+      );
 
       // 写入响应流
       await workbook.xlsx.write(res);
@@ -676,14 +719,22 @@ const assetsController = {
       }
 
       const currentUserName = await getCurrentUserName(req);
-      if (action === 'approve' && String(asset.created_by || '') === String(currentUserName || '')) {
+      if (
+        action === 'approve' &&
+        String(asset.created_by || '') === String(currentUserName || '')
+      ) {
         await connection.rollback();
         return ResponseHandler.error(res, '资产制单人与审核人必须分离', 'VALIDATION_ERROR', 400);
       }
       const expectedAuditStatus = action === 'approve' ? 'draft' : 'approved';
       if (asset.audit_status !== expectedAuditStatus) {
         await connection.rollback();
-        return ResponseHandler.error(res, '资产审核状态已变更，请刷新后重试', 'VALIDATION_ERROR', 409);
+        return ResponseHandler.error(
+          res,
+          '资产审核状态已变更，请刷新后重试',
+          'VALIDATION_ERROR',
+          409
+        );
       }
 
       if (action === 'reject') {
@@ -750,15 +801,21 @@ const assetsController = {
   disposeAsset: async (req, res) => {
     try {
       const assetId = req.params.id;
-      const { disposalDate, disposalAmount, disposalReason, disposalMethod, bankAccountId, handler, notes } =
-        req.body;
+      const {
+        disposalDate,
+        disposalAmount,
+        disposalReason,
+        disposalMethod,
+        bankAccountId,
+        handler,
+        notes,
+      } = req.body;
 
       // 验证必填字段
-      const validationError = validateRequiredFields(
-        req.body,
-        ['disposalDate', 'disposalReason'],
-        { disposalDate: '处置日期', disposalReason: '处置原因' }
-      );
+      const validationError = validateRequiredFields(req.body, ['disposalDate', 'disposalReason'], {
+        disposalDate: '处置日期',
+        disposalReason: '处置原因',
+      });
 
       if (validationError) {
         return ResponseHandler.validationError(res, '参数验证失败', validationError.fields);
@@ -808,7 +865,12 @@ const assetsController = {
         return ResponseHandler.error(res, '该资产已经处置，不能重复处置', 'VALIDATION_ERROR', 400);
       }
       if (asset.audit_status !== 'approved') {
-        return ResponseHandler.error(res, '资产必须先审核通过，才能进行处置', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(
+          res,
+          '资产必须先审核通过，才能进行处置',
+          'VALIDATION_ERROR',
+          400
+        );
       }
 
       // 准备处置数据
@@ -877,7 +939,7 @@ const assetsController = {
       // 检查资产是否存在
       const asset = await assetsModel.getAssetById(assetId);
       if (!asset) {
-        return ResponseHandler.error(res, `未找到ID为${assetId}的资产`, 'NOT_FOUND', 404);
+        return ResponseHandler.error(res, '资产不存在或已被删除', 'NOT_FOUND', 404);
       }
 
       // 检查资产状态是否允许调拨
@@ -885,7 +947,12 @@ const assetsController = {
         return ResponseHandler.error(res, '已处置的资产不能进行调拨', 'VALIDATION_ERROR', 400);
       }
       if (asset.audit_status !== 'approved') {
-        return ResponseHandler.error(res, '资产必须先审核通过，才能进行调拨', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(
+          res,
+          '资产必须先审核通过，才能进行调拨',
+          'VALIDATION_ERROR',
+          400
+        );
       }
 
       // 获取调拨参数
@@ -1091,8 +1158,16 @@ const assetsController = {
         201
       );
     } catch (error) {
-      if (error.code === 'ER_DUP_ENTRY' || (error.message && error.message.includes('Duplicate entry'))) {
-        return ResponseHandler.error(res, `类别编码 '${req.body.code}' 已存在，请使用其他编码`, 'VALIDATION_ERROR', 400);
+      if (
+        error.code === 'ER_DUP_ENTRY' ||
+        (error.message && error.message.includes('Duplicate entry'))
+      ) {
+        return ResponseHandler.error(
+          res,
+          `类别编码 '${req.body.code}' 已存在，请使用其他编码`,
+          'VALIDATION_ERROR',
+          400
+        );
       }
       logger.error('创建资产类别失败:', error);
       ResponseHandler.error(res, '创建资产类别失败', 'SERVER_ERROR', 500, error);
@@ -1140,8 +1215,16 @@ const assetsController = {
         ResponseHandler.error(res, '资产类别更新失败', 'SERVER_ERROR', 500);
       }
     } catch (error) {
-      if (error.code === 'ER_DUP_ENTRY' || (error.message && error.message.includes('Duplicate entry'))) {
-        return ResponseHandler.error(res, `类别编码 '${req.body.code}' 已存在，请使用其他编码`, 'VALIDATION_ERROR', 400);
+      if (
+        error.code === 'ER_DUP_ENTRY' ||
+        (error.message && error.message.includes('Duplicate entry'))
+      ) {
+        return ResponseHandler.error(
+          res,
+          `类别编码 '${req.body.code}' 已存在，请使用其他编码`,
+          'VALIDATION_ERROR',
+          400
+        );
       }
       logger.error('更新资产类别失败:', error);
       ResponseHandler.error(res, '更新资产类别失败', 'SERVER_ERROR', 500, error);
@@ -1201,7 +1284,11 @@ const assetsController = {
         defaultPageSize: 50,
         maxPageSize: 100,
       });
-      const result = await assetsModel.getAssetChangeLogs(assetId, pagination.page, pagination.pageSize);
+      const result = await assetsModel.getAssetChangeLogs(
+        assetId,
+        pagination.page,
+        pagination.pageSize
+      );
       return ResponseHandler.success(res, result, '获取变动记录成功');
     } catch (error) {
       logger.error('获取变动记录失败:', error);
@@ -1238,7 +1325,12 @@ const assetsController = {
 
       const { impairment_amount, impairment_date, reason } = mapKeysToSnake(req.body || {});
       if (!impairment_amount || !impairment_date) {
-        return ResponseHandler.error(res, '缺少必填字段(impairment_amount, impairment_date)', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(
+          res,
+          '缺少必填字段(impairment_amount, impairment_date)',
+          'VALIDATION_ERROR',
+          400
+        );
       }
 
       let normalizedImpairmentDate;
@@ -1285,11 +1377,9 @@ const assetsController = {
       }
 
       const splitData = req.body;
-      const validationError = validateRequiredFields(
-        splitData,
-        ['split_cost'],
-        { split_cost: '拆分金额' }
-      );
+      const validationError = validateRequiredFields(splitData, ['split_cost'], {
+        split_cost: '拆分金额',
+      });
 
       if (validationError) {
         return ResponseHandler.validationError(res, '参数验证失败', validationError.fields);

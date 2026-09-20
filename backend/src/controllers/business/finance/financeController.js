@@ -114,11 +114,7 @@ const financeController = {
         return ResponseHandler.error(res, '会计科目不存在', 'NOT_FOUND', 404);
       }
 
-      return ResponseHandler.success(
-        res,
-        { account: toGlAccountApi(account) },
-        '获取会计科目成功'
-      );
+      return ResponseHandler.success(res, { account: toGlAccountApi(account) }, '获取会计科目成功');
     } catch (error) {
       logger.error('获取会计科目失败:', error);
       return ResponseHandler.error(res, '获取会计科目失败', 'SERVER_ERROR', 500, error);
@@ -598,7 +594,16 @@ const financeController = {
   getEntryById: async (req, res) => {
     try {
       const id = safeParseId(req.params.id, '凭证ID');
-      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'gl_entry', id, '无权访问该会计分录'))) {
+      if (
+        !(await ScopeGuard.denyUnlessAccess(
+          res,
+          db.pool,
+          req,
+          'gl_entry',
+          id,
+          '无权访问该会计分录'
+        ))
+      ) {
         return;
       }
       const entry = await financeModel.getEntryById(id);
@@ -620,7 +625,16 @@ const financeController = {
   getEntryItems: async (req, res) => {
     try {
       const id = safeParseId(req.params.id, '凭证ID');
-      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'gl_entry', id, '无权访问该会计分录'))) {
+      if (
+        !(await ScopeGuard.denyUnlessAccess(
+          res,
+          db.pool,
+          req,
+          'gl_entry',
+          id,
+          '无权访问该会计分录'
+        ))
+      ) {
         return;
       }
 
@@ -662,7 +676,16 @@ const financeController = {
   postEntry: async (req, res) => {
     try {
       const id = safeParseId(req.params.id, '凭证ID');
-      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'gl_entry', id, '无权过账该会计分录'))) {
+      if (
+        !(await ScopeGuard.denyUnlessAccess(
+          res,
+          db.pool,
+          req,
+          'gl_entry',
+          id,
+          '无权过账该会计分录'
+        ))
+      ) {
         return;
       }
 
@@ -688,15 +711,19 @@ const financeController = {
       const { entry_date, posting_date, period_id, description } = mapKeysToSnake(req.body || {});
 
       if (!entry_date) {
-        return ResponseHandler.error(
-          res,
-          '冲销日期为必填项',
-          'VALIDATION_ERROR',
-          400
-        );
+        return ResponseHandler.error(res, '冲销日期为必填项', 'VALIDATION_ERROR', 400);
       }
 
-      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'gl_entry', id, '无权冲销该会计分录'))) {
+      if (
+        !(await ScopeGuard.denyUnlessAccess(
+          res,
+          db.pool,
+          req,
+          'gl_entry',
+          id,
+          '无权冲销该会计分录'
+        ))
+      ) {
         return;
       }
 
@@ -741,7 +768,16 @@ const financeController = {
   deleteEntry: async (req, res) => {
     try {
       const id = safeParseId(req.params.id, '凭证ID');
-      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'gl_entry', id, '无权删除该会计分录'))) {
+      if (
+        !(await ScopeGuard.denyUnlessAccess(
+          res,
+          db.pool,
+          req,
+          'gl_entry',
+          id,
+          '无权删除该会计分录'
+        ))
+      ) {
         return;
       }
 
@@ -813,7 +849,9 @@ const financeController = {
    */
   createPeriod: async (req, res) => {
     try {
-      const { period_name, start_date, end_date, is_adjusting, fiscal_year } = mapKeysToSnake(req.body || {});
+      const { period_name, start_date, end_date, is_adjusting, fiscal_year } = mapKeysToSnake(
+        req.body || {}
+      );
 
       // 验证必填字段
       if (!start_date || !end_date || !fiscal_year) {
@@ -834,12 +872,13 @@ const financeController = {
       }
 
       // 判断是否跨月：如果跨度超过一个自然月，自动按月拆分
-      const sameMonth = startDt.getFullYear() === endDt.getFullYear()
-        && startDt.getMonth() === endDt.getMonth();
+      const sameMonth =
+        startDt.getFullYear() === endDt.getFullYear() && startDt.getMonth() === endDt.getMonth();
 
       if (sameMonth) {
         // 单月：直接创建一条
-        const name = period_name || `${fiscal_year}年${String(startDt.getMonth() + 1).padStart(2, '0')}月`;
+        const name =
+          period_name || `${fiscal_year}年${String(startDt.getMonth() + 1).padStart(2, '0')}月`;
         const periodId = await financeModel.createPeriod({
           period_name: name,
           start_date,
@@ -847,7 +886,12 @@ const financeController = {
           is_adjusting,
           fiscal_year,
         });
-        return ResponseHandler.success(res, { message: '会计期间创建成功', period_id: periodId }, '创建成功', 201);
+        return ResponseHandler.success(
+          res,
+          { message: '会计期间创建成功', period_id: periodId },
+          '创建成功',
+          201
+        );
       }
 
       // 跨月：自动按月拆分
@@ -892,16 +936,22 @@ const financeController = {
         }
       }
 
-      const msg = skipped.length > 0
-        ? `成功创建 ${createdIds.length} 个会计期间，${skipped.length} 个因重叠跳过`
-        : `成功创建 ${createdIds.length} 个月度会计期间`;
+      const msg =
+        skipped.length > 0
+          ? `成功创建 ${createdIds.length} 个会计期间，${skipped.length} 个因重叠跳过`
+          : `成功创建 ${createdIds.length} 个月度会计期间`;
 
-      ResponseHandler.success(res, {
-        message: msg,
-        created: createdIds,
-        skipped,
-        total: createdIds.length,
-      }, msg, 201);
+      ResponseHandler.success(
+        res,
+        {
+          message: msg,
+          created: createdIds,
+          skipped,
+          total: createdIds.length,
+        },
+        msg,
+        201
+      );
     } catch (error) {
       logger.error('创建会计期间失败:', error);
       const statusCode = /overlaps|must|required|date/i.test(error.message || '') ? 400 : 500;
@@ -925,7 +975,9 @@ const financeController = {
   updatePeriod: async (req, res) => {
     try {
       const id = safeParseId(req.params.id, '期间ID');
-      const { period_name, start_date, end_date, is_adjusting, fiscal_year } = mapKeysToSnake(req.body || {});
+      const { period_name, start_date, end_date, is_adjusting, fiscal_year } = mapKeysToSnake(
+        req.body || {}
+      );
 
       if (!period_name || !start_date || !end_date || !fiscal_year) {
         return ResponseHandler.error(
@@ -1039,7 +1091,7 @@ const financeController = {
       const PeriodEndService = require('../../../services/business/PeriodEndService');
       const result = await PeriodEndService.reopenPeriod({
         period_id: parseInt(id),
-        reopened_by: (req.user?.id ?? null),
+        reopened_by: req.user?.id ?? null,
       });
 
       ResponseHandler.success(res, result, '会计期间重新开启成功');
@@ -1105,7 +1157,13 @@ const financeController = {
       ResponseHandler.success(res, preview, '期初余额来源预览生成成功');
     } catch (error) {
       logger.error('生成期初余额来源预览失败:', error);
-      ResponseHandler.error(res, error.message || '生成期初余额来源预览失败', 'SERVER_ERROR', 500, error);
+      ResponseHandler.error(
+        res,
+        error.message || '生成期初余额来源预览失败',
+        'SERVER_ERROR',
+        500,
+        error
+      );
     }
   },
 
@@ -1120,7 +1178,13 @@ const financeController = {
       ResponseHandler.success(res, result, `成功初始化${result.count}个科目的期初余额`);
     } catch (error) {
       logger.error('初始化期初余额失败:', error);
-      ResponseHandler.error(res, error.message || '初始化期初余额失败', 'VALIDATION_ERROR', 400, error);
+      ResponseHandler.error(
+        res,
+        error.message || '初始化期初余额失败',
+        'VALIDATION_ERROR',
+        400,
+        error
+      );
     }
   },
 
@@ -1191,7 +1255,10 @@ const financeController = {
         return ResponseHandler.error(res, '会计期间ID为必填项', 'VALIDATION_ERROR', 400);
       }
 
-      const [periodInfo] = await db.pool.execute('SELECT id, period_name, start_date, end_date, is_closed, is_adjusting, fiscal_year, created_at, updated_at, closed_by, closed_at, closing_date, reopened_by, reopened_at, status FROM gl_periods WHERE id = ?', [parseInt(id)]);
+      const [periodInfo] = await db.pool.execute(
+        'SELECT id, period_name, start_date, end_date, is_closed, is_adjusting, fiscal_year, created_at, updated_at, closed_by, closed_at, closing_date, reopened_by, reopened_at, status FROM gl_periods WHERE id = ?',
+        [parseInt(id)]
+      );
 
       if (periodInfo.length === 0) {
         return ResponseHandler.error(res, '会计期间不存在', 'NOT_FOUND', 404);
@@ -1232,16 +1299,26 @@ const financeController = {
         [period.start_date, period.end_date]
       );
 
-      ResponseHandler.success(res, {
-        period,
-        unreconciledTransactions: transactions,
-        manualReconciledTransactions: manualReconciled,
-        unreconciledCount: transactions.length,
-        manualReconciledCount: manualReconciled.length
-      }, '获取未对账银行流水成功');
+      ResponseHandler.success(
+        res,
+        {
+          period,
+          unreconciledTransactions: transactions,
+          manualReconciledTransactions: manualReconciled,
+          unreconciledCount: transactions.length,
+          manualReconciledCount: manualReconciled.length,
+        },
+        '获取未对账银行流水成功'
+      );
     } catch (error) {
       logger.error('获取未对账银行流水失败:', error);
-      ResponseHandler.error(res, error.message || '获取未对账银行流水失败', 'SERVER_ERROR', 500, error);
+      ResponseHandler.error(
+        res,
+        error.message || '获取未对账银行流水失败',
+        'SERVER_ERROR',
+        500,
+        error
+      );
     }
   },
 

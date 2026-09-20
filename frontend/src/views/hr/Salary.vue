@@ -111,6 +111,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, onMounted } from 'vue';
 import { hrApi } from '@/api/hr';
 import { ElMessage } from 'element-plus/es/components/message/index';
@@ -133,7 +134,7 @@ const fetchData = async () => {
     const res = await hrApi.getSalaryRecords(queryPeriod.value);
     tableData.value = parseResponseData(res, []);
   } catch (error) {
-    ElMessage.error(error.message || '获取薪资数据失败');
+    ElMessage.error(getApiErrorMessage(error, '获取薪资数据失败'));
   } finally {
     loading.value = false;
   }
@@ -153,7 +154,7 @@ const handleCalculate = async () => {
     await fetchData();
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error(error.response?.data?.message || error.message || '核算失败');
+      ElMessage.error(getApiErrorMessage(error, '核算失败'));
     }
   } finally {
     calcLoading.value = false;
@@ -185,7 +186,7 @@ const handleBatchConfirm = async () => {
     ElMessage.success(res.data.message || '批量确认成功');
     await fetchData();
   } catch (error) {
-    if (error !== 'cancel') ElMessage.error(error.response?.data?.message || '批量确认失败');
+    if (error !== 'cancel') ElMessage.error(getApiErrorMessage(error, '批量确认失败'));
   } finally {
     confirmLoading.value = false;
   }

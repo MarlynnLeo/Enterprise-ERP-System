@@ -451,7 +451,7 @@ async function loadData() {
       const orderList = parseListData(ordersRes.value, { enableLog: false })
       recentOrders.value = orderList.map(order => ({
         id: order.id,
-        orderNo: order.orderNo || `SO${order.id}`,
+        orderNo: order.orderNo || '未命名销售订单',
         customerName: order.customerName || '未知客户',
         amount: toNumber(order.totalAmount),
         status: order.status || 'pending',

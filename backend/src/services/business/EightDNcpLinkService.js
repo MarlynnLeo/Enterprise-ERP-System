@@ -94,9 +94,7 @@ class EightDNcpLinkService {
     if (!downstream) return;
 
     if (downstream.total === 0) {
-      throw new EightDNcpLinkError(
-        `关联NCP ${ncp.ncp_no} 缺少${downstream.label}，不能归档8D报告`
-      );
+      throw new EightDNcpLinkError(`关联NCP ${ncp.ncp_no} 缺少${downstream.label}，不能归档8D报告`);
     }
 
     if (downstream.openCount > 0) {
@@ -111,13 +109,15 @@ class EightDNcpLinkService {
 
     reportData.ncp_no = reportData.ncp_no || ncp.ncp_no;
     reportData.inspection_id = reportData.inspection_id || ncp.inspection_id || null;
-    reportData.inspection_no = reportData.inspection_no || ncp.inspection_no || ncp.qi_inspection_no || null;
+    reportData.inspection_no =
+      reportData.inspection_no || ncp.inspection_no || ncp.qi_inspection_no || null;
     reportData.material_id = reportData.material_id || ncp.material_id || null;
     reportData.material_code = reportData.material_code || ncp.material_code || null;
     reportData.material_name = reportData.material_name || ncp.material_name || null;
     reportData.supplier_id = reportData.supplier_id || ncp.supplier_id || null;
     reportData.supplier_name = reportData.supplier_name || ncp.supplier_name || null;
-    reportData.d2_problem_description = reportData.d2_problem_description || ncp.defect_description || null;
+    reportData.d2_problem_description =
+      reportData.d2_problem_description || ncp.defect_description || null;
     reportData.d2_quantity_affected = reportData.d2_quantity_affected || ncp.quantity || null;
     reportData.d2_defect_type = reportData.d2_defect_type || ncp.defect_type || null;
 
@@ -168,7 +168,9 @@ class EightDNcpLinkService {
   static async prepareUpdate(connection, existingReport, reportData, reportId) {
     const currentNcpId = existingReport.ncp_id;
     const nextNcpId = reportData.ncp_id !== undefined ? reportData.ncp_id : currentNcpId;
-    const changed = reportData.ncp_id !== undefined && String(reportData.ncp_id || '') !== String(currentNcpId || '');
+    const changed =
+      reportData.ncp_id !== undefined &&
+      String(reportData.ncp_id || '') !== String(currentNcpId || '');
 
     if (changed && existingReport.status !== 'draft') {
       throw new EightDNcpLinkError('报告提交流程后不可变更关联NCP');
@@ -223,7 +225,8 @@ class EightDNcpLinkService {
 
     await this.markProcessingIfPending(connection, ncp, operator);
     if (reportId) {
-      await DocumentLinkService.tryAutoLink(DocType.NONCONFORMING_PRODUCT,
+      await DocumentLinkService.tryAutoLink(
+        DocType.NONCONFORMING_PRODUCT,
         ncp.id,
         ncp.ncp_no,
         DocType.EIGHT_D_REPORT,
@@ -247,7 +250,8 @@ class EightDNcpLinkService {
 
     await this.markProcessingIfPending(connection, ncp, operator);
     if (reportId) {
-      await DocumentLinkService.tryAutoLink(DocType.NONCONFORMING_PRODUCT,
+      await DocumentLinkService.tryAutoLink(
+        DocType.NONCONFORMING_PRODUCT,
         ncp.id,
         ncp.ncp_no,
         DocType.EIGHT_D_REPORT,
@@ -273,7 +277,7 @@ class EightDNcpLinkService {
       connection,
       report.ncp_id,
       'evaluate',
-      `关联8D报告 ${report.report_no || report.id} 已完成，等待最终归档`,
+      `关联8D报告 ${report.report_no || '该8D报告'} 已完成，等待最终归档`,
       operator
     );
   }
@@ -305,7 +309,7 @@ class EightDNcpLinkService {
       connection,
       linkedNcp.id,
       'close',
-      `关联8D报告 ${report.report_no || report.id} 已归档，NCP纠正预防闭环关闭`,
+      `关联8D报告 ${report.report_no || '该8D报告'} 已归档，NCP纠正预防闭环关闭`,
       operator
     );
   }

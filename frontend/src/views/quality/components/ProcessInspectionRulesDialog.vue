@@ -114,6 +114,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, computed, watch } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -266,7 +267,7 @@ const handleSaveRule = async () => {
     ruleForm.value = getDefaultRuleForm()
     fetchRules()
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || '保存失败')
+    ElMessage.error(getApiErrorMessage(error, '保存失败'))
   } finally {
     submitting.value = false
   }

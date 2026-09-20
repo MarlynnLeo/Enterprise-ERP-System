@@ -95,6 +95,7 @@ import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { financeApi } from '@/api/finance'
 import { useAuthStore } from '@/stores/auth'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 
 const props = defineProps({
   sourceType: { type: String, required: true },
@@ -282,7 +283,7 @@ async function loadApproval() {
       events: (payload.events || []).map(normalizeEvent),
     })
   } catch (error) {
-    ElMessage.error(error?.response?.data?.message || '获取审批状态失败')
+    ElMessage.error(getApiErrorMessage(error, '获取审批状态失败'))
   } finally {
     loading.value = false
   }
@@ -296,7 +297,7 @@ async function runAction(action, postingId, message, successMessage, data) {
     await loadApproval()
     emit('changed', approval)
   } catch (error) {
-    ElMessage.error(error?.response?.data?.message || message)
+    ElMessage.error(getApiErrorMessage(error, message))
   } finally {
     actionLoading.value = false
   }

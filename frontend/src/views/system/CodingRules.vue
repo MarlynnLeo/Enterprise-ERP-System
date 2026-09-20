@@ -192,6 +192,7 @@
   </div>
 </template>
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
@@ -286,7 +287,7 @@ const handleSave = async () => {
     ElMessage.success('保存成功')
     formVis.value = false
     fetchList()
-  } catch (e) { ElMessage.error(e?.response?.data?.message || e.message || '保存失败') }
+  } catch (e) { ElMessage.error(getApiErrorMessage(e, '保存失败')) }
   finally { saving.value = false }
 }
 const handleDelete = async (row) => {
@@ -300,7 +301,7 @@ const handleDelete = async (row) => {
   } catch (error) {
     if (error !== 'cancel' && error?.toString() !== 'cancel') {
       console.error('删除编码规则失败:', error)
-      ElMessage.error(error?.response?.data?.message || '删除失败')
+      ElMessage.error(getApiErrorMessage(error, '删除失败'))
     }
   }
 }
@@ -325,7 +326,7 @@ const handleResetSeq = async () => {
     ElMessage.success('序列已重置')
     sequences.value = []
     fetchList()
-  } catch (e) { ElMessage.error(e.message || '重置失败') }
+  } catch (e) { ElMessage.error(getApiErrorMessage(e, '重置失败')) }
 }
 onMounted(fetchList)
 </script>

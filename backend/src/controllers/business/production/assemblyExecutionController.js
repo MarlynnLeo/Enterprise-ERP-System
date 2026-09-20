@@ -13,7 +13,7 @@ const { getAuthenticatedUserId } = require('../../../utils/authContext');
 async function assertTaskWriteAccess(req, taskId, accessMode = 'write') {
   const normalized = Number(taskId);
   if (!Number.isInteger(normalized) || normalized <= 0) {
-    const error = new Error('生产任务 ID 无效');
+    const error = new Error('生产任务参数无效');
     error.statusCode = 400;
     throw error;
   }
@@ -25,10 +25,9 @@ async function assertTaskWriteAccess(req, taskId, accessMode = 'write') {
 }
 
 async function getStepTaskId(stepId) {
-  const [rows] = await pool.query(
-    'SELECT task_id FROM production_processes WHERE id = ?',
-    [stepId]
-  );
+  const [rows] = await pool.query('SELECT task_id FROM production_processes WHERE id = ?', [
+    stepId,
+  ]);
   if (rows.length === 0) {
     const error = new Error('工序步骤不存在');
     error.statusCode = 404;
@@ -68,7 +67,9 @@ module.exports = {
       await assertTaskWriteAccess(req, await getStepTaskId(req.params.stepId));
       const { stationId } = req.body;
       const data = await AssemblyExecutionService.startStep(
-        req.params.stepId, getAuthenticatedUserId(req), stationId
+        req.params.stepId,
+        getAuthenticatedUserId(req),
+        stationId
       );
       ResponseHandler.success(res, data, '工序已开始');
     } catch (error) {
@@ -81,7 +82,9 @@ module.exports = {
   async completeStep(req, res) {
     try {
       await assertTaskWriteAccess(req, await getStepTaskId(req.params.stepId));
-      const data = await AssemblyExecutionService.completeStep(req.params.stepId, req.body, { operatorId: getAuthenticatedUserId(req) });
+      const data = await AssemblyExecutionService.completeStep(req.params.stepId, req.body, {
+        operatorId: getAuthenticatedUserId(req),
+      });
       ResponseHandler.success(res, data, '工序已完成');
     } catch (error) {
       logger.error('完成工序失败:', error);
@@ -93,7 +96,9 @@ module.exports = {
   async skipStep(req, res) {
     try {
       await assertTaskWriteAccess(req, await getStepTaskId(req.params.stepId));
-      const data = await AssemblyExecutionService.skipStep(req.params.stepId, req.body.reason, { operatorId: getAuthenticatedUserId(req) });
+      const data = await AssemblyExecutionService.skipStep(req.params.stepId, req.body.reason, {
+        operatorId: getAuthenticatedUserId(req),
+      });
       ResponseHandler.success(res, data, '工序已跳过');
     } catch (error) {
       logger.error('跳过工序失败:', error);

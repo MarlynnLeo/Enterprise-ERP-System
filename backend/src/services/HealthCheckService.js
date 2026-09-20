@@ -73,8 +73,7 @@ class HealthCheckService {
       } catch (error) {
         results.checks[name] = {
           status: 'unhealthy',
-          message: error.message,
-          error: error.stack,
+          message: '健康检查项执行失败',
         };
         results.summary.unhealthy++;
       }
@@ -137,7 +136,7 @@ class HealthCheckService {
       return {
         status: 'unhealthy',
         message: '数据库连接失败',
-        error: error.message,
+        error: '数据库连接失败，请稍后重试',
       };
     }
   }
@@ -158,7 +157,7 @@ class HealthCheckService {
       return {
         status: 'unhealthy',
         message: '连接池检查失败',
-        error: error.message,
+        error: '连接池检查失败，请稍后重试',
       };
     }
   }
@@ -198,7 +197,7 @@ class HealthCheckService {
       return {
         status: 'unhealthy',
         message: '缓存服务异常',
-        error: error.message,
+        error: '缓存服务异常，请稍后重试',
       };
     }
   }
@@ -240,8 +239,6 @@ class HealthCheckService {
    */
   async checkDisk() {
     try {
-
-
       // 在Windows上获取磁盘使用情况比较复杂，这里简化处理
       // 实际生产环境中可能需要使用第三方库如 'node-disk-info'
 
@@ -257,7 +254,7 @@ class HealthCheckService {
       return {
         status: 'warning',
         message: '无法获取磁盘信息',
-        error: error.message,
+        error: '无法获取磁盘信息，请稍后重试',
       };
     }
   }

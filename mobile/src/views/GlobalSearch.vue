@@ -415,7 +415,7 @@ const performSearch = async (keyword) => {
 
     searchResults.orders = extract(orderRes).map(o => ({
       type: 'sales_order', id: o.id,
-      title: `${o.orderNo || o.id}`,
+      title: o.orderNo || '未命名销售订单',
       subtitle: o.customerName || '',
       description: o.remarks || '',
       status: o.status || 'pending'
@@ -423,7 +423,7 @@ const performSearch = async (keyword) => {
 
     searchResults.purchase_orders = extract(poRes).map(o => ({
       type: 'purchase_order', id: o.id,
-      title: `${o.orderNo || o.id}`,
+      title: o.orderNo || '未命名采购订单',
       subtitle: o.supplierName || '',
       description: o.remarks || '',
       status: o.status || 'pending'
@@ -431,7 +431,7 @@ const performSearch = async (keyword) => {
 
     searchResults.tasks = extract(taskRes).map(t => ({
       type: 'task', id: t.id,
-      title: t.taskNo || String(t.id),
+      title: t.taskNo || '未命名任务',
       subtitle: t.productName || '',
       description: t.remarks || '',
       status: t.status || 'pending'
@@ -446,7 +446,7 @@ const performSearch = async (keyword) => {
 
     searchResults.boms = extract(bomRes).map(b => ({
       type: 'bom', id: b.id,
-      title: b.name || b.bomNo || String(b.id),
+      title: b.name || b.bomNo || '未命名BOM',
       subtitle: b.materialCode || b.productCode || '',
       description: b.version || b.remarks || '',
       status: b.status || 'active'

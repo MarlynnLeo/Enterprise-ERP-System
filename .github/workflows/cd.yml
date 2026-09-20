@@ -184,6 +184,7 @@ jobs:
           file: ./mobile/Dockerfile
           load: true
           tags: erp-mobile:${{ env.IMAGE_TAG }}
+          build-args: APP_BUILD_ID=${{ env.IMAGE_TAG }}
           cache-from: type=gha,scope=mobile
           cache-to: type=gha,mode=max,scope=mobile
 
@@ -233,7 +234,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Git SHA | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Git SHA | \`${{ env.IMAGE_TAG }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Backend image | \`erp-backend:${{ env.IMAGE_TAG }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Frontend image | \`erp-frontend:${{ env.IMAGE_TAG }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Mobile image | \`erp-mobile:${{ env.IMAGE_TAG }}\` |" >> $GITHUB_STEP_SUMMARY

@@ -39,7 +39,7 @@ class InventoryValuationAdjustmentService {
     const ledger = Array.isArray(ledgerQueryResult?.[0])
       ? ledgerQueryResult[0][0]
       : input.ledgerSnapshot;
-    if (!ledger) throw new Error(`库存台账不存在: ${ledgerId}`);
+    if (!ledger) throw new Error('库存台账不存在或已被删除');
 
     const oldUnitCost = Number(ledger.effective_unit_cost ?? ledger.unit_cost ?? 0);
     const quantity = Number(ledger.quantity || 0);

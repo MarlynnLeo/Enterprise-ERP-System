@@ -26,7 +26,7 @@
         <div v-if="items.length" class="items">
           <div v-for="item in items" :key="item.id || item.productId" class="item-row">
             <div>
-              <div class="item-title">{{ item.productName || item.materialName || item.productName || item.materialName || `产品#${item.productId}` }}</div>
+              <div class="item-title">{{ item.productName || item.materialName || item.productCode || item.materialCode || '未命名产品' }}</div>
               <div class="item-subtitle">{{ item.productCode || item.specification || '-' }}</div>
             </div>
             <div class="qty">
@@ -55,6 +55,7 @@
   import { Button, Cell, CellGroup, Empty, Loading, NavBar, Tag, showConfirmDialog, showToast } from 'vant'
   import { purchaseApi } from '@/api'
   import { extractApiData } from '@/utils/apiHelper'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const route = useRoute()
   const router = useRouter()
@@ -96,7 +97,10 @@
       showToast({ type: 'success', message: '状态已更新' })
       await fetchDetail()
     } catch (error) {
-      if (error !== 'cancel') console.error('更新外协入库状态失败', error)
+      if (error !== 'cancel') {
+        console.error('更新外协入库状态失败', error)
+        showToast({ type: 'fail', message: getApiErrorMessage(error, '更新外协入库状态失败') })
+      }
     } finally {
       submitting.value = false
     }

@@ -631,6 +631,7 @@
   </div>
 </template>
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted, computed, nextTick } from 'vue'
@@ -811,7 +812,7 @@ const loadLocations = async () => {
     }
   } catch (error) {
     console.error('加载仓库数据失败:', error);
-    ElMessage.error('加载仓库数据失败: ' + (error.message || '未知错误'));
+    ElMessage.error('加载仓库数据失败: ' + (getApiErrorMessage(error, '未知错误')));
     locations.value = [];
   }
 };
@@ -928,7 +929,7 @@ const handlePrintInbound = async () => {
     printService.previewDocument(html)
   } catch (error) {
     console.error('打印入库单失败:', error)
-    ElMessage.error('打印失败: ' + (error.message || '未知错误'))
+    ElMessage.error('打印失败: ' + (getApiErrorMessage(error, '未知错误')))
   } finally {
     printLoading.value = false
   }
@@ -978,7 +979,7 @@ const handleUpdateStatus = async (id, newStatus) => {
     handleSearch();
   } catch (error) {
     console.error('状态更新失败:', error);
-    ElMessage.error(error.response?.data?.message || '状态更新失败');
+    ElMessage.error(getApiErrorMessage(error, '状态更新失败'));
   }
 }
 
@@ -1066,7 +1067,7 @@ const handleMaterialSelect = (item, index) => {
   const materialId = Number(item.id)
   if (!materialId || isNaN(materialId)) {
     console.error('物料ID无效:', item.id)
-    ElMessage.error('物料ID无效，请重新选择')
+    ElMessage.error('所选物料无效，请重新选择')
     return
   }
   form.items[index].materialId = materialId
@@ -1321,7 +1322,7 @@ const handleSubmit = async () => {
     handleSearch()
   } catch (error) {
     console.error('提交失败:', error)
-    ElMessage.error(error.response?.data?.message || '提交失败')
+    ElMessage.error(getApiErrorMessage(error, '提交失败'))
   } finally {
     submitLoading.value = false
   }

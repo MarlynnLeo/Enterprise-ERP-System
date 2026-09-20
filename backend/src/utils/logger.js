@@ -9,7 +9,9 @@ const fs = require('fs');
 const path = require('path');
 
 // 确保日志目录存在
-const logDir = process.env.LOG_DIR ? path.resolve(process.env.LOG_DIR) : path.join(__dirname, '../../logs');
+const logDir = process.env.LOG_DIR
+  ? path.resolve(process.env.LOG_DIR)
+  : path.join(__dirname, '../../logs');
 if (!fs.existsSync(logDir)) {
   fs.mkdirSync(logDir, { recursive: true });
 }
@@ -33,17 +35,25 @@ const formatTime = () => {
 
 // 敏感字段名（值将被替换为 '***'）
 const SENSITIVE_KEYS = new Set([
-  'password', 'newPassword', 'oldPassword', 'confirmPassword',
-  'secret', 'token', 'accessToken', 'refreshToken',
-  'api_key', 'apiKey', 'authorization',
+  'password',
+  'newPassword',
+  'oldPassword',
+  'confirmPassword',
+  'secret',
+  'token',
+  'accessToken',
+  'refreshToken',
+  'api_key',
+  'apiKey',
+  'authorization',
 ]);
 
 // 敏感值正则脱敏规则
 const SENSITIVE_VALUE_PATTERNS = [
-  { pattern: /(\d{3})\d{4}(\d{4})/, replacement: '$1****$2', name: 'phone' },           // 手机号
-  { pattern: /(\d{6})\d{8}(\d{4})/, replacement: '$1********$2', name: 'idcard' },       // 身份证
-  { pattern: /(\d{4})\d{8,12}(\d{4})/, replacement: '$1****$2', name: 'bankcard' },      // 银行卡
-  { pattern: /(\w{2})\w+(@\w+\.\w+)/, replacement: '$1***$2', name: 'email' },           // 邮箱
+  { pattern: /(\d{3})\d{4}(\d{4})/, replacement: '$1****$2', name: 'phone' }, // 手机号
+  { pattern: /(\d{6})\d{8}(\d{4})/, replacement: '$1********$2', name: 'idcard' }, // 身份证
+  { pattern: /(\d{4})\d{8,12}(\d{4})/, replacement: '$1****$2', name: 'bankcard' }, // 银行卡
+  { pattern: /(\w{2})\w+(@\w+\.\w+)/, replacement: '$1***$2', name: 'email' }, // 邮箱
 ];
 
 /**

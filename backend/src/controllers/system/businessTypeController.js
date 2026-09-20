@@ -25,7 +25,8 @@ const getAllBusinessTypes = async (req, res) => {
     const q = mapKeysToSnake(req.query || {});
     const { category, group_code, status, keyword } = q;
 
-    let sql = 'SELECT id, code, name, category, group_code, description, icon, color, tag_type, sort_order, is_system, status, created_at, updated_at, created_by, updated_by FROM business_types WHERE 1=1';
+    let sql =
+      'SELECT id, code, name, category, group_code, description, icon, color, tag_type, sort_order, is_system, status, created_at, updated_at, created_by, updated_by FROM business_types WHERE 1=1';
     const params = [];
 
     if (group_code) {
@@ -103,7 +104,7 @@ const getBusinessTypeGroups = async (req, res) => {
     const [groups] = await pool.execute(
       'SELECT DISTINCT group_code FROM business_types WHERE group_code IS NOT NULL ORDER BY group_code'
     );
-    const result = groups.map(g => g.group_code);
+    const result = groups.map((g) => g.group_code);
     ResponseHandler.success(res, result, '获取字典分组列表成功');
   } catch (error) {
     logger.error('获取字典分组失败:', error);
@@ -118,7 +119,10 @@ const getBusinessTypeById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const [types] = await pool.execute('SELECT id, code, name, category, group_code, description, icon, color, tag_type, sort_order, is_system, status, created_at, updated_at, created_by, updated_by FROM business_types WHERE id = ?', [id]);
+    const [types] = await pool.execute(
+      'SELECT id, code, name, category, group_code, description, icon, color, tag_type, sort_order, is_system, status, created_at, updated_at, created_by, updated_by FROM business_types WHERE id = ?',
+      [id]
+    );
 
     if (types.length === 0) {
       return ResponseHandler.error(res, '业务类型不存在', 'NOT_FOUND', 404);
@@ -136,7 +140,8 @@ const getBusinessTypeById = async (req, res) => {
  */
 const createBusinessType = async (req, res) => {
   try {
-    const { code, name, category, group_code, tag_type, description, icon, color, sort_order } = mapKeysToSnake(req.body || {});
+    const { code, name, category, group_code, tag_type, description, icon, color, sort_order } =
+      mapKeysToSnake(req.body || {});
     const userId = req.user?.id;
     const actualGroupCode = group_code || 'inventory_transaction';
 
@@ -146,7 +151,10 @@ const createBusinessType = async (req, res) => {
     }
 
     // 检查编码在同一个分组内是否已存在
-    const [existing] = await pool.execute('SELECT id FROM business_types WHERE group_code = ? AND code = ?', [actualGroupCode, code]);
+    const [existing] = await pool.execute(
+      'SELECT id FROM business_types WHERE group_code = ? AND code = ?',
+      [actualGroupCode, code]
+    );
 
     if (existing.length > 0) {
       return ResponseHandler.error(res, '该分组下业务类型编码已存在', 'CONFLICT', 409);
@@ -184,18 +192,29 @@ const createBusinessType = async (req, res) => {
 const updateBusinessType = async (req, res) => {
   try {
     const { id } = req.params;
-    const { code, name, category, group_code, tag_type, description, icon, color, sort_order, status } = mapKeysToSnake(req.body || {});
+    const {
+      code,
+      name,
+      category,
+      group_code,
+      tag_type,
+      description,
+      icon,
+      color,
+      sort_order,
+      status,
+    } = mapKeysToSnake(req.body || {});
     const userId = req.user?.id;
 
     // 检查业务类型是否存在
-    const [existing] = await pool.execute('SELECT is_system, group_code, status FROM business_types WHERE id = ?', [
-      id,
-    ]);
+    const [existing] = await pool.execute(
+      'SELECT is_system, group_code, status FROM business_types WHERE id = ?',
+      [id]
+    );
 
     if (existing.length === 0) {
       return ResponseHandler.error(res, '业务类型不存在', 'NOT_FOUND', 404);
     }
-
 
     // 系统内置类型只能修改部分字段
     const isSystem = existing[0].is_system;
@@ -286,9 +305,10 @@ const deleteBusinessType = async (req, res) => {
     const { id } = req.params;
 
     // 检查业务类型是否存在
-    const [existing] = await pool.execute('SELECT is_system, status FROM business_types WHERE id = ?', [
-      id,
-    ]);
+    const [existing] = await pool.execute(
+      'SELECT is_system, status FROM business_types WHERE id = ?',
+      [id]
+    );
 
     if (existing.length === 0) {
       return ResponseHandler.error(res, '业务类型不存在', 'NOT_FOUND', 404);
@@ -298,7 +318,6 @@ const deleteBusinessType = async (req, res) => {
     if (existing[0].is_system) {
       return ResponseHandler.error(res, '系统内置业务类型不能删除', 'FORBIDDEN', 403);
     }
-
 
     // 检查是否在库存台账中被引用
     const [usageCheck] = await pool.execute(

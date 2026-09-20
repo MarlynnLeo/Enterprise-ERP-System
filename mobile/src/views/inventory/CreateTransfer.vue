@@ -145,6 +145,7 @@
   } from 'vant'
   import { inventoryApi } from '@/api'
   import { extractApiList } from '@/utils/apiHelper'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const router = useRouter()
   const submitting = ref(false)
@@ -161,7 +162,7 @@
       const response = await inventoryApi.getWarehouses()
       const list = extractApiList(response)
       warehouseOptions.value = list.map((w) => ({
-        text: w.name || w.warehouseName || `仓库#${w.id}`,
+        text: w.name || w.warehouseName || '未命名仓库',
         value: String(w.id)
       }))
     } catch (error) {
@@ -241,7 +242,7 @@
     if (activeMaterialIndex.value >= 0) {
       form.items[activeMaterialIndex.value].materialId = mat.id
       form.items[activeMaterialIndex.value].materialName =
-        mat.name || mat.materialName || `物料#${mat.id}`
+        mat.name || mat.materialName || mat.code || mat.materialCode || '未命名物料'
     }
     showMaterialPicker.value = false
   }
@@ -298,7 +299,7 @@
         router.back()
       }, 1000)
     } catch (error) {
-      showToast('提交失败: ' + (error.message || '系统错误'))
+      showToast(`提交失败：${getApiErrorMessage(error, '系统错误')}`)
     } finally {
       submitting.value = false
     }

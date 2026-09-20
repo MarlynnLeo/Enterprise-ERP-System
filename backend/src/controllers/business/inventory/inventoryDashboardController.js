@@ -89,27 +89,29 @@ const getDashboardSummary = async (req, res) => {
     const trendMap = new Map();
     for (const row of inboundTrendRes) {
       if (row.month) {
-        if (!trendMap.has(row.month)) trendMap.set(row.month, { month: row.month, inbound_qty: 0, outbound_qty: 0 });
+        if (!trendMap.has(row.month))
+          trendMap.set(row.month, { month: row.month, inbound_qty: 0, outbound_qty: 0 });
         trendMap.get(row.month).inbound_qty = Number(row.inbound_qty) || 0;
       }
     }
     for (const row of outboundTrendRes) {
       if (row.month) {
-        if (!trendMap.has(row.month)) trendMap.set(row.month, { month: row.month, inbound_qty: 0, outbound_qty: 0 });
+        if (!trendMap.has(row.month))
+          trendMap.set(row.month, { month: row.month, inbound_qty: 0, outbound_qty: 0 });
         trendMap.get(row.month).outbound_qty = Number(row.outbound_qty) || 0;
       }
     }
 
     const monthlyTrend = Array.from(trendMap.values())
       .sort((a, b) => a.month.localeCompare(b.month))
-      .map(item => ({
+      .map((item) => ({
         month: item.month,
         inbound_qty: item.inbound_qty,
         outbound_qty: item.outbound_qty,
         inbound: item.inbound_qty,
         outbound: item.outbound_qty,
         inboundQty: item.inbound_qty,
-        outboundQty: item.outbound_qty
+        outboundQty: item.outbound_qty,
       }));
 
     // 5. 预警清单 (分页拉一些足够展示)
@@ -142,7 +144,7 @@ const getDashboardSummary = async (req, res) => {
     const [alertRes] = await db.pool.execute(alertQuery, stockLedgerFilter.params);
 
     // 数据编排结构化
-    const alertsList = alertRes.map(item => {
+    const alertsList = alertRes.map((item) => {
       let type = 'normal';
       let status = '正常';
       const qty = parseFloat(item.quantity);
@@ -150,18 +152,21 @@ const getDashboardSummary = async (req, res) => {
       const max = parseFloat(item.maxStock);
 
       if (qty <= 0) {
-        type = 'critical'; status = '零库存';
+        type = 'critical';
+        status = '零库存';
       } else if (safe > 0 && qty < safe) {
-        type = 'low'; status = '低库存';
+        type = 'low';
+        status = '低库存';
       } else if (max > 0 && qty > max) {
-        type = 'overstock'; status = '超额库存';
+        type = 'overstock';
+        status = '超额库存';
       }
 
       return {
         ...item,
         type,
         status,
-        quantity: qty
+        quantity: qty,
       };
     });
 
@@ -172,16 +177,16 @@ const getDashboardSummary = async (req, res) => {
         inbound: { count: inboundCount, items: inboundItemsQty },
         outbound: { count: outboundCount, items: outboundItemsQty },
         alerts: {
-          low: alertsList.filter(a => a.type === 'low' || a.type === 'critical').length,
-          overstock: alertsList.filter(a => a.type === 'overstock').length
-        }
+          low: alertsList.filter((a) => a.type === 'low' || a.type === 'critical').length,
+          overstock: alertsList.filter((a) => a.type === 'overstock').length,
+        },
       },
       categoryDistribution: {
-        labels: categoryRes.map(c => c.category_name),
-        values: categoryRes.map(c => Number(c.item_count))
+        labels: categoryRes.map((c) => c.category_name),
+        values: categoryRes.map((c) => Number(c.item_count)),
       },
       monthlyTrend,
-      alertItems: alertsList
+      alertItems: alertsList,
     };
 
     ResponseHandler.success(res, summaryData);
@@ -192,5 +197,5 @@ const getDashboardSummary = async (req, res) => {
 };
 
 module.exports = {
-  getDashboardSummary
+  getDashboardSummary,
 };

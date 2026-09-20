@@ -55,7 +55,10 @@ class ProductionInboundService {
     }
 
     const referenceId = Number(
-      inspection.reference_id || inspection.task_id || resolveInboundFromInspection(inspection).referenceId || 0
+      inspection.reference_id ||
+        inspection.task_id ||
+        resolveInboundFromInspection(inspection).referenceId ||
+        0
     );
 
     const [taskInfo] = referenceId
@@ -76,42 +79,41 @@ class ProductionInboundService {
       });
       if (odmDraft) return odmDraft;
       throw new Error(
-        `成品检验单 ${inspection.inspection_no || inspection.id} 未关联生产任务或采购单，不能创建入库`
+        `成品检验单 ${inspection.inspection_no || '当前检验单'} 未关联生产任务或采购单，不能创建入库`
       );
     }
     const task = taskInfo[0];
     const taskId = task.id;
 
-    let locationId = await this.resolveFinishedGoodsLocationId(connection, task.material_location_id);
+    let locationId = await this.resolveFinishedGoodsLocationId(
+      connection,
+      task.material_location_id
+    );
     if (!locationId) {
       locationId = await InventoryService.getMaterialLocation(task.product_id, connection);
     }
     if (!locationId) {
-      throw new Error(`产品 ${task.product_id} 未配置可用仓库，不能创建生产入库单`);
+      throw new Error(
+        `产品“${task.product_code || task.product_name || '所选物料'}”未配置可用仓库，不能创建生产入库单`
+      );
     }
 
     const batchNo = String(inspection.batch_no || '').trim();
     if (!batchNo) {
       throw new Error(
-        `成品检验单 ${inspection.inspection_no || inspection.id} 未填写批次号，不能创建生产入库单`
+        `成品检验单 ${inspection.inspection_no || '当前检验单'} 未填写批次号，不能创建生产入库单`
       );
     }
 
-    const inboundQuantity = Number(
-      params.qualifiedQuantity ?? inspection.qualified_quantity ?? 0
-    );
+    const inboundQuantity = Number(params.qualifiedQuantity ?? inspection.qualified_quantity ?? 0);
     if (!Number.isFinite(inboundQuantity) || inboundQuantity <= 0) {
-      throw new Error(
-        `成品检验单 ${inspection.inspection_no || inspection.id} 合格数量必须大于0`
-      );
+      throw new Error(`成品检验单 ${inspection.inspection_no || '当前检验单'} 合格数量必须大于0`);
     }
 
     const unitId = task.material_unit_id || null;
     const inboundNo = await CodeGenerators.generateInboundCode(connection);
     const operator = params.operator || inspection.inspector_name || '系统';
-    const remark =
-      params.remark ||
-      `检验单 ${inspection.inspection_no} 通过后自动创建`;
+    const remark = params.remark || `检验单 ${inspection.inspection_no} 通过后自动创建`;
 
     const [inboundResult] = await connection.execute(
       `INSERT INTO inventory_inbound (
@@ -200,7 +202,7 @@ class ProductionInboundService {
     const materialId = Number(inspection.product_id || inspection.material_id || 0);
     if (!materialId) {
       throw new Error(
-        `ODM成品检验单 ${inspection.inspection_no || inspection.id} 缺少产品，不能入库成品仓`
+        `ODM成品检验单 ${inspection.inspection_no || '当前检验单'} 缺少产品，不能入库成品仓`
       );
     }
 
@@ -212,17 +214,13 @@ class ProductionInboundService {
     const batchNo = String(inspection.batch_no || '').trim();
     if (!batchNo) {
       throw new Error(
-        `成品检验单 ${inspection.inspection_no || inspection.id} 未填写批次号，不能创建入库单`
+        `成品检验单 ${inspection.inspection_no || '当前检验单'} 未填写批次号，不能创建入库单`
       );
     }
 
-    const inboundQuantity = Number(
-      params.qualifiedQuantity ?? inspection.qualified_quantity ?? 0
-    );
+    const inboundQuantity = Number(params.qualifiedQuantity ?? inspection.qualified_quantity ?? 0);
     if (!Number.isFinite(inboundQuantity) || inboundQuantity <= 0) {
-      throw new Error(
-        `成品检验单 ${inspection.inspection_no || inspection.id} 合格数量必须大于0`
-      );
+      throw new Error(`成品检验单 ${inspection.inspection_no || '当前检验单'} 合格数量必须大于0`);
     }
 
     const [materials] = await connection.query(
@@ -338,14 +336,12 @@ class ProductionInboundService {
     const purchaseOrderId = Number(inspection.reference_id || 0);
     if (!purchaseOrderId) {
       throw new Error(
-        `来料检验单 ${inspection.inspection_no || inspection.id} 未关联采购单，不能入库`
+        `来料检验单 ${inspection.inspection_no || '当前检验单'} 未关联采购单，不能入库`
       );
     }
     const materialId = Number(inspection.material_id || inspection.product_id || 0);
     if (!materialId) {
-      throw new Error(
-        `来料检验单 ${inspection.inspection_no || inspection.id} 缺少物料，不能入库`
-      );
+      throw new Error(`来料检验单 ${inspection.inspection_no || '当前检验单'} 缺少物料，不能入库`);
     }
 
     const [materials] = await connection.query(
@@ -363,23 +359,19 @@ class ProductionInboundService {
     const batchNo = String(inspection.batch_no || '').trim();
     if (!batchNo) {
       throw new Error(
-        `来料检验单 ${inspection.inspection_no || inspection.id} 未填写批次号，不能创建入库单`
+        `来料检验单 ${inspection.inspection_no || '当前检验单'} 未填写批次号，不能创建入库单`
       );
     }
     const inboundQuantity = Number(
       params.qualifiedQuantity ?? inspection.qualified_quantity ?? inspection.quantity ?? 0
     );
     if (!Number.isFinite(inboundQuantity) || inboundQuantity <= 0) {
-      throw new Error(
-        `来料检验单 ${inspection.inspection_no || inspection.id} 合格数量必须大于0`
-      );
+      throw new Error(`来料检验单 ${inspection.inspection_no || '当前检验单'} 合格数量必须大于0`);
     }
 
     const inboundNo = await CodeGenerators.generateInboundCode(connection);
     const operator = params.operator || inspection.inspector_name || '系统';
-    const remark =
-      params.remark ||
-      `来料检验 ${inspection.inspection_no} 合格入库零部件仓`;
+    const remark = params.remark || `来料检验 ${inspection.inspection_no} 合格入库零部件仓`;
 
     const [inboundResult] = await connection.execute(
       `INSERT INTO inventory_inbound (
@@ -418,9 +410,7 @@ class ProductionInboundService {
       ]
     );
 
-    logger.info(
-      `[ProductionInbound] 来料检验 ${inspection.id} → 零部件仓入库草稿 ${inboundNo}`
-    );
+    logger.info(`[ProductionInbound] 来料检验 ${inspection.id} → 零部件仓入库草稿 ${inboundNo}`);
     return {
       created: true,
       existed: false,

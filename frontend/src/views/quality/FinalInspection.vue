@@ -745,6 +745,7 @@
   </div>
 </template>
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { parseListData, parseResponseData } from '@/utils/responseParser';
 import { ref, reactive, onMounted, computed } from 'vue'
@@ -916,7 +917,7 @@ const fetchProductionOrders = async () => {
     }
   } catch (error) {
     console.error('获取生产工单失败:', error);
-    ElMessage.warning(`获取生产工单数据失败: ${error.message || '未知错误'}`);
+    ElMessage.warning(`获取生产工单数据失败: ${getApiErrorMessage(error, '未知错误')}`);
     productionOrderOptions.value = [];
   }
 }
@@ -1128,7 +1129,7 @@ const fetchData = async () => {
     }
   } catch (error) {
     console.error('获取检验单列表失败:', error);
-    ElMessage.error(`获取检验单列表失败: ${error.message}`);
+    ElMessage.error(`获取检验单列表失败：${getApiErrorMessage(error, '请稍后重试')}`);
   } finally {
     loading.value = false;
   }
@@ -1303,7 +1304,7 @@ const handleView = async (row) => {
     setCurrentViewInspection(row);
   } catch (error) {
     console.error('获取检验单详情失败:', error);
-    ElMessage.error('获取检验单详情失败: ' + error.message);
+    ElMessage.error(`获取检验单详情失败：${getApiErrorMessage(error, '请稍后重试')}`);
   } finally {
     viewLoading.value = false
   }
@@ -1449,7 +1450,7 @@ const handleInspect = async (row) => {
       try {
         const materialId = inspection.materialId || inspection.productId;
         if (!materialId) {
-          throw new Error('缺少物料/产品ID');
+          throw new Error('请选择物料或产品');
         }
 
         await fetchInspectionTemplate(materialId);
@@ -1487,7 +1488,7 @@ const handleInspect = async (row) => {
     inspectDialogVisible.value = true;
   } catch (error) {
     console.error('获取检验单详情失败:', error);
-    ElMessage.error('获取检验单详情失败: ' + error.message);
+    ElMessage.error(`获取检验单详情失败：${getApiErrorMessage(error, '请稍后重试')}`);
   }
 }
 // 提交检验结果
@@ -1550,7 +1551,7 @@ const submitInspection = async () => {
     // 提交检验结果 - 需要分离ID和数据
     const inspectionId = submitData.id
     if (!inspectionId) {
-      ElMessage.error('检验单ID缺失，无法提交');
+      ElMessage.error('检验单信息缺失，无法提交');
       return;
     }
     const inspectionData = { ...submitData }
@@ -1570,7 +1571,7 @@ const submitInspection = async () => {
     fetchData()
   } catch (error) {
     console.error('提交检验结果出错:', error)
-    ElMessage.error('提交检验结果失败: ' + (error.message || '未知错误'))
+    ElMessage.error('提交检验结果失败: ' + (getApiErrorMessage(error, '未知错误')))
   } finally {
     submitLoading.value = false
   }
@@ -1593,7 +1594,7 @@ const handleReport = (row) => {
   handleGetInspectionDetail(row.id).then(() => {
     reportDialogVisible.value = true;
   }).catch(error => {
-    ElMessage.error('获取检验报告数据失败: ' + error.message);
+    ElMessage.error(`获取检验报告数据失败：${getApiErrorMessage(error, '请稍后重试')}`);
   });
 }
 // 复检
@@ -1623,7 +1624,7 @@ const handleReview = (row) => {
 
       inspectDialogVisible.value = true;
     }).catch(error => {
-      ElMessage.error('准备复检失败: ' + error.message);
+      ElMessage.error(`准备复检失败：${getApiErrorMessage(error, '请稍后重试')}`);
     });
   }).catch(() => {
     // 用户取消操作
@@ -1668,7 +1669,7 @@ const handleGenerateCertificate = (row) => {
   handleGetInspectionDetail(row.id).then(() => {
     certificateDialogVisible.value = true;
   }).catch(error => {
-    ElMessage.error('获取合格证书数据失败: ' + error.message);
+    ElMessage.error(`获取合格证书数据失败：${getApiErrorMessage(error, '请稍后重试')}`);
   });
 }
 // 打印报告
@@ -1681,7 +1682,7 @@ const handlePrint = (row) => {
       handlePrintReport();
     }, 500);
   }).catch(error => {
-    ElMessage.error('获取打印数据失败: ' + error.message);
+    ElMessage.error(`获取打印数据失败：${getApiErrorMessage(error, '请稍后重试')}`);
   });
 }
 // 业务 camel；printService 自动展开 snake 模板占位

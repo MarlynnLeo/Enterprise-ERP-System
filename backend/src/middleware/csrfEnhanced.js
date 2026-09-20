@@ -120,7 +120,9 @@ function isTrustedAuthRequest(req) {
   // Non-browser JSON clients (including health checks and integration tests)
   // do not send Origin. A browser form cannot set this content type, so this
   // fallback does not re-open login CSRF for simple cross-site forms.
-  const contentType = String(req.get('Content-Type') || req.get('content-type') || req.is('application/json') || '').toLowerCase();
+  const contentType = String(
+    req.get('Content-Type') || req.get('content-type') || req.is('application/json') || ''
+  ).toLowerCase();
   return contentType.includes('application/json');
 }
 
@@ -210,11 +212,7 @@ const conditionalCsrfProtection = (req, res, next) => {
   // a session. Let it reach the authentication middleware so anonymous
   // callers receive the normal 401 response instead of an opaque CSRF 403.
   // Once a refresh credential is present, the request remains CSRF-protected.
-  if (
-    req.path === '/api/auth/refresh' &&
-    !req.cookies?.refreshToken &&
-    !req.body?.refreshToken
-  ) {
+  if (req.path === '/api/auth/refresh' && !req.cookies?.refreshToken && !req.body?.refreshToken) {
     return next();
   }
 

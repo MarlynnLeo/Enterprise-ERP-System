@@ -10,9 +10,7 @@ function normalizePositiveIds(values) {
   const source = Array.isArray(values) ? values : [values];
   return [
     ...new Set(
-      source
-        .map((value) => Number(value))
-        .filter((value) => Number.isInteger(value) && value > 0)
+      source.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0)
     ),
   ];
 }

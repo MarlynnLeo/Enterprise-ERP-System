@@ -173,6 +173,7 @@ import { NavBar, Icon, Search, Badge, Button, Field, Popup, Loading, showToast }
 import { useAuthStore } from '@/stores/auth'
 import { chatApi } from '@/api'
 import { useSocket } from '@/composables/useSocket'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import dayjs from 'dayjs'
 
 defineOptions({ name: 'Chat' })
@@ -253,7 +254,7 @@ const sendMessage = () => {
     type: 'text',
   }, (response) => {
     if (response?.error) {
-      showToast(response.error)
+      showToast(getApiErrorMessage(response.error, '消息发送失败，请稍后重试'))
     }
   })
 

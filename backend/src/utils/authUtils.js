@@ -66,7 +66,7 @@ class PermissionUtils {
 
     // 层级权限匹配：仅支持显式的通配符匹配
     // 例如：用户拥有 `system:users:*` 可以访问 `system:users:create`
-    return userPermissions.some(p => {
+    return userPermissions.some((p) => {
       if (typeof p === 'string' && p.endsWith(':*')) {
         const prefix = p.slice(0, -2); // 移除 :*
         return requiredPermission.startsWith(prefix + ':');

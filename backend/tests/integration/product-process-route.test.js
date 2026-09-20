@@ -1,6 +1,7 @@
 /* global beforeAll, afterAll, describe, test, expect, jest */
 const { authRequest, getApp, clearCache } = require('../testHelper');
 const db = require('../../src/config/db');
+const { ensureCurrentAccountingPeriod } = require('../accountingPeriodFixture');
 const definitions = require('../../src/services/ProductProcessRouteService');
 const execution = require('../../src/services/business/ProductProcessExecutionService');
 const assembly = require('../../src/services/business/AssemblyExecutionService');
@@ -175,6 +176,7 @@ afterAll(async () => {
     try {
       const [[baseline]] = await connection.query('SELECT status, actual_cost FROM production_tasks WHERE id = ?', [fixture.taskId]);
       await connection.beginTransaction();
+      await ensureCurrentAccountingPeriod(connection);
       const stock = async materialId => {
         const [[row]] = await connection.query('SELECT COALESCE(SUM(quantity), 0) qty FROM inventory_ledger WHERE material_id = ?', [materialId]);
         return Number(row.qty);

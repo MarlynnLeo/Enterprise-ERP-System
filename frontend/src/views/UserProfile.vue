@@ -131,6 +131,7 @@
   </div>
 </template>
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -372,7 +373,7 @@ const saveProfile = async () => {
     isEditing.value = false
   } catch (error) {
     console.error('Save profile error:', error)
-    ElMessage.error('保存失败: ' + (error.response?.data?.message || error.message || '未知错误'))
+    ElMessage.error('保存失败: ' + (getApiErrorMessage(error, '未知错误')))
   }
 }
 const changePassword = async (data, callback) => {
@@ -382,7 +383,7 @@ const changePassword = async (data, callback) => {
     authStore.logout()
     router.push('/login')
   } catch (error) {
-    ElMessage.error('密码修改失败：' + (error.message || '未知错误'))
+    ElMessage.error('密码修改失败：' + (getApiErrorMessage(error, '未知错误')))
   } finally {
     callback && callback()
   }
@@ -420,7 +421,7 @@ const handleAvatarChange = async (file) => {
     ElMessage.success('头像上传成功')
   } catch (error) {
     console.error('Avatar upload error:', error)
-    ElMessage.error('头像上传失败: ' + (error.response?.data?.message || error.message || '未知错误'))
+    ElMessage.error('头像上传失败: ' + (getApiErrorMessage(error, '未知错误')))
   }
 }
 const handleAvatarError = (failedAvatar) => {
@@ -451,7 +452,7 @@ const handleFrameChange = async (frameId) => {
     }))
     ElMessage.success('头像特效已保存')
   } catch (error) {
-    ElMessage.error('特效保存失败: ' + (error.message || '未知错误'))
+    ElMessage.error('特效保存失败: ' + (getApiErrorMessage(error, '未知错误')))
   }
 }
 // 工具函数

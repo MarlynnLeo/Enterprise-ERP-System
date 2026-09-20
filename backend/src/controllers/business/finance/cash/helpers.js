@@ -46,11 +46,19 @@ function addMonthsToCurrentDateString(months) {
 }
 
 function normalizeStatementType(value, amount) {
-  const text = String(value || '').trim().toLowerCase();
-  if (['income', 'in', 'credit', 'deposit'].includes(text) || ['收入', '存款', '转入', '贷方'].includes(value)) {
+  const text = String(value || '')
+    .trim()
+    .toLowerCase();
+  if (
+    ['income', 'in', 'credit', 'deposit'].includes(text) ||
+    ['收入', '存款', '转入', '贷方'].includes(value)
+  ) {
     return 'income';
   }
-  if (['expense', 'out', 'debit', 'withdrawal'].includes(text) || ['支出', '取款', '转出', '借方'].includes(value)) {
+  if (
+    ['expense', 'out', 'debit', 'withdrawal'].includes(text) ||
+    ['支出', '取款', '转出', '借方'].includes(value)
+  ) {
     return 'expense';
   }
   return amount >= 0 ? 'income' : 'expense';
@@ -223,8 +231,12 @@ function parseStatementAmount(row) {
     if (!Number.isNaN(amount) && amount > 0) return amount;
   }
 
-  const income = parseFloat(String(getFirstValue(row, ['收入', '收入金额', '贷方金额', 'credit']) || '').replace(/,/g, ''));
-  const expense = parseFloat(String(getFirstValue(row, ['支出', '支出金额', '借方金额', 'debit']) || '').replace(/,/g, ''));
+  const income = parseFloat(
+    String(getFirstValue(row, ['收入', '收入金额', '贷方金额', 'credit']) || '').replace(/,/g, '')
+  );
+  const expense = parseFloat(
+    String(getFirstValue(row, ['支出', '支出金额', '借方金额', 'debit']) || '').replace(/,/g, '')
+  );
 
   if (!Number.isNaN(income) && income > 0) return income;
   if (!Number.isNaN(expense) && expense > 0) return expense;
@@ -232,13 +244,7 @@ function parseStatementAmount(row) {
 }
 
 function parseStatementSignedAmount(row) {
-  const amountValue = getFirstValue(row, [
-    'amount',
-    'Amount',
-    '交易金额',
-    '金额',
-    '发生额',
-  ]);
+  const amountValue = getFirstValue(row, ['amount', 'Amount', '交易金额', '金额', '发生额']);
   if (amountValue === null || amountValue === undefined || amountValue === '') return null;
 
   const amount = parseFloat(String(amountValue).replace(/,/g, ''));

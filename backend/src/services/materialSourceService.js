@@ -42,7 +42,9 @@ const materialSourceService = {
         params.push(Number(filters.status));
       }
 
-      let query = 'SELECT id, name, code, type, sort, status, description, created_at, updated_at, deleted_at FROM material_sources WHERE ' + conditions.join(' AND ');
+      let query =
+        'SELECT id, name, code, type, sort, status, description, created_at, updated_at, deleted_at FROM material_sources WHERE ' +
+        conditions.join(' AND ');
       query = appendPaginationSQL(
         query + ' ORDER BY sort ASC, id DESC',
         pagination.limit,
@@ -52,7 +54,8 @@ const materialSourceService = {
       const [rows] = await pool.query(query, params);
 
       // 获取总数
-      const countQuery = 'SELECT COUNT(*) as total FROM material_sources WHERE ' + conditions.join(' AND ');
+      const countQuery =
+        'SELECT COUNT(*) as total FROM material_sources WHERE ' + conditions.join(' AND ');
       const [countResult] = await pool.query(countQuery, params);
       const total = countResult[0].total;
 
@@ -73,7 +76,10 @@ const materialSourceService = {
    */
   async getMaterialSourceById(id) {
     try {
-      const [rows] = await pool.query('SELECT id, name, code, type, sort, status, description, created_at, updated_at, deleted_at FROM material_sources WHERE id = ? AND deleted_at IS NULL', [id]);
+      const [rows] = await pool.query(
+        'SELECT id, name, code, type, sort, status, description, created_at, updated_at, deleted_at FROM material_sources WHERE id = ? AND deleted_at IS NULL',
+        [id]
+      );
       return rows.length > 0 ? rows[0] : null;
     } catch (error) {
       logger.error('getMaterialSourceById error:', error);

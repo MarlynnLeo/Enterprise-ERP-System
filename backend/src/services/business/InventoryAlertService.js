@@ -72,9 +72,7 @@ class InventoryAlertService {
 
       // 2. 检查已有待处理的采购申请在途量（与出库缺料请购共用覆盖算法，含 submitted）
       const materialIds = lowStockItems.map((item) => item.material_id);
-      const {
-        getPendingRequisitionQtyByMaterial,
-      } = require('./PendingPurchaseCoverageService');
+      const { getPendingRequisitionQtyByMaterial } = require('./PendingPurchaseCoverageService');
       const pendingQuantityMap = await getPendingRequisitionQtyByMaterial(connection, materialIds);
 
       // 精确过滤：已有采购数量 >= 缺口量则跳过，否则只补差额
@@ -172,7 +170,9 @@ class InventoryAlertService {
 
       await connection.commit();
 
-      logger.info(`Purchase requisition auto-created for low stock: requisitionNo=${requisitionNo}, itemCount=${newLowStockItems.length}`);
+      logger.info(
+        `Purchase requisition auto-created for low stock: requisitionNo=${requisitionNo}, itemCount=${newLowStockItems.length}`
+      );
 
       // 6. 发送系统通知
       await this.sendLowStockNotification(newLowStockItems, requisitionNo, requisitionId);
@@ -233,7 +233,8 @@ class InventoryAlertService {
           linkParams: requisitionId ? { id: requisitionId } : null,
           priority: 1,
           sourceType: requisitionId ? 'low_stock_requisition' : 'low_stock',
-          sourceId: requisitionId || Number(new Date().toISOString().slice(0, 10).replace(/-/g, '')),
+          sourceId:
+            requisitionId || Number(new Date().toISOString().slice(0, 10).replace(/-/g, '')),
         },
         { dedupeByDay: true }
       );

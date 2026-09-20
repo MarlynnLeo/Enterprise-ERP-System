@@ -104,6 +104,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
@@ -152,7 +153,7 @@ const loadData = async () => {
     configs.value = Array.isArray(data) ? data : (data.items || [])
   } catch (error) {
     console.error('加载税务科目配置失败:', error)
-    ElMessage.error(error.message || '加载失败')
+    ElMessage.error(getApiErrorMessage(error, '加载失败'))
   } finally {
     loading.value = false
   }
@@ -165,7 +166,7 @@ const loadAccounts = async () => {
     accounts.value = data.accounts || data.items || (Array.isArray(data) ? data : [])
   } catch (error) {
     console.error('加载会计科目失败:', error)
-    ElMessage.error(error.message || '加载会计科目失败')
+    ElMessage.error(getApiErrorMessage(error, '加载会计科目失败'))
   }
 }
 
@@ -207,7 +208,7 @@ const handleDelete = async (row) => {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('删除配置失败:', error)
-      ElMessage.error(error.message || '删除失败')
+      ElMessage.error(getApiErrorMessage(error, '删除失败'))
     }
   }
 }
@@ -238,7 +239,7 @@ const handleSubmit = async () => {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('提交失败:', error)
-      ElMessage.error(error.message || '操作失败')
+      ElMessage.error(getApiErrorMessage(error, '操作失败'))
     }
   } finally {
     submitLoading.value = false

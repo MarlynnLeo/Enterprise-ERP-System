@@ -122,11 +122,9 @@ const inventoryOutboundItemMap = {
       materialName: row.material_name ?? null,
       specification: row.specification ?? row.specs ?? null,
       quantity: toNumber(row.quantity, 0),
-      plannedQuantity:
-        row.planned_quantity != null ? toNumber(row.planned_quantity, 0) : null,
+      plannedQuantity: row.planned_quantity != null ? toNumber(row.planned_quantity, 0) : null,
       actualQuantity: row.actual_quantity != null ? toNumber(row.actual_quantity, 0) : null,
-      shortageQuantity:
-        row.shortage_quantity != null ? toNumber(row.shortage_quantity, 0) : null,
+      shortageQuantity: row.shortage_quantity != null ? toNumber(row.shortage_quantity, 0) : null,
       stockQuantity: row.stock_quantity != null ? toNumber(row.stock_quantity, 0) : null,
       unitId: row.unit_id ?? null,
       unitName: row.unit_name ?? null,
@@ -165,10 +163,25 @@ const resolveOutboundType = (row) => {
   if (type && type !== 'manual' && type !== 'other') {
     return type;
   }
-  if (row.production_task_id || row.productionTaskId || row.reference_type === 'production_task' || row.referenceType === 'production_task' || row.production_task_code || row.product_code || row.productCode) {
+  if (
+    row.production_task_id ||
+    row.productionTaskId ||
+    row.reference_type === 'production_task' ||
+    row.referenceType === 'production_task' ||
+    row.production_task_code ||
+    row.product_code ||
+    row.productCode
+  ) {
     return 'production';
   }
-  if (row.sales_order_id || row.salesOrderId || row.reference_type === 'sales_order' || row.referenceType === 'sales_order' || row.customer_id || row.customerId) {
+  if (
+    row.sales_order_id ||
+    row.salesOrderId ||
+    row.reference_type === 'sales_order' ||
+    row.referenceType === 'sales_order' ||
+    row.customer_id ||
+    row.customerId
+  ) {
     return 'sales';
   }
   if (row.reference_type === 'outsourced' || row.referenceType === 'outsourced') {
@@ -313,8 +326,7 @@ const inventoryCheckItemMap = {
           : body.systemQuantity != null
             ? toNumber(body.systemQuantity, 0)
             : undefined,
-      actual_quantity:
-        body.actualQuantity != null ? toNumber(body.actualQuantity, 0) : undefined,
+      actual_quantity: body.actualQuantity != null ? toNumber(body.actualQuantity, 0) : undefined,
       unit_id: body.unitId,
       difference: body.difference != null ? toNumber(body.difference, 0) : undefined,
       remark: body.remarks ?? body.remark,

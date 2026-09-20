@@ -18,10 +18,9 @@ function parseObject(raw) {
 class NotificationResponsibilityService {
   async getAll() {
     if (this.cache && this.expiresAt > Date.now()) return this.cache;
-    const [rows] = await pool.query(
-      'SELECT value FROM system_settings WHERE `key` = ? LIMIT 1',
-      [NOTIFICATION_SETTING_KEYS.RESPONSIBILITIES]
-    );
+    const [rows] = await pool.query('SELECT value FROM system_settings WHERE `key` = ? LIMIT 1', [
+      NOTIFICATION_SETTING_KEYS.RESPONSIBILITIES,
+    ]);
     this.cache = parseObject(rows[0]?.value);
     this.expiresAt = Date.now() + CACHE_TTL_MS;
     return this.cache;
@@ -29,7 +28,9 @@ class NotificationResponsibilityService {
 
   async getForEvent(eventType) {
     const event = getEvent(eventType);
-    return event?.responsibility_code ? (await this.getAll())[event.responsibility_code] || null : null;
+    return event?.responsibility_code
+      ? (await this.getAll())[event.responsibility_code] || null
+      : null;
   }
 
   async validateRuleRecipients(eventType, recipientType, recipientConfig, { active = true } = {}) {
@@ -45,12 +46,17 @@ class NotificationResponsibilityService {
       responsibility.recipient_type,
       responsibility.recipient_config
     );
-    const ruleIds = await NotificationRecipientService.resolveRecipients(recipientType, recipientConfig);
+    const ruleIds = await NotificationRecipientService.resolveRecipients(
+      recipientType,
+      recipientConfig
+    );
     const configured = new Set(configuredIds.map(Number));
     const outside = ruleIds.filter((id) => !configured.has(Number(id)));
     if (!ruleIds.length) throw new Error('启用规则前必须至少匹配一名启用用户');
     if (outside.length) {
-      throw new Error(`规则收件范围超出事件责任组（${outside.length} 名用户），请按责任组配置收件人`);
+      throw new Error(
+        `规则收件范围超出事件责任组（${outside.length} 名用户），请按责任组配置收件人`
+      );
     }
   }
 
@@ -86,7 +92,10 @@ class NotificationResponsibilityService {
         }
       }
       values = Array.isArray(values) ? values : [];
-      const ruleRecipientIds = await NotificationRecipientService.resolveRecipients(rule.recipient_type, values);
+      const ruleRecipientIds = await NotificationRecipientService.resolveRecipients(
+        rule.recipient_type,
+        values
+      );
       if (ruleRecipientIds.some((id) => !allowed.has(Number(id)))) {
         throw new Error(`责任范围不能排除启用规则“${rule.name}”的现有收件人，请先调整该规则`);
       }

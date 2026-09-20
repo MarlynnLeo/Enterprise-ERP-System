@@ -79,11 +79,12 @@ function fromInvoiceApi(body = {}, kind = 'ap') {
     due_date: pickApi(body, 'dueDate'),
     total_amount: totalRaw !== undefined ? toNumber(totalRaw, 0) : undefined,
     amount_excluding_tax: exclRaw !== undefined ? toNumber(exclRaw, 0) : undefined,
-    tax_amount: taxAmountRaw !== undefined && taxAmountRaw !== null && taxAmountRaw !== ''
-      ? toNumber(taxAmountRaw, 0)
-      : taxAmountRaw === null
-        ? null
-        : undefined,
+    tax_amount:
+      taxAmountRaw !== undefined && taxAmountRaw !== null && taxAmountRaw !== ''
+        ? toNumber(taxAmountRaw, 0)
+        : taxAmountRaw === null
+          ? null
+          : undefined,
     tax_rate: taxRateRaw !== undefined ? taxRateRaw : undefined,
     currency_code: pickApi(body, 'currencyCode'),
     exchange_rate: pickApi(body, 'exchangeRate'),
@@ -164,14 +165,9 @@ function toInvoiceApi(row, kind = 'ap') {
         ? toNumber(row.tax_amount ?? row.taxAmount, 0)
         : null,
     taxRate:
-      row.tax_rate != null || row.taxRate != null
-        ? toNumber(row.tax_rate ?? row.taxRate, 0)
-        : null,
+      row.tax_rate != null || row.taxRate != null ? toNumber(row.tax_rate ?? row.taxRate, 0) : null,
     paidAmount: toNumber(row.paid_amount ?? row.paidAmount, 0),
-    balanceAmount: toNumber(
-      row.balance_amount ?? row.balanceAmount ?? row.balance,
-      0
-    ),
+    balanceAmount: toNumber(row.balance_amount ?? row.balanceAmount ?? row.balance, 0),
     currencyCode: row.currency_code ?? row.currencyCode ?? null,
     exchangeRate:
       row.exchange_rate != null || row.exchangeRate != null
@@ -197,13 +193,11 @@ function toInvoiceApi(row, kind = 'ap') {
   if (kind === 'ap') {
     api.supplierId = row.supplier_id ?? row.supplierId ?? null;
     api.supplierName = row.supplier_name ?? row.supplierName ?? null;
-    api.supplierInvoiceNumber =
-      row.supplier_invoice_number ?? row.supplierInvoiceNumber ?? null;
+    api.supplierInvoiceNumber = row.supplier_invoice_number ?? row.supplierInvoiceNumber ?? null;
   } else {
     api.customerId = row.customer_id ?? row.customerId ?? null;
     api.customerName = row.customer_name ?? row.customerName ?? null;
-    api.customerInvoiceNumber =
-      row.customer_invoice_number ?? row.customerInvoiceNumber ?? null;
+    api.customerInvoiceNumber = row.customer_invoice_number ?? row.customerInvoiceNumber ?? null;
   }
 
   if (Array.isArray(row.items)) {
@@ -216,8 +210,7 @@ function toInvoiceApi(row, kind = 'ap') {
 function toInvoiceItemApi(item = {}, kind = 'ap') {
   const unitPrice = resolveUnitPrice(item);
   const quantity = toNumber(item.quantity, 0);
-  const amount =
-    item.amount != null ? roundMoney(item.amount) : roundMoney(quantity * unitPrice);
+  const amount = item.amount != null ? roundMoney(item.amount) : roundMoney(quantity * unitPrice);
 
   const api = {
     id: item.id ?? null,

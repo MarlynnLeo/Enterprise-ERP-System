@@ -88,9 +88,10 @@ module.exports = {
    */
   getPeriodById: async (id) => {
     try {
-      const [periods] = await db.pool.execute('SELECT id, period_name, start_date, end_date, is_closed, is_adjusting, fiscal_year, created_at, updated_at, closed_by, closed_at, closing_date, reopened_by, reopened_at, status FROM gl_periods WHERE id = ?', [
-        id,
-      ]);
+      const [periods] = await db.pool.execute(
+        'SELECT id, period_name, start_date, end_date, is_closed, is_adjusting, fiscal_year, created_at, updated_at, closed_by, closed_at, closing_date, reopened_by, reopened_at, status FROM gl_periods WHERE id = ?',
+        [id]
+      );
       return periods.length > 0 ? periods[0] : null;
     } catch (error) {
       logger.error('按ID获取会计期间失败:', error);

@@ -70,7 +70,7 @@ export const basedataPerms = [
     parentId: 3,
     name: '产品大类',
     path: '/basedata/categories',
-    component: 'baseData/Categories',
+    component: 'baseData/ProductCategories',
     icon: 'icon-category',
     type: 1,
     permission: 'basedata:categories',

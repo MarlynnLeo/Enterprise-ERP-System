@@ -108,12 +108,12 @@ export const productionApi = {
 
   calculateMaterials: async (params) => {
     if (!params?.productId || !params?.bomId || !params?.quantity) {
-      throw new Error('Missing required parameters: productId, bomId, quantity')
+      throw new Error('请选择产品和BOM，并填写数量')
     }
 
     const quantity = Number(params.quantity)
     if (!Number.isFinite(quantity) || quantity <= 0) {
-      throw new Error('quantity must be a number greater than 0')
+      throw new Error('数量必须是大于0的有效数字')
     }
 
     const response = await api.post('/production/calculate-materials', {
@@ -129,7 +129,7 @@ export const productionApi = {
 
   getProductBom: async (productId) => {
     if (!productId) {
-      throw new Error('Missing required parameter: productId')
+      throw new Error('请选择产品')
     }
 
     const response = await api.get(`/production/product-bom/${productId}`)

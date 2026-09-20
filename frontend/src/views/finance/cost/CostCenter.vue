@@ -135,6 +135,7 @@
   </div>
 </template>
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index';
@@ -245,7 +246,7 @@ const saveCenter = async () => {
     loadCenterOptions();
   } catch (error) {
     console.error('保存失败:', error);
-    ElMessage.error(error.response?.data?.message || '保存失败');
+    ElMessage.error(getApiErrorMessage(error, '保存失败'));
   } finally {
     saving.value = false;
   }
@@ -259,7 +260,7 @@ const deleteCenter = async (row) => {
     loadCostCenters();
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error(error.response?.data?.message || '删除失败');
+      ElMessage.error(getApiErrorMessage(error, '删除失败'));
     }
   }
 };

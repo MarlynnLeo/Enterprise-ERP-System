@@ -75,7 +75,7 @@ async function applyApprovedTransactionToBalance(connection, transaction) {
     [transaction.bank_account_id]
   );
   if (accounts.length === 0) {
-    throw new Error(`银行账户ID ${transaction.bank_account_id} 不存在或已停用`);
+    throw new Error('银行账户不存在或已停用');
   }
 
   const currentBalance = Number.parseFloat(accounts[0].current_balance || 0);
@@ -230,7 +230,8 @@ async function createApprovedBankTransactionGlEntry(connection, transaction, ope
       existingEntries[0].id,
       transaction.id,
     ]);
-    await DocumentLinkService.tryAutoLink(DocType.BANK_TRANSACTION,
+    await DocumentLinkService.tryAutoLink(
+      DocType.BANK_TRANSACTION,
       transaction.id,
       transactionNumber,
       DocType.FINANCE_VOUCHER,
@@ -274,33 +275,33 @@ async function createApprovedBankTransactionGlEntry(connection, transaction, ope
   const isInflow = BANK_INFLOW_TYPES.has(transaction.transaction_type);
   const entryItems = isInflow
     ? [
-      {
-        account_id: bankGlAccountId,
-        debit_amount: amount,
-        credit_amount: 0,
-        description: `银行收款 - ${transaction.description || transactionNumber}`,
-      },
-      {
-        account_id: contraAccountId,
-        debit_amount: 0,
-        credit_amount: amount,
-        description: `银行收款对方 - ${transaction.related_party || transaction.category || ''}`,
-      },
-    ]
+        {
+          account_id: bankGlAccountId,
+          debit_amount: amount,
+          credit_amount: 0,
+          description: `银行收款 - ${transaction.description || transactionNumber}`,
+        },
+        {
+          account_id: contraAccountId,
+          debit_amount: 0,
+          credit_amount: amount,
+          description: `银行收款对方 - ${transaction.related_party || transaction.category || ''}`,
+        },
+      ]
     : [
-      {
-        account_id: contraAccountId,
-        debit_amount: amount,
-        credit_amount: 0,
-        description: `银行付款对方 - ${transaction.related_party || transaction.category || ''}`,
-      },
-      {
-        account_id: bankGlAccountId,
-        debit_amount: 0,
-        credit_amount: amount,
-        description: `银行付款 - ${transaction.description || transactionNumber}`,
-      },
-    ];
+        {
+          account_id: contraAccountId,
+          debit_amount: amount,
+          credit_amount: 0,
+          description: `银行付款对方 - ${transaction.related_party || transaction.category || ''}`,
+        },
+        {
+          account_id: bankGlAccountId,
+          debit_amount: 0,
+          credit_amount: amount,
+          description: `银行付款 - ${transaction.description || transactionNumber}`,
+        },
+      ];
 
   const entryId = await financeModel.createEntry(
     {
@@ -319,17 +320,17 @@ async function createApprovedBankTransactionGlEntry(connection, transaction, ope
     connection
   );
 
-  const [entries] = await connection.execute(
-    'SELECT entry_number FROM gl_entries WHERE id = ?',
-    [entryId]
-  );
+  const [entries] = await connection.execute('SELECT entry_number FROM gl_entries WHERE id = ?', [
+    entryId,
+  ]);
   const entryNumber = entries[0]?.entry_number || providedGlEntry.entry_number || null;
 
   await connection.execute('UPDATE bank_transactions SET gl_entry_id = ? WHERE id = ?', [
     entryId,
     transaction.id,
   ]);
-  await DocumentLinkService.tryAutoLink(DocType.BANK_TRANSACTION,
+  await DocumentLinkService.tryAutoLink(
+    DocType.BANK_TRANSACTION,
     transaction.id,
     transactionNumber,
     DocType.FINANCE_VOUCHER,
@@ -361,7 +362,11 @@ function ensureEditableTransaction(transaction) {
   if (!EDITABLE_BANK_STATUSES.has(currentStatus)) {
     throw new Error(`Bank transaction status ${currentStatus} cannot be edited or deleted`);
   }
-  if (transaction.is_reconciled === true || transaction.is_reconciled === 1 || transaction.is_reconciled === '1') {
+  if (
+    transaction.is_reconciled === true ||
+    transaction.is_reconciled === 1 ||
+    transaction.is_reconciled === '1'
+  ) {
     throw new Error('Reconciled bank transactions cannot be edited or deleted');
   }
 }
@@ -430,14 +435,16 @@ class BankTransactionModel {
         [bankAccountId]
       );
       if (bankAccounts.length === 0) {
-        throw new Error(`银行账户ID ${bankAccountId} 不存在`);
+        throw new Error('银行账户不存在或已停用');
       }
       const bankAccount = bankAccounts[0];
       if (!isTruthyFlag(bankAccount.is_active)) {
         throw new Error(`银行账户 "${bankAccount.account_name}" 已停用`);
       }
       if (String(bankAccount.currency_code || 'CNY').toUpperCase() !== 'CNY') {
-        throw new Error(`银行账户 "${bankAccount.account_name}" 不是人民币账户，当前未启用本位币换算`);
+        throw new Error(
+          `银行账户 "${bankAccount.account_name}" 不是人民币账户，当前未启用本位币换算`
+        );
       }
 
       let newBalance = Number.parseFloat(bankAccount.current_balance || 0);
@@ -570,12 +577,20 @@ class BankTransactionModel {
         params.push(filters.status);
       }
 
-      if (filters.minAmount !== undefined && filters.minAmount !== null && filters.minAmount !== '') {
+      if (
+        filters.minAmount !== undefined &&
+        filters.minAmount !== null &&
+        filters.minAmount !== ''
+      ) {
         whereClause += ' AND t.amount >= ?';
         params.push(parseFloat(filters.minAmount));
       }
 
-      if (filters.maxAmount !== undefined && filters.maxAmount !== null && filters.maxAmount !== '') {
+      if (
+        filters.maxAmount !== undefined &&
+        filters.maxAmount !== null &&
+        filters.maxAmount !== ''
+      ) {
         whereClause += ' AND t.amount <= ?';
         params.push(parseFloat(filters.maxAmount));
       }
@@ -660,12 +675,11 @@ class BankTransactionModel {
       ensureEditableTransaction(oldTx);
       const bankAccountId = targetBankAccountId || oldTx.bank_account_id;
 
-      const [bankAccounts] = await connection.execute(
-        'SELECT id FROM bank_accounts WHERE id = ?',
-        [bankAccountId]
-      );
+      const [bankAccounts] = await connection.execute('SELECT id FROM bank_accounts WHERE id = ?', [
+        bankAccountId,
+      ]);
       if (bankAccounts.length === 0) {
-        throw new Error(`bank_account_id ${bankAccountId} does not exist`);
+        throw new Error('银行账户不存在或已停用');
       }
 
       // 2. 更新交易记录。草稿/驳回流水尚未入账，不调整银行余额。
@@ -777,7 +791,11 @@ class BankTransactionModel {
       if (!EDITABLE_BANK_STATUSES.has(currentStatus)) {
         throw new Error(`Bank transaction status ${currentStatus} cannot be submitted`);
       }
-      if (current[0].is_reconciled === true || current[0].is_reconciled === 1 || current[0].is_reconciled === '1') {
+      if (
+        current[0].is_reconciled === true ||
+        current[0].is_reconciled === 1 ||
+        current[0].is_reconciled === '1'
+      ) {
         throw new Error('Reconciled bank transactions cannot be submitted for audit');
       }
 
@@ -837,16 +855,16 @@ class BankTransactionModel {
       if (Number(transaction.created_by) === Number(userId)) {
         throw new Error('制单人不能审核自己的银行交易');
       }
-      if (transaction.is_reconciled === true || transaction.is_reconciled === 1 || transaction.is_reconciled === '1') {
+      if (
+        transaction.is_reconciled === true ||
+        transaction.is_reconciled === 1 ||
+        transaction.is_reconciled === '1'
+      ) {
         throw new Error('Reconciled bank transactions cannot be approved');
       }
 
       const newBalance = await applyApprovedTransactionToBalance(connection, transaction);
-      const entryInfo = await createApprovedBankTransactionGlEntry(
-        connection,
-        transaction,
-        userId
-      );
+      const entryInfo = await createApprovedBankTransactionGlEntry(connection, transaction, userId);
 
       const [result] = await connection.execute(
         `UPDATE bank_transactions

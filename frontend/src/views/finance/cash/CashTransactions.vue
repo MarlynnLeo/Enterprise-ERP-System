@@ -376,6 +376,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { getApprovalStatusColor, getApprovalStatusText } from '@/constants/systemConstants'
@@ -591,7 +592,7 @@ const submitForAudit = async (row) => {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('提交审核失败:', error);
-      ElMessage.error('提交失败: ' + (error.response?.data?.message || error.message));
+      ElMessage.error('提交失败: ' + (getApiErrorMessage(error, '未知错误')));
     }
   }
 };
@@ -628,7 +629,7 @@ const handleAudit = (row) => {
         done();
       } catch (error) {
         console.error('审核失败:', error);
-        ElMessage.error('审核操作失败: ' + (error.response?.data?.message || error.message));
+        ElMessage.error('审核操作失败: ' + (getApiErrorMessage(error, '未知错误')));
       } finally {
         instance.confirmButtonLoading = false;
         instance.cancelButtonLoading = false;
@@ -662,7 +663,7 @@ const saveTransaction = async () => {
     loadTransactions();
   } catch (error) {
     console.error('保存交易失败:', error);
-    ElMessage.error(`保存失败: ${error.response?.data?.message || error.message}`);
+    ElMessage.error(`保存失败: ${getApiErrorMessage(error, '未知错误')}`);
   } finally {
     saveLoading.value = false;
   }
@@ -686,7 +687,7 @@ const voidTransaction = async (row) => {
     await loadTransactions();
   } catch (error) {
     if (error === 'cancel' || error === 'close') return;
-    ElMessage.error(error.response?.data?.message || error.message || '作废失败');
+    ElMessage.error(getApiErrorMessage(error, '作废失败'));
   } finally {
     voidingId.value = null;
   }
@@ -711,7 +712,7 @@ const deleteTransaction = async (row) => {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('删除交易失败:', error);
-      ElMessage.error(`删除失败: ${error.response?.data?.message || error.message}`);
+      ElMessage.error(`删除失败: ${getApiErrorMessage(error, '未知错误')}`);
     }
   }
 };
@@ -828,7 +829,7 @@ const importTransactions = async () => {
     loadTransactions();
   } catch (error) {
     console.error('导入失败:', error);
-    ElMessage.error(`导入失败: ${error.response?.data?.message || error.message}`);
+    ElMessage.error(`导入失败: ${getApiErrorMessage(error, '未知错误')}`);
   } finally {
     importLoading.value = false;
   }
@@ -904,7 +905,7 @@ const printCashStatement = async () => {
 
   } catch (error) {
     console.error('打印失败:', error);
-    ElMessage.error('打印失败: ' + (error.message || '未知错误'));
+    ElMessage.error('打印失败: ' + (getApiErrorMessage(error, '未知错误')));
   }
 };
 

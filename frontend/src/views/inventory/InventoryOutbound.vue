@@ -679,6 +679,7 @@ import TableRowActions from '@/components/common/TableRowActions.vue'
 import { useDictionaryStore } from '@/stores/dictionary'
 import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue'
 import { getOutboundDisplayStatus as resolveOutboundDisplayStatus } from '@/utils/inventory/outboundDisplayStatus'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 export default {
   name: 'InventoryOutbound',
   components: {
@@ -926,7 +927,7 @@ export default {
           .map(task => ({
             id: task.id,
             name: task.productName, // 使用产品名称
-            code: task.code || `任务-${task.id}`, // 使用任务编号，如果没有则使用ID
+            code: task.code || '未命名任务',
             productId: task.productId,
             quantity: task.quantity || 0, // 添加生产任务数量
             unitName: task.unit || task.unitName, // 添加单位信息
@@ -1272,7 +1273,7 @@ export default {
 
       } catch (error) {
         console.error('获取补发信息失败:', error)
-        ElMessage.error('获取补发信息失败: ' + (error.response?.data?.message || error.message))
+        ElMessage.error('获取补发信息失败: ' + (getApiErrorMessage(error, '未知错误')))
       } finally {
         editLoading.value = false
       }
@@ -1388,7 +1389,7 @@ export default {
         } catch (error) {
           console.error('更新出库单状态失败:', error)
           // 提取后端返回的详细错误信息
-          const errorMsg = error.response?.data?.message || error.response?.data?.error || '更新出库单状态失败'
+          const errorMsg = getApiErrorMessage(error, '更新出库单状态失败')
           ElMessage.error(errorMsg)
         }
       }).catch(() => { })
@@ -1405,7 +1406,7 @@ export default {
         await handleView(currentOutbound)
         await inventoryApprovalPanelRef.value?.refresh()
       } catch (error) {
-        ElMessage.error(error.response?.data?.message || '重新提交审核失败')
+        ElMessage.error(getApiErrorMessage(error, '重新提交审核失败'))
       }
     }
 
@@ -1431,8 +1432,9 @@ export default {
 
         // 处理需要确认的情况（生产中状态）
         if (errorData?.code === 'NEED_CONFIRM' && (errorData?.details?.needConfirm || errorData?.data?.needConfirm)) {
+          const readableError = getApiErrorMessage(error, '撤销失败')
           ElMessageBox.confirm(
-            `${errorData.message}\n\n确定要提交强制撤销申请吗？财务审核前请核实已消耗物料和生产进度。`,
+            `${readableError}\n\n确定要提交强制撤销申请吗？财务审核前请核实已消耗物料和生产进度。`,
             '需要确认',
             {
               confirmButtonText: '申请强制撤销',
@@ -1443,7 +1445,7 @@ export default {
             executeCancelOutbound(row, true)
           }).catch(() => { })
         } else {
-          ElMessage.error(errorData?.message || '撤销失败')
+          ElMessage.error(getApiErrorMessage(error, '撤销失败'))
         }
       } finally {
         cancellingOutboundId.value = null
@@ -1561,7 +1563,7 @@ export default {
     const handleMaterialSelectAutocomplete = async (item, index) => {
       const materialId = Number(item.id)
       if (!materialId || isNaN(materialId)) {
-        ElMessage.error('物料ID无效，请重新选择')
+        ElMessage.error('所选物料无效，请重新选择')
         return
       }
 
@@ -1784,7 +1786,7 @@ export default {
           ElMessage.success('创建出库单成功')
         } else if (dialogType.value === 'supplement') {
           if (!dataToSubmit.id) {
-            ElMessage.error('缺少出库单ID，无法补发')
+            ElMessage.error('缺少出库单信息，无法补发')
             submitting.value = false
             return
           }
@@ -1803,7 +1805,7 @@ export default {
           ElMessage.success('补发成功')
         } else {
           if (!dataToSubmit.id) {
-            ElMessage.error('缺少出库单ID，无法更新')
+            ElMessage.error('缺少出库单信息，无法更新')
             submitting.value = false
             return
           }
@@ -1885,9 +1887,9 @@ export default {
 
         // 其他错误情况
         if (errorData?.code === 'MISSING_ISSUE_REASON') {
-          ElMessage.error(errorData.message);
+          ElMessage.error(getApiErrorMessage(error, '保存出库单失败'));
         } else {
-          ElMessage.error('保存出库单失败: ' + (errorData?.message || error.message))
+          ElMessage.error(`保存出库单失败: ${getApiErrorMessage(error, '请稍后重试')}`)
         }
         submitting.value = false
       }
@@ -2003,7 +2005,7 @@ export default {
         printService.previewDocument(htmlContent)
       } catch (error) {
         console.error('打印生产出库单失败:', error)
-        ElMessage.error(error.message || '打印生产出库单失败')
+        ElMessage.error(getApiErrorMessage(error, '打印生产出库单失败'))
       }
     }
 
@@ -2082,7 +2084,7 @@ export default {
           details = await fetchBomDetails(bomData, selectedTask.productId, selectedTask.quantity)
         } catch (error) {
           ElMessage({
-            message: error.message || '获取BOM信息失败',
+            message: getApiErrorMessage(error, '获取BOM信息失败'),
             type: 'warning',
             duration: 5000
           })
@@ -2217,7 +2219,7 @@ export default {
 
       } catch (error) {
         console.error('获取生产计划相关信息失败:', error)
-        ElMessage.error(error.message || '获取生产计划相关信息失败')
+        ElMessage.error(getApiErrorMessage(error, '获取生产计划相关信息失败'))
         outboundForm.items = []
       }
     }

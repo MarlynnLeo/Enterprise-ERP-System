@@ -121,6 +121,7 @@
   import SvgIcon from '@/components/icons/index.vue'
   import { financeApi } from '@/api'
   import dayjs from 'dayjs'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const route = useRoute()
   const invoice = ref(null)
@@ -170,7 +171,7 @@
       showToast('发票已确认')
       await loadDetail()
     } catch (e) {
-      if (e !== 'cancel') showToast(e.response?.data?.message || '操作失败')
+      if (e !== 'cancel') showToast(getApiErrorMessage(e, '操作失败'))
     } finally {
       actionLoading.value = false
     }
@@ -185,7 +186,7 @@
       showToast('发票已作废')
       await loadDetail()
     } catch (e) {
-      if (e !== 'cancel') showToast(e.response?.data?.message || '操作失败')
+      if (e !== 'cancel') showToast(getApiErrorMessage(e, '操作失败'))
     } finally {
       actionLoading.value = false
     }

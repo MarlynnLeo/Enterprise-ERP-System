@@ -29,7 +29,7 @@ class DatabaseMonitorService {
           main: {
             status: 'healthy',
             message: 'Connected',
-          }
+          },
         },
         timestamp: new Date().toISOString(),
       };
@@ -41,7 +41,7 @@ class DatabaseMonitorService {
           main: {
             status: 'unhealthy',
             error: error.message,
-          }
+          },
         },
         timestamp: new Date().toISOString(),
       };

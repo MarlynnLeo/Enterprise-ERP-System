@@ -22,7 +22,7 @@
 
     filterTabs: [
       { label: '全部', value: 'all' },
-      { label: '计划中', value: 'planned' },
+      { label: '待执行', value: 'pending' },
       { label: '执行中', value: 'in_progress' },
       { label: '已完成', value: 'completed' }
     ],
@@ -30,14 +30,14 @@
     fields: {
       id: 'id',
       title: 'equipmentName',
-      subtitle: 'maintenance_type',
+      subtitle: 'maintenanceType',
       icon: 'setting-o',
       status: 'status',
 
       details: [
-        { label: '保养日期', field: 'maintenance_date', type: 'date' },
-        { label: '保养人', field: 'maintenance_person' },
-        { label: '下次保养', field: 'next_maintenance_date', type: 'date' }
+        { label: '保养日期', field: 'maintenanceDate', type: 'date' },
+        { label: '保养人', field: 'maintenancePerson' },
+        { label: '下次保养', field: 'nextMaintenanceDate', type: 'date' }
       ],
 
       tags: [
@@ -56,7 +56,7 @@
     },
 
     headerActions: [
-      { icon: 'plus', label: '制定计划', action: 'create', handler: () => router.push('/equipment/maintenance/create') }
+      { icon: 'plus', label: '制定计划', action: 'create', permission: 'production:equipment:update', handler: () => router.push('/equipment/maintenance/create') }
     ]
   }))
 

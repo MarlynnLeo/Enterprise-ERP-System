@@ -73,7 +73,7 @@ class DLQService {
 
   static nextRetryDelaySeconds(attempts, config = this.getRetryConfig()) {
     const exponent = Math.max(Number(attempts || 1) - 1, 0);
-    const delay = config.baseDelaySeconds * (2 ** exponent);
+    const delay = config.baseDelaySeconds * 2 ** exponent;
     return Math.min(delay, config.maxDelaySeconds);
   }
 
@@ -100,16 +100,9 @@ class DLQService {
         `INSERT INTO sys_failed_jobs
           (task_name, payload, error_message, error_stack, status, attempts, next_retry_at)
          VALUES (?, CAST(? AS JSON), ?, ?, 'pending', 0, NOW())`,
-        [
-          taskName,
-          this.safeStringify(payload),
-          error.message || String(error),
-          error.stack || '',
-        ]
+        [taskName, this.safeStringify(payload), error.message || String(error), error.stack || '']
       );
-      logger.error(
-        `[DLQ] Async task "${taskName}" failed and was persisted for retry/replay.`
-      );
+      logger.error(`[DLQ] Async task "${taskName}" failed and was persisted for retry/replay.`);
     } catch (dbError) {
       logger.error(`[DLQ] Failed to persist failed task: ${dbError.message}`, {
         originalTask: taskName,
@@ -139,7 +132,12 @@ class DLQService {
     return `task_name LIKE ${prefixes.map(() => '?').join(' OR task_name LIKE ')}`;
   }
 
-  static async listFailedJobs({ status = 'pending', page = 1, pageSize = 50, taskNamePrefixes = [] } = {}) {
+  static async listFailedJobs({
+    status = 'pending',
+    page = 1,
+    pageSize = 50,
+    taskNamePrefixes = [],
+  } = {}) {
     const allowedStatuses = new Set(['pending', 'retrying', 'resolved', 'failed', 'ignored']);
     const actualPage = Math.max(Number(page) || 1, 1);
     const actualPageSize = Math.min(Math.max(Number(pageSize) || 50, 1), 100);
@@ -197,9 +195,13 @@ class DLQService {
   }
 
   static async requeueFailedJobs(ids = []) {
-    const normalizedIds = [...new Set((Array.isArray(ids) ? ids : [ids])
-      .map((id) => Number.parseInt(id, 10))
-      .filter((id) => Number.isInteger(id) && id > 0))];
+    const normalizedIds = [
+      ...new Set(
+        (Array.isArray(ids) ? ids : [ids])
+          .map((id) => Number.parseInt(id, 10))
+          .filter((id) => Number.isInteger(id) && id > 0)
+      ),
+    ];
     if (normalizedIds.length === 0) return 0;
 
     const placeholders = normalizedIds.map(() => '?').join(',');
@@ -309,9 +311,11 @@ class DLQService {
 
   static async retryPendingJobs(options = {}) {
     const taskNamePrefixes = this.normalizeTaskNamePrefixes(options.taskNamePrefixes);
-    const registeredTaskNames = [...this.handlers.keys()].filter((taskName) => (
-      taskNamePrefixes.length === 0 || taskNamePrefixes.some((prefix) => taskName.startsWith(prefix))
-    ));
+    const registeredTaskNames = [...this.handlers.keys()].filter(
+      (taskName) =>
+        taskNamePrefixes.length === 0 ||
+        taskNamePrefixes.some((prefix) => taskName.startsWith(prefix))
+    );
     if (registeredTaskNames.length === 0) {
       return {
         scanned: 0,

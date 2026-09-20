@@ -225,25 +225,24 @@ module.exports = {
    */
   cost: {
     classification: {
-      semiFinishedCategoryCodes: parseStringList(
-        process.env.SEMI_FINISHED_CATEGORY_CODES,
-        ['SEMI_FINISHED', 'SEMI', 'WIP']
-      ),
-      semiFinishedCategoryNames: parseStringList(
-        process.env.SEMI_FINISHED_CATEGORY_NAMES,
-        [
-          '\u534a\u6210\u54c1',
-          '\u5728\u5236\u54c1',
-          'semi finished',
-          'semi-finished',
-          'semifinished',
-          'wip',
-        ]
-      ),
-      semiFinishedMaterialTypes: parseStringList(
-        process.env.SEMI_FINISHED_MATERIAL_TYPES,
-        ['semi_finished', 'semifinished', '\u534a\u6210\u54c1']
-      ),
+      semiFinishedCategoryCodes: parseStringList(process.env.SEMI_FINISHED_CATEGORY_CODES, [
+        'SEMI_FINISHED',
+        'SEMI',
+        'WIP',
+      ]),
+      semiFinishedCategoryNames: parseStringList(process.env.SEMI_FINISHED_CATEGORY_NAMES, [
+        '\u534a\u6210\u54c1',
+        '\u5728\u5236\u54c1',
+        'semi finished',
+        'semi-finished',
+        'semifinished',
+        'wip',
+      ]),
+      semiFinishedMaterialTypes: parseStringList(process.env.SEMI_FINISHED_MATERIAL_TYPES, [
+        'semi_finished',
+        'semifinished',
+        '\u534a\u6210\u54c1',
+      ]),
       semiFinishedProductCodePrefixes: parseStringList(
         process.env.SEMI_FINISHED_PRODUCT_CODE_PREFIXES,
         []

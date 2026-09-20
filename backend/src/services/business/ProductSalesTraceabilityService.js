@@ -7,10 +7,11 @@ const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
 const { resolveActorLabel } = require('../../utils/userUtils');
 
-const validationError = (message) => Object.assign(new Error(message), {
-  statusCode: 400,
-  code: 'VALIDATION_ERROR',
-});
+const validationError = (message) =>
+  Object.assign(new Error(message), {
+    statusCode: 400,
+    code: 'VALIDATION_ERROR',
+  });
 
 class ProductSalesTraceabilityService {
   static _toDbValue(value) {
@@ -47,14 +48,22 @@ class ProductSalesTraceabilityService {
 
       const normalizedItems = items.map((item, index) => ({
         ...item,
-        product_id: Number(item.productId ?? item.materialId ?? item.product_id ?? item.material_id),
+        product_id: Number(
+          item.productId ?? item.materialId ?? item.product_id ?? item.material_id
+        ),
         quantity: Number(item.quantity ?? item.actual_quantity ?? item.actualQuantity),
-        source_order_id: Number(item.sourceOrderId ?? item.source_order_id ?? item.orderId ?? item.order_id ?? order_id),
+        source_order_id: Number(
+          item.sourceOrderId ?? item.source_order_id ?? item.orderId ?? item.order_id ?? order_id
+        ),
         trace_line_key: item.id != null ? `item:${item.id}` : `line:${index}`,
       }));
       for (const item of normalizedItems) {
-        if (!Number.isSafeInteger(item.product_id) || item.product_id <= 0 ||
-            !Number.isFinite(item.quantity) || item.quantity <= 0) {
+        if (
+          !Number.isSafeInteger(item.product_id) ||
+          item.product_id <= 0 ||
+          !Number.isFinite(item.quantity) ||
+          item.quantity <= 0
+        ) {
           throw validationError('销售出库明细缺少物料或有效数量');
         }
         if (!Number.isSafeInteger(item.source_order_id) || item.source_order_id <= 0) {
@@ -74,13 +83,15 @@ class ProductSalesTraceabilityService {
       const ordersById = new Map(orders.map((order) => [Number(order.id), order]));
       for (const orderId of orderIds) {
         const order = ordersById.get(orderId);
-        if (!order) throw validationError(`关联销售订单${orderId}不存在或已删除`);
+        if (!order) throw validationError('关联销售订单不存在或已删除');
         if (!order.customer_id || !order.active_customer_id) {
-          throw validationError(`销售订单${orderId}缺少有效客户，无法完成出库`);
+          throw validationError('销售订单缺少有效客户，无法完成出库');
         }
       }
 
-      logger.info(`Processing product sales traceability: outboundNo=${outbound_no}, orderIds=${orderIds.join(',')}`);
+      logger.info(
+        `Processing product sales traceability: outboundNo=${outbound_no}, orderIds=${orderIds.join(',')}`
+      );
 
       for (const item of normalizedItems) {
         const order = ordersById.get(item.source_order_id);
@@ -146,9 +157,7 @@ class ProductSalesTraceabilityService {
 
     for (const [oid, consumedItems] of byOrder.entries()) {
       await InventoryReservationService.consumeReservation(oid, consumedItems, connection);
-      logger.info(
-        `销售出库核销预留: orderId=${oid}, items=${consumedItems.length}`
-      );
+      logger.info(`销售出库核销预留: orderId=${oid}, items=${consumedItems.length}`);
     }
   }
 
@@ -183,7 +192,7 @@ class ProductSalesTraceabilityService {
       );
 
       if (!productResult || productResult.length === 0) {
-        throw new Error(`未找到产品ID: ${product_id}`);
+        throw new Error('所选成品不存在或已停用，请重新选择有效物料');
       }
 
       const product = productResult[0];
@@ -198,11 +207,16 @@ class ProductSalesTraceabilityService {
 
       const customer = customerResult[0];
       if (!customer) {
-        throw validationError(`销售出库关联的客户${customer_id}不存在或已删除`);
+        throw validationError('销售出库关联的客户不存在或已删除');
       }
 
       // 3. 使用FIFO原则获取成品批次
-      const usedBatches = await this.allocateProductBatchesFIFO(connection, product_id, quantity);
+      const usedBatches = await this.allocateProductBatchesFIFO(
+        connection,
+        product_id,
+        quantity,
+        product.code
+      );
 
       // 4. 为每个使用的成品批次创建销售追溯记录
       const InventoryService = require('../InventoryService');
@@ -242,7 +256,7 @@ class ProductSalesTraceabilityService {
             transactionType: 'sales_outbound',
             referenceNo: outbound_no,
             referenceType: 'sales_outbound',
-            operator: operator || await resolveActorLabel(connection, operator_id),
+            operator: operator || (await resolveActorLabel(connection, operator_id)),
             businessApprovedById: operator_id || null,
             businessApprovedBy: operator || null,
             remark: `销售出库给客户: ${customer.name}`,
@@ -265,7 +279,12 @@ class ProductSalesTraceabilityService {
    * 使用FIFO原则分配成品批次 (单表架构版本)
    * 先按库位加库存锁，再读可用批次，避免并发销售超卖
    */
-  static async allocateProductBatchesFIFO(connection, productId, requiredQuantity) {
+  static async allocateProductBatchesFIFO(
+    connection,
+    productId,
+    requiredQuantity,
+    productCode = null
+  ) {
     try {
       const InventoryService = require('../InventoryService');
 
@@ -280,13 +299,7 @@ class ProductSalesTraceabilityService {
       );
 
       for (const row of locationRows) {
-        await InventoryService.getCurrentStock(
-          productId,
-          row.location_id,
-          connection,
-          true,
-          false
-        );
+        await InventoryService.getCurrentStock(productId, row.location_id, connection, true, false);
       }
 
       // 锁后再读 FIFO 批次视图，保证并发下不会重复分配
@@ -335,7 +348,9 @@ class ProductSalesTraceabilityService {
       }
 
       if (remainingQuantity > 0) {
-        throw new Error(`成品库存不足，产品ID: ${productId}, 缺少数量: ${remainingQuantity}`);
+        throw new Error(
+          `成品“${productCode || '所选物料'}”库存不足，缺少数量: ${remainingQuantity}`
+        );
       }
 
       return allocatedBatches;
@@ -461,7 +476,7 @@ class ProductSalesTraceabilityService {
       logger.error('获取成品完整追溯失败:', error);
       return {
         success: false,
-        message: error.message,
+        message: '获取成品完整追溯失败，请稍后重试',
       };
     } finally {
       connection.release();
@@ -547,7 +562,7 @@ class ProductSalesTraceabilityService {
       logger.error('获取客户原材料追溯失败:', error);
       return {
         success: false,
-        message: error.message,
+        message: '获取客户原材料追溯失败，请稍后重试',
       };
     } finally {
       connection.release();

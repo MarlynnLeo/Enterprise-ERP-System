@@ -57,6 +57,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { qualityApi } from '@/api/quality'
@@ -158,7 +159,7 @@ const handleSubmit = async () => {
     emit('success')
   } catch (error) {
     console.error('创建首检单失败:', error)
-    ElMessage.error(error.response?.data?.message || '创建首检单失败')
+    ElMessage.error(getApiErrorMessage(error, '创建首检单失败'))
   } finally {
     submitting.value = false
   }

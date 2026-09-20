@@ -14,7 +14,6 @@ const { getCurrentUserName } = require('../../../utils/userHelper');
 // 统一库存查询子查询（基于 inventory_ledger 单表架构聚合计算当前库存）
 // DRY: 两处引用相同子查询，统一使用 STOCK_SUBQUERY
 
-
 // 引入库存一致性校验服务
 const InventoryConsistencyService = require('../../../services/business/InventoryConsistencyService');
 
@@ -78,7 +77,9 @@ const getTaskRequiredMaterials = async (connection, task) => {
   }
 
   if (!bomId) {
-    throw new Error(`生产任务 ${task.id} 的产品未维护有效BOM，无法判断发料进度`);
+    throw new Error(
+      `生产任务“${task.code || '当前任务'}”的产品未维护有效BOM，无法判断发料进度`
+    );
   }
 
   const [bomDetails] = await connection.execute(
@@ -87,7 +88,9 @@ const getTaskRequiredMaterials = async (connection, task) => {
   );
 
   if (bomDetails.length === 0) {
-    throw new Error(`生产任务 ${task.id} 的BOM ${bomId} 没有明细，无法判断发料进度`);
+    throw new Error(
+      `生产任务“${task.code || '当前任务'}”的BOM没有明细，无法判断发料进度`
+    );
   }
 
   return bomDetails.map((item) => ({
@@ -101,7 +104,6 @@ const getTaskRequiredMaterials = async (connection, task) => {
 // 引入重构后的入库处理服务
 
 // 引入状态映射工具和状态常量
-
 
 /**
  * 获取物料的批次号（FIFO原则）
@@ -185,7 +187,10 @@ const fixNegativeStock = async (req, res) => {
 const _syncProductionStatus = async (connection, outboundStatus, taskId) => {
   if (!taskId) return;
   try {
-    const { promoteTaskStatus, syncPlanStatus } = require('../../../services/business/TaskLifecycleService');
+    const {
+      promoteTaskStatus,
+      syncPlanStatus,
+    } = require('../../../services/business/TaskLifecycleService');
 
     if (outboundStatus === 'confirmed') {
       // 出库单确认 → 任务变为配料中（状态机 + 计划同步）
@@ -242,13 +247,14 @@ const _syncProductionStatus = async (connection, outboundStatus, taskId) => {
       const ProductProcessTaskService = require('../../../services/business/ProductProcessTaskService');
       await ProductProcessTaskService.initializeTask(connection, taskId);
     }
-
   } catch (err) {
-    logger.error(`[_syncProductionStatus] 联动更新失败 outboundStatus=${outboundStatus} taskId=${taskId}:`, err);
+    logger.error(
+      `[_syncProductionStatus] 联动更新失败 outboundStatus=${outboundStatus} taskId=${taskId}:`,
+      err
+    );
     throw err;
   }
 };
-
 
 const checkAndUpdateTaskStatus = async (connection, taskId) => {
   try {
@@ -258,6 +264,7 @@ const checkAndUpdateTaskStatus = async (connection, taskId) => {
     const [tasks] = await connection.execute(
       `SELECT
          pt.id,
+         pt.code,
          pt.product_id,
          pt.quantity,
          pt.status,
@@ -304,7 +311,9 @@ const checkAndUpdateTaskStatus = async (connection, taskId) => {
     );
 
     if (boms.length === 0) {
-      throw new Error(`生产任务 ${taskId} 的产品未维护已审核BOM，无法判断发料进度`);
+      throw new Error(
+        `生产任务“${task.code || '当前任务'}”的产品未维护已审核BOM，无法判断发料进度`
+      );
     }
     const bomId = boms[0].id;
 
@@ -314,7 +323,9 @@ const checkAndUpdateTaskStatus = async (connection, taskId) => {
     );
 
     if (bomDetails.length === 0) {
-      throw new Error(`生产任务 ${taskId} 的BOM ${bomId} 没有明细，无法判断发料进度`);
+      throw new Error(
+        `生产任务“${task.code || '当前任务'}”的BOM没有明细，无法判断发料进度`
+      );
     }
 
     // 3. 计算发料情况
@@ -384,7 +395,6 @@ const checkAndUpdateTaskStatus = async (connection, taskId) => {
   }
 };
 
-
 /**
  * 智能出库函数 - 当父物料库存不足时自动使用子物料替代
  * @param {number} materialId - 物料ID
@@ -419,7 +429,12 @@ async function smartOutboundStock(
     const materialUnitCost = parseFloat(costPriceRow[0]?.cost_price) || 0;
 
     // 1. 获取当前仓库的可用库存（直接使用库存服务层统一接口）
-    const currentStock = await InventoryService.getCurrentStock(materialId, locationId, connection, true);
+    const currentStock = await InventoryService.getCurrentStock(
+      materialId,
+      locationId,
+      connection,
+      true
+    );
     let remainingQuantity = parseFloat(quantity);
 
     // 2. 如果存在现货库存，则直接从目标库位优先发料
@@ -486,7 +501,7 @@ async function smartOutboundStock(
       );
 
       if (planInfo.length === 0) {
-        throw new Error(`找不到生产任务或生产计划 ID: ${productionPlanId}`);
+        throw new Error('找不到对应的生产任务或生产计划，请刷新后重试');
       }
 
       productId = planInfo[0].product_id;
@@ -504,7 +519,7 @@ async function smartOutboundStock(
     );
 
     if (bomInfo.length === 0) {
-      throw new Error(`产品 ${productId} 没有有效的BOM`);
+      throw new Error('产品没有有效的BOM，请先维护并审核BOM');
     }
 
     const bomId = bomInfo[0].bom_id;
@@ -531,7 +546,7 @@ async function smartOutboundStock(
     // 查找当前物料在BOM中的信息
     const currentMaterial = bomDetails.find((detail) => detail.material_id === materialId);
     if (!currentMaterial) {
-      throw new Error(`物料 ${materialId} 不在BOM中，无法进行智能替代`);
+      throw new Error(`物料“${currentMaterial.code || '所选物料'}”不在BOM中，无法进行智能替代`);
     }
 
     // 查找该物料的直接子物料
@@ -540,14 +555,17 @@ async function smartOutboundStock(
     );
 
     if (childMaterials.length === 0) {
-      throw new Error(`物料 ${materialId} 库存不足，剩余 ${remainingQuantity}，且没有可替代子物料`);
+      throw new Error(`物料“${currentMaterial.code || '所选物料'}”库存不足，剩余 ${remainingQuantity}，且没有可替代子物料`);
     }
 
     // 4. 使用子物料进行剩余数量的替代出库
 
     // 批量预取所有子物料信息（消除循环内 getMaterialInfo + cost_price 双重 N+1 查询）
-    const childMaterialIds = childMaterials.map(cm => cm.material_id);
-    const childMaterialInfoMap = await InventoryService.getBatchMaterialInfo(childMaterialIds, connection);
+    const childMaterialIds = childMaterials.map((cm) => cm.material_id);
+    const childMaterialInfoMap = await InventoryService.getBatchMaterialInfo(
+      childMaterialIds,
+      connection
+    );
     const childIssuePlan = [];
     const insufficientMaterials = [];
 
@@ -621,7 +639,6 @@ async function smartOutboundStock(
     throw error;
   }
 }
-
 
 module.exports = {
   runConsistencyCheck,

@@ -51,7 +51,10 @@ function validateTaxInvoiceAmounts(invoiceData) {
     throw validationError('发票金额不能为负数');
   }
 
-  if ((!redLetter && totalAmountCents <= 0) || (redLetter && (totalAmountCents >= 0 || amountExcludingTaxCents > 0 || taxAmountCents > 0))) {
+  if (
+    (!redLetter && totalAmountCents <= 0) ||
+    (redLetter && (totalAmountCents >= 0 || amountExcludingTaxCents > 0 || taxAmountCents > 0))
+  ) {
     throw validationError('发票价税合计必须大于0');
   }
 
@@ -421,7 +424,9 @@ const taxModel = {
           : income_tax_payable || tax_payable || 0
       );
       const paidAmount = isPaid ? payableAmount : roundMoney(tax_paid || 0);
-      const balanceAmount = isPaid ? 0 : roundMoney(Math.max(Precision.sub(payableAmount, paidAmount), 0));
+      const balanceAmount = isPaid
+        ? 0
+        : roundMoney(Math.max(Precision.sub(payableAmount, paidAmount), 0));
 
       const [result] = await conn.execute(
         `

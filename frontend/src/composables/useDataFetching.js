@@ -2,11 +2,10 @@ import { computed, getCurrentScope, onScopeDispose, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { parsePaginatedData } from '@/utils/responseParser'
 import { clearAllRequestCaches } from '@/utils/requestOptimizer'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 
 const errorText = (error, fallback) => {
-  const detail = error?.response?.data
-  return detail?.error?.message || (typeof detail?.error === 'string' && detail.error) ||
-    detail?.message || error?.message || fallback
+  return getApiErrorMessage(error, fallback)
 }
 
 /**

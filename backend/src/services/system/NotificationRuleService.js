@@ -184,7 +184,7 @@ class NotificationRuleService {
   async getActiveRulesByEvent(eventType) {
     // 先查缓存
     if (this._cache && this._cacheExpiry > Date.now()) {
-      return (this._cache.get(eventType) || []);
+      return this._cache.get(eventType) || [];
     }
 
     // 查询所有启用规则并按事件分组缓存
@@ -206,7 +206,7 @@ class NotificationRuleService {
     this._cache = grouped;
     this._cacheExpiry = Date.now() + 60_000; // 缓存 60 秒
 
-    return (grouped.get(eventType) || []);
+    return grouped.get(eventType) || [];
   }
 
   /**
@@ -242,7 +242,9 @@ class NotificationRuleService {
     if (!rule) return null;
 
     const event = getEvent(rule.event_type);
-    const samples = Object.fromEntries((event?.variables || []).map((variable) => [variable, `[${variable}]`]));
+    const samples = Object.fromEntries(
+      (event?.variables || []).map((variable) => [variable, `[${variable}]`])
+    );
     const notification = {
       type: 'notification_test',
       title: `[测试] ${this.renderTemplate(rule.title_template, samples)}`,
@@ -251,7 +253,9 @@ class NotificationRuleService {
       priority: rule.priority,
       createdBy: userId,
     };
-    const result = await NotificationService.notifyUsers([userId], notification, { dedupeByDay: false });
+    const result = await NotificationService.notifyUsers([userId], notification, {
+      dedupeByDay: false,
+    });
     return { rule, result };
   }
 
@@ -354,10 +358,16 @@ class NotificationRuleService {
     }
 
     const templates = [data.title_template, data.content_template, data.link_template || ''];
-    const usedVariables = [...new Set(templates.flatMap((template) =>
-      [...String(template).matchAll(/\$\{(\w+)}/g)].map((match) => match[1])
-    ))];
-    const invalidVariables = usedVariables.filter((variable) => !event.variables.includes(variable));
+    const usedVariables = [
+      ...new Set(
+        templates.flatMap((template) =>
+          [...String(template).matchAll(/\$\{(\w+)}/g)].map((match) => match[1])
+        )
+      ),
+    ];
+    const invalidVariables = usedVariables.filter(
+      (variable) => !event.variables.includes(variable)
+    );
     if (invalidVariables.length) {
       throw new Error(`模板包含不可用变量: ${invalidVariables.join(', ')}`);
     }
@@ -383,9 +393,10 @@ class NotificationRuleService {
     const hasDuplicate = duplicateCandidates.some((candidate) => {
       const parsedConfig = this._parseJson(candidate.recipient_config);
       if (!Array.isArray(parsedConfig)) return false;
-      const existingConfig = recipientType === 'permission'
-        ? [...parsedConfig].map(String).sort()
-        : [...parsedConfig].map(Number).sort((a, b) => a - b);
+      const existingConfig =
+        recipientType === 'permission'
+          ? [...parsedConfig].map(String).sort()
+          : [...parsedConfig].map(Number).sort((a, b) => a - b);
       return JSON.stringify(existingConfig) === normalizedConfigJson;
     });
     if (isActive && hasDuplicate) {
@@ -398,7 +409,9 @@ class NotificationRuleService {
         throw new Error('启用规则前必须至少匹配一名启用用户');
       }
       if (preview.exceedsBroadcastThreshold) {
-        throw new Error(`接收范围达到启用用户的 ${Math.round(preview.ratio * 100)}%，请缩小范围后再启用`);
+        throw new Error(
+          `接收范围达到启用用户的 ${Math.round(preview.ratio * 100)}%，请缩小范围后再启用`
+        );
       }
     }
 

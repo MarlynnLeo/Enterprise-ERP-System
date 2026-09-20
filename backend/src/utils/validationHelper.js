@@ -3,7 +3,6 @@
  * Simple validation functions for controllers
  */
 
-
 /**
  * Validate required fields
  */

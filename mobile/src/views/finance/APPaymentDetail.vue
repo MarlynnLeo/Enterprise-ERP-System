@@ -122,6 +122,7 @@
   import Icon from '@/components/icons/index.vue'
   import { financeApi } from '@/api'
   import dayjs from 'dayjs'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const route = useRoute()
   const payment = ref(null)
@@ -171,7 +172,7 @@
       showVoidDialog.value = false
       await loadDetail()
     } catch (e) {
-      if (e !== 'cancel') showToast(e.response?.data?.message || '操作失败')
+      if (e !== 'cancel') showToast(getApiErrorMessage(e, '操作失败'))
     } finally {
       actionLoading.value = false
     }

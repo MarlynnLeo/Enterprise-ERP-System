@@ -67,13 +67,7 @@ class DomainEventService {
           available_at = NOW(),
           updated_at = NOW(),
           id = LAST_INSERT_ID(id)`,
-        [
-          eventName,
-          aggregateType,
-          aggregateId,
-          dedupKey,
-          this.safeStringify(payload),
-        ]
+        [eventName, aggregateType, aggregateId, dedupKey, this.safeStringify(payload)]
       );
 
       let eventId = result?.insertId || null;
@@ -87,7 +81,9 @@ class DomainEventService {
       return eventId;
     } catch (error) {
       if (error.code === 'ER_NO_SUCH_TABLE') {
-        logger.warn(`[DomainEvent] domain_events table is missing; event ${eventName} was not persisted`);
+        logger.warn(
+          `[DomainEvent] domain_events table is missing; event ${eventName} was not persisted`
+        );
         return false;
       }
       throw error;
@@ -131,9 +127,13 @@ class DomainEventService {
    * 认领并派发指定事件（业务写路径专用）
    */
   static async claimAndDispatchIds(eventIds = []) {
-    const ids = [...new Set((Array.isArray(eventIds) ? eventIds : [eventIds])
-      .map((id) => Number(id))
-      .filter((id) => Number.isInteger(id) && id > 0))];
+    const ids = [
+      ...new Set(
+        (Array.isArray(eventIds) ? eventIds : [eventIds])
+          .map((id) => Number(id))
+          .filter((id) => Number.isInteger(id) && id > 0)
+      ),
+    ];
 
     if (ids.length === 0) return 0;
 
@@ -296,7 +296,9 @@ class DomainEventService {
           return;
         }
         // 无 eventId 时不再清积压（否则一次业务操作会刷出无关历史通知）
-        logger.debug('[DomainEvent] dispatchSoon called without eventId; backlog is handled by scheduler');
+        logger.debug(
+          '[DomainEvent] dispatchSoon called without eventId; backlog is handled by scheduler'
+        );
       } catch (error) {
         if (this.isPoolClosedError(error)) {
           logger.debug('[DomainEvent] Dispatch skipped because database pool is closed');

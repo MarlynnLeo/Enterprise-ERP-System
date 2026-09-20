@@ -84,7 +84,8 @@ const getScrapRecords = async (req, res) => {
     const total = countResult[0].total;
 
     // 查询列表数据
-    const dataQuery = appendPaginationSQL(`
+    const dataQuery = appendPaginationSQL(
+      `
       SELECT
         sr.*,
         ncp.inspection_no,
@@ -93,18 +94,25 @@ const getScrapRecords = async (req, res) => {
       LEFT JOIN nonconforming_products ncp ON sr.ncp_id = ncp.id
       ${whereClause}
       ORDER BY sr.created_at DESC
-    `, pagination.limit, pagination.offset);
+    `,
+      pagination.limit,
+      pagination.offset
+    );
     // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
     const [rows] = await pool.query(dataQuery, queryParams);
 
-    return ResponseHandler.success(res, {
-      data: rows,
-      pagination: {
-        total,
-        current: pagination.page,
-        pageSize: pagination.pageSize,
+    return ResponseHandler.success(
+      res,
+      {
+        data: rows,
+        pagination: {
+          total,
+          current: pagination.page,
+          pageSize: pagination.pageSize,
+        },
       },
-    }, '获取报废记录列表成功');
+      '获取报废记录列表成功'
+    );
   } catch (error) {
     logger.error('获取报废记录列表失败:', error);
     return ResponseHandler.error(res, '获取报废记录列表失败', 'OPERATION_ERROR', 500, error);
@@ -155,9 +163,10 @@ const updateScrapRecord = async (req, res) => {
     const { scrap_cost, scrap_date } = mapKeysToSnake(req.body || {});
 
     // 检查报废记录是否存在
-    const [checkResult] = await connection.query('SELECT id, scrap_no, ncp_id, status FROM scrap_records WHERE id = ? FOR UPDATE', [
-      id,
-    ]);
+    const [checkResult] = await connection.query(
+      'SELECT id, scrap_no, ncp_id, status FROM scrap_records WHERE id = ? FOR UPDATE',
+      [id]
+    );
 
     if (checkResult.length === 0) {
       await connection.rollback();
@@ -200,9 +209,10 @@ const approveScrap = async (req, res) => {
     const { approved, approver } = req.body;
 
     // 检查报废记录是否存在
-    const [checkResult] = await connection.query('SELECT id, scrap_no, ncp_id, status FROM scrap_records WHERE id = ? FOR UPDATE', [
-      id,
-    ]);
+    const [checkResult] = await connection.query(
+      'SELECT id, scrap_no, ncp_id, status FROM scrap_records WHERE id = ? FOR UPDATE',
+      [id]
+    );
 
     if (checkResult.length === 0) {
       await connection.rollback();
@@ -269,7 +279,10 @@ const completeScrap = async (req, res) => {
     const { scrap_cost } = mapKeysToSnake(req.body || {});
 
     // 获取报废记录信息
-    const [records] = await connection.query('SELECT id, scrap_no, ncp_id, ncp_no, material_id, material_code, material_name, quantity, scrap_reason, scrap_date, scrap_cost, status, approver, approval_date, created_by, created_at, updated_at FROM scrap_records WHERE id = ? FOR UPDATE', [id]);
+    const [records] = await connection.query(
+      'SELECT id, scrap_no, ncp_id, ncp_no, material_id, material_code, material_name, quantity, scrap_reason, scrap_date, scrap_cost, status, approver, approval_date, created_by, created_at, updated_at FROM scrap_records WHERE id = ? FOR UPDATE',
+      [id]
+    );
 
     if (records.length === 0) {
       await connection.rollback();
@@ -340,7 +353,10 @@ const updateStatus = async (req, res) => {
     }
 
     // 获取报废记录信息（completed 状态需要做额外处理）
-    const [records] = await connection.query('SELECT id, scrap_no, ncp_id, ncp_no, material_id, material_code, material_name, quantity, scrap_reason, scrap_date, scrap_cost, status, approver, approval_date, created_by, created_at, updated_at FROM scrap_records WHERE id = ? FOR UPDATE', [id]);
+    const [records] = await connection.query(
+      'SELECT id, scrap_no, ncp_id, ncp_no, material_id, material_code, material_name, quantity, scrap_reason, scrap_date, scrap_cost, status, approver, approval_date, created_by, created_at, updated_at FROM scrap_records WHERE id = ? FOR UPDATE',
+      [id]
+    );
     if (records.length === 0) {
       await connection.rollback();
       return ResponseHandler.error(res, '报废记录不存在', 'NOT_FOUND', 404);
@@ -361,7 +377,12 @@ const updateStatus = async (req, res) => {
       }
       if (record.status !== STATUS.SCRAP.APPROVED) {
         await connection.rollback();
-        return ResponseHandler.error(res, '只有审批通过的报废记录才能完成，请先审批', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(
+          res,
+          '只有审批通过的报废记录才能完成，请先审批',
+          'VALIDATION_ERROR',
+          400
+        );
       }
 
       // 更新状态为已完成

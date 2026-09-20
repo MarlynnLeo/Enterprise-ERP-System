@@ -39,51 +39,59 @@ const createReinspectionTask = async (task, connection) => {
     const newInspectionNo = await CodeGenerators.generateInspectionCode(connection);
 
     // 插入复检主单 (继承原单的大部分信息，数量为返工合格返工数)
-    const [insertResult] = await connection.query(`
+    const [insertResult] = await connection.query(
+      `
       INSERT INTO quality_inspections (
         inspection_no, inspection_type, reference_no, reference_id,
         material_id, product_id, product_code, product_name,
         quantity, unit, unit_id, planned_date, status, note, template_id, batch_no
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
-    `, [
-      newInspectionNo,
-      origin.inspection_type,
-      origin.reference_no,
-      origin.reference_id,
-      origin.material_id,
-      origin.product_id,
-      origin.product_code,
-      origin.product_name,
-      task.quantity,
-      origin.unit || '个',
-      origin.unit_id || null,
-      new Date(), // 复检计划日期为当天
-      `自动创建：由返工任务 ${task.rework_no} (不良品单 ${task.ncp_no}) 触发的返工复检`,
-      origin.template_id,
-      origin.batch_no || ''
-    ]);
+    `,
+      [
+        newInspectionNo,
+        origin.inspection_type,
+        origin.reference_no,
+        origin.reference_id,
+        origin.material_id,
+        origin.product_id,
+        origin.product_code,
+        origin.product_name,
+        task.quantity,
+        origin.unit || '个',
+        origin.unit_id || null,
+        new Date(), // 复检计划日期为当天
+        `自动创建：由返工任务 ${task.rework_no} (不良品单 ${task.ncp_no}) 触发的返工复检`,
+        origin.template_id,
+        origin.batch_no || '',
+      ]
+    );
 
     const newInspectionId = insertResult.insertId;
 
     // 继承检验项目标准
-    const [items] = await connection.query('SELECT id, inspection_id, item_name, standard, type, is_critical, dimension_value, tolerance_upper, tolerance_lower, actual_value, measure_1, measure_2, measure_3, measure_4, measure_5, measure_6, method, result, is_qualified, remark, created_at, updated_at FROM quality_inspection_items WHERE inspection_id = ?', [task.inspection_id]);
+    const [items] = await connection.query(
+      'SELECT id, inspection_id, item_name, standard, type, is_critical, dimension_value, tolerance_upper, tolerance_lower, actual_value, measure_1, measure_2, measure_3, measure_4, measure_5, measure_6, method, result, is_qualified, remark, created_at, updated_at FROM quality_inspection_items WHERE inspection_id = ?',
+      [task.inspection_id]
+    );
     if (items.length > 0) {
       await connection.query(
         `INSERT INTO quality_inspection_items (
           inspection_id, item_name, standard, method, type, is_critical,
           dimension_value, tolerance_upper, tolerance_lower
         ) VALUES ?`,
-        [items.map(item => [
-          newInspectionId,
-          item.item_name,
-          item.standard,
-          item.method,
-          item.type,
-          item.is_critical,
-          item.dimension_value,
-          item.tolerance_upper,
-          item.tolerance_lower,
-        ])]
+        [
+          items.map((item) => [
+            newInspectionId,
+            item.item_name,
+            item.standard,
+            item.method,
+            item.type,
+            item.is_critical,
+            item.dimension_value,
+            item.tolerance_upper,
+            item.tolerance_lower,
+          ]),
+        ]
       );
     }
 
@@ -101,8 +109,10 @@ const createReinspectionTask = async (task, connection) => {
       connection
     );
 
-    logger.info(`Rework loop closed with reinspection created: reworkNo=${task.rework_no}, inspectionNo=${newInspectionNo}`);
-  } catch(e) {
+    logger.info(
+      `Rework loop closed with reinspection created: reworkNo=${task.rework_no}, inspectionNo=${newInspectionNo}`
+    );
+  } catch (e) {
     logger.error(`创建返工复检单失败: ${e.message}`);
     throw e;
   }
@@ -180,7 +190,8 @@ const getReworkTasks = async (req, res) => {
     const total = countResult[0].total;
 
     // 查询列表数据
-    const dataQuery = appendPaginationSQL(`
+    const dataQuery = appendPaginationSQL(
+      `
       SELECT
         rt.*,
         ncp.inspection_no,
@@ -189,7 +200,10 @@ const getReworkTasks = async (req, res) => {
       LEFT JOIN nonconforming_products ncp ON rt.ncp_id = ncp.id
       ${whereClause}
       ORDER BY rt.created_at DESC
-    `, pagination.limit, pagination.offset);
+    `,
+      pagination.limit,
+      pagination.offset
+    );
     // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
     const [rows] = await pool.query(dataQuery, queryParams);
 
@@ -251,9 +265,10 @@ const updateReworkTask = async (req, res) => {
     const { rework_instructions, planned_date, rework_cost } = mapKeysToSnake(req.body || {});
 
     // 检查返工任务是否存在
-    const [checkResult] = await connection.query('SELECT status FROM rework_tasks WHERE id = ? FOR UPDATE', [
-      id,
-    ]);
+    const [checkResult] = await connection.query(
+      'SELECT status FROM rework_tasks WHERE id = ? FOR UPDATE',
+      [id]
+    );
 
     if (checkResult.length === 0) {
       await connection.rollback();
@@ -265,7 +280,12 @@ const updateReworkTask = async (req, res) => {
       checkResult[0].status === STATUS.REWORK.CANCELLED
     ) {
       await connection.rollback();
-      return ResponseHandler.error(res, '已完成或已取消的返工任务不能修改', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(
+        res,
+        '已完成或已取消的返工任务不能修改',
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     // 更新返工任务
@@ -299,9 +319,10 @@ const assignTask = async (req, res) => {
     const { assigned_to } = mapKeysToSnake(req.body || {});
 
     // 检查返工任务是否存在
-    const [checkResult] = await connection.query('SELECT status FROM rework_tasks WHERE id = ? FOR UPDATE', [
-      id,
-    ]);
+    const [checkResult] = await connection.query(
+      'SELECT status FROM rework_tasks WHERE id = ? FOR UPDATE',
+      [id]
+    );
 
     if (checkResult.length === 0) {
       await connection.rollback();
@@ -313,7 +334,12 @@ const assignTask = async (req, res) => {
       checkResult[0].status === STATUS.REWORK.CANCELLED
     ) {
       await connection.rollback();
-      return ResponseHandler.error(res, '已完成或已取消的返工任务不能分配', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(
+        res,
+        '已完成或已取消的返工任务不能分配',
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     // 分配任务
@@ -347,13 +373,16 @@ const completeTask = async (req, res) => {
     const { actual_date, rework_cost } = mapKeysToSnake(req.body || {});
 
     // 获取返工任务信息 (带上ncp单等信息以便复检使用)
-    const [tasks] = await connection.query(`
+    const [tasks] = await connection.query(
+      `
       SELECT rt.*, ncp.ncp_no, ncp.inspection_id
       FROM rework_tasks rt
       LEFT JOIN nonconforming_products ncp ON rt.ncp_id = ncp.id
       WHERE rt.id = ?
       FOR UPDATE
-    `, [id]);
+    `,
+      [id]
+    );
 
     if (tasks.length === 0) {
       await connection.rollback();
@@ -374,7 +403,12 @@ const completeTask = async (req, res) => {
 
     if (task.status !== STATUS.REWORK.IN_PROGRESS) {
       await connection.rollback();
-      return ResponseHandler.error(res, '返工任务必须先分配并进入进行中后才能完成', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(
+        res,
+        '返工任务必须先分配并进入进行中后才能完成',
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     // 完成返工任务
@@ -433,13 +467,16 @@ const updateStatus = async (req, res) => {
     // 🔒 闭环保护：completed 状态必须走正规流程（复检单 + 质量成本）
     if (status === 'completed') {
       // 获取完整任务信息（含 NCP 关联数据，用于创建复检单）
-      const [tasks] = await connection.query(`
+      const [tasks] = await connection.query(
+        `
         SELECT rt.*, ncp.ncp_no, ncp.inspection_id
         FROM rework_tasks rt
         LEFT JOIN nonconforming_products ncp ON rt.ncp_id = ncp.id
         WHERE rt.id = ?
         FOR UPDATE
-      `, [id]);
+      `,
+        [id]
+      );
 
       if (tasks.length === 0) {
         await connection.rollback();
@@ -460,7 +497,12 @@ const updateStatus = async (req, res) => {
 
       if (task.status !== STATUS.REWORK.IN_PROGRESS) {
         await connection.rollback();
-        return ResponseHandler.error(res, '返工任务必须先进入进行中后才能完成', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(
+          res,
+          '返工任务必须先进入进行中后才能完成',
+          'VALIDATION_ERROR',
+          400
+        );
       }
 
       // 更新状态为已完成
@@ -564,14 +606,17 @@ const updateProgress = async (req, res) => {
     }
 
     // 检查返工任务是否存在 (获取 ncp 信息以便自动完成时创建复检单)
-    const [checkResult] = await connection.query(`
+    const [checkResult] = await connection.query(
+      `
       SELECT rt.status, rt.quantity, rt.rework_no, rt.created_by, rt.assigned_to, rt.material_code,
              ncp.ncp_no, ncp.inspection_id
       FROM rework_tasks rt
       LEFT JOIN nonconforming_products ncp ON rt.ncp_id = ncp.id
       WHERE rt.id = ?
       FOR UPDATE
-    `, [id]);
+    `,
+      [id]
+    );
 
     if (checkResult.length === 0) {
       await connection.rollback();
@@ -609,10 +654,17 @@ const updateProgress = async (req, res) => {
       // 触发闭环
       await createReinspectionTask(taskObj, connection);
 
-      await QualityIntegrationService.recordQualityCost({
-          costType: 'rework', referenceNo: taskObj.rework_no, materialCode: taskObj.material_code,
-          quantity: taskObj.quantity, cost: 0, operator: taskObj.created_by
-      }, connection);
+      await QualityIntegrationService.recordQualityCost(
+        {
+          costType: 'rework',
+          referenceNo: taskObj.rework_no,
+          materialCode: taskObj.material_code,
+          quantity: taskObj.quantity,
+          cost: 0,
+          operator: taskObj.created_by,
+        },
+        connection
+      );
     }
 
     await connection.commit();
@@ -658,13 +710,17 @@ const getReworkStatusByInspectionId = async (req, res) => {
 
     if (rows.length === 0) {
       // 没有关联的不良品记录 — 可能检验刚标记为failed但NCP还没创建
-      return ResponseHandler.success(res, {
-        has_ncp: false,
-        has_rework: false,
-        rework_completed: false,
-        disposition: null,
-        allow_reinspection: false
-      }, '未找到关联的不良品记录');
+      return ResponseHandler.success(
+        res,
+        {
+          has_ncp: false,
+          has_rework: false,
+          rework_completed: false,
+          disposition: null,
+          allow_reinspection: false,
+        },
+        '未找到关联的不良品记录'
+      );
     }
 
     // 取最新的一条 NCP 记录
@@ -674,17 +730,21 @@ const getReworkStatusByInspectionId = async (req, res) => {
     // 只有当处置方式是返工(rework)且返工已完成时，才允许复检
     const allowReinspection = latest.disposition === 'rework' && reworkCompleted;
 
-    return ResponseHandler.success(res, {
-      has_ncp: true,
-      ncp_no: latest.ncp_no,
-      ncp_status: latest.ncp_status,
-      disposition: latest.disposition,
-      has_rework: hasRework,
-      rework_no: latest.rework_no,
-      rework_status: latest.rework_status,
-      rework_completed: reworkCompleted,
-      allow_reinspection: allowReinspection
-    }, '查询成功');
+    return ResponseHandler.success(
+      res,
+      {
+        has_ncp: true,
+        ncp_no: latest.ncp_no,
+        ncp_status: latest.ncp_status,
+        disposition: latest.disposition,
+        has_rework: hasRework,
+        rework_no: latest.rework_no,
+        rework_status: latest.rework_status,
+        rework_completed: reworkCompleted,
+        allow_reinspection: allowReinspection,
+      },
+      '查询成功'
+    );
   } catch (error) {
     logger.error('查询检验单关联返工状态失败:', error);
     return ResponseHandler.error(res, '查询返工状态失败', 'OPERATION_ERROR', 500, error);
@@ -697,8 +757,8 @@ const getReworkStatusByInspectionIds = async (req, res) => {
     const inspectionIds = Array.isArray(bodyIn.inspection_ids)
       ? bodyIn.inspection_ids.map((id) => parseInt(id, 10)).filter(Boolean)
       : Array.isArray(req.body?.inspectionIds)
-      ? req.body.inspectionIds.map((id) => parseInt(id, 10)).filter(Boolean)
-      : [];
+        ? req.body.inspectionIds.map((id) => parseInt(id, 10)).filter(Boolean)
+        : [];
     const uniqueIds = [...new Set(inspectionIds)];
 
     if (uniqueIds.length === 0) {

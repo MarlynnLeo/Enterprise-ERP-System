@@ -21,21 +21,45 @@ router.use(requirePriceMutationPermission('update'));
 router.get('/', requirePermission('quality:scrap:view'), scrapRecordController.getScrapRecords);
 
 // 获取报废统计数据
-router.get('/statistics', requirePermission('quality:scrap:view'), scrapRecordController.getStatistics);
+router.get(
+  '/statistics',
+  requirePermission('quality:scrap:view'),
+  scrapRecordController.getStatistics
+);
 
 // 获取报废记录详情
-router.get('/:id', requirePermission('quality:scrap:view'), scrapRecordController.getScrapRecordById);
+router.get(
+  '/:id',
+  requirePermission('quality:scrap:view'),
+  scrapRecordController.getScrapRecordById
+);
 
 // 更新报废记录
-router.put('/:id', requirePermission('quality:scrap:update'), scrapRecordController.updateScrapRecord);
+router.put(
+  '/:id',
+  requirePermission('quality:scrap:update'),
+  scrapRecordController.updateScrapRecord
+);
 
 // 审批报废
-router.post('/:id/approve', requirePermission('quality:scrap:update'), scrapRecordController.approveScrap);
+router.post(
+  '/:id/approve',
+  requirePermission('quality:scrap:update'),
+  scrapRecordController.approveScrap
+);
 
 // 完成报废
-router.post('/:id/complete', requirePermission('quality:scrap:update'), scrapRecordController.completeScrap);
+router.post(
+  '/:id/complete',
+  requirePermission('quality:scrap:update'),
+  scrapRecordController.completeScrap
+);
 
 // 更新报废状态
-router.put('/:id/status', requirePermission('quality:scrap:update'), scrapRecordController.updateStatus);
+router.put(
+  '/:id/status',
+  requirePermission('quality:scrap:update'),
+  scrapRecordController.updateStatus
+);
 
 module.exports = router;

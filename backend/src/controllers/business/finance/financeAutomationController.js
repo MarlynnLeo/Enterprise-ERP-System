@@ -88,7 +88,7 @@ class FinanceAutomationController {
       }
 
       const result = await PeriodEndService.executeAutoClosing(parseInt(periodId), {
-        closed_by: (req.user?.id ?? null),
+        closed_by: req.user?.id ?? null,
       });
 
       ResponseHandler.success(res, result, '期末自动结转完成');
@@ -242,7 +242,10 @@ class FinanceAutomationController {
       let pid = null;
       if (periodId) {
         try {
-          ({ pid } = await FinanceAutomationController.assertOpenPeriod(periodId, '计算在制品成本'));
+          ({ pid } = await FinanceAutomationController.assertOpenPeriod(
+            periodId,
+            '计算在制品成本'
+          ));
         } catch (periodError) {
           return ResponseHandler.error(
             res,
@@ -255,10 +258,7 @@ class FinanceAutomationController {
       }
 
       const CostAccountingService = require('../../../services/business/CostAccountingService');
-      const result = await CostAccountingService.calculateWIPCost(
-        pid,
-        snapshotDate || null
-      );
+      const result = await CostAccountingService.calculateWIPCost(pid, snapshotDate || null);
 
       ResponseHandler.success(res, result, '在制品成本计算完成');
     } catch (error) {

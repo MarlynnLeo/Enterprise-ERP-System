@@ -85,6 +85,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { CircleCheck, Download, Plus, Refresh } from '@element-plus/icons-vue'
@@ -114,7 +115,7 @@ const loadBackups = async () => {
   try {
     backups.value = getPayload(await systemApi.getBackups()) || []
   } catch (error) {
-    ElMessage.error(error.message || '加载备份列表失败')
+    ElMessage.error(getApiErrorMessage(error, '加载备份列表失败'))
   } finally {
     loading.value = false
   }
@@ -127,7 +128,7 @@ const createBackup = async () => {
     ElMessage.success('备份创建成功')
     await loadBackups()
   } catch (error) {
-    ElMessage.error(error.message || '备份创建失败')
+    ElMessage.error(getApiErrorMessage(error, '备份创建失败'))
   } finally {
     creating.value = false
   }
@@ -142,7 +143,7 @@ const verifyBackup = async (row) => {
       ElMessage.error('备份校验未通过')
     }
   } catch (error) {
-    ElMessage.error(error.message || '备份校验失败')
+    ElMessage.error(getApiErrorMessage(error, '备份校验失败'))
   }
 }
 
@@ -159,7 +160,7 @@ const downloadBackup = async (row) => {
     document.body.removeChild(link)
     URL.revokeObjectURL(url)
   } catch (error) {
-    ElMessage.error(error.message || '下载失败')
+    ElMessage.error(getApiErrorMessage(error, '下载失败'))
   }
 }
 

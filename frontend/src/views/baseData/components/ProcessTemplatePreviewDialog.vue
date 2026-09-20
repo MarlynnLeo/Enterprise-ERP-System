@@ -44,6 +44,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { defineAsyncComponent, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { commonApi } from '@/api'
@@ -104,7 +105,7 @@ const handleDownload = async () => {
     ElMessage.success('文件下载成功')
   } catch (error) {
     console.error('文件下载失败:', error)
-    ElMessage.error('文件下载失败: ' + (error.response?.data?.message || error.message))
+    ElMessage.error('文件下载失败: ' + (getApiErrorMessage(error, '未知错误')))
   }
 }
 </script>

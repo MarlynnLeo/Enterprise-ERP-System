@@ -39,7 +39,10 @@ function normalizeInvoiceVoucherAmounts(invoice) {
     throw validationError('发票金额不能为负数，不能生成会计分录');
   }
 
-  if ((!redLetter && totalAmountCents <= 0) || (redLetter && (totalAmountCents >= 0 || amountExcludingTaxCents > 0 || taxAmountCents > 0))) {
+  if (
+    (!redLetter && totalAmountCents <= 0) ||
+    (redLetter && (totalAmountCents >= 0 || amountExcludingTaxCents > 0 || taxAmountCents > 0))
+  ) {
     throw validationError('发票价税合计必须大于0，不能生成会计分录');
   }
 
@@ -75,9 +78,15 @@ class TaxAccountingService {
     const table = output ? 'ar_invoices' : 'ap_invoices';
     const documentType = output ? 'ar_invoice' : 'ap_invoice';
     const relatedType = String(invoice.related_document_type || '');
-    const { TAX_RELATED_DOCUMENT_TYPES, taxRelatedDocumentTypeMatchList } = require('../../constants/financeConstants');
-    const businessTypes = taxRelatedDocumentTypeMatchList(output
-      ? TAX_RELATED_DOCUMENT_TYPES.SALES_OUTBOUND : TAX_RELATED_DOCUMENT_TYPES.PURCHASE_RECEIPT);
+    const {
+      TAX_RELATED_DOCUMENT_TYPES,
+      taxRelatedDocumentTypeMatchList,
+    } = require('../../constants/financeConstants');
+    const businessTypes = taxRelatedDocumentTypeMatchList(
+      output
+        ? TAX_RELATED_DOCUMENT_TYPES.SALES_OUTBOUND
+        : TAX_RELATED_DOCUMENT_TYPES.PURCHASE_RECEIPT
+    );
     let sourcePredicate;
     let sourceParams;
     if (relatedType === documentType) {
@@ -87,7 +96,9 @@ class TaxAccountingService {
       sourcePredicate = output
         ? "((ai.source_type = 'sales_outbound' AND ai.source_id = ?) OR (ai.source_type = 'sales_order' AND ai.source_id = (SELECT order_id FROM sales_outbound WHERE id = ?)))"
         : "ai.source_type IN ('purchase_receipt', 'inbound') AND ai.source_id = ?";
-      sourceParams = output ? [invoice.related_document_id, invoice.related_document_id] : [invoice.related_document_id];
+      sourceParams = output
+        ? [invoice.related_document_id, invoice.related_document_id]
+        : [invoice.related_document_id];
     } else {
       return null;
     }
@@ -104,12 +115,23 @@ class TaxAccountingService {
        WHERE (${sourcePredicate})`,
       [taxAccountId, documentType, documentType, ...sourceParams]
     );
-    const existing = candidates.find(row => this.sameMoney(row.invoice_tax, amounts.taxAmount)
-      && this.sameMoney(row.posted_tax, row.linked_tax)
-      && (amounts.taxAmount === 0 || Number(row.posted_tax) * amounts.taxAmount > 0));
+    const existing = candidates.find(
+      (row) =>
+        this.sameMoney(row.invoice_tax, amounts.taxAmount) &&
+        this.sameMoney(row.posted_tax, row.linked_tax) &&
+        (amounts.taxAmount === 0 || Number(row.posted_tax) * amounts.taxAmount > 0)
+    );
     if (!existing) return null;
-    const entryInfo = { entryId: existing.id, entryNumber: existing.entry_number, reused: true, sharedBusinessVoucher: true };
-    await connection.execute('UPDATE tax_invoices SET gl_entry_id = ? WHERE id = ?', [existing.id, invoice.id]);
+    const entryInfo = {
+      entryId: existing.id,
+      entryNumber: existing.entry_number,
+      reused: true,
+      sharedBusinessVoucher: true,
+    };
+    await connection.execute('UPDATE tax_invoices SET gl_entry_id = ? WHERE id = ?', [
+      existing.id,
+      invoice.id,
+    ]);
     await this.linkTaxInvoiceVoucher(invoice, entryInfo, userId, connection);
     return entryInfo;
   }
@@ -161,7 +183,8 @@ class TaxAccountingService {
   static async linkTaxInvoiceVoucher(invoice, entryInfo, userId, connection) {
     if (!invoice?.id || !entryInfo?.entryId) return;
 
-    await DocumentLinkService.tryAutoLink(DocType.TAX_INVOICE,
+    await DocumentLinkService.tryAutoLink(
+      DocType.TAX_INVOICE,
       invoice.id,
       invoice.invoice_number,
       DocType.FINANCE_VOUCHER,
@@ -175,7 +198,8 @@ class TaxAccountingService {
   static async linkTaxReturnVoucher(taxReturn, entryInfo, userId, connection) {
     if (!taxReturn?.id || !entryInfo?.entryId) return;
 
-    await DocumentLinkService.tryAutoLink(DocType.TAX_RETURN,
+    await DocumentLinkService.tryAutoLink(
+      DocType.TAX_RETURN,
       taxReturn.id,
       taxReturn.return_period,
       DocType.FINANCE_VOUCHER,
@@ -236,7 +260,13 @@ class TaxAccountingService {
     return Math.abs(toCents(actual) - toCents(expected)) <= 1;
   }
 
-  static async getOutputTaxLinkedVoucherMode(connection, invoice, arAccountId, revenueAccountId, amounts) {
+  static async getOutputTaxLinkedVoucherMode(
+    connection,
+    invoice,
+    arAccountId,
+    revenueAccountId,
+    amounts
+  ) {
     if (!invoice?.related_document_id) return 'none';
 
     const [rows] = await connection.execute(
@@ -366,12 +396,19 @@ class TaxAccountingService {
       const invoiceDate = toLocalDateString(invoice.invoice_date || currentDateString());
       const periodId = await this.getCurrentPeriodId(invoiceDate, connection);
       const voucherAmounts = normalizeInvoiceVoucherAmounts(invoice);
-      const reusedEntry = await this.reuseLinkedTaxVoucher(connection, invoice, outputTaxAccountId, voucherAmounts, userId);
+      const reusedEntry = await this.reuseLinkedTaxVoucher(
+        connection,
+        invoice,
+        outputTaxAccountId,
+        voucherAmounts,
+        userId
+      );
       if (reusedEntry) {
         if (shouldManageTransaction) await connection.commit();
         return reusedEntry;
       }
-      if (voucherAmounts.totalAmount < 0) throw validationError('红字税票必须关联已过账的退货红字业务凭证');
+      if (voucherAmounts.totalAmount < 0)
+        throw validationError('红字税票必须关联已过账的退货红字业务凭证');
       const linkedVoucherMode = await this.getOutputTaxLinkedVoucherMode(
         connection,
         invoice,
@@ -532,12 +569,19 @@ class TaxAccountingService {
       const invoiceDate = toLocalDateString(invoice.invoice_date || currentDateString());
       const periodId = await this.getCurrentPeriodId(invoiceDate, connection);
       const voucherAmounts = normalizeInvoiceVoucherAmounts(invoice);
-      const reusedEntry = await this.reuseLinkedTaxVoucher(connection, invoice, inputTaxAccountId, voucherAmounts, userId);
+      const reusedEntry = await this.reuseLinkedTaxVoucher(
+        connection,
+        invoice,
+        inputTaxAccountId,
+        voucherAmounts,
+        userId
+      );
       if (reusedEntry) {
         if (shouldManageTransaction) await connection.commit();
         return reusedEntry;
       }
-      if (voucherAmounts.totalAmount < 0) throw validationError('红字税票必须关联已过账的退货红字业务凭证');
+      if (voucherAmounts.totalAmount < 0)
+        throw validationError('红字税票必须关联已过账的退货红字业务凭证');
       const linkedVoucherMode = await this.getInputTaxLinkedVoucherMode(
         connection,
         invoice,
@@ -547,8 +591,8 @@ class TaxAccountingService {
       const useTaxReclassification = linkedVoucherMode === 'tax_inclusive';
       const useTaxOnlyAccrual = linkedVoucherMode === 'tax_exclusive';
       const inputTaxReclassCreditAccountId = useTaxReclassification
-        ? (await this.getInputTaxReclassCreditAccountId(connection, invoice, apAccountId))
-            || inventoryAccountId
+        ? (await this.getInputTaxReclassCreditAccountId(connection, invoice, apAccountId)) ||
+          inventoryAccountId
         : inventoryAccountId;
 
       // 6. 创建会计分录

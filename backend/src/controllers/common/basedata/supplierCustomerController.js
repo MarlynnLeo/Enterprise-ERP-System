@@ -155,7 +155,6 @@ const supplierCustomerController = {
     }
   },
 
-
   async listSupplierMetalPriceSchemes(req, res) {
     try {
       const schemes = await SupplierMetalRangePriceService.listSchemes(req.params.id, {
@@ -165,7 +164,13 @@ const supplierCustomerController = {
       return ResponseHandler.success(res, schemes, '获取供应商区间报价方案成功');
     } catch (error) {
       logger.error('获取供应商区间报价方案失败:', error);
-      return ResponseHandler.error(res, error.message || '获取供应商区间报价方案失败', 'SERVER_ERROR', 500, error);
+      return ResponseHandler.error(
+        res,
+        error.message || '获取供应商区间报价方案失败',
+        'SERVER_ERROR',
+        500,
+        error
+      );
     }
   },
 
@@ -178,7 +183,13 @@ const supplierCustomerController = {
       return ResponseHandler.success(res, scheme, '获取供应商区间报价详情成功');
     } catch (error) {
       logger.error('获取供应商区间报价详情失败:', error);
-      return ResponseHandler.error(res, error.message || '获取供应商区间报价详情失败', 'SERVER_ERROR', 500, error);
+      return ResponseHandler.error(
+        res,
+        error.message || '获取供应商区间报价详情失败',
+        'SERVER_ERROR',
+        500,
+        error
+      );
     }
   },
 
@@ -193,20 +204,35 @@ const supplierCustomerController = {
       return ResponseHandler.success(res, scheme, '保存供应商区间报价成功');
     } catch (error) {
       logger.error('保存供应商区间报价失败:', error);
-      return ResponseHandler.error(res, error.message || '保存供应商区间报价失败', 'VALIDATION_ERROR', 400, error);
+      return ResponseHandler.error(
+        res,
+        error.message || '保存供应商区间报价失败',
+        'VALIDATION_ERROR',
+        400,
+        error
+      );
     }
   },
 
   async deleteSupplierMetalPriceScheme(req, res) {
     try {
-      const deleted = await SupplierMetalRangePriceService.deleteScheme(req.params.id, req.params.schemeId);
+      const deleted = await SupplierMetalRangePriceService.deleteScheme(
+        req.params.id,
+        req.params.schemeId
+      );
       if (!deleted) {
         return ResponseHandler.notFound(res, '区间报价方案不存在');
       }
       return ResponseHandler.success(res, true, '删除供应商区间报价成功');
     } catch (error) {
       logger.error('删除供应商区间报价失败:', error);
-      return ResponseHandler.error(res, error.message || '删除供应商区间报价失败', 'SERVER_ERROR', 500, error);
+      return ResponseHandler.error(
+        res,
+        error.message || '删除供应商区间报价失败',
+        'SERVER_ERROR',
+        500,
+        error
+      );
     }
   },
 
@@ -214,8 +240,9 @@ const supplierCustomerController = {
     try {
       const keyword = String(req.query.search || req.query.keyword || req.query.name || '').trim();
       const requestedLimit = parseInt(req.query.limit || req.query.pageSize, 10);
-      
-      let query = 'SELECT id, code, name, contact_person, contact_phone FROM suppliers WHERE deleted_at IS NULL AND status = 1';
+
+      let query =
+        'SELECT id, code, name, contact_person, contact_phone FROM suppliers WHERE deleted_at IS NULL AND status = 1';
       const params = [];
 
       if (keyword) {
@@ -248,7 +275,6 @@ const supplierCustomerController = {
       ResponseHandler.error(res, error.message, 'SERVER_ERROR', 500, error);
     }
   },
-
 };
 
 module.exports = supplierCustomerController;

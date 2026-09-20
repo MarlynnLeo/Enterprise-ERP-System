@@ -24,7 +24,10 @@ if (missingVars.length > 0) {
   throw new Error(`缺少必需的数据库环境变量: ${missingVars.join(', ')}。请检查.env文件配置。`);
 }
 
-if (process.env.NODE_ENV === 'production' && String(process.env.DB_USER).trim().toLowerCase() === 'root') {
+if (
+  process.env.NODE_ENV === 'production' &&
+  String(process.env.DB_USER).trim().toLowerCase() === 'root'
+) {
   throw new Error('生产环境禁止使用 MySQL root 账号运行应用，请配置最小权限 DB_USER');
 }
 

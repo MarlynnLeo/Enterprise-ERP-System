@@ -539,6 +539,7 @@ import { Plus, ArrowDown } from '@element-plus/icons-vue';
 import { financeApi } from '@/api';
 import { formatDate, formatCurrency } from '@/utils/helpers/formatters';
 import { loadDepartmentOptions as loadCachedDepartmentOptions } from '@/utils/optionLoaders';
+import { getApiErrorMessage } from '@/utils/errorHandler'
 
 const router = useRouter();
 
@@ -1022,7 +1023,7 @@ const handleAudit = async (row, action) => {
     loadAssets();
   } catch (error) {
     console.error(`${actionText}失败:`, error);
-    ElMessage.error(error.response?.data?.message || `${actionText}失败`);
+    ElMessage.error(getApiErrorMessage(error, `${actionText}失败`));
   }
 };
 
@@ -1064,7 +1065,7 @@ const submitTransfer = async () => {
         loadAssets(); // 重新加载资产列表
       } catch (error) {
         console.error('资产调拨失败:', error);
-        ElMessage.error(error.response?.data?.message || '资产调拨失败');
+        ElMessage.error(getApiErrorMessage(error, '资产调拨失败'));
       } finally {
         transferLoading.value = false;
       }
@@ -1106,7 +1107,7 @@ const submitSplit = async () => {
         loadAssets(); // 重新加载资产列表
       } catch (error) {
         console.error('资产拆分失败:', error);
-        ElMessage.error(error.response?.data?.message || '资产拆分失败');
+        ElMessage.error(getApiErrorMessage(error, '资产拆分失败'));
       } finally {
         splitLoading.value = false;
       }
@@ -1147,7 +1148,7 @@ const submitImpairment = async () => {
         impairmentDialogVisible.value = false;
         loadAssets(); // 重新加载资产列表
       } catch (error) {
-        ElMessage.error(error.response?.data?.message || error.message || '减值计提失败');
+        ElMessage.error(getApiErrorMessage(error, '减值计提失败'));
       } finally {
         submitImpairmentLoading.value = false;
       }
@@ -1209,7 +1210,7 @@ const submitDispose = async () => {
     loadAssets(); // 重新加载资产列表
   } catch (error) {
     console.error('资产处置失败:', error);
-    const msg = error.response?.data?.message || error.response?.data?.error || error.message || '未知错误';
+    const msg = getApiErrorMessage(error, '请稍后重试');
     ElMessage.error('资产处置失败: ' + msg);
   } finally {
     disposeLoading.value = false;

@@ -244,6 +244,7 @@ import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { Plus, Check, Close, Edit, Delete } from '@element-plus/icons-vue';
 import { systemApi } from '@/api';
 import { parseListData } from '@/utils/responseParser';
+import { getApiErrorMessage } from '@/utils/errorHandler'
 // 权限计算属性
 
 
@@ -395,7 +396,7 @@ const loadDepartments = async () => {
     departmentList.value = []; // 确保错误时也是空数组
     totalDepartments.value = 0;
     departmentTree.value = [{ id: 0, name: '顶级部门', children: [] }];
-    ElMessage.error(`加载部门列表失败: ${error.response?.data?.message || error.message}`);
+    ElMessage.error(`加载部门列表失败: ${getApiErrorMessage(error, '未知错误')}`);
   } finally {
     loading.value = false;
   }
@@ -491,10 +492,7 @@ const handleDelete = (row) => {
       console.error('删除部门失败:', error)
 
       // 提取后端返回的错误信息
-      const errorMsg = error.response?.data?.error ||
-                       error.response?.data?.message ||
-                       error.message ||
-                       '删除部门失败'
+      const errorMsg = getApiErrorMessage(error, '删除部门失败')
 
       ElMessage.error(errorMsg)
     }
@@ -523,10 +521,7 @@ const handleToggleStatus = (row) => {
       console.error(`${statusText}失败:`, error)
 
       // 提取后端返回的错误信息
-      const errorMsg = error.response?.data?.error ||
-                       error.response?.data?.message ||
-                       error.message ||
-                       `${statusText}失败`
+      const errorMsg = getApiErrorMessage(error, `${statusText}失败`)
 
       ElMessage.error(errorMsg)
     }
@@ -582,10 +577,7 @@ const saveDepartment = async () => {
     console.error('保存部门失败:', error)
 
     // 提取后端返回的错误信息
-    const errorMsg = error.response?.data?.error ||
-                     error.response?.data?.message ||
-                     error.message ||
-                     '保存部门失败'
+    const errorMsg = getApiErrorMessage(error, '保存部门失败')
 
     // 如果是重复提交错误（409状态码），显示警告
     if (error.response?.status === 409) {

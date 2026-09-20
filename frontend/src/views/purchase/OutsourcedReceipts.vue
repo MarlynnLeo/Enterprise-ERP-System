@@ -286,6 +286,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { useRoute } from 'vue-router';
 import { handleTableRowView } from '@/utils/tableRowView'
 import { formatDate } from '@/utils/helpers/dateUtils'
@@ -513,7 +514,7 @@ const handleArrive = async (row) => {
     }
   } catch (error) {
     console.error('打开到货对话框失败:', error);
-    ElMessage.error(`打开到货对话框失败: ${error.response?.data?.message || error.message || '未知错误'}`);
+    ElMessage.error(`打开到货对话框失败: ${getApiErrorMessage(error, '未知错误')}`);
     arrivalDialogVisible.value = false;
   } finally {
     arrivalDialogLoading.value = false;
@@ -549,7 +550,7 @@ const confirmArrival = async () => {
     await fetchReceiptList();
   } catch (error) {
     console.error('确认到货失败:', error);
-    ElMessage.error(`到货失败: ${error.response?.data?.message || error.message || '未知错误'}`);
+    ElMessage.error(`到货失败: ${getApiErrorMessage(error, '未知错误')}`);
   } finally {
     arrivalDialogLoading.value = false;
   }
@@ -563,7 +564,7 @@ const updateReceiptStatus = async (row, status) => {
     fetchReceiptList();
   } catch (error) {
     console.error('更新入库单状态失败:', error);
-    ElMessage.error('更新入库单状态失败: ' + (error.response?.data?.message || error.message));
+    ElMessage.error('更新入库单状态失败: ' + (getApiErrorMessage(error, '未知错误')));
   }
 };
 

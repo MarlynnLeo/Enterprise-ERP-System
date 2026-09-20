@@ -10,7 +10,9 @@ const db = require('../../config/db');
 const Builder = require('./Builder');
 
 const buildInClause = (values) => {
-  const filteredValues = values.filter((value) => value !== undefined && value !== null && value !== '');
+  const filteredValues = values.filter(
+    (value) => value !== undefined && value !== null && value !== ''
+  );
   return {
     placeholders: filteredValues.map(() => '?').join(','),
     values: filteredValues,
@@ -155,8 +157,12 @@ class TraceabilityQuery {
       // 4. 查询成品出库记录
       let outboundRecords = [];
       if (productionRecords.length > 0) {
-        const productCodeClause = buildInClause(productionRecords.map((record) => record.product_code));
-        const productBatchClause = buildInClause(productionRecords.map((record) => record.product_batch));
+        const productCodeClause = buildInClause(
+          productionRecords.map((record) => record.product_code)
+        );
+        const productBatchClause = buildInClause(
+          productionRecords.map((record) => record.product_batch)
+        );
 
         if (productCodeClause.values.length === 0 || productBatchClause.values.length === 0) {
           outboundRecords = [];

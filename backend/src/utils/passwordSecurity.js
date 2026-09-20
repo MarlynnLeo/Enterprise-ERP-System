@@ -161,10 +161,7 @@ class PasswordSecurity {
    */
   async resetLoginFailures(username, connection) {
     try {
-      await connection.execute(
-        'DELETE FROM login_attempts WHERE username = ?',
-        [username]
-      );
+      await connection.execute('DELETE FROM login_attempts WHERE username = ?', [username]);
     } catch (error) {
       logger.error('重置登录失败次数失败:', error);
     }

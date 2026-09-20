@@ -174,7 +174,8 @@ async function createApprovedCashTransactionGlEntry(connection, transaction, ope
       existingEntries[0].id,
       transaction.id,
     ]);
-    await DocumentLinkService.tryAutoLink(DocType.CASH_TRANSACTION,
+    await DocumentLinkService.tryAutoLink(
+      DocType.CASH_TRANSACTION,
       transaction.id,
       transactionNumber,
       DocType.FINANCE_VOUCHER,
@@ -194,11 +195,7 @@ async function createApprovedCashTransactionGlEntry(connection, transaction, ope
     (await getOpenAccountingPeriodId(connection, transactionDate));
   const cashAccountId =
     resolveProvidedAccountId(providedGlEntry, 'cash_gl_account_id', 'cash_account_id') ||
-    (await getActiveGlAccountId(
-      connection,
-      accountingConfig.getAccountCode('CASH'),
-      'Cash'
-    ));
+    (await getActiveGlAccountId(connection, accountingConfig.getAccountCode('CASH'), 'Cash'));
   const contraAccountKey = getCashContraAccountKey(transaction);
   const contraAccountId =
     resolveProvidedAccountId(
@@ -217,33 +214,33 @@ async function createApprovedCashTransactionGlEntry(connection, transaction, ope
   const isInflow = CASH_INFLOW_TYPES.has(transaction.transaction_type);
   const entryItems = isInflow
     ? [
-      {
-        account_id: cashAccountId,
-        debit_amount: amount,
-        credit_amount: 0,
-        description: `Cash receipt - ${transaction.description || transactionNumber}`,
-      },
-      {
-        account_id: contraAccountId,
-        debit_amount: 0,
-        credit_amount: amount,
-        description: `Cash receipt contra - ${transaction.counterparty || transaction.category || ''}`,
-      },
-    ]
+        {
+          account_id: cashAccountId,
+          debit_amount: amount,
+          credit_amount: 0,
+          description: `Cash receipt - ${transaction.description || transactionNumber}`,
+        },
+        {
+          account_id: contraAccountId,
+          debit_amount: 0,
+          credit_amount: amount,
+          description: `Cash receipt contra - ${transaction.counterparty || transaction.category || ''}`,
+        },
+      ]
     : [
-      {
-        account_id: contraAccountId,
-        debit_amount: amount,
-        credit_amount: 0,
-        description: `Cash payment contra - ${transaction.counterparty || transaction.category || ''}`,
-      },
-      {
-        account_id: cashAccountId,
-        debit_amount: 0,
-        credit_amount: amount,
-        description: `Cash payment - ${transaction.description || transactionNumber}`,
-      },
-    ];
+        {
+          account_id: contraAccountId,
+          debit_amount: amount,
+          credit_amount: 0,
+          description: `Cash payment contra - ${transaction.counterparty || transaction.category || ''}`,
+        },
+        {
+          account_id: cashAccountId,
+          debit_amount: 0,
+          credit_amount: amount,
+          description: `Cash payment - ${transaction.description || transactionNumber}`,
+        },
+      ];
 
   const entryId = await financeModel.createEntry(
     {
@@ -262,17 +259,17 @@ async function createApprovedCashTransactionGlEntry(connection, transaction, ope
     connection
   );
 
-  const [entries] = await connection.execute(
-    'SELECT entry_number FROM gl_entries WHERE id = ?',
-    [entryId]
-  );
+  const [entries] = await connection.execute('SELECT entry_number FROM gl_entries WHERE id = ?', [
+    entryId,
+  ]);
   const entryNumber = entries[0]?.entry_number || providedGlEntry.entry_number || null;
 
   await connection.execute('UPDATE cash_transactions SET gl_entry_id = ? WHERE id = ?', [
     entryId,
     transaction.id,
   ]);
-  await DocumentLinkService.tryAutoLink(DocType.CASH_TRANSACTION,
+  await DocumentLinkService.tryAutoLink(
+    DocType.CASH_TRANSACTION,
     transaction.id,
     transactionNumber,
     DocType.FINANCE_VOUCHER,
@@ -687,7 +684,10 @@ class CashTransactionModel {
       const results = [];
 
       for (const transactionData of transactionsData) {
-        const transactionNumber = await CodeGeneratorService.nextCode('cash_transaction', connection);
+        const transactionNumber = await CodeGeneratorService.nextCode(
+          'cash_transaction',
+          connection
+        );
 
         const [result] = await connection.execute(
           `INSERT INTO cash_transactions
@@ -806,11 +806,7 @@ class CashTransactionModel {
         throw new Error('制单人不能审核自己的现金交易');
       }
 
-      const entryInfo = await createApprovedCashTransactionGlEntry(
-        connection,
-        current[0],
-        userId
-      );
+      const entryInfo = await createApprovedCashTransactionGlEntry(connection, current[0], userId);
 
       const [result] = await connection.execute(
         `UPDATE cash_transactions

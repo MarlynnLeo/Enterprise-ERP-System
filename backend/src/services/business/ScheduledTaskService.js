@@ -53,7 +53,9 @@ class ScheduledTaskService {
     // 每分钟小批量派发领域事件积压（避免业务操作时一次清空队列刷屏通知）
     this.scheduleDomainEventDispatch();
 
-    logger.info(`Scheduled finance, inventory, and alert tasks started: taskCount=${this.tasks.size}`);
+    logger.info(
+      `Scheduled finance, inventory, and alert tasks started: taskCount=${this.tasks.size}`
+    );
   }
 
   /**
@@ -375,7 +377,7 @@ class ScheduledTaskService {
     for (const alert of alerts) {
       try {
         const raw = alert.condition_params;
-        const params = !raw ? {} : (typeof raw === 'object' ? raw : JSON.parse(raw));
+        const params = !raw ? {} : typeof raw === 'object' ? raw : JSON.parse(raw);
         let hit = false;
         let detail = '';
 
@@ -388,7 +390,10 @@ class ScheduledTaskService {
                GROUP BY m.id HAVING on_hand < m.safety_stock * ? / 100`,
               [params.threshold_pct || 100]
             );
-            if (rows.length) { hit = true; detail = `${rows.length}种物料低于安全库存`; }
+            if (rows.length) {
+              hit = true;
+              detail = `${rows.length}种物料低于安全库存`;
+            }
             break;
           }
           case 'stock_zero': {
@@ -397,7 +402,10 @@ class ScheduledTaskService {
                WHERE m.safety_stock > 0 AND m.deleted_at IS NULL
                AND NOT EXISTS (SELECT 1 FROM inventory_ledger il WHERE il.material_id = m.id AND il.quantity > 0)`
             );
-            if (cnt > 0) { hit = true; detail = `${cnt}种物料库存为零`; }
+            if (cnt > 0) {
+              hit = true;
+              detail = `${cnt}种物料库存为零`;
+            }
             break;
           }
           case 'contract_expiring': {
@@ -408,7 +416,10 @@ class ScheduledTaskService {
                AND expiry_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL ? DAY)`,
               [daysBefore]
             );
-            if (cnt > 0) { hit = true; detail = `${cnt}份合同将在${daysBefore}天内到期`; }
+            if (cnt > 0) {
+              hit = true;
+              detail = `${cnt}份合同将在${daysBefore}天内到期`;
+            }
             break;
           }
           case 'delivery_overdue': {
@@ -417,7 +428,10 @@ class ScheduledTaskService {
                WHERE status IN ('confirmed','in_production','partial_delivered')
                AND delivery_date < CURDATE() AND deleted_at IS NULL`
             );
-            if (cnt > 0) { hit = true; detail = `${cnt}个销售订单交付逾期`; }
+            if (cnt > 0) {
+              hit = true;
+              detail = `${cnt}个销售订单交付逾期`;
+            }
             break;
           }
           case 'quality_failure_rate':
@@ -429,8 +443,11 @@ class ScheduledTaskService {
                FROM quality_inspections
                WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) AND deleted_at IS NULL`
             );
-            const rate = stat.total > 0 ? (stat.fail_cnt / stat.total * 100) : 0;
-            if (rate > threshold) { hit = true; detail = `近7天质检不合格率 ${rate.toFixed(1)}% 超过阈值 ${threshold}%`; }
+            const rate = stat.total > 0 ? (stat.fail_cnt / stat.total) * 100 : 0;
+            if (rate > threshold) {
+              hit = true;
+              detail = `近7天质检不合格率 ${rate.toFixed(1)}% 超过阈值 ${threshold}%`;
+            }
             break;
           }
           case 'ar_overdue': {
@@ -442,7 +459,10 @@ class ScheduledTaskService {
                AND due_date < DATE_SUB(CURDATE(), INTERVAL ? DAY)`,
               [days]
             );
-            if (cnt > 0) { hit = true; detail = `${cnt}笔应收账款逾期超过${days}天`; }
+            if (cnt > 0) {
+              hit = true;
+              detail = `${cnt}笔应收账款逾期超过${days}天`;
+            }
             break;
           }
           case 'ap_due_soon': {
@@ -454,7 +474,10 @@ class ScheduledTaskService {
                AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL ? DAY)`,
               [days]
             );
-            if (cnt > 0) { hit = true; detail = `${cnt}笔应付账款将在${days}天内到期`; }
+            if (cnt > 0) {
+              hit = true;
+              detail = `${cnt}笔应付账款将在${days}天内到期`;
+            }
             break;
           }
           case 'task_overdue': {
@@ -465,7 +488,10 @@ class ScheduledTaskService {
                AND expected_end_date < DATE_SUB(CURDATE(), INTERVAL ? DAY) AND deleted_at IS NULL`,
               [days]
             );
-            if (cnt > 0) { hit = true; detail = `${cnt}个生产任务逾期超过${days}天`; }
+            if (cnt > 0) {
+              hit = true;
+              detail = `${cnt}个生产任务逾期超过${days}天`;
+            }
             break;
           }
           case 'maintenance_due': {
@@ -476,7 +502,10 @@ class ScheduledTaskService {
                AND status = 'running' AND is_active = 1`,
               [days]
             );
-            if (cnt > 0) { hit = true; detail = `${cnt}台设备需在${days}天内保养`; }
+            if (cnt > 0) {
+              hit = true;
+              detail = `${cnt}台设备需在${days}天内保养`;
+            }
             break;
           }
           default:
@@ -488,7 +517,11 @@ class ScheduledTaskService {
           // 通知目标用户（notify_users > notify_roles；未配置时不隐式广播）
           let targetUserIds = [];
           if (alert.notify_users) {
-            try { targetUserIds = JSON.parse(alert.notify_users); } catch { targetUserIds = []; }
+            try {
+              targetUserIds = JSON.parse(alert.notify_users);
+            } catch {
+              targetUserIds = [];
+            }
           }
           if (!targetUserIds.length && alert.notify_roles) {
             try {
@@ -502,9 +535,11 @@ class ScheduledTaskService {
                    WHERE ur.role_id IN (?)`,
                   [roleIds]
                 );
-                targetUserIds = users.map(u => u.user_id);
+                targetUserIds = users.map((u) => u.user_id);
               }
-            } catch { /* ignore */ }
+            } catch {
+              /* ignore */
+            }
           }
           targetUserIds = [...new Set(targetUserIds.map(Number).filter(Number.isInteger))];
 
@@ -525,11 +560,15 @@ class ScheduledTaskService {
               },
               { dedupeByDay: true }
             );
-            logger.info(`业务告警触发: [${alert.code}] ${alert.name} - ${detail} -> ${targetUserIds.length}人, inserted=${notifyResult.inserted}, updated=${notifyResult.updated}`);
+            logger.info(
+              `业务告警触发: [${alert.code}] ${alert.name} - ${detail} -> ${targetUserIds.length}人, inserted=${notifyResult.inserted}, updated=${notifyResult.updated}`
+            );
           }
         }
         // 更新最后检查时间
-        await pool.query('UPDATE business_alerts SET last_checked_at = NOW() WHERE id = ?', [alert.id]);
+        await pool.query('UPDATE business_alerts SET last_checked_at = NOW() WHERE id = ?', [
+          alert.id,
+        ]);
       } catch (e) {
         logger.error(`业务告警 [${alert.code}] 检查失败:`, e);
       }
@@ -625,7 +664,10 @@ class ScheduledTaskService {
   static async sendNotification(title, message) {
     try {
       const sourceId =
-        (String(title).split('').reduce((hash, ch) => ((hash << 5) - hash) + ch.charCodeAt(0), 0) >>> 0) %
+        (String(title)
+          .split('')
+          .reduce((hash, ch) => (hash << 5) - hash + ch.charCodeAt(0), 0) >>>
+          0) %
         2147483647;
       const EventBus = require('../../events/EventBus');
       await EventBus.emitAsync(EVENT_TYPES.FINANCE_AUTOMATION_COMPLETED, {
@@ -650,7 +692,10 @@ class ScheduledTaskService {
     try {
       logger.error(`错误通知: ${title} - ${error}`);
       const sourceId =
-        (String(title).split('').reduce((hash, ch) => ((hash << 5) - hash) + ch.charCodeAt(0), 0) >>> 0) %
+        (String(title)
+          .split('')
+          .reduce((hash, ch) => (hash << 5) - hash + ch.charCodeAt(0), 0) >>>
+          0) %
         2147483647;
       const EventBus = require('../../events/EventBus');
       await EventBus.emitAsync(EVENT_TYPES.FINANCE_AUTOMATION_FAILED, {
@@ -673,11 +718,12 @@ class ScheduledTaskService {
     const status = {};
 
     this.tasks.forEach((task, name) => {
-      const state = typeof task.getStatus === 'function'
-        ? task.getStatus()
-        : task.running
-          ? 'running'
-          : 'unknown';
+      const state =
+        typeof task.getStatus === 'function'
+          ? task.getStatus()
+          : task.running
+            ? 'running'
+            : 'unknown';
 
       status[name] = {
         state,

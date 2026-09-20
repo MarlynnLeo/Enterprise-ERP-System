@@ -21,72 +21,76 @@ const { mapKeysToSnake } = require('../../../utils/fieldMap');
 // ===================== 辅助工具 =====================
 
 const JSON_FIELDS = [
-    'd1_team_members',
-    'd3_containment_actions',
-    'd4_contributing_factors',
-    'd5_corrective_actions',
-    'd7_preventive_actions',
-    'd7_standardization',
-    'd3_attachments',
-    'd5_attachments',
-    'd6_attachments',
+  'd1_team_members',
+  'd3_containment_actions',
+  'd4_contributing_factors',
+  'd5_corrective_actions',
+  'd7_preventive_actions',
+  'd7_standardization',
+  'd3_attachments',
+  'd5_attachments',
+  'd6_attachments',
 ];
 
 const parseJsonFields = (record) => {
-    if (!record) return record;
+  if (!record) return record;
 
-    for (const field of JSON_FIELDS) {
-        if (record[field] && typeof record[field] === 'string') {
-            try { record[field] = JSON.parse(record[field]); } catch { /* 保留原始值 */ }
-        }
+  for (const field of JSON_FIELDS) {
+    if (record[field] && typeof record[field] === 'string') {
+      try {
+        record[field] = JSON.parse(record[field]);
+      } catch {
+        /* 保留原始值 */
+      }
     }
+  }
 
-    return record;
+  return record;
 };
 
 const serializeJsonFields = (data) => {
-    for (const field of JSON_FIELDS) {
-        if (data[field] && typeof data[field] !== 'string') {
-            data[field] = JSON.stringify(data[field]);
-        }
+  for (const field of JSON_FIELDS) {
+    if (data[field] && typeof data[field] !== 'string') {
+      data[field] = JSON.stringify(data[field]);
     }
+  }
 };
 
 const hasListValue = (value) => {
-    if (Array.isArray(value)) return value.some(item => String(item || '').trim());
-    if (typeof value === 'string') {
-        const trimmed = value.trim();
-        if (!trimmed || trimmed === '[]') return false;
-        try {
-            const parsed = JSON.parse(trimmed);
-            if (Array.isArray(parsed)) return parsed.some(item => String(item || '').trim());
-        } catch {
-            return true;
-        }
+  if (Array.isArray(value)) return value.some((item) => String(item || '').trim());
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === '[]') return false;
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) return parsed.some((item) => String(item || '').trim());
+    } catch {
+      return true;
     }
-    return Boolean(value);
+  }
+  return Boolean(value);
 };
 
 /**
  * 生成8D报告编号 — 使用统一编码引擎
  */
 const generateReportNo = async (connection) => {
-    const { CodeGenerators } = require('../../../utils/codeGenerator');
-    return CodeGenerators.generate8DReportCode(connection);
+  const { CodeGenerators } = require('../../../utils/codeGenerator');
+  return CodeGenerators.generate8DReportCode(connection);
 };
 
 /**
  * 插入8D操作审计日志
  */
 const insertAuditLog = async (conn, reportId, action, oldPhase, newPhase, comments, operator) => {
-    try {
-        await conn.query(
-            `INSERT INTO eight_d_logs (report_id, action, old_phase, new_phase, comments, operator) VALUES (?, ?, ?, ?, ?, ?)`,
-            [reportId, action, oldPhase, newPhase, comments, operator]
-        );
-    } catch (error) {
-        logger.error(`[8D] 写入审计日志失败 (ReportID: ${reportId}):`, error.message);
-    }
+  try {
+    await conn.query(
+      `INSERT INTO eight_d_logs (report_id, action, old_phase, new_phase, comments, operator) VALUES (?, ?, ?, ?, ?, ?)`,
+      [reportId, action, oldPhase, newPhase, comments, operator]
+    );
+  } catch (error) {
+    logger.error(`[8D] 写入审计日志失败 (ReportID: ${reportId}):`, error.message);
+  }
 };
 
 /**
@@ -96,32 +100,33 @@ const insertAuditLog = async (conn, reportId, action, oldPhase, newPhase, commen
  * @returns {{ pass: boolean, missing: string[] }}
  */
 const validatePhaseGate = (report, targetPhase) => {
-    const missing = [];
+  const missing = [];
 
-    if (targetPhase === 'd1_d3' || targetPhase === 'd4_d7') {
-        // 进入D1-D3阶段或更高，D1-D3必填
-        if (!report.d1_team_leader) missing.push('D1-团队组长');
-        if (!report.d2_problem_description) missing.push('D2-问题描述');
-        if (!hasListValue(report.d3_containment_actions)) missing.push('D3-临时遏制措施');
-        if (!report.title) missing.push('报告标题');
-    }
+  if (targetPhase === 'd1_d3' || targetPhase === 'd4_d7') {
+    // 进入D1-D3阶段或更高，D1-D3必填
+    if (!report.d1_team_leader) missing.push('D1-团队组长');
+    if (!report.d2_problem_description) missing.push('D2-问题描述');
+    if (!hasListValue(report.d3_containment_actions)) missing.push('D3-临时遏制措施');
+    if (!report.title) missing.push('报告标题');
+  }
 
-    if (targetPhase === 'd4_d7' || targetPhase === 'd8') {
-        // 进入D4-D7阶段或更高，D4-D7必填
-        if (!report.d4_root_cause) missing.push('D4-根本原因');
-        if (!hasListValue(report.d5_corrective_actions)) missing.push('D5-纠正措施');
-        if (!report.d6_implementation_results) missing.push('D6-实施结果');
-        if (!report.d6_verification_method) missing.push('D6-验证方法');
-        if (!report.d6_verification_result || report.d6_verification_result === 'pending') missing.push('D6-验证结果');
-        if (!hasListValue(report.d7_preventive_actions)) missing.push('D7-预防措施');
-    }
+  if (targetPhase === 'd4_d7' || targetPhase === 'd8') {
+    // 进入D4-D7阶段或更高，D4-D7必填
+    if (!report.d4_root_cause) missing.push('D4-根本原因');
+    if (!hasListValue(report.d5_corrective_actions)) missing.push('D5-纠正措施');
+    if (!report.d6_implementation_results) missing.push('D6-实施结果');
+    if (!report.d6_verification_method) missing.push('D6-验证方法');
+    if (!report.d6_verification_result || report.d6_verification_result === 'pending')
+      missing.push('D6-验证结果');
+    if (!hasListValue(report.d7_preventive_actions)) missing.push('D7-预防措施');
+  }
 
-    if (targetPhase === 'd8' || targetPhase === 'completed') {
-        // 进入D8/完成阶段，D8总结必填
-        if (!report.d8_summary) missing.push('D8-总结');
-    }
+  if (targetPhase === 'd8' || targetPhase === 'completed') {
+    // 进入D8/完成阶段，D8总结必填
+    if (!report.d8_summary) missing.push('D8-总结');
+  }
 
-    return { pass: missing.length === 0, missing };
+  return { pass: missing.length === 0, missing };
 };
 
 // ===================== CRUD 操作 =====================
@@ -130,702 +135,874 @@ const validatePhaseGate = (report, targetPhase) => {
  * 获取8D报告列表
  */
 const getReports = async (req, res) => {
-    try {
-        const {
-            page = 1, pageSize = 10,
-            status, priority, keyword,
-            startDate, endDate, ncp_no, current_phase
-        } = req.query;
+  try {
+    const {
+      page = 1,
+      pageSize = 10,
+      status,
+      priority,
+      keyword,
+      startDate,
+      endDate,
+      ncp_no,
+      current_phase,
+    } = req.query;
 
-        let sql = 'SELECT id, report_no, title, ncp_id, ncp_no, inspection_id, inspection_no, material_id, material_code, material_name, supplier_id, supplier_name, priority, status, current_phase, d1_team_leader, d1_team_members, d1_completed_at, d2_problem_description, d2_occurrence_date, d2_quantity_affected, d2_defect_type, d2_responsible_person, d2_completed_at, d3_containment_actions, d3_effective_date, d3_responsible_person, d3_completed_at, d4_root_cause, d4_analysis_method, d4_contributing_factors, d4_responsible_person, d4_completed_at, d5_corrective_actions, d5_responsible_person, d5_target_date, d5_completed_at, d6_implementation_results, d6_verification_method, d6_verification_result, d6_responsible_person, d6_completed_at, d7_preventive_actions, d7_standardization, d7_responsible_person, d7_completed_at, d8_summary, d8_lessons_learned, d8_team_recognition, d8_responsible_person, d8_completed_at, reviewed_by, reviewed_at, review_comments, phase1_approved_by, phase1_approved_at, phase2_approved_by, phase2_approved_at, created_by, initiated_by, initiated_at, owner, owner_department, customer_contact, target_close_date, d3_deadline, created_at, updated_at, d3_attachments, d5_attachments, d6_attachments, deleted_at FROM eight_d_reports WHERE deleted_at IS NULL';
-        const params = [];
+    let sql =
+      'SELECT id, report_no, title, ncp_id, ncp_no, inspection_id, inspection_no, material_id, material_code, material_name, supplier_id, supplier_name, priority, status, current_phase, d1_team_leader, d1_team_members, d1_completed_at, d2_problem_description, d2_occurrence_date, d2_quantity_affected, d2_defect_type, d2_responsible_person, d2_completed_at, d3_containment_actions, d3_effective_date, d3_responsible_person, d3_completed_at, d4_root_cause, d4_analysis_method, d4_contributing_factors, d4_responsible_person, d4_completed_at, d5_corrective_actions, d5_responsible_person, d5_target_date, d5_completed_at, d6_implementation_results, d6_verification_method, d6_verification_result, d6_responsible_person, d6_completed_at, d7_preventive_actions, d7_standardization, d7_responsible_person, d7_completed_at, d8_summary, d8_lessons_learned, d8_team_recognition, d8_responsible_person, d8_completed_at, reviewed_by, reviewed_at, review_comments, phase1_approved_by, phase1_approved_at, phase2_approved_by, phase2_approved_at, created_by, initiated_by, initiated_at, owner, owner_department, customer_contact, target_close_date, d3_deadline, created_at, updated_at, d3_attachments, d5_attachments, d6_attachments, deleted_at FROM eight_d_reports WHERE deleted_at IS NULL';
+    const params = [];
 
-        if (status) {
-            sql += ' AND status = ?';
-            params.push(status);
-        }
-        if (current_phase) {
-            sql += ' AND current_phase = ?';
-            params.push(current_phase);
-        }
-        if (priority) {
-            sql += ' AND priority = ?';
-            params.push(priority);
-        }
-        if (ncp_no) {
-            sql += ' AND ncp_no LIKE ?';
-            params.push(`%${ncp_no}%`);
-        }
-        if (keyword) {
-            sql += ' AND (report_no LIKE ? OR title LIKE ? OR material_name LIKE ? OR supplier_name LIKE ? OR owner LIKE ? OR initiated_by LIKE ?)';
-            params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`, `%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
-        }
-        if (startDate) {
-            sql += ' AND created_at >= ?';
-            params.push(startDate);
-        }
-        if (endDate) {
-            sql += ' AND created_at <= ?';
-            params.push(endDate + ' 23:59:59');
-        }
-
-        // 获取总数 — 使用子查询包裹，避免依赖 SELECT * 替换
-        const [countResult] = await pool.query(
-            `SELECT COUNT(*) as total FROM (${sql}) as _count_t`,
-            params
-        );
-        const total = countResult[0].total;
-
-        // 分页 — 使用安全分页工具
-        const { limit: safeLimit, offset: safeOffset, page: safePage, pageSize: safePageSize } = parsePagination(page, pageSize, {
-            defaultPageSize: 10,
-            maxPageSize: 100,
-        });
-        sql = appendPaginationSQL(sql + ' ORDER BY created_at DESC', safeLimit, safeOffset);
-
-
-        const [rows] = await pool.query(sql, params);
-
-        return ResponseHandler.success(res, {
-            list: rows,
-            total,
-            page: safePage,
-            pageSize: safePageSize
-        });
-    } catch (error) {
-        logger.error('获取8D报告列表失败:', error);
-        return ResponseHandler.error(res, '获取8D报告列表失败', 'OPERATION_ERROR', 500, error);
+    if (status) {
+      sql += ' AND status = ?';
+      params.push(status);
     }
+    if (current_phase) {
+      sql += ' AND current_phase = ?';
+      params.push(current_phase);
+    }
+    if (priority) {
+      sql += ' AND priority = ?';
+      params.push(priority);
+    }
+    if (ncp_no) {
+      sql += ' AND ncp_no LIKE ?';
+      params.push(`%${ncp_no}%`);
+    }
+    if (keyword) {
+      sql +=
+        ' AND (report_no LIKE ? OR title LIKE ? OR material_name LIKE ? OR supplier_name LIKE ? OR owner LIKE ? OR initiated_by LIKE ?)';
+      params.push(
+        `%${keyword}%`,
+        `%${keyword}%`,
+        `%${keyword}%`,
+        `%${keyword}%`,
+        `%${keyword}%`,
+        `%${keyword}%`
+      );
+    }
+    if (startDate) {
+      sql += ' AND created_at >= ?';
+      params.push(startDate);
+    }
+    if (endDate) {
+      sql += ' AND created_at <= ?';
+      params.push(endDate + ' 23:59:59');
+    }
+
+    // 获取总数 — 使用子查询包裹，避免依赖 SELECT * 替换
+    const [countResult] = await pool.query(
+      `SELECT COUNT(*) as total FROM (${sql}) as _count_t`,
+      params
+    );
+    const total = countResult[0].total;
+
+    // 分页 — 使用安全分页工具
+    const {
+      limit: safeLimit,
+      offset: safeOffset,
+      page: safePage,
+      pageSize: safePageSize,
+    } = parsePagination(page, pageSize, {
+      defaultPageSize: 10,
+      maxPageSize: 100,
+    });
+    sql = appendPaginationSQL(sql + ' ORDER BY created_at DESC', safeLimit, safeOffset);
+
+    const [rows] = await pool.query(sql, params);
+
+    return ResponseHandler.success(res, {
+      list: rows,
+      total,
+      page: safePage,
+      pageSize: safePageSize,
+    });
+  } catch (error) {
+    logger.error('获取8D报告列表失败:', error);
+    return ResponseHandler.error(res, '获取8D报告列表失败', 'OPERATION_ERROR', 500, error);
+  }
 };
 
 /**
  * 获取8D报告详情
  */
 const getReportById = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const [rows] = await pool.query('SELECT id, report_no, title, ncp_id, ncp_no, inspection_id, inspection_no, material_id, material_code, material_name, supplier_id, supplier_name, priority, status, current_phase, d1_team_leader, d1_team_members, d1_completed_at, d2_problem_description, d2_occurrence_date, d2_quantity_affected, d2_defect_type, d2_responsible_person, d2_completed_at, d3_containment_actions, d3_effective_date, d3_responsible_person, d3_completed_at, d4_root_cause, d4_analysis_method, d4_contributing_factors, d4_responsible_person, d4_completed_at, d5_corrective_actions, d5_responsible_person, d5_target_date, d5_completed_at, d6_implementation_results, d6_verification_method, d6_verification_result, d6_responsible_person, d6_completed_at, d7_preventive_actions, d7_standardization, d7_responsible_person, d7_completed_at, d8_summary, d8_lessons_learned, d8_team_recognition, d8_responsible_person, d8_completed_at, reviewed_by, reviewed_at, review_comments, phase1_approved_by, phase1_approved_at, phase2_approved_by, phase2_approved_at, created_by, initiated_by, initiated_at, owner, owner_department, customer_contact, target_close_date, d3_deadline, created_at, updated_at, d3_attachments, d5_attachments, d6_attachments, deleted_at FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL', [id]);
+  try {
+    const { id } = req.params;
+    const [rows] = await pool.query(
+      'SELECT id, report_no, title, ncp_id, ncp_no, inspection_id, inspection_no, material_id, material_code, material_name, supplier_id, supplier_name, priority, status, current_phase, d1_team_leader, d1_team_members, d1_completed_at, d2_problem_description, d2_occurrence_date, d2_quantity_affected, d2_defect_type, d2_responsible_person, d2_completed_at, d3_containment_actions, d3_effective_date, d3_responsible_person, d3_completed_at, d4_root_cause, d4_analysis_method, d4_contributing_factors, d4_responsible_person, d4_completed_at, d5_corrective_actions, d5_responsible_person, d5_target_date, d5_completed_at, d6_implementation_results, d6_verification_method, d6_verification_result, d6_responsible_person, d6_completed_at, d7_preventive_actions, d7_standardization, d7_responsible_person, d7_completed_at, d8_summary, d8_lessons_learned, d8_team_recognition, d8_responsible_person, d8_completed_at, reviewed_by, reviewed_at, review_comments, phase1_approved_by, phase1_approved_at, phase2_approved_by, phase2_approved_at, created_by, initiated_by, initiated_at, owner, owner_department, customer_contact, target_close_date, d3_deadline, created_at, updated_at, d3_attachments, d5_attachments, d6_attachments, deleted_at FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL',
+      [id]
+    );
 
-        if (rows.length === 0) {
-            return ResponseHandler.error(res, '8D报告不存在', 'NOT_FOUND', 404);
-        }
-
-        const report = parseJsonFields(rows[0]);
-
-        return ResponseHandler.success(res, report);
-    } catch (error) {
-        logger.error('获取8D报告详情失败:', error);
-        return ResponseHandler.error(res, '获取8D报告详情失败', 'OPERATION_ERROR', 500, error);
+    if (rows.length === 0) {
+      return ResponseHandler.error(res, '8D报告不存在', 'NOT_FOUND', 404);
     }
+
+    const report = parseJsonFields(rows[0]);
+
+    return ResponseHandler.success(res, report);
+  } catch (error) {
+    logger.error('获取8D报告详情失败:', error);
+    return ResponseHandler.error(res, '获取8D报告详情失败', 'OPERATION_ERROR', 500, error);
+  }
 };
 
 /**
  * 获取8D报告的流转与审批日志
  */
 const getReportLogs = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const [logs] = await pool.query(
-            'SELECT id, report_id, action, old_phase, new_phase, comments, operator, created_at FROM eight_d_logs WHERE report_id = ? ORDER BY created_at ASC',
-            [id]
-        );
-        return ResponseHandler.success(res, logs);
-    } catch (error) {
-        logger.error('获取8D报告日志失败:', error);
-        return ResponseHandler.error(res, '获取8D报告日志失败', 'OPERATION_ERROR', 500, error);
-    }
+  try {
+    const { id } = req.params;
+    const [logs] = await pool.query(
+      'SELECT id, report_id, action, old_phase, new_phase, comments, operator, created_at FROM eight_d_logs WHERE report_id = ? ORDER BY created_at ASC',
+      [id]
+    );
+    return ResponseHandler.success(res, logs);
+  } catch (error) {
+    logger.error('获取8D报告日志失败:', error);
+    return ResponseHandler.error(res, '获取8D报告日志失败', 'OPERATION_ERROR', 500, error);
+  }
 };
 
 /**
  * 创建8D报告（完整字段版）
  */
 const createReport = async (req, res) => {
-    let conn;
-    try {
-        const data = mapKeysToSnake(req.body || {});
-        if (!data.title) {
-            return ResponseHandler.error(res, '报告标题不能为空', 'VALIDATION_ERROR', 400);
-        }
-
-        conn = await pool.getConnection();
-        await conn.beginTransaction();
-
-        const reportNo = await generateReportNo();
-        const createdBy = await getCurrentUserName(req);
-        const linkedNcp = await EightDNcpLinkService.prepareCreate(conn, data);
-
-        serializeJsonFields(data);
-
-        // 统一处理ISO日期字符串
-        for (const key in data) {
-            if (data[key] && typeof data[key] === 'string' && data[key].match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)) {
-                data[key] = new Date(data[key]);
-            }
-        }
-
-        const now = new Date();
-
-
-        // 使用键值对动态构建 INSERT，杜绝列数/值数不匹配
-        const insertMap = {
-            report_no: reportNo,
-            title: data.title,
-            ncp_id: data.ncp_id || null,
-            ncp_no: data.ncp_no || null,
-            inspection_id: data.inspection_id || null,
-            inspection_no: data.inspection_no || null,
-            material_id: data.material_id || null,
-            material_code: data.material_code || null,
-            material_name: data.material_name || null,
-            supplier_id: data.supplier_id || null,
-            supplier_name: data.supplier_name || null,
-            priority: data.priority || 'medium',
-            status: 'draft',
-            current_phase: 'draft',
-            initiated_by: data.initiated_by || createdBy,
-            initiated_at: data.initiated_at || now,
-            owner: data.owner || data.d1TeamLeader || createdBy,
-            owner_department: data.owner_department || null,
-            customer_contact: data.customer_contact || null,
-            target_close_date: data.target_close_date || null,
-            d3_deadline: data.d3_deadline || null,
-            d1_team_leader: data.d1_team_leader || createdBy,
-            d1_team_members: data.d1_team_members || '[]',
-            d1_completed_at: data.d1_completed_at || null,
-            d2_problem_description: data.d2_problem_description || null,
-            d2_occurrence_date: data.d2_occurrence_date || null,
-            d2_quantity_affected: data.d2_quantity_affected || null,
-            d2_defect_type: data.d2_defect_type || null,
-            d2_responsible_person: data.d2_responsible_person || null,
-            d2_completed_at: data.d2_completed_at || null,
-            d3_containment_actions: data.d3_containment_actions || '[]',
-            d3_effective_date: data.d3_effective_date || null,
-            d3_responsible_person: data.d3_responsible_person || null,
-            d3_completed_at: data.d3_completed_at || null,
-            d4_root_cause: data.d4_root_cause || null,
-            d4_analysis_method: data.d4_analysis_method || null,
-            d4_contributing_factors: data.d4_contributing_factors || '[]',
-            d4_responsible_person: data.d4_responsible_person || null,
-            d4_completed_at: data.d4_completed_at || null,
-            d5_corrective_actions: data.d5_corrective_actions || '[]',
-            d5_responsible_person: data.d5_responsible_person || null,
-            d5_target_date: data.d5_target_date || null,
-            d5_completed_at: data.d5_completed_at || null,
-            d6_implementation_results: data.d6_implementation_results || null,
-            d6_verification_method: data.d6_verification_method || null,
-            d6_verification_result: data.d6_verification_result || 'pending',
-            d6_responsible_person: data.d6_responsible_person || null,
-            d6_completed_at: data.d6_completed_at || null,
-            d7_preventive_actions: data.d7_preventive_actions || '[]',
-            d7_standardization: data.d7_standardization || null,
-            d7_responsible_person: data.d7_responsible_person || null,
-            d7_completed_at: data.d7_completed_at || null,
-            d8_summary: data.d8_summary || null,
-            d8_lessons_learned: data.d8_lessons_learned || null,
-            d8_team_recognition: data.d8_team_recognition || null,
-            d8_responsible_person: data.d8_responsible_person || null,
-            d8_completed_at: data.d8_completed_at || null,
-            d3_attachments: data.d3_attachments || '[]',
-            d5_attachments: data.d5_attachments || '[]',
-            d6_attachments: data.d6_attachments || '[]',
-            created_by: createdBy,
-            created_at: now,
-        };
-
-        const columns = Object.keys(insertMap);
-        const values = Object.values(insertMap);
-        const placeholders = columns.map(() => '?').join(', ');
-        const insertSql = `INSERT INTO eight_d_reports (${columns.join(', ')}) VALUES (${placeholders})`;
-
-        let result;
-        try {
-            [result] = await conn.query(insertSql, values);
-        } catch (queryErr) {
-            if (queryErr.code === 'ER_WRONG_VALUE_COUNT_ON_ROW') {
-                logger.error('=== INSERT SQL ERROR DUMP ===');
-                values.forEach((v, i) => {
-                    const isArr = Array.isArray(v);
-                    const t = typeof v;
-                    if (isArr || t === 'object') {
-                        logger.error(`[${i}] ${columns[i]} => TYPE: ${isArr ? 'Array' : t}`);
-                    }
-                });
-                logger.error('=============================');
-            }
-            throw queryErr;
-        }
-
-        await insertAuditLog(conn, result.insertId, 'create', null, 'draft', '新建8D报告', createdBy);
-        await EightDNcpLinkService.markCreated(conn, linkedNcp, reportNo, createdBy, result.insertId);
-
-        await conn.commit();
-
-        return ResponseHandler.success(res, {
-            id: result.insertId,
-            report_no: reportNo
-        }, '8D报告创建成功');
-    } catch (error) {
-        if (conn) await conn.rollback();
-        if (error.isEightDNcpLinkError) {
-            return ResponseHandler.error(res, error.message, error.errorCode, error.statusCode);
-        }
-        logger.error('创建8D报告失败:', error);
-        return ResponseHandler.error(res, '创建8D报告失败', 'OPERATION_ERROR', 500, error);
-    } finally {
-        if (conn) conn.release();
+  let conn;
+  try {
+    const data = mapKeysToSnake(req.body || {});
+    if (!data.title) {
+      return ResponseHandler.error(res, '报告标题不能为空', 'VALIDATION_ERROR', 400);
     }
+
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const reportNo = await generateReportNo();
+    const createdBy = await getCurrentUserName(req);
+    const linkedNcp = await EightDNcpLinkService.prepareCreate(conn, data);
+
+    serializeJsonFields(data);
+
+    // 统一处理ISO日期字符串
+    for (const key in data) {
+      if (
+        data[key] &&
+        typeof data[key] === 'string' &&
+        data[key].match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
+      ) {
+        data[key] = new Date(data[key]);
+      }
+    }
+
+    const now = new Date();
+
+    // 使用键值对动态构建 INSERT，杜绝列数/值数不匹配
+    const insertMap = {
+      report_no: reportNo,
+      title: data.title,
+      ncp_id: data.ncp_id || null,
+      ncp_no: data.ncp_no || null,
+      inspection_id: data.inspection_id || null,
+      inspection_no: data.inspection_no || null,
+      material_id: data.material_id || null,
+      material_code: data.material_code || null,
+      material_name: data.material_name || null,
+      supplier_id: data.supplier_id || null,
+      supplier_name: data.supplier_name || null,
+      priority: data.priority || 'medium',
+      status: 'draft',
+      current_phase: 'draft',
+      initiated_by: data.initiated_by || createdBy,
+      initiated_at: data.initiated_at || now,
+      owner: data.owner || data.d1_team_leader || createdBy,
+      owner_department: data.owner_department || null,
+      customer_contact: data.customer_contact || null,
+      target_close_date: data.target_close_date || null,
+      d3_deadline: data.d3_deadline || null,
+      d1_team_leader: data.d1_team_leader || createdBy,
+      d1_team_members: data.d1_team_members || '[]',
+      d1_completed_at: data.d1_completed_at || null,
+      d2_problem_description: data.d2_problem_description || null,
+      d2_occurrence_date: data.d2_occurrence_date || null,
+      d2_quantity_affected: data.d2_quantity_affected || null,
+      d2_defect_type: data.d2_defect_type || null,
+      d2_responsible_person: data.d2_responsible_person || null,
+      d2_completed_at: data.d2_completed_at || null,
+      d3_containment_actions: data.d3_containment_actions || '[]',
+      d3_effective_date: data.d3_effective_date || null,
+      d3_responsible_person: data.d3_responsible_person || null,
+      d3_completed_at: data.d3_completed_at || null,
+      d4_root_cause: data.d4_root_cause || null,
+      d4_analysis_method: data.d4_analysis_method || null,
+      d4_contributing_factors: data.d4_contributing_factors || '[]',
+      d4_responsible_person: data.d4_responsible_person || null,
+      d4_completed_at: data.d4_completed_at || null,
+      d5_corrective_actions: data.d5_corrective_actions || '[]',
+      d5_responsible_person: data.d5_responsible_person || null,
+      d5_target_date: data.d5_target_date || null,
+      d5_completed_at: data.d5_completed_at || null,
+      d6_implementation_results: data.d6_implementation_results || null,
+      d6_verification_method: data.d6_verification_method || null,
+      d6_verification_result: data.d6_verification_result || 'pending',
+      d6_responsible_person: data.d6_responsible_person || null,
+      d6_completed_at: data.d6_completed_at || null,
+      d7_preventive_actions: data.d7_preventive_actions || '[]',
+      d7_standardization: data.d7_standardization || null,
+      d7_responsible_person: data.d7_responsible_person || null,
+      d7_completed_at: data.d7_completed_at || null,
+      d8_summary: data.d8_summary || null,
+      d8_lessons_learned: data.d8_lessons_learned || null,
+      d8_team_recognition: data.d8_team_recognition || null,
+      d8_responsible_person: data.d8_responsible_person || null,
+      d8_completed_at: data.d8_completed_at || null,
+      d3_attachments: data.d3_attachments || '[]',
+      d5_attachments: data.d5_attachments || '[]',
+      d6_attachments: data.d6_attachments || '[]',
+      created_by: createdBy,
+      created_at: now,
+    };
+
+    const columns = Object.keys(insertMap);
+    const values = Object.values(insertMap);
+    const placeholders = columns.map(() => '?').join(', ');
+    const insertSql = `INSERT INTO eight_d_reports (${columns.join(', ')}) VALUES (${placeholders})`;
+
+    const [result] = await conn.query(insertSql, values);
+
+    await insertAuditLog(conn, result.insertId, 'create', null, 'draft', '新建8D报告', createdBy);
+    await EightDNcpLinkService.markCreated(conn, linkedNcp, reportNo, createdBy, result.insertId);
+
+    await conn.commit();
+
+    return ResponseHandler.success(
+      res,
+      {
+        id: result.insertId,
+        report_no: reportNo,
+      },
+      '8D报告创建成功'
+    );
+  } catch (error) {
+    if (conn) await conn.rollback();
+    if (error.isEightDNcpLinkError) {
+      return ResponseHandler.error(res, error.message, error.errorCode, error.statusCode);
+    }
+    logger.error('创建8D报告失败:', error);
+    return ResponseHandler.error(res, '创建8D报告失败', 'OPERATION_ERROR', 500, error);
+  } finally {
+    if (conn) conn.release();
+  }
 };
 
 /**
  * 更新8D报告（分步骤更新 + 阶段门控）
  */
 const updateReport = async (req, res) => {
-    let conn;
-    try {
-        const { id } = req.params;
-        const data = mapKeysToSnake(req.body || {});
+  let conn;
+  try {
+    const { id } = req.params;
+    const data = mapKeysToSnake(req.body || {});
 
-        if (data.status !== undefined || data.current_phase !== undefined) {
-            return ResponseHandler.error(res, '流程状态请通过提交/审核/完成接口变更', 'VALIDATION_ERROR', 400);
-        }
-
-        conn = await pool.getConnection();
-        await conn.beginTransaction();
-
-        // 检查报告是否存在
-        const [existing] = await conn.query('SELECT id, report_no, title, ncp_id, ncp_no, inspection_id, inspection_no, material_id, material_code, material_name, supplier_id, supplier_name, priority, status, current_phase, d1_team_leader, d1_team_members, d1_completed_at, d2_problem_description, d2_occurrence_date, d2_quantity_affected, d2_defect_type, d2_responsible_person, d2_completed_at, d3_containment_actions, d3_effective_date, d3_responsible_person, d3_completed_at, d4_root_cause, d4_analysis_method, d4_contributing_factors, d4_responsible_person, d4_completed_at, d5_corrective_actions, d5_responsible_person, d5_target_date, d5_completed_at, d6_implementation_results, d6_verification_method, d6_verification_result, d6_responsible_person, d6_completed_at, d7_preventive_actions, d7_standardization, d7_responsible_person, d7_completed_at, d8_summary, d8_lessons_learned, d8_team_recognition, d8_responsible_person, d8_completed_at, reviewed_by, reviewed_at, review_comments, phase1_approved_by, phase1_approved_at, phase2_approved_by, phase2_approved_at, created_by, initiated_by, initiated_at, owner, owner_department, customer_contact, target_close_date, d3_deadline, created_at, updated_at, d3_attachments, d5_attachments, d6_attachments, deleted_at FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]);
-        if (existing.length === 0) {
-            await conn.rollback();
-            return ResponseHandler.error(res, '8D报告不存在', 'NOT_FOUND', 404);
-        }
-
-        if (!['draft', 'in_progress'].includes(existing[0].status)) {
-            await conn.rollback();
-            return ResponseHandler.error(res, `当前状态"${existing[0].status}"不允许编辑`, 'VALIDATION_ERROR', 400);
-        }
-
-        const ncpLink = await EightDNcpLinkService.prepareUpdate(conn, existing[0], data, id);
-
-        serializeJsonFields(data);
-
-        // 统一处理ISO日期字符串
-        for (const key in data) {
-            if (data[key] && typeof data[key] === 'string' && data[key].match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)) {
-                data[key] = new Date(data[key]);
-            }
-        }
-
-        // 构建动态更新SQL — 白名单字段
-        const allowedFields = [
-            'title', 'priority',
-            'ncp_id', 'ncp_no', 'inspection_id', 'inspection_no',
-            'material_id', 'material_code', 'material_name', 'supplier_id', 'supplier_name',
-            'initiated_by', 'initiated_at', 'owner', 'owner_department', 'customer_contact',
-            'target_close_date', 'd3_deadline',
-            'd1_team_leader', 'd1_team_members', 'd1_completed_at',
-            'd2_problem_description', 'd2_occurrence_date', 'd2_quantity_affected', 'd2_defect_type', 'd2_responsible_person', 'd2_completed_at',
-            'd3_containment_actions', 'd3_effective_date', 'd3_responsible_person', 'd3_completed_at',
-            'd4_root_cause', 'd4_analysis_method', 'd4_contributing_factors', 'd4_responsible_person', 'd4_completed_at',
-            'd5_corrective_actions', 'd5_responsible_person', 'd5_target_date', 'd5_completed_at',
-            'd6_implementation_results', 'd6_verification_method', 'd6_verification_result', 'd6_responsible_person', 'd6_completed_at',
-            'd7_preventive_actions', 'd7_standardization', 'd7_responsible_person', 'd7_completed_at',
-            'd8_summary', 'd8_lessons_learned', 'd8_team_recognition', 'd8_responsible_person', 'd8_completed_at',
-            'd3_attachments', 'd5_attachments', 'd6_attachments'
-        ];
-
-        const updates = [];
-        const values = [];
-
-        for (const field of allowedFields) {
-            if (data[field] !== undefined) {
-                updates.push(`${field} = ?`);
-                values.push(data[field]);
-            }
-        }
-
-        if (updates.length === 0) {
-            await conn.rollback();
-            return ResponseHandler.error(res, '没有可更新的字段', 'VALIDATION_ERROR', 400);
-        }
-
-        values.push(id);
-        await conn.query(
-            `UPDATE eight_d_reports SET ${updates.join(', ')} WHERE id = ?`,
-            values
-        );
-
-        const currentPhase = existing[0].current_phase;
-        const newPhase = data.current_phase || currentPhase;
-        const userName = await getCurrentUserName(req);
-        await insertAuditLog(conn, id, 'update', currentPhase, newPhase, '更新了报告内容', userName);
-        if (ncpLink.changed) {
-            await EightDNcpLinkService.markAssociationChanged(
-                conn,
-                ncpLink.linkedNcp,
-                existing[0].report_no || id,
-                userName,
-                Number(id)
-            );
-        }
-
-        await conn.commit();
-        return ResponseHandler.success(res, null, '8D报告更新成功');
-    } catch (error) {
-        if (conn) await conn.rollback();
-        if (error.isEightDNcpLinkError) {
-            return ResponseHandler.error(res, error.message, error.errorCode, error.statusCode);
-        }
-        logger.error('更新8D报告失败:', error);
-        return ResponseHandler.error(res, '更新8D报告失败', 'OPERATION_ERROR', 500, error);
-    } finally {
-        if (conn) conn.release();
+    if (data.status !== undefined || data.current_phase !== undefined) {
+      return ResponseHandler.error(
+        res,
+        '流程状态请通过提交/审核/完成接口变更',
+        'VALIDATION_ERROR',
+        400
+      );
     }
+
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    // 检查报告是否存在
+    const [existing] = await conn.query(
+      'SELECT id, report_no, title, ncp_id, ncp_no, inspection_id, inspection_no, material_id, material_code, material_name, supplier_id, supplier_name, priority, status, current_phase, d1_team_leader, d1_team_members, d1_completed_at, d2_problem_description, d2_occurrence_date, d2_quantity_affected, d2_defect_type, d2_responsible_person, d2_completed_at, d3_containment_actions, d3_effective_date, d3_responsible_person, d3_completed_at, d4_root_cause, d4_analysis_method, d4_contributing_factors, d4_responsible_person, d4_completed_at, d5_corrective_actions, d5_responsible_person, d5_target_date, d5_completed_at, d6_implementation_results, d6_verification_method, d6_verification_result, d6_responsible_person, d6_completed_at, d7_preventive_actions, d7_standardization, d7_responsible_person, d7_completed_at, d8_summary, d8_lessons_learned, d8_team_recognition, d8_responsible_person, d8_completed_at, reviewed_by, reviewed_at, review_comments, phase1_approved_by, phase1_approved_at, phase2_approved_by, phase2_approved_at, created_by, initiated_by, initiated_at, owner, owner_department, customer_contact, target_close_date, d3_deadline, created_at, updated_at, d3_attachments, d5_attachments, d6_attachments, deleted_at FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      [id]
+    );
+    if (existing.length === 0) {
+      await conn.rollback();
+      return ResponseHandler.error(res, '8D报告不存在', 'NOT_FOUND', 404);
+    }
+
+    if (!['draft', 'in_progress'].includes(existing[0].status)) {
+      await conn.rollback();
+      return ResponseHandler.error(
+        res,
+        `当前状态"${existing[0].status}"不允许编辑`,
+        'VALIDATION_ERROR',
+        400
+      );
+    }
+
+    const ncpLink = await EightDNcpLinkService.prepareUpdate(conn, existing[0], data, id);
+
+    serializeJsonFields(data);
+
+    // 统一处理ISO日期字符串
+    for (const key in data) {
+      if (
+        data[key] &&
+        typeof data[key] === 'string' &&
+        data[key].match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
+      ) {
+        data[key] = new Date(data[key]);
+      }
+    }
+
+    // 构建动态更新SQL — 白名单字段
+    const allowedFields = [
+      'title',
+      'priority',
+      'ncp_id',
+      'ncp_no',
+      'inspection_id',
+      'inspection_no',
+      'material_id',
+      'material_code',
+      'material_name',
+      'supplier_id',
+      'supplier_name',
+      'initiated_by',
+      'initiated_at',
+      'owner',
+      'owner_department',
+      'customer_contact',
+      'target_close_date',
+      'd3_deadline',
+      'd1_team_leader',
+      'd1_team_members',
+      'd1_completed_at',
+      'd2_problem_description',
+      'd2_occurrence_date',
+      'd2_quantity_affected',
+      'd2_defect_type',
+      'd2_responsible_person',
+      'd2_completed_at',
+      'd3_containment_actions',
+      'd3_effective_date',
+      'd3_responsible_person',
+      'd3_completed_at',
+      'd4_root_cause',
+      'd4_analysis_method',
+      'd4_contributing_factors',
+      'd4_responsible_person',
+      'd4_completed_at',
+      'd5_corrective_actions',
+      'd5_responsible_person',
+      'd5_target_date',
+      'd5_completed_at',
+      'd6_implementation_results',
+      'd6_verification_method',
+      'd6_verification_result',
+      'd6_responsible_person',
+      'd6_completed_at',
+      'd7_preventive_actions',
+      'd7_standardization',
+      'd7_responsible_person',
+      'd7_completed_at',
+      'd8_summary',
+      'd8_lessons_learned',
+      'd8_team_recognition',
+      'd8_responsible_person',
+      'd8_completed_at',
+      'd3_attachments',
+      'd5_attachments',
+      'd6_attachments',
+    ];
+
+    const updates = [];
+    const values = [];
+
+    for (const field of allowedFields) {
+      if (data[field] !== undefined) {
+        updates.push(`${field} = ?`);
+        values.push(data[field]);
+      }
+    }
+
+    if (updates.length === 0) {
+      await conn.rollback();
+      return ResponseHandler.error(res, '没有可更新的字段', 'VALIDATION_ERROR', 400);
+    }
+
+    values.push(id);
+    await conn.query(`UPDATE eight_d_reports SET ${updates.join(', ')} WHERE id = ?`, values);
+
+    const currentPhase = existing[0].current_phase;
+    const newPhase = data.current_phase || currentPhase;
+    const userName = await getCurrentUserName(req);
+    await insertAuditLog(conn, id, 'update', currentPhase, newPhase, '更新了报告内容', userName);
+    if (ncpLink.changed) {
+      await EightDNcpLinkService.markAssociationChanged(
+        conn,
+        ncpLink.linkedNcp,
+        existing[0].report_no || id,
+        userName,
+        Number(id)
+      );
+    }
+
+    await conn.commit();
+    return ResponseHandler.success(res, null, '8D报告更新成功');
+  } catch (error) {
+    if (conn) await conn.rollback();
+    if (error.isEightDNcpLinkError) {
+      return ResponseHandler.error(res, error.message, error.errorCode, error.statusCode);
+    }
+    logger.error('更新8D报告失败:', error);
+    return ResponseHandler.error(res, '更新8D报告失败', 'OPERATION_ERROR', 500, error);
+  } finally {
+    if (conn) conn.release();
+  }
 };
 
 /**
  * 提交审核（含阶段门控校验）
  */
 const submitReview = async (req, res) => {
-    let conn;
-    try {
-        const { id } = req.params;
+  let conn;
+  try {
+    const { id } = req.params;
 
-        conn = await pool.getConnection();
-        await conn.beginTransaction();
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
 
-        const [existing] = await conn.query('SELECT id, report_no, title, ncp_id, ncp_no, inspection_id, inspection_no, material_id, material_code, material_name, supplier_id, supplier_name, priority, status, current_phase, d1_team_leader, d1_team_members, d1_completed_at, d2_problem_description, d2_occurrence_date, d2_quantity_affected, d2_defect_type, d2_responsible_person, d2_completed_at, d3_containment_actions, d3_effective_date, d3_responsible_person, d3_completed_at, d4_root_cause, d4_analysis_method, d4_contributing_factors, d4_responsible_person, d4_completed_at, d5_corrective_actions, d5_responsible_person, d5_target_date, d5_completed_at, d6_implementation_results, d6_verification_method, d6_verification_result, d6_responsible_person, d6_completed_at, d7_preventive_actions, d7_standardization, d7_responsible_person, d7_completed_at, d8_summary, d8_lessons_learned, d8_team_recognition, d8_responsible_person, d8_completed_at, reviewed_by, reviewed_at, review_comments, phase1_approved_by, phase1_approved_at, phase2_approved_by, phase2_approved_at, created_by, initiated_by, initiated_at, owner, owner_department, customer_contact, target_close_date, d3_deadline, created_at, updated_at, d3_attachments, d5_attachments, d6_attachments, deleted_at FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]);
-        if (existing.length === 0) {
-            await conn.rollback();
-            return ResponseHandler.error(res, '8D report not found', 'NOT_FOUND', 404);
-        }
-
-        const report = existing[0];
-
-        if (!['in_progress', 'draft'].includes(report.status)) {
-            await conn.rollback();
-            return ResponseHandler.error(res, `Current status "${report.status}" cannot be submitted for review`, 'VALIDATION_ERROR', 400);
-        }
-
-        if (!['draft', 'd1_d3'].includes(report.current_phase)) {
-            await conn.rollback();
-            return ResponseHandler.error(res, 'Current phase cannot be submitted for D1-D3 review', 'VALIDATION_ERROR', 400);
-        }
-
-        parseJsonFields(report);
-
-        const gate = validatePhaseGate(report, 'd1_d3');
-        if (!gate.pass) {
-            await conn.rollback();
-            return ResponseHandler.error(res, `Missing required fields: ${gate.missing.join(', ')}`, 'VALIDATION_ERROR', 400);
-        }
-
-        await conn.query(
-            'UPDATE eight_d_reports SET status = ?, current_phase = ? WHERE id = ?',
-            ['review', 'd1_d3', id]
-        );
-
-        const userName = await getCurrentUserName(req);
-        await insertAuditLog(conn, id, 'submit_review', report.current_phase, 'd1_d3', 'Submitted D1-D3 review', userName);
-
-        await conn.commit();
-        return ResponseHandler.success(res, null, 'Submitted for review');
-    } catch (error) {
-        if (conn) await conn.rollback();
-        logger.error('提交审核失败:', error);
-        return ResponseHandler.error(res, '提交审核失败', 'OPERATION_ERROR', 500, error);
-    } finally {
-        if (conn) conn.release();
+    const [existing] = await conn.query(
+      'SELECT id, report_no, title, ncp_id, ncp_no, inspection_id, inspection_no, material_id, material_code, material_name, supplier_id, supplier_name, priority, status, current_phase, d1_team_leader, d1_team_members, d1_completed_at, d2_problem_description, d2_occurrence_date, d2_quantity_affected, d2_defect_type, d2_responsible_person, d2_completed_at, d3_containment_actions, d3_effective_date, d3_responsible_person, d3_completed_at, d4_root_cause, d4_analysis_method, d4_contributing_factors, d4_responsible_person, d4_completed_at, d5_corrective_actions, d5_responsible_person, d5_target_date, d5_completed_at, d6_implementation_results, d6_verification_method, d6_verification_result, d6_responsible_person, d6_completed_at, d7_preventive_actions, d7_standardization, d7_responsible_person, d7_completed_at, d8_summary, d8_lessons_learned, d8_team_recognition, d8_responsible_person, d8_completed_at, reviewed_by, reviewed_at, review_comments, phase1_approved_by, phase1_approved_at, phase2_approved_by, phase2_approved_at, created_by, initiated_by, initiated_at, owner, owner_department, customer_contact, target_close_date, d3_deadline, created_at, updated_at, d3_attachments, d5_attachments, d6_attachments, deleted_at FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      [id]
+    );
+    if (existing.length === 0) {
+      await conn.rollback();
+      return ResponseHandler.error(res, '8D report not found', 'NOT_FOUND', 404);
     }
+
+    const report = existing[0];
+
+    if (!['in_progress', 'draft'].includes(report.status)) {
+      await conn.rollback();
+      return ResponseHandler.error(
+        res,
+        `Current status "${report.status}" cannot be submitted for review`,
+        'VALIDATION_ERROR',
+        400
+      );
+    }
+
+    if (!['draft', 'd1_d3'].includes(report.current_phase)) {
+      await conn.rollback();
+      return ResponseHandler.error(
+        res,
+        'Current phase cannot be submitted for D1-D3 review',
+        'VALIDATION_ERROR',
+        400
+      );
+    }
+
+    parseJsonFields(report);
+
+    const gate = validatePhaseGate(report, 'd1_d3');
+    if (!gate.pass) {
+      await conn.rollback();
+      return ResponseHandler.error(
+        res,
+        `Missing required fields: ${gate.missing.join(', ')}`,
+        'VALIDATION_ERROR',
+        400
+      );
+    }
+
+    await conn.query('UPDATE eight_d_reports SET status = ?, current_phase = ? WHERE id = ?', [
+      'review',
+      'd1_d3',
+      id,
+    ]);
+
+    const userName = await getCurrentUserName(req);
+    await insertAuditLog(
+      conn,
+      id,
+      'submit_review',
+      report.current_phase,
+      'd1_d3',
+      'Submitted D1-D3 review',
+      userName
+    );
+
+    await conn.commit();
+    return ResponseHandler.success(res, null, 'Submitted for review');
+  } catch (error) {
+    if (conn) await conn.rollback();
+    logger.error('提交审核失败:', error);
+    return ResponseHandler.error(res, '提交审核失败', 'OPERATION_ERROR', 500, error);
+  } finally {
+    if (conn) conn.release();
+  }
 };
 
 /**
  * 审核 8D 报告（支持初审 D1-D3 和结案审核 D4-D7）
  */
 const reviewReport = async (req, res) => {
-    let conn;
-    try {
-        const { id } = req.params;
-        const { approved, comments } = mapKeysToSnake(req.body || {});
-        const reviewer = await getCurrentUserName(req);
+  let conn;
+  try {
+    const { id } = req.params;
+    const { approved, comments } = mapKeysToSnake(req.body || {});
+    const reviewer = await getCurrentUserName(req);
 
-        conn = await pool.getConnection();
-        await conn.beginTransaction();
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
 
-        const [existing] = await conn.query('SELECT id, report_no, title, ncp_id, ncp_no, inspection_id, inspection_no, material_id, material_code, material_name, supplier_id, supplier_name, priority, status, current_phase, d1_team_leader, d1_team_members, d1_completed_at, d2_problem_description, d2_occurrence_date, d2_quantity_affected, d2_defect_type, d2_responsible_person, d2_completed_at, d3_containment_actions, d3_effective_date, d3_responsible_person, d3_completed_at, d4_root_cause, d4_analysis_method, d4_contributing_factors, d4_responsible_person, d4_completed_at, d5_corrective_actions, d5_responsible_person, d5_target_date, d5_completed_at, d6_implementation_results, d6_verification_method, d6_verification_result, d6_responsible_person, d6_completed_at, d7_preventive_actions, d7_standardization, d7_responsible_person, d7_completed_at, d8_summary, d8_lessons_learned, d8_team_recognition, d8_responsible_person, d8_completed_at, reviewed_by, reviewed_at, review_comments, phase1_approved_by, phase1_approved_at, phase2_approved_by, phase2_approved_at, created_by, initiated_by, initiated_at, owner, owner_department, customer_contact, target_close_date, d3_deadline, created_at, updated_at, d3_attachments, d5_attachments, d6_attachments, deleted_at FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]);
-        if (existing.length === 0) {
-            await conn.rollback();
-            return ResponseHandler.error(res, '8D report not found', 'NOT_FOUND', 404);
-        }
-
-        const report = existing[0];
-
-        if (report.status !== 'review') {
-            await conn.rollback();
-            return ResponseHandler.error(res, 'Only reports in review status can be reviewed', 'VALIDATION_ERROR', 400);
-        }
-
-        let newStatus, newPhase, msg;
-
-        if (report.current_phase === 'd1_d3') {
-            if (approved) {
-                newStatus = 'in_progress';
-                newPhase = 'd4_d7';
-                msg = 'D1-D3 review approved';
-                await conn.query(
-                    `UPDATE eight_d_reports SET status = ?, current_phase = ?, phase1_approved_by = ?, phase1_approved_at = NOW(), review_comments = ? WHERE id = ?`,
-                    [newStatus, newPhase, reviewer, comments || '', id]
-                );
-            } else {
-                newStatus = 'in_progress';
-                newPhase = 'd1_d3';
-                msg = 'D1-D3 review rejected';
-                await conn.query(
-                    `UPDATE eight_d_reports SET status = ?, current_phase = ?, review_comments = ? WHERE id = ?`,
-                    [newStatus, newPhase, comments || '', id]
-                );
-            }
-        } else if (report.current_phase === 'd4_d7') {
-            if (approved) {
-                newStatus = 'in_progress';
-                newPhase = 'd8';
-                msg = 'D4-D7 review approved';
-                await conn.query(
-                    `UPDATE eight_d_reports SET status = ?, current_phase = ?, phase2_approved_by = ?, phase2_approved_at = NOW(), reviewed_by = ?, reviewed_at = NOW(), review_comments = ? WHERE id = ?`,
-                    [newStatus, newPhase, reviewer, reviewer, comments || '', id]
-                );
-            } else {
-                newStatus = 'in_progress';
-                newPhase = 'd4_d7';
-                msg = 'D4-D7 review rejected';
-                await conn.query(
-                    `UPDATE eight_d_reports SET status = ?, current_phase = ?, review_comments = ? WHERE id = ?`,
-                    [newStatus, newPhase, comments || '', id]
-                );
-            }
-        } else {
-            newStatus = approved ? 'completed' : 'in_progress';
-            newPhase = report.current_phase;
-            msg = approved ? 'Review approved' : 'Review rejected';
-            await conn.query(
-                `UPDATE eight_d_reports SET status = ?, reviewed_by = ?, reviewed_at = NOW(), review_comments = ? WHERE id = ?`,
-                [newStatus, reviewer, comments || '', id]
-            );
-        }
-
-        await insertAuditLog(conn, id, approved ? 'review_approve' : 'review_reject', report.current_phase, newPhase, comments || msg, reviewer);
-        await conn.commit();
-
-        return ResponseHandler.success(res, null, msg);
-    } catch (error) {
-        if (conn) await conn.rollback();
-        logger.error('审核8D报告失败:', error);
-        return ResponseHandler.error(res, '审核8D报告失败', 'OPERATION_ERROR', 500, error);
-    } finally {
-        if (conn) conn.release();
+    const [existing] = await conn.query(
+      'SELECT id, report_no, title, ncp_id, ncp_no, inspection_id, inspection_no, material_id, material_code, material_name, supplier_id, supplier_name, priority, status, current_phase, d1_team_leader, d1_team_members, d1_completed_at, d2_problem_description, d2_occurrence_date, d2_quantity_affected, d2_defect_type, d2_responsible_person, d2_completed_at, d3_containment_actions, d3_effective_date, d3_responsible_person, d3_completed_at, d4_root_cause, d4_analysis_method, d4_contributing_factors, d4_responsible_person, d4_completed_at, d5_corrective_actions, d5_responsible_person, d5_target_date, d5_completed_at, d6_implementation_results, d6_verification_method, d6_verification_result, d6_responsible_person, d6_completed_at, d7_preventive_actions, d7_standardization, d7_responsible_person, d7_completed_at, d8_summary, d8_lessons_learned, d8_team_recognition, d8_responsible_person, d8_completed_at, reviewed_by, reviewed_at, review_comments, phase1_approved_by, phase1_approved_at, phase2_approved_by, phase2_approved_at, created_by, initiated_by, initiated_at, owner, owner_department, customer_contact, target_close_date, d3_deadline, created_at, updated_at, d3_attachments, d5_attachments, d6_attachments, deleted_at FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      [id]
+    );
+    if (existing.length === 0) {
+      await conn.rollback();
+      return ResponseHandler.error(res, '8D report not found', 'NOT_FOUND', 404);
     }
+
+    const report = existing[0];
+
+    if (report.status !== 'review') {
+      await conn.rollback();
+      return ResponseHandler.error(
+        res,
+        'Only reports in review status can be reviewed',
+        'VALIDATION_ERROR',
+        400
+      );
+    }
+
+    let newStatus, newPhase, msg;
+
+    if (report.current_phase === 'd1_d3') {
+      if (approved) {
+        newStatus = 'in_progress';
+        newPhase = 'd4_d7';
+        msg = 'D1-D3 review approved';
+        await conn.query(
+          `UPDATE eight_d_reports SET status = ?, current_phase = ?, phase1_approved_by = ?, phase1_approved_at = NOW(), review_comments = ? WHERE id = ?`,
+          [newStatus, newPhase, reviewer, comments || '', id]
+        );
+      } else {
+        newStatus = 'in_progress';
+        newPhase = 'd1_d3';
+        msg = 'D1-D3 review rejected';
+        await conn.query(
+          `UPDATE eight_d_reports SET status = ?, current_phase = ?, review_comments = ? WHERE id = ?`,
+          [newStatus, newPhase, comments || '', id]
+        );
+      }
+    } else if (report.current_phase === 'd4_d7') {
+      if (approved) {
+        newStatus = 'in_progress';
+        newPhase = 'd8';
+        msg = 'D4-D7 review approved';
+        await conn.query(
+          `UPDATE eight_d_reports SET status = ?, current_phase = ?, phase2_approved_by = ?, phase2_approved_at = NOW(), reviewed_by = ?, reviewed_at = NOW(), review_comments = ? WHERE id = ?`,
+          [newStatus, newPhase, reviewer, reviewer, comments || '', id]
+        );
+      } else {
+        newStatus = 'in_progress';
+        newPhase = 'd4_d7';
+        msg = 'D4-D7 review rejected';
+        await conn.query(
+          `UPDATE eight_d_reports SET status = ?, current_phase = ?, review_comments = ? WHERE id = ?`,
+          [newStatus, newPhase, comments || '', id]
+        );
+      }
+    } else {
+      newStatus = approved ? 'completed' : 'in_progress';
+      newPhase = report.current_phase;
+      msg = approved ? 'Review approved' : 'Review rejected';
+      await conn.query(
+        `UPDATE eight_d_reports SET status = ?, reviewed_by = ?, reviewed_at = NOW(), review_comments = ? WHERE id = ?`,
+        [newStatus, reviewer, comments || '', id]
+      );
+    }
+
+    await insertAuditLog(
+      conn,
+      id,
+      approved ? 'review_approve' : 'review_reject',
+      report.current_phase,
+      newPhase,
+      comments || msg,
+      reviewer
+    );
+    await conn.commit();
+
+    return ResponseHandler.success(res, null, msg);
+  } catch (error) {
+    if (conn) await conn.rollback();
+    logger.error('审核8D报告失败:', error);
+    return ResponseHandler.error(res, '审核8D报告失败', 'OPERATION_ERROR', 500, error);
+  } finally {
+    if (conn) conn.release();
+  }
 };
 
 /**
  * 提交结案审核（D4-D7 阶段完成后提交）
  */
 const submitPhase2Review = async (req, res) => {
-    let conn;
-    try {
-        const { id } = req.params;
+  let conn;
+  try {
+    const { id } = req.params;
 
-        conn = await pool.getConnection();
-        await conn.beginTransaction();
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
 
-        const [existing] = await conn.query('SELECT id, report_no, title, ncp_id, ncp_no, inspection_id, inspection_no, material_id, material_code, material_name, supplier_id, supplier_name, priority, status, current_phase, d1_team_leader, d1_team_members, d1_completed_at, d2_problem_description, d2_occurrence_date, d2_quantity_affected, d2_defect_type, d2_responsible_person, d2_completed_at, d3_containment_actions, d3_effective_date, d3_responsible_person, d3_completed_at, d4_root_cause, d4_analysis_method, d4_contributing_factors, d4_responsible_person, d4_completed_at, d5_corrective_actions, d5_responsible_person, d5_target_date, d5_completed_at, d6_implementation_results, d6_verification_method, d6_verification_result, d6_responsible_person, d6_completed_at, d7_preventive_actions, d7_standardization, d7_responsible_person, d7_completed_at, d8_summary, d8_lessons_learned, d8_team_recognition, d8_responsible_person, d8_completed_at, reviewed_by, reviewed_at, review_comments, phase1_approved_by, phase1_approved_at, phase2_approved_by, phase2_approved_at, created_by, initiated_by, initiated_at, owner, owner_department, customer_contact, target_close_date, d3_deadline, created_at, updated_at, d3_attachments, d5_attachments, d6_attachments, deleted_at FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]);
-        if (existing.length === 0) {
-            await conn.rollback();
-            return ResponseHandler.error(res, '8D report not found', 'NOT_FOUND', 404);
-        }
-
-        const report = existing[0];
-
-        if (report.current_phase !== 'd4_d7') {
-            await conn.rollback();
-            return ResponseHandler.error(res, 'Current phase is not D4-D7 and cannot be submitted for close review', 'VALIDATION_ERROR', 400);
-        }
-
-        if (report.status !== 'in_progress') {
-            await conn.rollback();
-            return ResponseHandler.error(res, `Current status "${report.status}" cannot be submitted for close review`, 'VALIDATION_ERROR', 400);
-        }
-
-        parseJsonFields(report);
-
-        const gate = validatePhaseGate(report, 'd4_d7');
-        if (!gate.pass) {
-            await conn.rollback();
-            return ResponseHandler.error(res, `Missing required fields: ${gate.missing.join(', ')}`, 'VALIDATION_ERROR', 400);
-        }
-
-        await conn.query(
-            'UPDATE eight_d_reports SET status = ?, current_phase = ? WHERE id = ?',
-            ['review', 'd4_d7', id]
-        );
-
-        const userName = await getCurrentUserName(req);
-        await insertAuditLog(conn, id, 'submit_phase2_review', report.current_phase, 'd4_d7', 'Submitted D4-D7 review', userName);
-
-        await conn.commit();
-        return ResponseHandler.success(res, null, 'Submitted for close review');
-    } catch (error) {
-        if (conn) await conn.rollback();
-        logger.error('提交结案审核失败:', error);
-        return ResponseHandler.error(res, '提交结案审核失败', 'OPERATION_ERROR', 500, error);
-    } finally {
-        if (conn) conn.release();
+    const [existing] = await conn.query(
+      'SELECT id, report_no, title, ncp_id, ncp_no, inspection_id, inspection_no, material_id, material_code, material_name, supplier_id, supplier_name, priority, status, current_phase, d1_team_leader, d1_team_members, d1_completed_at, d2_problem_description, d2_occurrence_date, d2_quantity_affected, d2_defect_type, d2_responsible_person, d2_completed_at, d3_containment_actions, d3_effective_date, d3_responsible_person, d3_completed_at, d4_root_cause, d4_analysis_method, d4_contributing_factors, d4_responsible_person, d4_completed_at, d5_corrective_actions, d5_responsible_person, d5_target_date, d5_completed_at, d6_implementation_results, d6_verification_method, d6_verification_result, d6_responsible_person, d6_completed_at, d7_preventive_actions, d7_standardization, d7_responsible_person, d7_completed_at, d8_summary, d8_lessons_learned, d8_team_recognition, d8_responsible_person, d8_completed_at, reviewed_by, reviewed_at, review_comments, phase1_approved_by, phase1_approved_at, phase2_approved_by, phase2_approved_at, created_by, initiated_by, initiated_at, owner, owner_department, customer_contact, target_close_date, d3_deadline, created_at, updated_at, d3_attachments, d5_attachments, d6_attachments, deleted_at FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      [id]
+    );
+    if (existing.length === 0) {
+      await conn.rollback();
+      return ResponseHandler.error(res, '8D report not found', 'NOT_FOUND', 404);
     }
+
+    const report = existing[0];
+
+    if (report.current_phase !== 'd4_d7') {
+      await conn.rollback();
+      return ResponseHandler.error(
+        res,
+        'Current phase is not D4-D7 and cannot be submitted for close review',
+        'VALIDATION_ERROR',
+        400
+      );
+    }
+
+    if (report.status !== 'in_progress') {
+      await conn.rollback();
+      return ResponseHandler.error(
+        res,
+        `Current status "${report.status}" cannot be submitted for close review`,
+        'VALIDATION_ERROR',
+        400
+      );
+    }
+
+    parseJsonFields(report);
+
+    const gate = validatePhaseGate(report, 'd4_d7');
+    if (!gate.pass) {
+      await conn.rollback();
+      return ResponseHandler.error(
+        res,
+        `Missing required fields: ${gate.missing.join(', ')}`,
+        'VALIDATION_ERROR',
+        400
+      );
+    }
+
+    await conn.query('UPDATE eight_d_reports SET status = ?, current_phase = ? WHERE id = ?', [
+      'review',
+      'd4_d7',
+      id,
+    ]);
+
+    const userName = await getCurrentUserName(req);
+    await insertAuditLog(
+      conn,
+      id,
+      'submit_phase2_review',
+      report.current_phase,
+      'd4_d7',
+      'Submitted D4-D7 review',
+      userName
+    );
+
+    await conn.commit();
+    return ResponseHandler.success(res, null, 'Submitted for close review');
+  } catch (error) {
+    if (conn) await conn.rollback();
+    logger.error('提交结案审核失败:', error);
+    return ResponseHandler.error(res, '提交结案审核失败', 'OPERATION_ERROR', 500, error);
+  } finally {
+    if (conn) conn.release();
+  }
 };
 
 /**
  * 完成 8D 报告（D8 总结后关闭）
  */
 const completeReport = async (req, res) => {
-    let conn;
-    try {
-        const { id } = req.params;
+  let conn;
+  try {
+    const { id } = req.params;
 
-        conn = await pool.getConnection();
-        await conn.beginTransaction();
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
 
-        const [existing] = await conn.query('SELECT id, report_no, title, ncp_id, ncp_no, inspection_id, inspection_no, material_id, material_code, material_name, supplier_id, supplier_name, priority, status, current_phase, d1_team_leader, d1_team_members, d1_completed_at, d2_problem_description, d2_occurrence_date, d2_quantity_affected, d2_defect_type, d2_responsible_person, d2_completed_at, d3_containment_actions, d3_effective_date, d3_responsible_person, d3_completed_at, d4_root_cause, d4_analysis_method, d4_contributing_factors, d4_responsible_person, d4_completed_at, d5_corrective_actions, d5_responsible_person, d5_target_date, d5_completed_at, d6_implementation_results, d6_verification_method, d6_verification_result, d6_responsible_person, d6_completed_at, d7_preventive_actions, d7_standardization, d7_responsible_person, d7_completed_at, d8_summary, d8_lessons_learned, d8_team_recognition, d8_responsible_person, d8_completed_at, reviewed_by, reviewed_at, review_comments, phase1_approved_by, phase1_approved_at, phase2_approved_by, phase2_approved_at, created_by, initiated_by, initiated_at, owner, owner_department, customer_contact, target_close_date, d3_deadline, created_at, updated_at, d3_attachments, d5_attachments, d6_attachments, deleted_at FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]);
-        if (existing.length === 0) {
-            await conn.rollback();
-            return ResponseHandler.error(res, '8D报告不存在', 'NOT_FOUND', 404);
-        }
-
-        const report = existing[0];
-
-        if (report.current_phase !== 'd8') {
-            await conn.rollback();
-            return ResponseHandler.error(res, '当前阶段不是D8，不能完成报告', 'VALIDATION_ERROR', 400);
-        }
-
-        if (!report.d8_summary) {
-            await conn.rollback();
-            return ResponseHandler.error(res, '请先填写D8总结内容', 'VALIDATION_ERROR', 400);
-        }
-
-        parseJsonFields(report);
-        const gate = validatePhaseGate(report, 'completed');
-        if (!gate.pass) {
-            await conn.rollback();
-            return ResponseHandler.error(res, `以下必填项未完成：${gate.missing.join('、')}`, 'VALIDATION_ERROR', 400);
-        }
-
-        await conn.query(
-            'UPDATE eight_d_reports SET status = ?, current_phase = ? WHERE id = ?',
-            ['completed', 'completed', id]
-        );
-
-        const userName = await getCurrentUserName(req);
-        await insertAuditLog(conn, id, 'complete', report.current_phase, 'completed', '标记报告为完成', userName);
-        await EightDNcpLinkService.markCompleted(conn, report, userName);
-
-        await conn.commit();
-
-        return ResponseHandler.success(res, null, '报告已完成，等待最终验证与关闭');
-    } catch (error) {
-        if (conn) await conn.rollback();
-        if (error.isEightDNcpLinkError) {
-            return ResponseHandler.error(res, error.message, error.errorCode, error.statusCode);
-        }
-        logger.error('完成8D报告失败:', error);
-        return ResponseHandler.error(res, '完成报告失败', 'OPERATION_ERROR', 500, error);
-    } finally {
-        if (conn) conn.release();
+    const [existing] = await conn.query(
+      'SELECT id, report_no, title, ncp_id, ncp_no, inspection_id, inspection_no, material_id, material_code, material_name, supplier_id, supplier_name, priority, status, current_phase, d1_team_leader, d1_team_members, d1_completed_at, d2_problem_description, d2_occurrence_date, d2_quantity_affected, d2_defect_type, d2_responsible_person, d2_completed_at, d3_containment_actions, d3_effective_date, d3_responsible_person, d3_completed_at, d4_root_cause, d4_analysis_method, d4_contributing_factors, d4_responsible_person, d4_completed_at, d5_corrective_actions, d5_responsible_person, d5_target_date, d5_completed_at, d6_implementation_results, d6_verification_method, d6_verification_result, d6_responsible_person, d6_completed_at, d7_preventive_actions, d7_standardization, d7_responsible_person, d7_completed_at, d8_summary, d8_lessons_learned, d8_team_recognition, d8_responsible_person, d8_completed_at, reviewed_by, reviewed_at, review_comments, phase1_approved_by, phase1_approved_at, phase2_approved_by, phase2_approved_at, created_by, initiated_by, initiated_at, owner, owner_department, customer_contact, target_close_date, d3_deadline, created_at, updated_at, d3_attachments, d5_attachments, d6_attachments, deleted_at FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      [id]
+    );
+    if (existing.length === 0) {
+      await conn.rollback();
+      return ResponseHandler.error(res, '8D报告不存在', 'NOT_FOUND', 404);
     }
+
+    const report = existing[0];
+
+    if (report.current_phase !== 'd8') {
+      await conn.rollback();
+      return ResponseHandler.error(res, '当前阶段不是D8，不能完成报告', 'VALIDATION_ERROR', 400);
+    }
+
+    if (!report.d8_summary) {
+      await conn.rollback();
+      return ResponseHandler.error(res, '请先填写D8总结内容', 'VALIDATION_ERROR', 400);
+    }
+
+    parseJsonFields(report);
+    const gate = validatePhaseGate(report, 'completed');
+    if (!gate.pass) {
+      await conn.rollback();
+      return ResponseHandler.error(
+        res,
+        `以下必填项未完成：${gate.missing.join('、')}`,
+        'VALIDATION_ERROR',
+        400
+      );
+    }
+
+    await conn.query('UPDATE eight_d_reports SET status = ?, current_phase = ? WHERE id = ?', [
+      'completed',
+      'completed',
+      id,
+    ]);
+
+    const userName = await getCurrentUserName(req);
+    await insertAuditLog(
+      conn,
+      id,
+      'complete',
+      report.current_phase,
+      'completed',
+      '标记报告为完成',
+      userName
+    );
+    await EightDNcpLinkService.markCompleted(conn, report, userName);
+
+    await conn.commit();
+
+    return ResponseHandler.success(res, null, '报告已完成，等待最终验证与关闭');
+  } catch (error) {
+    if (conn) await conn.rollback();
+    if (error.isEightDNcpLinkError) {
+      return ResponseHandler.error(res, error.message, error.errorCode, error.statusCode);
+    }
+    logger.error('完成8D报告失败:', error);
+    return ResponseHandler.error(res, '完成报告失败', 'OPERATION_ERROR', 500, error);
+  } finally {
+    if (conn) conn.release();
+  }
 };
 
 /**
  * 关闭8D报告（归档）
  */
 const closeReport = async (req, res) => {
-    let conn;
-    try {
-        const { id } = req.params;
+  let conn;
+  try {
+    const { id } = req.params;
 
-        conn = await pool.getConnection();
-        await conn.beginTransaction();
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
 
-        const [existing] = await conn.query('SELECT id, report_no, title, ncp_id, ncp_no, inspection_id, inspection_no, material_id, material_code, material_name, supplier_id, supplier_name, priority, status, current_phase, d1_team_leader, d1_team_members, d1_completed_at, d2_problem_description, d2_occurrence_date, d2_quantity_affected, d2_defect_type, d2_responsible_person, d2_completed_at, d3_containment_actions, d3_effective_date, d3_responsible_person, d3_completed_at, d4_root_cause, d4_analysis_method, d4_contributing_factors, d4_responsible_person, d4_completed_at, d5_corrective_actions, d5_responsible_person, d5_target_date, d5_completed_at, d6_implementation_results, d6_verification_method, d6_verification_result, d6_responsible_person, d6_completed_at, d7_preventive_actions, d7_standardization, d7_responsible_person, d7_completed_at, d8_summary, d8_lessons_learned, d8_team_recognition, d8_responsible_person, d8_completed_at, reviewed_by, reviewed_at, review_comments, phase1_approved_by, phase1_approved_at, phase2_approved_by, phase2_approved_at, created_by, initiated_by, initiated_at, owner, owner_department, customer_contact, target_close_date, d3_deadline, created_at, updated_at, d3_attachments, d5_attachments, d6_attachments, deleted_at FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]);
-        if (existing.length === 0) {
-            await conn.rollback();
-            return ResponseHandler.error(res, '8D报告不存在', 'NOT_FOUND', 404);
-        }
-
-        const report = existing[0];
-
-        if (report.status !== 'completed') {
-            await conn.rollback();
-            return ResponseHandler.error(res, '只有已完成的报告才能关闭归档', 'VALIDATION_ERROR', 400);
-        }
-
-        const userName = await getCurrentUserName(req);
-        await EightDNcpLinkService.closeLinkedNcp(conn, report, userName);
-
-        await conn.query('UPDATE eight_d_reports SET status = ?, current_phase = ? WHERE id = ?', ['closed', 'closed', id]);
-        await insertAuditLog(conn, id, 'close', 'completed', 'closed', '归档关闭8D报告', userName);
-
-        await conn.commit();
-
-        return ResponseHandler.success(res, null, '8D报告已归档关闭');
-    } catch (error) {
-        if (conn) await conn.rollback();
-        if (error.isEightDNcpLinkError) {
-            return ResponseHandler.error(res, error.message, error.errorCode, error.statusCode);
-        }
-        logger.error('关闭8D报告失败:', error);
-        return ResponseHandler.error(res, '关闭8D报告失败', 'OPERATION_ERROR', 500, error);
-    } finally {
-        if (conn) conn.release();
+    const [existing] = await conn.query(
+      'SELECT id, report_no, title, ncp_id, ncp_no, inspection_id, inspection_no, material_id, material_code, material_name, supplier_id, supplier_name, priority, status, current_phase, d1_team_leader, d1_team_members, d1_completed_at, d2_problem_description, d2_occurrence_date, d2_quantity_affected, d2_defect_type, d2_responsible_person, d2_completed_at, d3_containment_actions, d3_effective_date, d3_responsible_person, d3_completed_at, d4_root_cause, d4_analysis_method, d4_contributing_factors, d4_responsible_person, d4_completed_at, d5_corrective_actions, d5_responsible_person, d5_target_date, d5_completed_at, d6_implementation_results, d6_verification_method, d6_verification_result, d6_responsible_person, d6_completed_at, d7_preventive_actions, d7_standardization, d7_responsible_person, d7_completed_at, d8_summary, d8_lessons_learned, d8_team_recognition, d8_responsible_person, d8_completed_at, reviewed_by, reviewed_at, review_comments, phase1_approved_by, phase1_approved_at, phase2_approved_by, phase2_approved_at, created_by, initiated_by, initiated_at, owner, owner_department, customer_contact, target_close_date, d3_deadline, created_at, updated_at, d3_attachments, d5_attachments, d6_attachments, deleted_at FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      [id]
+    );
+    if (existing.length === 0) {
+      await conn.rollback();
+      return ResponseHandler.error(res, '8D报告不存在', 'NOT_FOUND', 404);
     }
+
+    const report = existing[0];
+
+    if (report.status !== 'completed') {
+      await conn.rollback();
+      return ResponseHandler.error(res, '只有已完成的报告才能关闭归档', 'VALIDATION_ERROR', 400);
+    }
+
+    const userName = await getCurrentUserName(req);
+    await EightDNcpLinkService.closeLinkedNcp(conn, report, userName);
+
+    await conn.query('UPDATE eight_d_reports SET status = ?, current_phase = ? WHERE id = ?', [
+      'closed',
+      'closed',
+      id,
+    ]);
+    await insertAuditLog(conn, id, 'close', 'completed', 'closed', '归档关闭8D报告', userName);
+
+    await conn.commit();
+
+    return ResponseHandler.success(res, null, '8D报告已归档关闭');
+  } catch (error) {
+    if (conn) await conn.rollback();
+    if (error.isEightDNcpLinkError) {
+      return ResponseHandler.error(res, error.message, error.errorCode, error.statusCode);
+    }
+    logger.error('关闭8D报告失败:', error);
+    return ResponseHandler.error(res, '关闭8D报告失败', 'OPERATION_ERROR', 500, error);
+  } finally {
+    if (conn) conn.release();
+  }
 };
 
 /**
  * 删除8D报告
  */
 const deleteReport = async (req, res) => {
-    let conn;
-    try {
-        const { id } = req.params;
+  let conn;
+  try {
+    const { id } = req.params;
 
-        conn = await pool.getConnection();
-        await conn.beginTransaction();
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
 
-        const [existing] = await conn.query('SELECT id, status FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]);
-        if (existing.length === 0) {
-            await conn.rollback();
-            return ResponseHandler.error(res, '8D report not found', 'NOT_FOUND', 404);
-        }
-
-        if (existing[0].status !== 'draft') {
-            await conn.rollback();
-            return ResponseHandler.error(res, 'Only draft reports can be deleted', 'VALIDATION_ERROR', 400);
-        }
-
-        await softDelete(conn, 'eight_d_reports', 'id', id);
-        await conn.commit();
-        return ResponseHandler.success(res, null, '8D report deleted');
-    } catch (error) {
-        if (conn) await conn.rollback();
-        logger.error('删除8D报告失败:', error);
-        return ResponseHandler.error(res, '删除8D报告失败', 'OPERATION_ERROR', 500, error);
-    } finally {
-        if (conn) conn.release();
+    const [existing] = await conn.query(
+      'SELECT id, status FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      [id]
+    );
+    if (existing.length === 0) {
+      await conn.rollback();
+      return ResponseHandler.error(res, '8D report not found', 'NOT_FOUND', 404);
     }
+
+    if (existing[0].status !== 'draft') {
+      await conn.rollback();
+      return ResponseHandler.error(
+        res,
+        'Only draft reports can be deleted',
+        'VALIDATION_ERROR',
+        400
+      );
+    }
+
+    await softDelete(conn, 'eight_d_reports', 'id', id);
+    await conn.commit();
+    return ResponseHandler.success(res, null, '8D report deleted');
+  } catch (error) {
+    if (conn) await conn.rollback();
+    logger.error('删除8D报告失败:', error);
+    return ResponseHandler.error(res, '删除8D报告失败', 'OPERATION_ERROR', 500, error);
+  } finally {
+    if (conn) conn.release();
+  }
 };
 
 /**
  * 获取 8D 报告统计数据
  */
 const getStatistics = async (req, res) => {
-    try {
-        const [stats] = await pool.query(`
+  try {
+    const [stats] = await pool.query(`
             SELECT
                 COUNT(*) as total,
                 SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) as draft_count,
@@ -840,68 +1017,77 @@ const getStatistics = async (req, res) => {
             WHERE deleted_at IS NULL
         `);
 
-        return ResponseHandler.success(res, stats[0]);
-    } catch (error) {
-        logger.error('获取8D报告统计失败:', error);
-        return ResponseHandler.error(res, '获取统计失败', 'OPERATION_ERROR', 500, error);
-    }
+    return ResponseHandler.success(res, stats[0]);
+  } catch (error) {
+    logger.error('获取8D报告统计失败:', error);
+    return ResponseHandler.error(res, '获取统计失败', 'OPERATION_ERROR', 500, error);
+  }
 };
 
 /**
  * AI智能分析 — 根据问题描述自动生成8D报告内容
  */
 const aiAnalyze = async (req, res) => {
-    try {
-        const { problemDescription, materialName, supplierName, defectType, quantityAffected, priority } = req.body;
+  try {
+    const {
+      problemDescription,
+      materialName,
+      supplierName,
+      defectType,
+      quantityAffected,
+      priority,
+    } = req.body;
 
-        if (!problemDescription) {
-            return ResponseHandler.error(res, '请输入问题描述', 'VALIDATION_ERROR', 400);
-        }
+    if (!problemDescription) {
+      return ResponseHandler.error(res, '请输入问题描述', 'VALIDATION_ERROR', 400);
+    }
 
-        const userName = await getCurrentUserName(req);
-        logger.info(`[8D-AI] 用户 ${userName} 请求AI分析`);
+    const userName = await getCurrentUserName(req);
+    logger.info(`[8D-AI] 用户 ${userName} 请求AI分析`);
 
-        // 获取真实的部门负责人名单作为AI的上下文 (保障关联真实且精确)
-        const [deptManagers] = await pool.query(
-            `SELECT d.name as dept_name, u.real_name as manager_name
+    // 获取真实的部门负责人名单作为AI的上下文 (保障关联真实且精确)
+    const [deptManagers] = await pool.query(
+      `SELECT d.name as dept_name, u.real_name as manager_name
              FROM departments d
              INNER JOIN users u ON d.manager_id = u.id
              WHERE d.status = 1 AND u.status = 1`
-        );
+    );
 
-        // 整理为准确的部门负责人字符串，例如："品质部负责人：张三 \n 技术部负责人：李四"
-        const usersListStr = deptManagers.map(d => `${d.dept_name}负责人：${d.manager_name}`).join('\n');
+    // 整理为准确的部门负责人字符串，例如："品质部负责人：张三 \n 技术部负责人：李四"
+    const usersListStr = deptManagers
+      .map((d) => `${d.dept_name}负责人：${d.manager_name}`)
+      .join('\n');
 
-        const result = await EightDAIService.generateFullReport({
-            problemDescription,
-            materialName,
-            supplierName,
-            defectType,
-            quantityAffected,
-            priority,
-            usersListStr, // 传递真实花名册
-        });
+    const result = await EightDAIService.generateFullReport({
+      problemDescription,
+      materialName,
+      supplierName,
+      defectType,
+      quantityAffected,
+      priority,
+      usersListStr, // 传递真实花名册
+    });
 
-        return ResponseHandler.success(res, result, 'AI分析完成');
-    } catch (error) {
-        logger.error('AI分析8D报告失败:', error);
-        const msg = error.message || 'AI分析失败，请稍后重试';
-        return ResponseHandler.error(res, msg, 'OPERATION_ERROR', 500, error);
-    }
+    return ResponseHandler.success(res, result, 'AI分析完成');
+  } catch (error) {
+    logger.error('AI分析8D报告失败:', error);
+    const msg = error.message || 'AI分析失败，请稍后重试';
+    return ResponseHandler.error(res, msg, 'OPERATION_ERROR', 500, error);
+  }
 };
 
 module.exports = {
-    getReports,
-    getReportById,
-    createReport,
-    updateReport,
-    submitReview,
-    submitPhase2Review,
-    reviewReport,
-    completeReport,
-    closeReport,
-    deleteReport,
-    getStatistics,
-    getReportLogs,
-    aiAnalyze,
+  getReports,
+  getReportById,
+  createReport,
+  updateReport,
+  submitReview,
+  submitPhase2Review,
+  reviewReport,
+  completeReport,
+  closeReport,
+  deleteReport,
+  getStatistics,
+  getReportLogs,
+  aiAnalyze,
 };

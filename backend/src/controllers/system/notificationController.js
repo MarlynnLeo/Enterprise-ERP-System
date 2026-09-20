@@ -182,7 +182,10 @@ class NotificationController {
       const { id } = req.params;
       const userId = req.user.id;
 
-      const result = await db.query('DELETE FROM notifications WHERE id = ? AND user_id = ? AND is_suppressed = 0', [id, userId]);
+      const result = await db.query(
+        'DELETE FROM notifications WHERE id = ? AND user_id = ? AND is_suppressed = 0',
+        [id, userId]
+      );
       if (result.affectedRows === 0) {
         return ResponseHandler.notFound(res, '通知不存在');
       }
@@ -213,7 +216,11 @@ class NotificationController {
         [...targetIds, userId]
       );
 
-      ResponseHandler.success(res, { deleted: result.affectedRows }, `成功删除 ${result.affectedRows} 条通知`);
+      ResponseHandler.success(
+        res,
+        { deleted: result.affectedRows },
+        `成功删除 ${result.affectedRows} 条通知`
+      );
     } catch (error) {
       logger.error('批量删除通知失败:', error);
       ResponseHandler.error(res, '批量删除失败');
@@ -239,7 +246,12 @@ class NotificationController {
 
       await NotificationRecipientService.validateConfig('user', [userId]);
       if (!title || String(title).trim().length > 200) {
-        return ResponseHandler.error(res, '通知标题不能为空且不能超过 200 个字符', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(
+          res,
+          '通知标题不能为空且不能超过 200 个字符',
+          'VALIDATION_ERROR',
+          400
+        );
       }
       if (content && String(content).length > 10000) {
         return ResponseHandler.error(res, '通知内容不能超过 10000 个字符', 'VALIDATION_ERROR', 400);
@@ -297,7 +309,12 @@ class NotificationController {
         return ResponseHandler.error(res, '通知列表不能为空');
       }
       if (!Array.isArray(notifications) || notifications.length > 100) {
-        return ResponseHandler.error(res, '批量通知数量必须在 1 到 100 条之间', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(
+          res,
+          '批量通知数量必须在 1 到 100 条之间',
+          'VALIDATION_ERROR',
+          400
+        );
       }
       await NotificationRecipientService.validateConfig(
         'user',
@@ -305,9 +322,17 @@ class NotificationController {
       );
       for (const item of notifications) {
         if (!item.title || String(item.title).trim().length > 200) {
-          return ResponseHandler.error(res, '每条通知都必须有不超过 200 个字符的标题', 'VALIDATION_ERROR', 400);
+          return ResponseHandler.error(
+            res,
+            '每条通知都必须有不超过 200 个字符的标题',
+            'VALIDATION_ERROR',
+            400
+          );
         }
-        if (item.link && (!String(item.link).startsWith('/') || String(item.link).startsWith('//'))) {
+        if (
+          item.link &&
+          (!String(item.link).startsWith('/') || String(item.link).startsWith('//'))
+        ) {
           return ResponseHandler.error(res, '通知链接必须是系统内部路径', 'VALIDATION_ERROR', 400);
         }
       }

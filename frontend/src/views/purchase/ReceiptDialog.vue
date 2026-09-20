@@ -239,6 +239,7 @@ import {
   getOutsourcedStatusColor
 } from '@/constants/systemConstants';
 import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue';
+import { getApiErrorMessage } from '@/utils/errorHandler'
 
 
 const props = defineProps({
@@ -492,7 +493,7 @@ const handleResubmitReceipt = async (status) => {
     await loadReceiptDetail();
     emit('success');
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || '重新提交审核失败');
+    ElMessage.error(getApiErrorMessage(error, '重新提交审核失败'));
   }
 };
 
@@ -550,14 +551,7 @@ const handleSubmit = async () => {
 
     } catch (error) {
       console.error('保存委外入库单失败:', error);
-      let errorMessage = '保存委外入库单失败';
-
-      // 针对常见错误提供友好的错误信息
-      if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      }
-
-      ElMessage.error(errorMessage);
+      ElMessage.error(getApiErrorMessage(error, '保存委外入库单失败'));
     } finally {
       processing.value = false;
     }

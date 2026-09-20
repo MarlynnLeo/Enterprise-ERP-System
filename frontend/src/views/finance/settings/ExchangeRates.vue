@@ -65,6 +65,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { Delete } from '@element-plus/icons-vue'
@@ -97,7 +98,7 @@ const handleSave = async () => {
   if (!form.value.rate || !form.value.effectiveDate) return ElMessage.warning('请填写完整')
   saving.value = true
   try { await exchangeRateApi.create(form.value); ElMessage.success('保存成功'); formVis.value = false; fetchList() }
-  catch (e) { ElMessage.error(e.message || '保存失败') }
+  catch (e) { ElMessage.error(getApiErrorMessage(e, '保存失败')) }
   finally { saving.value = false }
 }
 

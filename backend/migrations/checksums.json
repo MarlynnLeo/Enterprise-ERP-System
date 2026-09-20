@@ -271,6 +271,7 @@
   "20260903000002_rename_outsourced_arrived_status_label.js": "5c62b9c714aeb69c582b4965942de7203a1885d1dad0b404ada61889d12f5d6a",
   "20260903000003_repair_notification_rule_recipients.js": "2ea19bc3371655c9fb99df014bf08b8dacdbba636b6dca85c8527ea0c9887efe",
   "20260903000004_add_bom_detail_position.js": "0c1d7d8df455660523f5f2f34c5d492cfc5495b11c527f0be574c05959b55c7d",
+  "20260904000000_align_quality_reference_collations.js": "0ae8d31822d60bb329fe4a510649fcd663c34170bdd8e98cc280d19e9c48fd9e",
   "20260904000001_repair_quality_inspection_source_types.js": "66a0168f5b177f66f44f36e9839f629f8e0984a0ea625a1364860278d7b246d1",
   "20260904000002_reconcile_runtime_schema.js": "0432a0e27b861a1dfed30bea2150d56930a8ad28f796c7b58d6bd09d40091ace",
   "20260906000001_seed_missing_manufacturing_account_mappings.js": "b0e591264d97f469479a5db7403d4023c7688f07f7f4b7e6197b47cfb58e52f6",
@@ -288,5 +289,6 @@
   "20260914000001_repair_sales_flow_contracts.js": "71a3484006071d1a5c6393dfbbf001f53a12833d55d6d870c67ec76dbd29296c",
   "20260914000002_allow_tax_invoice_reissue.js": "9008ec8375d2b0fc5470bc60dd63b9eb78db5996d306b7fad34997166c63ff48",
   "20260915000001_repair_purchase_flow_contracts.js": "25603bc6e723a9ae49fc229f7df5650744f767532b0317a5d473abdb2711d4fa",
-  "20260916000001_complete_finance_credit_settlements.js": "ef9115cdf8dc4cd1c643d4b990f69f2a68bf1e822685ee4cfd4a3bfa02e13ab8"
+  "20260916000001_complete_finance_credit_settlements.js": "ef9115cdf8dc4cd1c643d4b990f69f2a68bf1e822685ee4cfd4a3bfa02e13ab8",
+  "20260918000001_align_equipment_runtime_contracts.js": "6ec805fac33b94b7cff3379174a18385ad75ac087d86bcfc9c0b3ff63f5c792c"
 }

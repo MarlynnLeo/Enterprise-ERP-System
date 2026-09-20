@@ -479,6 +479,7 @@
 import { ref, reactive, computed, onMounted, onActivated, nextTick } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index';
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { formatAmount, formatLocalDate } from '@/utils/format'
 import { Plus, View, Check, Discount, Delete, ArrowDown, Document, Clock, Download, Upload, Link, CircleClose as Unlink, EditPen } from '@element-plus/icons-vue';
 import { financeApi } from '@/api/finance';
@@ -687,7 +688,7 @@ const loadData = async () => {
     } else calculateStats();
   } catch (error) {
     console.error('加载税务发票列表失败:', error);
-    ElMessage.error(error.response?.data?.message || error.message || '加载数据失败');
+    ElMessage.error(getApiErrorMessage(error, '加载数据失败'));
   } finally {
     loading.value = false;
   }
@@ -761,7 +762,7 @@ const submitCreate = async () => {
   } catch (error) {
     if (error !== 'cancel' && error !== false) {
       console.error('创建发票失败:', error);
-      ElMessage.error(error.response?.data?.message || error.message || '创建失败');
+      ElMessage.error(getApiErrorMessage(error, '创建失败'));
     }
   } finally {
     submitting.value = false;
@@ -823,7 +824,7 @@ const handleCertify = async (row) => {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('认证发票失败:', error);
-      ElMessage.error(error.response?.data?.message || error.message || '认证失败');
+      ElMessage.error(getApiErrorMessage(error, '认证失败'));
     }
   }
 };
@@ -850,7 +851,7 @@ const handleDeduct = async (row) => {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('抵扣发票失败:', error);
-      ElMessage.error(error.response?.data?.message || error.message || '抵扣失败');
+      ElMessage.error(getApiErrorMessage(error, '抵扣失败'));
     }
   }
 };
@@ -875,7 +876,7 @@ const handleVoid = async (row) => {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('作废发票失败:', error);
-      ElMessage.error(error.response?.data?.message || error.message || '作废失败');
+      ElMessage.error(getApiErrorMessage(error, '作废失败'));
     }
   }
 };
@@ -906,7 +907,7 @@ const submitEditInvoiceNumber = async () => {
     loadData();
   } catch (error) {
     console.error('更新发票号码失败:', error);
-    ElMessage.error(error.response?.data?.message || error.message || '更新失败');
+    ElMessage.error(getApiErrorMessage(error, '更新失败'));
   } finally {
     editNumberSubmitting.value = false;
   }
@@ -1011,7 +1012,7 @@ const submitLink = async () => {
     loadData();
   } catch (error) {
     console.error('关联失败:', error);
-    ElMessage.error(error.response?.data?.message || error.message || '关联失败');
+    ElMessage.error(getApiErrorMessage(error, '关联失败'));
   } finally {
     linkSubmitting.value = false;
   }
@@ -1031,7 +1032,7 @@ const handleUnlink = async (row) => {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('取消关联失败:', error);
-      ElMessage.error(error.response?.data?.message || error.message || '操作失败');
+      ElMessage.error(getApiErrorMessage(error, '操作失败'));
     }
   }
 };

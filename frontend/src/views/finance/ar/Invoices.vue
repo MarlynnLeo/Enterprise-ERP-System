@@ -286,6 +286,7 @@ import PaymentDialog from './components/PaymentDialog.vue';
 import InvoiceDetailDialog from './components/InvoiceDetailDialog.vue';
 import RelatedOrderDialog from '../components/RelatedOrderDialog.vue';
 import CreditNoteActions from '../components/CreditNoteActions.vue';
+import { getApiErrorMessage } from '@/utils/errorHandler';
 const financeStore = useFinanceStore();
 const { defaultVATRate } = storeToRefs(financeStore);
 const router = useRouter();
@@ -342,7 +343,7 @@ const openRelatedSalesOrderDialog = async (row) => {
     }
   } catch (error) {
     logger.error('加载关联销售订单失败:', error);
-    ElMessage.error(error?.response?.data?.message || error.message || '加载销售订单失败');
+    ElMessage.error(getApiErrorMessage(error, '加载销售订单失败'));
   } finally {
     relatedOrderLoading.value = false;
   }
@@ -492,7 +493,7 @@ const loadInvoices = async () => {
     }
   } catch (error) {
     logger.error('加载发票列表失败:', error);
-    ElMessage.error('加载发票列表失败：' + (error.message || '未知错误'));
+    ElMessage.error('加载发票列表失败：' + (getApiErrorMessage(error, '未知错误')));
     invoiceList.value = [];
     total.value = 0;
   } finally {
@@ -575,7 +576,7 @@ const handleStatusChange = async (row, status) => {
     loadInvoices();
   } catch (error) {
     if (error === 'cancel' || error === 'close') return;
-    ElMessage.error(error.response?.data?.message || error.message || '状态更新失败');
+    ElMessage.error(getApiErrorMessage(error, '状态更新失败'));
   }
 };
 // 编辑发票
@@ -623,7 +624,7 @@ const handleEdit = async (row) => {
     dialogVisible.value = true;
   } catch (error) {
     logger.error('获取发票详情失败:', error);
-    ElMessage.error('获取发票详情失败: ' + (error.message || '未知错误'));
+    ElMessage.error('获取发票详情失败: ' + (getApiErrorMessage(error, '未知错误')));
     resetInvoiceForm();
     if (row) {
       invoiceForm.id = row.id;
@@ -691,7 +692,7 @@ const handleViewDetails = async (row) => {
       }
     } catch (apiError) {
       logger.error('获取发票详情API失败:', apiError);
-      ElMessage.error('获取发票详情失败：' + (apiError.message || '未知错误'));
+      ElMessage.error(`获取发票详情失败：${getApiErrorMessage(apiError, '请稍后重试')}`);
       return;
     }
 
@@ -699,7 +700,7 @@ const handleViewDetails = async (row) => {
     detailsDialogVisible.value = true;
   } catch (error) {
     logger.error('获取发票详情失败:', error);
-    ElMessage.error('获取发票详情失败: ' + (error.message || '未知错误'));
+    ElMessage.error('获取发票详情失败: ' + (getApiErrorMessage(error, '未知错误')));
   }
 };
 // 加载银行账户列表
@@ -803,7 +804,7 @@ const saveInvoice = async () => {
       } catch (error) {
         logger.error('保存发票失败:', error);
         ElMessage.error(
-          '保存发票失败: ' + (error.response?.data?.message || error.response?.data?.error || error.message || '未知错误')
+          `保存发票失败: ${getApiErrorMessage(error, '请稍后重试')}`
         );
       } finally {
         saveLoading.value = false;
@@ -839,11 +840,7 @@ const savePayment = async () => {
       } catch (error) {
         logger.error('保存收款记录失败:', error);
         logger.error('错误详情:', error.response?.data);
-        const errorMsg =
-          error.response?.data?.error ||
-          error.response?.data?.message ||
-          error.message ||
-          '未知错误';
+        const errorMsg = getApiErrorMessage(error, '请稍后重试');
         ElMessage.error('保存收款记录失败: ' + errorMsg);
       } finally {
         savePaymentLoading.value = false;

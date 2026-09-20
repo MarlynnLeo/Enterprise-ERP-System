@@ -28,11 +28,7 @@ const { mapKeysToSnake } = require('../../../../utils/fieldMap');
  * @param {string} label - 字段名，用于错误提示
  * @returns {number}
  */
-const {
-  safeParseFloat,
-  safeParseInt,
-  sendCashBusinessError,
-} = require('./helpers');
+const { safeParseFloat, safeParseInt, sendCashBusinessError } = require('./helpers');
 
 const reconciliationController = {
   getBankStatementItems: async (req, res) => {
@@ -124,20 +120,13 @@ const reconciliationController = {
         book_balance: safeParseFloat(body.book_balance ?? req.body.bookBalance, 'bookBalance'),
         status: body.status || 'draft',
         notes: body.notes,
-        items: Array.isArray(req.body.items)
-          ? req.body.items.map((it) => mapKeysToSnake(it))
-          : [],
+        items: Array.isArray(req.body.items) ? req.body.items.map((it) => mapKeysToSnake(it)) : [],
         created_by: getAuthenticatedUserId(req),
       };
 
       const insertId = await ReconciliationModel.createReconciliation(reconciliation);
 
-      ResponseHandler.success(
-        res,
-        { id: insertId, ...reconciliation },
-        '对账记录创建成功',
-        201
-      );
+      ResponseHandler.success(res, { id: insertId, ...reconciliation }, '对账记录创建成功', 201);
     } catch (error) {
       logger.error('Error creating reconciliation:', error);
       ResponseHandler.error(res, '创建对账记录失败', 'SERVER_ERROR', 500, error);
@@ -180,19 +169,13 @@ const reconciliationController = {
         book_balance: safeParseFloat(body.book_balance ?? req.body.bookBalance, 'bookBalance'),
         status: body.status ?? req.body.status,
         notes: body.notes,
-        items: Array.isArray(req.body.items)
-          ? req.body.items.map((it) => mapKeysToSnake(it))
-          : [],
+        items: Array.isArray(req.body.items) ? req.body.items.map((it) => mapKeysToSnake(it)) : [],
       };
 
       const updated = await ReconciliationModel.updateReconciliation(id, reconciliation);
 
       if (updated) {
-        return ResponseHandler.success(
-          res,
-          { id, ...reconciliation },
-          '对账记录更新成功'
-        );
+        return ResponseHandler.success(res, { id, ...reconciliation }, '对账记录更新成功');
       } else {
         return ResponseHandler.error(res, '对账记录更新失败', 'SERVER_ERROR', 500);
       }
@@ -291,7 +274,8 @@ const reconciliationController = {
       const reconciledTransactions = reconciledResult?.transactions || [];
       const unreconciledItems =
         unreconciledResult?.pagination?.total || unreconciledTransactions.length || 0;
-      const reconciledItems = reconciledResult?.pagination?.total || reconciledTransactions.length || 0;
+      const reconciledItems =
+        reconciledResult?.pagination?.total || reconciledTransactions.length || 0;
       const calculateNetAmount = (transactions) =>
         transactions.reduce((sum, transaction) => {
           const amount = parseFloat(transaction.amount) || 0;
@@ -345,7 +329,10 @@ const reconciliationController = {
       }
 
       // 使用BankTransactionModel而不是CashTransactionModel，因为这是银行交易
-      const success = await BankTransactionModel.submitForAudit(id, (req.user?.id || req.body.userId || null));
+      const success = await BankTransactionModel.submitForAudit(
+        id,
+        req.user?.id || req.body.userId || null
+      );
 
       if (success) {
         return ResponseHandler.success(res, { id, status: 'pending' }, '交易已提交审核');
@@ -380,7 +367,7 @@ const reconciliationController = {
       }
 
       let success = false;
-      const userId = (req.user?.id || auditorId || null);
+      const userId = req.user?.id || auditorId || null;
 
       // 使用BankTransactionModel进行审核/作废操作
       if (status === 'approved') {
@@ -401,8 +388,7 @@ const reconciliationController = {
           {
             id,
             status,
-            newBalance:
-              status === 'approved' || status === 'void' ? success.newBalance : undefined,
+            newBalance: status === 'approved' || status === 'void' ? success.newBalance : undefined,
             entryId: status === 'approved' ? success.entryId : undefined,
             entryNumber: status === 'approved' ? success.entryNumber : undefined,
             reversalEntryId: status === 'void' ? success.reversalEntryId : undefined,

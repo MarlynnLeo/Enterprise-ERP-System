@@ -7,6 +7,7 @@
  */
 -->
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, onMounted, computed } from 'vue'
 import { usePaginatedFetching } from '@/composables/useDataFetching'
 import { useRouter } from 'vue-router'
@@ -138,7 +139,7 @@ const handleExport = async () => {
     ElMessage.success('导出成功')
   } catch (error) {
     console.error('导出失败:', error)
-    ElMessage.error('导出失败: ' + (error.message || '未知错误'))
+    ElMessage.error('导出失败: ' + (getApiErrorMessage(error, '未知错误')))
   }
 }
 // 跳转到生产计划详情
@@ -206,7 +207,7 @@ const handleBatchCreateRequisition = () => {
     confirmDialogVisible.value = true
   } catch (error) {
     console.error('准备采购申请失败:', error)
-    ElMessage.error(error.message || '准备采购申请失败')
+    ElMessage.error(getApiErrorMessage(error, '准备采购申请失败'))
   }
 }
 // 确认提交采购申请
@@ -226,7 +227,7 @@ const confirmSubmitRequisition = async () => {
       if (row.purchaseStatus === 'requested') continue
       const planId = row.planId
       if (!planId) {
-        throw new Error(`物料 ${row.materialCode || row.materialId} 缺少生产计划来源，无法创建采购申请`)
+        throw new Error(`物料 ${row.materialCode || '所选物料'} 缺少生产计划来源，无法创建采购申请`)
       }
       if (!planMaterialMap.has(planId)) {
         planMaterialMap.set(planId, {
@@ -302,7 +303,7 @@ const confirmSubmitRequisition = async () => {
     await fetchShortageData(true)
   } catch (error) {
     console.error('批量创建采购申请失败:', error)
-    ElMessage.error(error.message || '批量创建采购申请失败')
+    ElMessage.error(getApiErrorMessage(error, '批量创建采购申请失败'))
     batchLoading.value = false
   }
 }

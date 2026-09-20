@@ -1,22 +1,49 @@
 'use strict';
 
 const { purchaseValidationError } = require('../../utils/purchase/purchaseValidation');
-const { INCOMING_INSPECTION_COUNTED_STATUSES, PURCHASE_RECEIPT_COUNTED_STATUSES } = require('../../constants/qualityReceipt');
+const {
+  INCOMING_INSPECTION_COUNTED_STATUSES,
+  PURCHASE_RECEIPT_COUNTED_STATUSES,
+} = require('../../constants/qualityReceipt');
 const TERMINAL = new Set(INCOMING_INSPECTION_COUNTED_STATUSES);
 
 class PurchaseOrderQuantityService {
   // The order header is the common lock for arrivals, receipts and their edits.
   // An inspection and its receipt describe one delivery and count only once.
   static async read(connection, orderId, { receiptId = null, inspectionId = null } = {}) {
-    const [orderItems] = await connection.query('SELECT * FROM purchase_order_items WHERE order_id = ? ORDER BY id FOR UPDATE', [orderId]);
-    const lines = new Map(orderItems.map(item => [Number(item.id), {
-      item, received: 0, reserved: 0, inspected: 0, qualified: 0, unqualified: 0, returned: 0,
-    }]));
+    const [orderItems] = await connection.query(
+      'SELECT * FROM purchase_order_items WHERE order_id = ? ORDER BY id FOR UPDATE',
+      [orderId]
+    );
+    const lines = new Map(
+      orderItems.map((item) => [
+        Number(item.id),
+        {
+          item,
+          received: 0,
+          reserved: 0,
+          inspected: 0,
+          qualified: 0,
+          unqualified: 0,
+          returned: 0,
+        },
+      ])
+    );
     const resolve = (materialId, orderItemId) => {
-      const candidates = orderItems.filter(item => Number(item.material_id) === Number(materialId));
-      const line = orderItemId ? lines.get(Number(orderItemId)) : candidates.length === 1 ? lines.get(Number(candidates[0].id)) : null;
+      const candidates = orderItems.filter(
+        (item) => Number(item.material_id) === Number(materialId)
+      );
+      const line = orderItemId
+        ? lines.get(Number(orderItemId))
+        : candidates.length === 1
+          ? lines.get(Number(candidates[0].id))
+          : null;
       if (!line || Number(line.item.material_id) !== Number(materialId)) {
-        throw purchaseValidationError(candidates.length > 1 ? '同物料存在多条采购明细，请指定正确的订单明细ID' : '来源明细不属于当前采购订单');
+        throw purchaseValidationError(
+          candidates.length > 1
+            ? '同物料存在多条采购明细，请指定正确的订单明细ID'
+            : '来源明细不属于当前采购订单'
+        );
       }
       return line;
     };
@@ -27,11 +54,13 @@ class PurchaseOrderQuantityService {
          AND deleted_at IS NULL AND (? IS NULL OR id <> ?) ORDER BY id FOR UPDATE`,
       [orderId, inspectionId, inspectionId]
     );
-    const inspectionIds = new Set(inspections.map(item => Number(item.id)));
+    const inspectionIds = new Set(inspections.map((item) => Number(item.id)));
     for (const inspection of inspections) {
       const line = resolve(inspection.material_id, inspection.purchase_order_item_id);
       const terminal = TERMINAL.has(inspection.status);
-      const quantity = Number(terminal ? inspection.qualified_quantity ?? 0 : inspection.quantity);
+      const quantity = Number(
+        terminal ? (inspection.qualified_quantity ?? 0) : inspection.quantity
+      );
       line.received += quantity;
       line.reserved += quantity;
       if (terminal) {
@@ -44,7 +73,8 @@ class PurchaseOrderQuantityService {
       `SELECT ri.order_item_id, ri.material_id, ri.received_quantity, ri.qualified_quantity, r.inspection_id, r.status
        FROM purchase_receipt_items ri JOIN purchase_receipts r ON r.id = ri.receipt_id
        WHERE r.order_id = ? AND r.deleted_at IS NULL AND r.status <> 'cancelled'
-         AND (? IS NULL OR r.id <> ?) ORDER BY r.id, ri.id FOR UPDATE`, [orderId, receiptId, receiptId]
+         AND (? IS NULL OR r.id <> ?) ORDER BY r.id, ri.id FOR UPDATE`,
+      [orderId, receiptId, receiptId]
     );
     for (const receipt of receipts) {
       if (receipt.inspection_id && inspectionIds.has(Number(receipt.inspection_id))) continue;
@@ -59,7 +89,8 @@ class PurchaseOrderQuantityService {
        JOIN purchase_receipt_items ri ON ri.id = rti.receipt_item_id
        JOIN purchase_receipts r ON r.id = ri.receipt_id
        WHERE r.order_id = ? AND r.deleted_at IS NULL AND rt.deleted_at IS NULL AND rt.status = 'completed'
-       ORDER BY rt.id, rti.id FOR UPDATE`, [orderId]
+       ORDER BY rt.id, rti.id FOR UPDATE`,
+      [orderId]
     );
     for (const returned of returns) {
       const line = resolve(returned.material_id, returned.order_item_id);

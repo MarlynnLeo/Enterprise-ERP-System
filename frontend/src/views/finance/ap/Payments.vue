@@ -337,6 +337,7 @@ import { ElMessage } from 'element-plus/es/components/message/index';
 import { InfoFilled, Plus } from '@element-plus/icons-vue';
 import { financeApi } from '@/api/finance';
 import { useAuthStore } from '@/stores/auth'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 // 权限store
 const authStore = useAuthStore()
 // 权限计算属性
@@ -474,7 +475,7 @@ const loadPayments = async () => {
     total.value = totalCount;
   } catch (error) {
     console.error('加载付款记录失败:', error);
-    ElMessage.error(`加载付款记录失败: ${error.message || '未知错误'}`);
+    ElMessage.error(`加载付款记录失败: ${getApiErrorMessage(error, '未知错误')}`);
     paymentList.value = [];
     total.value = 0;
   } finally {
@@ -617,7 +618,7 @@ const confirmVoid = async () => {
         loadPayments(); // 刷新列表
       } catch (error) {
         console.error('作废付款记录失败:', error);
-        ElMessage.error(error.response?.data?.message || '作废付款记录失败');
+        ElMessage.error(getApiErrorMessage(error, '作废付款记录失败'));
       } finally {
         voidLoading.value = false;
       }
@@ -701,11 +702,7 @@ const savePayment = async () => {
         loadPayments();
       } catch (error) {
         console.error('保存付款记录失败:', error);
-        const msg =
-          error?.response?.data?.message ||
-          error?.response?.data?.error ||
-          error?.message ||
-          '保存付款记录失败';
+        const msg = getApiErrorMessage(error, '保存付款记录失败');
         // 大额审批阈值拦截时给出明确提示
         if (
           error?.response?.data?.code === 'PAYMENT_APPROVAL_REQUIRED' ||

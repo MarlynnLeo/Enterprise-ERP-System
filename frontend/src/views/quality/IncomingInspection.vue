@@ -235,6 +235,7 @@ import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, onMounted } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { qualityApi, baseDataApi } from '@/api'
 import { parseListData, parsePaginatedData, parseResponseData } from '@/utils/responseParser'
 import 'dayjs'
@@ -356,7 +357,7 @@ const fetchData = async () => {
     await fetchReworkStatusForFailedInspections()
   } catch (error) {
     console.error('获取检验单列表失败:', error)
-    ElMessage.error(`获取检验单列表失败: ${error.message}`)
+    ElMessage.error(`获取检验单列表失败：${getApiErrorMessage(error, '请稍后重试')}`)
   } finally {
     loading.value = false
   }
@@ -517,7 +518,7 @@ const handlePrint = async (row) => {
     reportDialogVisible.value = true
   } catch (error) {
     console.error('获取检验报告数据失败:', error)
-    ElMessage.error(`获取检验报告数据失败: ${error.message}`)
+    ElMessage.error(`获取检验报告数据失败：${getApiErrorMessage(error, '请稍后重试')}`)
   }
 }
 </script>

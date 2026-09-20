@@ -51,7 +51,9 @@ const purchaseOrderItemMap = {
       taxAmount:
         row.tax_amount != null
           ? toNumber(row.tax_amount, 0)
-          : (row.tax_rate != null ? toNumber(lineTotal * toNumber(row.tax_rate, 0), 0) : 0),
+          : row.tax_rate != null
+            ? toNumber(lineTotal * toNumber(row.tax_rate, 0), 0)
+            : 0,
       receivedQuantity:
         row.received_quantity != null
           ? toNumber(row.received_quantity, 0)
@@ -70,7 +72,8 @@ const purchaseOrderItemMap = {
           : row.unqualifiedQuantity != null
             ? toNumber(row.unqualifiedQuantity, 0)
             : 0,
-      receivedPercentage: row.received_percentage != null ? toNumber(row.received_percentage, 0) : 0,
+      receivedPercentage:
+        row.received_percentage != null ? toNumber(row.received_percentage, 0) : 0,
       warehousedPercentage:
         row.warehoused_percentage != null ? toNumber(row.warehoused_percentage, 0) : 0,
       pendingQuantity: row.pending_quantity != null ? toNumber(row.pending_quantity, 0) : 0,
@@ -85,8 +88,7 @@ const purchaseOrderMap = {
       id: body.id,
       order_no: body.orderNo,
       order_date: body.orderDate != null ? formatDate(body.orderDate) : undefined,
-      supplier_id:
-        body.supplierId != null ? toNumber(body.supplierId, body.supplierId) : undefined,
+      supplier_id: body.supplierId != null ? toNumber(body.supplierId, body.supplierId) : undefined,
       supplier_name: body.supplierName,
       contract_code: body.contractCode,
       expected_delivery_date:
@@ -178,18 +180,13 @@ const purchaseReceiptItemMap = {
           ? toNumber(body.actualQuantity, line.quantity)
           : line.quantity;
     // Prefer positive explicit quantity; never leave quantity=0 when received>0
-    const quantity =
-      line.quantity > 0 ? line.quantity : received > 0 ? received : line.quantity;
-    const amount =
-      line.amount > 0
-        ? line.amount
-        : roundMoney(quantity * toNumber(line.price, 0));
+    const quantity = line.quantity > 0 ? line.quantity : received > 0 ? received : line.quantity;
+    const amount = line.amount > 0 ? line.amount : roundMoney(quantity * toNumber(line.price, 0));
     const row = {
       id: body.id,
       order_item_id:
         body.orderItemId != null ? toNumber(body.orderItemId, body.orderItemId) : undefined,
-      material_id:
-        body.materialId != null ? toNumber(body.materialId, body.materialId) : undefined,
+      material_id: body.materialId != null ? toNumber(body.materialId, body.materialId) : undefined,
       material_code: body.materialCode,
       material_name: body.materialName,
       specification: body.specification ?? body.specs,
@@ -221,11 +218,9 @@ const purchaseReceiptItemMap = {
       materialName: row.material_name ?? null,
       specification: row.specification ?? row.specs ?? null,
       unitId: row.unit_id ?? null,
-      orderedQuantity:
-        row.ordered_quantity != null ? toNumber(row.ordered_quantity, 0) : null,
+      orderedQuantity: row.ordered_quantity != null ? toNumber(row.ordered_quantity, 0) : null,
       quantity: toNumber(row.quantity, 0),
-      receivedQuantity:
-        row.received_quantity != null ? toNumber(row.received_quantity, 0) : null,
+      receivedQuantity: row.received_quantity != null ? toNumber(row.received_quantity, 0) : null,
       qualifiedQuantity:
         row.qualified_quantity != null ? toNumber(row.qualified_quantity, 0) : null,
       batchNumber: row.batch_number ?? null,
@@ -246,8 +241,7 @@ const purchaseReceiptMap = {
       receipt_no: body.receiptNo,
       order_id: body.orderId != null ? toNumber(body.orderId, body.orderId) : undefined,
       order_no: body.orderNo,
-      supplier_id:
-        body.supplierId != null ? toNumber(body.supplierId, body.supplierId) : undefined,
+      supplier_id: body.supplierId != null ? toNumber(body.supplierId, body.supplierId) : undefined,
       supplier_name: body.supplierName,
       warehouse_id:
         body.warehouseId != null ? toNumber(body.warehouseId, body.warehouseId) : undefined,
@@ -256,8 +250,7 @@ const purchaseReceiptMap = {
       operator: body.operator,
       remarks: body.remarks ?? body.remark,
       total_amount: body.totalAmount != null ? toNumber(body.totalAmount, 0) : undefined,
-      total_tax_amount:
-        body.totalTaxAmount != null ? toNumber(body.totalTaxAmount, 0) : undefined,
+      total_tax_amount: body.totalTaxAmount != null ? toNumber(body.totalTaxAmount, 0) : undefined,
       status: body.status,
       created_by: body.createdBy,
       idempotency_key: body.idempotencyKey,
@@ -285,8 +278,7 @@ const purchaseReceiptMap = {
       receiptDate: formatDate(row.receipt_date),
       operator: row.operator ?? null,
       receiver:
-        row.receiver ??
-        (row.operator === 'system' ? '系统' : row.realName || row.operator || null),
+        row.receiver ?? (row.operator === 'system' ? '系统' : row.realName || row.operator || null),
       remarks: row.remarks ?? null,
       totalAmount: row.total_amount != null ? toNumber(row.total_amount, 0) : null,
       totalTaxAmount: row.total_tax_amount != null ? toNumber(row.total_tax_amount, 0) : null,
@@ -318,16 +310,14 @@ const purchaseRequisitionItemMap = {
   fromApi(body = {}) {
     const row = {
       id: body.id,
-      material_id:
-        body.materialId != null ? toNumber(body.materialId, body.materialId) : undefined,
+      material_id: body.materialId != null ? toNumber(body.materialId, body.materialId) : undefined,
       material_code: body.materialCode,
       material_name: body.materialName,
       specification: body.specification ?? body.specs,
       unit: body.unit,
       unit_id: body.unitId != null ? toNumber(body.unitId, body.unitId) : undefined,
       quantity: body.quantity != null ? toNumber(body.quantity, 0) : undefined,
-      estimated_price:
-        body.estimatedPrice != null ? toNumber(body.estimatedPrice, 0) : undefined,
+      estimated_price: body.estimatedPrice != null ? toNumber(body.estimatedPrice, 0) : undefined,
       remarks: body.remarks ?? null,
     };
     return Object.fromEntries(Object.entries(row).filter(([, v]) => v !== undefined));
@@ -343,10 +333,8 @@ const purchaseRequisitionItemMap = {
       unit: row.unit ?? row.unit_name ?? null,
       unitId: row.unit_id ?? null,
       quantity: toNumber(row.quantity, 0),
-      orderedQuantity:
-        row.ordered_quantity != null ? toNumber(row.ordered_quantity, 0) : null,
-      estimatedPrice:
-        row.estimated_price != null ? toNumber(row.estimated_price, 0) : null,
+      orderedQuantity: row.ordered_quantity != null ? toNumber(row.ordered_quantity, 0) : null,
+      estimatedPrice: row.estimated_price != null ? toNumber(row.estimated_price, 0) : null,
       supplierId: row.supplier_id ?? null,
       supplierName: row.supplier_name ?? null,
       remarks: row.remarks ?? null,
@@ -442,11 +430,8 @@ const purchaseReturnItemMap = {
     const row = {
       id: body.id,
       receipt_item_id:
-        body.receiptItemId != null
-          ? toNumber(body.receiptItemId, body.receiptItemId)
-          : undefined,
-      return_quantity:
-        body.returnQuantity != null ? toNumber(body.returnQuantity, 0) : undefined,
+        body.receiptItemId != null ? toNumber(body.receiptItemId, body.receiptItemId) : undefined,
+      return_quantity: body.returnQuantity != null ? toNumber(body.returnQuantity, 0) : undefined,
       remarks: body.remarks ?? null,
     };
     return Object.fromEntries(Object.entries(row).filter(([, v]) => v !== undefined));

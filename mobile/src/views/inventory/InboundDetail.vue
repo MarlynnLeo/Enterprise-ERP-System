@@ -150,6 +150,7 @@ import { showToast, showConfirmDialog } from 'vant'
 import { inventoryApi } from '@/api'
 import Icon from '@/components/icons/index.vue'
 import dayjs from 'dayjs'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 
 const route = useRoute()
 const router = useRouter()
@@ -250,7 +251,7 @@ const handleConfirm = async () => {
     } catch (error) {
         if (error !== 'cancel' && error?.message !== 'cancel') {
             console.error('确认入库失败:', error)
-            const errorMsg = error.response?.data?.message || '确认入库失败'
+            const errorMsg = getApiErrorMessage(error, '确认入库失败')
             showToast(errorMsg)
         }
     } finally {
@@ -276,7 +277,7 @@ const handleComplete = async () => {
     } catch (error) {
         if (error !== 'cancel' && error?.message !== 'cancel') {
             console.error('完成入库失败:', error)
-            const errorMsg = error.response?.data?.message || '完成入库失败'
+            const errorMsg = getApiErrorMessage(error, '完成入库失败')
             showToast(errorMsg)
         }
     } finally {
@@ -302,7 +303,7 @@ const handleCancel = async () => {
     } catch (error) {
         if (error !== 'cancel' && error?.message !== 'cancel') {
             console.error('取消入库失败:', error)
-            const errorMsg = error.response?.data?.message || '取消失败'
+            const errorMsg = getApiErrorMessage(error, '取消失败')
             showToast(errorMsg)
         }
     } finally {

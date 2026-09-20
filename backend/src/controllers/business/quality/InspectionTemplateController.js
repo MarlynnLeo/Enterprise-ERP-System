@@ -18,7 +18,8 @@ const DocxInspectionTemplateParser = require('../../../services/business/quality
 const fs = require('fs');
 const path = require('path');
 
-const PRESET_TEMPLATE_DIR = process.env.QUALITY_TEMPLATE_DIR ||
+const PRESET_TEMPLATE_DIR =
+  process.env.QUALITY_TEMPLATE_DIR ||
   path.resolve(__dirname, '../../../../assets/quality-templates');
 
 class InspectionTemplateController {
@@ -127,8 +128,7 @@ class InspectionTemplateController {
 
     const itemName = String(item.item_name || '').trim();
     const standard = String(item.standard || '').trim();
-    const method =
-      String(item.method || '').trim() || null;
+    const method = String(item.method || '').trim() || null;
 
     return {
       item_name: itemName,
@@ -154,10 +154,14 @@ class InspectionTemplateController {
       String(existingItem.standard || '') === payload.standard &&
       String(existingItem.method || '') === String(payload.method || '') &&
       String(existingItem.type || 'other') === payload.type &&
-      (existingItem.is_critical === true || existingItem.is_critical === 1) === payload.is_critical &&
-      this.normalizeItemValue(existingItem.dimension_value) === this.normalizeItemValue(payload.dimension_value) &&
-      this.normalizeItemValue(existingItem.tolerance_upper) === this.normalizeItemValue(payload.tolerance_upper) &&
-      this.normalizeItemValue(existingItem.tolerance_lower) === this.normalizeItemValue(payload.tolerance_lower)
+      (existingItem.is_critical === true || existingItem.is_critical === 1) ===
+        payload.is_critical &&
+      this.normalizeItemValue(existingItem.dimension_value) ===
+        this.normalizeItemValue(payload.dimension_value) &&
+      this.normalizeItemValue(existingItem.tolerance_upper) ===
+        this.normalizeItemValue(payload.tolerance_upper) &&
+      this.normalizeItemValue(existingItem.tolerance_lower) ===
+        this.normalizeItemValue(payload.tolerance_lower)
     );
   }
 
@@ -286,7 +290,9 @@ class InspectionTemplateController {
 
     const references = [];
     for (const query of referenceQueries) {
-      const [tableRows] = await db.sequelize.query(`SHOW TABLES LIKE '${query.table}'`, { transaction });
+      const [tableRows] = await db.sequelize.query(`SHOW TABLES LIKE '${query.table}'`, {
+        transaction,
+      });
       if (tableRows.length === 0) continue;
 
       const [rows] = await db.sequelize.query(query.sql, {
@@ -321,17 +327,19 @@ class InspectionTemplateController {
       const where = {};
       const andConditions = [];
       if (keyword) {
-        andConditions.push({ [Op.or]: [
-          { template_code: { [Op.like]: `%${keyword}%` } },
-          { template_name: { [Op.like]: `%${keyword}%` } },
-        ] });
+        andConditions.push({
+          [Op.or]: [
+            { template_code: { [Op.like]: `%${keyword}%` } },
+            { template_name: { [Op.like]: `%${keyword}%` } },
+          ],
+        });
       }
       if (inspection_type) where.inspection_type = inspection_type;
       if (status) where.status = status;
 
       const materialId = this.parseMaterialId(material_type);
       if (Number.isNaN(materialId)) {
-        return ResponseHandler.error(res, '物料ID格式不正确', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(res, '所选物料格式不正确，请重新选择', 'VALIDATION_ERROR', 400);
       }
 
       // 物料匹配逻辑：支持查询指定物料的专属模板 + 通用模板
@@ -432,7 +440,9 @@ class InspectionTemplateController {
                   if (!rowMaterialIds.includes(id)) rowMaterialIds.push(id);
                 });
               }
-            } catch (e) { logger.warn('解析 material_types 失败:', e.message); }
+            } catch (e) {
+              logger.warn('解析 material_types 失败:', e.message);
+            }
           }
 
           if (rowMaterialIds.length > 0) {
@@ -557,7 +567,9 @@ class InspectionTemplateController {
                 if (!rowMaterialIds.includes(id)) rowMaterialIds.push(id);
               });
             }
-          } catch (e) { logger.warn('解析 material_types 失败:', e.message); }
+          } catch (e) {
+            logger.warn('解析 material_types 失败:', e.message);
+          }
         }
 
         if (rowMaterialIds.length > 0) {
@@ -580,14 +592,7 @@ class InspectionTemplateController {
 
     try {
       const body = mapKeysToSnake(req.body || {});
-      const {
-        template_code,
-        template_name,
-        inspection_type,
-        version,
-        description,
-        items,
-      } = body;
+      const { template_code, template_name, inspection_type, version, description, items } = body;
 
       // 检查用户认证
       if (!req.user) {
@@ -667,14 +672,7 @@ class InspectionTemplateController {
     try {
       const { id } = req.params;
       const body = mapKeysToSnake(req.body || {});
-      const {
-        template_code,
-        template_name,
-        inspection_type,
-        version,
-        description,
-        items,
-      } = body;
+      const { template_code, template_name, inspection_type, version, description, items } = body;
 
       const existingTemplate = await db.InspectionTemplate.findByPk(id, { transaction: t });
       if (!existingTemplate) {
@@ -751,7 +749,9 @@ class InspectionTemplateController {
         existingTemplate.status === 'active' &&
         existingTemplate.is_general &&
         existingTemplate.is_default &&
-        (!isGeneralTemplate || !isDefaultTemplate || existingTemplate.inspection_type !== inspection_type)
+        (!isGeneralTemplate ||
+          !isDefaultTemplate ||
+          existingTemplate.inspection_type !== inspection_type)
       ) {
         await this.ensureDefaultGeneralTemplateForType(existingTemplate.inspection_type, t);
       }
@@ -1112,7 +1112,13 @@ class InspectionTemplateController {
       ResponseHandler.success(res, responseData, '预置文档解析成功');
     } catch (error) {
       logger.error('解析预置文档失败:', error);
-      ResponseHandler.error(res, `解析预置文档失败: ${error.message}`, 'VALIDATION_ERROR', 400, error);
+      ResponseHandler.error(
+        res,
+        `解析预置文档失败: ${error.message}`,
+        'VALIDATION_ERROR',
+        400,
+        error
+      );
     }
   }
 
@@ -1289,9 +1295,10 @@ class InspectionTemplateController {
       let templateData = null;
       if (req.body?.templateData) {
         try {
-          templateData = typeof req.body.templateData === 'string'
-            ? JSON.parse(req.body.templateData)
-            : req.body.templateData;
+          templateData =
+            typeof req.body.templateData === 'string'
+              ? JSON.parse(req.body.templateData)
+              : req.body.templateData;
         } catch (e) {
           logger.warn('解析传入的 templateData 失败:', e.message);
         }

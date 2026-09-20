@@ -77,14 +77,7 @@ class DocumentChainService {
 
   /** 收货创建后的标准链路集合 */
   static async afterPurchaseReceiptCreated(payload, userId, connection) {
-    const {
-      orderId,
-      orderNo,
-      receiptId,
-      receiptNo,
-      inspectionId,
-      inspectionNo,
-    } = payload || {};
+    const { orderId, orderNo, receiptId, receiptNo, inspectionId, inspectionNo } = payload || {};
 
     if (orderId) {
       await this.linkPurchaseOrderToReceipt(

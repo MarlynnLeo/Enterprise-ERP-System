@@ -110,7 +110,10 @@ class BudgetAnalysisService {
   static async getBudgetVarianceAnalysis(budgetId, startDate, endDate) {
     try {
       // 获取预算主表以取日期范围
-      const [budgets] = await db.pool.execute('SELECT id, budget_no, budget_name, budget_year, budget_type, department_id, start_date, end_date, total_amount, used_amount, remaining_amount, status, approval_status, description, created_by, approved_by, approved_at, created_at, updated_at FROM budgets WHERE id = ?', [budgetId]);
+      const [budgets] = await db.pool.execute(
+        'SELECT id, budget_no, budget_name, budget_year, budget_type, department_id, start_date, end_date, total_amount, used_amount, remaining_amount, status, approval_status, description, created_by, approved_by, approved_at, created_at, updated_at FROM budgets WHERE id = ?',
+        [budgetId]
+      );
       if (budgets.length === 0) throw new Error('预算不存在');
 
       // 获取预算明细（带实时实际金额）

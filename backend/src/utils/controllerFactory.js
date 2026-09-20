@@ -72,10 +72,8 @@ function createCrudController(service, resourceName, options = {}) {
       // 允许 all/0 表示不分页（用于下拉全量选项）
       const rawSize = pageSize ?? limit;
       const wantAll = rawSize === 'all' || rawSize === '0' || rawSize === 0;
-      const requestedPageSize = wantAll ? null : (parseInt(rawSize, 10) || 10);
-      const normalizedPageSize = wantAll
-        ? null
-        : Math.min(Math.max(requestedPageSize, 1), 500);
+      const requestedPageSize = wantAll ? null : parseInt(rawSize, 10) || 10;
+      const normalizedPageSize = wantAll ? null : Math.min(Math.max(requestedPageSize, 1), 500);
       // 列表过滤：HTTP camel → service snake
       const serviceFilters = options.camelOut ? mapKeysToSnake(filters) : filters;
       const result = await service.getAll(normalizedPage, normalizedPageSize, serviceFilters);

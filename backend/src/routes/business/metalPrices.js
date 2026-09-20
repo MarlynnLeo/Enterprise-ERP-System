@@ -14,17 +14,37 @@ router.use(authenticateToken);
 router.use(desensitizeSensitiveResponse('view'));
 
 // 获取实时金属价格 (支持两种路径)
-const DASHBOARD_MARKET_VIEW = ['dashboard', ...PRICE_VIEW_PERMISSIONS]
+const DASHBOARD_MARKET_VIEW = ['dashboard', ...PRICE_VIEW_PERMISSIONS];
 
-router.get('/', requirePermission(DASHBOARD_MARKET_VIEW, 'any'), metalPricesController.getRealTimeMetalPrices);
-router.get('/realtime', requirePermission(DASHBOARD_MARKET_VIEW, 'any'), metalPricesController.getRealTimeMetalPrices);
-router.post('/refresh', requirePermission(DASHBOARD_MARKET_VIEW, 'any'), metalPricesController.refreshMetalPrices);
+router.get(
+  '/',
+  requirePermission(DASHBOARD_MARKET_VIEW, 'any'),
+  metalPricesController.getRealTimeMetalPrices
+);
+router.get(
+  '/realtime',
+  requirePermission(DASHBOARD_MARKET_VIEW, 'any'),
+  metalPricesController.getRealTimeMetalPrices
+);
+router.post(
+  '/refresh',
+  requirePermission(DASHBOARD_MARKET_VIEW, 'any'),
+  metalPricesController.refreshMetalPrices
+);
 
 // 获取金属价格历史数据
-router.get('/history', requirePermission(PRICE_VIEW_PERMISSIONS), metalPricesController.getMetalPriceHistory);
+router.get(
+  '/history',
+  requirePermission(PRICE_VIEW_PERMISSIONS),
+  metalPricesController.getMetalPriceHistory
+);
 
 // 获取特定金属价格
-router.get('/:symbol', requirePermission(PRICE_VIEW_PERMISSIONS), metalPricesController.getMetalPrice);
+router.get(
+  '/:symbol',
+  requirePermission(PRICE_VIEW_PERMISSIONS),
+  metalPricesController.getMetalPrice
+);
 
 // 更新金属价格
 router.put('/', requirePermission(PRICE_UPDATE_PERMISSIONS), metalPricesController.updatePrice);

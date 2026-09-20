@@ -492,6 +492,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { computed, onActivated, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
@@ -579,7 +580,7 @@ const fetchPeriods = async () => {
     }
   } catch (error) {
     console.error('获取会计期间失败:', error)
-    ElMessage.error(error.message || '获取会计期间失败')
+    ElMessage.error(getApiErrorMessage(error, '获取会计期间失败'))
   }
 }
 
@@ -593,7 +594,7 @@ const fetchPreview = async () => {
     activeStep.value = 1
   } catch (error) {
     console.error('获取结转预览失败:', error)
-    ElMessage.error(error.message || '获取结转预览失败')
+    ElMessage.error(getApiErrorMessage(error, '获取结转预览失败'))
   } finally {
     previewLoading.value = false
   }
@@ -619,7 +620,7 @@ const fetchUnpostedEntries = async () => {
     unpostedEntries.value = data.entries || data.list || []
   } catch (error) {
     console.error('获取未过账凭证明细失败:', error)
-    ElMessage.error(error.message || '获取未过账凭证明细失败')
+    ElMessage.error(getApiErrorMessage(error, '获取未过账凭证明细失败'))
   } finally {
     unpostedLoading.value = false
   }
@@ -702,7 +703,7 @@ const postSingleEntry = async (row) => {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('过账凭证失败:', error)
-      ElMessage.error(error.message || '过账凭证失败')
+      ElMessage.error(getApiErrorMessage(error, '过账凭证失败'))
     }
   } finally {
     postingEntryId.value = null
@@ -748,7 +749,7 @@ const postAllUnpostedEntries = async () => {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('批量过账失败:', error)
-      ElMessage.error(error.message || '批量过账失败，请处理失败凭证后重试')
+      ElMessage.error(getApiErrorMessage(error, '批量过账失败，请处理失败凭证后重试'))
       await fetchUnpostedEntries()
       await fetchPreview()
     }
@@ -768,7 +769,7 @@ const openEntryDetail = async (row) => {
     entryDetailVisible.value = true
   } catch (error) {
     console.error('获取凭证明细失败:', error)
-    ElMessage.error(error.message || '获取凭证明细失败')
+    ElMessage.error(getApiErrorMessage(error, '获取凭证明细失败'))
   }
 }
 
@@ -829,7 +830,7 @@ const saveEntryDates = async () => {
     }
   } catch (error) {
     console.error('修正凭证日期失败:', error)
-    ElMessage.error(error.message || '修正凭证日期失败')
+    ElMessage.error(getApiErrorMessage(error, '修正凭证日期失败'))
   } finally {
     dateFixSaving.value = false
     postingEntryId.value = null
@@ -858,7 +859,7 @@ const executeClosing = async () => {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('结转失败:', error)
-      ElMessage.error(error.message || '结转失败')
+      ElMessage.error(getApiErrorMessage(error, '结转失败'))
     }
   } finally {
     closingLoading.value = false

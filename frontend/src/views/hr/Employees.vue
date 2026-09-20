@@ -154,6 +154,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, onMounted } from 'vue'
 import { hrApi } from '@/api/hr'
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -235,7 +236,7 @@ const handleSave = async () => {
     dialogVisible.value = false
     fetchEmployees()
   } catch(e) {
-    if (e !== 'cancel') ElMessage.error(e.response?.data?.message || '操作失败')
+    if (e !== 'cancel') ElMessage.error(getApiErrorMessage(e, '操作失败'))
   } finally {
     saving.value = false
   }
@@ -247,7 +248,7 @@ const handleDelete = async (row) => {
     await hrApi.deleteEmployee(row.id)
     ElMessage.success('已设为离职')
     fetchEmployees()
-  } catch(e) { if (e !== 'cancel') ElMessage.error(e.response?.data?.message || '操作失败') }
+  } catch(e) { if (e !== 'cancel') ElMessage.error(getApiErrorMessage(e, '操作失败')) }
 }
 
 const handleSyncDingtalk = async () => {
@@ -258,7 +259,7 @@ const handleSyncDingtalk = async () => {
     ElMessage.success(res.data.message || '同步完毕')
     fetchEmployees()
   } catch (error) {
-    if (error !== 'cancel') ElMessage.error(error.response?.data?.message || '同步失败')
+    if (error !== 'cancel') ElMessage.error(getApiErrorMessage(error, '同步失败'))
   } finally {
     syncing.value = false
   }

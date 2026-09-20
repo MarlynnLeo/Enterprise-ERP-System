@@ -8,7 +8,7 @@
 function requirePositiveInteger(value, fieldName) {
   const parsed = Number.parseInt(value, 10);
   if (!Number.isInteger(parsed) || parsed <= 0 || String(value).trim() !== String(parsed)) {
-    throw new Error(`${fieldName} must be a positive integer`);
+    throw new Error(`${fieldName}必须为正整数`);
   }
   return parsed;
 }
@@ -59,7 +59,7 @@ function parseOptionalBoolean(value, fieldName) {
   if (value === undefined || value === null || value === '') return null;
   if (value === true || value === 1 || value === '1' || value === 'true') return 1;
   if (value === false || value === 0 || value === '0' || value === 'false') return 0;
-  throw new Error(`${fieldName} must be true or false`);
+  throw new Error(`${fieldName}必须为是或否`);
 }
 
 function isDateWithinPeriod(date, period) {
@@ -79,14 +79,15 @@ function fromCents(cents) {
 }
 
 function normalizeOpeningAmount(value, fieldName) {
-  const amount = value === undefined || value === null || value === '' ? 0 : Number.parseFloat(value);
+  const amount =
+    value === undefined || value === null || value === '' ? 0 : Number.parseFloat(value);
   if (!Number.isFinite(amount)) {
-    throw new Error(`${fieldName} must be a valid amount`);
+    throw new Error(`${fieldName}必须为有效金额`);
   }
 
   const cents = Math.round(amount * 100);
   if (cents < 0) {
-    throw new Error(`${fieldName} cannot be negative`);
+    throw new Error(`${fieldName}不能为负数`);
   }
 
   return fromCents(cents);
@@ -97,7 +98,7 @@ function normalizeOpeningBalanceLine(balanceData, label = 'opening balance') {
   const credit = normalizeOpeningAmount(balanceData.credit, `${label}.credit`);
 
   if (toCents(debit) > 0 && toCents(credit) > 0) {
-    throw new Error(`${label} cannot have both debit and credit amounts`);
+    throw new Error(`${label}不能同时填写借方和贷方金额`);
   }
 
   return { debit, credit };
@@ -120,24 +121,26 @@ async function assertOpeningBalancesEditable(connection) {
     'SELECT COUNT(*) AS count FROM gl_entries WHERE COALESCE(is_posted, 0) = 1'
   );
   if (Number(postedEntries.count || 0) > 0) {
-    throw new Error('Opening balances are locked after vouchers have been posted; use adjustment entries instead');
+    throw new Error(
+      '凭证过账后期初余额已锁定，请改用调整凭证'
+    );
   }
 
   const [[closedPeriods]] = await connection.execute(
     'SELECT COUNT(*) AS count FROM gl_periods WHERE COALESCE(is_closed, 0) = 1'
   );
   if (Number(closedPeriods.count || 0) > 0) {
-    throw new Error('Opening balances are locked after any accounting period has been closed');
+    throw new Error('会计期间关闭后期初余额已锁定');
   }
 }
 
 async function assertAccountsAvailableForOpeningBalances(connection, accountIds) {
   const uniqueIds = [...new Set(accountIds.map((id) => Number.parseInt(id, 10)))];
   if (uniqueIds.length === 0) {
-    throw new Error('Opening balance list cannot be empty');
+    throw new Error('期初余额明细不能为空');
   }
   if (uniqueIds.some((id) => !Number.isInteger(id) || id <= 0)) {
-    throw new Error('Opening balance accountId must be a positive integer');
+    throw new Error('期初余额科目必须为正整数');
   }
 
   const placeholders = uniqueIds.map(() => '?').join(',');
@@ -152,7 +155,9 @@ async function assertAccountsAvailableForOpeningBalances(connection, accountIds)
   );
   const missingIds = uniqueIds.filter((id) => !activeAccountIds.has(id));
   if (missingIds.length > 0) {
-    throw new Error(`Opening balance accounts do not exist or are inactive: ${missingIds.join(', ')}`);
+    throw new Error(
+      '期初余额中存在不存在或已停用的科目，请刷新后重新选择'
+    );
   }
 }
 
@@ -169,7 +174,7 @@ async function assertAccountCanBeDeactivated(connection, accountId) {
   );
 
   if (Number(usage.opening_amount || 0) > 0 || Number(usage.entry_line_count || 0) > 0) {
-    throw new Error('Accounts with opening balances or voucher history cannot be deactivated');
+    throw new Error('存在期初余额或凭证历史的科目不能停用');
   }
 }
 
@@ -257,8 +262,9 @@ function buildEntryPostingDiagnostic(entryId, rows) {
 }
 
 async function getEntryPostingDiagnostics(connection, entryIds, options = {}) {
-  const ids = [...new Set(entryIds.map((id) => Number.parseInt(id, 10)))]
-    .filter((id) => Number.isInteger(id) && id > 0);
+  const ids = [...new Set(entryIds.map((id) => Number.parseInt(id, 10)))].filter(
+    (id) => Number.isInteger(id) && id > 0
+  );
   const diagnostics = new Map();
 
   ids.forEach((id) => {
@@ -312,7 +318,8 @@ async function assertEntryCanBePosted(connection, entryId) {
   const diagnostics = await getEntryPostingDiagnostics(connection, [normalizedEntryId], {
     lock: true,
   });
-  const diagnostic = diagnostics.get(normalizedEntryId) || createEmptyPostingDiagnostic(normalizedEntryId);
+  const diagnostic =
+    diagnostics.get(normalizedEntryId) || createEmptyPostingDiagnostic(normalizedEntryId);
 
   if (!diagnostic.posting_ready) {
     throw new Error(diagnostic.posting_issue || '凭证不满足过账条件');

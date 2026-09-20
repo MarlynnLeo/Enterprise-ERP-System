@@ -118,7 +118,7 @@ async function getTask(connection, taskId) {
     [taskId]
   );
 
-  if (rows.length === 0) throw new Error(`生产任务不存在: ${taskId}`);
+  if (rows.length === 0) throw new Error('生产任务不存在或已被删除');
   return rows[0];
 }
 

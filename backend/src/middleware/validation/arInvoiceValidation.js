@@ -11,9 +11,7 @@ const { body, param, query } = require('express-validator');
  * 创建应收发票验证
  */
 const createARInvoiceValidation = [
-  body('customer_id')
-    .isInt({ min: 1 })
-    .withMessage('客户ID必须是正整数'),
+  body('customer_id').isInt({ min: 1 }).withMessage('客户ID必须是正整数'),
 
   body('invoice_date')
     .notEmpty()
@@ -43,30 +41,15 @@ const createARInvoiceValidation = [
       return true;
     }),
 
-  body('items')
-    .optional()
-    .isArray()
-    .withMessage('发票明细必须是数组'),
+  body('items').optional().isArray().withMessage('发票明细必须是数组'),
 
-  body('items.*.product_id')
-    .optional()
-    .isInt({ min: 1 })
-    .withMessage('产品ID必须是正整数'),
+  body('items.*.product_id').optional().isInt({ min: 1 }).withMessage('产品ID必须是正整数'),
 
-  body('items.*.quantity')
-    .optional()
-    .isFloat({ min: 0.01 })
-    .withMessage('数量必须大于0'),
+  body('items.*.quantity').optional().isFloat({ min: 0.01 }).withMessage('数量必须大于0'),
 
-  body('items.*.unit_price')
-    .optional()
-    .isFloat({ min: 0 })
-    .withMessage('单价不能为负数'),
+  body('items.*.unit_price').optional().isFloat({ min: 0 }).withMessage('单价不能为负数'),
 
-  body('notes')
-    .optional()
-    .isLength({ max: 500 })
-    .withMessage('备注不能超过500个字符'),
+  body('notes').optional().isLength({ max: 500 }).withMessage('备注不能超过500个字符'),
 ];
 
 /**
@@ -81,13 +64,9 @@ const updateARInvoiceValidation = [
  * 创建收款验证
  */
 const createReceiptValidation = [
-  body('invoiceId')
-    .isInt({ min: 1 })
-    .withMessage('发票ID必须是正整数'),
+  body('invoiceId').isInt({ min: 1 }).withMessage('发票ID必须是正整数'),
 
-  body('amount')
-    .isFloat({ min: 0.01 })
-    .withMessage('收款金额必须大于0'),
+  body('amount').isFloat({ min: 0.01 }).withMessage('收款金额必须大于0'),
 
   body('receiptDate')
     .notEmpty()
@@ -101,10 +80,7 @@ const createReceiptValidation = [
     .isLength({ max: 50 })
     .withMessage('付款方式不能超过50个字符'),
 
-  body('bankAccountId')
-    .optional()
-    .isInt({ min: 1 })
-    .withMessage('银行账户ID必须是正整数'),
+  body('bankAccountId').optional().isInt({ min: 1 }).withMessage('银行账户ID必须是正整数'),
 ];
 
 /**

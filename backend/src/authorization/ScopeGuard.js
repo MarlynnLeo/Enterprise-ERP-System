@@ -43,9 +43,7 @@ class ScopeGuard {
    * 但修改、删除、锁定等动作仍按原有 DataScope 校验，避免扩大写权限。
    */
   static isSharedRead(policy, options = {}) {
-    return Boolean(
-      policy?.sharedRead && String(options.accessMode || '').toLowerCase() === 'read'
-    );
+    return Boolean(policy?.sharedRead && String(options.accessMode || '').toLowerCase() === 'read');
   }
 
   /**
@@ -107,7 +105,8 @@ class ScopeGuard {
     if (this.isFinanceSharedAll(policy) || this.isSharedRead(policy, options)) {
       return DataScopeService.assertRecordExists(connection, policy.table, recordId, {
         idColumn: policy.idColumn || 'id',
-        deletedAtColumn: policy.deletedAtColumn === false ? false : (policy.deletedAtColumn || 'deleted_at'),
+        deletedAtColumn:
+          policy.deletedAtColumn === false ? false : policy.deletedAtColumn || 'deleted_at',
         extraSoftDelete: policy.extraSoftDelete || null,
       });
     }
@@ -118,7 +117,8 @@ class ScopeGuard {
       locationColumn: policy.locationColumn || null,
       locationColumns: policy.locationColumns || null,
       requireAllLocations: Boolean(policy.requireAllLocations),
-      deletedAtColumn: policy.deletedAtColumn === false ? false : (policy.deletedAtColumn || 'deleted_at'),
+      deletedAtColumn:
+        policy.deletedAtColumn === false ? false : policy.deletedAtColumn || 'deleted_at',
       extraSoftDelete: policy.extraSoftDelete || null,
     });
   }
@@ -131,10 +131,7 @@ class ScopeGuard {
   static async assertAllAccess(connection, req, policyKey, recordIds, options = {}) {
     if (!Array.isArray(recordIds) || recordIds.length === 0) return false;
     const ids = [...new Set(recordIds.map((id) => Number(id)))];
-    if (
-      ids.length !== recordIds.length ||
-      ids.some((id) => !Number.isInteger(id) || id <= 0)
-    ) {
+    if (ids.length !== recordIds.length || ids.some((id) => !Number.isInteger(id) || id <= 0)) {
       return false;
     }
     for (const id of ids) {

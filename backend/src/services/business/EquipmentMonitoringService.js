@@ -5,24 +5,26 @@
 const BaseService = require('../BaseService');
 
 const cacheService = require('../cache/CacheManager'); // ✅ 更新：使用统一的缓存服务
+const {
+  EQUIPMENT_STATUSES,
+  normalizeEquipmentStatus,
+} = require('../../utils/production/equipmentStatus');
 
 class EquipmentMonitoringService extends BaseService {
   constructor() {
     super('equipment', 'id');
-    this.realTimeData = new Map(); // 实时数据缓存
-    this.connectionPool = new Map(); // 设备连接池
-    this.monitoringInterval = null;
   }
 
   /**
    * 获取设备列表
    */
   async getEquipmentList(filters = {}) {
-    const { status, location, page = 1, pageSize = 20 } = filters;
+    const { status, location, equipment_type, page = 1, pageSize = 20 } = filters;
 
     const conditions = {};
-    if (status) conditions.status = status;
+    if (status) conditions.status = normalizeEquipmentStatus(status);
     if (location) conditions.location = location;
+    if (equipment_type) conditions.model = equipment_type;
 
     return await this.findList({
       conditions,
@@ -49,9 +51,10 @@ class EquipmentMonitoringService extends BaseService {
 
     try {
       // 获取设备基本信息
-      const [equipmentRows] = await connection.execute('SELECT id, code, name, model, manufacturer, purchase_date, inspection_date, next_inspection_date, location, status, responsible_person, description, specs, created_at, updated_at, is_active, deleted_at FROM equipment WHERE id = ?', [
-        equipmentId,
-      ]);
+      const [equipmentRows] = await connection.execute(
+        'SELECT id, code, name, model, manufacturer, purchase_date, inspection_date, next_inspection_date, location, status, responsible_person, description, specs, created_at, updated_at, is_active, deleted_at FROM equipment WHERE id = ? AND deleted_at IS NULL',
+        [equipmentId]
+      );
 
       if (equipmentRows.length === 0) {
         throw new Error('设备不存在');
@@ -381,27 +384,35 @@ class EquipmentMonitoringService extends BaseService {
    * 更新设备状态
    */
   async updateEquipmentStatus(equipmentId, newStatus, reason = '', userId = null) {
+    newStatus = normalizeEquipmentStatus(newStatus);
+    if (!EQUIPMENT_STATUSES.includes(newStatus)) {
+      throw Object.assign(new Error('无效的设备状态'), {
+        statusCode: 400,
+        code: 'VALIDATION_ERROR',
+      });
+    }
     const connection = await this.getConnection();
 
     try {
       await connection.beginTransaction();
 
       // 获取当前状态
-      const [currentRows] = await connection.execute('SELECT status FROM equipment WHERE id = ?', [
-        equipmentId,
-      ]);
+      const [currentRows] = await connection.execute(
+        'SELECT status FROM equipment WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+        [equipmentId]
+      );
 
       if (currentRows.length === 0) {
-        throw new Error('设备不存在');
+        throw Object.assign(new Error('设备不存在'), { statusCode: 404, code: 'NOT_FOUND' });
       }
 
-      const previousStatus = currentRows[0].status;
+      const previousStatus = normalizeEquipmentStatus(currentRows[0].status);
 
       // 更新设备状态
-      await connection.execute('UPDATE equipment SET status = ?, updated_at = NOW() WHERE id = ?', [
-        newStatus,
-        equipmentId,
-      ]);
+      await connection.execute(
+        'UPDATE equipment SET status = ?, updated_at = NOW() WHERE id = ? AND deleted_at IS NULL',
+        [newStatus, equipmentId]
+      );
 
       // 记录状态历史
       await connection.execute(
@@ -414,6 +425,7 @@ class EquipmentMonitoringService extends BaseService {
       // 清除相关缓存
       await cacheService.delete(`equipment_detail_${equipmentId}`);
       await cacheService.deleteByPrefix(`equipment_realtime_${equipmentId}_`);
+      await cacheService.delete('equipment_statistics');
 
       return { success: true, previousStatus, newStatus };
     } catch (error) {
@@ -443,7 +455,7 @@ class EquipmentMonitoringService extends BaseService {
       const [statusStats] = await connection.execute(`
         SELECT status, COUNT(*) as count
         FROM equipment
-        WHERE is_active = 1
+        WHERE is_active = 1 AND deleted_at IS NULL
         GROUP BY status
       `);
 
@@ -451,7 +463,7 @@ class EquipmentMonitoringService extends BaseService {
       const [typeStats] = await connection.execute(`
         SELECT COALESCE(model, '未知型号') as equipment_type, COUNT(*) as count
         FROM equipment
-        WHERE is_active = 1
+        WHERE is_active = 1 AND deleted_at IS NULL
         GROUP BY COALESCE(model, '未知型号')
       `);
 

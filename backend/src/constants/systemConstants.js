@@ -124,7 +124,13 @@ const INVENTORY_TRANSACTION_GROUPS = {
     'transfer_cancel_in',
   ],
   // 调拨相关类型
-  TRANSFER: ['transfer', 'transfer_in', 'transfer_out', 'transfer_cancel_in', 'transfer_cancel_out'],
+  TRANSFER: [
+    'transfer',
+    'transfer_in',
+    'transfer_out',
+    'transfer_cancel_in',
+    'transfer_cancel_out',
+  ],
   // 调整类型
   ADJUSTMENT: ['check', 'adjust', 'adjustment', 'correction'],
 };

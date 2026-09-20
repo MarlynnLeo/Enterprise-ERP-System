@@ -24,6 +24,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -69,7 +70,7 @@ const submit = async () => {
       await authStore.logout()
       router.replace('/login')
     } catch (error) {
-      ElMessage.error(error.response?.data?.message || error.message || '修改密码失败')
+      ElMessage.error(getApiErrorMessage(error, '修改密码失败'))
     } finally {
       submitting.value = false
     }

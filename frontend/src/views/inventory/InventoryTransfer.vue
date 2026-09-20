@@ -544,6 +544,7 @@ import { useDictionaryStore } from '@/stores/dictionary';
 import { parseListData, parsePaginatedData } from '@/utils/responseParser';
 import { SEARCH_CONFIG, searchMaterials, mapMaterialData } from '@/utils/searchConfig';
 import printService from '@/services/printService';
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue';
 
 // 权限store
@@ -767,7 +768,7 @@ const handleResubmitTransfer = async (status) => {
     await loadTransferList();
     await viewTransfer(transferDetail.value.id);
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || '重新提交审核失败');
+    ElMessage.error(getApiErrorMessage(error, '重新提交审核失败'));
   }
 };
 
@@ -1018,20 +1019,7 @@ const submitTransferForm = async () => {
   } catch (error) {
     console.error('提交调拨单失败:', error);
 
-    let errorMessage = '提交失败: ';
-    if (error.response && error.response.data) {
-      if (error.response.data.message) {
-        errorMessage += error.response.data.message;
-      } else {
-        errorMessage += JSON.stringify(error.response.data);
-      }
-    } else if (error.message) {
-      errorMessage += error.message;
-    } else {
-      errorMessage += '未知错误';
-    }
-
-    ElMessage.error(errorMessage);
+    ElMessage.error(`提交失败: ${getApiErrorMessage(error, '请稍后重试')}`);
   } finally {
     submitting.value = false;
   }
@@ -1291,7 +1279,7 @@ const exportSelectedTransfers = async () => {
     ElMessage.success('导出成功');
   } catch (error) {
     console.error('导出调拨单失败:', error);
-    ElMessage.error('导出调拨单失败: ' + (error.response?.data?.message || error.message));
+    ElMessage.error('导出调拨单失败: ' + (getApiErrorMessage(error, '未知错误')));
   }
 };
 
@@ -1368,7 +1356,7 @@ const batchDeleteTransfers = async () => {
       await inventoryApi.batchDeleteTransfers(ids);
     } catch (error) {
       console.error('批量删除调拨单失败:', error);
-      ElMessage.error('批量删除失败: ' + (error.response?.data?.message || error.message));
+      ElMessage.error('批量删除失败: ' + (getApiErrorMessage(error, '未知错误')));
       return;
     }
 

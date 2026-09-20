@@ -31,8 +31,17 @@ function inferModule(req) {
 
 function inferTargetId(req) {
   const paramPriority = [
-    'id', 'entryId', 'periodId', 'receiptId', 'invoiceId', 'transactionId',
-    'salesOrderId', 'purchaseOrderId', 'taskId', 'transaction_no', 'receipt_no',
+    'id',
+    'entryId',
+    'periodId',
+    'receiptId',
+    'invoiceId',
+    'transactionId',
+    'salesOrderId',
+    'purchaseOrderId',
+    'taskId',
+    'transaction_no',
+    'receipt_no',
   ];
   for (const key of paramPriority) {
     if (req.params?.[key] !== undefined && req.params?.[key] !== null && req.params?.[key] !== '') {
@@ -48,8 +57,21 @@ function inferTargetId(req) {
   if (Array.isArray(req.body?.ids)) return req.body.ids.join(',');
 
   const actionSegments = new Set([
-    'approve', 'reject', 'audit', 'post', 'reverse', 'close', 'reopen', 'submit',
-    'status', 'retry', 'resolve', 'confirm', 'cancel', 'complete', 'execute',
+    'approve',
+    'reject',
+    'audit',
+    'post',
+    'reverse',
+    'close',
+    'reopen',
+    'submit',
+    'status',
+    'retry',
+    'resolve',
+    'confirm',
+    'cancel',
+    'complete',
+    'execute',
   ]);
   const parts = getRequestPath(req).split('/').filter(Boolean).map(decodeURIComponent);
   while (parts.length > 0 && actionSegments.has(String(parts.at(-1)).toLowerCase())) {
@@ -97,7 +119,8 @@ function getOperator(req) {
 
   return {
     id: req.user.id || req.user.userId || 'UNKNOWN',
-    name: req.user.realName || req.user.name || req.user.real_name || req.user.username || 'UNKNOWN',
+    name:
+      req.user.realName || req.user.name || req.user.real_name || req.user.username || 'UNKNOWN',
   };
 }
 

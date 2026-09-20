@@ -23,7 +23,6 @@ const { createImportBatchNumber } = require('../../../utils/inventoryImportBatch
 const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity, MAX(updated_at) as updated_at FROM inventory_stock_balances WHERE batch_number <> '__LOCATION_LOCK__' GROUP BY material_id, location_id)`;
 // DRY: 两处引用相同子查询，统一使用 STOCK_SUBQUERY
 
-
 const {
   getInventoryTransactionTypeText,
   generateStatusCaseSQL,
@@ -38,7 +37,6 @@ const {
 // 引入重构后的入库处理服务
 
 // 引入状态映射工具和状态常量
-
 
 /**
  * 获取物料的批次号（FIFO原则）
@@ -153,7 +151,8 @@ const getStockList = async (req, res) => {
     // 动态调整子查询的 HAVING 条件
     // 当用户主动搜索或筛选时，不隐藏负库存（用户需要能找到负库存的物料来处理异常）
     // 仅在默认无筛选的列表首页隐藏零/负库存
-    const hasActiveFilter = (search && search.trim()) ||
+    const hasActiveFilter =
+      (search && search.trim()) ||
       (location_id && location_id !== '') ||
       (min_quantity !== '' && min_quantity !== undefined) ||
       (max_quantity !== '' && max_quantity !== undefined);
@@ -251,7 +250,8 @@ const getStockRecords = async (req, res) => {
       locationId = locId;
 
       // 验证物料和仓库是否存在
-      const checkMaterialQuery = 'SELECT id, location_id FROM materials WHERE id = ? AND deleted_at IS NULL';
+      const checkMaterialQuery =
+        'SELECT id, location_id FROM materials WHERE id = ? AND deleted_at IS NULL';
       const [materialResult] = await db.pool.execute(checkMaterialQuery, [materialId]);
 
       if (materialResult.length === 0) {
@@ -395,7 +395,8 @@ const getLocations = async (req, res) => {
     }
 
     const whereClause = conditions.join(' AND ');
-    const query = appendPaginationSQL(`
+    const query = appendPaginationSQL(
+      `
       SELECT
         id,
         name,
@@ -405,7 +406,10 @@ const getLocations = async (req, res) => {
       FROM locations
       WHERE ${whereClause}
       ORDER BY name
-    `, pagination.limit, pagination.offset);
+    `,
+      pagination.limit,
+      pagination.offset
+    );
 
     const [locations] = await db.pool.execute(query, params);
     const [countRows] = await db.pool.execute(
@@ -434,9 +438,17 @@ const getMaterialsWithStock = async (req, res) => {
   const connection = await db.pool.getConnection();
   try {
     const { keyword = '', codes = '' } = req.query;
-    const materialCodes = typeof codes === 'string'
-      ? [...new Set(codes.split(',').map(code => code.trim()).filter(Boolean))].slice(0, 100)
-      : [];
+    const materialCodes =
+      typeof codes === 'string'
+        ? [
+            ...new Set(
+              codes
+                .split(',')
+                .map((code) => code.trim())
+                .filter(Boolean)
+            ),
+          ].slice(0, 100)
+        : [];
 
     // 构建查询，获取物料及其默认库位的库存信息
     const query = `
@@ -484,7 +496,7 @@ const getMaterialsWithStock = async (req, res) => {
     const [rows] = await connection.execute(query, params);
 
     // SQL 子查询已计算准确的库存，直接使用，无需逐行重查
-    const processedRows = rows.map(row => ({
+    const processedRows = rows.map((row) => ({
       ...row,
       material_id: row.id,
       quantity: parseFloat(row.quantity || 0),
@@ -579,7 +591,7 @@ const adjustStock = async (req, res) => {
 
     // 验证必填字段
     if (!materialId || !locationId || !quantity) {
-      throw new Error('物料ID、仓库ID和数量为必填项');
+      throw new Error('物料、仓库和数量为必填项');
     }
 
     // 根据调整类型计算实际数量变化
@@ -704,7 +716,7 @@ const getMaterialRecords = async (req, res) => {
     const { id } = req.params;
     const materialId = Number.parseInt(id, 10);
     if (!Number.isInteger(materialId) || materialId <= 0) {
-      return ResponseHandler.error(res, '物料ID无效', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(res, '所选物料无效，请重新选择', 'VALIDATION_ERROR', 400);
     }
 
     const [checkMaterialResult] = await db.pool.execute(
@@ -716,7 +728,10 @@ const getMaterialRecords = async (req, res) => {
     }
 
     const locationId = Number.parseInt(req.query.locationId, 10);
-    const pageSize = Math.min(Math.max(parseInt(req.query.pageSize || req.query.limit, 10) || 100, 1), 200);
+    const pageSize = Math.min(
+      Math.max(parseInt(req.query.pageSize || req.query.limit, 10) || 100, 1),
+      200
+    );
 
     const params = [materialId];
     let locationFilter = '';
@@ -752,7 +767,7 @@ const getMaterialRecords = async (req, res) => {
     }
 
     const records = rows.map((item) => {
-      const operator = item.operator === 'system' ? '系统' : (item.operator || '系统');
+      const operator = item.operator === 'system' ? '系统' : item.operator || '系统';
       return {
         id: item.id,
         date: item.date,
@@ -1157,8 +1172,16 @@ const importStock = async (req, res) => {
       errors: [],
     };
 
-    const uniqueMaterialCodes = [...new Set(stockData.map((stock) => String(stock.material_code || '').trim()).filter(Boolean))];
-    const uniqueLocationCodes = [...new Set(stockData.map((stock) => String(stock.location_code || '').trim()).filter(Boolean))];
+    const uniqueMaterialCodes = [
+      ...new Set(
+        stockData.map((stock) => String(stock.material_code || '').trim()).filter(Boolean)
+      ),
+    ];
+    const uniqueLocationCodes = [
+      ...new Set(
+        stockData.map((stock) => String(stock.location_code || '').trim()).filter(Boolean)
+      ),
+    ];
 
     const materialMap = new Map();
     if (uniqueMaterialCodes.length > 0) {
@@ -1199,7 +1222,10 @@ const importStock = async (req, res) => {
         [...materialIds, ...locationIds]
       );
       for (const stockRow of stockRows) {
-        stockQuantityMap.set(`${stockRow.material_id}_${stockRow.location_id}`, parseFloat(stockRow.quantity || 0));
+        stockQuantityMap.set(
+          `${stockRow.material_id}_${stockRow.location_id}`,
+          parseFloat(stockRow.quantity || 0)
+        );
       }
     }
 
@@ -1396,7 +1422,11 @@ const exportStockData = async (req, res) => {
     const whereConditions = [];
     const queryParams = [];
     // 批量导出：按指定物料ID筛选
-    if (filters.material_ids && Array.isArray(filters.material_ids) && filters.material_ids.length > 0) {
+    if (
+      filters.material_ids &&
+      Array.isArray(filters.material_ids) &&
+      filters.material_ids.length > 0
+    ) {
       whereConditions.push(`cs.material_id IN (${filters.material_ids.map(() => '?').join(',')})`);
       queryParams.push(...filters.material_ids);
     }
@@ -1404,7 +1434,11 @@ const exportStockData = async (req, res) => {
     // 关键字搜索
     if (filters.search && filters.search.trim()) {
       whereConditions.push('(m.code LIKE ? OR m.name LIKE ? OR m.specs LIKE ?)');
-      queryParams.push(`%${filters.search.trim()}%`, `%${filters.search.trim()}%`, `%${filters.search.trim()}%`);
+      queryParams.push(
+        `%${filters.search.trim()}%`,
+        `%${filters.search.trim()}%`,
+        `%${filters.search.trim()}%`
+      );
     }
 
     // 仓库筛选
@@ -1448,14 +1482,17 @@ const exportStockData = async (req, res) => {
         whereConditions.push('cs.quantity <= IFNULL(m.min_stock, 0)');
         whereConditions.push('IFNULL(m.min_stock, 0) > 0');
       } else if (filters.stock_status === 'normal') {
-        whereConditions.push('(cs.quantity > IFNULL(m.min_stock, 0) OR IFNULL(m.min_stock, 0) = 0)');
+        whereConditions.push(
+          '(cs.quantity > IFNULL(m.min_stock, 0) OR IFNULL(m.min_stock, 0) = 0)'
+        );
       }
     }
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
     // 默认过滤掉零/负库存（与列表页一致）
-    const hasActiveFilter = (filters.search && filters.search.trim()) ||
+    const hasActiveFilter =
+      (filters.search && filters.search.trim()) ||
       (filters.location_id && filters.location_id !== '') ||
       (filters.material_ids && filters.material_ids.length > 0);
     let subqueryHaving = hasActiveFilter ? '' : 'HAVING SUM(quantity) > 0';
@@ -1499,7 +1536,7 @@ const exportStockData = async (req, res) => {
     // ========== 3. 批量流水查询（仅当 includeDetails=true）==========
     const recordsMap = {};
     if (filters.includeDetails && rows.length > 0) {
-      const allMaterialIds = [...new Set(rows.map(r => r.material_id))];
+      const allMaterialIds = [...new Set(rows.map((r) => r.material_id))];
       const BATCH_SIZE = 1000;
 
       for (let i = 0; i < allMaterialIds.length; i += BATCH_SIZE) {
@@ -1513,7 +1550,7 @@ const exportStockData = async (req, res) => {
           ORDER BY created_at ASC
         `;
         const [ledgerRows] = await db.pool.execute(ledgerSql, chunk);
-        ledgerRows.forEach(rec => {
+        ledgerRows.forEach((rec) => {
           if (!recordsMap[rec.material_id]) recordsMap[rec.material_id] = [];
           recordsMap[rec.material_id].push(rec);
         });
@@ -1530,26 +1567,31 @@ const exportStockData = async (req, res) => {
     worksheet.columns = [
       { header: '物料编码', key: 'material_code', width: 16 },
       { header: '物料名称', key: 'material_name', width: 25 },
-      { header: '规格',     key: 'specification', width: 28 },
-      { header: '仓库',     key: 'location_name', width: 15 },
-      { header: '类别',     key: 'category_name', width: 14 },
-      { header: '库存数量', key: 'quantity',      width: 14 },
-      { header: '单位',     key: 'unit_name',     width: 8 },
-      { header: '状态',     key: 'status',        width: 12 },
-      { header: '最近更新时间', key: 'updated_at', width: 20 }
+      { header: '规格', key: 'specification', width: 28 },
+      { header: '仓库', key: 'location_name', width: 15 },
+      { header: '类别', key: 'category_name', width: 14 },
+      { header: '库存数量', key: 'quantity', width: 14 },
+      { header: '单位', key: 'unit_name', width: 8 },
+      { header: '状态', key: 'status', width: 12 },
+      { header: '最近更新时间', key: 'updated_at', width: 20 },
     ];
 
     // 表头样式
     const headerRow = worksheet.getRow(1);
-    headerRow.eachCell({ includeEmpty: true }, cell => {
+    headerRow.eachCell({ includeEmpty: true }, (cell) => {
       cell.font = { bold: true };
       cell.alignment = { horizontal: 'center', vertical: 'middle' };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F7FA' } };
-      cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+      cell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' },
+      };
     });
 
     // 遍历数据行
-    rows.forEach(item => {
+    rows.forEach((item) => {
       const qty = parseFloat(item.quantity) || 0;
       const minStock = parseFloat(item.min_stock) || 0;
       let statusText = '正常';
@@ -1565,12 +1607,17 @@ const exportStockData = async (req, res) => {
         quantity: qty,
         unit_name: item.unit_name,
         status: statusText,
-        updated_at: item.updated_at ? dayjs(item.updated_at).format('YYYY-MM-DD HH:mm:ss') : '-'
+        updated_at: item.updated_at ? dayjs(item.updated_at).format('YYYY-MM-DD HH:mm:ss') : '-',
       });
 
       // 主行样式
-      row.eachCell({ includeEmpty: true }, cell => {
-        cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+      row.eachCell({ includeEmpty: true }, (cell) => {
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' },
+        };
         cell.alignment = { vertical: 'middle' };
       });
       row.getCell('quantity').numFmt = '#,##0.00';
@@ -1594,19 +1641,23 @@ const exportStockData = async (req, res) => {
           quantity: '【发生数量】',
           unit_name: '【变动前库存】',
           status: '【变动后库存】',
-          updated_at: '【发生时间】'
+          updated_at: '【发生时间】',
         });
-        subHeader.eachCell({ includeEmpty: true }, cell => {
+        subHeader.eachCell({ includeEmpty: true }, (cell) => {
           cell.font = { bold: true, color: { argb: 'FF909399' } };
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDFDFD' } };
-          cell.border = { top: { style: 'hair', color: { argb: 'FFEBEEF5' } }, bottom: { style: 'hair', color: { argb: 'FFEBEEF5' } } };
+          cell.border = {
+            top: { style: 'hair', color: { argb: 'FFEBEEF5' } },
+            bottom: { style: 'hair', color: { argb: 'FFEBEEF5' } },
+          };
           cell.alignment = { vertical: 'middle' };
         });
 
         // 流水数据行
-        materialRecords.forEach(rec => {
-          const typeText = inventoryTypeMap[rec.transaction_type]
-            || getInventoryTransactionTypeText(rec.transaction_type);
+        materialRecords.forEach((rec) => {
+          const typeText =
+            inventoryTypeMap[rec.transaction_type] ||
+            getInventoryTransactionTypeText(rec.transaction_type);
           const recRow = worksheet.addRow({
             material_code: '',
             material_name: '',
@@ -1616,10 +1667,10 @@ const exportStockData = async (req, res) => {
             quantity: parseFloat(rec.quantity) || 0,
             unit_name: parseFloat(rec.before_quantity) || 0,
             status: parseFloat(rec.after_quantity) || 0,
-            updated_at: rec.created_at ? dayjs(rec.created_at).format('YYYY-MM-DD HH:mm:ss') : '-'
+            updated_at: rec.created_at ? dayjs(rec.created_at).format('YYYY-MM-DD HH:mm:ss') : '-',
           });
 
-          recRow.eachCell({ includeEmpty: true }, cell => {
+          recRow.eachCell({ includeEmpty: true }, (cell) => {
             cell.font = { color: { argb: 'FF606266' } };
             cell.border = { bottom: { style: 'hair', color: { argb: 'FFEBEEF5' } } };
             cell.alignment = { vertical: 'middle' };
@@ -1643,7 +1694,10 @@ const exportStockData = async (req, res) => {
     const excelBuffer = await workbook.xlsx.writeBuffer();
     logger.info('库存导出完成，文件大小:', excelBuffer.length);
 
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
     res.setHeader('Content-Disposition', 'attachment; filename=stock_export.xlsx');
     res.send(excelBuffer);
   } catch (error) {
@@ -1700,7 +1754,6 @@ const getStockByLocation = async (req, res) => {
  * @param {Object} params - 参数
  * @returns {Promise<string>} 单据编号
  */
-
 
 module.exports = {
   getStockList,

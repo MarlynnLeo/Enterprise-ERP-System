@@ -160,6 +160,7 @@
   import { usePagination } from '@/composables/usePagination'
   import { formatAmount, formatDate } from '@/utils/format'
   import { SALES_RETURN_STATUS, getDictText } from '@/constants/dict'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const router = useRouter()
   const authStore = useAuthStore()
@@ -253,7 +254,7 @@
       returnItem.status = 'pending'
     } catch (error) {
       if (error !== 'cancel') {
-        showToast(error.response?.data?.message || '提交失败')
+        showToast(getApiErrorMessage(error, '提交失败'))
       }
     }
   }
@@ -271,7 +272,7 @@
       returnItem.status = 'approved'
     } catch (error) {
       if (error !== 'cancel') {
-        showToast(error.response?.data?.message || '处理失败')
+        showToast(getApiErrorMessage(error, '处理失败'))
       }
     }
   }

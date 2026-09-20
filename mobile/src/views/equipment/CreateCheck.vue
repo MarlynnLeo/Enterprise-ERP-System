@@ -10,12 +10,12 @@
         <Cell title="点检结果">
           <template #value>
             <RadioGroup v-model="form.result" direction="horizontal">
-              <Radio name="normal">正常</Radio>
-              <Radio name="abnormal">异常</Radio>
+              <Radio name="pass">合格</Radio>
+              <Radio name="fail">不合格</Radio>
             </RadioGroup>
           </template>
         </Cell>
-        <Field v-if="form.result === 'abnormal'" v-model="form.abnormal_detail" type="textarea" rows="2" placeholder="请描述异常情况..." autosize />
+        <Field v-if="form.result === 'fail'" v-model="form.abnormalItems" type="textarea" rows="2" placeholder="请描述异常情况..." autosize />
       </CellGroup>
       <div class="submit-area">
         <Button type="primary" block round :loading="submitting" @click="handleSubmit">提交点检</Button>
@@ -49,7 +49,7 @@
   const eqKeyword = ref('')
   const equipments = ref([])
   const selectedEquipment = ref(null)
-  const form = ref({ description: '', result: 'normal', abnormal_detail: '' })
+  const form = ref({ description: '', result: 'pass', abnormalItems: '' })
 
   const fetchEquipments = async () => {
     try {
@@ -62,14 +62,16 @@
   const pickEquipment = (eq) => { selectedEquipment.value = eq; showPicker.value = false }
 
   const handleSubmit = async () => {
+    if (submitting.value) return
     if (!selectedEquipment.value) return showToast('请选择设备')
+    if (form.value.result === 'fail' && !form.value.abnormalItems.trim()) return showToast('请描述异常情况')
     submitting.value = true
     try {
       await equipmentApi.addInspection(selectedEquipment.value.id, {
-        inspection_type: 'daily',
-        description: form.value.description,
+        inspectionType: 'daily',
+        inspectionItems: form.value.description,
         result: form.value.result,
-        abnormal_detail: form.value.abnormal_detail
+        abnormalItems: form.value.result === 'fail' ? form.value.abnormalItems : ''
       })
       showToast('点检提交成功')
       router.go(-1)

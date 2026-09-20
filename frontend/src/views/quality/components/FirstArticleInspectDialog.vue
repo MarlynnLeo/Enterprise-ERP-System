@@ -106,6 +106,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, computed, watch } from 'vue'
 import { Plus, Delete, InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -207,7 +208,7 @@ const handleSubmit = async () => {
     ElMessage.success('检验结果提交成功')
     emit('success')
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || '提交失败')
+    ElMessage.error(getApiErrorMessage(error, '提交失败'))
   } finally {
     submitting.value = false
   }
@@ -215,4 +216,3 @@ const handleSubmit = async () => {
 
 const handleClose = () => formRef.value?.resetFields()
 </script>
-

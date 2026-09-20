@@ -8,7 +8,9 @@ const BOM_TREE_MAX_DEPTH = 20;
 function formatBomDetail(detail = {}) {
   const parentId = Number(detail.parent_id);
   const refBomId = Number(detail.ref_bom_id);
-  const rawBaseQty = Number(detail.base_quantity !== undefined ? detail.base_quantity : detail.baseQuantity);
+  const rawBaseQty = Number(
+    detail.base_quantity !== undefined ? detail.base_quantity : detail.baseQuantity
+  );
   const baseQuantity = Number.isFinite(rawBaseQty) && rawBaseQty > 0 ? rawBaseQty : 1;
   const isCritical = Number(detail.is_critical || detail.isCritical) === 1 ? 1 : 0;
 
@@ -37,9 +39,7 @@ function formatBomDetail(detail = {}) {
 }
 
 async function resolveStoredUserLabels(values = []) {
-  const unique = [
-    ...new Set(values.map((value) => String(value || '').trim()).filter(Boolean)),
-  ];
+  const unique = [...new Set(values.map((value) => String(value || '').trim()).filter(Boolean))];
   const labels = new Map();
   if (!unique.length) return labels;
 
@@ -55,10 +55,7 @@ async function resolveStoredUserLabels(values = []) {
   });
 
   unique.forEach((value) => {
-    labels.set(
-      value,
-      byId.get(value) || byUsername.get(value) || byRealName.get(value) || value
-    );
+    labels.set(value, byId.get(value) || byUsername.get(value) || byRealName.get(value) || value);
   });
   return labels;
 }
@@ -123,7 +120,9 @@ const bomService = {
     try {
       const noPagination = pageSize === null || pageSize === undefined;
       const safePage = Math.max(parseInt(page, 10) || 1, 1);
-      const safePageSize = noPagination ? null : Math.min(Math.max(parseInt(pageSize, 10) || 10, 1), 100);
+      const safePageSize = noPagination
+        ? null
+        : Math.min(Math.max(parseInt(pageSize, 10) || 10, 1), 100);
       const offset = noPagination ? 0 : (safePage - 1) * safePageSize;
 
       // 构建WHERE子句
@@ -133,7 +132,10 @@ const bomService = {
       const productId = filters.product_id ?? filters.productId;
       const includeHistory = filters.include_history ?? filters.includeHistory;
       const shouldIncludeHistory =
-        includeHistory === true || includeHistory === 'true' || includeHistory === 1 || includeHistory === '1';
+        includeHistory === true ||
+        includeHistory === 'true' ||
+        includeHistory === 1 ||
+        includeHistory === '1';
 
       // 默认不显示历史版本（status=2），除非明确请求
       if (!shouldIncludeHistory) {
@@ -318,11 +320,10 @@ const bomService = {
       const details = [];
 
       const compareCode = (a, b) =>
-        String(a.material_code || '').localeCompare(
-          String(b.material_code || ''),
-          undefined,
-          { numeric: true, sensitivity: 'base' }
-        );
+        String(a.material_code || '').localeCompare(String(b.material_code || ''), undefined, {
+          numeric: true,
+          sensitivity: 'base',
+        });
 
       // 递归添加明细及其子级
       const addDetailWithChildren = (detail) => {
@@ -446,10 +447,7 @@ const bomService = {
       return detailPromises.get(normalizedBomId);
     };
 
-    const expandNodes = async (
-      nodes,
-      { currentBomId, depth, ancestorBomIds, keyPrefix }
-    ) => {
+    const expandNodes = async (nodes, { currentBomId, depth, ancestorBomIds, keyPrefix }) => {
       await Promise.all(
         nodes.map(async (node, index) => {
           const nodeKey = `${keyPrefix}/${currentBomId}:${node.id}:${index}`;
@@ -528,11 +526,10 @@ const bomService = {
 
     const sortTree = (nodes) => {
       nodes.sort((a, b) =>
-        String(a.material_code || '').localeCompare(
-          String(b.material_code || ''),
-          undefined,
-          { numeric: true, sensitivity: 'base' }
-        )
+        String(a.material_code || '').localeCompare(String(b.material_code || ''), undefined, {
+          numeric: true,
+          sensitivity: 'base',
+        })
       );
       nodes.forEach((n) => {
         if (n.children && n.children.length > 0) {
@@ -580,7 +577,7 @@ const bomService = {
   validateAndNormalizeBomData(bomData) {
     // 验证必填字段
     if (!bomData.product_id) {
-      throw new Error('产品ID不能为空');
+      throw new Error('请选择产品');
     }
     if (!bomData.version) {
       throw new Error('版本号不能为空');
@@ -618,11 +615,11 @@ const bomService = {
   // 验证和规范化明细数据
   validateAndNormalizeDetail(detail, unitMap = null, defaultUnitId = null) {
     if (!detail.material_id) {
-      throw new Error('物料ID不能为空');
+      throw new Error('请选择物料');
     }
     const materialId = Number(detail.material_id);
     if (!Number.isInteger(materialId) || materialId <= 0) {
-      throw new Error(`物料ID无效: ${detail.material_id}`);
+      throw new Error('所选物料无效，请重新选择');
     }
 
     const unitId = this._resolveUnitId(detail, unitMap, defaultUnitId);
@@ -633,11 +630,14 @@ const bomService = {
       );
     }
 
-    const rawBaseQty = Number(detail.base_quantity !== undefined ? detail.base_quantity : detail.baseQuantity);
+    const rawBaseQty = Number(
+      detail.base_quantity !== undefined ? detail.base_quantity : detail.baseQuantity
+    );
     const baseQuantity = Number.isFinite(rawBaseQty) && rawBaseQty > 0 ? rawBaseQty : 1;
 
     const rawIsCritical = detail.is_critical !== undefined ? detail.is_critical : detail.isCritical;
-    const isCritical = rawIsCritical === true || rawIsCritical === 1 || rawIsCritical === '1' ? 1 : 0;
+    const isCritical =
+      rawIsCritical === true || rawIsCritical === 1 || rawIsCritical === '1' ? 1 : 0;
 
     return {
       material_id: materialId,
@@ -669,7 +669,7 @@ const bomService = {
     ];
 
     if (materialIds.length === 0) {
-      throw new Error('BOM明细缺少有效的物料ID，请重新选择物料');
+      throw new Error('BOM明细缺少有效物料，请重新选择物料');
     }
 
     // 批量查询物料默认单位
@@ -689,7 +689,20 @@ const bomService = {
     }
     const missingMaterials = materialIds.filter((id) => !foundIds.has(id));
     if (missingMaterials.length) {
-      throw new Error(`以下物料不存在或已删除: ${missingMaterials.join(', ')}`);
+      const missingPlaceholders = missingMaterials.map(() => '?').join(',');
+      const [missingMaterialRows] = await connection.execute(
+        `SELECT id, code FROM materials WHERE id IN (${missingPlaceholders})`,
+        missingMaterials
+      );
+      const missingCodes = missingMaterialRows
+        .filter((row) => missingMaterials.includes(Number(row.id)))
+        .map((row) => row.code)
+        .filter(Boolean);
+      throw new Error(
+        missingCodes.length > 0
+          ? `以下物料编码不存在或已删除: ${missingCodes.join(', ')}`
+          : '所选物料不存在或已停用，请重新选择有效物料'
+      );
     }
 
     // 系统默认单位（物料未维护单位时兜底，优先「个」）
@@ -766,7 +779,9 @@ const bomService = {
              standard_price = VALUES(standard_price), updated_at = NOW()`,
             [productId, result.standardCost.unitCost || 0]
           );
-          logger.info(`[BOM变更] 产品 ${productId} 标准成本已自动重算: ${result.standardCost.unitCost}`);
+          logger.info(
+            `[BOM变更] 产品 ${productId} 标准成本已自动重算: ${result.standardCost.unitCost}`
+          );
         }
       } catch (e) {
         logger.warn('[BOM变更] 自动重算标准成本失败:', e.message);
@@ -899,10 +914,7 @@ const bomService = {
 
         // 2. 将当前已审核 BOM 标记为历史版本 (status=2)
         // 保留 approved_by 数据作为历史存档记录，但修改 status
-        await connection.execute(
-          'UPDATE bom_masters SET status = 2 WHERE id = ?',
-          [id]
-        );
+        await connection.execute('UPDATE bom_masters SET status = 2 WHERE id = ?', [id]);
 
         // 3. 生成新版本号
         const newVersion = await this.getNextVersion(connection, oldBom.product_id);
@@ -910,7 +922,7 @@ const bomService = {
         const normalizedBomData = this.validateAndNormalizeBomData({
           ...bomData,
           version: newVersion,
-          product_id: oldBom.product_id
+          product_id: oldBom.product_id,
         });
 
         // 4. 创建新版本草稿 BOM 记录 (status=1, approved_by=NULL)
@@ -938,14 +950,19 @@ const bomService = {
           const BomExplosionService = require('./BomExplosionService');
           await BomExplosionService.invalidateCache(id);
         } catch (e) {
-          await DLQService.recordSideEffectFailure('BOM:updateApprovedInvalidateCache', { bomId: id }, e);
+          await DLQService.recordSideEffectFailure(
+            'BOM:updateApprovedInvalidateCache',
+            { bomId: id },
+            e
+          );
         }
 
         this._asyncRecalcStandardCost(normalizedBomData.product_id);
 
-        logger.info(`[BOM升版] 历史版本 #${id}(${oldBom.version}) → 新版草稿 #${newBomId}(${newVersion})`);
+        logger.info(
+          `[BOM升版] 历史版本 #${id}(${oldBom.version}) → 新版草稿 #${newBomId}(${newVersion})`
+        );
         return { id: newBomId, ...normalizedBomData, version: newVersion, details };
-
       } else {
         // ==========================
         // 分支 B: 未审核草稿 BOM -> 原地更新 (In-Place Edit)
@@ -953,7 +970,7 @@ const bomService = {
         const normalizedBomData = this.validateAndNormalizeBomData({
           ...bomData,
           status: oldBom.status,
-          product_id: oldBom.product_id
+          product_id: oldBom.product_id,
         });
 
         // 原地更新 BOM 主表
@@ -964,7 +981,7 @@ const bomService = {
             normalizedBomData.remark,
             normalizedBomData.attachment,
             normalizedBomData.updated_by,
-            id
+            id,
           ]
         );
 
@@ -978,7 +995,11 @@ const bomService = {
           const BomExplosionService = require('./BomExplosionService');
           await BomExplosionService.invalidateCache(id);
         } catch (e) {
-          await DLQService.recordSideEffectFailure('BOM:updateDraftInvalidateCache', { bomId: id }, e);
+          await DLQService.recordSideEffectFailure(
+            'BOM:updateDraftInvalidateCache',
+            { bomId: id },
+            e
+          );
         }
 
         this._asyncRecalcStandardCost(normalizedBomData.product_id);
@@ -1037,7 +1058,11 @@ const bomService = {
           const BomExplosionService = require('./BomExplosionService');
           await BomExplosionService.updateHasSubBomFlag(productId);
         } catch (e) {
-          await DLQService.recordSideEffectFailure('BOM:deleteUpdateFlag', { productId, bomId: id }, e);
+          await DLQService.recordSideEffectFailure(
+            'BOM:deleteUpdateFlag',
+            { productId, bomId: id },
+            e
+          );
         }
       }
 
@@ -1128,12 +1153,17 @@ const bomService = {
       connection = await pool.getConnection();
 
       // 1. 查找旧物料
-      const [oldMaterials] = await connection.query('SELECT id FROM materials WHERE code = ?', [oldMaterialCode]);
+      const [oldMaterials] = await connection.query('SELECT id FROM materials WHERE code = ?', [
+        oldMaterialCode,
+      ]);
       if (oldMaterials.length === 0) throw new Error(`找不到被替换物料编码: ${oldMaterialCode}`);
       const oldMaterialId = oldMaterials[0].id;
 
       // 2. 查找新物料
-      const [newMaterials] = await connection.query('SELECT id, unit_id FROM materials WHERE code = ?', [newMaterialCode]);
+      const [newMaterials] = await connection.query(
+        'SELECT id, unit_id FROM materials WHERE code = ?',
+        [newMaterialCode]
+      );
       if (newMaterials.length === 0) throw new Error(`找不到新物料编码: ${newMaterialCode}`);
       const newMaterialId = newMaterials[0].id;
       const newUnitId = newMaterials[0].unit_id || null;
@@ -1141,7 +1171,10 @@ const bomService = {
       if (oldMaterialId === newMaterialId) throw new Error('新旧物料不能相同');
 
       // 3. 查找受影响的BOM并检查循环引用
-      const [affectedBoms] = await connection.query('SELECT DISTINCT bom_id FROM bom_details WHERE material_id = ?', [oldMaterialId]);
+      const [affectedBoms] = await connection.query(
+        'SELECT DISTINCT bom_id FROM bom_details WHERE material_id = ?',
+        [oldMaterialId]
+      );
 
       if (affectedBoms.length === 0) {
         return { affectedRows: 0, bomsCount: 0, message: '没有找到使用该被替换物料的BOM' };
@@ -1172,7 +1205,7 @@ const bomService = {
       } catch (e) {
         await DLQService.recordSideEffectFailure(
           'BOM:replaceMaterialInvalidateCache',
-          { oldMaterialId, newMaterialId, affectedBomIds: affectedBoms.map(row => row.bom_id) },
+          { oldMaterialId, newMaterialId, affectedBomIds: affectedBoms.map((row) => row.bom_id) },
           e
         );
       }

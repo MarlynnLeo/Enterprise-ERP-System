@@ -158,6 +158,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -351,7 +352,7 @@ const submitImpairment = async () => {
         loadChangeLogs();
         loadImpairmentHistory();
       } catch (error) {
-        ElMessage.error(error.message || '减值计提失败');
+        ElMessage.error(getApiErrorMessage(error, '减值计提失败'));
       } finally {
         submitLoading.value = false;
       }

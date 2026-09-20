@@ -4,6 +4,10 @@
  */
 
 const { logger } = require('../utils/logger');
+const {
+  normalizeResponseErrorMessage,
+  normalizeResponseErrorDetails,
+} = require('../utils/responseHandler');
 const crypto = require('crypto');
 
 // 生成请求唯一标识（替代未导入的 uuidv4）
@@ -73,6 +77,7 @@ class UnifiedAppError extends Error {
     super(message);
 
     this.name = 'UnifiedAppError';
+    this.errorCode = errorCode;
     this.code = errorInfo.code;
     this.statusCode = errorInfo.statusCode;
     this.details = details;
@@ -210,17 +215,32 @@ const unifiedErrorHandler = (err, req, res, _next) => {
   }
 
   // 构建响应
+  const userMessage = normalizeResponseErrorMessage(
+    error.message,
+    error.errorCode,
+    error.statusCode,
+    {
+      // 即使是可预期的 4xx 业务错误，也不能把英文内部异常直接返回给用户。
+      // 已知业务文案由 normalizeResponseErrorMessage 映射，其余英文统一回退为中文通用提示。
+      preserveEnglish: false,
+    }
+  );
   const response = {
     success: false,
     code: error.code,
-    message: error.message,
+    errorCode: error.errorCode,
+    message: userMessage,
     timestamp: error.timestamp,
     requestId,
   };
 
   // 开发环境添加详细信息
   if (process.env.NODE_ENV === 'development') {
-    response.details = error.details;
+    response.details = normalizeResponseErrorDetails(
+      error.details,
+      error.errorCode,
+      error.statusCode
+    );
     response.stack = error.stack;
   } else {
     // ✅ 生产环境: 5xx 错误隐藏具体异常消息，防止泄露内部实现细节
@@ -230,7 +250,7 @@ const unifiedErrorHandler = (err, req, res, _next) => {
 
     if (error.details && error.isOperational) {
       // 安全修复: 过滤可能包含内部信息的 details 字段
-      const { originalMessage, originalStack, originalError, ...safeDetails } = (error.details || {});
+      const { originalMessage, originalStack, originalError, ...safeDetails } = error.details || {};
       if (Object.keys(safeDetails).length > 0) {
         response.details = safeDetails;
       }
@@ -242,7 +262,8 @@ const unifiedErrorHandler = (err, req, res, _next) => {
 
 // 404 处理中间件
 const notFoundHandler = (req, res, next) => {
-  const error = ErrorFactory.notFound(`路径 ${req.originalUrl}`);
+  // 路径和参数属于接口实现细节，不应作为用户提示返回。
+  const error = ErrorFactory.notFound('请求的数据');
   next(error);
 };
 

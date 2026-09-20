@@ -33,13 +33,21 @@ const PROC_STATUS = {
 exports.getProcesses = async (req, res) => {
   try {
     const { taskId, status, page = 1, pageSize = 10 } = req.query;
-    const { page: safePage, pageSize: safePageSize, offset: safeOffset } = parsePagination(page, pageSize);
+    const {
+      page: safePage,
+      pageSize: safePageSize,
+      offset: safeOffset,
+    } = parsePagination(page, pageSize);
 
     const conditions = ['pt.deleted_at IS NULL'];
     const params = [];
 
     if (taskId) {
-      if (!(await ScopeGuard.assertAccess(pool, req, 'production_task', taskId, { accessMode: 'read' }))) {
+      if (
+        !(await ScopeGuard.assertAccess(pool, req, 'production_task', taskId, {
+          accessMode: 'read',
+        }))
+      ) {
         return ResponseHandler.forbidden(res, '无权访问该生产任务');
       }
       conditions.push('pp.task_id = ?');
@@ -73,9 +81,17 @@ exports.getProcesses = async (req, res) => {
 
     const [processes] = await pool.query(query, params);
 
-    return ResponseHandler.paginated(res, processes, total[0].count, safePage, safePageSize, undefined, {
-      items: processes,
-    });
+    return ResponseHandler.paginated(
+      res,
+      processes,
+      total[0].count,
+      safePage,
+      safePageSize,
+      undefined,
+      {
+        items: processes,
+      }
+    );
   } catch (error) {
     logger.error('获取生产工序列表失败:', error);
     handleError(res, error);
@@ -104,7 +120,11 @@ exports.getProcessById = async (req, res) => {
       return ResponseHandler.error(res, 'Production process not found', 'NOT_FOUND', 404);
     }
 
-    if (!(await ScopeGuard.assertAccess(pool, req, 'production_task', processes[0].task_id, { accessMode: 'read' }))) {
+    if (
+      !(await ScopeGuard.assertAccess(pool, req, 'production_task', processes[0].task_id, {
+        accessMode: 'read',
+      }))
+    ) {
       return ResponseHandler.forbidden(res, '无权访问该生产任务');
     }
 
@@ -123,25 +143,47 @@ exports.createProcess = async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    const { task_id, process_name, sequence, quantity, description, remarks } = mapKeysToSnake(req.body || {});
+    const { task_id, process_name, sequence, quantity, description, remarks } = mapKeysToSnake(
+      req.body || {}
+    );
 
-    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'production_task', task_id, '无权修改该生产任务'))) {
+    if (
+      !(await ScopeGuard.denyUnlessAccess(
+        res,
+        connection,
+        req,
+        'production_task',
+        task_id,
+        '无权修改该生产任务'
+      ))
+    ) {
       await connection.rollback();
       return;
     }
 
-    const [taskCheck] = await connection.query('SELECT id, status, process_template_id FROM production_tasks WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [
-      task_id,
-    ]);
+    const [taskCheck] = await connection.query(
+      'SELECT id, status, process_template_id FROM production_tasks WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      [task_id]
+    );
 
     if (taskCheck.length === 0) {
       await connection.rollback();
       return ResponseHandler.error(res, 'Production task not found', 'NOT_FOUND', 404);
     }
 
-    if (taskCheck[0].process_template_id || ![TASK_STATUS.PENDING, TASK_STATUS.ALLOCATED, TASK_STATUS.PREPARING].includes(taskCheck[0].status)) {
+    if (
+      taskCheck[0].process_template_id ||
+      ![TASK_STATUS.PENDING, TASK_STATUS.ALLOCATED, TASK_STATUS.PREPARING].includes(
+        taskCheck[0].status
+      )
+    ) {
       await connection.rollback();
-      return ResponseHandler.error(res, 'Production task status does not allow process creation', 'INVALID_STATUS', 400);
+      return ResponseHandler.error(
+        res,
+        'Production task status does not allow process creation',
+        'INVALID_STATUS',
+        400
+      );
     }
 
     const [result] = await connection.query(
@@ -180,20 +222,41 @@ exports.updateProcess = async (req, res) => {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
-    const [rows] = await connection.query('SELECT task_id FROM production_processes WHERE id = ?', [req.params.id]);
+    const [rows] = await connection.query('SELECT task_id FROM production_processes WHERE id = ?', [
+      req.params.id,
+    ]);
     if (!rows.length) {
       await connection.rollback();
       return ResponseHandler.error(res, '生产工序不存在', 'NOT_FOUND', 404);
     }
-    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'production_task', rows[0].task_id, '无权修改该生产任务'))) {
+    if (
+      !(await ScopeGuard.denyUnlessAccess(
+        res,
+        connection,
+        req,
+        'production_task',
+        rows[0].task_id,
+        '无权修改该生产任务'
+      ))
+    ) {
       await connection.rollback();
       return;
     }
-    const result = await ProductProcessExecutionService.update(connection, req.params.id, mapKeysToSnake(req.body || {}), {
-      operatorId: getAuthenticatedUserId(req), operatorName: await getCurrentUserName(req),
-    });
+    const result = await ProductProcessExecutionService.update(
+      connection,
+      req.params.id,
+      mapKeysToSnake(req.body || {}),
+      {
+        operatorId: getAuthenticatedUserId(req),
+        operatorName: await getCurrentUserName(req),
+      }
+    );
     await connection.commit();
-    return ResponseHandler.success(res, result, result.warnings?.length ? '工序已更新，请完成质量检验' : '生产工序更新成功');
+    return ResponseHandler.success(
+      res,
+      result,
+      result.warnings?.length ? '工序已更新，请完成质量检验' : '生产工序更新成功'
+    );
   } catch (error) {
     await connection.rollback();
     handleError(res, error);
@@ -226,14 +289,32 @@ exports.deleteProcess = async (req, res) => {
       return ResponseHandler.error(res, 'Production process not found', 'NOT_FOUND', 404);
     }
 
-    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'production_task', processCheck[0].task_id, '无权删除该生产工序'))) {
+    if (
+      !(await ScopeGuard.denyUnlessAccess(
+        res,
+        connection,
+        req,
+        'production_task',
+        processCheck[0].task_id,
+        '无权删除该生产工序'
+      ))
+    ) {
       await connection.rollback();
       return;
     }
 
-    if (processCheck[0].process_template_id || processCheck[0].status !== PROC_STATUS.PENDING || !['pending', 'allocated', 'preparing'].includes(processCheck[0].task_status)) {
+    if (
+      processCheck[0].process_template_id ||
+      processCheck[0].status !== PROC_STATUS.PENDING ||
+      !['pending', 'allocated', 'preparing'].includes(processCheck[0].task_status)
+    ) {
       await connection.rollback();
-      return ResponseHandler.error(res, '只能删除尚未执行且未绑定工艺版本的手工工序', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(
+        res,
+        '只能删除尚未执行且未绑定工艺版本的手工工序',
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     await connection.query('DELETE FROM production_processes WHERE id = ?', [id]);
@@ -272,6 +353,12 @@ exports.getProcessCompletionRates = async (req, res) => {
     ResponseHandler.success(res, rates, 'Process completion rates loaded');
   } catch (error) {
     logger.error('Failed to get process completion rates', error);
-    ResponseHandler.error(res, 'Failed to get process completion rates', 'SERVER_ERROR', 500, error);
+    ResponseHandler.error(
+      res,
+      'Failed to get process completion rates',
+      'SERVER_ERROR',
+      500,
+      error
+    );
   }
 };

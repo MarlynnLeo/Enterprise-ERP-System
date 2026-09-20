@@ -166,10 +166,13 @@ const FALLBACK_DICTIONARY = {
     cancelled: { name: '已取消', color: 'danger' },
   },
   equipment_status: {
+    normal: { name: '正常', color: 'success' },
     running: { name: '运行中', color: 'success' },
     idle: { name: '空闲', color: 'info' },
     maintenance: { name: '维护中', color: 'warning' },
     fault: { name: '故障', color: 'danger' },
+    repair: { name: '维修中', color: 'danger' },
+    scrapped: { name: '已报废', color: 'info' },
     offline: { name: '离线', color: 'info' },
   },
   common_status: {

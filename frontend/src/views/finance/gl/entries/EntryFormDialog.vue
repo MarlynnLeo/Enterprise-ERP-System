@@ -611,6 +611,7 @@ import { financeApi, salesApi, purchaseApi } from '@/api'
 import { formatCurrency, formatLocalDate } from '@/utils/format'
 import { parsePaginatedData, parseListData, parseResponseData } from '@/utils/responseParser'
 import { loadDepartmentOptions, loadUserListOptions } from '@/utils/optionLoaders'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 
 const ORDER_STATUS_MAP = Object.freeze({
   completed: '已完成',
@@ -817,11 +818,11 @@ function handlePreviewClosed() {
 
 function voucherTabLabel(voucher, index) {
   if (voucher.error) return `${index + 1}. 失败`
-  if (voucher.skipped) return `${index + 1}. ${voucher.docNo || voucher.receiptNo || voucher.outboundNo || voucher.id || '单据'} · 跳过`
+  if (voucher.skipped) return `${index + 1}. ${voucher.docNo || voucher.receiptNo || voucher.outboundNo || '未命名单据'} · 跳过`
   if (voucher.isMerged && voucher.sourceIds?.length > 1) {
     return `合并凭证（${voucher.sourceIds.length} 张）`
   }
-  return `${index + 1}. ${voucher.docNo || voucher.receiptNo || voucher.outboundNo || `#${voucher.id}`}`
+  return `${index + 1}. ${voucher.docNo || voucher.receiptNo || voucher.outboundNo || '未命名单据'}`
 }
 
 function previewDebit(voucher) {
@@ -977,13 +978,13 @@ async function openPreview() {
     activePreviewKey.value = firstReady?._key || previewVouchers.value[0]?._key || ''
 
     if (!previewReadyCount.value) {
-      ElMessage.warning(data.message || '所选单据均无法生成（可能已存在凭证或预览失败）')
+      ElMessage.warning(getApiErrorMessage(data, '所选单据均无法生成（可能已存在凭证或预览失败）'))
     } else {
       ElMessage.success(data.message || '合并凭证预览已就绪，请核对后确认')
     }
   } catch (error) {
     console.error(error)
-    ElMessage.error(error?.response?.data?.message || error.message || '预览失败')
+    ElMessage.error(getApiErrorMessage(error, '预览失败'))
     previewVisible.value = false
   } finally {
     previewLoading.value = false
@@ -1081,7 +1082,7 @@ async function confirmPreviewGenerate() {
   const unbalanced = ready.filter((v) => !isPreviewBalanced(v))
   if (unbalanced.length) {
     ElMessage.error(
-      `有 ${unbalanced.length} 张凭证借贷不平，请修正后再生成（如 ${unbalanced[0].docNo || unbalanced[0].id}）`
+      `有 ${unbalanced.length} 张凭证借贷不平，请修正后再生成${unbalanced[0].docNo ? `（如 ${unbalanced[0].docNo}）` : ''}`
     )
     activePreviewKey.value = unbalanced[0]._key
     return
@@ -1130,11 +1131,7 @@ async function confirmPreviewGenerate() {
     emit('success', data)
   } catch (error) {
     console.error(error)
-    const msg =
-      error?.response?.data?.message ||
-      error?.response?.data?.error ||
-      error?.message ||
-      '批量生成失败'
+    const msg = getApiErrorMessage(error, '批量生成失败')
     ElMessage.error(msg)
   } finally {
     submitting.value = false
@@ -1156,7 +1153,7 @@ async function loadOrders() {
     orderTotal.value = result.total || orderList.value.length
   } catch (error) {
     console.error(error)
-    ElMessage.error(error?.response?.data?.message || error.message || '加载单据失败')
+    ElMessage.error(getApiErrorMessage(error, '加载单据失败'))
     orderList.value = []
     orderTotal.value = 0
   } finally {
@@ -1225,11 +1222,7 @@ async function submitBusinessGenerate() {
     emit('success', data)
   } catch (error) {
     console.error(error)
-    const msg =
-      error?.response?.data?.message ||
-      error?.response?.data?.error ||
-      error?.message ||
-      '批量生成失败'
+    const msg = getApiErrorMessage(error, '批量生成失败')
     ElMessage.error(msg)
   } finally {
     submitting.value = false
@@ -1375,7 +1368,7 @@ async function submitManualEntry() {
     emit('success')
   } catch (err) {
     console.error(err)
-    ElMessage.error(err?.response?.data?.message || err.message || '凭证保存失败')
+    ElMessage.error(getApiErrorMessage(err, '凭证保存失败'))
   } finally {
     submitting.value = false
   }

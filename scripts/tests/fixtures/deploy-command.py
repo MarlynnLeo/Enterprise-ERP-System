@@ -3,7 +3,9 @@ import fnmatch
 import json
 import os
 from pathlib import Path
+import shlex
 import shutil
+import subprocess
 import sys
 from urllib.parse import urlparse
 
@@ -42,6 +44,8 @@ if mode == 'flock':
 if mode == 'rsync':
     source, destination = [Path(v).resolve() for v in args[-2:]]
     assert source.is_relative_to(root) and destination.is_relative_to(root)
+    state.setdefault('syncedDirectories', []).append(str(destination))
+    save()
     excludes = [v.split('=', 1)[1] for v in args if v.startswith('--exclude=')]
     for item in list(destination.iterdir()):
         if any(fnmatch.fnmatch(item.name, pattern) for pattern in excludes):
@@ -113,6 +117,12 @@ elif args[0] == 'build':
     build_args = dict(args[i + 1].split('=', 1) for i, v in enumerate(args) if v == '--build-arg')
     state['images'][tag] = dict(id='sha256:new-' + service, labels=labels,
                               buildId=build_args.get('APP_BUILD_ID', 'unspecified-build'))
+    if service == 'frontend':
+        unreadable = {
+            'candidate-public-permissions': 'avatar-frames/rainbow-star.png',
+            'frontend-candidate-public-permissions': 'avatar-frames/silver-moon.png',
+        }.get(scenario)
+        state['images'][tag]['publicFileModes'] = {unreadable: 0o600} if unreadable else {}
     save()
 elif args[0] == 'tag':
     found = image(args[1])
@@ -121,10 +131,53 @@ elif args[0] == 'tag':
     save()
 elif args[0] == 'run':
     entrypoint_index = args.index('--entrypoint')
+    ref = args[entrypoint_index + 2]
+    found = image(ref)
+    assert found is not None, ref
+    entrypoint = args[entrypoint_index + 1].replace('\\', '/').rsplit('/', 1)[-1]
+    if entrypoint in ['sh', 'sh.exe'] and ref.startswith('kacon-erp-frontend:'):
+        user = args[args.index('--user') + 1] if '--user' in args else 'root'
+        static_root = root / 'candidate-static'
+        contents = {
+            'version.json': json.dumps(dict(buildId=found['buildId'], performanceContract=2)),
+            'assets/app.js': 'data-sidebar-performance',
+            'avatar-frames/rainbow-star.png': 'fixture rainbow image',
+            'avatar-frames/silver-moon.png': 'fixture secondary image',
+            'default-avatar.webp': 'fixture default avatar',
+            'favicon.svg': '<svg />',
+        }
+        for filename, content in contents.items():
+            file = static_root / filename
+            file.parent.mkdir(parents=True, exist_ok=True)
+            file.write_text(content)
+        denied = [
+            './candidate-static/' + filename
+            for filename, mode in found.get('publicFileModes', {}).items()
+            if user not in ['root', '0'] and not mode & 0o004
+        ]
+        read_log = root / 'candidate-read-checks.log'
+        read_log.write_text('')
+        # Run the real validation shell and its find/loop control flow. Only
+        # the read-permission predicate is doubled: Windows/root tests cannot
+        # impersonate the Linux nginx worker against root-owned mode-0600 files.
+        guard = '''test() {
+  if [ "$#" -eq 2 ] && [ "$1" = -r ]; then
+    printf '%s\\n' "$2" >> candidate-read-checks.log
+'''
+        if denied:
+            guard += '    case "$2" in ' + '|'.join(shlex.quote(file) for file in denied) + ') return 1;; esac\n'
+        guard += '''  fi
+  builtin test "$@"
+}
+'''
+        script = args[args.index('-c') + 1].replace('/usr/share/nginx/html', './candidate-static')
+        result = subprocess.run([os.environ['ERP_TEST_BASH'], '-se'], input=guard + script,
+                                text=True, cwd=root, check=False)
+        state.setdefault('publicValidations', []).append(dict(
+            user=user, reads=read_log.read_text().splitlines(), status=result.returncode))
+        save()
+        sys.exit(result.returncode)
     if args[entrypoint_index + 1] == 'cat':
-        ref = args[entrypoint_index + 2]
-        found = image(ref)
-        assert found is not None, ref
         current = found['buildId']
         mobile = ref.startswith('kacon-erp-mobile:')
         if mobile and scenario == 'mobile-candidate-version':

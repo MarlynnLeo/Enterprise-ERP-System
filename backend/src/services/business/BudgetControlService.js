@@ -61,7 +61,14 @@ class BudgetControlService {
    * @param {Date} date - 日期
    * @returns {Promise<Object>} 检查结果
    */
-  static async checkBudgetAvailability(accountId, departmentId, amount, date, connection = null, excludeEntryId = null) {
+  static async checkBudgetAvailability(
+    accountId,
+    departmentId,
+    amount,
+    date,
+    connection = null,
+    excludeEntryId = null
+  ) {
     try {
       const conn = connection || db.pool;
       const requestedAmount = Number.parseFloat(amount);
@@ -140,8 +147,8 @@ class BudgetControlService {
       }
       const budgetAmount = Number.parseFloat(budget.budget_amount) || 0;
       const usedAmount =
-        (Number.parseFloat(budget.actual_used) || 0)
-        + (Number.parseFloat(budget.reserved_amount) || 0);
+        (Number.parseFloat(budget.actual_used) || 0) +
+        (Number.parseFloat(budget.reserved_amount) || 0);
       const remainingAmount = budgetAmount - usedAmount;
       budget.used_amount = usedAmount;
       budget.remaining_amount = remainingAmount;
@@ -270,13 +277,16 @@ class BudgetControlService {
 
       // 如果需要预警，创建预警记录
       if (checkResult.needWarning) {
-        await budgetModel.createBudgetWarning({
-          budget_id: budget.budget_id,
-          budget_detail_id: budget.detail_id,
-          warning_type: '接近预算',
-          warning_level: checkResult.warningLevel === 'high' ? '高' : '中',
-          warning_message: `预算 ${budget.budget_no} 使用率已达 ${checkResult.usageRate.toFixed(2)}%`,
-        }, connection);
+        await budgetModel.createBudgetWarning(
+          {
+            budget_id: budget.budget_id,
+            budget_detail_id: budget.detail_id,
+            warning_type: '接近预算',
+            warning_level: checkResult.warningLevel === 'high' ? '高' : '中',
+            warning_message: `预算 ${budget.budget_no} 使用率已达 ${checkResult.usageRate.toFixed(2)}%`,
+          },
+          connection
+        );
       }
 
       if (ownsTransaction) {

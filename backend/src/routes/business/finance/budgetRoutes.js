@@ -27,7 +27,12 @@ router.use(requirePriceMutationPermission('update'));
  * @desc    创建预算
  * @access  Private
  */
-router.post('/', requirePermission('finance:budgets:create'), requirePermission(PRICE_UPDATE_PERMISSIONS), budgetController.createBudget);
+router.post(
+  '/',
+  requirePermission('finance:budgets:create'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  budgetController.createBudget
+);
 
 /**
  * @route   GET /api/finance/budgets
@@ -43,7 +48,11 @@ router.get('/', requirePermission('finance:budgets:view'), budgetController.getB
  * @desc    检查预算可用性
  * @access  Private
  */
-router.get('/check/availability', requirePermission('finance:budgets:view'), budgetController.checkBudgetAvailability);
+router.get(
+  '/check/availability',
+  requirePermission('finance:budgets:view'),
+  budgetController.checkBudgetAvailability
+);
 
 // ==================== 预算预警 ====================
 
@@ -52,21 +61,33 @@ router.get('/check/availability', requirePermission('finance:budgets:view'), bud
  * @desc    获取预算预警列表
  * @access  Private
  */
-router.get('/warnings', requirePermission('finance:budgets:view'), budgetController.getBudgetWarnings);
+router.get(
+  '/warnings',
+  requirePermission('finance:budgets:view'),
+  budgetController.getBudgetWarnings
+);
 
 /**
  * @route   PUT /api/finance/budgets/warnings/:id/read
  * @desc    标记预警为已读
  * @access  Private
  */
-router.put('/warnings/:id/read', requirePermission('finance:budgets:update'), budgetController.markWarningAsRead);
+router.put(
+  '/warnings/:id/read',
+  requirePermission('finance:budgets:update'),
+  budgetController.markWarningAsRead
+);
 
 /**
  * @route   GET /api/finance/budgets/analysis/department-comparison
  * @desc    获取部门预算对比分析
  * @access  Private
  */
-router.get('/analysis/department-comparison', requirePermission('finance:reports:view'), budgetController.getDepartmentBudgetComparison);
+router.get(
+  '/analysis/department-comparison',
+  requirePermission('finance:reports:view'),
+  budgetController.getDepartmentBudgetComparison
+);
 
 // ==================== AI 智能分析（无 :id 的路由） ====================
 
@@ -75,28 +96,45 @@ router.get('/analysis/department-comparison', requirePermission('finance:reports
  * @desc    AI 预算建议
  * @access  Private
  */
-router.get('/ai/recommendation', requirePermission('finance:budgets:view'), budgetController.getAIRecommendation);
+router.get(
+  '/ai/recommendation',
+  requirePermission('finance:budgets:view'),
+  budgetController.getAIRecommendation
+);
 
 /**
  * @route   POST /api/finance/budgets/ai/create-from-ai
  * @desc    从 AI 建议创建预算
  * @access  Private
  */
-router.post('/ai/create-from-ai', requirePermission('finance:budgets:create'), requirePermission(PRICE_UPDATE_PERMISSIONS), budgetController.createBudgetFromAI);
+router.post(
+  '/ai/create-from-ai',
+  requirePermission('finance:budgets:create'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  budgetController.createBudgetFromAI
+);
 
 /**
  * @route   GET /api/finance/budgets/ai/year-comparison
  * @desc    AI 年度对比分析
  * @access  Private
  */
-router.get('/ai/year-comparison', requirePermission('finance:budgets:view'), budgetController.getAIYearComparison);
+router.get(
+  '/ai/year-comparison',
+  requirePermission('finance:budgets:view'),
+  budgetController.getAIYearComparison
+);
 
 /**
  * @route   GET /api/finance/budgets/ai/usage-stats
  * @desc    AI 使用统计
  * @access  Private
  */
-router.get('/ai/usage-stats', requirePermission('finance:budgets:view'), budgetController.getAIUsageStats);
+router.get(
+  '/ai/usage-stats',
+  requirePermission('finance:budgets:view'),
+  budgetController.getAIUsageStats
+);
 
 /**
  * @route   GET /api/finance/budgets/:id
@@ -110,7 +148,12 @@ router.get('/:id', requirePermission('finance:budgets:view'), budgetController.g
  * @desc    更新预算
  * @access  Private
  */
-router.put('/:id', requirePermission('finance:budgets:update'), requirePermission(PRICE_UPDATE_PERMISSIONS), budgetController.updateBudget);
+router.put(
+  '/:id',
+  requirePermission('finance:budgets:update'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  budgetController.updateBudget
+);
 
 /**
  * @route   DELETE /api/finance/budgets/:id
@@ -126,28 +169,47 @@ router.delete('/:id', requirePermission('finance:budgets:delete'), budgetControl
  * @desc    提交预算审批
  * @access  Private
  */
-router.post('/:id/submit', requirePermission('finance:budgets:update'), budgetController.submitBudget);
+router.post(
+  '/:id/submit',
+  requirePermission('finance:budgets:update'),
+  budgetController.submitBudget
+);
 
 /**
  * @route   POST /api/finance/budgets/:id/approve
  * @desc    审批预算
  * @access  Private
  */
-router.post('/:id/approve', requirePermission('finance:budgets:approve'), requirePermission(PRICE_UPDATE_PERMISSIONS), budgetController.approveBudget);
+router.post(
+  '/:id/approve',
+  requirePermission('finance:budgets:approve'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  budgetController.approveBudget
+);
 
 /**
  * @route   POST /api/finance/budgets/:id/start
  * @desc    启动预算执行
  * @access  Private
  */
-router.post('/:id/start', requirePermission('finance:budgets:update'), requirePermission(PRICE_UPDATE_PERMISSIONS), budgetController.startBudgetExecution);
+router.post(
+  '/:id/start',
+  requirePermission('finance:budgets:update'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  budgetController.startBudgetExecution
+);
 
 /**
  * @route   POST /api/finance/budgets/:id/close
  * @desc    关闭预算
  * @access  Private
  */
-router.post('/:id/close', requirePermission('finance:budgets:update'), requirePermission(PRICE_UPDATE_PERMISSIONS), budgetController.closeBudget);
+router.post(
+  '/:id/close',
+  requirePermission('finance:budgets:update'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  budgetController.closeBudget
+);
 
 // ==================== 预算执行 ====================
 
@@ -156,7 +218,11 @@ router.post('/:id/close', requirePermission('finance:budgets:update'), requirePe
  * @desc    获取预算执行记录
  * @access  Private
  */
-router.get('/:id/executions', requirePermission('finance:budgets:view'), budgetController.getBudgetExecutions);
+router.get(
+  '/:id/executions',
+  requirePermission('finance:budgets:view'),
+  budgetController.getBudgetExecutions
+);
 
 // ==================== 预算分析 ====================
 
@@ -165,21 +231,33 @@ router.get('/:id/executions', requirePermission('finance:budgets:view'), budgetC
  * @desc    获取预算执行率分析
  * @access  Private
  */
-router.get('/:id/analysis/execution', requirePermission('finance:reports:view'), budgetController.getBudgetExecutionAnalysis);
+router.get(
+  '/:id/analysis/execution',
+  requirePermission('finance:reports:view'),
+  budgetController.getBudgetExecutionAnalysis
+);
 
 /**
  * @route   GET /api/finance/budgets/:id/analysis/variance
  * @desc    获取预算差异分析
  * @access  Private
  */
-router.get('/:id/analysis/variance', requirePermission('finance:reports:view'), budgetController.getBudgetVarianceAnalysis);
+router.get(
+  '/:id/analysis/variance',
+  requirePermission('finance:reports:view'),
+  budgetController.getBudgetVarianceAnalysis
+);
 
 /**
  * @route   GET /api/finance/budgets/:id/analysis
  * @desc    获取实时预算执行分析
  * @access  Private
  */
-router.get('/:id/analysis', requirePermission('finance:budgets:view'), budgetController.getRealTimeBudgetAnalysis);
+router.get(
+  '/:id/analysis',
+  requirePermission('finance:budgets:view'),
+  budgetController.getRealTimeBudgetAnalysis
+);
 
 // ==================== AI 智能分析 ====================
 
@@ -197,20 +275,32 @@ router.get('/:id/analysis', requirePermission('finance:budgets:view'), budgetCon
  * @desc    AI 异常检测
  * @access  Private
  */
-router.get('/:id/ai/anomalies', requirePermission('finance:budgets:view'), budgetController.getAIAnomalies);
+router.get(
+  '/:id/ai/anomalies',
+  requirePermission('finance:budgets:view'),
+  budgetController.getAIAnomalies
+);
 
 /**
  * @route   GET /api/finance/budgets/:id/ai/optimization
  * @desc    AI 优化建议
  * @access  Private
  */
-router.get('/:id/ai/optimization', requirePermission('finance:budgets:view'), budgetController.getAIOptimization);
+router.get(
+  '/:id/ai/optimization',
+  requirePermission('finance:budgets:view'),
+  budgetController.getAIOptimization
+);
 
 /**
  * @route   GET /api/finance/budgets/:id/ai/comprehensive-report
  * @desc    AI 综合分析报告
  * @access  Private
  */
-router.get('/:id/ai/comprehensive-report', requirePermission('finance:budgets:view'), budgetController.getAIComprehensiveReport);
+router.get(
+  '/:id/ai/comprehensive-report',
+  requirePermission('finance:budgets:view'),
+  budgetController.getAIComprehensiveReport
+);
 
 module.exports = router;

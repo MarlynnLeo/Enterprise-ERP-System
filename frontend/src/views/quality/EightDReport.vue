@@ -662,6 +662,7 @@
   </div>
 </template>
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -1044,7 +1045,7 @@ const submitAiGenerate = async () => {
     if (error.response?.data?.message?.includes('ECONNREFUSED') || error.response?.data?.message?.includes('connect')) {
       ElMessageBox.alert('无法连接到 AI 服务，请确认后端已配置 AI_API_KEY 或 NVIDIA_API_KEY，且统一 AI 服务可访问', 'AI 服务未就绪', { type: 'warning' })
     } else {
-      ElMessage.error(error.response?.data?.message || 'AI生成失败，请稍后重试')
+      ElMessage.error(getApiErrorMessage(error, 'AI生成失败，请稍后重试'))
     }
   } finally {
     aiLoading.value = false
@@ -1207,7 +1208,7 @@ const handleSubmitReview = async (row) => {
     fetchStatistics()
   } catch (error) {
     if (error !== 'cancel') {
-      const msg = error?.response?.data?.message || '提交初审失败'
+      const msg = getApiErrorMessage(error, '提交初审失败')
       ElMessage.error(msg)
     }
   }
@@ -1221,7 +1222,7 @@ const handleSubmitPhase2 = async (row) => {
     fetchStatistics()
   } catch (error) {
     if (error !== 'cancel') {
-      const msg = error?.response?.data?.message || '提交结案审核失败'
+      const msg = getApiErrorMessage(error, '提交结案审核失败')
       ElMessage.error(msg)
     }
   }
@@ -1235,7 +1236,7 @@ const handleComplete = async (row) => {
     fetchStatistics()
   } catch (error) {
     if (error !== 'cancel') {
-      const msg = error?.response?.data?.message || '完成报告失败'
+      const msg = getApiErrorMessage(error, '完成报告失败')
       ElMessage.error(msg)
     }
   }
@@ -1249,7 +1250,7 @@ const handleClose = async (row) => {
     fetchStatistics()
   } catch (error) {
     if (error !== 'cancel') {
-      const msg = error?.response?.data?.message || '归档报告失败'
+      const msg = getApiErrorMessage(error, '归档报告失败')
       ElMessage.error(msg)
     }
   }

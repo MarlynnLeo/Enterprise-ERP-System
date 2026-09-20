@@ -8,7 +8,7 @@
           {{ statusMap[detail.status] || detail.status }}
         </div>
         <div class="detail-code">
-          {{ detail.returnNo || `退货单#${detail.id}` }}
+          {{ detail.returnNo || '未生成退货单号' }}
         </div>
       </div>
 
@@ -26,7 +26,7 @@
         <Cell
           v-for="item in detail.items"
           :key="item.id"
-          :title="item.materialName || `物料#${item.materialId}`"
+          :title="item.materialName || item.materialCode || '未命名物料'"
           :value="`${item.quantity || item.returnQuantity || 0} ${item.unitName || item.unit || '件'}`"
           :label="item.materialCode || item.specification || ''"
         />
@@ -72,6 +72,7 @@
   import { NavBar, CellGroup, Cell, Button, Loading, Empty, showToast, showConfirmDialog } from 'vant'
   import { purchaseApi } from '@/api'
   import { extractApiData } from '@/utils/apiHelper'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const route = useRoute()
   const router = useRouter()
@@ -104,11 +105,14 @@
     } catch (error) {
       console.error('加载采购退货详情失败:', error)
       detail.value = null
-      errorMessage.value = error?.response?.status === 403
+      const fallback = error?.response?.status === 403
         ? '没有权限查看此采购退货单'
         : error?.response?.status === 404
           ? '采购退货单不存在或已被删除'
           : '加载失败，请重试'
+      errorMessage.value = error?.response?.status === 403 || error?.response?.status === 404
+        ? fallback
+        : getApiErrorMessage(error, fallback)
       showToast(errorMessage.value)
     } finally {
       loading.value = false
@@ -127,7 +131,7 @@
     } catch (error) {
       if (error !== 'cancel') {
         console.error('更新采购退货状态失败:', error)
-        showToast(error.response?.data?.message || '操作失败')
+        showToast(getApiErrorMessage(error, '操作失败'))
       }
     } finally {
       actionLoading.value = false

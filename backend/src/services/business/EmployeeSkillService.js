@@ -10,7 +10,10 @@ async function buildEmployeeScopeClause() {
 }
 
 async function assertEmployeeAccess(_req, employeeId) {
-  const [[employee]] = await pool.query('SELECT id, department_id FROM users WHERE id = ? AND status = 1', [employeeId]);
+  const [[employee]] = await pool.query(
+    'SELECT id, department_id FROM users WHERE id = ? AND status = 1',
+    [employeeId]
+  );
   return Boolean(employee);
 }
 
@@ -110,7 +113,10 @@ class EmployeeSkillService {
   /** 更新技能记录 */
   static async update(id, data, req = null) {
     if (req) {
-      const [[row]] = await pool.query('SELECT user_id FROM employee_skills WHERE id = ? AND deleted_at IS NULL', [id]);
+      const [[row]] = await pool.query(
+        'SELECT user_id FROM employee_skills WHERE id = ? AND deleted_at IS NULL',
+        [id]
+      );
       if (!row || !(await assertEmployeeAccess(req, row.user_id))) {
         const error = new Error('无权修改该技能记录');
         error.statusCode = 403;
@@ -151,7 +157,10 @@ class EmployeeSkillService {
   /** 软删除 */
   static async delete(id, req = null) {
     if (req) {
-      const [[row]] = await pool.query('SELECT user_id FROM employee_skills WHERE id = ? AND deleted_at IS NULL', [id]);
+      const [[row]] = await pool.query(
+        'SELECT user_id FROM employee_skills WHERE id = ? AND deleted_at IS NULL',
+        [id]
+      );
       if (!row || !(await assertEmployeeAccess(req, row.user_id))) {
         const error = new Error('无权删除该技能记录');
         error.statusCode = 403;

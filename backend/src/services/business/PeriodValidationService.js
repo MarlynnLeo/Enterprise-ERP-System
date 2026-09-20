@@ -75,9 +75,10 @@ class PeriodValidationService {
           period.is_locked === true,
         periodName: period.period_name,
         fiscalYear: period.fiscal_year,
-        message: period.is_closed || period.is_locked
-          ? `会计期间"${period.period_name}"已关闭或锁定，无法创建或修改分录`
-          : null,
+        message:
+          period.is_closed || period.is_locked
+            ? `会计期间"${period.period_name}"已关闭或锁定，无法创建或修改分录`
+            : null,
       };
     } catch (error) {
       logger.error('检查会计期间状态失败:', error);
@@ -173,9 +174,7 @@ class PeriodValidationService {
       isClosed,
       periodId: period.id,
       periodName: period.period_name,
-      message: isClosed
-        ? `会计期间"${period.period_name}"已关闭或锁定，不能写入库存`
-        : null,
+      message: isClosed ? `会计期间"${period.period_name}"已关闭或锁定，不能写入库存` : null,
     };
   }
 

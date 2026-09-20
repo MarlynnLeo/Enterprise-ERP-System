@@ -148,7 +148,8 @@ const firstArticleController = {
         tableAlias: 'qi',
         ownerAlias: 'first_article_stats_owner_scope',
       });
-      const statsResult = await db.query(`
+      const statsResult = await db.query(
+        `
         SELECT
           COUNT(*) as total,
           SUM(CASE WHEN first_article_result = 'pending' THEN 1 ELSE 0 END) as pending,
@@ -159,7 +160,9 @@ const firstArticleController = {
         ${scopeClause.join || ''}
         WHERE qi.inspection_type = 'first_article'
           AND qi.deleted_at IS NULL${scopeClause.where || ''}
-      `, scopeClause.params || []);
+      `,
+        scopeClause.params || []
+      );
 
       const rawStats = statsResult.rows && statsResult.rows[0];
       const stats = rawStats
@@ -220,9 +223,10 @@ const firstArticleController = {
         return ResponseHandler.error(res, '该生产任务已存在首检单', 'CONFLICT', 400);
       }
 
-      const rulesResult = await db.query('SELECT id, product_id, first_article_qty, full_inspection_threshold, template_id, is_mandatory, inspection_items, note, created_at, updated_at FROM first_article_rules WHERE product_id = ?', [
-        product_id,
-      ]);
+      const rulesResult = await db.query(
+        'SELECT id, product_id, first_article_qty, full_inspection_threshold, template_id, is_mandatory, inspection_items, note, created_at, updated_at FROM first_article_rules WHERE product_id = ?',
+        [product_id]
+      );
 
       const defaultRule = {
         first_article_qty: FIRST_ARTICLE_CONFIG.DEFAULT_QTY,
@@ -232,14 +236,16 @@ const firstArticleController = {
 
       const isFullInspection = production_quantity < rule.full_inspection_threshold;
       const requestedFirstArticleQty = Number(first_article_qty);
-      const configuredFirstArticleQty = Number.isFinite(requestedFirstArticleQty) && requestedFirstArticleQty > 0
-        ? Math.min(requestedFirstArticleQty, production_quantity)
-        : rule.first_article_qty;
+      const configuredFirstArticleQty =
+        Number.isFinite(requestedFirstArticleQty) && requestedFirstArticleQty > 0
+          ? Math.min(requestedFirstArticleQty, production_quantity)
+          : rule.first_article_qty;
       const firstArticleQty = isFullInspection ? production_quantity : configuredFirstArticleQty;
 
-      const taskResult = await db.query('SELECT code, status FROM production_tasks WHERE id = ? AND deleted_at IS NULL', [
-        task_id,
-      ]);
+      const taskResult = await db.query(
+        'SELECT code, status FROM production_tasks WHERE id = ? AND deleted_at IS NULL',
+        [task_id]
+      );
       const task = taskResult.rows?.[0];
       if (!task) {
         return ResponseHandler.error(
@@ -359,7 +365,12 @@ const firstArticleController = {
       const qualifiedQty = Number(qualified_quantity ?? 0);
       const unqualifiedQty = Number(unqualified_quantity ?? 0);
       if (!Number.isFinite(qualifiedQty) || !Number.isFinite(unqualifiedQty)) {
-        return ResponseHandler.error(res, '首检合格/不合格数量必须是有效数字', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(
+          res,
+          '首检合格/不合格数量必须是有效数字',
+          'VALIDATION_ERROR',
+          400
+        );
       }
 
       connection = await db.pool.getConnection();
@@ -375,7 +386,16 @@ const firstArticleController = {
         return ResponseHandler.error(res, '首检单不存在', 'NOT_FOUND', 404);
       }
 
-      if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'quality_inspection', id, '无权更新该首检单'))) {
+      if (
+        !(await ScopeGuard.denyUnlessAccess(
+          res,
+          connection,
+          req,
+          'quality_inspection',
+          id,
+          '无权更新该首检单'
+        ))
+      ) {
         await connection.rollback();
         return;
       }
@@ -434,7 +454,9 @@ const firstArticleController = {
 
       // 如果有检验项目明细，更新或插入
       if (items && items.length > 0) {
-        await connection.query('DELETE FROM quality_inspection_items WHERE inspection_id = ?', [id]);
+        await connection.query('DELETE FROM quality_inspection_items WHERE inspection_id = ?', [
+          id,
+        ]);
 
         for (const item of items) {
           await connection.query(
@@ -564,9 +586,10 @@ const firstArticleController = {
     try {
       const { productId } = req.params;
 
-      const rulesResult = await db.query('SELECT id, product_id, first_article_qty, full_inspection_threshold, template_id, is_mandatory, inspection_items, note, created_at, updated_at FROM first_article_rules WHERE product_id = ?', [
-        productId,
-      ]);
+      const rulesResult = await db.query(
+        'SELECT id, product_id, first_article_qty, full_inspection_threshold, template_id, is_mandatory, inspection_items, note, created_at, updated_at FROM first_article_rules WHERE product_id = ?',
+        [productId]
+      );
 
       if (!rulesResult.rows || rulesResult.rows.length === 0) {
         return ResponseHandler.success(

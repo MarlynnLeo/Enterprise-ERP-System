@@ -40,7 +40,8 @@ const BUDGET_STATUS_BY_CODE = {
 };
 
 const getBudgetStatusCode = (status) => normalizeStatus('budget', status);
-const getBudgetStatusValue = (status) => BUDGET_STATUS_BY_CODE[getBudgetStatusCode(status)] || status;
+const getBudgetStatusValue = (status) =>
+  BUDGET_STATUS_BY_CODE[getBudgetStatusCode(status)] || status;
 const isBudgetStatus = (status, code) => getBudgetStatusCode(status) === code;
 
 function createBudgetError(message, code = 'VALIDATION_ERROR', statusCode = 400) {
@@ -127,9 +128,10 @@ function normalizeBudgetDetails(details = []) {
 
 function getBudgetTotalAmount(totalAmount, normalizedDetails) {
   if (normalizedDetails.length > 0) {
-    return Math.round(
-      normalizedDetails.reduce((sum, detail) => sum + detail.budget_amount, 0) * 100
-    ) / 100;
+    return (
+      Math.round(normalizedDetails.reduce((sum, detail) => sum + detail.budget_amount, 0) * 100) /
+      100
+    );
   }
 
   const parsedTotal = Number.parseFloat(totalAmount);
@@ -309,7 +311,7 @@ const budgetModel = {
       const [budgets] = await db.pool.execute(query, params);
 
       // 用实时计算的real_used_amount覆盖主表的used_amount
-      const processedBudgets = budgets.map(b => ({
+      const processedBudgets = budgets.map((b) => ({
         ...b,
         used_amount: parseFloat(b.real_used_amount) || 0,
         remaining_amount: parseFloat(b.total_amount || 0) - (parseFloat(b.real_used_amount) || 0),
@@ -420,7 +422,7 @@ const budgetModel = {
 
       // 用实时数据覆盖used_amount和remaining_amount
       let totalUsed = 0;
-      budget.details = details.map(item => {
+      budget.details = details.map((item) => {
         const actual = parseFloat(item.actual_amount) || 0;
         const budgetAmt = parseFloat(item.budget_amount) || 0;
         totalUsed += actual;
@@ -478,10 +480,7 @@ const budgetModel = {
       } = budgetData;
       const { startDate, endDate } = validateBudgetDateRange(start_date, end_date);
       const normalizedDetails = Array.isArray(details) ? normalizeBudgetDetails(details) : null;
-      const resolvedTotalAmount = getBudgetTotalAmount(
-        total_amount,
-        normalizedDetails || []
-      );
+      const resolvedTotalAmount = getBudgetTotalAmount(total_amount, normalizedDetails || []);
 
       const [result] = await connection.execute(
         `
@@ -894,7 +893,10 @@ const budgetModel = {
   getBudgetAnalysis: async (budgetId) => {
     try {
       // 1. 获取预算主表信息
-      const [budgets] = await db.pool.query('SELECT id, budget_no, budget_name, budget_year, budget_type, department_id, start_date, end_date, total_amount, used_amount, remaining_amount, status, approval_status, description, created_by, approved_by, approved_at, created_at, updated_at FROM budgets WHERE id = ?', [budgetId]);
+      const [budgets] = await db.pool.query(
+        'SELECT id, budget_no, budget_name, budget_year, budget_type, department_id, start_date, end_date, total_amount, used_amount, remaining_amount, status, approval_status, description, created_by, approved_by, approved_at, created_at, updated_at FROM budgets WHERE id = ?',
+        [budgetId]
+      );
       if (budgets.length === 0) {
         throw new Error('预算不存在');
       }

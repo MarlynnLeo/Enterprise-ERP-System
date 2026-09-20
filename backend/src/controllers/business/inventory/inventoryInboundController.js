@@ -331,7 +331,16 @@ const getInboundDetail = async (req, res) => {
 
     // 查询入库单详情
     const ScopeGuard = require('../../../authorization/ScopeGuard');
-    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'inventory_inbound', id, '无权访问该入库单'))) {
+    if (
+      !(await ScopeGuard.denyUnlessAccess(
+        res,
+        connection,
+        req,
+        'inventory_inbound',
+        id,
+        '无权访问该入库单'
+      ))
+    ) {
       return;
     }
 
@@ -538,7 +547,16 @@ const updateInbound = async (req, res) => {
     }
 
     const ScopeGuard = require('../../../authorization/ScopeGuard');
-    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'inventory_inbound', id, '无权修改该入库单'))) {
+    if (
+      !(await ScopeGuard.denyUnlessAccess(
+        res,
+        connection,
+        req,
+        'inventory_inbound',
+        id,
+        '无权修改该入库单'
+      ))
+    ) {
       return;
     }
 
@@ -561,7 +579,12 @@ const updateInbound = async (req, res) => {
     const editableStatuses = [STATUS.INBOUND.DRAFT, STATUS.INBOUND.CONFIRMED];
     if (!editableStatuses.includes(currentInbound.status)) {
       await connection.rollback();
-      return ResponseHandler.error(res, '已完成或已取消的入库单不允许编辑', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(
+        res,
+        '已完成或已取消的入库单不允许编辑',
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     const body = req.body || {};
@@ -666,7 +689,9 @@ const updateInbound = async (req, res) => {
       const quantity = toRequiredQuantity(item.quantity);
       const materialInfo = materialInfoMap.get(materialId);
       const unitId = toRequiredInteger(item.unit_id || materialInfo.unitId);
-      const itemLocationId = toRequiredInteger(item.location_id || locationId || materialInfo.locationId);
+      const itemLocationId = toRequiredInteger(
+        item.location_id || locationId || materialInfo.locationId
+      );
 
       if (!unitId) {
         await connection.rollback();
@@ -718,7 +743,8 @@ const createInboundFromQuality = async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    const { inbound_date, location_id, operator, remark, items, inspection_id, inspection_no } = mapKeysToSnake(req.body || {});
+    const { inbound_date, location_id, operator, remark, items, inspection_id, inspection_no } =
+      mapKeysToSnake(req.body || {});
 
     // 验证必填字段
     if (!inbound_date || !location_id || !operator || !items || items.length === 0) {
@@ -763,12 +789,22 @@ const createInboundFromQuality = async (req, res) => {
       inspectionContext = inspectionResult[0];
       if (!['passed', 'partial', 'completed'].includes(inspectionContext.status)) {
         await connection.rollback();
-        return ResponseHandler.error(res, '只有质检合格、部分合格或已完成的单据才能生成入库单', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(
+          res,
+          '只有质检合格、部分合格或已完成的单据才能生成入库单',
+          'VALIDATION_ERROR',
+          400
+        );
       }
 
       if ((parseFloat(inspectionContext.qualified_quantity) || 0) <= 0) {
         await connection.rollback();
-        return ResponseHandler.error(res, '质检单合格数量必须大于0，不能生成入库单', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(
+          res,
+          '质检单合格数量必须大于0，不能生成入库单',
+          'VALIDATION_ERROR',
+          400
+        );
       }
 
       const [existingInbounds] = await connection.execute(
@@ -793,10 +829,7 @@ const createInboundFromQuality = async (req, res) => {
       referenceType = inboundMeta.referenceType;
       referenceId = inboundMeta.referenceId;
 
-      if (
-        inboundType === INBOUND_TYPE_KEYS.PRODUCTION &&
-        !referenceId
-      ) {
+      if (inboundType === INBOUND_TYPE_KEYS.PRODUCTION && !referenceId) {
         await connection.rollback();
         return ResponseHandler.error(
           res,
@@ -909,8 +942,7 @@ const createInboundFromQuality = async (req, res) => {
               totalItemsQuantity <= 0
             ) {
               // 根据请求项取第一个项目的单位ID
-              unitId =
-                items.length > 0 && items[0].unit_id ? items[0].unit_id : materialUnitId;
+              unitId = items.length > 0 && items[0].unit_id ? items[0].unit_id : materialUnitId;
 
               // 创建一个入库明细，使用质检单的数量
               await connection.execute(
@@ -925,7 +957,12 @@ const createInboundFromQuality = async (req, res) => {
                 // 确保必填字段都存在
                 if (!unit_id || !quantity || quantity <= 0) {
                   await connection.rollback();
-                  return ResponseHandler.error(res, '物料明细字段不完整或无效', 'VALIDATION_ERROR', 400);
+                  return ResponseHandler.error(
+                    res,
+                    '物料明细字段不完整或无效',
+                    'VALIDATION_ERROR',
+                    400
+                  );
                 }
 
                 await connection.execute(
@@ -975,9 +1012,10 @@ const createInboundFromQuality = async (req, res) => {
       }
 
       // 检查material_id是否存在于materials表中
-      const [materialCheck] = await connection.execute('SELECT id FROM materials WHERE id = ? AND deleted_at IS NULL', [
-        material_id,
-      ]);
+      const [materialCheck] = await connection.execute(
+        'SELECT id, code FROM materials WHERE id = ? AND deleted_at IS NULL',
+        [material_id]
+      );
 
       // 每个物料项都有自己的物料ID，默认使用请求中的material_id
       let validMaterialId = material_id;
@@ -1016,7 +1054,7 @@ const createInboundFromQuality = async (req, res) => {
           await connection.rollback();
           return ResponseHandler.error(
             res,
-            `物料ID ${material_id} 不存在，不能用其他物料替代入库。请先维护质检单产品与物料主数据的对应关系`,
+            `物料“${productCode || materialCheck[0]?.code || '所选物料'}”不存在，不能用其他物料替代入库。请先维护质检单产品与物料主数据的对应关系`,
             'VALIDATION_ERROR',
             400
           );
@@ -1078,12 +1116,7 @@ const updateInboundStatus = async (req, res) => {
 
   const validStatuses = ['draft', 'confirmed', 'completed', 'reversed', 'cancelled'];
   if (!validStatuses.includes(newStatus)) {
-    return ResponseHandler.error(
-      res,
-      `无效的状态值: ${newStatus}`,
-      'VALIDATION_ERROR',
-      400
-    );
+    return ResponseHandler.error(res, `无效的状态值: ${newStatus}`, 'VALIDATION_ERROR', 400);
   }
 
   const isDeadlockError = (err) =>
@@ -1094,7 +1127,16 @@ const updateInboundStatus = async (req, res) => {
     const ScopeGuard = require('../../../authorization/ScopeGuard');
     const preConn = await db.pool.getConnection();
     try {
-      if (!(await ScopeGuard.denyUnlessAccess(res, preConn, req, 'inventory_inbound', id, '无权变更该入库单状态'))) {
+      if (
+        !(await ScopeGuard.denyUnlessAccess(
+          res,
+          preConn,
+          req,
+          'inventory_inbound',
+          id,
+          '无权变更该入库单状态'
+        ))
+      ) {
         return;
       }
     } finally {
@@ -1118,7 +1160,7 @@ const updateInboundStatus = async (req, res) => {
 
       if (inboundData.length === 0) {
         await connection.rollback();
-        return ResponseHandler.error(res, `入库单不存在 (ID: ${id})`, 'NOT_FOUND', 404);
+        return ResponseHandler.error(res, '入库单不存在或已被删除', 'NOT_FOUND', 404);
       }
 
       const currentStatus = inboundData[0].status;
@@ -1201,7 +1243,12 @@ const updateInboundStatus = async (req, res) => {
         );
         if (!statusUpdate.affectedRows) {
           await connection.rollback();
-          return ResponseHandler.error(res, '入库单状态已变更，请刷新后重试', 'VALIDATION_ERROR', 400);
+          return ResponseHandler.error(
+            res,
+            '入库单状态已变更，请刷新后重试',
+            'VALIDATION_ERROR',
+            400
+          );
         }
       }
 
@@ -1221,9 +1268,10 @@ const updateInboundStatus = async (req, res) => {
       }
       logger.error('更新入库单状态失败:', error);
       const businessStatus = Number(error?.httpStatus || error?.statusCode);
-      const responseStatus = Number.isInteger(businessStatus) && businessStatus >= 400 && businessStatus < 500
-        ? businessStatus
-        : 500;
+      const responseStatus =
+        Number.isInteger(businessStatus) && businessStatus >= 400 && businessStatus < 500
+          ? businessStatus
+          : 500;
       const responseCode = error?.errorCode || error?.code || 'SERVER_ERROR';
       return ResponseHandler.error(
         res,
@@ -1239,9 +1287,10 @@ const updateInboundStatus = async (req, res) => {
 
   logger.error('更新入库单状态失败(重试用尽):', lastError);
   const businessStatus = Number(lastError?.httpStatus || lastError?.statusCode);
-  const responseStatus = Number.isInteger(businessStatus) && businessStatus >= 400 && businessStatus < 500
-    ? businessStatus
-    : 500;
+  const responseStatus =
+    Number.isInteger(businessStatus) && businessStatus >= 400 && businessStatus < 500
+      ? businessStatus
+      : 500;
   return ResponseHandler.error(
     res,
     lastError?.message || '更新入库单状态失败',
@@ -1252,7 +1301,6 @@ const updateInboundStatus = async (req, res) => {
 };
 
 // 获取物料列表 - 从baseData获取
-
 
 module.exports = {
   getInboundList,

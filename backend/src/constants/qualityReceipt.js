@@ -4,10 +4,19 @@
  */
 
 /** 终态按合格数计入；不合格数释放补货额度。 */
-const INCOMING_INSPECTION_COUNTED_STATUSES = Object.freeze(['passed', 'failed', 'partial', 'completed']);
+const INCOMING_INSPECTION_COUNTED_STATUSES = Object.freeze([
+  'passed',
+  'failed',
+  'partial',
+  'completed',
+]);
 
 /** 待检验到货先占用订单数量，防止另一批到货超收。 */
-const INCOMING_INSPECTION_PENDING_STATUSES = Object.freeze(['pending', 'in_progress', 'conditional']);
+const INCOMING_INSPECTION_PENDING_STATUSES = Object.freeze([
+  'pending',
+  'in_progress',
+  'conditional',
+]);
 
 /** 计入「已收货」的采购收货单状态 */
 const PURCHASE_RECEIPT_COUNTED_STATUSES = Object.freeze(['confirmed', 'completed']);

@@ -33,8 +33,15 @@ class InventoryReservationService {
       for (const item of items) {
         const materialId = Number(item.material_id);
         const quantity = Number(item.quantity ?? item.ordered_quantity ?? 0);
-        if (!Number.isInteger(materialId) || materialId <= 0 || !Number.isFinite(quantity) || quantity <= 0) {
-          throw new Error('Inventory reservations require a valid material and a positive quantity');
+        if (
+          !Number.isInteger(materialId) ||
+          materialId <= 0 ||
+          !Number.isFinite(quantity) ||
+          quantity <= 0
+        ) {
+          throw new Error(
+            'Inventory reservations require a valid material and a positive quantity'
+          );
         }
         requiredByMaterial.set(
           materialId,
@@ -47,7 +54,7 @@ class InventoryReservationService {
       for (const [materialId, requiredQuantity] of requiredByMaterial) {
         const matInfo = materialInfoMap.get(materialId);
         if (!matInfo) {
-          throw new Error(`Material ${materialId} does not exist or has no default location`);
+          throw new Error('所选物料不存在或未配置默认仓库，请先维护物料资料');
         }
 
         const material = {
@@ -70,11 +77,19 @@ class InventoryReservationService {
           0
         );
 
-        const availableForOrder = await this.getAvailableStock(materialId, locationId, conn, orderId);
+        const availableForOrder = await this.getAvailableStock(
+          materialId,
+          locationId,
+          conn,
+          orderId
+        );
         const remainingQuantity = Math.max(0, Precision.sub(requiredQuantity, alreadyReserved));
         // availableForOrder excludes other orders only; this order's existing
         // reservations already consume part of that stock and cannot be added again.
-        const availableForNewReservation = Math.max(0, Precision.sub(availableForOrder, alreadyReserved));
+        const availableForNewReservation = Math.max(
+          0,
+          Precision.sub(availableForOrder, alreadyReserved)
+        );
         const reservableQuantity = Math.min(availableForNewReservation, remainingQuantity);
 
         if (reservableQuantity > 0) {

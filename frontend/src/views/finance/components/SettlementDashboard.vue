@@ -134,6 +134,7 @@
 </template>
 
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { computed, reactive, ref, watch, onMounted } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -348,7 +349,7 @@ async function load() {
     summary.value = { ...summary.value, ...(data.summary || {}) }
     details.value = Array.isArray(data.details) ? data.details : []
   } catch (error) {
-    ElMessage.error(error?.message || '加载结算看板失败')
+    ElMessage.error(getApiErrorMessage(error, '加载结算看板失败'))
     details.value = []
   } finally {
     loading.value = false

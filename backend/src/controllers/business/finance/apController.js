@@ -23,6 +23,7 @@ const {
 const ScopeGuard = require('../../../authorization/ScopeGuard');
 const PermissionService = require('../../../services/PermissionService');
 const PaymentApprovalService = require('../../../services/finance/PaymentApprovalService');
+const { parseSettlementLine } = require('../../../utils/finance/settlementMath');
 const {
   fromInvoiceApi,
   toInvoiceApi,
@@ -36,10 +37,12 @@ const isPaymentBusinessError = (error) =>
     error.message || ''
   );
 
-const hasInvalidMaterial = (items) => Array.isArray(items) && items.some(item => {
-  const materialId = item?.materialId ?? item?.material_id;
-  return !Number.isSafeInteger(Number(materialId)) || Number(materialId) <= 0;
-});
+const hasInvalidMaterial = (items) =>
+  Array.isArray(items) &&
+  items.some((item) => {
+    const materialId = item?.materialId ?? item?.material_id;
+    return !Number.isSafeInteger(Number(materialId)) || Number(materialId) <= 0;
+  });
 
 /**
  * 应付账款控制器
@@ -187,7 +190,12 @@ const apController = {
   createInvoice: async (req, res) => {
     try {
       if (hasInvalidMaterial(req.body.items)) {
-        return ResponseHandler.error(res, '每条发票明细都必须选择有效物料', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(
+          res,
+          '每条发票明细都必须选择有效物料',
+          'VALIDATION_ERROR',
+          400
+        );
       }
       // HTTP camel → 模型 snake（唯一入参边界）
       const formattedData = {
@@ -350,7 +358,12 @@ const apController = {
       }
 
       if (hasInvalidMaterial(invoiceData.items)) {
-        return ResponseHandler.error(res, '每条发票明细都必须选择有效物料', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(
+          res,
+          '每条发票明细都必须选择有效物料',
+          'VALIDATION_ERROR',
+          400
+        );
       }
       const formattedData = {
         ...fromInvoiceApi(invoiceData, 'ap'),
@@ -467,6 +480,12 @@ const apController = {
         );
       }
 
+      const line = parseSettlementLine({
+        amount: paymentData.amount,
+        discountAmount: paymentData.discountAmount,
+      });
+      const discountAmount = line.discountAmount;
+
       if (
         !(await ScopeGuard.denyUnlessAccess(
           res,
@@ -486,7 +505,7 @@ const apController = {
       if (!invoice) {
         return ResponseHandler.error(
           res,
-          `发票ID ${paymentData.invoiceId} 不存在`,
+          '发票不存在或已被删除',
           'NOT_FOUND',
           404
         );
@@ -506,21 +525,7 @@ const apController = {
       }
 
       // 检查付款核销金额（实付+折扣）是否超过未付余额 (精度修复: 分/整数比对)
-      const payAmountCents = Math.round(parseFloat(paymentData.amount || 0) * 100);
-      if (payAmountCents < 0) {
-        return ResponseHandler.error(res, '付款金额不能为负数', 'VALIDATION_ERROR', 400);
-      }
-
-      const discountAmount = parseFloat(paymentData.discountAmount || 0);
-      if (isNaN(discountAmount) || discountAmount < 0) {
-        return ResponseHandler.error(res, '折扣金额不能为负数', 'VALIDATION_ERROR', 400);
-      }
-      const discountCents = Math.round(discountAmount * 100);
-      if (payAmountCents === 0 && discountCents === 0) {
-        return ResponseHandler.error(res, '付款金额与折扣金额不能同时为0', 'VALIDATION_ERROR', 400);
-      }
-
-      const settlementCents = payAmountCents + discountCents;
+      const settlementCents = line.settlementCents;
       // 发票已由 toInvoiceApi 出 camel
       const invoiceBalance = parseFloat(invoice.balanceAmount ?? 0);
       const invoiceBalanceCents = Math.round(invoiceBalance * 100);
@@ -580,7 +585,7 @@ const apController = {
         supplier_id: invoice.supplierId,
         supplier_name: invoice.supplierName,
         payment_date: paymentData.paymentDate || currentDateString(),
-        total_amount: parseFloat(paymentData.amount),
+        total_amount: line.cashAmount,
         payment_method: paymentMethod,
         reference_number: paymentData.referenceNumber || null,
         bank_account_id: paymentData.bankAccountId || null,
@@ -597,7 +602,7 @@ const apController = {
       const paymentItems = [
         {
           invoice_id: paymentData.invoiceId,
-          amount: parseFloat(paymentData.amount),
+          amount: line.cashAmount,
           discount_amount: discountAmount,
         },
       ];

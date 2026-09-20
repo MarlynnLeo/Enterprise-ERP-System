@@ -243,7 +243,7 @@
                 :value="product.id"
               >
                 <div class="flex-between-center">
-                  <span class="font-weight-700">{{ product.code || product.id }}</span>
+                  <span class="font-weight-700">{{ product.code || '未设置产品编码' }}</span>
                   <span class="text-muted text-md">{{ product.name }}</span>
                 </div>
               </el-option>
@@ -290,7 +290,7 @@
                         :value="product.id"
                       >
                         <div class="flex-between-center">
-                          <span class="font-weight-700">{{ product.code || product.id }}</span>
+                          <span class="font-weight-700">{{ product.code || '未设置产品编码' }}</span>
                           <span class="text-muted text-md">{{ product.name }}</span>
                         </div>
                       </el-option>
@@ -421,6 +421,7 @@
   </div>
 </template>
 <script setup>
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { parseListData } from '@/utils/responseParser';
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
@@ -883,7 +884,7 @@ const handleConfirm = async (row) => {
       fetchData()
     } catch (error) {
       console.error('确认报价单失败:', error)
-      ElMessage.error('确认报价单失败: ' + (error.message || '未知错误'))
+      ElMessage.error('确认报价单失败: ' + (getApiErrorMessage(error, '未知错误')))
     }
   }).catch(() => {
     // 用户取消操作
@@ -994,7 +995,7 @@ const handleConvert = (row) => {
       if (order.orderId) router.push(`/sales/orders?id=${order.orderId}`)
     } catch (error) {
       console.error('转换报价单失败:', error)
-      ElMessage.error('转换报价单失败: ' + (error.message || '未知错误'))
+      ElMessage.error('转换报价单失败: ' + (getApiErrorMessage(error, '未知错误')))
     }
   }).catch(() => {})
 }
@@ -1080,7 +1081,7 @@ const loadBomDetails = async () => {
     console.error('加载BOM详情失败:', error)
     // 如果用户取消操作，不显示错误信息
     if (error !== 'cancel' && error.message !== 'cancel') {
-      ElMessage.error('加载BOM详情失败: ' + (error.message || '未知错误'))
+      ElMessage.error('加载BOM详情失败: ' + (getApiErrorMessage(error, '未知错误')))
     }
   } finally {
     loadingBom.value = false
