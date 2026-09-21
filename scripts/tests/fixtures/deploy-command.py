@@ -15,9 +15,15 @@ state_file = root / 'state.json'
 state = json.loads(state_file.read_text())
 mode, *args = sys.argv[1:]
 scenario = os.environ.get('ERP_TEST_SCENARIO', '')
+maintenance = scenario.startswith('maintenance-')
+if maintenance:
+    scenario = scenario.removeprefix('maintenance-')
 release = os.environ['ERP_TEST_RELEASE']
 new_tag = 'release-' + release
 services = ['backend', 'frontend', 'mobile']
+running = state.setdefault('running', {})
+for service in services + ['redis']:
+    running.setdefault(service, True)
 
 
 def save():
@@ -36,6 +42,16 @@ def selected_tag(service='backend'):
 
 def output(value):
     print(value)
+
+
+def assert_maintenance_migration():
+    deployment = json.loads((target / '.last-deployment.json').read_text())
+    backend_stopped = not running['backend']
+    state.setdefault('migrationBackendStopped', []).append(backend_stopped)
+    save()
+    assert backend_stopped, 'maintenance migration must run with backend stopped'
+    assert deployment['maintenance'] is True, deployment
+    assert deployment['migrationStarted'] is True, deployment
 
 
 if mode == 'flock':
@@ -80,6 +96,11 @@ save()
 if args[0] == 'ps':
     output('\n'.join('kacon-erp-' + service + '-1' for service in services + ['redis']))
 elif args[0] == 'inspect':
+    if '--format' not in args:
+        assert args == ['inspect', 'kacon-erp-backend-1']
+        output(json.dumps([dict(Config=dict(Env=['NODE_ENV=production', 'DB_HOST=fixture-db']),
+                                NetworkSettings=dict(Networks={'fixture-network': {}}))]))
+        sys.exit(0)
     fmt, container = args[2], args[3]
     service = container.removeprefix('kacon-erp-').removesuffix('-1')
     tag = state['containers'].get(service, 'redis')
@@ -87,8 +108,11 @@ elif args[0] == 'inspect':
         output(os.environ['ERP_TEST_POSIX_TARGET'])
     elif 'config_files' in fmt:
         output(os.environ['ERP_TEST_POSIX_TARGET'] + '/docker-compose.yml')
+    elif fmt == '{{.State.Running}}':
+        output('true' if running[service] else 'false')
     elif 'State.Health' in fmt:
-        output('unhealthy' if scenario in ['health', 'frontend-health'] and tag == new_tag else 'healthy')
+        output('exited' if not running[service] else
+               'unhealthy' if scenario in ['health', 'frontend-health'] and tag == new_tag else 'healthy')
     elif fmt == '{{.Config.Image}}':
         output('kacon-erp-' + service + ':' + tag)
     elif fmt == '{{.Image}}':
@@ -130,6 +154,28 @@ elif args[0] == 'tag':
     state['images'][args[2]] = found
     save()
 elif args[0] == 'run':
+    if '--env-file' in args:
+        assert maintenance
+        assert '--rm' in args and '--interactive=false' in args
+        assert args[args.index('--network') + 1] == 'fixture-network'
+        assert args[args.index('--volumes-from') + 1] == 'kacon-erp-backend-1'
+        env_file = Path(args[args.index('--env-file') + 1]).resolve()
+        assert env_file.name == 'backend-container.env'
+        assert env_file.parent.parent == target / '.deploy-backups'
+        assert env_file.read_text().splitlines() == ['NODE_ENV=production', 'DB_HOST=fixture-db']
+        ref = 'kacon-erp-backend:' + new_tag
+        assert ref in args and image(ref) is not None
+        command = args[args.index(ref) + 1:]
+        assert sys.stdin.read() == ''
+        if command[:2] == ['node', '-e']:
+            if scenario == 'missing-migrations':
+                sys.exit(1)
+        else:
+            assert command == ['npm', 'run', 'migrate'], command
+            assert_maintenance_migration()
+            if scenario == 'migration':
+                sys.exit(1)
+        sys.exit(0)
     entrypoint_index = args.index('--entrypoint')
     ref = args[entrypoint_index + 2]
     found = image(ref)
@@ -187,9 +233,11 @@ elif args[0] == 'run':
             version['performanceContract'] = 2
         output(json.dumps(version))
 elif args[0] == 'compose':
-    command = next(value for value in args if value in ['config', 'run', 'up', 'ps'])
+    command = next(value for value in args if value in ['config', 'run', 'up', 'ps', 'stop'])
     if command == 'config' and '--images' in args:
         output('\n'.join('kacon-erp-' + service + ':' + selected_tag(service) for service in services))
+    if command == 'config' and '--quiet' in args and scenario == 'config' and selected_tag() == new_tag:
+        sys.exit(1)
     if command == 'run':
         assert '-T' in args and '--interactive=false' in args
         # A release is streamed over stdin; migrations must see EOF, never
@@ -197,19 +245,31 @@ elif args[0] == 'compose':
         assert sys.stdin.read() == ''
         if scenario == 'missing-migrations' and 'node' in args:
             sys.exit(1)
+        if maintenance and 'npm' in args and 'migrate' in args:
+            assert_maintenance_migration()
     if command == 'run' and 'npm' in args and scenario == 'migration' and selected_tag() == new_tag:
         sys.exit(1)
+    if command == 'stop':
+        assert args[args.index('stop') + 1:] == ['--timeout', '60', 'backend']
+        state['stopCount'] = state.get('stopCount', 0) + 1
+        if scenario == 'stop-failure' and state['stopCount'] == 1:
+            save()
+            sys.exit(1)
+        running['backend'] = False
+        save()
     if command == 'up':
         tag = selected_tag()
         if scenario == 'container' and tag == new_tag:
             state['containers']['backend'] = tag
+            running['backend'] = True
             save()
             sys.exit(1)
         affected = ['frontend'] if '--no-deps' in args else services
         for service in affected:
             state['containers'][service] = selected_tag(service)
+            running[service] = True
         save()
-    if command == 'ps' and '-q' in args:
+    if command == 'ps' and '-q' in args and running[args[-1]]:
         output('kacon-erp-' + args[-1] + '-1')
 else:
     raise AssertionError(args)

@@ -19,6 +19,9 @@ const toPosix = (value) => {
 
 function exercise(scenario) {
   const frontendOnly = scenario.startsWith('frontend');
+  const maintenance = scenario.startsWith('maintenance-');
+  const failure = maintenance ? scenario.slice('maintenance-'.length) : scenario;
+  const forwardRecovery = maintenance && ['migration', 'container', 'health', 'version'].includes(failure);
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'erp-transaction-test-'));
   try {
     const target = path.join(directory, 'target');
@@ -81,7 +84,7 @@ function exercise(scenario) {
       ...['docker', 'rsync', 'curl', 'flock'].map((command) => command + '() { python3 ' + shellQuote(fixture) + ' ' + command + ' "$@"; }')
     ].join('\n') + '\n';
     const script = prefix + createRemoteScript({ buildId: release, sourceHash, commit, archiveSha256, performanceContract: 2,
-      services: frontendOnly ? ['frontend'] : ['backend', 'frontend', 'mobile'] },
+      services: frontendOnly ? ['frontend'] : ['backend', 'frontend', 'mobile'], maintenance },
       { buildId: oldBuild }, runId, '/tmp/kacon-erp-' + release + '-' + runId + '.tar.gz')
       .replaceAll('/opt/1panel/docker/compose/KACON-ERP', posixTarget)
       .replaceAll('/tmp/kacon-erp-', posixDirectory + '/kacon-erp-');
@@ -94,14 +97,71 @@ function exercise(scenario) {
     });
     assert.ifError(result.error);
     const finalState = JSON.parse(fs.readFileSync(path.join(directory, 'state.json'), 'utf8'));
-    const successful = ['success', 'retry', 'frontend', 'mixed-full'].includes(scenario);
+    const successful = ['success', 'retry', 'frontend', 'mixed-full', 'maintenance-success'].includes(scenario);
     assert.equal(result.status === 0, successful, result.stderr + '\n' + result.stdout);
-    assert.equal(fs.readFileSync(path.join(target, 'frontend/marker'), 'utf8'), successful ? 'new' : 'old', result.stderr);
+    assert.equal(fs.readFileSync(path.join(target, 'frontend/marker'), 'utf8'), successful || forwardRecovery ? 'new' : 'old', result.stderr);
     for (const service of ['backend', 'frontend', 'mobile']) {
-      const changed = successful && (!frontendOnly || service === 'frontend');
+      const changed = (successful && (!frontendOnly || service === 'frontend')) ||
+        (forwardRecovery && (['health', 'version'].includes(failure) || (failure === 'container' && service === 'backend')));
       assert.equal(finalState.containers[service], changed ? 'release-' + release : oldTag, result.stderr);
     }
     assert.match(fs.readFileSync(path.join(target, '.env'), 'utf8'), /KEEP=test/);
+    if (maintenance) {
+      const status = JSON.parse(fs.readFileSync(path.join(target, '.last-deployment.json'), 'utf8'));
+      const migrationIndex = finalState.commands.findIndex((args) => args[0] === 'run' && args.includes('npm'));
+      const stopIndex = finalState.commands.findIndex((args) => args[0] === 'compose' && args.includes('stop'));
+      assert.equal(status.maintenance, true);
+      if (successful || forwardRecovery) {
+        const preflightIndex = finalState.commands.findIndex((args) => args[0] === 'run' && args.includes('--env-file') && args.includes('node'));
+        assert.ok(preflightIndex >= 0 && stopIndex > preflightIndex && migrationIndex > stopIndex,
+          'maintenance must finish preflight, stop backend, then start migration');
+        assert.deepEqual(finalState.migrationBackendStopped, [true]);
+        assert.equal(status.migrationStarted, true);
+        assert.equal(finalState.commands.some((args) => args[0] === 'compose' && args.includes('run')), false,
+          'maintenance must use isolated Docker runs that cannot restart the Compose backend');
+      } else {
+        assert.equal(migrationIndex, -1, 'pre-migration failures cannot execute migrations');
+        assert.equal(status.migrationStarted, false);
+        if (failure === 'missing-migrations') {
+          assert.equal(stopIndex, -1, 'failed preflight must not stop the live backend');
+          assert.equal(status.rollback, 'not-needed');
+        } else {
+          assert.equal(status.rollback, 'completed', 'failures before migration can safely restore the old release');
+          assert.equal(finalState.running.backend, true);
+        }
+      }
+      if (forwardRecovery) {
+        const recoveryPath = path.join(target, '.deploy-backups', runId);
+        assert.equal(status.status, 'forward-recovery-required');
+        assert.equal(status.rollback, 'disabled-after-migration');
+        assert.equal(status.backendStopped, true);
+        assert.equal(finalState.running.backend, false, 'failed maintenance release must leave backend stopped');
+        assert.equal(finalState.stopCount, 2, 'backend must also stop after post-migration failures');
+        assert.equal(JSON.parse(fs.readFileSync(path.join(target, '.deployed-release.json'))).buildId, oldBuild);
+        assert.match(fs.readFileSync(path.join(target, '.env'), 'utf8'), new RegExp('ERP_RELEASE_TAG=release-' + release));
+        assert.equal(fs.readFileSync(path.join(recoveryPath, 'candidate-env'), 'utf8'), fs.readFileSync(path.join(target, '.env'), 'utf8'));
+        assert.equal(JSON.parse(fs.readFileSync(path.join(recoveryPath, 'candidate-manifest.json'))).buildId, release);
+        assert.ok(fs.existsSync(path.join(recoveryPath, 'source.tar.gz')));
+        assert.ok(fs.existsSync(path.join(recoveryPath, 'env')));
+        assert.ok(fs.existsSync(path.join(target, '.incoming-release-' + runId)));
+        assert.ok(fs.existsSync(archive));
+        assert.equal(finalState.syncedDirectories.length, 4, 'forward recovery must not restore old source');
+        assert.equal(finalState.commands.some((args) => args[0] === 'tag' && args[1].startsWith('sha256:old-')), false);
+        assert.equal(finalState.commands.filter((args) => args[0] === 'compose' && args.includes('up')).length,
+          failure === 'migration' ? 0 : 1, 'forward recovery must not start old containers');
+        for (const service of ['backend', 'frontend', 'mobile']) {
+          assert.equal(finalState.images['kacon-erp-' + service + ':release-' + release].id, 'sha256:new-' + service,
+            'immutable new release images must survive recovery cleanup');
+          assert.equal(fs.readFileSync(path.join(target, service, 'marker'), 'utf8'), 'new');
+        }
+      } else if (successful) {
+        assert.equal(status.status, 'succeeded');
+        assert.equal(status.backendStopped, false);
+        assert.equal(finalState.stopCount, 1);
+        assert.equal(finalState.running.backend, true);
+        assert.equal(fs.existsSync(path.join(target, '.deploy-backups', runId)), false);
+      }
+    }
     if (frontendOnly) {
       for (const service of ['backend', 'mobile']) {
         assert.equal(fs.readFileSync(path.join(target, service, 'marker'), 'utf8'), 'old');
@@ -189,6 +249,8 @@ function imageId(state, service) {
   return state.images['kacon-erp-' + service + ':' + state.containers[service]].id;
 }
 
-for (const scenario of ['success', 'retry', 'build', 'migration', 'container', 'health', 'version', 'mobile-version', 'mobile-candidate-version', 'candidate-public-permissions', 'frontend-candidate-public-permissions', 'stale', 'tampered', 'locked', 'missing-migrations', 'frontend', 'frontend-health', 'mixed-full']) {
+for (const scenario of ['success', 'retry', 'build', 'migration', 'container', 'health', 'version', 'mobile-version', 'mobile-candidate-version', 'candidate-public-permissions', 'frontend-candidate-public-permissions', 'stale', 'tampered', 'locked', 'missing-migrations', 'frontend', 'frontend-health', 'mixed-full',
+  'maintenance-success', 'maintenance-missing-migrations', 'maintenance-stop-failure', 'maintenance-config',
+  'maintenance-migration', 'maintenance-container', 'maintenance-health', 'maintenance-version']) {
   test('release transaction: ' + scenario, { timeout: 70_000 }, () => exercise(scenario));
 }

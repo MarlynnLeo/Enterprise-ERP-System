@@ -11,11 +11,12 @@ const PROJECT_DIR = path.resolve(__dirname, '..');
 const REMOTE_PROJECT_DIR = '/opt/1panel/docker/compose/KACON-ERP';
 
 function parseArguments(args) {
-  const options = { ref: 'HEAD', explicitRef: false, dryRun: false, frontendOnly: false };
+  const options = { ref: 'HEAD', explicitRef: false, dryRun: false, frontendOnly: false, maintenance: false };
   for (let index = 0; index < args.length; index++) {
     const argument = args[index];
     if (argument === '--dry-run') options.dryRun = true;
     else if (argument === '--frontend-only') options.frontendOnly = true;
+    else if (argument === '--maintenance') options.maintenance = true;
     else if (argument === '--ref' || argument.startsWith('--ref=')) {
       options.ref = argument === '--ref' ? args[++index] : argument.slice(6);
       if (!options.ref) throw new Error('--ref requires a Git commit or ref.');
@@ -23,6 +24,9 @@ function parseArguments(args) {
     } else {
       throw new Error('Unsupported deployment option: ' + argument + '. Publish a reviewed Git commit with --ref=<commit>; dirty worktrees are never archived.');
     }
+  }
+  if (options.maintenance && options.frontendOnly) {
+    throw new Error('--maintenance requires a full release; it cannot be combined with --frontend-only.');
   }
   return options;
 }
@@ -116,6 +120,7 @@ function createRemoteScript(descriptor, deployed, runId, remoteArchive) {
     ARCHIVE: remoteArchive,
     RELEASE_ID: descriptor.buildId,
     RELEASE_SCOPE: descriptor.services?.join(',') === 'frontend' ? 'frontend' : 'all',
+    MAINTENANCE_MODE: descriptor.maintenance ? '1' : '0',
     SOURCE_HASH: descriptor.sourceHash,
     GIT_COMMIT: descriptor.commit,
     ARCHIVE_SHA256: descriptor.archiveSha256,
@@ -138,8 +143,12 @@ async function main(args = process.argv.slice(2)) {
     await validateReleaseSource(snapshot.sourceDir);
     const descriptor = snapshot.descriptor;
     descriptor.services = options.frontendOnly ? ['frontend'] : ['backend', 'frontend', 'mobile'];
+    descriptor.maintenance = options.maintenance;
     console.log('Release: ' + descriptor.buildId);
     console.log('Services: ' + descriptor.services.join(', '));
+    if (options.maintenance) {
+      console.log('Maintenance mode: stop backend before migration; failures after migration starts require forward recovery.');
+    }
     console.log('Git commit: ' + descriptor.commit);
     console.log('Verified source files: ' + descriptor.fileCount);
     if (descriptor.excludedWorkingTreeChanges) {

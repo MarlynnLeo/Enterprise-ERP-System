@@ -87,9 +87,16 @@ test('cleanup refuses a directory that is not an owned release snapshot', () => 
 });
 
 test('release options require an explicit commit to exclude working changes', () => {
-  assert.deepEqual(parseArguments(['--dry-run', '--ref=HEAD']), { ref: 'HEAD', explicitRef: true, dryRun: true, frontendOnly: false });
+  assert.deepEqual(parseArguments(['--dry-run', '--ref=HEAD']), { ref: 'HEAD', explicitRef: true, dryRun: true, frontendOnly: false, maintenance: false });
   assert.equal(parseArguments(['--frontend-only', '--ref=HEAD']).frontendOnly, true);
   assert.equal(parseArguments(['--ref', 'main']).ref, 'main');
   assert.throws(() => parseArguments(['--ref']), /requires/);
   assert.throws(() => parseArguments(['--allow-dirty']), /dirty worktrees are never archived/);
+});
+
+test('maintenance mode is explicit and requires the backend in the release', () => {
+  assert.equal(parseArguments([]).maintenance, false);
+  assert.equal(parseArguments(['--maintenance', '--dry-run', '--ref=HEAD']).maintenance, true);
+  assert.throws(() => parseArguments(['--maintenance', '--frontend-only']), /requires a full release/);
+  assert.throws(() => parseArguments(['--frontend-only', '--maintenance']), /requires a full release/);
 });

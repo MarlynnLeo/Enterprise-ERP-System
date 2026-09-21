@@ -8,6 +8,9 @@ test "$(readlink -f "$TARGET")" = "$TARGET"
 [[ "$RELEASE_ID" =~ ^[a-f0-9]{12}-[a-f0-9]{12}$ ]]
 [[ "$RUN_ID" =~ ^[a-f0-9-]{36}$ ]]
 [[ "$ARCHIVE_SHA256" =~ ^[a-f0-9]{64}$ ]]
+MAINTENANCE_MODE=${MAINTENANCE_MODE:-0}
+[[ "$MAINTENANCE_MODE" =~ ^[01]$ ]]
+if [ "$MAINTENANCE_MODE" -eq 1 ]; then test "$RELEASE_SCOPE" = all; fi
 test -f "$TARGET/.env"
 test -f "$TARGET/docker-compose.yml"
 command -v flock >/dev/null
@@ -37,6 +40,9 @@ if ! flock -n 9; then
 fi
 
 SWITCH_STARTED=0
+MAINTENANCE_STOP_STARTED=0
+MIGRATION_STARTED=0
+BACKEND_STOPPED=0
 export PHASE=validation
 ROLLBACK_STATUS=not-needed
 
@@ -44,7 +50,26 @@ compose() {
   docker compose --project-directory "$TARGET" --env-file "$TARGET/.env" -f "$TARGET/docker-compose.yml" "$@"
 }
 
+stop_backend() {
+  BACKEND_STOPPED=0
+  compose stop --timeout 60 backend || return 1
+  assert_backend_stopped || return 1
+  BACKEND_STOPPED=1
+}
+
+assert_backend_stopped() {
+  test "$(docker inspect --format '{{.State.Running}}' kacon-erp-backend-1)" = false
+}
+
+maintenance_backend_run() {
+  # Direct Docker run cannot start the stopped Compose backend or its dependencies.
+  docker run --rm --interactive=false --env-file "$BACKUP_DIR/backend-container.env" \
+    --network "$BACKEND_NETWORK" --volumes-from kacon-erp-backend-1 \
+    "kacon-erp-backend:$RELEASE_TAG" "$@" </dev/null
+}
+
 switch_containers() {
+  BACKEND_STOPPED=0
   if [ "$RELEASE_SCOPE" = frontend ]; then
     compose up -d --no-deps --force-recreate frontend
   else
@@ -53,13 +78,16 @@ switch_containers() {
 }
 
 record_state() {
-  python3 - "$TARGET/.last-deployment.json" "$RELEASE_ID" "$1" "$PHASE" "$ROLLBACK_STATUS" "$EXPECTED_BUILD_ID" "$RUN_ID" "$RELEASE_SCOPE" <<'PY'
+  python3 - "$TARGET/.last-deployment.json" "$RELEASE_ID" "$1" "$PHASE" "$ROLLBACK_STATUS" "$EXPECTED_BUILD_ID" "$RUN_ID" "$RELEASE_SCOPE" "$MAINTENANCE_MODE" "$MIGRATION_STARTED" "$BACKEND_STOPPED" "$BACKUP_DIR" <<'PY'
 import datetime, json, os, sys
-target, build, status, phase, rollback, previous, run, scope = sys.argv[1:]
+target, build, status, phase, rollback, previous, run, scope, maintenance, migrated, stopped, recovery = sys.argv[1:]
 temporary = target + '.tmp-' + run
 with open(temporary, 'w') as output:
     json.dump(dict(buildId=build, previousBuildId=previous, status=status,
                    phase=phase, rollback=rollback, scope=scope,
+                   maintenance=maintenance == '1', migrationStarted=migrated == '1',
+                   backendStopped=stopped == '1',
+                   recoveryPath=recovery if status == 'forward-recovery-required' else None,
                    updatedAt=datetime.datetime.now(datetime.timezone.utc).isoformat()), output, indent=2)
 os.replace(temporary, target)
 PY
@@ -120,9 +148,19 @@ rollback_release() {
 
 finish() {
   local code=$?
+  local forward_recovery=0
   trap - EXIT
   set +e
-  if [ "$code" -ne 0 ] && [ "$SWITCH_STARTED" -eq 1 ]; then
+  if [ "$code" -ne 0 ] && [ "$MAINTENANCE_MODE" -eq 1 ] && [ "$MIGRATION_STARTED" -eq 1 ]; then
+    forward_recovery=1
+    ROLLBACK_STATUS=disabled-after-migration
+    if ! stop_backend; then
+      echo 'Cannot confirm backend is stopped; stop it manually before attempting forward recovery.' >&2
+    fi
+    record_state forward-recovery-required
+    echo "Maintenance deployment failed after migration started. Do not start the previous backend image." >&2
+    echo "Forward recovery is required for $RELEASE_ID; candidate source, environment, images and recovery files are retained at $TARGET, $INCOMING and $BACKUP_DIR." >&2
+  elif [ "$code" -ne 0 ] && { [ "$SWITCH_STARTED" -eq 1 ] || [ "$MAINTENANCE_STOP_STARTED" -eq 1 ]; }; then
     if rollback_release; then
       ROLLBACK_STATUS=completed
       echo "Previous release restored. Failure details: $TARGET/.last-deployment.json" >&2
@@ -131,17 +169,22 @@ finish() {
       echo "Rollback needs attention. Recovery files retained at $BACKUP_DIR" >&2
     fi
   fi
-  if [ "$code" -ne 0 ]; then record_state failed; fi
+  if [ "$code" -ne 0 ] && [ "$forward_recovery" -eq 0 ]; then record_state failed; fi
   # These paths were built only from a checked canonical target and UUID.
-  rm -rf -- "$INCOMING" "$ROLLBACK_DIR"
-  rm -f -- "$ARCHIVE"
-  for service in backend frontend mobile; do
-    docker image rm "kacon-erp-$service:candidate-$RUN_ID" >/dev/null 2>&1 || true
-  done
+  if [ "$forward_recovery" -eq 0 ]; then
+    rm -rf -- "$INCOMING" "$ROLLBACK_DIR"
+    rm -f -- "$ARCHIVE"
+    for service in backend frontend mobile; do
+      docker image rm "kacon-erp-$service:candidate-$RUN_ID" >/dev/null 2>&1 || true
+    done
+  fi
   if [ "$code" -eq 0 ]; then rm -rf -- "$BACKUP_DIR"; fi
   exit "$code"
 }
 trap finish EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # Compare under the same lock used by every source/image switch. A deployment
 # prepared against a previous server state must never overwrite a newer one.
@@ -258,12 +301,34 @@ done
 if [ "$RELEASE_SCOPE" = all ]; then
   PHASE=migration-preflight
   record_state running
-  ERP_RELEASE_TAG="$RELEASE_TAG" compose run -T --interactive=false --rm --no-deps backend node -e '
+  if [ "$MAINTENANCE_MODE" -eq 1 ]; then
+    # Use the backend's resolved runtime environment, including Compose defaults,
+    # without printing credentials or letting Compose start existing services.
+    BACKEND_NETWORK=$(docker inspect kacon-erp-backend-1 | python3 -c '
+import json, sys
+container = json.load(sys.stdin)[0]
+networks = container["NetworkSettings"]["Networks"]
+assert len(networks) == 1, "Maintenance deployment requires one backend network"
+environment = container["Config"]["Env"]
+assert all("\n" not in value and "\r" not in value for value in environment), "Multiline container environment is unsupported"
+with open(sys.argv[1], "x") as output:
+    output.write("\n".join(environment) + "\n")
+print(next(iter(networks)))
+' "$BACKUP_DIR/backend-container.env")
+    maintenance_backend_run node -e '
+      const knex = require("knex")(require("./knexfile")["production"]);
+      knex.migrate.list().then(() => knex.destroy()).catch(async error => {
+        console.error(error.message); await knex.destroy(); process.exitCode = 1;
+      });
+    '
+  else
+    ERP_RELEASE_TAG="$RELEASE_TAG" compose run -T --interactive=false --rm --no-deps backend node -e '
     const knex = require("knex")(require("./knexfile")["production"]);
     knex.migrate.list().then(() => knex.destroy()).catch(async error => {
       console.error(error.message); await knex.destroy(); process.exitCode = 1;
     });
   ' </dev/null
+  fi
 fi
 
 PHASE=backup
@@ -277,6 +342,13 @@ tar \
 install -m 0600 "$TARGET/.env" "$BACKUP_DIR/env"
 if [ -f "$TARGET/.deployed-release.json" ]; then
   install -m 0644 "$TARGET/.deployed-release.json" "$BACKUP_DIR/manifest.json"
+fi
+
+if [ "$MAINTENANCE_MODE" -eq 1 ]; then
+  PHASE=maintenance-stop
+  MAINTENANCE_STOP_STARTED=1
+  record_state running
+  stop_backend
 fi
 
 # All failures from the first live write through health/version verification
@@ -302,10 +374,21 @@ cd "$TARGET"
 compose config --quiet
 if [ "$RELEASE_SCOPE" = all ]; then
   PHASE=migration
+  if [ "$MAINTENANCE_MODE" -eq 1 ]; then
+    install -m 0600 "$TARGET/.env" "$BACKUP_DIR/candidate-env"
+    printf '%s' "$MANIFEST_BASE64" | base64 --decode > "$BACKUP_DIR/candidate-manifest.json"
+    assert_backend_stopped
+  fi
+  MIGRATION_STARTED=1
   record_state running
   # The orchestrator streams this script over SSH stdin. Never let the one-off
   # container consume the remaining deployment commands or request a TTY.
-  compose run -T --interactive=false --rm --no-deps backend npm run migrate </dev/null
+  if [ "$MAINTENANCE_MODE" -eq 1 ]; then
+    maintenance_backend_run npm run migrate
+    assert_backend_stopped
+  else
+    compose run -T --interactive=false --rm --no-deps backend npm run migrate </dev/null
+  fi
 fi
 PHASE=container-switch
 record_state running
