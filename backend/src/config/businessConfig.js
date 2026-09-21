@@ -5,6 +5,8 @@
  * @version 1.0.0
  */
 
+const { RECEIPT_STATUS } = require('../constants/purchaseConstants');
+
 const parseOptionalInteger = (value) => {
   if (value === undefined || value === null || value === '') return null;
   const parsed = Number.parseInt(value, 10);
@@ -136,12 +138,7 @@ module.exports = {
     },
 
     // 采购收货状态
-    receipt: {
-      DRAFT: 'draft',
-      CONFIRMED: 'confirmed',
-      COMPLETED: 'completed',
-      CANCELLED: 'cancelled',
-    },
+    receipt: RECEIPT_STATUS,
 
     // 生产任务状态
     productionTask: {

@@ -395,9 +395,13 @@ const consistencyRules = [
             GROUP BY order_id, material_id HAVING COUNT(*) = 1) unique_line
             ON unique_line.order_id = r.order_id AND unique_line.material_id = ri.material_id
           WHERE r.deleted_at IS NULL AND r.status IN (${sqlStringList(PURCHASE_RECEIPT_COUNTED_STATUSES)})
-            AND NOT EXISTS (SELECT 1 FROM quality_inspections qi WHERE qi.id = r.inspection_id
-              AND qi.reference_id = r.order_id AND qi.inspection_type = 'incoming' AND qi.deleted_at IS NULL
-              AND COALESCE(qi.source_type, 'purchase_order') IN ('', 'purchase_order'))
+            AND (
+              EXISTS (SELECT 1 FROM document_links dl WHERE dl.source_type = 'nonconforming_product'
+                AND dl.target_type = 'purchase_receipt' AND dl.target_id = r.id AND dl.link_type = 'generate')
+              OR NOT EXISTS (SELECT 1 FROM quality_inspections qi WHERE qi.id = r.inspection_id
+                AND qi.reference_id = r.order_id AND qi.inspection_type = 'incoming' AND qi.deleted_at IS NULL
+                AND COALESCE(qi.source_type, 'purchase_order') IN ('', 'purchase_order'))
+            )
           UNION ALL
           SELECT COALESCE(ri.order_item_id, unique_line.id), -rti.return_quantity
           FROM purchase_return_items rti JOIN purchase_returns rt ON rt.id = rti.return_id

@@ -23,6 +23,7 @@ const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity)
 const InboundTransactionService = require('../../../services/business/InboundTransactionService');
 const { getRequestActorLabel } = require('../../../utils/userUtils');
 const { inventoryInboundMap } = require('../../../utils/inventory/inventoryFieldMap');
+const BusinessError = require('../../../utils/BusinessError');
 
 const STATUS = {
   OUTBOUND: businessConfig.status.outbound,
@@ -418,6 +419,7 @@ const createInbound = async (req, res) => {
     const reference_no = mapped.reference_no ?? null;
     const { assertShopFloorInbound } = require('../../../authorization/shopFloorMaterialRequest');
     assertShopFloorInbound(req, mapped);
+    InboundTransactionService.assertGenericInboundSource(mapped);
     const status = mapped.status;
 
     // 验证必填字段
@@ -524,6 +526,9 @@ const createInbound = async (req, res) => {
     if (error.statusCode === 403) {
       return ResponseHandler.forbidden(res, msg);
     }
+    if (BusinessError.is(error)) {
+      return BusinessError.handleError(res, error, '创建入库单失败', ResponseHandler);
+    }
     const isValidation =
       /缺少必填|仅允许 draft\/confirmed|请使用状态接口|年度结存|必须关联|物料信息/.test(msg);
     ResponseHandler.error(
@@ -587,7 +592,8 @@ const updateInbound = async (req, res) => {
       );
     }
 
-    const body = req.body || {};
+    InboundTransactionService.assertGenericInboundSource(currentInbound);
+    const body = inventoryInboundMap.fromApi(req.body || {});
     const {
       inbound_date = currentInbound.inbound_date,
       location_id,
@@ -600,6 +606,8 @@ const updateInbound = async (req, res) => {
       reference_id = currentInbound.reference_id,
       reference_no = currentInbound.reference_no,
     } = body;
+
+    InboundTransactionService.assertGenericInboundSource({ inbound_type, reference_type });
 
     const locationId = toRequiredInteger(location_id || currentInbound.location_id);
     const requestedStatus = status || currentInbound.status;
@@ -730,7 +738,7 @@ const updateInbound = async (req, res) => {
   } catch (error) {
     await connection.rollback();
     logger.error('更新入库单失败:', error);
-    return ResponseHandler.error(res, '更新入库单失败', 'SERVER_ERROR', 500, error);
+    return BusinessError.handleError(res, error, '更新入库单失败', ResponseHandler);
   } finally {
     connection.release();
   }
@@ -787,6 +795,7 @@ const createInboundFromQuality = async (req, res) => {
       }
 
       inspectionContext = inspectionResult[0];
+      InboundTransactionService.assertGenericInboundSource(inspectionContext);
       if (!['passed', 'partial', 'completed'].includes(inspectionContext.status)) {
         await connection.rollback();
         return ResponseHandler.error(
@@ -828,6 +837,10 @@ const createInboundFromQuality = async (req, res) => {
       inboundType = inboundMeta.inboundType;
       referenceType = inboundMeta.referenceType;
       referenceId = inboundMeta.referenceId;
+      InboundTransactionService.assertGenericInboundSource({
+        inbound_type: inboundType,
+        reference_type: referenceType,
+      });
 
       if (inboundType === INBOUND_TYPE_KEYS.PRODUCTION && !referenceId) {
         await connection.rollback();
@@ -1093,7 +1106,7 @@ const createInboundFromQuality = async (req, res) => {
   } catch (err) {
     await connection.rollback();
     logger.error('创建入库单错误:', err);
-    return ResponseHandler.error(res, '服务器错误', 'SERVER_ERROR', 500);
+    return BusinessError.handleError(res, err, '服务器错误', ResponseHandler);
   } finally {
     connection.release();
   }
@@ -1164,6 +1177,9 @@ const updateInboundStatus = async (req, res) => {
       }
 
       const currentStatus = inboundData[0].status;
+      if ([STATUS.INBOUND.CONFIRMED, STATUS.INBOUND.COMPLETED].includes(newStatus)) {
+        InboundTransactionService.assertGenericInboundSource(inboundData[0]);
+      }
       const validTransitions = INVENTORY_INBOUND_TRANSITIONS;
       let canRetryRejectedPosting = false;
       if (newStatus === STATUS.INBOUND.COMPLETED && currentStatus === newStatus) {

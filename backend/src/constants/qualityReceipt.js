@@ -3,6 +3,8 @@
  * PurchaseOrderStatusService 与 DataConsistencyRules 共用，避免口径分叉。
  */
 
+const { RECEIPT_STATUS } = require('./purchaseConstants');
+
 /** 终态按合格数计入；不合格数释放补货额度。 */
 const INCOMING_INSPECTION_COUNTED_STATUSES = Object.freeze([
   'passed',
@@ -19,7 +21,10 @@ const INCOMING_INSPECTION_PENDING_STATUSES = Object.freeze([
 ]);
 
 /** 计入「已收货」的采购收货单状态 */
-const PURCHASE_RECEIPT_COUNTED_STATUSES = Object.freeze(['confirmed', 'completed']);
+const PURCHASE_RECEIPT_COUNTED_STATUSES = Object.freeze([
+  RECEIPT_STATUS.INSPECTED,
+  RECEIPT_STATUS.COMPLETED,
+]);
 
 function sqlStringList(values) {
   return values.map((v) => `'${String(v).replace(/'/g, "''")}'`).join(', ');

@@ -116,14 +116,14 @@ const REQUISITION_STATUS = {
 };
 
 /**
- * 采购收货状态
+ * 采购收货生命周期。已检验仅表示检验结案，入库资格另按合格数量校验。
  */
-const RECEIPT_STATUS = {
+const RECEIPT_STATUS = Object.freeze({
   DRAFT: 'draft',
-  CONFIRMED: 'confirmed',
+  INSPECTED: 'inspected',
   COMPLETED: 'completed',
   CANCELLED: 'cancelled',
-};
+});
 
 module.exports = {
   PURCHASE_STATUS,

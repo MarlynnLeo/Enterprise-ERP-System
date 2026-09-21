@@ -51,12 +51,12 @@ describe('purchase service invariants', () => {
     expect(connection.query.mock.calls[3][1]).toEqual(['completed', 1]);
   });
 
-  test('rejects receipt synchronization when confirmed receipts exceed the order quantity', async () => {
+  test('rejects receipt synchronization when inspected receipts exceed the order quantity', async () => {
     const connection = {
       query: jest.fn()
         .mockResolvedValueOnce([[{ id: 71, material_id: 10, quantity: 10 }]])
         .mockResolvedValueOnce([[]])
-        .mockResolvedValueOnce([[{ order_item_id: 71, material_id: 10, status: 'confirmed', qualified_quantity: 12 }]])
+        .mockResolvedValueOnce([[{ order_item_id: 71, material_id: 10, status: 'inspected', qualified_quantity: 12 }]])
         .mockResolvedValueOnce([[]]),
       execute: jest.fn(),
     };

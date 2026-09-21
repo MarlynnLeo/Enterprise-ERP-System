@@ -1,6 +1,6 @@
 /**
  * PurchaseReceiptService.js
- * @description 采购入库单服务 — 处理来料检验合格后的自动入库单创建
+ * @description 采购入库单服务 — 处理来料检验结案后的自动收货单创建与同步
  * @date 2026-04-03
  * @version 1.0.0
  *
@@ -22,6 +22,13 @@ const {
 } = require('../../utils/money');
 const { financeConfig } = require('../../config/financeConfig');
 const { firstValidUserId } = require('../../utils/userUtils');
+const { RECEIPT_STATUS } = require('../../constants/purchaseConstants');
+const {
+  normalizeTerminalInspectionQuantities,
+} = require('../../utils/quality/inspectionQuantities');
+const { purchaseValidationError } = require('../../utils/purchase/purchaseValidation');
+const { resolveInspectionSourceType } = require('../../utils/quality/inspectionSource');
+const InspectionLockService = require('./InspectionLockService');
 
 class PurchaseReceiptService {
   static payloadHash(value) {
@@ -32,8 +39,8 @@ class PurchaseReceiptService {
   }
 
   /**
-   * 免检来料自动创建采购入库单
-   * 执行"检验合格 → 创建入库单"的后端流程
+   * 检验闭环：推进明确关联的采购收货单，或为合格数量创建已检验收货单。
+   * 采购订单不是到货批次的唯一标识，不按订单/物料猜测收货单关联。
    *
    * @param {object} inspectionResult - createInspection 返回的结果（含 id, inspection_no, reference_id, material_id 等）
    * @param {object} originalInspection - 原始请求体
@@ -51,58 +58,56 @@ class PurchaseReceiptService {
         await connection.beginTransaction();
       }
 
-      // 提取基本参数
-      const orderId = inspectionResult.reference_id || originalInspection.reference_id;
-      const materialId = inspectionResult.material_id || originalInspection.material_id;
-      const qualifiedQty =
-        inspectionResult.qualified_quantity ?? originalInspection.qualified_quantity;
-      const qty = parseFloat(
-        qualifiedQty ?? inspectionResult.quantity ?? originalInspection.quantity ?? 0
+      const inspectionId = inspectionResult?.id;
+      if (!inspectionId) throw purchaseValidationError('缺少检验单，不能创建采购收货单');
+      const inspection = await InspectionLockService.getForUpdate(connection, inspectionId);
+      const sourceType = await resolveInspectionSourceType(connection, inspection, {
+        persist: true,
+      });
+      if (inspection.inspection_type !== 'incoming' || sourceType !== 'purchase_order') {
+        throw purchaseValidationError('只有采购来料检验可以生成采购收货单');
+      }
+      const { inspectionQuantity, qualifiedQuantity: qty } = normalizeTerminalInspectionQuantities(
+        inspection,
+        inspection
       );
-      const inspectionId = inspectionResult.id;
-      const inspectionNo = inspectionResult.inspection_no;
-      const idempotencyKey = inspectionId ? `purchase_receipt:inspection:${inspectionId}` : null;
-      const batchNo = inspectionResult.batch_no || originalInspection.batch_no || '';
-      const isExempt = Boolean(inspectionResult.is_exempt || originalInspection.is_exempt);
-      const operator = isExempt
-        ? '系统(自动免检)'
-        : inspectionResult.inspector_name || originalInspection.inspector_name || '系统(检验放行)';
-      const sourceRemark = isExempt ? '免检来料自动生成' : '来料检验合格自动生成';
+      const orderId = inspection.reference_id;
+      const materialId = inspection.material_id || inspection.product_id;
+      const inspectionNo = inspection.inspection_no;
+      const idempotencyKey = `purchase_receipt:inspection:${inspectionId}`;
+      const batchNo = String(inspection.batch_no || '').trim();
+      const isExempt = Boolean(inspectionResult.is_exempt || originalInspection?.is_exempt);
+      const operator = isExempt ? '系统(自动免检)' : inspection.inspector_name || '系统(检验放行)';
+      const sourceRemark = isExempt ? '免检来料自动生成' : '来料检验结案自动生成';
 
-      if (!orderId) {
-        throw new Error('缺少采购订单关联信息，无法创建入库单');
+      if (!orderId || !materialId || !batchNo) {
+        throw purchaseValidationError('检验单缺少采购订单、物料或可追溯批次，不能创建收货单');
       }
-
-      if (qty <= 0) {
-        throw new Error('合格数量必须大于0，无法创建采购入库单');
+      const [existingReceipts] = await connection.query(
+        `SELECT id, receipt_no, order_id, status FROM purchase_receipts
+          WHERE inspection_id = ? AND deleted_at IS NULL
+            AND NOT EXISTS (
+              SELECT 1 FROM document_links dl
+                JOIN nonconforming_products ncp ON ncp.id = dl.source_id
+               WHERE dl.source_type = 'nonconforming_product'
+                 AND dl.target_type = 'purchase_receipt'
+                 AND dl.link_type = 'generate'
+                 AND dl.target_id = purchase_receipts.id
+                 AND ncp.inspection_id = purchase_receipts.inspection_id
+            )
+          ORDER BY id FOR UPDATE`,
+        [inspectionId]
+      );
+      const activeReceipts = existingReceipts.filter(
+        (receipt) => receipt.status !== RECEIPT_STATUS.CANCELLED
+      );
+      if (activeReceipts.length > 1) {
+        throw purchaseValidationError('同一检验单存在多张有效收货单，必须先核对来源关系');
       }
-
-      if (inspectionId) {
-        const [lockedInspections] = await connection.query(
-          'SELECT id FROM quality_inspections WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
-          [inspectionId]
-        );
-        if (!lockedInspections || lockedInspections.length === 0) {
-          throw new Error('检验单不存在，无法创建采购入库单');
-        }
-
-        const [existingReceipts] = await connection.query(
-          "SELECT id, receipt_no FROM purchase_receipts WHERE inspection_id = ? AND status != 'cancelled' LIMIT 1",
-          [inspectionId]
-        );
-        if (existingReceipts.length > 0) {
-          logger.info(
-            `检验单 ${inspectionNo} 已存在采购入库单 ${existingReceipts[0].receipt_no}，跳过重复创建`
-          );
-          if (useOwnConnection) {
-            await connection.commit();
-          }
-          return {
-            receiptId: existingReceipts[0].id,
-            receiptNo: existingReceipts[0].receipt_no,
-            existed: true,
-          };
-        }
+      const existingReceipt = activeReceipts[0] || existingReceipts[0];
+      if (existingReceipt?.status === RECEIPT_STATUS.CANCELLED || (!existingReceipt && qty === 0)) {
+        if (useOwnConnection) await connection.commit();
+        return null;
       }
 
       // 1. 一次 JOIN 查询获取完整订单上下文（订单、供应商、物料、采购价格）
@@ -110,13 +115,9 @@ class PurchaseReceiptService {
         connection,
         orderId,
         materialId,
-        inspectionResult.purchase_order_item_id || originalInspection.purchase_order_item_id || null
+        inspection.purchase_order_item_id || null
       );
-      const createdBy = firstValidUserId(
-        inspectionResult.inspector_id,
-        originalInspection.inspector_id,
-        context.orderCreatedBy
-      );
+      const createdBy = firstValidUserId(inspection.inspector_id, context.orderCreatedBy);
       if (!createdBy) {
         throw new Error('检验单和采购订单均缺少责任人，不能自动创建采购入库单');
       }
@@ -127,6 +128,24 @@ class PurchaseReceiptService {
       const amountExcludingTax = lineAmount(qty, context.price);
       const taxAmount = calculateTaxAmount(amountExcludingTax, taxRate);
       const totalAmount = roundMoney(amountExcludingTax + taxAmount);
+
+      if (existingReceipt) {
+        await this._synchronizeReceipt(connection, existingReceipt, {
+          orderId,
+          materialId,
+          inspectionId,
+          inspectionQuantity,
+          qty,
+          batchNo,
+          context,
+        });
+        if (useOwnConnection) await connection.commit();
+        return {
+          receiptId: existingReceipt.id,
+          receiptNo: existingReceipt.receipt_no,
+          existed: true,
+        };
+      }
 
       // 2. 安全仓库路由
       const { warehouseId, warehouseName } = await this._resolveWarehouse(
@@ -157,7 +176,7 @@ class PurchaseReceiptService {
           new Date(),
           operator,
           `${sourceRemark} - 检验单 ${inspectionNo}`,
-          'draft',
+          RECEIPT_STATUS.INSPECTED,
           totalAmount,
           taxAmount,
           1,
@@ -188,9 +207,9 @@ class PurchaseReceiptService {
           context.materialName,
           context.materialSpecs || '',
           context.unitId,
-          qty,
-          qty,
-          qty,
+          context.orderedQuantity,
+          inspectionQuantity,
+          inspectionQuantity,
           qty,
           batchNo,
           context.price,
@@ -223,6 +242,72 @@ class PurchaseReceiptService {
     }
   }
 
+  static async _synchronizeReceipt(connection, receipt, evidence) {
+    const { orderId, materialId, inspectionId, inspectionQuantity, qty, batchNo, context } =
+      evidence;
+    if (Number(receipt.order_id) !== Number(orderId)) {
+      throw purchaseValidationError('收货单与检验单的采购订单不一致');
+    }
+    const [items] = await connection.query(
+      `SELECT id, order_item_id, material_id, received_quantity, qualified_quantity,
+              batch_number, price, tax_rate FROM purchase_receipt_items
+        WHERE receipt_id = ? ORDER BY id FOR UPDATE`,
+      [receipt.id]
+    );
+    if (
+      items.length !== 1 ||
+      Number(items[0].material_id) !== Number(materialId) ||
+      (items[0].order_item_id && Number(items[0].order_item_id) !== Number(context.orderItemId))
+    ) {
+      throw purchaseValidationError('检验单必须明确对应收货单的唯一采购明细');
+    }
+    const item = items[0];
+    if (item.batch_number && item.batch_number !== batchNo) {
+      throw purchaseValidationError('收货单与检验单的批次不一致');
+    }
+    if (receipt.status === RECEIPT_STATUS.COMPLETED) {
+      if (
+        Math.abs(Number(item.qualified_quantity) - qty) > 0.0001 ||
+        Math.abs(Number(item.received_quantity) - inspectionQuantity) > 0.0001
+      ) {
+        throw purchaseValidationError('收货单已经入库，不能修改对应检验数量');
+      }
+      return;
+    }
+    if (![RECEIPT_STATUS.DRAFT, RECEIPT_STATUS.INSPECTED].includes(receipt.status)) {
+      throw purchaseValidationError('收货单状态无效，不能接收检验结果');
+    }
+    const price = Number(item.price);
+    if (!Number.isFinite(price) || price < 0) throw purchaseValidationError('收货单价无效');
+    const taxRate = normalizeTaxRate(item.tax_rate, financeConfig.get('tax.defaultVATRate', 0.13));
+    const amount = lineAmount(qty, price);
+    const tax = calculateTaxAmount(amount, taxRate);
+    const total = roundMoney(amount + tax);
+    await connection.query(
+      `UPDATE purchase_receipt_items SET order_item_id = ?, quantity = ?, received_quantity = ?,
+              qualified_quantity = ?, batch_number = ?, tax_rate = ?, amount_excluding_tax = ?,
+              tax_amount = ?, total_amount = ?, from_inspection = 1 WHERE id = ?`,
+      [
+        context.orderItemId,
+        inspectionQuantity,
+        inspectionQuantity,
+        qty,
+        batchNo,
+        taxRate,
+        amount,
+        tax,
+        total,
+        item.id,
+      ]
+    );
+    await connection.query(
+      `UPDATE purchase_receipts SET status = ?, total_amount = ?, total_tax_amount = ?,
+              from_inspection = 1, active_inspection_key = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND deleted_at IS NULL`,
+      [RECEIPT_STATUS.INSPECTED, total, tax, `INSPECTION:${inspectionId}`, receipt.id]
+    );
+  }
+
   /**
    * [内部] 一次 JOIN 查询获取完整订单上下文
    * 替代原来的 5 次顺序查询（订单 → 供应商 → 物料 → 仓库名 → 价格）
@@ -246,6 +331,7 @@ class PurchaseReceiptService {
         m.location_id AS material_location_id,
         m.unit_id,
         poi.id       AS order_item_id,
+        poi.quantity AS ordered_quantity,
         poi.price,
         poi.tax_rate
       FROM purchase_orders po
@@ -253,7 +339,8 @@ class PurchaseReceiptService {
         LEFT JOIN materials m       ON m.id = ?
         LEFT JOIN purchase_order_items poi
           ON poi.order_id = po.id AND poi.material_id = ?
-      WHERE po.id = ? AND (? IS NULL OR poi.id = ?)`,
+      WHERE po.id = ? AND po.deleted_at IS NULL AND m.deleted_at IS NULL
+        AND (? IS NULL OR poi.id = ?)`,
       [materialId, materialId, orderId, orderItemId, orderItemId]
     );
 
@@ -275,6 +362,7 @@ class PurchaseReceiptService {
 
     return {
       orderItemId: row.order_item_id,
+      orderedQuantity: Number(row.ordered_quantity),
       orderNo: row.order_no || '',
       orderCreatedBy: row.order_created_by,
       supplierId: row.supplier_id,

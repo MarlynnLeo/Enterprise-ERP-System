@@ -27,6 +27,16 @@
         </el-form-item>
       </template>
       <template #advanced>
+        <el-form-item label="状态">
+          <el-select v-model="searchForm.status" placeholder="全部状态" clearable>
+            <el-option
+              v-for="option in PURCHASE_RECEIPT_STATUS_OPTIONS"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="订单编号">
           <el-input  v-model="searchForm.orderNo" placeholder="请输入订单编号" clearable ></el-input>
         </el-form-item>
@@ -51,19 +61,19 @@
       </el-card>
       <el-card class="stat-card" shadow="hover">
         <div class="stat-value">{{ receiptStats.draftCount || 0 }}</div>
-        <div class="stat-label">草稿状态</div>
+        <div class="stat-label">{{ getPurchaseReceiptStatusText('draft') }}</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value">{{ receiptStats.confirmedCount || 0 }}</div>
-        <div class="stat-label">已确认收货</div>
+        <div class="stat-value">{{ receiptStats.inspectedCount || 0 }}</div>
+        <div class="stat-label">{{ getPurchaseReceiptStatusText('inspected') }}</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
         <div class="stat-value">{{ receiptStats.completedCount || 0 }}</div>
-        <div class="stat-label">已完成入库</div>
+        <div class="stat-label">{{ getPurchaseReceiptStatusText('completed') }}</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value">{{ qualifiedInspections.length || 0 }}</div>
-        <div class="stat-label">检验合格</div>
+        <div class="stat-value">{{ receiptStats.cancelledCount || 0 }}</div>
+        <div class="stat-label">{{ getPurchaseReceiptStatusText('cancelled') }}</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
         <div class="stat-value">{{ formatCurrency(receiptStats.totalAmount) }}</div>
@@ -89,14 +99,13 @@
             {{ formatDate(scope.row.receiptDate) }}
           </template>
         </el-table-column>
-        <el-table-column prop="orderNo" label="关联订单" min-width="120" show-overflow-tooltip></el-table-column>
+        <el-table-column prop="orderNo" label="关联订单" min-width="140" show-overflow-tooltip></el-table-column>
         <el-table-column prop="supplierName" label="供应商" min-width="300" show-overflow-tooltip></el-table-column>
         <el-table-column prop="receiver" label="收货人" min-width="100"></el-table-column>
         <el-table-column prop="warehouseName" label="入库仓库" min-width="120" show-overflow-tooltip></el-table-column>
-        <el-table-column prop="status" label="状态" min-width="100">
+        <el-table-column prop="status" label="状态" min-width="70">
           <template #default="scope">
-            <el-tag :type="getStatusType(scope.row.status)">{{ getStatusText(scope.row.status) }}</el-tag>
-            <el-tag v-if="scope.row.inspectionId" type="success" size="small" class="ml-sm">已检验</el-tag>
+            <el-tag :type="getPurchaseReceiptStatusColor(scope.row.status)">{{ getPurchaseReceiptStatusText(scope.row.status) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
@@ -113,20 +122,21 @@
               编辑
             </el-button>
             <el-button
-              v-if="canCompleteReceipt(scope.row)"
+              v-if="scope.row.status === 'inspected' && Number(scope.row.qualifiedQuantity) > 0"
               size="small"
               type="success"
+              :loading="updateStatusLoading"
               v-permission="'purchase:receipts:update'"
               @click="directCompleteReceipt(scope.row)"
             >入库</el-button>
             <el-popconfirm
-              v-if="canCancelReceipt(scope.row)"
+              v-if="['draft', 'inspected'].includes(scope.row.status)"
               title="确定要取消该收货单吗？"
               @confirm="cancelReceipt(scope.row)"
               confirm-button-type="warning"
             >
               <template #reference>
-                <el-button size="small" type="warning" v-permission="'purchase:receipts:close'">取消</el-button>
+                <el-button size="small" type="warning" :disabled="updateStatusLoading" v-permission="'purchase:receipts:update'">取消</el-button>
               </template>
             </el-popconfirm>
           </template>
@@ -159,24 +169,17 @@
           <el-descriptions-item label="收货单号">{{ viewDialog.receipt.receiptNo }}</el-descriptions-item>
           <el-descriptions-item label="收货日期">{{ formatDate(viewDialog.receipt.receiptDate) }}</el-descriptions-item>
           <el-descriptions-item label="状态">
-            <el-tag :type="getStatusType(viewDialog.receipt.status)">{{ getStatusText(viewDialog.receipt.status) }}</el-tag>
+            <el-tag :type="getPurchaseReceiptStatusColor(viewDialog.receipt.status)">{{ getPurchaseReceiptStatusText(viewDialog.receipt.status) }}</el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="关联订单">{{ viewDialog.receipt.orderNo }}</el-descriptions-item>
           <el-descriptions-item label="供应商">{{ viewDialog.receipt.supplierName }}</el-descriptions-item>
           <el-descriptions-item label="收货人">{{ viewDialog.receipt.receiver }}</el-descriptions-item>
           <el-descriptions-item label="入库仓库">{{ viewDialog.receipt.warehouseName }}</el-descriptions-item>
-          <el-descriptions-item v-if="viewDialog.receipt.inspectionId" label="检验状态" :span="2">
-            <el-tag type="success">已通过来料检验</el-tag>
-            <span v-if="viewDialog.receipt.inspectionNo" class="ml-10">检验单号: {{ viewDialog.receipt.inspectionNo }}</span>
+          <el-descriptions-item v-if="viewDialog.receipt.inspectionId" label="关联检验单" :span="2">
+            <span>{{ viewDialog.receipt.inspectionNo || viewDialog.receipt.inspectionId }}</span>
           </el-descriptions-item>
           <el-descriptions-item label="备注" :span="2">{{ viewDialog.receipt.remarks }}</el-descriptions-item>
         </el-descriptions>
-
-        <FinanceStreamStatus
-          v-if="viewDialog.receipt?.id"
-          document-type="purchase_receipt"
-          :document-id="viewDialog.receipt.id"
-        />
 
         <InventoryApprovalPanel
           v-if="viewDialog.receipt?.id || viewDialog.receipt?.receiptNo"
@@ -228,9 +231,10 @@
               {{ Number(scope.row.qualifiedQuantity || 0).toFixed(2) }}
             </template>
           </el-table-column>
-          <el-table-column label="质检状态" min-width="100">
+          <el-table-column label="检验结果" min-width="100">
             <template #default="scope">
-              <el-tag type="success" v-if="Number(scope.row.qualifiedQuantity || 0) >= Number(scope.row.receivedQuantity || 0)">合格</el-tag>
+              <el-tag type="info" v-if="viewDialog.receipt.status === 'draft'">待检验</el-tag>
+              <el-tag type="success" v-else-if="Number(scope.row.qualifiedQuantity || 0) >= Number(scope.row.receivedQuantity || 0)">合格</el-tag>
               <el-tag type="warning" v-else-if="Number(scope.row.qualifiedQuantity || 0) > 0">部分合格</el-tag>
               <el-tag type="danger" v-else>不合格</el-tag>
             </template>
@@ -263,7 +267,7 @@
             <el-form-item label="关联订单" prop="orderId">
               <el-select
                 v-model="receiptDialog.form.orderId"
-                :disabled="receiptDialog.isEdit"
+                :disabled="receiptDialog.isEdit || inspectionDetailLoading || loadingOrderItems"
                 placeholder="请选择订单"
                 filterable
                 class="w-full"
@@ -276,6 +280,27 @@
                   :value="item.id"
                 ></el-option>
               </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="收货明细" prop="orderItemId">
+              <el-select
+                v-model="receiptDialog.form.orderItemId"
+                placeholder="请选择本次收货的采购订单明细"
+                :loading="loadingOrderItems"
+                :disabled="receiptDialog.isEdit || loadingOrderItems || inspectionDetailLoading || Boolean(receiptDialog.form.inspectionId)"
+                filterable
+                class="w-full"
+                @change="handleOrderItemChange"
+              >
+                <el-option
+                  v-for="item in receiptOrderItems"
+                  :key="item.orderItemId"
+                  :value="item.orderItemId"
+                  :label="`第${item.lineNumber}行 · ${item.materialName} · ${item.orderedQuantity}${item.unitName || ''}`"
+                />
+              </el-select>
+              <div class="meta-secondary-sm">每张收货单对应一条采购订单明细及一个批次，不同明细或批次请分别建单。</div>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -295,13 +320,13 @@
                 <el-tag type="success" size="large" class="mr-10">
                   <strong>{{ selectedSupplierName }}</strong>
                 </el-tag>
-                <el-button v-if="!receiptDialog.isEdit" link @click="selectedSupplierName = null">
+                <el-button v-if="!receiptDialog.isEdit && !receiptDialog.form.inspectionId" link @click="selectedSupplierName = null">
                   <el-icon><Close /></el-icon>
                 </el-button>
               </div>
               <el-select
                 v-model="receiptDialog.form.supplierId"
-                :disabled="receiptDialog.isEdit"
+                :disabled="receiptDialog.isEdit || Boolean(receiptDialog.form.inspectionId)"
                 placeholder="请选择供应商"
                 filterable
                 class="w-full"
@@ -367,27 +392,28 @@
               </div>
             </el-form-item>
           </el-col>
-          <el-col v-if="!receiptDialog.isEdit || receiptDialog.form.inspectionId" :span="24">
+          <el-col :span="24">
             <el-form-item label="来料检验单" prop="inspectionId">
               <el-select
                 v-model="receiptDialog.form.inspectionId"
-                :disabled="receiptDialog.isEdit"
-                placeholder="选择已检验合格/部分合格的来料单"
+                placeholder="可选择来料检验单，未关联时保存为草稿"
+                :loading="loadingInspections"
+                :disabled="inspectionDetailLoading || loadingOrderItems || Boolean(receiptDialog.originalInspectionId)"
                 filterable
                 clearable
                 class="w-full"
                 @change="handleInspectionChange"
               >
                 <el-option
-                  v-for="item in qualifiedInspections"
+                  v-for="item in availableInspections"
                   :key="item.id"
                   :label="`${item.inspectionNo} - ${item.itemName}`"
                   :value="item.id"
                 >
                   <div class="flex-between">
                     <span>{{ item.inspectionNo }}</span>
-                    <el-tag size="small" :type="getReceiptableInspectionStatusType(item.status)">
-                      {{ getReceiptableInspectionStatusText(item.status) }}
+                    <el-tag size="small" :type="getQualityStatusColor(item.status)">
+                      {{ getQualityStatusText(item.status) }}
                     </el-tag>
                   </div>
                   <div class="meta-secondary-sm">
@@ -426,6 +452,7 @@
               <template #default="scope">
                 <el-input
                   v-model="scope.row.receivedQuantity"
+                  :disabled="Boolean(receiptDialog.form.inspectionId)"
                   type="text"
                   size="small"
                   @input="handleReceivedQuantityChange(scope.row)"
@@ -434,12 +461,7 @@
             </el-table-column>
             <el-table-column label="合格数量" min-width="120">
               <template #default="scope">
-                <el-input
-                  v-model="scope.row.qualifiedQuantity"
-                  type="text"
-                  size="small"
-                  @input="handleQualifiedQuantityChange(scope.row)"
-                ></el-input>
+                {{ scope.row.qualifiedQuantity }}
               </template>
             </el-table-column>
             <el-table-column label="备注" min-width="150">
@@ -453,7 +475,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="closeReceiptDialog">取 消</el-button>
-          <el-button type="primary" v-permission="receiptDialog.isEdit ? 'purchase:receipts:update' : 'purchase:receipts:create'" @click="submitReceipt" :loading="submitLoading">确 定</el-button>
+          <el-button type="primary" v-permission="receiptDialog.isEdit ? 'purchase:receipts:update' : 'purchase:receipts:create'" @click="submitReceipt" :loading="submitLoading || inspectionDetailLoading || loadingOrderItems">确 定</el-button>
         </span>
       </template>
         </AppDialog>
@@ -478,14 +500,15 @@ import { useAuthStore } from '@/stores/auth';
 import { Plus, Close } from '@element-plus/icons-vue'
 import printService from '@/services/printService'
 import {
+  PURCHASE_RECEIPT_STATUS_OPTIONS,
   getPurchaseReceiptStatusText,
-  getPurchaseReceiptStatusColor
+  getPurchaseReceiptStatusColor,
+  getQualityStatusText,
+  getQualityStatusColor
 } from '@/constants/systemConstants';
-import FinanceStreamStatus from '@/views/finance/components/FinanceStreamStatus.vue';
 import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue';
 import { getApiErrorMessage } from '@/utils/errorHandler'
 
-const isBlankAmount = (value) => value === null || value === undefined || value === '';
 // 初始化认证存储
 const authStore = useAuthStore();
 // 添加表单引用
@@ -494,6 +517,7 @@ const receiptForm = ref(null);
 const selectedSupplierName = ref(null);
 // 表单验证规则
 const receiptRules = computed(() => ({
+  orderItemId: [{ required: true, message: '请选择本次收货的采购订单明细', trigger: 'change' }],
   orderId: [
     { required: true, message: '请选择关联订单', trigger: 'change' }
   ],
@@ -508,9 +532,6 @@ const receiptRules = computed(() => ({
   ],
   warehouseId: [
     { required: true, message: '请选择入库仓库', trigger: 'change' }
-  ],
-  inspectionId: [
-    { required: !receiptDialog.isEdit, message: '请选择来料检验单', trigger: 'change' }
   ]
 }));
 // 收货单数据
@@ -539,14 +560,14 @@ const pagination = ref({
 const suppliers = ref([]);
 const orders = ref([]);
 const warehouses = ref([]);
-// 来料检验合格的订单
-const qualifiedInspections = ref([]);
-const loadingQualifiedInspections = ref(false);
-const RECEIPTABLE_INSPECTION_STATUSES = ['passed', 'partial', 'completed'];
-const COMPLETABLE_RECEIPT_STATUSES = ['draft', 'confirmed'];
-const CANCELLABLE_RECEIPT_STATUSES = ['draft', 'confirmed'];
-const canCompleteReceipt = (receipt) => COMPLETABLE_RECEIPT_STATUSES.includes(receipt?.status);
-const canCancelReceipt = (receipt) => CANCELLABLE_RECEIPT_STATUSES.includes(receipt?.status);
+const receiptOrderItems = ref([]);
+const loadingOrderItems = ref(false);
+// 可关联采购收货的来料检验单（待检、检验中、条件放行或已结案）
+const availableInspections = ref([]);
+const loadingInspections = ref(false);
+const inspectionDetailLoading = ref(false);
+const FINISHED_INSPECTION_STATUSES = ['passed', 'partial', 'failed', 'completed'];
+const RECEIPTABLE_INSPECTION_STATUSES = ['pending', 'in_progress', 'conditional', ...FINISHED_INSPECTION_STATUSES];
 const extractInspectionRows = (response) => {
   const responseData = parseResponseData(response, {});
   if (Array.isArray(responseData)) return responseData;
@@ -567,6 +588,7 @@ const extractInspectionRows = (response) => {
 const searchForm = reactive({
   receiptNo: '',
   orderNo: '',
+  status: '',
   dateRange: [],
   startDate: '',
   endDate: ''
@@ -575,11 +597,13 @@ const searchForm = reactive({
 const receiptDialog = reactive({
   show: false,
   isEdit: false,
+  originalInspectionId: null,
   valid: false,
   dateMenu: false,
   form: {
     id: null,
     orderId: null,
+    orderItemId: null,
     supplierId: null,
     receiptDate: formatLocalDate(new Date()),
     receiver: '',
@@ -598,8 +622,9 @@ const viewDialog = reactive({
 const receiptStats = ref({
   total: 0,
   draftCount: 0,
-  confirmedCount: 0,
+  inspectedCount: 0,
   completedCount: 0,
+  cancelledCount: 0,
   totalAmount: null
 });
 // 获取路由对象
@@ -620,7 +645,7 @@ onMounted(async () => {
     loadSuppliers(),
     loadApprovedOrders(),
     loadWarehouses(),
-    loadQualifiedInspections()
+    loadInspections()
   ]);
 
   // 检查URL中是否有检验单ID参数
@@ -636,9 +661,9 @@ onMounted(async () => {
     await handleInspectionChange(Number(inspectionId));
   }
 });
-// 方法：加载已检验合格的订单
-const loadQualifiedInspections = async () => {
-  loadingQualifiedInspections.value = true;
+// 方法：加载可关联的来料检验单
+const loadInspections = async () => {
+  loadingInspections.value = true;
   try {
     const responses = await Promise.all(
       RECEIPTABLE_INSPECTION_STATUSES.map(status =>
@@ -667,13 +692,13 @@ const loadQualifiedInspections = async () => {
       });
     });
 
-    qualifiedInspections.value = Array.from(uniqueInspections.values());
+    availableInspections.value = Array.from(uniqueInspections.values());
   } catch (error) {
-    console.error('加载合格来料检验单失败:', error);
-    ElMessage.error('加载合格来料检验单失败');
-    qualifiedInspections.value = [];
+    console.error('加载来料检验单失败:', error);
+    ElMessage.error('加载来料检验单失败');
+    availableInspections.value = [];
   } finally {
-    loadingQualifiedInspections.value = false;
+    loadingInspections.value = false;
   }
 };
 // 方法：加载收货单列表
@@ -685,6 +710,7 @@ async function loadReceipts() {
       pageSize: pagination.value.size,
       receiptNo: searchForm.receiptNo || undefined,
       orderNo: searchForm.orderNo || undefined,
+      status: searchForm.status || undefined,
       startDate: searchForm.startDate || undefined,
       endDate: searchForm.endDate || undefined
     };
@@ -835,6 +861,7 @@ async function loadWarehouses() {
 function resetSearch() {
   searchForm.receiptNo = '';
   searchForm.orderNo = '';
+  searchForm.status = '';
   searchForm.dateRange = [];
   searchForm.startDate = '';
   searchForm.endDate = '';
@@ -850,28 +877,6 @@ function _handleSizeChange(size) {
   pagination.value.current = 1;
   loadReceipts();
 }
-function getStatusText(status) {
-  return getPurchaseReceiptStatusText(status);
-}
-// 方法：获取状态颜色（使用统一常量）
-function getStatusColor(status) {
-  return getPurchaseReceiptStatusColor(status);
-}
-// 方法：获取状态类型（使用统一常量）
-function getStatusType(status) {
-  return getStatusColor(status);
-}
-function getReceiptableInspectionStatusText(status) {
-  const map = {
-    passed: '已检验合格',
-    partial: '部分合格',
-    completed: '已完成'
-  };
-  return map[status] || '已检验';
-}
-function getReceiptableInspectionStatusType(status) {
-  return status === 'partial' ? 'warning' : 'success';
-}
 // 方法：格式化日期
 function formatDate(date) {
   if (!date) return '-';
@@ -886,9 +891,13 @@ function formatDate(date) {
 // 方法：打开创建收货单对话框
 function showAddDialog() {
   receiptDialog.isEdit = false;
+  receiptDialog.originalInspectionId = null;
+  selectedSupplierName.value = null;
+  receiptOrderItems.value = [];
   receiptDialog.form = {
     id: null,
     orderId: null,
+    orderItemId: null,
     supplierId: null,
     receiptDate: formatLocalDate(new Date()),
     receiver: authStore.realName || (authStore.user ? authStore.user.username : ''),
@@ -917,7 +926,7 @@ async function viewReceipt(receipt) {
     // 过滤掉状态变更记录
     if (data.remarks) {
       // 使用正则表达式匹配状态变更的记录
-      // 匹配形如 | [2025-04-23T07:15:34.913Z] 状态变更为 confirmed: 用户直接确认入库 的内容
+      // 删除历史状态变更审计片段，保留用户填写的业务备注。
       data.remarks = data.remarks.replace(/\s*\|\s*\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z\]\s*状态变更为\s+[^|]+/g, '');
       // 清理可能残留的前后分隔符和空白
       data.remarks = data.remarks.replace(/^\s*\|\s*/, '').replace(/\s*\|\s*$/, '').trim();
@@ -999,45 +1008,12 @@ const receiptViewNavigation = computed(() => ({
   previous: handleViewPrevious,
   next: handleViewNext
 }));
-// 方法：确保检验单在列表中可见
-const ensureInspectionInList = async (inspectionId, inspectionNo) => {
-  if (!inspectionId) return;
-  // 检查检验单是否已在列表中
-  const existingInspection = qualifiedInspections.value.find(item =>
-    Number(item.id) === Number(inspectionId)
-  );
-  if (!existingInspection) {
-    try {
-      // 如果不在列表中，尝试获取检验单详情并添加到列表
-      const response = await qualityApi.getIncomingInspection(inspectionId);
-      if (response && response.data) {
-        // axios拦截器已自动解包ResponseHandler格式
-        const inspection = response.data;
-        // 添加到检验单列表中
-        const inspectionItem = {
-          id: inspection.id,
-          inspectionNo: inspection.inspectionNo || inspectionNo,
-          itemName: inspection.itemName || '未知物料',
-          supplierName: inspection.supplierName || '',
-          batchNo: inspection.batchNo || '',
-          status: inspection.status || 'passed'
-        };
-        qualifiedInspections.value.unshift(inspectionItem);
-      }
-    } catch {
-      // 如果获取失败，创建一个基本的检验单项
-      if (inspectionNo) {
-        qualifiedInspections.value.unshift({
-          id: inspectionId,
-          inspectionNo,
-          itemName: '未知物料',
-          supplierName: '',
-          batchNo: '',
-          status: 'passed'
-        });
-      }
-    }
-  }
+// 已有关联直接读取真实检验资料，不伪造检验结果。
+const ensureInspectionInList = async (inspectionId) => {
+  if (!inspectionId || availableInspections.value.some(item => Number(item.id) === Number(inspectionId))) return;
+  const inspection = parseResponseData(await qualityApi.getIncomingInspection(inspectionId));
+  if (!inspection?.id) throw new Error('来料检验单详情为空');
+  availableInspections.value.unshift(inspection);
 };
 // 方法：编辑收货单
 async function editReceipt(receipt) {
@@ -1045,6 +1021,8 @@ async function editReceipt(receipt) {
     const response = await purchaseApi.getReceipt(receipt.id);
     receipt = parseResponseData(response);
     if (!receipt?.id) throw new Error('收货单详情为空');
+    if (receipt.status !== 'draft') throw new Error('只有草稿收货单可以编辑');
+    if (receipt.inspectionId) await ensureInspectionInList(receipt.inspectionId);
   } catch (error) {
     ElMessage.error('加载收货单详情失败: ' + (getApiErrorMessage(error, '未知错误')));
     return;
@@ -1053,11 +1031,14 @@ async function editReceipt(receipt) {
     orders.value.unshift({ id: receipt.orderId, orderNo: receipt.orderNo, orderNumber: receipt.orderNo });
   }
   receiptDialog.isEdit = true;
+  receiptDialog.originalInspectionId = receipt.inspectionId || null;
+  receiptOrderItems.value = (receipt.items || []).map((item, index) => ({ ...item, lineNumber: index + 1 }));
   // 重置供应商显示状态
   selectedSupplierName.value = null;
   receiptDialog.form = {
     id: receipt.id,
     orderId: receipt.orderId,
+    orderItemId: receipt.items?.[0]?.orderItemId || null,
     supplierId: receipt.supplierId, // 添加供应商ID
     receiptDate: receipt.receiptDate,
     receiver: receipt.receiver,
@@ -1091,113 +1072,60 @@ async function editReceipt(receipt) {
       selectedSupplierName.value = supplier.name || supplier.supplierName;
     }
   }
-  // 确保来料检验单在列表中可见
-  if (receipt.inspectionId) {
-    await ensureInspectionInList(receipt.inspectionId, receipt.inspectionNo);
-  }
   receiptDialog.show = true;
 }
+const setReceiptOrderItems = (order) => {
+  receiptOrderItems.value = (order.items || []).map((item, index) => ({
+    orderItemId: item.id,
+    lineNumber: index + 1,
+    materialId: item.materialId,
+    materialCode: item.materialCode,
+    materialName: item.materialName,
+    specification: item.specification || item.specs,
+    unitId: item.unitId,
+    unitName: item.unitName,
+    orderedQuantity: Number(item.quantity ?? item.orderedQuantity ?? 0),
+    receivedQuantity: 0,
+    qualifiedQuantity: 0,
+    warehouseId: item.warehouseId || order.warehouseId || null,
+    remarks: '',
+  }));
+};
+
+function handleOrderItemChange(orderItemId) {
+  const item = receiptOrderItems.value.find(row => Number(row.orderItemId) === Number(orderItemId));
+  receiptDialog.form.items = item ? [{ ...item }] : [];
+  if (item?.warehouseId) receiptDialog.form.warehouseId = Number(item.warehouseId);
+}
+
 // 方法：处理订单选择变更
 async function handleOrderChange(orderId) {
-  if (!orderId) {
-    receiptDialog.form.items = [];
-    return;
-  }
+  receiptDialog.form.inspectionId = null;
+  receiptDialog.form.orderItemId = null;
+  receiptDialog.form.items = [];
+  receiptOrderItems.value = [];
+  selectedSupplierName.value = null;
+  if (!orderId) return;
 
+  loadingOrderItems.value = true;
   try {
-    const { data } = await purchaseApi.getOrder(orderId);
-    if (!data) {
-      ElMessage.error('获取订单详情失败');
-      return;
+    const data = parseResponseData(await purchaseApi.getOrder(orderId));
+    if (!data?.id) throw new Error('采购订单详情为空');
+    receiptDialog.form.supplierId = data.supplierId;
+    selectedSupplierName.value = data.supplierName || null;
+    receiptDialog.form.warehouseId = data.warehouseId || null;
+    setReceiptOrderItems(data);
+    if (!receiptOrderItems.value.length) ElMessage.warning('采购订单没有可收货的明细');
+    if (receiptOrderItems.value.length === 1) {
+      receiptDialog.form.orderItemId = receiptOrderItems.value[0].orderItemId;
+      handleOrderItemChange(receiptDialog.form.orderItemId);
     }
-
-    // 获取订单中的供应商ID
-    // 兼容处理不同的字段命名方式
-    const supplierId = data.supplierId;
-    if (supplierId) {
-      receiptDialog.form.supplierId = supplierId;
-    }
-
-    // 提取订单中每个物料项的仓库ID（如果存在）
-    const uniqueWarehouseIds = new Set();
-
-    // 处理订单物料项 - 兼容不同的数据结构
-    const orderItems = Array.isArray(data.items) ? data.items : [];
-
-    if (orderItems.length === 0) {
-      ElMessage.warning('订单中无物料项，请手动添加');
-    }
-
-    receiptDialog.form.items = orderItems.map(item => {
-      // 规范化物料项字段，兼容不同命名方式
-      const materialId = item.materialId;
-      const materialCode = item.materialCode;
-      const materialName = item.materialName;
-      const specification = item.specification || item.specs;
-      const unitId = item.unitId;
-      const unitName = item.unitName;
-      const quantity = item.quantity || item.orderedQuantity || 0;
-      const price = item.price ?? item.unitPrice;
-      // 获取仓库ID并直接转换为数字类型
-      const originalWarehouseId = item.warehouseId || null;
-      const warehouseId = originalWarehouseId !== null ? Number(originalWarehouseId) : null;
-
-      // 如果物料有仓库ID，添加到集合中 (使用转换后的数字类型)
-      if (warehouseId !== null) {
-        uniqueWarehouseIds.add(warehouseId);
-      }
-
-      return {
-        orderItemId: item.orderItemId || item.id,
-        materialId,
-        materialCode,
-        materialName,
-        specification,
-        unitId,
-        unitName,
-        orderedQuantity: Number(quantity),
-        receivedQuantity: 0,
-        qualifiedQuantity: 0,
-        price: isBlankAmount(price) ? null : Number(price),
-        warehouseId, // 使用转换后的数字类型ID
-        warehouse_id: warehouseId, // 添加备用字段名
-        location_id: warehouseId, // 添加与后端匹配的字段名
-        remarks: ''
-      };
-    });
-
-    // 根据物料项中的仓库ID设置收货单表单级的仓库ID
-    if (uniqueWarehouseIds.size === 1) {
-      // 如果所有物料都使用同一个仓库，则设置表单级的仓库ID
-      const warehouseId = Array.from(uniqueWarehouseIds)[0];
-      const numericWarehouseId = Number(warehouseId);
-      receiptDialog.form.warehouseId = numericWarehouseId; // 使用转换后的数字类型
-    } else if (uniqueWarehouseIds.size > 1) {
-      // 如果物料使用不同仓库，清空表单级的仓库ID，将使用物料级的仓库ID
-      receiptDialog.form.warehouseId = null;
-    } else {
-      // 如果没有在物料中找到仓库ID，则确保订单本身有仓库ID
-      const orderWarehouseId = data.warehouseId;
-      if (orderWarehouseId) {
-        const numericWarehouseId = Number(orderWarehouseId);
-        receiptDialog.form.warehouseId = numericWarehouseId; // 使用转换后的数字类型
-
-        // 设置所有物料项的仓库ID
-        receiptDialog.form.items.forEach(item => {
-          item.warehouseId = numericWarehouseId;
-        });
-      } else {
-        // 如果订单本身也没有仓库ID，则保留表单级仓库ID为空，需要用户手动选择
-        receiptDialog.form.warehouseId = null;
-      }
-    }
-
-    // 设置订单编号，便于用户参考
-    // 不影响实际提交的数据，只作为显示用
     receiptDialog.orderNumber = data.orderNumber || data.orderNo || '';
   } catch (error) {
     console.error('获取订单详情失败:', error);
     ElMessage.error('获取订单详情失败');
+  } finally {
+    loadingOrderItems.value = false;
   }
 }
 // 方法：验证仓库ID是否存在于可用仓库列表中
@@ -1219,15 +1147,11 @@ function validateWarehouseId(warehouseId) {
 }
 // 方法：提交收货单
 const submitReceipt = async () => {
-  if (!receiptDialog.isEdit && !receiptDialog.form.inspectionId) {
-    ElMessage.warning('请选择合格的来料检验单');
-    return;
-  }
   try {
     await receiptForm.value.validate();
 
-    if (!receiptDialog.form.items.length) {
-      ElMessage.warning('收货单必须包含物料明细');
+    if (receiptDialog.form.items.length !== 1) {
+      ElMessage.warning('请选择一条采购订单明细，不同明细请分别建单');
       return;
     }
 
@@ -1239,13 +1163,17 @@ const submitReceipt = async () => {
 
     // 验证物料数量
     const invalidItems = receiptDialog.form.items.filter(item =>
-      !item.receivedQuantity || item.receivedQuantity <= 0 ||
-      !item.qualifiedQuantity || item.qualifiedQuantity <= 0 ||
+      !Number.isFinite(Number(item.receivedQuantity)) || Number(item.receivedQuantity) < 0 ||
+      !Number.isFinite(Number(item.qualifiedQuantity)) || Number(item.qualifiedQuantity) < 0 ||
       item.qualifiedQuantity > item.receivedQuantity
     );
 
     if (invalidItems.length > 0) {
-      ElMessage.warning('请检查物料数量，确保实收数量和合格数量大于0，且合格数量不超过实收数量');
+      ElMessage.warning('请检查物料数量，确保实收数量大于0，合格数量不小于0且不超过实收数量');
+      return;
+    }
+    if (Number(receiptDialog.form.items[0].receivedQuantity) <= 0) {
+      ElMessage.warning('请填写大于0的实收数量');
       return;
     }
     submitLoading.value = true;
@@ -1265,7 +1193,6 @@ const submitReceipt = async () => {
     const submitData = {
       orderId: receiptDialog.form.orderId,
       inspectionId: receiptDialog.form.inspectionId,
-      fromInspection: Boolean(receiptDialog.form.inspectionId),
       receiptDate: receiptDialog.form.receiptDate,
       supplierId: receiptDialog.form.supplierId,
       receiver: receiptDialog.form.receiver,
@@ -1315,7 +1242,7 @@ const cancelReceipt = async (receipt) => {
       remarks: '用户取消收货单'
     });
     ElMessage.success('收货单已取消');
-    loadReceipts();
+    await loadReceipts();
   } catch (error) {
     console.error('取消收货单失败:', error);
     ElMessage.error('取消收货单失败: ' + (getApiErrorMessage(error, '未知错误')));
@@ -1323,281 +1250,71 @@ const cancelReceipt = async (receipt) => {
     updateStatusLoading.value = false;
   }
 };
-// 方法：处理来料检验单选择变更
+// 检验关联只使用来源单据 ID；数量和批次由检验记录提供。
 const handleInspectionChange = async (inspectionId) => {
   if (!inspectionId) {
-    receiptDialog.form.items = [];
+    receiptDialog.form.items.forEach(item => { item.qualifiedQuantity = 0; });
     return;
   }
+  inspectionDetailLoading.value = true;
   try {
-    // 获取来料检验单详情
-    const response = await qualityApi.getIncomingInspection(inspectionId);
-    if (!response) {
-      throw new Error('API响应为空');
+    const inspection = parseResponseData(await qualityApi.getIncomingInspection(inspectionId));
+    if (!inspection?.id) throw new Error('来料检验单详情为空');
+    if (inspection.sourceType !== 'purchase_order') throw new Error('请选择来源为采购订单的来料检验单');
+    if (!RECEIPTABLE_INSPECTION_STATUSES.includes(inspection.status)) throw new Error('该检验单当前状态不能关联采购收货');
+    const orderId = Number(inspection.referenceId);
+    if (!Number.isSafeInteger(orderId) || orderId <= 0) throw new Error('检验单缺少有效采购订单');
+    if (receiptDialog.isEdit && orderId !== Number(receiptDialog.form.orderId)) throw new Error('检验单必须属于当前采购订单');
+
+    const order = parseResponseData(await purchaseApi.getOrder(orderId));
+    if (!order?.id) throw new Error('关联采购订单详情为空');
+    const sourceItems = (order.items || []).filter(item =>
+      inspection.purchaseOrderItemId
+        ? Number(item.id) === Number(inspection.purchaseOrderItemId)
+        : Number(item.materialId) === Number(inspection.materialId)
+    );
+    if (sourceItems.length !== 1) throw new Error('检验单无法唯一对应采购订单明细，请先完善检验单来源');
+    const sourceItem = sourceItems[0];
+    if (Number(sourceItem.materialId) !== Number(inspection.materialId)) throw new Error('检验物料与采购订单明细不一致');
+    if (receiptDialog.isEdit && Number(receiptDialog.form.orderItemId) !== Number(sourceItem.id)) throw new Error('检验单必须属于当前收货的采购订单明细');
+    const quantity = Number(inspection.quantity);
+    if (!Number.isFinite(quantity) || quantity <= 0) throw new Error('检验数量必须大于0');
+    if (FINISHED_INSPECTION_STATUSES.includes(inspection.status) &&
+        (inspection.qualifiedQuantity == null || !Number.isFinite(Number(inspection.qualifiedQuantity)))) {
+      throw new Error('终检记录缺少有效的合格数量');
     }
-    if (!response.data) {
-      throw new Error('API响应中没有data字段');
+    const existingItem = receiptDialog.form.items.find(item => Number(item.orderItemId) === Number(sourceItem.id));
+
+    if (!orders.value.some(item => Number(item.id) === orderId)) {
+      orders.value.unshift({ id: orderId, orderNumber: order.orderNo });
     }
-    // 拦截器已解包，response.data 就是业务数据
-    // 如果业务失败，拦截器会抛出错误
-    const inspection = response.data;
-    if (!inspection) {
-      throw new Error('无法获取检验单数据');
-    }
-    if (inspection.sourceType === 'outsourced_receipt') {
-      receiptDialog.form.inspectionId = null;
-      receiptDialog.form.items = [];
-      throw new Error('委外来料请在委外入库管理中办理');
-    }
-
-    // 变量定义
-    let supplierId = null;
-    let supplierName = null;
-    let isSupplierFound = false;
-
-    // 1. 首先尝试从检验单直接获取供应商信息
-    supplierId = inspection.supplierId || inspection.supplier?.id;
-    supplierName = inspection.supplierName ||
-                  inspection.supplier?.name || inspection.supplier?.company_name;
-
-    if (supplierId) {
-      receiptDialog.form.supplierId = supplierId;
-      isSupplierFound = true;
-
-      // 如果没有供应商名称，从供应商列表中查找
-      if (!supplierName) {
-        const supplier = suppliers.value.find(s => Number(s.id) === Number(supplierId) || Number(s.supplierId) === Number(supplierId));
-        if (supplier) {
-          supplierName = supplier.name || supplier.supplierName;
-        }
-      }
-    } else if (supplierName) {
-      // 在供应商列表中查找匹配的供应商
-      const matchedSupplier = suppliers.value.find(s =>
-        s.name === supplierName ||
-        s.supplierName === supplierName ||
-        s.companyName === supplierName
-      );
-
-      if (matchedSupplier) {
-        receiptDialog.form.supplierId = matchedSupplier.id || matchedSupplier.supplierId;
-        isSupplierFound = true;
-      }
-    }
-
-    // 2. 如果从检验单中未找到供应商信息，尝试通过reference_id(采购订单ID)获取
-    if (!isSupplierFound && inspection.referenceId) {
-      try {
-        // 尝试获取订单详情
-        const orderResponse = await purchaseApi.getOrder(inspection.referenceId);
-        if (orderResponse && orderResponse.data) {
-          // 支持 ResponseHandler 格式
-          const orderData = parseResponseData(orderResponse);
-          // 从订单中提取供应商ID和名称
-          const orderSupplierId = orderData.supplierId;
-          const orderSupplierName = orderData.supplierName;
-          if (orderSupplierId) {
-            receiptDialog.form.supplierId = Number(orderSupplierId);
-            isSupplierFound = true;
-            // 记录供应商名称
-            if (orderSupplierName) {
-              supplierName = orderSupplierName;
-            }
-          }
-        }
-      } catch (orderError) {
-        console.error('获取参考订单信息失败:', orderError);
-      }
-    }
-    // 3. 如果通过reference_no(采购单号)查找
-    if (!isSupplierFound && inspection.referenceNo) {
-      try {
-        // 在已加载的订单列表中查找匹配的订单
-        const matchedOrder = orders.value.find(order =>
-          order.orderNumber === inspection.referenceNo ||
-          order.orderNumber === inspection.referenceNo ||
-          order.no === inspection.referenceNo
-        );
-        if (matchedOrder) {
-          const orderSupplierId = matchedOrder.supplierId;
-          const orderSupplierName = matchedOrder.supplierName;
-          if (orderSupplierId) {
-            receiptDialog.form.supplierId = Number(orderSupplierId);
-            isSupplierFound = true;
-            // 记录供应商名称
-            if (orderSupplierName) {
-              supplierName = orderSupplierName;
-              }
-          }
-        } else {
-          // 如果本地没有匹配的订单，尝试从API获取
-          const ordersResponse = await purchaseApi.getOrders({
-            orderNumber: inspection.referenceNo,
-            limit: 1
-          });
-          if (ordersResponse && ordersResponse.data) {
-            // 支持 ResponseHandler 格式
-            const respData = parseResponseData(ordersResponse);
-            let orderData;
-            if (Array.isArray(respData) && respData.length > 0) {
-              orderData = respData[0];
-            } else if (respData?.items && respData.items.length > 0) {
-              orderData = respData.items[0];
-            } else if (respData?.list && respData.list.length > 0) {
-              orderData = respData.list[0];
-            }
-            if (orderData) {
-              const orderSupplierId = orderData.supplierId;
-              const orderSupplierName = orderData.supplierName;
-              if (orderSupplierId) {
-                receiptDialog.form.supplierId = Number(orderSupplierId);
-                isSupplierFound = true;
-
-                // 记录供应商名称
-                if (orderSupplierName) {
-                  supplierName = orderSupplierName;
-                  }
-              }
-            }
-          }
-        }
-      } catch (error) {
-        console.error('通过订单号查找供应商失败:', error);
-      }
-    }
-
-    // 4. 根据获取到的供应商ID查找供应商对象
-    if (isSupplierFound && receiptDialog.form.supplierId && !supplierName) {
-      // 在供应商列表中查找匹配的供应商，以获取更多信息
-      const supplier = suppliers.value.find(s =>
-        Number(s.id) === Number(receiptDialog.form.supplierId) ||
-        Number(s.supplierId) === Number(receiptDialog.form.supplierId)
-      );
-
-      if (supplier) {
-        supplierName = supplier.name || supplier.supplierName;
-      } else {
-        // 尝试从API获取供应商详情
-        try {
-          const supplierResponse = await baseDataApi.getSupplier(receiptDialog.form.supplierId);
-          if (supplierResponse && supplierResponse.data) {
-            // 支持 ResponseHandler 格式
-            const supplierData = parseResponseData(supplierResponse);
-            supplierName = supplierData.name || supplierData.companyName;
-            // 关键修改：将获取到的供应商添加到供应商列表中，确保下拉框能正确显示
-            if (!suppliers.value.some(s => Number(s.id) === Number(receiptDialog.form.supplierId))) {
-              suppliers.value.push({
-                id: receiptDialog.form.supplierId,
-                supplier_id: receiptDialog.form.supplierId,
-                name: supplierName,
-                supplier_name: supplierName
-              });
-            }
-          }
-        } catch (suppError) {
-          console.error('获取供应商详情失败:', suppError);
-        }
-      }
-    }
-
-    // 5. 如果仍未找到供应商，提示用户手动选择
-    if (!isSupplierFound) {
-      ElMessage.warning('未能自动识别供应商，请手动选择');
-    } else {
-      // 显示找到的供应商名称
-      if (supplierName) {
-        // 保存找到的供应商名称到响应式变量
-        selectedSupplierName.value = supplierName;
-        // 强制更新表单，确保UI显示正确
-        setTimeout(() => {
-          // 这个小技巧可以强制刷新el-select的显示
-          const tempId = receiptDialog.form.supplierId;
-          receiptDialog.form.supplierId = null;
-          setTimeout(() => {
-            receiptDialog.form.supplierId = tempId;
-          }, 10);
-        }, 100);
-      }
-    }
-    // 检查物料信息 - 从检验单根级别获取
-    // 尝试从检验单获取关联订单信息
-    if (inspection.referenceId) {
-      // 如果检验单中包含reference_id（订单ID）
-      const orderId = inspection.referenceId;
-      receiptDialog.form.orderId = Number(orderId);
-
-      // 在订单列表中查找匹配的订单
-      const matchedOrder = orders.value.find(order => Number(order.id) === Number(orderId));
-      if (matchedOrder) {
-        } else {
-        }
-    } else if (inspection.referenceNo) {
-      // 如果检验单中包含reference_no（订单编号）
-      const orderNo = inspection.referenceNo;
-      // 在订单列表中查找匹配的订单
-      const matchedOrder = orders.value.find(order =>
-        order.orderNumber === orderNo ||
-        order.orderNumber === orderNo ||
-        order.orderNo === orderNo ||
-        order.no === orderNo
-      );
-
-      if (matchedOrder) {
-        receiptDialog.form.orderId = Number(matchedOrder.id);
-      } else {
-        // 尝试从服务器获取订单信息
-        try {
-          const ordersResponse = await purchaseApi.getOrders({
-            orderNumber: orderNo,
-            limit: 1
-          });
-          if (ordersResponse && ordersResponse.data) {
-            // 支持 ResponseHandler 格式
-            const respData = parseResponseData(ordersResponse);
-            let orderData;
-            if (Array.isArray(respData) && respData.length > 0) {
-              orderData = respData[0];
-            } else if (respData?.items && respData.items.length > 0) {
-              orderData = respData.items[0];
-            } else if (respData?.list && respData.list.length > 0) {
-              orderData = respData.list[0];
-            }
-            if (orderData) {
-              receiptDialog.form.orderId = Number(orderData.id);
-            }
-          }
-        } catch (orderError) {
-          console.error('获取订单信息失败:', orderError);
-        }
-      }
-    }
-    // 创建单个物料项
-    // ✅ 修复：使用检验单的合格数量，而不是检验数量
-    const qualifiedQty = Number(inspection.qualifiedQuantity) || 0;
-    const inspectionQty = Number(inspection.quantity) || 0;
-    const materialItem = {
-      materialId: inspection.materialId || '',
-      materialCode: inspection.materialCode || '',
-      materialName: inspection.itemName || inspection.materialName || '未知物料',
-      specification: inspection.specification || inspection.standard || '',
-      unitName: inspection.unit || '个',
-      orderedQuantity: inspectionQty,
-      receivedQuantity: inspectionQty, // 实收数量等于检验数量
-      qualifiedQuantity: qualifiedQty, // ✅ 使用检验单的合格数量
-      remarks: inspection.note || ''
-    };
-    // 设置物料信息
-    receiptDialog.form.items = [materialItem];
-
-    // 强制更新视图
-    receiptDialog.form = { ...receiptDialog.form };
-
-    // 显示成功消息
-    ElMessage.success('成功加载物料信息');
+    receiptDialog.form.orderId = orderId;
+    receiptDialog.form.orderItemId = sourceItem.id;
+    setReceiptOrderItems(order);
+    receiptDialog.form.supplierId = order.supplierId;
+    selectedSupplierName.value = order.supplierName || null;
+    if (!receiptDialog.form.warehouseId) receiptDialog.form.warehouseId = sourceItem.warehouseId || order.warehouseId || null;
+    receiptDialog.form.items = [{
+      id: existingItem?.id,
+      orderItemId: sourceItem.id,
+      materialId: sourceItem.materialId,
+      materialCode: sourceItem.materialCode,
+      materialName: sourceItem.materialName,
+      specification: sourceItem.specification,
+      unitId: sourceItem.unitId,
+      unitName: sourceItem.unitName,
+      orderedQuantity: Number(sourceItem.quantity),
+      receivedQuantity: quantity,
+      qualifiedQuantity: FINISHED_INSPECTION_STATUSES.includes(inspection.status) ? Number(inspection.qualifiedQuantity) : 0,
+      batchNumber: inspection.batchNo,
+      remarks: existingItem?.remarks || inspection.note || ''
+    }];
   } catch (error) {
-    console.error('获取来料检验单详情失败:', error);
-    ElMessage.error(`获取来料检验单详情失败: ${getApiErrorMessage(error, '未知错误')}`);
-    receiptDialog.form.items = [];
+    receiptDialog.form.inspectionId = null;
+    receiptDialog.form.items.forEach(item => { item.qualifiedQuantity = 0; });
+    ElMessage.error(`关联来料检验单失败: ${getApiErrorMessage(error, '未知错误')}`);
+  } finally {
+    inspectionDetailLoading.value = false;
   }
 };
 // 方法：搜索收货单
@@ -1644,7 +1361,7 @@ async function printReceipt() {
       supplier_name: receipt.supplierName || '-',
       location_name: receipt.warehouseName || receipt.locationName || '-',
       operator: receipt.receiver || '',
-      status: getStatusText(receipt.status),
+      status: getPurchaseReceiptStatusText(receipt.status),
       remark: receipt.remarks || '',
       print_time: new Date().toLocaleString(),
       items: (receipt.items || []).map((item, index) => ({
@@ -1689,19 +1406,19 @@ function _getAllStringFields(item) {
   }
   return result;
 }
-// 方法：直接完成入库（将状态从草稿直接更新为已完成）
+// 方法：完成已检验收货单入库（将状态更新为已完成）
 async function directCompleteReceipt(receipt) {
   updateStatusLoading.value = true;
   try {
     await purchaseApi.updateReceiptStatus(receipt.id, {
       status: 'completed',
-      remarks: '用户直接确认完成入库'
+      remarks: '用户完成入库'
     });
-    ElMessage.success('入库单已确认完成');
-    loadReceipts();
+    ElMessage.success('入库单已完成');
+    await loadReceipts();
   } catch (error) {
-    console.error('确认入库失败:', error);
-    ElMessage.error(`确认入库失败: ${getApiErrorMessage(error, '请稍后重试')}`);
+    console.error('完成入库失败:', error);
+    ElMessage.error(`完成入库失败: ${getApiErrorMessage(error, '请稍后重试')}`);
   } finally {
     updateStatusLoading.value = false;
   }
@@ -1726,33 +1443,6 @@ function handleReceivedQuantityChange(item) {
 
     // 转换为数字类型
     item.receivedQuantity = parseFloat(item.receivedQuantity);
-
-    // 确保合格数量不超过实收数量
-    if (item.qualifiedQuantity > item.receivedQuantity) {
-      item.qualifiedQuantity = item.receivedQuantity;
-    }
-  }
-}
-// 方法：处理合格数量变更
-function handleQualifiedQuantityChange(item) {
-  // 确保输入的是有效数字
-  if (item.qualifiedQuantity) {
-    // 移除非数字字符(保留数字和小数点)
-    item.qualifiedQuantity = item.qualifiedQuantity.toString().replace(/[^\d.]/g, '');
-
-    // 确保只有一个小数点
-    const parts = item.qualifiedQuantity.split('.');
-    if (parts.length > 2) {
-      item.qualifiedQuantity = parts[0] + '.' + parts.slice(1).join('');
-    }
-
-    // 限制小数点后最多两位
-    if (parts.length > 1 && parts[1].length > 2) {
-      item.qualifiedQuantity = parts[0] + '.' + parts[1].substring(0, 2);
-    }
-
-    // 转换为数字类型
-    item.qualifiedQuantity = parseFloat(item.qualifiedQuantity);
 
     // 确保合格数量不超过实收数量
     if (item.qualifiedQuantity > item.receivedQuantity) {

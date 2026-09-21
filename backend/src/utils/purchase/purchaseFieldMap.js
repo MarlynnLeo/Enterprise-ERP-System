@@ -269,6 +269,8 @@ const purchaseReceiptMap = {
       fromInspection: Boolean(row.from_inspection),
       inspectionId: row.inspection_id ?? null,
       inspectionNo: row.inspection_no ?? null,
+      inspectionStatus: row.inspection_status ?? null,
+      qualifiedQuantity: toNumber(row.qualified_quantity) ?? 0,
       orderId: row.order_id ?? null,
       orderNo: row.order_no ?? row.joined_order_no ?? null,
       supplierId: row.supplier_id ?? null,

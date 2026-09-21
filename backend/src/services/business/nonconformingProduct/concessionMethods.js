@@ -79,6 +79,8 @@ module.exports = {
       connection = await db.pool.getConnection();
       await connection.beginTransaction();
 
+      await require('../PurchaseReceiptReleaseService').lockConcessionOrder(connection, ncpId);
+
       const [rows] = await connection.query(
         'SELECT id, ncp_no, inspection_id, inspection_no, material_id, material_code, material_name, batch_no, quantity, unit, defect_type, defect_description, severity, supplier_id, supplier_name, disposition, disposition_reason, disposition_by, disposition_date, handled_quantity, handling_cost, status, current_location, isolation_area, responsible_party, responsible_person, attachments, note, created_by, created_at, updated_by, updated_at, concession_reason, concession_approver_id, concession_approval_date, concession_status, deleted_at FROM nonconforming_products WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
         [ncpId]
@@ -108,7 +110,9 @@ module.exports = {
 
         // 关键业务逻辑：特采批准后，自动触发“让步接收(use_as_is)”的入库流转逻辑
         ncp.disposition = 'use_as_is';
-        await this.handleUseAsIs(ncp, ncp.quantity, connection, approverId);
+        const remainingQuantity = Number(ncp.quantity) - Number(ncp.handled_quantity || 0);
+        if (remainingQuantity <= 0) throw new Error('该不合格品已无待处置数量');
+        await this.handleUseAsIs(ncp, remainingQuantity, connection, approverId);
 
         // 并将该不合格品标记为已完成
         await connection.query(

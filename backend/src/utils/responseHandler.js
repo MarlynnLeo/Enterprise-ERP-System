@@ -384,7 +384,7 @@ function normalizeResponseErrorMessage(message, errorCode, statusCode, options =
   if (!preserveEnglish && (/^([A-Z][A-Z0-9_]+|ERR_[A-Z0-9_]+)$/.test(normalized) ||
       /^Request failed with status code \d+$/i.test(normalized) ||
       /^(?:Network Error|Unauthorized|Forbidden|Not Found)$/i.test(normalized) ||
-      (!/[\u3400-\u9fff]/.test(normalized) && /^[\x00-\x7F]+$/.test(normalized)))) {
+       (!/[\u3400-\u9fff]/.test(normalized) && /^\p{ASCII}+$/u.test(normalized)))) {
     return RESPONSE_ERROR_CODE_MESSAGES[errorCode] || (Number(statusCode) >= 500 ? '服务器暂时不可用，请稍后重试' : '操作失败，请稍后重试');
   }
   return normalized;

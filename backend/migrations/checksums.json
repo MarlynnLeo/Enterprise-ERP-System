@@ -290,5 +290,6 @@
   "20260914000002_allow_tax_invoice_reissue.js": "9008ec8375d2b0fc5470bc60dd63b9eb78db5996d306b7fad34997166c63ff48",
   "20260915000001_repair_purchase_flow_contracts.js": "25603bc6e723a9ae49fc229f7df5650744f767532b0317a5d473abdb2711d4fa",
   "20260916000001_complete_finance_credit_settlements.js": "ef9115cdf8dc4cd1c643d4b990f69f2a68bf1e822685ee4cfd4a3bfa02e13ab8",
-  "20260918000001_align_equipment_runtime_contracts.js": "6ec805fac33b94b7cff3379174a18385ad75ac087d86bcfc9c0b3ff63f5c792c"
+  "20260918000001_align_equipment_runtime_contracts.js": "6ec805fac33b94b7cff3379174a18385ad75ac087d86bcfc9c0b3ff63f5c792c",
+  "20260920000001_purchase_receipt_inspection_lifecycle.js": "db574c9fcb19f673b01176456e55c29d282e76275968f0f89577a44f78daa196"
 }

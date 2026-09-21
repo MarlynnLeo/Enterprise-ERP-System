@@ -279,7 +279,6 @@ const confirmReceipt = async (req, res) => {
     );
 
     await connection.commit();
-    QualityIntegrationService.emitPurchaseReceiptCompleted(receipt.receipt_id, req.user?.id);
     return ResponseHandler.success(
       res,
       {

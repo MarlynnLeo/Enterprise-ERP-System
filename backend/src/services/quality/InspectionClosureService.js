@@ -1,4 +1,3 @@
-const businessConfig = require('../../config/businessConfig');
 const { logger } = require('../../utils/logger');
 const NonconformingProductService = require('../business/NonconformingProductService');
 const PurchaseOrderStatusService = require('../business/PurchaseOrderStatusService');
@@ -8,83 +7,18 @@ const {
   resolveInspectionSourceType,
 } = require('../../utils/quality/inspectionSource');
 
-const STATUS = businessConfig.status.inspection;
-
-const TERMINAL_STATUSES = new Set([STATUS.PASSED, STATUS.FAILED, STATUS.PARTIAL, STATUS.COMPLETED]);
-
-const RECEIPT_STATUSES = new Set([STATUS.PASSED, STATUS.PARTIAL, STATUS.COMPLETED]);
-
-const toNumber = (value) => {
-  const number = Number(value ?? 0);
-  if (!Number.isFinite(number)) {
-    throw createValidationError('检验数量必须为有效数字');
-  }
-  return number;
-};
-
-const hasOwn = (object, key) => Object.prototype.hasOwnProperty.call(object || {}, key);
-
-const createValidationError = (message) => {
-  const error = new Error(message);
-  error.statusCode = 400;
-  error.code = 'VALIDATION_ERROR';
-  return error;
-};
+const {
+  isTerminalInspectionStatus,
+  normalizeTerminalInspectionQuantities,
+} = require('../../utils/quality/inspectionQuantities');
 
 class InspectionClosureService {
   static isTerminalStatus(status) {
-    return TERMINAL_STATUSES.has(status);
+    return isTerminalInspectionStatus(status);
   }
 
   static normalizeTerminalQuantities(inspection, updateData = {}) {
-    const status = inspection.status;
-    const inspectionQuantity = toNumber(inspection.quantity);
-    let qualifiedQuantity = toNumber(inspection.qualified_quantity);
-    let unqualifiedQuantity = toNumber(inspection.unqualified_quantity);
-    const hasExplicitQuantity =
-      hasOwn(updateData, 'qualified_quantity') || hasOwn(updateData, 'unqualified_quantity');
-    const hasStoredQuantity = qualifiedQuantity > 0 || unqualifiedQuantity > 0;
-
-    if (inspectionQuantity <= 0) {
-      throw createValidationError('检验数量必须大于0，不能关闭检验单');
-    }
-
-    if (!hasExplicitQuantity && !hasStoredQuantity) {
-      if (status === STATUS.PASSED || status === STATUS.COMPLETED) {
-        qualifiedQuantity = inspectionQuantity;
-        unqualifiedQuantity = 0;
-      } else if (status === STATUS.FAILED) {
-        qualifiedQuantity = 0;
-        unqualifiedQuantity = inspectionQuantity;
-      }
-    }
-
-    if (qualifiedQuantity < 0 || unqualifiedQuantity < 0) {
-      throw createValidationError('合格数量和不合格数量不能为负数');
-    }
-
-    const totalJudged = qualifiedQuantity + unqualifiedQuantity;
-    if (Math.abs(totalJudged - inspectionQuantity) > 0.0001) {
-      throw createValidationError(
-        `检验数量不一致: 检验数量=${inspectionQuantity}, 合格=${qualifiedQuantity}, 不合格=${unqualifiedQuantity}`
-      );
-    }
-
-    if ((status === STATUS.PASSED || status === STATUS.COMPLETED) && unqualifiedQuantity > 0.0001) {
-      throw createValidationError(
-        '检验通过时不合格数量必须为0；如有不合格请使用部分合格或不合格状态'
-      );
-    }
-
-    if (status === STATUS.PARTIAL && (qualifiedQuantity <= 0 || unqualifiedQuantity <= 0)) {
-      throw createValidationError('部分合格必须同时包含合格数量和不合格数量');
-    }
-
-    return {
-      inspectionQuantity,
-      qualifiedQuantity,
-      unqualifiedQuantity,
-    };
+    return normalizeTerminalInspectionQuantities(inspection, updateData);
   }
 
   static async closeIfTerminal(originalInspection, updateData, connection) {
@@ -98,9 +32,20 @@ class InspectionClosureService {
       return {};
     }
 
+    // A status transition may infer an all-pass/all-fail disposition. Replaying
+    // an already closed inspection must use its stored quantities as evidence.
+    const quantityInput = this.isTerminalStatus(originalInspection.status)
+      ? {
+          qualified_quantity: inspection.qualified_quantity,
+          unqualified_quantity: inspection.unqualified_quantity,
+        }
+      : updateData;
     const { inspectionQuantity, qualifiedQuantity, unqualifiedQuantity } =
-      this.normalizeTerminalQuantities(inspection, updateData);
-    const result = {};
+      this.normalizeTerminalQuantities(inspection, quantityInput);
+    const result = {
+      qualified_quantity: qualifiedQuantity,
+      unqualified_quantity: unqualifiedQuantity,
+    };
 
     inspection.qualified_quantity = qualifiedQuantity;
     inspection.unqualified_quantity = unqualifiedQuantity;
@@ -147,19 +92,15 @@ class InspectionClosureService {
       logger.info(`Auto-created or verified NCP for inspection ${inspection.inspection_no}`);
     }
 
-    if (
-      inspection.inspection_type === 'incoming' &&
-      !isOutsourcedIncoming &&
-      RECEIPT_STATUSES.has(inspection.status) &&
-      qualifiedQuantity > 0
-    ) {
+    if (inspection.inspection_type === 'incoming' && !isOutsourcedIncoming) {
       const receiptResult = await PurchaseReceiptService.autoCreateFromInspection(
         inspection,
         originalInspection,
         connection
       );
 
-      result.receipt_auto_created = true;
+      if (!receiptResult) return result;
+      result.receipt_auto_created = !receiptResult.existed;
       result.receipt_id = receiptResult.receiptId;
       result.receipt_no = receiptResult.receiptNo;
       result.receipt_existed = Boolean(receiptResult.existed);

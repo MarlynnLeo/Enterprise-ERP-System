@@ -64,6 +64,8 @@ module.exports = {
       connection = await db.pool.getConnection();
       await connection.beginTransaction();
 
+      await require('../PurchaseReceiptReleaseService').lockConcessionOrder(connection, ncpId);
+
       const [rows] = await connection.query(
         'SELECT id, ncp_no, inspection_id, inspection_no, material_id, material_code, material_name, batch_no, quantity, unit, defect_type, defect_description, severity, supplier_id, supplier_name, disposition, disposition_reason, disposition_by, disposition_date, handled_quantity, handling_cost, status, current_location, isolation_area, responsible_party, responsible_person, attachments, note, created_by, created_at, updated_by, updated_at, concession_reason, concession_approver_id, concession_approval_date, concession_status, deleted_at FROM nonconforming_products WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
         [ncpId]
@@ -113,7 +115,6 @@ module.exports = {
       const finalHandledQuantity = Math.min(totalAfter, ncpQuantity);
 
       const updateData = {
-        handled_quantity: finalHandledQuantity,
         handling_cost: normalizeNumber(completionData.handling_cost, 0),
         status: STATUS.NCP.PROCESSING,
         note: completionData.note || ncp.note,
@@ -287,157 +288,145 @@ module.exports = {
         return { inbound_no: inboundNo, path: 'inventory_inbound' };
       }
 
-      // 生成入库单号 - 使用配置化的前缀（来料让步）
-      const date = new Date();
-      const dateStr = date.toISOString().slice(2, 10).replace(/-/g, ''); // YYMMDD
-      const prefix = `${businessConfig.documentPrefix.RECEIPT}${dateStr}`;
-
-      const [maxNoResult] = await connection.query(
-        `SELECT MAX(CAST(SUBSTRING(receipt_no, ?) AS UNSIGNED)) AS max_seq
-           FROM purchase_receipts WHERE receipt_no LIKE ? FOR UPDATE`,
-        [prefix.length + 1, `${prefix}%`]
+      const PurchaseReceiptReleaseService = require('../PurchaseReceiptReleaseService');
+      const { CodeGenerators } = require('../../../utils/codeGenerator');
+      const { RECEIPT_STATUS } = require('../../../constants/purchaseConstants');
+      const {
+        lineAmount,
+        normalizeTaxRate,
+        taxAmount,
+        roundMoney,
+      } = require('../../../utils/money');
+      const release = await PurchaseReceiptReleaseService.prepareConcession(connection, {
+        ncpId: ncp.id,
+        quantity,
+      });
+      const { order, orderItem, inspection: sourceInspection, ncp: approvedNcp } = release;
+      const createdBy = firstValidUserId(
+        actorId,
+        approvedNcp.concession_approver_id,
+        approvedNcp.created_by
       );
+      if (!createdBy) throw new Error(`不合格品 ${ncp.ncp_no} 缺少可追溯责任人`);
 
-      const sequence = (maxNoResult[0]?.max_seq || 0) + 1;
-
-      const receiptNo = `${prefix}${String(sequence).padStart(3, '0')}`;
-
-      // 溯源原采购订单明细以获取价格、单位和规格
-      let orderItemInfo = { price: 0, unit_id: null, specification: '' };
-      if (inspection.reference_id && ncp.material_id) {
-        const [poiRows] = await connection.query(
-          `SELECT price, unit_id, specification
-             FROM purchase_order_items
-             WHERE order_id = ? AND material_id = ? LIMIT 1`,
-          [inspection.reference_id, ncp.material_id]
-        );
-        if (poiRows.length > 0) {
-          orderItemInfo = poiRows[0];
-          logger.info(
-            `NCP use-as-is source purchase item resolved: ncpNo=${ncp.ncp_no}, unitPrice=${orderItemInfo.price}, unitId=${orderItemInfo.unit_id}`
-          );
-        } else {
-          throw new Error(
-            `不合格品 ${ncp.ncp_no} 未在原采购订单 ${inspection.reference_id} 中找到物料“${ncp.material_code || '所选物料'}”的明细，不能生成让步接收入库单`
-          );
-        }
-      }
-
-      if (!orderItemInfo.price || Number(orderItemInfo.price) <= 0) {
-        throw new Error(`不合格品 ${ncp.ncp_no} 缺少有效采购单价，不能生成让步接收入库单`);
-      }
-      if (!inspection.supplier_id || !inspection.supplier_name) {
-        throw new Error(`不合格品 ${ncp.ncp_no} 缺少供应商信息，不能生成让步接收入库单`);
-      }
-      const createdBy = firstValidUserId(actorId, inspection.inspector_id, ncp.created_by);
-      if (!createdBy) {
-        throw new Error(`不合格品 ${ncp.ncp_no} 缺少可追溯责任人，不能生成让步接收入库单`);
-      }
-
-      // 🔄 通过统一服务获取物料的默认仓库
       const InventoryService = require('../../InventoryService');
-      const warehouseId = await InventoryService.getMaterialLocation(ncp.material_id, connection);
-
-      // 获取仓库名称
-      const [warehouseRows] = await connection.query(
-        'SELECT name FROM locations WHERE id = ? AND deleted_at IS NULL',
-        [warehouseId]
-      );
-      const warehouseName = warehouseRows.length > 0 ? warehouseRows[0].name : '物料默认仓库';
-      logger.info(
-        `Material default warehouse selected: warehouseId=${warehouseId}, warehouseName=${warehouseName}`
-      );
-
-      // 创建采购入库单
-      const [receiptResult] = await connection.query(
-        `INSERT INTO purchase_receipts (
-            receipt_no, order_id, order_no, supplier_id, supplier_name,
-            warehouse_id, warehouse_name, receipt_date, operator, remarks, status,
-            from_inspection, inspection_id, created_by
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          receiptNo,
-          inspection.reference_id,
-          inspection.reference_no,
-          inspection.supplier_id,
-          inspection.supplier_name,
-          warehouseId,
-          warehouseName,
-          new Date().toISOString().slice(0, 10),
-          await resolveActorLabel(connection, ncp.disposition_by, ncp.created_by),
-          `让步接收 - 来自不合格品 ${ncp.ncp_no}`,
-          'draft', // 创建为草稿,需要人工审核
-          1,
-          ncp.inspection_id,
-          createdBy,
-        ]
-      );
-
-      const receiptId = receiptResult.insertId;
-
-      // 创建入库单明细
-      await connection.query(
-        `INSERT INTO purchase_receipt_items (
-            receipt_id, material_id, material_code, material_name,
-            specification, unit_id, ordered_quantity, quantity, received_quantity,
-            qualified_quantity, batch_number, price, remarks, from_inspection
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          receiptId,
-          ncp.material_id,
-          ncp.material_code,
-          ncp.material_name,
-          orderItemInfo.specification || '', // specification
-          orderItemInfo.unit_id || null, // unit_id
-          quantity,
-          quantity,
-          quantity,
-          quantity, // ✅ 修复: 让步接收的物料应该入库,qualified_quantity = quantity
-          ncp.batch_no || `PUR-${ncp.ncp_no}`,
-          orderItemInfo.price || 0, // ✅ 修复: 使用原采购价入库，解决自动结转时财务金额异常的问题
-          `让步接受 - ${ncp.ncp_no}`,
-          1,
-        ]
-      );
-
-      logger.info(
-        `✅ 已创建让步接受入库单: ${receiptNo}, 数量: ${quantity}, 仓库: ${warehouseName}`
-      );
-
-      // 记录操作日志
-      await connection.query(
-        `INSERT INTO nonconforming_product_actions (ncp_id, action_type, action_description, action_by)
-           VALUES (?, 'auto_receipt', ?, ?)`,
-        [
-          ncp.id,
-          `自动创建让步接受入库单 ${receiptNo} (仓库: ${warehouseName})`,
-          await resolveActorLabel(connection, ncp.disposition_by, ncp.created_by),
-        ]
-      );
-
-      await QualityIntegrationService.linkNcpToDocument(
-        ncp,
-        'purchase_receipt',
-        receiptId,
-        receiptNo,
+      const warehouseId = await InventoryService.getMaterialLocation(
+        release.materialId,
         connection
       );
-      if (ncp.inspection_id) {
-        await QualityIntegrationService.linkDocumentToDocument(
-          {
-            type: 'quality_inspection',
-            id: ncp.inspection_id,
-            code: ncp.inspection_no,
-          },
-          {
-            type: 'purchase_receipt',
-            id: receiptId,
-            code: receiptNo,
-          },
-          connection
-        );
+      const [[warehouse]] = await connection.query(
+        'SELECT id, name FROM locations WHERE id = ? AND status = 1 AND deleted_at IS NULL',
+        [warehouseId]
+      );
+      if (!warehouse) throw new Error(`不合格品 ${ncp.ncp_no} 的物料未配置有效仓库`);
+      const [[material]] = await connection.query(
+        'SELECT code, name, specs, unit_id FROM materials WHERE id = ? AND deleted_at IS NULL',
+        [release.materialId]
+      );
+      if (!material || !order.supplier_name || !sourceInspection.batch_no) {
+        throw new Error(`不合格品 ${ncp.ncp_no} 缺少物料、供应商或检验批次信息`);
       }
-
+      const receiptNo = await CodeGenerators.generateReceiptCode(connection);
+      const operator = await resolveActorLabel(connection, approvedNcp.disposition_by, createdBy);
+      const taxRate = normalizeTaxRate(orderItem.tax_rate, 0);
+      const subtotal = lineAmount(release.quantity, orderItem.price);
+      const tax = taxAmount(subtotal, taxRate);
+      const total = roundMoney(subtotal + tax);
+      const remarks = `批准让步接收 - 不合格品 ${approvedNcp.ncp_no}`;
+      const [receiptResult] = await connection.query(
+        `INSERT INTO purchase_receipts (
+           receipt_no, order_id, order_no, supplier_id, supplier_name,
+           warehouse_id, warehouse_name, receipt_date, operator, remarks, status,
+           from_inspection, inspection_id, created_by, total_amount, total_tax_amount
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          receiptNo,
+          order.id,
+          order.order_no,
+          order.supplier_id,
+          order.supplier_name,
+          warehouse.id,
+          warehouse.name,
+          new Date().toISOString().slice(0, 10),
+          operator,
+          remarks,
+          RECEIPT_STATUS.INSPECTED,
+          1,
+          sourceInspection.id,
+          createdBy,
+          total,
+          tax,
+        ]
+      );
+      const receiptId = receiptResult.insertId;
+      await connection.query(
+        `INSERT INTO purchase_receipt_items (
+           receipt_id, order_item_id, material_id, material_code, material_name,
+           specification, unit, unit_id, ordered_quantity, quantity, received_quantity,
+           qualified_quantity, batch_number, price, tax_rate, amount_excluding_tax,
+           tax_amount, total_amount, remarks, from_inspection
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          receiptId,
+          orderItem.id,
+          release.materialId,
+          material.code,
+          material.name,
+          orderItem.specification || material.specs || '',
+          orderItem.unit || approvedNcp.unit,
+          orderItem.unit_id || material.unit_id,
+          orderItem.quantity,
+          release.quantity,
+          release.quantity,
+          release.quantity,
+          sourceInspection.batch_no,
+          orderItem.price,
+          taxRate,
+          subtotal,
+          tax,
+          total,
+          remarks,
+          1,
+        ]
+      );
+      // The generation link is release evidence, so linking is mandatory and
+      // transactional. A best-effort traceability link cannot authorize stock.
+      const DocumentLinkService = require('../DocumentLinkService');
+      await DocumentLinkService.createLink(
+        {
+          source_type: 'nonconforming_product',
+          source_id: approvedNcp.id,
+          source_code: approvedNcp.ncp_no,
+          target_type: 'purchase_receipt',
+          target_id: receiptId,
+          target_code: receiptNo,
+          link_type: 'generate',
+          created_by: createdBy,
+        },
+        connection
+      );
+      await DocumentLinkService.createLink(
+        {
+          source_type: 'quality_inspection',
+          source_id: sourceInspection.id,
+          source_code: sourceInspection.inspection_no,
+          target_type: 'purchase_receipt',
+          target_id: receiptId,
+          target_code: receiptNo,
+          link_type: 'reference',
+          created_by: createdBy,
+        },
+        connection
+      );
+      await connection.query(
+        `INSERT INTO nonconforming_product_actions (ncp_id, action_type, action_description, action_by)
+         VALUES (?, 'auto_receipt', ?, ?)`,
+        [
+          approvedNcp.id,
+          `创建已批准特采收货单 ${receiptNo}，放行数量 ${release.quantity}`,
+          operator,
+        ]
+      );
       return { receiptNo, receiptId };
     } catch (error) {
       logger.error('处理让步接收失败:', error);

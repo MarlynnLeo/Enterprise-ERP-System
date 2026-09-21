@@ -25,16 +25,16 @@ describe('purchase quantity sources', () => {
     expect(result.lines.get(2)).toMatchObject({ received: 5, reserved: 5, inspected: 0, qualified: 0 });
   });
 
-  test('failed inspection releases quantity while manual drafts reserve without counting as received', async () => {
+  test('failed inspection releases quantity and drafts do not double-reserve a later arrival', async () => {
     const result = await PurchaseOrderQuantityService.read(connectionFor({
       orders: [{ id: 1, material_id: 10, quantity: 5 }],
       inspections: [{ id: 7, material_id: 10, purchase_order_item_id: 1, status: 'failed', quantity: 3, qualified_quantity: 0, unqualified_quantity: 3 }],
       receipts: [
-        { order_item_id: 1, material_id: 10, status: 'draft', qualified_quantity: 1 },
-        { order_item_id: 1, material_id: 10, status: 'confirmed', qualified_quantity: 2 },
+        { order_item_id: 1, material_id: 10, status: 'draft', received_quantity: 3, qualified_quantity: 0 },
+        { order_item_id: 1, material_id: 10, status: 'inspected', qualified_quantity: 2 },
       ],
     }), 20);
-    expect(result.lines.get(1)).toMatchObject({ received: 2, reserved: 3, inspected: 3, qualified: 0, unqualified: 3 });
+    expect(result.lines.get(1)).toMatchObject({ received: 2, reserved: 2, inspected: 3, qualified: 0, unqualified: 3 });
   });
 
   test('ambiguous legacy inspections cannot silently update all matching order lines', async () => {

@@ -6,7 +6,11 @@
  * resolve to one of the values defined here.
  */
 
-const { PURCHASE_STATUS, PURCHASE_STATUS_TRANSITIONS } = require('./purchaseConstants');
+const {
+  PURCHASE_STATUS,
+  PURCHASE_STATUS_TRANSITIONS,
+  RECEIPT_STATUS,
+} = require('./purchaseConstants');
 const {
   PRODUCTION_PLAN_STATUS_FLOW,
   PRODUCTION_TASK_STATUS_FLOW,
@@ -142,13 +146,12 @@ const PURCHASE_RETURN_TRANSITIONS = {
   cancelled: [],
 };
 
-// 与业务控制器 STATUS 对齐：无独立 inspecting 态（质检在 quality 模块）
-// 保留 draft→completed 一步完成（收货即入库）以兼容现网流程
+// 检验结案推进 inspected；完成入库必须经过该阶段并另行校验合格数量。
 const PURCHASE_RECEIPT_STATUS_TRANSITIONS = {
-  draft: ['confirmed', 'completed', 'cancelled'],
-  confirmed: ['completed', 'cancelled'],
-  completed: [],
-  cancelled: [],
+  [RECEIPT_STATUS.DRAFT]: [RECEIPT_STATUS.INSPECTED, RECEIPT_STATUS.CANCELLED],
+  [RECEIPT_STATUS.INSPECTED]: [RECEIPT_STATUS.COMPLETED, RECEIPT_STATUS.CANCELLED],
+  [RECEIPT_STATUS.COMPLETED]: [],
+  [RECEIPT_STATUS.CANCELLED]: [],
 };
 
 // 调拨转换 SSOT（与 inventoryTransferController / systemConstants.TRANSFER_STATUS_FLOW 一致）

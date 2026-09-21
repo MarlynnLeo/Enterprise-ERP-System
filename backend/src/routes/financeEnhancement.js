@@ -160,43 +160,7 @@ router.post(
   FinanceEnhancementController.generateARCreditNoteFromSalesReturn
 );
 
-/** 闭环补齐：进项税 / 销项税 / 销售成本（force） */
-router.post(
-  '/integration/tax-input/:receiptId',
-  requirePermission('finance:tax:create'),
-  requirePermission(PRICE_UPDATE_PERMISSIONS),
-  async (req, res, next) => {
-    try {
-      const FinanceIntegrationService = require('../services/external/FinanceIntegrationService');
-      const db = require('../config/db');
-      const [rows] = await db.pool.execute(
-        `SELECT id, receipt_no, supplier_id, order_id, order_no, receipt_date, total_amount, total_tax_amount AS tax_amount, status, created_by
-         FROM purchase_receipts
-         WHERE id = ? AND deleted_at IS NULL`,
-        [req.params.receiptId]
-      );
-      if (!rows[0]) {
-        return ResponseHandler.error(res, '入库单不存在', 'NOT_FOUND', 404);
-      }
-      const result = await FinanceIntegrationService.generateInputTaxInvoiceFromPurchaseReceipt(
-        rows[0],
-        req.user?.id,
-        { force: true }
-      );
-      return ResponseHandler.success(res, result, '进项税票生成成功');
-    } catch (e) {
-      if (
-        e.message &&
-        (e.message.includes('金额为0') ||
-          e.message.includes('税额为0') ||
-          e.message.includes('不能生成'))
-      ) {
-        return ResponseHandler.error(res, e.message, 'VALIDATION_ERROR', 400);
-      }
-      return next(e);
-    }
-  }
-);
+/** 闭环补齐：销项税 / 销售成本（force） */
 router.post(
   '/integration/tax-output/:outboundId',
   requirePermission('finance:tax:create'),
@@ -296,7 +260,7 @@ router.post(
 
 // 注意: 审批工作流路由已移除，审批功能统一通过 RBAC 权限按钮控制
 
-// ==================== 三单匹配 / 业财状态 ====================
+// ==================== 三单匹配 / 销售出库业财状态 ====================
 
 router.post(
   '/integration/three-way-match/from-receipt/:receiptId',
@@ -329,11 +293,6 @@ router.post(
   FinanceEnhancementController.cancelThreeWayMatch
 );
 
-router.get(
-  '/integration/document-status/purchase-receipt/:receiptId',
-  requirePermission(['finance:ap:view', 'purchase:receipts:view']),
-  FinanceEnhancementController.getPurchaseReceiptFinanceStatus
-);
 router.get(
   '/integration/document-status/sales-outbound/:outboundId',
   requirePermission(['finance:ar:view', 'sales:outbound:view']),

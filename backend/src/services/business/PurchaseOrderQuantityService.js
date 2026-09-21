@@ -70,14 +70,18 @@ class PurchaseOrderQuantityService {
       }
     }
     const [receipts] = await connection.query(
-      `SELECT ri.order_item_id, ri.material_id, ri.received_quantity, ri.qualified_quantity, r.inspection_id, r.status
+      `SELECT ri.order_item_id, ri.material_id, ri.received_quantity, ri.qualified_quantity, r.inspection_id, r.status,
+          EXISTS(SELECT 1 FROM document_links dl WHERE dl.source_type = 'nonconforming_product'
+            AND dl.target_type = 'purchase_receipt' AND dl.target_id = r.id AND dl.link_type = 'generate') AS is_concession
        FROM purchase_receipt_items ri JOIN purchase_receipts r ON r.id = ri.receipt_id
        WHERE r.order_id = ? AND r.deleted_at IS NULL AND r.status <> 'cancelled'
          AND (? IS NULL OR r.id <> ?) ORDER BY r.id, ri.id FOR UPDATE`,
       [orderId, receiptId, receiptId]
     );
     for (const receipt of receipts) {
-      if (receipt.inspection_id && inspectionIds.has(Number(receipt.inspection_id))) continue;
+      // 草稿尚未形成收货事实；到货额度由待检检验单占用，避免同一批货重复占用。
+      if (receipt.status === 'draft') continue;
+      if (!Number(receipt.is_concession) && receipt.inspection_id && inspectionIds.has(Number(receipt.inspection_id))) continue;
       const line = resolve(receipt.material_id, receipt.order_item_id);
       const quantity = Number(receipt.qualified_quantity ?? receipt.received_quantity ?? 0);
       line.reserved += quantity;

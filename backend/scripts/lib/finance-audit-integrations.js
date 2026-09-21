@@ -101,11 +101,12 @@ module.exports = async function integrations(h) {
     const d = await batch('purchase_receipt', ctx.chainReceipt.id); assert.equal(Number(d.skippedCount), 1); assert.equal(Number(d.successCount), 0);
     assert.equal(Number((await one("SELECT COUNT(*) n FROM ap_invoices WHERE source_type='purchase_receipt' AND source_id=?", [ctx.chainReceipt.id])).n), 1);
   });
-  await test('CHAIN-AP-PAY', '采购到财务', '支付采购货款并核对业财闭环', async () => {
+  await test('CHAIN-AP-PAY', '采购到财务', '支付采购货款并核对应付与银行余额', async () => {
     const inv = need(ctx.chainAp, '采购应付'); const before = await bankBalance(ctx.bankIds[0]);
     http(await call('post', '/api/finance/ap/payments', { invoiceId: inv.id, amount: 1130, paymentDate: today, paymentMethod: '银行转账', bankAccountId: ctx.bankIds[0], notes: prefix }), [200, 201]);
-    equalMoney(await bankBalance(ctx.bankIds[0]), before - 1130); equalMoney((await invoice('ap', 'purchase_receipt', ctx.chainReceipt.id)).balance_amount, 0);
-    evidence(http(await call('get', `/api/finance/integration/document-status/purchase-receipt/${ctx.chainReceipt.id}`)));
+    equalMoney(await bankBalance(ctx.bankIds[0]), before - 1130);
+    const paidInvoice = await invoice('ap', 'purchase_receipt', ctx.chainReceipt.id);
+    equalMoney(paidInvoice.balance_amount, 0); evidence(paidInvoice);
   });
   await test('CHAIN-SO-OUTBOUND', '销售到财务', '销售6件、单价200并完成出库业务审批', async () => {
     ctx.chainSo = http(await call('post', '/api/sales/orders', { customerId: ctx.customerId, deliveryDate: today, status: 'draft', taxRate: 0.13, remarks: prefix,

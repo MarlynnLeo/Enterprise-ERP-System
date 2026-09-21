@@ -160,7 +160,6 @@
   // ==================== 入库类型 ====================
   const showTypePicker = ref(false)
   const typeOptions = [
-    { text: '采购入库', value: 'purchase' },
     { text: '生产入库', value: 'production' },
     { text: '退货入库', value: 'return' },
     { text: '其他入库', value: 'other' }
@@ -243,8 +242,8 @@
 
   // ==================== 表单（纯 camel，后端 inventoryInboundMap.fromApi） ====================
   const form = reactive({
-    inboundTypeLabel: '采购入库',
-    inboundType: 'purchase',
+    inboundTypeLabel: '其他入库',
+    inboundType: 'other',
     locationId: null,
     locationName: '',
     referenceNo: '',

@@ -115,24 +115,24 @@
                 查看详情
               </Button>
               <Button
-                v-if="receipt.status === 'draft'"
+                v-if="canCompletePurchaseReceipt(receipt)"
                 v-permission="'purchase:receipts:update'"
                 size="small"
                 type="success"
                 plain
-                @click.stop="confirmReceipt(receipt)"
+                @click.stop="completeReceipt(receipt)"
               >
-                确认入库
+                入库
               </Button>
               <Button
-                v-if="receipt.status === 'confirmed'"
+                v-if="canCancelPurchaseReceipt(receipt)"
                 v-permission="'purchase:receipts:update'"
                 size="small"
                 type="warning"
                 plain
-                @click.stop="completeReceipt(receipt)"
+                @click.stop="cancelReceipt(receipt)"
               >
-                完成入库
+                取消
               </Button>
             </div>
           </div>
@@ -160,6 +160,13 @@
   import { purchaseApi } from '@/api'
   import { useAuthStore } from '@/stores/auth'
   import { canViewMaterialPrices, formatMaskedPrice } from '@/utils/priceVisibility'
+  import {
+    PURCHASE_RECEIPT_STATUS,
+    getPurchaseReceiptStatusColor,
+    getPurchaseReceiptStatusText,
+    canCompletePurchaseReceipt,
+    canCancelPurchaseReceipt,
+  } from '@/constants/purchaseReceiptStatus'
   import dayjs from 'dayjs'
 
   const formatDate = (d) => (d ? dayjs(d).format('YYYY-MM-DD') : '—')
@@ -174,13 +181,15 @@
   const receiptList = ref([])
   const activeTab = ref(0)
 
-  // 状态标签
+  // 状态标签（与后端 purchase_receipts.status 枚举保持一致）
   const statusTabs = [
     { label: '全部', value: '' },
-    { label: '草稿', value: 'draft' },
-    { label: '已确认', value: 'confirmed' },
-    { label: '已完成', value: 'completed' },
-    { label: '已取消', value: 'cancelled' }
+    ...[
+      PURCHASE_RECEIPT_STATUS.DRAFT,
+      PURCHASE_RECEIPT_STATUS.INSPECTED,
+      PURCHASE_RECEIPT_STATUS.COMPLETED,
+      PURCHASE_RECEIPT_STATUS.CANCELLED,
+    ].map((value) => ({ label: getPurchaseReceiptStatusText(value), value })),
   ]
 
   // 分页参数
@@ -268,27 +277,8 @@
     }
   }
 
-  // 获取入库单状态类型
-  const getReceiptStatusType = (status) => {
-    const statusMap = {
-      draft: 'default',
-      confirmed: 'primary',
-      completed: 'success',
-      cancelled: 'danger'
-    }
-    return statusMap[status] || 'default'
-  }
-
-  // 获取入库单状态文本
-  const getReceiptStatusText = (status) => {
-    const statusMap = {
-      draft: '草稿',
-      confirmed: '已确认',
-      completed: '已完成',
-      cancelled: '已取消'
-    }
-    return statusMap[status] || status
-  }
+  const getReceiptStatusType = getPurchaseReceiptStatusColor
+  const getReceiptStatusText = getPurchaseReceiptStatusText
 
   // 格式化金额
   const formatAmount = (amount) => {
@@ -305,44 +295,40 @@
     router.push(`/purchase/receipts/${id}`)
   }
 
-  // 确认入库
-  const confirmReceipt = async (receipt) => {
-    try {
-      await showConfirmDialog({
-        title: '确认入库',
-        message: `确定要确认入库单 ${receipt.receiptNo} 吗？`
-      })
-
-      // 这里需要调用确认入库的API
-      showToast('入库单已确认')
-
-      // 更新本地状态
-      receipt.status = 'confirmed'
-    } catch (error) {
-      if (error !== 'cancel') {
-        console.error('确认入库失败:', error)
-        showToast('确认入库失败')
-      }
-    }
-  }
-
-  // 完成入库
+  // 已检验 → 已完成；库存过账由后端事务完成。
   const completeReceipt = async (receipt) => {
     try {
       await showConfirmDialog({
         title: '完成入库',
-        message: `确定要完成入库单 ${receipt.receiptNo} 吗？`
+        message: `确定要完成入库单 ${receipt.receiptNo} 吗？库存数量将相应增加。`
       })
 
-      // 这里需要调用完成入库的API
+      await purchaseApi.updateReceiptStatus(receipt.id, 'completed', '移动端完成入库')
       showToast('入库单已完成')
-
-      // 更新本地状态
-      receipt.status = 'completed'
+      resetList()
+      await loadReceiptList()
     } catch (error) {
       if (error !== 'cancel') {
         console.error('完成入库失败:', error)
         showToast('完成入库失败')
+      }
+    }
+  }
+
+  const cancelReceipt = async (receipt) => {
+    try {
+      await showConfirmDialog({
+        title: '取消收货单',
+        message: `确定要取消收货单 ${receipt.receiptNo} 吗？`,
+      })
+      await purchaseApi.updateReceiptStatus(receipt.id, 'cancelled', '移动端取消收货单')
+      showToast('收货单已取消')
+      resetList()
+      await loadReceiptList()
+    } catch (error) {
+      if (error !== 'cancel') {
+        console.error('取消收货单失败:', error)
+        showToast('取消收货单失败')
       }
     }
   }

@@ -712,7 +712,6 @@ const form = reactive({
 })
 const inboundTypeDefinitions = Object.freeze([
   { value: 'other', dictionaryCode: 'inbound', fallbackLabel: '其他入库' },
-  { value: 'purchase', dictionaryCode: 'purchase_inbound', fallbackLabel: '采购入库' },
   { value: 'production', dictionaryCode: 'production_inbound', fallbackLabel: '生产入库' },
   { value: 'production_return', dictionaryCode: 'production_return', fallbackLabel: '生产退料' },
   { value: 'defective_return', dictionaryCode: 'defective_return', fallbackLabel: '不良退回' },

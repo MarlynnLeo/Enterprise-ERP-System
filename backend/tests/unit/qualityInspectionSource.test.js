@@ -5,6 +5,7 @@ const mockProductionInboundService = {
 };
 const mockPurchaseOrderStatusService = {
   handleInspectionComplete: jest.fn(),
+  syncOrderItemReceivedFromReceipts: jest.fn(),
 };
 const mockPurchaseReceiptService = {
   autoCreateFromInspection: jest.fn(),
@@ -57,6 +58,7 @@ jest.mock(
 const QualityInspection = require('../../src/models/qualityInspection');
 const db = require('../../src/config/db');
 const InspectionClosureService = require('../../src/services/quality/InspectionClosureService');
+const InspectionService = require('../../src/services/quality/inspectionService');
 const { qualityInspectionMap } = require('../../src/utils/quality/qualityFieldMap');
 const {
   INSPECTION_SOURCE_TYPES,
@@ -69,6 +71,10 @@ const buildInspectionPayload = (overrides = {}) => ({
   inspection_type: 'incoming',
   reference_id: 13,
   reference_no: 'WWRK260903001',
+  material_id: 3,
+  purchase_order_item_id: 4,
+  supplier_id: 6,
+  unit_id: 1,
   batch_no: 'OSP-WWRK260903001-1',
   quantity: 1,
   qualified_quantity: 1,
@@ -90,13 +96,34 @@ const buildInspectionPayload = (overrides = {}) => ({
 });
 
 const createInsertConnection = () => ({
-  query: jest.fn(async (sql) => {
+  query: jest.fn(async (sql, values) => {
+    if (sql.includes('FROM purchase_orders'))
+      return [
+        [
+          {
+            id: values[0],
+            order_no: values[0] === 56202 ? 'PO202609040001' : 'WWRK260903001',
+            supplier_id: 6,
+            status: 'approved',
+          },
+        ],
+      ];
+    if (sql.includes('FROM purchase_order_items'))
+      return [[{ id: 4, material_id: 3, quantity: 100 }]];
+    if (
+      sql.includes('FROM quality_inspections WHERE') ||
+      sql.includes('FROM purchase_receipt_items ri') ||
+      sql.includes('FROM purchase_return_items rti')
+    )
+      return [[]];
+    if (sql.includes('FROM materials m LEFT JOIN inspection_methods')) return [[{ code: 'full' }]];
     if (String(sql).includes('INSERT INTO quality_inspections')) {
       return [{ insertId: 24 }];
     }
     if (String(sql).includes('INSERT INTO quality_inspection_items')) {
       return [{ insertId: 2401 }];
     }
+    if (String(sql).includes('UPDATE quality_inspections')) return [{ affectedRows: 1 }];
     throw new Error(`Unexpected query: ${String(sql)}`);
   }),
 });
@@ -105,8 +132,10 @@ const getInsertedInspection = (connection) => {
   const [insertSql, insertValues] = connection.query.mock.calls.find(([sql]) =>
     String(sql).includes('INSERT INTO quality_inspections')
   );
-  const columns = insertSql.match(/INSERT INTO quality_inspections\s*\(([^)]+)\)/)[1]
-    .split(',').map((column) => column.trim());
+  const columns = insertSql
+    .match(/INSERT INTO quality_inspections\s*\(([^)]+)\)/)[1]
+    .split(',')
+    .map((column) => column.trim());
   return Object.fromEntries(columns.map((column, index) => [column, insertValues[index]]));
 };
 
@@ -124,26 +153,44 @@ describe('quality inspection source routing', () => {
     mockNonconformingProductService.autoCreateFromInspection.mockResolvedValue(undefined);
   });
 
-  test.each(['purchase_order', 'outsourced_receipt'])('reports a missing %s source as a validation error before writing', async (source_type) => {
-    const connection = createInsertConnection();
-    await expect(QualityInspection.createInspection(buildInspectionPayload({
-      source_type, reference_id: null, reference_no: null,
-    }), connection)).rejects.toMatchObject({ statusCode: 400, code: 'VALIDATION_ERROR' });
-    expect(connection.query).not.toHaveBeenCalled();
-  });
+  test.each(['purchase_order', 'outsourced_receipt'])(
+    'reports a missing %s source as a validation error before writing',
+    async (source_type) => {
+      const connection = createInsertConnection();
+      await expect(
+        QualityInspection.createInspection(
+          buildInspectionPayload({
+            source_type,
+            reference_id: null,
+            reference_no: null,
+          }),
+          connection
+        )
+      ).rejects.toMatchObject({ statusCode: 400, code: 'VALIDATION_ERROR' });
+      expect(connection.query).not.toHaveBeenCalled();
+    }
+  );
 
   test('reports an unknown source number as a validation error without inserting an inspection', async () => {
     const connection = { query: jest.fn().mockResolvedValue([[]]) };
-    await expect(QualityInspection.createInspection(buildInspectionPayload({
-      source_type: 'purchase_order', reference_id: null, reference_no: 'MISSING-PO',
-    }), connection)).rejects.toMatchObject({ statusCode: 400, code: 'VALIDATION_ERROR' });
+    await expect(
+      QualityInspection.createInspection(
+        buildInspectionPayload({
+          source_type: 'purchase_order',
+          reference_id: null,
+          reference_no: 'MISSING-PO',
+        }),
+        connection
+      )
+    ).rejects.toMatchObject({ statusCode: 400, code: 'VALIDATION_ERROR' });
     expect(connection.query.mock.calls.every(([sql]) => !sql.includes('INSERT'))).toBe(true);
   });
 
   test('reports a missing traceable batch as a validation error before writing', async () => {
     const connection = createInsertConnection();
-    await expect(QualityInspection.createInspection(buildInspectionPayload({ batch_no: '' }), connection))
-      .rejects.toMatchObject({ statusCode: 400, code: 'VALIDATION_ERROR' });
+    await expect(
+      QualityInspection.createInspection(buildInspectionPayload({ batch_no: '' }), connection)
+    ).rejects.toMatchObject({ statusCode: 400, code: 'VALIDATION_ERROR' });
     expect(connection.query).not.toHaveBeenCalled();
   });
 
@@ -178,8 +225,9 @@ describe('quality inspection source routing', () => {
 
     const persistedFlag = getInsertedInspection(connection).is_full_inspection;
     expect(persistedFlag).toBe(storedFlag);
-    expect(qualityInspectionMap.toApi({ ...result, is_full_inspection: persistedFlag }))
-      .toMatchObject({ isFullInspection: Boolean(storedFlag) });
+    expect(
+      qualityInspectionMap.toApi({ ...result, is_full_inspection: persistedFlag })
+    ).toMatchObject({ isFullInspection: Boolean(storedFlag) });
   });
 
   test.each([
@@ -203,7 +251,7 @@ describe('quality inspection source routing', () => {
     });
   });
 
-  test('defaults ordinary incoming inspections to purchase_order and keeps purchase inbound behavior', async () => {
+  test('defaults ordinary incoming inspections to purchase_order and creates only its purchase receipt', async () => {
     const connection = createInsertConnection();
     const payload = buildInspectionPayload({
       source_type: undefined,
@@ -218,7 +266,8 @@ describe('quality inspection source routing', () => {
     );
     expect(insertCall[1][2]).toBe(INSPECTION_SOURCE_TYPES.PURCHASE_ORDER);
     expect(result.source_type).toBe(INSPECTION_SOURCE_TYPES.PURCHASE_ORDER);
-    expect(mockProductionInboundService.createDraftFromIncomingInspection).toHaveBeenCalledTimes(1);
+    expect(mockProductionInboundService.createDraftFromIncomingInspection).not.toHaveBeenCalled();
+    expect(mockPurchaseReceiptService.autoCreateFromInspection).toHaveBeenCalledTimes(1);
   });
 
   test('does not create a purchase inventory draft when updating an outsourced inspection', async () => {
@@ -234,6 +283,7 @@ describe('quality inspection source routing', () => {
         if (String(sql).includes('FROM quality_inspections')) {
           return [[currentInspection]];
         }
+        if (String(sql).includes('UPDATE quality_inspections')) return [{ affectedRows: 1 }];
         throw new Error(`Unexpected query: ${String(sql)}`);
       }),
       execute: jest.fn(async (sql) => {
@@ -269,14 +319,17 @@ describe('quality inspection source routing', () => {
     const connection = {
       query: jest.fn(async (sql) => {
         if (String(sql).includes('FROM quality_inspections')) return [[currentInspection]];
+        if (sql.includes('FROM purchase_orders')) return [[{ id: 13, supplier_id: 6 }]];
         throw new Error(`Unexpected query: ${String(sql)}`);
       }),
       execute: jest.fn(async (sql) => {
         if (String(sql).includes('SELECT id, file_url')) {
-          return [[
-            { id: 11, file_url: '/uploads/attachments/keep.jpg' },
-            { id: 12, file_url: '/uploads/attachments/remove.jpg' },
-          ]];
+          return [
+            [
+              { id: 11, file_url: '/uploads/attachments/keep.jpg' },
+              { id: 12, file_url: '/uploads/attachments/remove.jpg' },
+            ],
+          ];
         }
         return [{ affectedRows: 1 }];
       }),
@@ -306,6 +359,7 @@ describe('quality inspection source routing', () => {
     const connection = {
       query: jest.fn(async (sql) => {
         if (String(sql).includes('FROM quality_inspections')) return [[currentInspection]];
+        if (sql.includes('FROM purchase_orders')) return [[{ id: 13, supplier_id: 6 }]];
         throw new Error(`Unexpected query: ${String(sql)}`);
       }),
       execute: jest.fn(async (sql) => {
@@ -331,6 +385,15 @@ describe('quality inspection source routing', () => {
       commit: jest.fn(),
       rollback: jest.fn(),
       release: jest.fn(),
+      query: jest.fn(async (sql) => {
+        if (sql.includes('FROM quality_inspections'))
+          return [
+            [buildInspectionPayload({ id: 24, status: 'pending', source_type: 'purchase_order' })],
+          ];
+        if (sql.includes('FROM purchase_orders')) return [[{ id: 13, supplier_id: 6 }]];
+        if (sql.includes('FROM purchase_receipts')) return [[]];
+        throw new Error(`Unexpected query: ${sql}`);
+      }),
       execute: jest.fn(async (sql) => {
         if (String(sql).includes('SELECT id, status FROM quality_inspections')) {
           return [[{ id: 24, status: 'pending' }]];
@@ -394,7 +457,7 @@ describe('quality inspection source routing', () => {
       connection
     );
 
-    expect(result).toEqual({});
+    expect(result).toEqual({ qualified_quantity: 1, unqualified_quantity: 0 });
     expect(mockPurchaseOrderStatusService.handleInspectionComplete).not.toHaveBeenCalled();
     expect(mockPurchaseReceiptService.autoCreateFromInspection).not.toHaveBeenCalled();
   });
@@ -403,5 +466,93 @@ describe('quality inspection source routing', () => {
     expect(() => normalizeInspectionSourceType('incoming', 'mystery_source')).toThrow(
       '不支持的来料检验来源'
     );
+  });
+
+  test('status-and-trace cannot reopen a closed incoming inspection through a second write path', async () => {
+    const currentInspection = buildInspectionPayload({ id: 24, source_type: 'purchase_order' });
+    const connection = {
+      beginTransaction: jest.fn(),
+      commit: jest.fn(),
+      rollback: jest.fn(),
+      release: jest.fn(),
+      query: jest.fn(async (sql) => {
+        if (sql.includes('FROM quality_inspections')) return [[currentInspection]];
+        if (sql.includes('FROM purchase_orders')) return [[{ id: 13, supplier_id: 6 }]];
+        throw new Error(`Unexpected query: ${sql}`);
+      }),
+      execute: jest.fn(),
+    };
+    db.pool.getConnection.mockResolvedValue(connection);
+
+    await expect(
+      InspectionService.updateInspectionStatusAndTrace(24, { status: 'pending' })
+    ).rejects.toThrow('已完成的来料检验不能退回待检状态');
+    expect(connection.execute).not.toHaveBeenCalled();
+    expect(connection.commit).not.toHaveBeenCalled();
+    expect(connection.rollback).toHaveBeenCalledTimes(1);
+    expect(mockPurchaseReceiptService.autoCreateFromInspection).not.toHaveBeenCalled();
+  });
+
+  test('status-and-trace closes incoming inspection once and returns normalized quantities', async () => {
+    const currentInspection = buildInspectionPayload({
+      id: 24,
+      source_type: 'purchase_order',
+      status: 'pending',
+    });
+    const connection = {
+      beginTransaction: jest.fn(),
+      commit: jest.fn(),
+      rollback: jest.fn(),
+      release: jest.fn(),
+      query: jest.fn(async (sql) => {
+        if (sql.includes('FROM quality_inspections')) return [[currentInspection]];
+        if (sql.includes('FROM purchase_orders')) return [[{ id: 13, supplier_id: 6 }]];
+        if (sql.includes('FROM quality_inspection_items')) return [currentInspection.items];
+        if (sql.includes('UPDATE quality_inspections')) return [{ affectedRows: 1 }];
+        throw new Error(`Unexpected query: ${sql}`);
+      }),
+      execute: jest.fn(async () => [{ affectedRows: 1 }]),
+    };
+    db.pool.getConnection.mockResolvedValue(connection);
+
+    const result = await InspectionService.updateInspectionStatusAndTrace(24, { status: 'passed' });
+    expect(result.updatedData).toMatchObject({
+      status: 'passed',
+      qualified_quantity: 1,
+      unqualified_quantity: 0,
+      receipt_id: 91,
+    });
+    expect(mockPurchaseReceiptService.autoCreateFromInspection).toHaveBeenCalledTimes(1);
+    expect(mockProductionInboundService.createDraftFromIncomingInspection).not.toHaveBeenCalled();
+    expect(connection.commit).toHaveBeenCalledTimes(1);
+    expect(connection.rollback).not.toHaveBeenCalled();
+  });
+
+  test('completed validates item conclusions against the explicit split instead of implying passed', () => {
+    const items = [{ result: 'failed', is_critical: false }];
+    expect(() =>
+      QualityInspection._validateTerminalStatusAgainstItems(
+        {
+          status: 'completed',
+          quantity: 10,
+          qualified_quantity: 6,
+          unqualified_quantity: 4,
+        },
+        'completed',
+        items
+      )
+    ).not.toThrow();
+    expect(() =>
+      QualityInspection._validateTerminalStatusAgainstItems(
+        {
+          status: 'completed',
+          quantity: 10,
+          qualified_quantity: 10,
+          unqualified_quantity: 0,
+        },
+        'completed',
+        items
+      )
+    ).toThrow('检验项目存在不合格项');
   });
 });

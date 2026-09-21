@@ -34,6 +34,7 @@ const {
   sumBy,
 } = require('./manualVoucherHelpers');
 const { DOCUMENT_LINK_TYPES: DocType } = require('../../constants/documentLinkTypes');
+const { RECEIPT_STATUS } = require('../../constants/purchaseConstants');
 
 /** 默认增值税率：财务配置 > 环境 > 0（禁止魔法 0.13 写死业务） */
 function defaultVatRate() {
@@ -227,7 +228,7 @@ class ManualVoucherService {
     const where = [
       'pr.deleted_at IS NULL',
       `pr.status NOT IN (${SQL_BLOCKED_STATUS_IN})`,
-      "pr.status IN ('completed', 'confirmed')",
+      'pr.status = ?',
       `EXISTS (
          SELECT 1
            FROM inventory_posting_documents ipd
@@ -246,6 +247,7 @@ class ManualVoucherService {
     ];
     const params = [
       ...BLOCKED_DOC_STATUSES,
+      RECEIPT_STATUS.COMPLETED,
       BUSINESS_TYPES.PURCHASE_RECEIPT,
       ...INACTIVE_INVOICE_STATUSES,
     ];
@@ -496,7 +498,7 @@ class ManualVoucherService {
         `采购入库单 ${receipt.receipt_no} 状态为 ${receipt.status}，不能生成凭证`
       );
     }
-    if (!['completed', 'confirmed'].includes(String(receipt.status || ''))) {
+    if (receipt.status !== 'completed') {
       throw businessError(
         `采购入库单 ${receipt.receipt_no} 未完成，不能生成凭证（当前：${receipt.status}）`
       );
@@ -976,7 +978,7 @@ class ManualVoucherService {
         `采购入库单 ${receipt.receipt_no} 状态为 ${receipt.status}，不能生成凭证`
       );
     }
-    if (!['completed', 'confirmed'].includes(String(receipt.status || ''))) {
+    if (receipt.status !== 'completed') {
       throw businessError(
         `采购入库单 ${receipt.receipt_no} 未完成，不能生成凭证（当前：${receipt.status}）`
       );

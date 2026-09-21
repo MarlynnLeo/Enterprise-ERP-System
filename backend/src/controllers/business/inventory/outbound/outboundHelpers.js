@@ -474,7 +474,7 @@ const issueOutboundItemFromDetail = async ({
   );
 
   if (currentStock < actualQuantity) {
-    const materialLabel = item.material_code || item.materialCode || materialCode || '所选物料';
+    const materialLabel = item.material_code || materialCode || '所选物料';
     const err = new Error(
       `物料 ${materialLabel} 库存不足，当前库存: ${currentStock}，需要: ${actualQuantity}`
     );

@@ -16,7 +16,35 @@ const ProductionBatchTraceabilityService = require('./ProductionBatchTraceabilit
 const DLQService = require('./DLQService');
 const AsyncTaskService = require('./AsyncTaskService');
 const { resolveActorLabel } = require('../../utils/userUtils');
+const BusinessError = require('../../utils/BusinessError');
+const {
+  INBOUND_TYPE_KEYS,
+  DOCUMENT_REFERENCE_TYPES,
+  QUALITY_INSPECTION_TYPES,
+} = require('../../constants/documentReferences');
+
 class InboundTransactionService {
+  /** 采购收货只能由采购收货领域检验放行，通用入库单不得承担采购收货。 */
+  static assertGenericInboundSource(inbound = {}) {
+    const inboundType = String(inbound.inbound_type || '').trim().toLowerCase();
+    const referenceType = String(inbound.reference_type || '').trim().toLowerCase();
+    const inspectionType = String(inbound.inspection_type || '').trim().toLowerCase();
+    if (
+      [INBOUND_TYPE_KEYS.PURCHASE, 'purchase_inbound', 'purchase_receipt'].includes(inboundType) ||
+      [DOCUMENT_REFERENCE_TYPES.PURCHASE_ORDER, 'purchase_receipt', 'purchase_inbound'].includes(
+        referenceType
+      ) ||
+      inspectionType === QUALITY_INSPECTION_TYPES.INCOMING
+    ) {
+      throw new BusinessError(
+        '采购来料请通过采购收货单办理检验和完成入库，不能使用通用库存入库单',
+        { route: '/purchase/receipts', buttonText: '前往采购收货' },
+        'PURCHASE_RECEIPT_REQUIRED',
+        400
+      );
+    }
+  }
+
   /**
    * 执行完整的入库确认逻辑
    * @param {Object} connection 数据库连接事务对象
@@ -32,6 +60,7 @@ class InboundTransactionService {
     inboundData,
     businessApprovedById = null
   ) {
+    this.assertGenericInboundSource(inboundData);
     logger.info(`开始分离核心入库处理，入库单ID: ${inboundId}`);
 
     // 获取入库单信息
@@ -39,6 +68,11 @@ class InboundTransactionService {
       'SELECT id, inbound_no, inbound_date, inbound_type, reference_type, reference_id, reference_no, location_id, status, total_amount, total_amount_unit, operator, inspection_id, inspection_no, remark, created_at, updated_at, created_by, updated_by, is_deleted FROM inventory_inbound WHERE id = ? AND is_deleted = 0',
       [inboundId]
     );
+
+    if (!inboundInfo.length) {
+      throw new BusinessError('入库单不存在', null, 'NOT_FOUND', 404);
+    }
+    this.assertGenericInboundSource(inboundInfo[0]);
 
     // 获取入库单明细
     const [inboundItems] = await connection.execute(
@@ -59,7 +93,6 @@ class InboundTransactionService {
     // 根据入库类型确定库存交易类型
     const inboundType = inboundData.inbound_type || 'other';
     const transactionTypeMap = {
-      purchase: 'purchase_inbound',
       production: 'production_inbound',
       production_return: 'production_return',
       outsourced: 'outsourced_inbound',
@@ -286,7 +319,6 @@ class InboundTransactionService {
 
       // 根据入库类型确定追溯触发类型
       const traceTypeMap = {
-        purchase: 'purchase',
         production: 'production',
         production_return: 'production_return',
         defective_return: 'defective_return',

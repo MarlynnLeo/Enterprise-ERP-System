@@ -218,21 +218,6 @@ const inspectionController = {
 
       const result = await QualityInspection.createInspection(inspection, connection);
 
-      // 【免检逻辑】如果被系统自动通过（免检来料），统一走质检闭环
-      if (result.is_exempt && result.inspection_type === 'incoming') {
-        const closureResult = await InspectionClosureService.closeIfTerminal(
-          result,
-          {
-            id: result.id,
-            status: STATUS.QUALITY.PASSED,
-            qualified_quantity: result.quantity || inspection.quantity,
-            unqualified_quantity: 0,
-          },
-          connection
-        );
-        Object.assign(result, closureResult);
-      }
-
       await connection.commit();
       ResponseHandler.success(
         res,
@@ -284,27 +269,8 @@ const inspectionController = {
         return;
       }
 
-      const [[source]] = await connection.query(
-        'SELECT reference_id, source_type, inspection_type FROM quality_inspections WHERE id = ? AND deleted_at IS NULL',
-        [id]
-      );
-      if (source?.inspection_type === 'incoming' && source.source_type !== 'outsourced_receipt') {
-        await connection.query('SELECT id FROM purchase_orders WHERE id = ? FOR UPDATE', [
-          source.reference_id,
-        ]);
-      }
-
-      const [inspectionRows] = await connection.query(
-        'SELECT id, inspection_no, inspection_type, source_type, reference_id, reference_no, purchase_order_item_id, material_id, supplier_id, product_id, product_name, product_code, process_id, process_name, batch_no, quantity, qualified_quantity, unqualified_quantity, unit, unit_id, status, planned_date, actual_date, inspector_id, inspector_name, punch_time, standard_type, standard_no, template_id, note, created_at, updated_at, traceability_id, traceability_batch, chain_id, chain_step_id, is_first_article, first_article_qty, is_full_inspection, first_article_result, production_can_continue, task_id, is_aql, aql_standard_id, aql_level, accept_limit, reject_limit, deleted_at FROM quality_inspections WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
-        [parseInt(id)]
-      );
-
-      if (!inspectionRows || inspectionRows.length === 0) {
-        await connection.rollback();
-        return ResponseHandler.error(res, '检验单不存在', 'NOT_FOUND', 404);
-      }
-
-      const inspection = inspectionRows[0];
+      const InspectionLockService = require('../../../services/quality/InspectionLockService');
+      const inspection = await InspectionLockService.getForUpdate(connection, parseInt(id));
       const [items] = await connection.query(
         'SELECT id, inspection_id, item_name, standard, type, is_critical, dimension_value, tolerance_upper, tolerance_lower, actual_value, measure_1, measure_2, measure_3, measure_4, measure_5, measure_6, method, result, is_qualified, remark, created_at, updated_at FROM quality_inspection_items WHERE inspection_id = ? ORDER BY id',
         [parseInt(id)]
@@ -329,7 +295,7 @@ const inspectionController = {
             Object.prototype.hasOwnProperty.call(data, 'qualified_quantity') ||
             Object.prototype.hasOwnProperty.call(data, 'unqualified_quantity')));
 
-      if (needsClosure) {
+      if (needsClosure && inspection.inspection_type !== 'incoming') {
         const closureResult = await InspectionClosureService.closeIfTerminal(
           inspection,
           { ...data, id: parseInt(id) },
@@ -396,7 +362,14 @@ const inspectionController = {
       ResponseHandler.success(res, result, '检验单删除成功');
     } catch (error) {
       logger.error('删除检验单失败:', error);
-      ResponseHandler.error(res, '删除检验单失败', 'SERVER_ERROR', 500, error);
+      const statusCode = error.statusCode || 500;
+      ResponseHandler.error(
+        res,
+        statusCode < 500 ? error.message : '删除检验单失败',
+        error.code || 'SERVER_ERROR',
+        statusCode,
+        error
+      );
     }
   },
 

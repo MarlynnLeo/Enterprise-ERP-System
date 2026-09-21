@@ -1,4 +1,4 @@
-const { purchaseOrderMap } = require('../../src/utils/purchase/purchaseFieldMap');
+const { purchaseOrderMap, purchaseReceiptMap } = require('../../src/utils/purchase/purchaseFieldMap');
 
 describe('purchase order field map', () => {
   test('keeps linked requisition fields in API responses', () => {
@@ -10,6 +10,20 @@ describe('purchase order field map', () => {
     })).toMatchObject({
       requisitionId: 10,
       requisitionNumber: 'PR202608240001',
+    });
+  });
+});
+
+describe('purchase receipt field map', () => {
+  test('keeps incoming inspection status in API responses', () => {
+    expect(purchaseReceiptMap.toApi({
+      id: 7,
+      status: 'draft',
+      inspection_id: 12,
+      inspection_status: 'passed',
+    })).toMatchObject({
+      inspectionId: 12,
+      inspectionStatus: 'passed',
     });
   });
 });

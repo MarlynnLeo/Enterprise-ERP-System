@@ -844,10 +844,11 @@ exports.createSalesOutbound = async (req, res) => {
           // 查找无效的物料ID
           const invalidMaterialIds = materialIds.filter((id) => !validMaterialIds.includes(id));
           if (invalidMaterialIds.length > 0) {
+            // fromApi 只保留写库字段；展示编码由同一 FieldMap 从原请求明细归一化。
             const requestedLabels = new Map(
-              items.map((item) => [
+              items.map((item, index) => [
                 Number(item.material_id || item.product_id),
-                item.material_code || item.materialCode || item.product_code || item.productCode,
+                salesOutboundItemMap.toApi(req.body.items[index]).materialCode,
               ])
             );
             throw createValidationError(

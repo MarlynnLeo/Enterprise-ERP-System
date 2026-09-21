@@ -16,7 +16,6 @@ export const normalizePurchaseReceiptPayload = (data) => {
     receiver: data.receiver,
     operator: data.receiver ?? data.operator,
     inspectionId: data.inspectionId || null,
-    fromInspection: Boolean(data.fromInspection),
     remarks: data.remarks,
     items: data.items.map((item) => defined({
       id: optionalNumber(item.id),

@@ -187,7 +187,7 @@ export const financeApi = {
   getUnpaidAPInvoices: () => api.get('/finance/ap/invoices/unpaid'),
   getAPSettlementDashboard: (params) => api.get('/finance/ap/settlement-dashboard', { params }),
 
-  // 三单匹配 / 业财状态
+  // 三单匹配
   createThreeWayMatchFromReceipt: (receiptId, data) =>
     api.post(`/finance/integration/three-way-match/from-receipt/${receiptId}`, data),
   listThreeWayMatches: (params) => api.get('/finance/integration/three-way-match', { params }),
@@ -198,8 +198,6 @@ export const financeApi = {
     api.put(`/finance/integration/three-way-match/${id}/lines`, data),
   cancelThreeWayMatch: (id, data) =>
     api.post(`/finance/integration/three-way-match/${id}/cancel`, data || {}),
-  getPurchaseReceiptFinanceStatus: (receiptId) =>
-    api.get(`/finance/integration/document-status/purchase-receipt/${receiptId}`),
   getBankReconciliationBalanceSheet: (params) =>
     api.get('/finance/cash/bank-reconciliation-balance-sheet', { params }),
 
@@ -234,9 +232,6 @@ export const financeApi = {
       api.post(`/finance/integration/ar-invoice/${salesOrderId}`),
     generateAPInvoiceFromPurchaseOrder: (purchaseOrderId) =>
       api.post(`/finance/integration/ap-invoice-from-po/${purchaseOrderId}`),
-    /** 采购收货进项税票补齐 */
-    generateInputTaxFromReceipt: (receiptId) =>
-      api.post(`/finance/integration/tax-input/${receiptId}`),
   },
 
   // 收款记录

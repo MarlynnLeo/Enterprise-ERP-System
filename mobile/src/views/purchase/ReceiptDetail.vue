@@ -98,12 +98,12 @@
                 </div>
             </div>
 
-            <!-- 操作按钮 — 严格对齐网页端：draft → 入库/取消 -->
-            <div class="action-section" v-if="receiptOrder.status === 'draft'" v-permission="'purchase:receipts:update'">
-                <Button type="success" round block size="large" @click="handleComplete" :loading="actionLoading" style="margin-bottom: 10px">
-                    确认入库
+            <!-- 操作按钮：已检验 → 入库；草稿/已检验 → 取消 -->
+            <div class="action-section" v-if="canCompletePurchaseReceipt(receiptOrder) || canCancelPurchaseReceipt(receiptOrder)">
+                <Button v-if="canCompletePurchaseReceipt(receiptOrder)" v-permission="'purchase:receipts:update'" type="success" round block size="large" @click="handleComplete" :loading="actionLoading" style="margin-bottom: 10px">
+                    入库
                 </Button>
-                <Button type="warning" round block size="large" plain @click="handleCancel" :loading="actionLoading">
+                <Button v-if="canCancelPurchaseReceipt(receiptOrder)" v-permission="'purchase:receipts:update'" type="warning" round block size="large" plain @click="handleCancel" :loading="actionLoading">
                     取消收货单
                 </Button>
             </div>
@@ -132,6 +132,12 @@ import { extractApiData } from '@/utils/apiHelper'
 import Icon from '@/components/icons/index.vue'
 import dayjs from 'dayjs'
 import { getApiErrorMessage } from '@/utils/errorHandler'
+import {
+    PURCHASE_RECEIPT_STATUS,
+    getPurchaseReceiptStatusText,
+    canCompletePurchaseReceipt,
+    canCancelPurchaseReceipt,
+} from '@/constants/purchaseReceiptStatus'
 
 const route = useRoute()
 const router = useRouter()
@@ -143,12 +149,10 @@ const receiptOrder = ref(null)
 
 // 状态样式映射
 const statusClass = {
-    draft: 'bg-yellow-500',
-    pending: 'bg-yellow-500',
-    confirmed: 'bg-blue-500',
-    processing: 'bg-blue-500',
-    completed: 'bg-green-500',
-    cancelled: 'bg-gray-500'
+    [PURCHASE_RECEIPT_STATUS.DRAFT]: 'bg-yellow-500',
+    [PURCHASE_RECEIPT_STATUS.INSPECTED]: 'bg-blue-500',
+    [PURCHASE_RECEIPT_STATUS.COMPLETED]: 'bg-green-500',
+    [PURCHASE_RECEIPT_STATUS.CANCELLED]: 'bg-gray-500',
 }
 
 // 获取详情
@@ -166,27 +170,15 @@ const fetchDetail = async () => {
 }
 
 // 状态文本
-const getStatusText = (status) => {
-    const map = {
-        draft: '草稿',
-        pending: '待入库',
-        confirmed: '已确认',
-        processing: '入库中',
-        completed: '已完成',
-        cancelled: '已取消'
-    }
-    return map[status] || status
-}
+const getStatusText = getPurchaseReceiptStatusText
 
 // 状态图标
 const getStatusIcon = (status) => {
     const map = {
-        draft: 'clock',
-        pending: 'clock',
-        confirmed: 'check-circle',
-        processing: 'refresh',
-        completed: 'check-circle',
-        cancelled: 'x-circle'
+        [PURCHASE_RECEIPT_STATUS.DRAFT]: 'clock',
+        [PURCHASE_RECEIPT_STATUS.INSPECTED]: 'check-circle',
+        [PURCHASE_RECEIPT_STATUS.COMPLETED]: 'check-circle',
+        [PURCHASE_RECEIPT_STATUS.CANCELLED]: 'x-circle',
     }
     return map[status] || 'document-text'
 }
@@ -196,15 +188,15 @@ const formatDate = (date, format = 'YYYY-MM-DD HH:mm') => {
     return date ? dayjs(date).format(format) : '-'
 }
 
-// 确认入库 (draft → completed)
+// 入库 (inspected → completed)
 const handleComplete = async () => {
     try {
         await showConfirmDialog({
-            title: '确认入库',
-            message: '确认将该收货单标记为已入库？库存数量将相应增加。'
+            title: '完成入库',
+            message: '确认将该收货单标记为已完成？库存数量将相应增加。'
         })
         actionLoading.value = true
-        await purchaseApi.updateReceiptStatus(id, 'completed', '移动端确认入库')
+        await purchaseApi.updateReceiptStatus(id, 'completed', '移动端完成入库')
         showToast({ type: 'success', message: '入库成功' })
         await fetchDetail()
     } catch (e) {
@@ -217,7 +209,7 @@ const handleComplete = async () => {
     }
 }
 
-// 取消收货单 (draft → cancelled)
+// 取消收货单 (draft/inspected → cancelled)
 const handleCancel = async () => {
     try {
         await showConfirmDialog({

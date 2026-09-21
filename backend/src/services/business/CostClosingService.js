@@ -133,7 +133,7 @@ class CostClosingService {
           JOIN purchase_receipts pr ON pr.id = pri.receipt_id
           JOIN purchase_order_items poi ON poi.id = pri.order_item_id
          WHERE pr.deleted_at IS NULL
-           AND pr.status IN ('confirmed', 'completed')
+           AND pr.status IN (${sqlStringList(PURCHASE_RECEIPT_COUNTED_STATUSES)})
            AND ${periodDateClause('pr.receipt_date')}
            AND (
              (COALESCE(pri.quantity, pri.received_quantity, 0) > 0 AND COALESCE(pri.price, 0) <= 0)
@@ -240,7 +240,7 @@ class CostClosingService {
           JOIN purchase_receipt_items pri ON pri.receipt_id = il.receipt_id AND pri.material_id = il.material_id
           JOIN purchase_receipts pr ON pr.id = pri.receipt_id
          WHERE ${periodDateClause('COALESCE(il.transaction_date, DATE(il.created_at))')}
-           AND pr.status IN ('confirmed', 'completed')
+           AND pr.status IN (${sqlStringList(PURCHASE_RECEIPT_COUNTED_STATUSES)})
            AND pr.deleted_at IS NULL
            AND ABS(COALESCE(il.unit_cost, 0) - COALESCE(pri.price, 0)) > 0.05
         UNION ALL

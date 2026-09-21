@@ -2,6 +2,7 @@
 
 const db = require('../../config/db');
 const ScopeGuard = require('../../authorization/ScopeGuard');
+const { RECEIPT_STATUS } = require('../../constants/purchaseConstants');
 
 const MODULES = {
   requisitions: {
@@ -22,7 +23,8 @@ const MODULES = {
   receipts: {
     table: 'purchase_receipts',
     resource: 'purchase_receipt',
-    pending: ['draft', 'confirmed'],
+    pending: [RECEIPT_STATUS.DRAFT, RECEIPT_STATUS.INSPECTED],
+    states: Object.values(RECEIPT_STATUS),
     number: 'receipt_no',
     date: 'receipt_date',
     requester: 'operator',
@@ -44,9 +46,10 @@ class PurchaseDashboardService {
   }
 
   async getStatistics(module, scope) {
-    const columns = STATES.map(
-      (state) => `COALESCE(SUM(t.status = '${state}'), 0) AS ${state}`
-    ).join(', ');
+    const states = module.states || STATES;
+    const columns = states
+      .map((state) => `COALESCE(SUM(t.status = '${state}'), 0) AS ${state}`)
+      .join(', ');
     const [[row]] = await this.pool.query(
       `
       SELECT COUNT(*) AS total, ${columns},
@@ -57,7 +60,7 @@ class PurchaseDashboardService {
       WHERE t.deleted_at IS NULL ${scope.where}`,
       scope.params
     );
-    const stats = Object.fromEntries(STATES.map((state) => [state, Number(row[state])]));
+    const stats = Object.fromEntries(states.map((state) => [state, Number(row[state])]));
     return {
       ...stats,
       total: Number(row.total),

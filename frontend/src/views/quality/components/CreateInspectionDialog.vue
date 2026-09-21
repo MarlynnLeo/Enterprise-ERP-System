@@ -27,6 +27,7 @@
           filterable
           @change="handlePurchaseOrderChange"
           :loading="loading"
+          :disabled="loadingOrderItems"
           @focus="fetchPurchaseOrders"
         >
           <el-option
@@ -48,18 +49,20 @@
         <el-input v-model="form.supplierName" disabled />
       </el-form-item>
 
-      <el-form-item label="物料" prop="materialId">
+      <el-form-item label="物料" prop="purchaseOrderItemId">
         <el-select
-          v-model="form.materialId"
-          placeholder="选择物料"
+          v-model="form.purchaseOrderItemId"
+          placeholder="选择采购订单明细"
+          :loading="loadingOrderItems"
+          :disabled="loadingOrderItems || !form.purchaseOrderId"
           filterable
           @change="handleMaterialChange"
         >
           <el-option
             v-for="material in materialOptions"
-            :key="material.id"
-            :label="material.name"
-            :value="material.id"
+            :key="material.orderItemId"
+            :label="`${material.name} - 第${material.lineNumber}行 - ${material.quantity}${material.unit}`"
+            :value="material.orderItemId"
           />
         </el-select>
       </el-form-item>
@@ -97,7 +100,7 @@
     <template #footer>
       <span class="dialog-footer">
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button v-permission="'quality:inspections:create'" type="primary" @click="submitForm" :loading="submitting">确认</el-button>
+        <el-button v-permission="'quality:inspections:create'" type="primary" @click="submitForm" :loading="submitting" :disabled="loadingOrderItems">确认</el-button>
       </span>
     </template>
     </AppDialog>
@@ -122,6 +125,7 @@ const dialogVisible = computed({
 
 const formRef = ref(null)
 const loading = ref(false)
+const loadingOrderItems = ref(false)
 const submitting = ref(false)
 
 // 采购单选项和物料选项
@@ -135,6 +139,7 @@ const form = reactive({
   supplierName: '',
   supplierId: '',
   supplierCode: '',
+  purchaseOrderItemId: null,
   materialId: '',
   materialName: '',
   materialCode: '',
@@ -142,6 +147,7 @@ const form = reactive({
   batchNo: '',
   quantity: 1,
   unit: '',
+  unitId: null,
   arrivalDate: new Date(),
   note: ''
 })
@@ -149,7 +155,7 @@ const form = reactive({
 // 表单验证规则
 const rules = {
   purchaseOrderNo: [{ required: true, message: '请选择采购单号', trigger: 'change' }],
-  materialId: [{ required: true, message: '请选择物料', trigger: 'change' }],
+  purchaseOrderItemId: [{ required: true, message: '请选择采购订单明细', trigger: 'change' }],
   materialName: [{ required: true, message: '物料名称不能为空', trigger: 'change' }],
   batchNo: [{ required: true, message: '请输入批次号', trigger: 'blur' }],
   quantity: [{ required: true, message: '请输入检验数量', trigger: 'blur' }],
@@ -166,6 +172,7 @@ const generateBatchNumber = async (supplierCode = '', supplierId = null) => {
 
 // 获取采购单列表
 const fetchPurchaseOrders = async () => {
+  loading.value = true
   try {
     const response = await purchaseApi.getOrders({ pageSize: 50 })
     const orders = parseListData(response, { enableLog: false })
@@ -188,45 +195,54 @@ const fetchPurchaseOrders = async () => {
   } catch (error) {
     ElMessage.error(`获取采购单失败：${getApiErrorMessage(error, '请稍后重试')}`)
     purchaseOrderOptions.value = []
+  } finally {
+    loading.value = false
   }
 }
 
 // 处理采购单号选择变更
 const handlePurchaseOrderChange = async (value) => {
+  Object.assign(form, { purchaseOrderItemId: null, materialId: '', materialName: '', materialCode: '', specs: '', quantity: 1, unit: '', unitId: null, batchNo: '' })
+  materialOptions.value = []
   const selectedOrder = purchaseOrderOptions.value.find(item => item.orderNo === value)
 
   if (selectedOrder) {
-    form.supplierName = selectedOrder.supplierName || ''
-    form.supplierId = selectedOrder.supplierId || ''
-    form.supplierCode = selectedOrder.supplierCode || ''
-    form.purchaseOrderId = selectedOrder.id || ''
+    loadingOrderItems.value = true
+    try {
+      form.supplierName = selectedOrder.supplierName || ''
+      form.supplierId = selectedOrder.supplierId || ''
+      form.supplierCode = selectedOrder.supplierCode || ''
+      form.purchaseOrderId = selectedOrder.id || ''
 
-    // 如果缺少供应商编码，尝试API获取
-    if (!form.supplierCode && form.supplierId) {
-      try {
-        const supplierResponse = await baseDataApi.getSupplier(form.supplierId)
-        if (supplierResponse.data) {
-          const supplier = supplierResponse.data
-          form.supplierCode = supplier.supplierCode || ''
+      // 如果缺少供应商编码，尝试API获取
+      if (!form.supplierCode && form.supplierId) {
+        try {
+          const supplierResponse = await baseDataApi.getSupplier(form.supplierId)
+          if (supplierResponse.data) {
+            const supplier = supplierResponse.data
+            form.supplierCode = supplier.supplierCode || ''
+          }
+        } catch (error) {
+          console.warn('获取供应商编码失败:', error)
         }
-      } catch (error) {
-        console.warn('获取供应商编码失败:', error)
       }
-    }
 
-    // 生成批次号
-    if (form.supplierCode) {
-      try {
-        form.batchNo = await generateBatchNumber(form.supplierCode, form.supplierId)
-      } catch (error) {
-        ElMessage.error(getApiErrorMessage(error, '请稍后重试'))
+      // 生成批次号
+      if (form.supplierCode) {
+        try {
+          form.batchNo = await generateBatchNumber(form.supplierCode, form.supplierId)
+        } catch (error) {
+          ElMessage.error(getApiErrorMessage(error, '请稍后重试'))
+        }
+      } else {
+        ElMessage.warning('供应商编码缺失，请维护供应商编码或手工录入批次号')
       }
-    } else {
-      ElMessage.warning('供应商编码缺失，请维护供应商编码或手工录入批次号')
-    }
 
-    // 获取该采购单的物料列表
-    fetchOrderMaterials(value)
+      // 获取该采购单的物料列表
+      await fetchOrderMaterials(selectedOrder.id)
+    } finally {
+      loadingOrderItems.value = false
+    }
   } else {
     ElMessage.warning({
       message: `采购单 ${value} 不存在或状态不符合要求。请从下拉列表中选择有效的采购单。`,
@@ -241,19 +257,22 @@ const handlePurchaseOrderChange = async (value) => {
 }
 
 // 获取采购单物料
-const fetchOrderMaterials = async (orderNo) => {
-  if (!orderNo) return
+const fetchOrderMaterials = async (orderId) => {
+  if (!orderId) return
 
   try {
-    const response = await purchaseApi.getOrder(orderNo)
+    const response = await purchaseApi.getOrder(orderId)
 
     if (response.data?.items) {
-      materialOptions.value = response.data.items.map(item => ({
-        id: item.materialId || item.id,
+      materialOptions.value = response.data.items.map((item, index) => ({
+        orderItemId: item.id,
+        materialId: item.materialId,
+        lineNumber: index + 1,
         name: item.itemName || item.materialName || `${item.materialCode} (无名称)`,
         code: item.materialCode || item.itemCode,
         specs: item.itemSpecs || item.specs || item.specification || item.materialSpecs || '',
         unit: item.unitName || item.unit,
+        unitId: item.unitId,
         quantity: item.quantity,
         purchaseQuantity: item.purchaseQuantity || item.quantity
       }))
@@ -269,19 +288,21 @@ const fetchOrderMaterials = async (orderNo) => {
 
 // 处理物料选择变更
 const handleMaterialChange = async (value) => {
-  const selectedMaterial = materialOptions.value.find(item => item.id === value)
+  const selectedMaterial = materialOptions.value.find(item => item.orderItemId === value)
 
   if (selectedMaterial) {
+    form.materialId = selectedMaterial.materialId
     form.materialName = selectedMaterial.name
     form.materialCode = selectedMaterial.code
     form.specs = selectedMaterial.specs || ''
     form.unit = selectedMaterial.unit
+    form.unitId = selectedMaterial.unitId
     form.quantity = Number(selectedMaterial.purchaseQuantity) || 1
 
     // 如果缺少 specs，尝试从物料主数据获取
     if (!form.specs && value) {
       try {
-        const materialResponse = await baseDataApi.getMaterial(value)
+        const materialResponse = await baseDataApi.getMaterial(selectedMaterial.materialId)
         if (materialResponse?.data?.specs) {
           form.specs = materialResponse.data.specs
         }
@@ -299,10 +320,12 @@ const handleMaterialChange = async (value) => {
       }
     }
   } else {
+    form.materialId = ''
     form.materialName = ''
     form.materialCode = ''
     form.specs = ''
     form.unit = ''
+    form.unitId = null
   }
 }
 
@@ -328,15 +351,18 @@ const submitForm = async () => {
     // HTTP 契约：camelCase（qualityInspectionMap.fromApi）
     const formData = {
       inspectionType: 'incoming',
+      sourceType: 'purchase_order',
       referenceNo: form.purchaseOrderNo,
       referenceId: form.purchaseOrderId || null,
+      purchaseOrderItemId: form.purchaseOrderItemId,
       materialId: form.materialId,
       productId: form.materialId,
       productName: form.materialName,
-      productCode: form.specs,
+      productCode: form.materialCode,
       batchNo: form.batchNo,
       quantity: Number(form.quantity),
       unit: form.unit,
+      unitId: form.unitId,
       plannedDate: dayjs(form.arrivalDate).format('YYYY-MM-DD'),
       note: form.note,
       supplierId: form.supplierId,
@@ -372,8 +398,8 @@ const handleClose = () => {
   formRef.value?.resetFields()
   Object.assign(form, {
     purchaseOrderNo: '', purchaseOrderId: '', supplierName: '', supplierId: '',
-    supplierCode: '', materialId: '', materialName: '', materialCode: '',
-    specs: '', batchNo: '', quantity: 1, unit: '', arrivalDate: new Date(), note: ''
+    supplierCode: '', purchaseOrderItemId: null, materialId: '', materialName: '', materialCode: '',
+    specs: '', batchNo: '', quantity: 1, unit: '', unitId: null, arrivalDate: new Date(), note: ''
   })
 }
 </script>

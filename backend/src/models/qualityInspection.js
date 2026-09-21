@@ -13,6 +13,10 @@ const businessConfig = require('../config/businessConfig');
 const CodeGeneratorService = require('../services/business/CodeGeneratorService');
 const InspectionTemplateResolver = require('../services/business/InspectionTemplateResolverService');
 const { firstValidUserId } = require('../utils/userUtils');
+const InspectionClosureService = require('../services/quality/InspectionClosureService');
+const InspectionLockService = require('../services/quality/InspectionLockService');
+const { normalizeTerminalInspectionQuantities } = require('../utils/quality/inspectionQuantities');
+const { purchaseQuantity } = require('../utils/purchase/purchaseValidation');
 const {
   normalizeInspectionSourceType,
   isOutsourcedIncomingInspection,
@@ -135,6 +139,15 @@ class QualityInspection {
 
   static _validateTerminalStatusAgainstItems(inspection, status, items) {
     if (!status || !TERMINAL_INSPECTION_STATUSES.has(status)) return;
+    if (status === 'completed') {
+      const quantities = normalizeTerminalInspectionQuantities(inspection, inspection);
+      status =
+        quantities.unqualifiedQuantity === 0
+          ? 'passed'
+          : quantities.qualifiedQuantity === 0
+            ? 'failed'
+            : 'partial';
+    }
 
     if (!Array.isArray(items) || items.length === 0) {
       throw this._createValidationError('检验单没有检验项目，不能判定检验结果');
@@ -150,7 +163,7 @@ class QualityInspection {
       (item) => item.is_critical === true || item.is_critical === 1
     );
 
-    if ((status === 'passed' || status === 'completed') && failedItems.length > 0) {
+    if (status === 'passed' && failedItems.length > 0) {
       throw this._createValidationError('检验项目存在不合格项，检验单不能判定为通过');
     }
 
@@ -182,6 +195,96 @@ class QualityInspection {
       [inspectionId]
     );
     return items || [];
+  }
+
+  static _itemEvidence(items) {
+    const numberFields = new Set([
+      'dimension_value',
+      'tolerance_upper',
+      'tolerance_lower',
+      ...Array.from({ length: 6 }, (_, index) => `measure_${index + 1}`),
+    ]);
+    const fields = [
+      'item_name',
+      'standard',
+      'method',
+      'type',
+      'is_critical',
+      'result',
+      'actual_value',
+      ...numberFields,
+    ];
+    return (items || [])
+      .map((item) => {
+        const evidence = { ...item, method: item.method || item.inspection_method };
+        for (const measurement of item.measurements || []) {
+          if (Number(measurement.sample_no) >= 1 && Number(measurement.sample_no) <= 6) {
+            evidence[`measure_${Number(measurement.sample_no)}`] = measurement.measured_value;
+          }
+        }
+        return JSON.stringify(
+          fields.map((field) => {
+            const value = evidence[field];
+            if (field === 'result') return this._normalizeItemResult(value);
+            if (field === 'is_critical') return value === true || value === 1 || value === '1';
+            if (field === 'type') return this._normalizeItemType(value);
+            if (value === undefined || value === null || value === '') return null;
+            return numberFields.has(field) ? Number(value) : String(value);
+          })
+        );
+      })
+      .sort();
+  }
+
+  static async _assertNonconformanceEvidenceUnchanged(connection, inspection, data) {
+    if (
+      inspection.inspection_type !== 'incoming' ||
+      !TERMINAL_INSPECTION_STATUSES.has(inspection.status)
+    )
+      return;
+    const [nonconformances] = await connection.query(
+      'SELECT id FROM nonconforming_products WHERE inspection_id = ? AND deleted_at IS NULL',
+      [inspection.id]
+    );
+    if (nonconformances.length === 0) return;
+
+    const numericFields = new Set([
+      'quantity',
+      'qualified_quantity',
+      'unqualified_quantity',
+      'supplier_id',
+      'unit_id',
+      'is_aql',
+      'aql_standard_id',
+      'accept_limit',
+      'reject_limit',
+    ]);
+    const protectedFields = [
+      ...numericFields,
+      'status',
+      'unit',
+      'aql_level',
+      'standard_type',
+      'standard_no',
+      'template_id',
+    ];
+    for (const field of protectedFields) {
+      if (!Object.prototype.hasOwnProperty.call(data, field) || data[field] === undefined) continue;
+      const normalize = (value) =>
+        numericFields.has(field) ? Number(value ?? 0) : String(value ?? '');
+      if (normalize(data[field]) !== normalize(inspection[field])) {
+        throw this._createValidationError('检验已形成不合格品处置依据，不能修改检验数量或判定事实');
+      }
+    }
+    if (Array.isArray(data.items) && data.items.length > 0) {
+      const storedItems = await this._getStoredInspectionItems(connection, inspection.id);
+      if (
+        JSON.stringify(this._itemEvidence(data.items)) !==
+        JSON.stringify(this._itemEvidence(storedItems))
+      ) {
+        throw this._createValidationError('检验已形成不合格品处置依据，不能修改检验项目或测量事实');
+      }
+    }
   }
 
   /**
@@ -638,15 +741,6 @@ class QualityInspection {
         inspection.source_type
       );
 
-      // 生成检验单号
-      let inspectionNo;
-      if (inspection.inspection_no) {
-        inspectionNo = inspection.inspection_no;
-      } else {
-        const prefix = this._getInspectionPrefix(inspection.inspection_type);
-        inspectionNo = await this.generateInspectionNo(prefix, connection);
-      }
-
       // 批次号必须来自采购、生产或前端显式录入，避免模型层生成不可追溯的业务编号
       if (!inspection.batch_no || String(inspection.batch_no).includes('默认')) {
         throw this._createValidationError('批次号不能为空，请从业务来源传入可追溯的批次号');
@@ -687,6 +781,53 @@ class QualityInspection {
             : '来料检验单必须关联采购订单，不能创建无来源的来料检验单'
         );
       }
+
+      const purchaseOrder = await InspectionLockService.lockPurchaseOrder(connection, inspection);
+      if (purchaseOrder) {
+        if (
+          ['draft', 'pending', 'rejected', 'cancelled', 'completed'].includes(purchaseOrder.status)
+        ) {
+          throw this._createValidationError('采购订单尚未批准、已取消或已完成，不能新增来料检验');
+        }
+        if (inspection.reference_no && inspection.reference_no !== purchaseOrder.order_no) {
+          throw this._createValidationError('采购订单编号与检验来源不一致');
+        }
+        if (
+          inspection.supplier_id &&
+          Number(inspection.supplier_id) !== Number(purchaseOrder.supplier_id)
+        ) {
+          throw this._createValidationError('检验供应商与采购订单不一致');
+        }
+        inspection.reference_no = purchaseOrder.order_no;
+        inspection.supplier_id = purchaseOrder.supplier_id;
+        inspection.quantity = purchaseQuantity(inspection.quantity, '检验数量');
+        for (const field of ['qualified_quantity', 'unqualified_quantity']) {
+          if (inspection[field] !== undefined) {
+            inspection[field] = purchaseQuantity(inspection[field], '检验数量', {
+              allowZero: true,
+            });
+          }
+        }
+        const PurchaseOrderQuantityService = require('../services/business/PurchaseOrderQuantityService');
+        const allocation = await PurchaseOrderQuantityService.read(
+          connection,
+          inspection.reference_id
+        );
+        const line = allocation.resolve(
+          inspection.material_id || inspection.product_id,
+          inspection.purchase_order_item_id || null
+        );
+        inspection.material_id = line.item.material_id;
+        inspection.purchase_order_item_id = line.item.id;
+      }
+
+      // Acquire the purchase order before the shared document-number sequence.
+      const inspectionNo =
+        inspection.inspection_no ||
+        (await this.generateInspectionNo(
+          this._getInspectionPrefix(inspection.inspection_type),
+          connection
+        ));
 
       // 如果product_id存在但product_code或product_name为空，从materials表查询
       if (inspection.product_id && (!inspection.product_code || !inspection.product_name)) {
@@ -919,8 +1060,8 @@ class QualityInspection {
           );
 
           // 这里如果是免检我们自动赋予OK通过结果
-          let itemResult = null;
-          let actualValue = null;
+          let itemResult = item.result || null;
+          let actualValue = item.actual_value ?? null;
           if (isExempt) {
             itemResult = 'OK';
             actualValue = '免检项自动合格';
@@ -989,26 +1130,35 @@ class QualityInspection {
         }
       }
 
+      let closureResult = {};
       if (
         inspection.inspection_type === 'incoming' &&
-        !this._isOutsourcedIncoming(inspection) &&
-        ['passed', 'partial', 'completed'].includes(String(inspection.status || ''))
+        InspectionClosureService.isTerminalStatus(inspection.status)
       ) {
-        const ProductionInboundService = require('../services/business/ProductionInboundService');
-        const incomingQty = Number(inspection.qualified_quantity ?? inspection.quantity ?? 0);
-        if (incomingQty > 0) {
-          await ProductionInboundService.createDraftFromIncomingInspection(connection, {
-            inspection: {
-              ...inspection,
-              id: inspectionId,
-              inspection_no: inspectionNo,
-              qualified_quantity: incomingQty,
-            },
-            qualifiedQuantity: incomingQty,
-            operator: inspection.inspector_name || '系统',
-            createdBy: inspectorId,
-          });
-        }
+        if (!isExempt)
+          this._validateTerminalStatusAgainstItems(inspection, inspection.status, inspection.items);
+        const quantities = normalizeTerminalInspectionQuantities(inspection);
+        inspection.qualified_quantity = quantities.qualifiedQuantity;
+        inspection.unqualified_quantity = quantities.unqualifiedQuantity;
+        closureResult = await InspectionClosureService.closeIfTerminal(
+          {
+            ...inspection,
+            id: inspectionId,
+            inspection_no: inspectionNo,
+            inspector_id: inspectorId,
+            is_exempt: isExempt,
+          },
+          {},
+          connection
+        );
+      } else if (purchaseOrder) {
+        const PurchaseOrderStatusService = require('../services/business/PurchaseOrderStatusService');
+        await PurchaseOrderStatusService.syncOrderItemReceivedFromReceipts(
+          inspection.reference_id,
+          inspection.material_id,
+          connection,
+          inspection.purchase_order_item_id
+        );
       }
 
       if (useOwnConnection) {
@@ -1021,6 +1171,7 @@ class QualityInspection {
         is_exempt: isExempt, // 向上层标志是否由系统免检生成
         is_sampling: isSampling, // 向上层标志是否由系统自动启用AQL抽样
         ...inspection,
+        ...closureResult,
       };
     } catch (error) {
       if (useOwnConnection && connection) {
@@ -1062,16 +1213,7 @@ class QualityInspection {
 
       try {
         // 获取当前检验单的信息
-        const [currentInspection] = await connection.query(
-          'SELECT id, inspection_no, inspection_type, source_type, reference_id, reference_no, purchase_order_item_id, material_id, supplier_id, product_id, product_name, product_code, process_id, process_name, batch_no, quantity, qualified_quantity, unqualified_quantity, unit, unit_id, status, planned_date, actual_date, inspector_id, inspector_name, punch_time, standard_type, standard_no, template_id, note, created_at, updated_at, traceability_id, traceability_batch, chain_id, chain_step_id, is_first_article, first_article_qty, is_full_inspection, first_article_result, production_can_continue, task_id, is_aql, aql_standard_id, aql_level, accept_limit, reject_limit, deleted_at FROM quality_inspections WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
-          [id]
-        );
-
-        if (currentInspection.length === 0) {
-          throw new Error('检验单不存在');
-        }
-
-        const inspection = currentInspection[0];
+        const inspection = await InspectionLockService.getForUpdate(connection, id);
 
         // 修复历史记录中 source_type 为空的情况；若 reference_no 对应委外
         // 入库单则立即回写委外来源，否则按采购来源兼容旧数据。
@@ -1082,6 +1224,44 @@ class QualityInspection {
         const effectiveStatus = Object.prototype.hasOwnProperty.call(data, 'status')
           ? data.status
           : inspection.status;
+        if (inspection.inspection_type === 'incoming') {
+          for (const field of [
+            'reference_id',
+            'reference_no',
+            'source_type',
+            'purchase_order_item_id',
+            'material_id',
+            'product_id',
+            'batch_no',
+          ]) {
+            if (
+              data[field] !== undefined &&
+              String(data[field] ?? '') !== String(inspection[field] ?? '')
+            ) {
+              throw this._createValidationError(
+                '来料检验的来源、物料和批次不能修改，请取消关联单据后重新登记'
+              );
+            }
+          }
+          if (inspection.source_type === 'purchase_order') {
+            for (const field of ['quantity', 'qualified_quantity', 'unqualified_quantity']) {
+              if (data[field] !== undefined) {
+                data[field] = purchaseQuantity(data[field], '检验数量', {
+                  allowZero: field !== 'quantity',
+                });
+              }
+            }
+          }
+        }
+        if (
+          inspection.inspection_type === 'incoming' &&
+          TERMINAL_INSPECTION_STATUSES.has(inspection.status)
+        ) {
+          if (!TERMINAL_INSPECTION_STATUSES.has(effectiveStatus)) {
+            throw this._createValidationError('已完成的来料检验不能退回待检状态');
+          }
+        }
+        await this._assertNonconformanceEvidenceUnchanged(connection, inspection, data);
         const shouldValidateTerminalStatus = Object.keys(data).some((key) =>
           TERMINAL_VALIDATION_UPDATE_FIELDS.has(key)
         );
@@ -1206,28 +1386,32 @@ class QualityInspection {
           }
         }
 
-        // 来料检验合格：自动生成零部件仓入库草稿，由仓库管理员确认
+        // 采购来料的收货单只有一个生成入口，不能再并行生成库存入库单。
+        let closureResult = {};
         if (
           inspection.inspection_type === 'incoming' &&
-          !this._isOutsourcedIncoming(inspection) &&
-          data.status
+          shouldValidateTerminalStatus &&
+          InspectionClosureService.isTerminalStatus(effectiveStatus)
         ) {
-          const incomingQty = Number(
-            data.qualified_quantity ?? inspection.qualified_quantity ?? inspection.quantity ?? 0
+          closureResult = await InspectionClosureService.closeIfTerminal(
+            inspection,
+            { ...data, id },
+            connection
           );
-          if (incomingQty > 0 && ['passed', 'partial', 'completed'].includes(String(data.status))) {
-            const ProductionInboundService = require('../services/business/ProductionInboundService');
-            const inboundCreatedBy = firstValidUserId(data.inspector_id, inspection.inspector_id);
-            await ProductionInboundService.createDraftFromIncomingInspection(connection, {
-              inspection: {
-                ...inspection,
-                qualified_quantity: incomingQty,
-              },
-              qualifiedQuantity: incomingQty,
-              operator: data.inspector_name || inspection.inspector_name || '系统',
-              createdBy: inboundCreatedBy,
-            });
-          }
+        }
+        if (
+          inspection.inspection_type === 'incoming' &&
+          inspection.source_type === 'purchase_order' &&
+          !InspectionClosureService.isTerminalStatus(effectiveStatus) &&
+          data.quantity !== undefined
+        ) {
+          const PurchaseOrderStatusService = require('../services/business/PurchaseOrderStatusService');
+          await PurchaseOrderStatusService.syncOrderItemReceivedFromReceipts(
+            inspection.reference_id,
+            inspection.material_id || inspection.product_id,
+            connection,
+            inspection.purchase_order_item_id || null
+          );
         }
 
         // 成品终检：任务状态机 + 生产入库（领域服务，禁止模型内拼装入库 SQL）
@@ -1359,7 +1543,7 @@ class QualityInspection {
         }
         logger.debug('Quality inspection update transaction committed', { id });
 
-        return { id, ...data };
+        return { id, ...data, ...closureResult };
       } catch (error) {
         logger.error('更新检验单过程中出错:', error);
         if (connection && useOwnConnection) {
@@ -1390,15 +1574,21 @@ class QualityInspection {
       await connection.beginTransaction();
 
       try {
-        const [inspections] = await connection.execute(
-          'SELECT id, status FROM quality_inspections WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+        const inspection = await InspectionLockService.getForUpdate(connection, id);
+        if (inspection.status !== 'pending') {
+          throw this._createValidationError('只有待检验状态的检验单才能删除');
+        }
+
+        const [receipts] = await connection.query(
+          `SELECT id, receipt_no FROM purchase_receipts
+            WHERE inspection_id = ? AND deleted_at IS NULL AND status <> 'cancelled'
+            ORDER BY id FOR UPDATE`,
           [id]
         );
-        if (inspections.length === 0) {
-          throw new Error('检验单不存在');
-        }
-        if (inspections[0].status !== 'pending') {
-          throw new Error('只有待检验状态的检验单才能删除');
+        if (receipts.length > 0) {
+          throw this._createValidationError(
+            `检验单已关联收货单 ${receipts[0].receipt_no}，请先取消关联收货单再删除检验`
+          );
         }
 
         // 附件授权记录与检验单生命周期保持一致。物理文件不在这里删除，
@@ -1420,6 +1610,17 @@ class QualityInspection {
         // 删除检验单
         // ✅ 软删除替代硬删除
         await softDelete(connection, 'quality_inspections', 'id', id);
+
+        const sourceType = await resolveInspectionSourceType(connection, inspection);
+        if (inspection.inspection_type === 'incoming' && sourceType === 'purchase_order') {
+          const PurchaseOrderStatusService = require('../services/business/PurchaseOrderStatusService');
+          await PurchaseOrderStatusService.syncOrderItemReceivedFromReceipts(
+            inspection.reference_id,
+            inspection.material_id || inspection.product_id,
+            connection,
+            inspection.purchase_order_item_id || null
+          );
+        }
 
         await connection.commit();
         return true;

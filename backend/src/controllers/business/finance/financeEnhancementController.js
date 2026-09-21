@@ -391,7 +391,7 @@ class FinanceEnhancementController {
     }
   }
 
-  // ==================== 三单匹配 / 业财状态 ====================
+  // ==================== 三单匹配 / 销售出库业财状态 ====================
 
   static async createThreeWayMatchFromReceipt(req, res) {
     try {
@@ -473,18 +473,6 @@ class FinanceEnhancementController {
       return ResponseHandler.success(res, data, '三单匹配已取消');
     } catch (error) {
       return respondServiceError(res, error, '取消三单匹配失败');
-    }
-  }
-
-  static async getPurchaseReceiptFinanceStatus(req, res) {
-    try {
-      const FinanceDocumentStatusService = require('../../../services/finance/FinanceDocumentStatusService');
-      const id = safeParseId(req.params.receiptId);
-      const data = await FinanceDocumentStatusService.getPurchaseReceiptStatus(id);
-      if (!data) return ResponseHandler.error(res, '入库单不存在', 'NOT_FOUND', 404);
-      return ResponseHandler.success(res, data, '采购入库业财状态');
-    } catch (error) {
-      return respondServiceError(res, error, '获取业财状态失败');
     }
   }
 

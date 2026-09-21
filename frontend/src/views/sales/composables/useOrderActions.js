@@ -199,6 +199,7 @@ export function useOrderActions(fetchDataCallback, tableData) {
     } catch (error) {
       if (error === 'cancel' || error === 'close') return
       console.error('锁定订单失败:', error)
+      const errorData = error.response?.data
       const errorMessage = `锁定订单失败：${getApiErrorMessage(error, '请稍后重试')}`
       if (errorData?.insufficientItems && errorData.insufficientItems.length > 0) {
         const insufficientDetails = errorData.insufficientItems

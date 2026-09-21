@@ -1,7 +1,6 @@
 const { logger } = require('../../utils/logger');
 const purchaseModel = require('../../models/purchase');
 const InventoryService = require('../InventoryService');
-const InventoryTraceabilityService = require('./InventoryTraceabilityService');
 const DocumentLinkService = require('./DocumentLinkService');
 const { DOCUMENT_LINK_TYPES: DocType } = require('../../constants/documentLinkTypes');
 const {
@@ -83,11 +82,12 @@ class QualityIntegrationService {
        LEFT JOIN purchase_order_items poi
          ON poi.order_id = po.id AND poi.material_id = ?
        WHERE po.order_no = ?
-       LIMIT 1`,
+         AND po.deleted_at IS NULL`,
       [replacementOrder.material_id, replacementOrder.purchase_order_no]
     );
-
-    return rows[0] || {};
+    if (rows.length !== 1 || !rows[0].order_item_id)
+      throw new Error('换货单必须明确对应唯一的原采购订单明细，不能猜测收货来源');
+    return rows[0];
   }
 
   static async getNcpContext(replacementOrder, connection) {
@@ -158,6 +158,7 @@ class QualityIntegrationService {
     }
     const material = await this.getMaterialContext(replacementOrder.material_id, connection);
     const orderContext = await this.getPurchaseOrderContext(replacementOrder, connection);
+    if (!orderContext.order_id) throw new Error('换货收货必须关联原采购订单');
     const ncp = await this.getNcpContext(replacementOrder, connection);
     const purchaseReturn = await this.getPurchaseReturnContext(
       replacementOrder.return_no,
@@ -177,7 +178,7 @@ class QualityIntegrationService {
       orderContext.tax_rate,
       financeConfig.get('tax.defaultVATRate', 0.13)
     );
-    const amountExcludingTax = roundMoney(receiveQty * unitPrice);
+    const amountExcludingTax = 0;
     const taxAmount = calculateTaxAmount(amountExcludingTax, taxRate);
     const totalAmount = roundMoney(amountExcludingTax + taxAmount);
     const remarks = [
@@ -211,8 +212,8 @@ class QualityIntegrationService {
         totalAmount,
         taxAmount,
         0,
-        ncp?.inspection_id || null,
-        'completed',
+        null,
+        'draft',
         createdBy,
       ]
     );
@@ -237,7 +238,7 @@ class QualityIntegrationService {
         this.toNumber(replacementOrder.quantity, receiveQty),
         receiveQty,
         receiveQty,
-        receiveQty,
+        0,
         batchNumber,
         unitPrice,
         taxRate,
@@ -247,38 +248,6 @@ class QualityIntegrationService {
         `Replacement receipt ${replacementOrder.replacement_no}`,
         0,
       ]
-    );
-
-    await InventoryTraceabilityService.handlePurchaseReceipt(
-      {
-        receipt_id: receiptId,
-        receipt_no: receiptNo,
-        supplier_id: replacementOrder.supplier_id,
-        supplier_name: replacementOrder.supplier_name,
-        receipt_date: receiptDate,
-        operator_id: createdBy,
-        operator,
-        items: [
-          {
-            material_id: replacementOrder.material_id,
-            material_code: replacementOrder.material_code || material.code,
-            material_name: replacementOrder.material_name || material.name,
-            batch_number: batchNumber,
-            quantity: receiveQty,
-            unit: orderContext.unit || material.unitName || null,
-            warehouse_id: material.warehouseId,
-            warehouse_name: material.warehouseName,
-            receipt_date: receiptDate,
-            unit_cost: unitPrice,
-            purchase_order_id: orderContext.order_id || null,
-            purchase_order_no: orderContext.order_no || replacementOrder.purchase_order_no || null,
-            receipt_id: receiptId,
-            receipt_no: receiptNo,
-            inspection_id: ncp?.inspection_id || null,
-          },
-        ],
-      },
-      connection
     );
 
     await this.linkReplacementReceipt({
@@ -298,14 +267,14 @@ class QualityIntegrationService {
          VALUES (?, 'auto_receipt', ?, ?)`,
         [
           replacementOrder.ncp_id,
-          `Replacement receipt ${receiptNo} posted for ${replacementOrder.replacement_no}`,
+          `Replacement receipt ${receiptNo} awaiting inspection for ${replacementOrder.replacement_no}`,
           operator,
         ]
       );
     }
 
     logger.info(
-      `Replacement receipt posted: replacement=${replacementOrder.replacement_no}, receipt=${receiptNo}, qty=${receiveQty}, batch=${batchNumber}`
+      `Replacement receipt awaiting inspection: replacement=${replacementOrder.replacement_no}, receipt=${receiptNo}, qty=${receiveQty}, batch=${batchNumber}`
     );
 
     return {
@@ -349,16 +318,6 @@ class QualityIntegrationService {
         DocType.REPLACEMENT_ORDER,
         replacementOrder.id,
         replacementOrder.replacement_no,
-        createdBy,
-        connection
-      );
-      await DocumentLinkService.tryAutoLink(
-        DocType.NONCONFORMING_PRODUCT,
-        ncp.id,
-        ncp.ncp_no,
-        DocType.PURCHASE_RECEIPT,
-        receiptId,
-        receiptNo,
         createdBy,
         connection
       );
@@ -452,28 +411,6 @@ class QualityIntegrationService {
       this.createdById(createdBy),
       connection
     );
-  }
-
-  static emitPurchaseReceiptCompleted(receiptId, currentUserId = null) {
-    if (!receiptId) return;
-
-    setImmediate(async () => {
-      try {
-        const DomainEventService = require('./DomainEventService');
-        const eventId = await DomainEventService.enqueue(
-          'PURCHASE_RECEIPT_COMPLETED',
-          { receiptId, currentUserId },
-          {
-            aggregateType: 'purchase_receipt',
-            aggregateId: receiptId,
-            dedupKey: `PURCHASE_RECEIPT_COMPLETED:${receiptId}`,
-          }
-        );
-        DomainEventService.dispatchSoon(eventId);
-      } catch (error) {
-        logger.error('Failed to enqueue PURCHASE_RECEIPT_COMPLETED:', error);
-      }
-    });
   }
 
   static async handleScrapInventory(scrapRecord, connection) {

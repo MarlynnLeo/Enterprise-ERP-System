@@ -131,6 +131,12 @@ const FALLBACK_DICTIONARY = {
     completed: { name: '已完成', color: 'success' },
     cancelled: { name: '已取消', color: 'danger' },
   },
+  purchase_receipt_status: {
+    draft: { name: '草稿', color: 'info' },
+    inspected: { name: '已检验', color: 'primary' },
+    completed: { name: '已完成', color: 'success' },
+    cancelled: { name: '已取消', color: 'danger' },
+  },
   sales_quotation_status: {
     draft: { name: '待确认', color: 'info' },
     sent: { name: '已发送', color: 'primary' },

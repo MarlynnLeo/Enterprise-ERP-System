@@ -324,7 +324,7 @@ async function auditReceipts() {
     need(ctx.order, '主订单'); ctx.inspection1 = await arrive(ctx.order, 4);
     const order = http(await call('get', `/api/purchase/orders/${ctx.order.id}`)); assert.equal(Number(order.items[0].receivedQuantity), 4); assert.equal(Number(order.items[0].warehousedQuantity), 0);
   });
-  await test('RECEIVE-INSPECT', '收货', '来料检验合格自动创建收货草稿', async () => { need(ctx.inspection1, '到货检验'); await inspect(ctx.inspection1); ctx.receipt1 = await receiptFromInspection(ctx.inspection1); assert.equal(ctx.receipt1.status, 'draft'); assert.equal(Number(ctx.receipt1.totalAmount), 45.2); });
+  await test('RECEIVE-INSPECT', '收货', '来料检验结案自动创建已检验收货单', async () => { need(ctx.inspection1, '到货检验'); await inspect(ctx.inspection1); ctx.receipt1 = await receiptFromInspection(ctx.inspection1); assert.equal(ctx.receipt1.status, 'inspected'); assert.equal(Number(ctx.receipt1.totalAmount), 45.2); });
   await test('RECEIPT-COMPLETE', '收货', '完成收货仅生成待财审过账', async () => {
     need(ctx.receipt1, '收货单'); const before = await stock(ctx.materials[0].id); await completeReceipt(ctx.receipt1, false); assert.equal(await stock(ctx.materials[0].id), before);
     const posting = await one("SELECT finance_status FROM inventory_posting_documents WHERE source_no=? AND posting_kind='movement'", [ctx.receipt1.receiptNo]); assert.equal(posting.finance_status, 'pending');
@@ -499,9 +499,8 @@ async function auditBoundaries() {
     http(await call('put', `/api/purchase/returns/${created.id}`, { ...body, items: [{ ...body.items[0], returnQuantity: 2 }] }));
     assert.equal(Number(http(await call('get', `/api/purchase/returns/${created.id}`)).totalAmount), 22.6);
   });
-  await test('RECEIPT-CANCEL-SYNC', '收货边界', '手工确认收货取消后恢复订单剩余数量', async () => {
+  await test('RECEIPT-CANCEL-SYNC', '收货边界', '手工收货草稿取消后保持订单剩余数量', async () => {
     const order = await approveOrder(await createOrder()); const receipt = await createReceipt(order, 3);
-    http(await call('put', `/api/purchase/receipts/${receipt.id}/status`, { status: 'confirmed' }));
     http(await call('put', `/api/purchase/receipts/${receipt.id}/status`, { status: 'cancelled' }));
     const updated = http(await call('get', `/api/purchase/orders/${order.id}`));
     assert.equal(Number(updated.items[0].receivedQuantity), 0); assert.equal(updated.status, 'approved');

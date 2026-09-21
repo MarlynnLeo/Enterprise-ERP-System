@@ -137,7 +137,7 @@ export const financeStubs = {
   ElAlert: { props: ['title'], template: '<p>{{ title }}</p>' }, ElDivider: Slot,
   ElPopconfirm: { template: '<div><slot name="reference"/><button @click="$emit(\'confirm\')">确认操作</button></div>' },
   AppDialog: { props: ['modelValue', 'title'], template: '<section v-if="modelValue" :data-dialog="title"><slot/><slot name="footer"/></section>' },
-  EmptyState: true, FinanceStreamStatus: true, RelatedOrderDialog: true,
+  EmptyState: true, RelatedOrderDialog: true,
 }
 export const financeDirectives = { loading: () => {}, permission: () => {} }
 export async function clickButton(scope, label) {

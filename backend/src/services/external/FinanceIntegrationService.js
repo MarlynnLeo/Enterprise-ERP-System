@@ -1759,7 +1759,7 @@ class FinanceIntegrationService {
            FROM purchase_receipts
           WHERE order_id = ?
             AND deleted_at IS NULL
-            AND status IN ('confirmed', 'completed')
+            AND status = 'completed'
           ORDER BY receipt_no`,
         [purchaseOrder.id]
       );
