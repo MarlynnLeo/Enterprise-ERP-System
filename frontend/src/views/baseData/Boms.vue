@@ -113,49 +113,12 @@
     />
 
     <!-- 零部件定位结果弹窗 -->
-    <AppDialog
+    <BomLocateResultsDialog
       v-model="locateDialogVisible"
-      title="零部件定位结果"
-      mode="view"
-      :width="BOM_DIALOG_WIDTH"
-    >
-      <el-alert
-        v-if="locateResults.length > 0"
-        :title="`共找到 ${locateResults.length} 个BOM包含物料 '${locateKeyword}'`"
-        type="success"
-        :closable="false"
-        class="mb-md"
-      />
-      <el-alert
-        v-else
-        :title="`未找到包含物料 '${locateKeyword}' 的BOM`"
-        type="warning"
-        :closable="false"
-        class="mb-md"
-      />
-      <el-table :data="locateResults" border max-height="400" v-if="locateResults.length > 0">
-        <el-table-column prop="productCode" label="产品编码" width="130" />
-        <el-table-column prop="productName" label="产品名称" min-width="150" />
-        <el-table-column prop="version" label="BOM版本" width="100" />
-        <el-table-column prop="materialCode" label="物料编码" width="130" />
-        <el-table-column prop="materialName" label="物料名称" min-width="130" />
-        <el-table-column prop="quantity" label="用量" width="80" />
-        <el-table-column prop="unit" label="单位" width="70" />
-      </el-table>
-      <template #footer>
-        <el-button
-          v-if="canExport"
-          type="primary"
-          :icon="Download"
-          :loading="locateExportLoading"
-          :disabled="locateResults.length === 0"
-          @click="handleExportLocateResults"
-        >
-          导出
-        </el-button>
-        <el-button @click="locateDialogVisible = false">关闭</el-button>
-      </template>
-        </AppDialog>
+      :keyword="locateKeyword"
+      :results="locateResults"
+      :can-export="canExport"
+    />
 
     <!-- 复制BOM选择弹窗 -->
     <AppDialog
@@ -238,14 +201,13 @@ import { materialApi, bomApi } from '@/api';
 import { parsePaginatedData, parseListData, parseDataObject, parseResponseData } from '@/utils/responseParser';
 import { normalizeBomOption, searchBomOptions } from '@/utils/optionLoaders';
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
-import { useExportExcel } from '@/composables/useExportExcel';
-import { BOM_DIALOG_WIDTH } from '@/constants/bom';
 // 引入新组件
 import BomTable from './components/BomTable.vue';
 import BomStatCards from './components/BomStatCards.vue';
 import BomFormDialog from './components/BomFormDialog.vue';
 import BomViewDialog from './components/BomViewDialog.vue';
 import BomCompareDialog from './components/BomCompareDialog.vue';
+import BomLocateResultsDialog from './components/BomLocateResultsDialog.vue';
 
 const authStore = useAuthStore();
 const canCreate = computed(() => authStore.hasPermission('basedata:boms:create'));
@@ -281,7 +243,6 @@ const compareDialogVisible = ref(false);
 const locateDialogVisible = ref(false);
 const locateResults = ref([]);
 const locateKeyword = ref('');
-const { exportLoading: locateExportLoading, exportToExcel } = useExportExcel();
 // 复制弹窗状态
 const copyDialogVisible = ref(false);
 const copySelectedBomId = ref(null);
@@ -622,23 +583,6 @@ const searchProductsForCopy = async (query) => {
   } else {
     copyProductOptions.value = [];
   }
-};
-
-const handleExportLocateResults = () => {
-  exportToExcel({
-    columns: [
-      { header: '产品编码', key: 'productCode', width: 20 },
-      { header: '产品名称', key: 'productName', width: 25 },
-      { header: 'BOM版本', key: 'version', width: 12 },
-      { header: '物料编码', key: 'materialCode', width: 20 },
-      { header: '物料名称', key: 'materialName', width: 25 },
-      { header: '用量', key: 'quantity', width: 12 },
-      { header: '单位', key: 'unit', width: 10 },
-    ],
-    data: locateResults.value,
-    filename: '零部件定位结果',
-    sheetName: '定位结果',
-  });
 };
 
 const loadCopySourceBomOptions = async (query = '') => {

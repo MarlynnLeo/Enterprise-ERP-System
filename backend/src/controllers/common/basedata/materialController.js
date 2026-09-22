@@ -44,6 +44,7 @@ const buildMaterialExportRows = (items = []) =>
       code: item.code || '',
       name: item.name || '',
       specs: item.specs ?? item.specification ?? '',
+      material: item.material ?? item.materialName ?? '',
       category_name: item.category_name ?? item.categoryName ?? '',
       unit_name: item.unit_name ?? item.unitName ?? item.unit ?? '',
       source_type:
@@ -857,6 +858,7 @@ const materialController = {
         { header: '物料编码', key: 'code', width: 20 },
         { header: '物料名称', key: 'name', width: 25 },
         { header: '规格型号', key: 'specs', width: 20 },
+        { header: '材料', key: 'material', width: 20 },
         { header: '分类', key: 'category_name', width: 15 },
         { header: '单位', key: 'unit_name', width: 10 },
         { header: '物料来源', key: 'source_type', width: 15 },

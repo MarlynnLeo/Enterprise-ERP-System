@@ -95,6 +95,7 @@
                   v-model="scope.row.result"
                   placeholder="结果"
                   size="small"
+                  @change="handleResultChange(scope.row)"
                   :class="{
                     'result-select-passed': scope.row.result === 'passed',
                     'result-select-failed': scope.row.result === 'failed'
@@ -781,6 +782,15 @@ const handleQualitativeMeasurementChange = (item) => {
   item.result = summary.result
   item.isQualified = summary.result === 'passed' ? true : summary.result === 'failed' ? false : null
   item.is_qualified = item.isQualified
+}
+
+// 定性检验项选择“合格”时，默认所有测量位均为通过。
+// 数值型检验项仍需保留实际数值，避免用 √ 覆盖数值标准判定。
+const handleResultChange = (item) => {
+  if (!item || item.result !== 'passed' || isNumericInspectionItem(item)) return
+
+  item.measurements = Array.from({ length: currentSampleSize.value }, () => '√')
+  handleQualitativeMeasurementChange(item)
 }
 
 // ===== 数量计算 =====

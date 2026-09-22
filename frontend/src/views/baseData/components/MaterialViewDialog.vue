@@ -13,7 +13,14 @@
           {{ viewData.productCategoryName || '未设置' }}
         </el-descriptions-item>
         <el-descriptions-item label="物料编码">
-          {{ viewData.code }}
+          <el-button
+            v-if="canLocateBom && viewData.code"
+            type="primary"
+            link
+            title="查看零部件定位结果"
+            @click="emit('locate', viewData)"
+          >{{ viewData.code }}</el-button>
+          <span v-else>{{ viewData.code }}</span>
         </el-descriptions-item>
         <el-descriptions-item label="物料名称">
           {{ viewData.name }}
@@ -119,9 +126,10 @@ defineProps({
   viewData: Object,
   canViewCost: { type: Boolean, default: false },
   canViewPrice: { type: Boolean, default: false },
+  canLocateBom: { type: Boolean, default: false },
   detailNavigation: { type: Object, default: null }
 })
-const emit = defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue', 'locate'])
 
 const formatTaxRate = (value) => {
   if (value === null || value === undefined || value === '') return '-'

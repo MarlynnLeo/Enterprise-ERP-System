@@ -109,7 +109,18 @@
       :viewData="currentViewMaterial"
       :canViewCost="canViewCost"
       :canViewPrice="canViewPrice"
+      :can-locate-bom="canLocateBom"
       :detail-navigation="materialViewNavigation"
+      @locate="handleLocateMaterial"
+    />
+
+    <BomLocateResultsDialog
+      v-model="locateDialogVisible"
+      :keyword="locateKeyword"
+      :results="locateResults"
+      :loading="locateLoading"
+      :error="locateError"
+      :can-export="canExportBom"
     />
 
     <!-- 导入对话框 -->
@@ -158,6 +169,7 @@ import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Plus, Download, Upload, DocumentCopy, ArrowDown } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
 import { materialApi } from '@/api/material';
+import { bomApi } from '@/api/bom';
 import { baseDataApi } from '@/api/baseData';
 import { commonApi } from '@/api/common';
 import { parsePaginatedData, parseListData, parseDataObject } from '@/utils/responseParser';
@@ -170,6 +182,7 @@ import MaterialTable from './components/MaterialTable.vue';
 import MaterialStatCards from './components/MaterialStatCards.vue';
 import MaterialFormDialog from './components/MaterialFormDialog.vue';
 import MaterialViewDialog from './components/MaterialViewDialog.vue';
+import BomLocateResultsDialog from './components/BomLocateResultsDialog.vue';
 
 const authStore = useAuthStore();
 const canCreate = computed(() => authStore.hasPermission('basedata:materials:create'));
@@ -177,6 +190,8 @@ const canUpdate = computed(() => authStore.hasPermission('basedata:materials:upd
 const canDelete = computed(() => authStore.hasPermission('basedata:materials:delete'));
 const canImport = computed(() => authStore.hasPermission('basedata:materials:import'));
 const canExport = computed(() => authStore.hasPermission('basedata:materials:export'));
+const canLocateBom = computed(() => authStore.hasPermission('basedata:boms:view'));
+const canExportBom = computed(() => authStore.hasPermission('basedata:boms:export'));
 const canViewPrice = computed(() => canViewMaterialPrices((code) => authStore.hasPermission(code)));
 const canViewCost = canViewPrice;
 const canMaintainPrice = computed(() => canMaintainMaterialPrices((code) => authStore.hasPermission(code)));
@@ -189,6 +204,12 @@ const currentPage = ref(1);
 const pageSize = ref(10);
 const dialogVisible = ref(false);
 const viewDialogVisible = ref(false);
+const locateDialogVisible = ref(false);
+const locateKeyword = ref('');
+const locateResults = ref([]);
+const locateLoading = ref(false);
+const locateError = ref('');
+let locateRequestId = 0;
 const dialogTitle = ref('新增物料');
 const currentEditMaterial = ref(null);
 const currentViewMaterial = ref(null);
@@ -414,6 +435,29 @@ const loadViewMaterial = async (row, { openDialog = false } = {}) => {
 };
 
 const handleView = (row) => loadViewMaterial(row, { openDialog: true });
+
+const handleLocateMaterial = async (row) => {
+  const keyword = String(row?.code ?? '').trim();
+  if (!canLocateBom.value || !keyword) return;
+
+  const requestId = ++locateRequestId;
+  locateKeyword.value = keyword;
+  locateResults.value = [];
+  locateError.value = '';
+  locateLoading.value = true;
+  locateDialogVisible.value = true;
+
+  try {
+    const response = await bomApi.locatePart(keyword);
+    if (requestId !== locateRequestId) return;
+    locateResults.value = parseListData(response);
+  } catch (error) {
+    if (requestId !== locateRequestId) return;
+    locateError.value = getApiErrorMessage(error, '定位零部件失败，请稍后重试');
+  } finally {
+    if (requestId === locateRequestId) locateLoading.value = false;
+  }
+};
 
 const handleViewPrevious = () => {
   if (previousViewMaterial.value) loadViewMaterial(previousViewMaterial.value);

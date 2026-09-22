@@ -1,10 +1,11 @@
 import { defineComponent, h, nextTick } from 'vue'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { BOM_DIALOG_WIDTH as SHARED_WIDTH_SENTINEL } from '@/constants/bom'
 import Boms from '@/views/baseData/Boms.vue'
 import BomViewDialog from '@/views/baseData/components/BomViewDialog.vue'
 import BomFormDialog from '@/views/baseData/components/BomFormDialog.vue'
+import BomLocateResultsDialog from '@/views/baseData/components/BomLocateResultsDialog.vue'
 
 vi.mock('@/constants/bom', () => ({
   BOM_DIALOG_WIDTH: 'shared-bom-dialog-width-test',
@@ -14,6 +15,12 @@ const exportToExcel = vi.fn()
 const getBoms = vi.fn()
 const getBomStats = vi.fn()
 const exportBoms = vi.fn()
+const locatePart = vi.fn()
+const prompt = vi.fn()
+
+vi.mock('element-plus/es/components/message-box/index', () => ({
+  ElMessageBox: { prompt: (...args) => prompt(...args) },
+}))
 
 vi.mock('@/composables/useExportExcel', () => ({
   useExportExcel: () => ({
@@ -36,7 +43,7 @@ vi.mock('@/api', () => ({
     getBoms: (...args) => getBoms(...args),
     getBomStats: (...args) => getBomStats(...args),
     exportBoms: (...args) => exportBoms(...args),
-    locatePart: vi.fn(),
+    locatePart: (...args) => locatePart(...args),
   },
   commonApi: {
     downloadResource: vi.fn(),
@@ -111,6 +118,16 @@ const PassthroughStub = defineComponent({
   },
 })
 
+const AlertStub = defineComponent({
+  props: { title: String, type: String },
+  template: '<div role="alert">{{ title }}</div>',
+})
+
+const TableStub = defineComponent({
+  props: { data: Array },
+  template: '<div class="table-stub"><slot/></div>',
+})
+
 const BomsChildStub = defineComponent({
   inheritAttrs: false,
   setup() {
@@ -129,8 +146,8 @@ const globalStubs = {
   BomCompareDialog: BomsChildStub,
   'el-button': ButtonStub,
   'el-icon': PassthroughStub,
-  'el-alert': PassthroughStub,
-  'el-table': PassthroughStub,
+  'el-alert': AlertStub,
+  'el-table': TableStub,
   'el-table-column': BomsChildStub,
   'el-card': PassthroughStub,
   'el-form': PassthroughStub,
@@ -184,6 +201,8 @@ describe('BOM locate-results dialog contract', () => {
     getBoms.mockReset().mockResolvedValue({ data: [] })
     getBomStats.mockReset().mockResolvedValue({ data: {} })
     exportBoms.mockReset().mockResolvedValue({ data: new Blob(['xlsx']) })
+    locatePart.mockReset().mockResolvedValue({ data: [locateResult] })
+    prompt.mockReset().mockResolvedValue({ value: ' M-001 ' })
     window.URL.createObjectURL = vi.fn(() => 'blob:test')
     window.URL.revokeObjectURL = vi.fn()
     HTMLAnchorElement.prototype.click = vi.fn()
@@ -252,6 +271,56 @@ describe('BOM locate-results dialog contract', () => {
       '用量',
       '单位',
     ])
+    expect(exportOptions.filename).toBe('零部件定位结果')
+    expect(exportOptions.sheetName).toBe('定位结果')
+  })
+
+  test('opens the shared results dialog after locating a code from the BOM prompt', async () => {
+    const wrapper = mount(Boms, { global: testGlobal })
+    await flushPromises()
+
+    await wrapper.vm.handleLocatePart()
+    await nextTick()
+
+    expect(prompt).toHaveBeenCalled()
+    expect(locatePart).toHaveBeenCalledWith('M-001')
+    expect(wrapper.findComponent(BomLocateResultsDialog).props()).toMatchObject({
+      modelValue: true,
+      keyword: 'M-001',
+      results: [locateResult],
+      canExport: true,
+    })
+  })
+
+  test.each([
+    [{ loading: true, results: [locateResult] }, '正在定位物料…', 'info'],
+    [{ error: '定位失败，请稍后重试', results: [locateResult] }, '定位失败，请稍后重试', 'error'],
+    [{ results: [] }, "未找到包含物料 'M-001' 的BOM", 'warning'],
+  ])('shows the current request state and prevents exporting unavailable results: %j', async (state, title, type) => {
+    const wrapper = mount(BomLocateResultsDialog, {
+      props: { modelValue: true, keyword: 'M-001', canExport: true, ...state },
+      global: testGlobal,
+    })
+
+    expect(wrapper.findComponent(AlertStub).props()).toMatchObject({ title, type })
+    expect(wrapper.findComponent(TableStub).exists()).toBe(false)
+    const exportButton = wrapper.findAllComponents(ButtonStub)[0]
+    expect(exportButton.props('disabled')).toBe(true)
+    await exportButton.trigger('click')
+    expect(exportToExcel).not.toHaveBeenCalled()
+  })
+
+  test('hides export without permission and closes through v-model', async () => {
+    const wrapper = mount(BomLocateResultsDialog, {
+      props: { modelValue: true, results: [locateResult], canExport: false },
+      global: testGlobal,
+    })
+
+    const buttons = wrapper.findAll('button')
+    expect(buttons.map((button) => button.text())).toEqual(['关闭'])
+    await buttons[0].trigger('click')
+    expect(wrapper.emitted('update:modelValue')).toEqual([[false]])
+    expect(exportToExcel).not.toHaveBeenCalled()
   })
 
   test('passes selected BOM IDs to the BOM export request', async () => {

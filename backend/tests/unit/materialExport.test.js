@@ -36,6 +36,7 @@ describe('material export mapping', () => {
         code: 'M001',
         name: '钢板',
         specs: '1000*2000*5mm',
+        material: 'Q235钢材',
         unit_name: '件',
         material_source_name: '采购',
         safety_stock: 10,
@@ -49,6 +50,7 @@ describe('material export mapping', () => {
 
     expect(row).toMatchObject({
       specs: '1000*2000*5mm',
+      material: 'Q235钢材',
       unit_name: '件',
       source_type: '采购',
       safety_stock: 10,

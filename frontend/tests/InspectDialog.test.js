@@ -183,6 +183,18 @@ describe('incoming inspection AQL selection', () => {
     expect(wrapper.emitted('success')).toHaveLength(1)
   })
 
+  test('fills all qualitative measurement values when an item is marked as passed', async () => {
+    await openInspection()
+
+    const item = form().items[0]
+    item.result = 'passed'
+    wrapper.vm.handleResultChange(item)
+
+    expect(item.measurements).toEqual(Array(6).fill('√'))
+    expect(item.actualValue).toBe('√6 / ×0')
+    expect(item.isQualified).toBe(true)
+  })
+
   test('blocks submission while a replacement standard is being calculated', async () => {
     await openInspection()
     const pending = deferred()

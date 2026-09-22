@@ -95,15 +95,22 @@
     <el-table
       v-loading="loading"
       :data="filteredTodos"
-      class="todo-table"
+      class="todo-table table-row-click"
       :row-class-name="getTodoRowClassName"
       empty-text="暂无待办事项"
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, openTodoDetail)"
     >
       <el-table-column label="事项" min-width="220">
         <template #default="{ row }">
           <div class="todo-title-cell">
             <div class="todo-title-line">
-              <span class="todo-title" :class="{ completed: row.completed }">{{ row.title }}</span>
+              <button
+                type="button"
+                class="todo-title todo-title-button"
+                :class="{ completed: row.completed }"
+                :title="row.title"
+                @click.stop="openTodoDetail(row)"
+              >{{ row.title }}</button>
               <el-tag
                 v-if="row.isShared"
                 size="small"
@@ -146,7 +153,11 @@
       </el-table-column>
       <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
         <template #default="{ row }">
-          <div class="table-actions">
+          <div class="table-actions" @click.stop>
+            <el-button type="primary" size="small" @click="openTodoDetail(row)">
+              <el-icon><View /></el-icon>
+              查看
+            </el-button>
             <el-button
               :type="row.completed ? 'info' : 'success'"
               size="small"
@@ -174,6 +185,49 @@
         </div>
       </template>
     </el-table>
+
+    <AppDialog
+      v-model="detailVisible"
+      title="待办详情"
+      mode="view"
+      width="680px"
+      :loading="detailLoading"
+    >
+      <div class="todo-detail">
+        <el-descriptions v-if="selectedTodo" :column="1" border>
+          <el-descriptions-item label="事项标题">
+            <span class="todo-detail-title">{{ selectedTodo.title }}</span>
+          </el-descriptions-item>
+          <el-descriptions-item label="详细描述">
+            <div class="todo-detail-description">{{ selectedTodo.description || '暂无描述' }}</div>
+          </el-descriptions-item>
+          <el-descriptions-item label="状态">
+            <el-tag :type="getStatusTagType(selectedTodo)" effect="plain">
+              {{ getStatusText(selectedTodo) }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="优先级">
+            <el-tag :type="getPriorityTagType(selectedTodo.priority)">
+              {{ getPriorityText(selectedTodo.priority) }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="截止时间">
+            <span :class="getDeadlineClass(selectedTodo)">{{ formatDateTime(selectedTodo.deadline) }}</span>
+          </el-descriptions-item>
+          <el-descriptions-item label="创建人">
+            {{ getUserDisplayName(selectedTodo.creator) || '未设置' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="协同人员">
+            {{ getParticipantNames(selectedTodo).join('、') || '无' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="创建时间">{{ formatDateTime(selectedTodo.createdAt) }}</el-descriptions-item>
+          <el-descriptions-item label="更新时间">{{ formatDateTime(selectedTodo.updatedAt) }}</el-descriptions-item>
+        </el-descriptions>
+      </div>
+      <template #footer>
+        <el-button @click="detailVisible = false">关闭</el-button>
+      </template>
+    </AppDialog>
 
     <AppDialog
       v-model="dialogVisible"
@@ -252,7 +306,7 @@
 
 <script setup>
 import { getApiErrorMessage } from '@/utils/errorHandler'
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import {
@@ -265,10 +319,12 @@ import {
   Tickets,
   Timer,
   UserFilled,
+  View,
   WarningFilled
 } from '@element-plus/icons-vue'
 import { todoApi } from '@/api'
-import { parseListData } from '@/utils/responseParser'
+import { parseDataObject, parseListData } from '@/utils/responseParser'
+import { handleTableRowView } from '@/utils/tableRowView'
 
 const props = defineProps({
   todoId: {
@@ -282,6 +338,10 @@ const emit = defineEmits(['changed'])
 const loading = ref(false)
 const saving = ref(false)
 const dialogVisible = ref(false)
+const detailVisible = ref(false)
+const detailLoading = ref(false)
+const selectedTodo = ref(null)
+let detailRequestId = 0
 const editingTodo = ref(null)
 const todoFormRef = ref(null)
 const todos = ref([])
@@ -345,10 +405,22 @@ watch(
   (todoId) => {
     if (todoId) {
       filters.status = 'all'
+      openTodoDetail({ id: todoId })
     }
   },
   { immediate: true }
 )
+
+watch(detailVisible, (visible) => {
+  if (!visible) {
+    detailRequestId += 1
+    detailLoading.value = false
+  }
+}, { flush: 'sync' })
+
+onBeforeUnmount(() => {
+  detailRequestId += 1
+})
 
 onMounted(() => {
   loadTodos()
@@ -410,6 +482,26 @@ function sortTodos(a, b) {
   const aTime = a.deadline ? new Date(a.deadline).getTime() : Number.MAX_SAFE_INTEGER
   const bTime = b.deadline ? new Date(b.deadline).getTime() : Number.MAX_SAFE_INTEGER
   return aTime - bTime
+}
+
+async function openTodoDetail(todo) {
+  const requestId = ++detailRequestId
+  selectedTodo.value = null
+  detailVisible.value = true
+  detailLoading.value = true
+  try {
+    const response = await todoApi.getTodo(todo.id)
+    if (requestId !== detailRequestId) return
+    const detail = parseDataObject(response, { enableLog: false })
+    if (!detail?.id) throw new Error('待办不存在或无权查看')
+    selectedTodo.value = normalizeTodo(detail)
+  } catch (error) {
+    if (requestId !== detailRequestId) return
+    detailVisible.value = false
+    ElMessage.error(getApiErrorMessage(error, '待办详情加载失败'))
+  } finally {
+    if (requestId === detailRequestId) detailLoading.value = false
+  }
 }
 
 function openCreateDialog() {
@@ -830,6 +922,55 @@ function toPickerValue(value) {
 .todo-title.completed {
   color: var(--el-text-color-secondary);
   text-decoration: line-through;
+}
+
+.todo-title-button {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.todo-title-button:hover,
+.todo-title-button:focus-visible {
+  color: var(--el-color-primary);
+  text-decoration: underline;
+}
+
+.todo-title-button:focus-visible {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 2px;
+}
+
+.todo-detail {
+  min-height: 120px;
+}
+
+.todo-detail :deep(.el-descriptions__table) {
+  table-layout: fixed;
+}
+
+.todo-detail :deep(.el-descriptions__label) {
+  width: 100px;
+}
+
+.todo-detail-title,
+.todo-detail-description,
+.todo-detail :deep(.el-descriptions__content) {
+  overflow-wrap: anywhere;
+}
+
+.todo-detail-title {
+  font-weight: 700;
+}
+
+.todo-detail-description {
+  white-space: pre-wrap;
+  line-height: 1.7;
 }
 
 .todo-description {
