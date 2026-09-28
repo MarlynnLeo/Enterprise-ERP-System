@@ -198,7 +198,7 @@
         <el-pagination
           v-model:current-page="pagination.page"
           v-model:page-size="pagination.pageSize"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :small="false"
           :disabled="false"
           :background="true"
@@ -449,6 +449,8 @@
   </div>
 </template>
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { getPurchaseStatusText, getPurchaseStatusColor, getApprovalStatusText, getApprovalStatusColor } from '@/constants/systemConstants'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
@@ -484,7 +486,7 @@ const searchForm = reactive({
 
 const pagination = reactive({
   page: 1,
-  pageSize: 10,
+  pageSize: getThemeDefaultPageSize(10),
   total: 0
 });
 // 申请单列表

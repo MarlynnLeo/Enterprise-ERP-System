@@ -7,6 +7,7 @@
  */
 -->
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, onMounted, computed } from 'vue'
 import { usePaginatedFetching } from '@/composables/useDataFetching'
@@ -490,7 +491,7 @@ onMounted(() => {
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
           :current-page="pagination.current"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :page-size="pagination.pageSize"
           :small="false"
           :disabled="false"

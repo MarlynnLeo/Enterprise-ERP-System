@@ -168,7 +168,7 @@
       <el-pagination
         v-model:current-page="pagination.page"
         v-model:page-size="pagination.pageSize"
-        :page-sizes="[20, 50, 100, 200]"
+        :page-sizes="PAGE_SIZE_OPTIONS"
         :total="pagination.total"
         layout="total, sizes, prev, pager, next, jumper"
         @size-change="handleSizeChange"
@@ -395,6 +395,7 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, onMounted, computed, nextTick } from 'vue';
 import { ElMessage } from 'element-plus/es/components/message/index'

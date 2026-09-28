@@ -43,7 +43,7 @@ const THEME_PRESETS = Object.freeze({
   premium: Object.freeze({
     id: 'premium',
     name: 'Premium Editorial',
-    primaryColor: '#FFFFFF',
+    primaryColor: '#E4E4E7',
     mode: 'dark',
   }),
   professional: Object.freeze({
@@ -58,6 +58,12 @@ const THEME_PRESETS = Object.freeze({
     primaryColor: process.env.DEFAULT_THEME_PRIMARY_COLOR || '#15803D',
     mode: 'light',
   }),
+  workspace: Object.freeze({
+    id: 'workspace',
+    name: '经典主题',
+    primaryColor: '#4263EB',
+    mode: 'light',
+  }),
 });
 
 const DEFAULT_THEME_SETTINGS = Object.freeze({
@@ -69,9 +75,10 @@ const DEFAULT_THEME_SETTINGS = Object.freeze({
 
 const getDefaultThemeSettings = () => ({ ...DEFAULT_THEME_SETTINGS });
 
-const isThemePreset = (presetId) => Object.hasOwn(THEME_PRESETS, presetId);
+const isThemePreset = (presetId) => typeof presetId === 'string' && Object.hasOwn(THEME_PRESETS, presetId);
 
 const normalizeFontSize = (value) => {
+  if (!['number', 'string'].includes(typeof value) || String(value).trim() === '') return DEFAULT_FONT_SIZE;
   const fontSize = Number(value);
 
   if (!Number.isFinite(fontSize)) {
@@ -82,19 +89,15 @@ const normalizeFontSize = (value) => {
 };
 
 const parseThemeSettings = (settings) => {
-  if (!settings) {
-    return {};
-  }
-
   if (typeof settings === 'string') {
     try {
-      return JSON.parse(settings);
+      settings = JSON.parse(settings);
     } catch {
       return {};
     }
   }
 
-  return typeof settings === 'object' ? settings : {};
+  return settings && typeof settings === 'object' && !Array.isArray(settings) ? settings : {};
 };
 
 const normalizeThemeSettings = (settings) => {
@@ -102,12 +105,19 @@ const normalizeThemeSettings = (settings) => {
   const preset = isThemePreset(source.preset)
     ? THEME_PRESETS[source.preset]
     : THEME_PRESETS[DEFAULT_THEME_PRESET_ID];
-  const theme = THEME_MODES.includes(source.theme) ? source.theme : preset.mode;
+  let primaryColor = typeof source.primaryColor === 'string' && HEX_COLOR_PATTERN.test(source.primaryColor)
+    ? source.primaryColor.toUpperCase()
+    : preset.primaryColor;
+  if (primaryColor.length === 4) {
+    primaryColor = `#${[...primaryColor.slice(1)].map((channel) => channel.repeat(2)).join('')}`;
+  }
+  // Stored premium settings used white before the shared palette was corrected.
+  if (preset.id === 'premium' && primaryColor === '#FFFFFF') primaryColor = preset.primaryColor;
 
   return {
-    theme,
+    theme: preset.mode,
     preset: preset.id,
-    primaryColor: preset.primaryColor,
+    primaryColor,
     fontSize: normalizeFontSize(source.fontSize),
   };
 };
@@ -122,7 +132,7 @@ const validateThemeSettings = (settings) => {
   }
 
   const requiredFields = ['theme', 'preset', 'primaryColor', 'fontSize'];
-  const missingFields = requiredFields.filter((field) => !(field in source));
+  const missingFields = requiredFields.filter((field) => !Object.hasOwn(source, field));
   if (missingFields.length > 0) {
     errors.required = `缺少必需字段: ${missingFields.join(', ')}`;
   }
@@ -140,7 +150,7 @@ const validateThemeSettings = (settings) => {
   }
 
   const fontSize = Number(source.fontSize);
-  if (!Number.isFinite(fontSize) || fontSize < 12 || fontSize > 18) {
+  if (!['number', 'string'].includes(typeof source.fontSize) || !Number.isFinite(fontSize) || fontSize < 12 || fontSize > 18) {
     errors.fontSize = '字体大小必须在 12 到 18 之间';
   }
 

@@ -2,16 +2,69 @@
  * useExchangeRate.js
  * @description 汇率与图表数据的组合式函数（从 Dashboard.vue 抽取）
  */
-import { ref, computed } from 'vue'
+import { ref, computed, markRaw, toRaw } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { exchangeRateApi } from '../../../api/enhanced'
-import { alphaColor, getCssTokenValue } from '../../../utils/designTokens'
+import { alphaColor, chartTheme, getCssTokenValue } from '../../../utils/designTokens'
+import { observeChartTheme } from '../../../utils/chartThemeObserver'
 
 const DASHBOARD_CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY']
 
 export function useExchangeRate() {
   let echarts = null
   let echartsPromise = null
+  let chartResizeObserver = null
+  let chartLifecycle = 0
+  let rateRequest = 0
+  let stopThemeRefresh
+  const observedCharts = new Map()
+
+  const unobserveChart = (chart) => {
+    // dispose() 后 ECharts 会清空 getDom()，从登记记录释放原容器。
+    observedCharts.forEach((observed, container) => {
+      if (observed.chart !== toRaw(chart)) return
+      chartResizeObserver?.unobserve(container)
+      observedCharts.delete(container)
+    })
+  }
+
+  // 布局、主题和页签显隐都会改变容器尺寸；ECharts 不会自动跟随 CSS 缩放。
+  const observeChart = (chart, container) => {
+    if (!stopThemeRefresh) {
+      stopThemeRefresh = observeChartTheme(() => {
+        updateExchangeRateChart()
+        updateMiniCharts()
+      })
+    }
+    if (typeof ResizeObserver === 'undefined') return
+    if (!chartResizeObserver) {
+      chartResizeObserver = new ResizeObserver((entries) => {
+        entries.forEach(({ target }) => {
+          const observed = observedCharts.get(target)
+          if (!observed) return
+          if (observed.chart.isDisposed()) {
+            unobserveChart(observed.chart)
+            return
+          }
+
+          const width = target.clientWidth
+          const height = target.clientHeight
+          const changed = width !== observed.width || height !== observed.height
+          observed.width = width
+          observed.height = height
+          // v-show 隐藏页签时不重置画布；重新显示后仍会检测到尺寸变化。
+          if (changed && width > 0 && height > 0) observed.chart.resize()
+        })
+      })
+    }
+    if (observedCharts.has(container)) return
+    observedCharts.set(container, {
+      chart,
+      width: container.clientWidth,
+      height: container.clientHeight
+    })
+    chartResizeObserver.observe(container)
+  }
 
   // ECharts 是仪表盘中体积最大的依赖之一。只有图表真正需要绘制时才加载，
   // 数据请求与文字卡片可先完成，不再阻塞首页首屏渲染。
@@ -140,6 +193,9 @@ export function useExchangeRate() {
 
   // 获取外汇数据
   const fetchExchangeRates = async () => {
+    const lifecycle = chartLifecycle
+    const request = ++rateRequest
+    const isCurrent = () => lifecycle === chartLifecycle && request === rateRequest
     exchangeRateLoading.value = true
 
     try {
@@ -150,6 +206,7 @@ export function useExchangeRate() {
           return [currency, Number.isFinite(rate) && rate > 0 ? rate : null]
         })
       )
+      if (!isCurrent()) return false
 
       const maintainedRates = Object.fromEntries(entries.filter(([, rate]) => rate !== null))
       const missingCurrencies = DASHBOARD_CURRENCIES.filter(currency => !maintainedRates[currency])
@@ -167,12 +224,12 @@ export function useExchangeRate() {
       processExchangeRateData(maintainedRates, '汇率维护', 'direct')
       return true
     } catch (error) {
-      if (error?.response?.status === 403) return false
+      if (!isCurrent() || error?.response?.status === 403) return false
       console.error('获取汇率数据失败:', error)
       ElMessage.error('获取汇率数据失败，请检查网络连接')
       return false
     } finally {
-      exchangeRateLoading.value = false
+      if (isCurrent()) exchangeRateLoading.value = false
     }
   }
 
@@ -212,7 +269,7 @@ export function useExchangeRate() {
           ]
         }
       },
-      data: history.map(item => item.value || item.price)
+      data: history.map(item => item.value ?? item.price)
     }]
   })
 
@@ -223,12 +280,18 @@ export function useExchangeRate() {
     // 检查容器尺寸是否有效，避免 ECharts 警告
     if (!container.clientWidth || !container.clientHeight) return
 
+    const previousChart = chartsObj[key]
+    if (previousChart) {
+      unobserveChart(previousChart)
+      if (!previousChart.isDisposed()) previousChart.dispose()
+    }
     const chart = echarts.init(container)
     const history = historyData[key] || []
     const isPositive = changeValue >= 0
 
     chart.setOption(getMiniChartOption(history, isPositive))
-    chartsObj[key] = chart
+    chartsObj[key] = markRaw(chart)
+    observeChart(chart, container)
   }
 
   // 更新迷你图表（统一函数）
@@ -240,44 +303,34 @@ export function useExchangeRate() {
       const history = historyData[key] || []
       const isPositive = getChangeValue(key) >= 0
 
-      if (container && !charts[key]) {
+      if (container && (!charts[key] || charts[key].isDisposed() || charts[key].getDom() !== container)) {
         initMiniChart(key, container, charts, historyData, getChangeValue(key))
-      } else if (charts[key]) {
-        charts[key].setOption({
-          xAxis: {
-            data: history.map(item => item.time)
-          },
-          series: [{
-            data: history.map(item => item.value || item.price),
-            lineStyle: {
-              color: isPositive ? getCssTokenValue('success') : getCssTokenValue('danger')
-            },
-            areaStyle: {
-              color: {
-                type: 'linear',
-                x: 0, y: 0, x2: 0, y2: 1,
-                colorStops: [
-                  { offset: 0, color: isPositive ? alphaColor('success', 0.3) : alphaColor('danger', 0.3) },
-                  { offset: 1, color: isPositive ? alphaColor('success', 0.1) : alphaColor('danger', 0.1) }
-                ]
-              }
-            }
-          }]
-        })
+      } else if (charts[key] && !charts[key].isDisposed()) {
+        charts[key].setOption(getMiniChartOption(history, isPositive))
       }
     })
   }
 
-  // 初始化汇率走势图
+  const exchangeSeries = [
+    { key: 'USDCNY', name: 'USD/CNY', color: 'primary' },
+    { key: 'EURCNY', name: 'EUR/CNY', color: 'success' },
+    { key: 'GBPCNY', name: 'GBP/CNY', color: 'warning' }
+  ]
+
+  // Initialize only for the current mounted container after the lazy import.
   const initExchangeRateChart = async () => {
     if (!exchangeRateChartRef.value) return
-
+    const lifecycle = chartLifecycle
     await ensureEcharts()
+    if (lifecycle !== chartLifecycle) return
 
-    // 检查容器尺寸是否有效，避免 ECharts 警告
     const container = exchangeRateChartRef.value
-    if (!container.clientWidth || !container.clientHeight) return
-
+    if (!container?.clientWidth || !container.clientHeight) return
+    if (exchangeRateChart && (exchangeRateChart.isDisposed() || exchangeRateChart.getDom() !== container)) {
+      unobserveChart(exchangeRateChart)
+      if (!exchangeRateChart.isDisposed()) exchangeRateChart.dispose()
+      exchangeRateChart = null
+    }
     if (exchangeRateChart) {
       exchangeRateChart.resize()
       updateExchangeRateChart()
@@ -285,134 +338,60 @@ export function useExchangeRate() {
     }
 
     exchangeRateChart = echarts.init(container)
-
-    const option = {
+    exchangeRateChart.setOption({
       tooltip: {
         trigger: 'axis',
-        axisPointer: {
-          type: 'cross'
-        },
-        formatter: function(params) {
-          let result = params[0].name + '<br/>'
-          params.forEach(param => {
-            result += `${param.seriesName}: ${param.value}<br/>`
-          })
-          return result
-        }
+        axisPointer: { type: 'cross' },
+        formatter: (params) => params.length
+          ? `${params[0].name}<br/>${params.map(param => `${param.seriesName}: ${param.value}`).join('<br/>')}`
+          : ''
       },
-      legend: {
-        data: ['USD/CNY', 'EUR/CNY', 'GBP/CNY'],
-        textStyle: {
-          fontSize: 12
-        }
-      },
-      grid: {
-        left: '3%',
-        right: '4%',
-        bottom: '3%',
-        containLabel: true
-      },
-      xAxis: {
-        type: 'category',
-        boundaryGap: false,
-        data: [],
-        axisLabel: {
-          fontSize: 10
-        }
-      },
-      yAxis: {
-        type: 'value',
-        scale: true,
-        axisLabel: {
-          fontSize: 10
-        }
-      },
-      series: [
-        {
-          name: 'USD/CNY',
-          type: 'line',
-          smooth: true,
-          symbol: 'circle',
-          symbolSize: 4,
-          lineStyle: {
-            color: getCssTokenValue('primary'),
-            width: 2
-          },
-          itemStyle: {
-            color: getCssTokenValue('primary')
-          },
-          areaStyle: {
-            color: {
-              type: 'linear',
-              x: 0, y: 0, x2: 0, y2: 1,
-              colorStops: [
-                { offset: 0, color: alphaColor('primary', 0.3) },
-                { offset: 1, color: alphaColor('primary', 0.1) }
-              ]
-            }
-          },
-          data: []
-        },
-        {
-          name: 'EUR/CNY',
-          type: 'line',
-          smooth: true,
-          symbol: 'circle',
-          symbolSize: 4,
-          lineStyle: {
-            color: getCssTokenValue('success'),
-            width: 2
-          },
-          itemStyle: {
-            color: getCssTokenValue('success')
-          },
-          data: []
-        },
-        {
-          name: 'GBP/CNY',
-          type: 'line',
-          smooth: true,
-          symbol: 'circle',
-          symbolSize: 4,
-          lineStyle: {
-            color: getCssTokenValue('warning'),
-            width: 2
-          },
-          itemStyle: {
-            color: getCssTokenValue('warning')
-          },
-          data: []
-        }
-      ]
-    }
-
-    exchangeRateChart.setOption(option)
+      legend: { data: exchangeSeries.map(series => series.name), textStyle: { fontSize: 12 } },
+      grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+      xAxis: { type: 'category', boundaryGap: false, data: [], axisLabel: { fontSize: 10 } },
+      yAxis: { type: 'value', scale: true, axisLabel: { fontSize: 10 } },
+      series: exchangeSeries.map(series => ({
+        name: series.name, type: 'line', smooth: true, symbol: 'circle', symbolSize: 4,
+        lineStyle: { width: 2 }, data: []
+      }))
+    })
     updateExchangeRateChart()
+    observeChart(exchangeRateChart, container)
     return exchangeRateChart
   }
 
-  // 更新汇率走势图
   const updateExchangeRateChart = () => {
-    if (!exchangeRateChart) return
-
-    const timeData = exchangeRateHistory.value.USDCNY.map(item => item.time)
-    const usdData = exchangeRateHistory.value.USDCNY.map(item => item.value)
-    const eurData = exchangeRateHistory.value.EURCNY.map(item => item.value)
-    const gbpData = exchangeRateHistory.value.GBPCNY.map(item => item.value)
-
+    if (!exchangeRateChart || exchangeRateChart.isDisposed()) return
+    const theme = chartTheme()
     exchangeRateChart.setOption({
+      textStyle: { color: theme.text },
+      legend: { textStyle: { color: theme.text } },
+      tooltip: { backgroundColor: theme.tooltipBg, borderColor: theme.axis, textStyle: { color: theme.tooltipText } },
       xAxis: {
-        data: timeData
+        data: exchangeRateHistory.value.USDCNY.map(item => item.time),
+        axisLabel: { color: theme.text },
+        axisLine: { lineStyle: { color: theme.axis } }
       },
-      series: [
-        { data: usdData },
-        { data: eurData },
-        { data: gbpData }
-      ]
+      yAxis: {
+        axisLabel: { color: theme.text },
+        axisLine: { lineStyle: { color: theme.axis } },
+        splitLine: { lineStyle: { color: theme.splitLine } }
+      },
+      series: exchangeSeries.map((series, index) => ({
+        data: exchangeRateHistory.value[series.key].map(item => item.value),
+        lineStyle: { color: getCssTokenValue(series.color) },
+        itemStyle: { color: getCssTokenValue(series.color) },
+        ...(index === 0 ? { areaStyle: { color: {
+          type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+          colorStops: [
+            { offset: 0, color: alphaColor(series.color, 0.3) },
+            { offset: 1, color: alphaColor(series.color, 0.1) }
+          ]
+        } } } : {})
+      }))
     })
   }
 
-  // 更新汇率迷你图表
   const updateMiniCharts = () => {
     updateMiniChartsGeneric(
       miniChartRefs.value,
@@ -422,10 +401,19 @@ export function useExchangeRate() {
     )
   }
 
-  // 设置迷你图表引用
+  const disposeMiniChart = (chart) => {
+    if (!chart) return
+    unobserveChart(chart)
+    if (!chart.isDisposed()) chart.dispose()
+  }
+
   const setMiniChartRef = (key, el) => {
     if (el) {
       miniChartRefs.value[key] = el
+    } else {
+      disposeMiniChart(miniCharts.value[key])
+      delete miniCharts.value[key]
+      delete miniChartRefs.value[key]
     }
   }
 
@@ -444,13 +432,21 @@ export function useExchangeRate() {
 
   // 销毁图表
   const disposeCharts = () => {
+    chartLifecycle += 1
+    chartResizeObserver?.disconnect()
+    chartResizeObserver = null
+    observedCharts.clear()
+    stopThemeRefresh?.()
+    stopThemeRefresh = undefined
     if (exchangeRateChart) {
-      exchangeRateChart.dispose()
+      if (!exchangeRateChart.isDisposed()) exchangeRateChart.dispose()
       exchangeRateChart = null
     }
     Object.values(miniCharts.value).forEach(chart => {
-      if (chart) chart.dispose()
+      if (chart && !chart.isDisposed()) chart.dispose()
     })
+    miniCharts.value = {}
+    miniChartRefs.value = {}
   }
 
   return {
@@ -470,6 +466,7 @@ export function useExchangeRate() {
     getMiniChartOption,
     initMiniChart,
     updateMiniChartsGeneric,
+    disposeMiniChart,
     disposeCharts
   }
 }

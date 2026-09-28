@@ -204,7 +204,7 @@
               @size-change="handleSizeChange"
               @current-change="handleCurrentChange"
               :current-page="currentPage"
-              :page-sizes="[10, 20, 50, 100]"
+              :page-sizes="PAGE_SIZE_OPTIONS"
               :page-size="pageSize"
               :small="false"
               :disabled="false"
@@ -445,6 +445,8 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, onMounted, computed, watch } from 'vue'
@@ -483,7 +485,7 @@ const processList = ref([])  // 工序列表
 
 // 分页
 const currentPage = ref(1)
-const pageSize = ref(10)
+const pageSize = ref(getThemeDefaultPageSize(10))
 const total = ref(0)
 
 // 统计数据

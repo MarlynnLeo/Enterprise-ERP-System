@@ -2,13 +2,13 @@
  * 仪表盘通用组合式函数
  */
 
-import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue';
 import { ElMessage } from 'element-plus/es/components/message/index';
+import { cloneDeep, debounce } from 'lodash-es';
 import {
   handleDashboardError,
   getDefaultStatistics,
-  retryApiCall,
-  debounce
+  retryApiCall
 } from '@/utils/dashboardUtils';
 
 /**
@@ -35,18 +35,22 @@ export function useDashboard(dashboardType, dataLoader, options = {}) {
   // 刷新相关
   const refreshTimer = ref(null);
   const isRefreshing = ref(false);
+  let disposed = false;
+  let requestId = 0;
 
   /**
    * 加载数据
    */
   const loadData = async (showLoading = true) => {
-    if (showLoading) {
-      loading.value = true;
-    }
+    if (disposed) return null;
+    const request = ++requestId;
+    const isCurrent = () => !disposed && request === requestId;
+    loading.value = showLoading;
     error.value = null;
 
     try {
-      const data = await retryApiCall(dataLoader, retryCount);
+      const data = await retryApiCall(() => isCurrent() ? dataLoader({ isCurrent }) : null, retryCount);
+      if (!isCurrent()) return null;
 
       // 更新统计数据
       Object.assign(statistics, data);
@@ -54,14 +58,13 @@ export function useDashboard(dashboardType, dataLoader, options = {}) {
 
       return data;
     } catch (err) {
+      if (!isCurrent()) return null;
       error.value = err;
-      const fallbackData = getDefaultStatistics(dashboardType);
-      Object.assign(statistics, fallbackData);
-
-      handleDashboardError(err, dashboardType, fallbackData, showErrorMessage);
+      // A failed refresh must not replace the last successful snapshot with zeros.
+      handleDashboardError(err, dashboardType, statistics, showErrorMessage);
       throw err;
     } finally {
-      loading.value = false;
+      if (isCurrent()) loading.value = false;
     }
   };
 
@@ -69,12 +72,12 @@ export function useDashboard(dashboardType, dataLoader, options = {}) {
    * 手动刷新数据
    */
   const refresh = debounce(async () => {
-    if (isRefreshing.value) return;
+    if (disposed || isRefreshing.value) return;
 
     isRefreshing.value = true;
     try {
-      await loadData(false);
-      ElMessage.success('数据刷新成功');
+      const data = await loadData(false);
+      if (!disposed && data != null) ElMessage.success('数据刷新成功');
     } catch {
       // 错误已在loadData中处理
     } finally {
@@ -86,11 +89,11 @@ export function useDashboard(dashboardType, dataLoader, options = {}) {
    * 启动自动刷新
    */
   const startAutoRefresh = () => {
-    if (!autoRefresh || refreshTimer.value) return;
+    if (disposed || !autoRefresh || refreshTimer.value || document.hidden) return;
 
     refreshTimer.value = setInterval(() => {
       if (!document.hidden) { // 页面可见时才刷新
-        loadData(false);
+        loadData(false).catch(() => {});
       }
     }, refreshInterval);
   };
@@ -109,6 +112,9 @@ export function useDashboard(dashboardType, dataLoader, options = {}) {
    * 重置数据
    */
   const reset = () => {
+    requestId++;
+    loading.value = false;
+    Object.keys(statistics).forEach(key => delete statistics[key]);
     Object.assign(statistics, getDefaultStatistics(dashboardType));
     error.value = null;
     lastUpdated.value = null;
@@ -121,28 +127,29 @@ export function useDashboard(dashboardType, dataLoader, options = {}) {
     } else {
       startAutoRefresh();
       // 页面重新可见时刷新数据
-      if (lastUpdated.value && Date.now() - lastUpdated.value.getTime() > refreshInterval) {
-        loadData(false);
+      if (autoRefresh && (!lastUpdated.value || Date.now() - lastUpdated.value.getTime() > refreshInterval)) {
+        loadData(false).catch(() => {});
       }
     }
   };
 
   // 生命周期管理
   onMounted(async () => {
+    startAutoRefresh();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     try {
       if (immediate) {
         await loadData();
       }
-      startAutoRefresh();
-
-      // 监听页面可见性变化
-      document.addEventListener('visibilitychange', handleVisibilityChange);
     } catch {
       // 错误已在loadData中处理
     }
   });
 
   onUnmounted(() => {
+    disposed = true;
+    requestId++;
+    refresh.cancel();
     stopAutoRefresh();
     document.removeEventListener('visibilitychange', handleVisibilityChange);
   });
@@ -172,12 +179,16 @@ export function useCharts(chartRefs = {}) {
   // 使用非响应式对象存储Chart实例，避免Vue Proxy与Chart.js循环引用引发的栈溢出
   const chartInstances = {};
   const chartsReady = ref(false);
+  const chartRequests = new Map();
+  let generation = 0;
+  let disposed = false;
 
   /**
    * 销毁图表实例
    * @param {string} chartName - 图表名称
    */
   const destroyChart = (chartName) => {
+    chartRequests.set(chartName, (chartRequests.get(chartName) || 0) + 1);
     if (chartInstances[chartName]) {
       chartInstances[chartName].destroy();
       delete chartInstances[chartName];
@@ -188,6 +199,7 @@ export function useCharts(chartRefs = {}) {
    * 销毁所有图表
    */
   const destroyAllCharts = () => {
+    generation++;
     Object.keys(chartInstances).forEach(destroyChart);
     chartsReady.value = false;
   };
@@ -198,12 +210,15 @@ export function useCharts(chartRefs = {}) {
    * @param {Function} initFunction - 初始化函数
    */
   const initChart = async (chartName, initFunction) => {
+    if (disposed) return;
+    destroyChart(chartName);
+    const request = chartRequests.get(chartName);
+    const startedGeneration = generation;
+    const isCurrent = () => !disposed && generation === startedGeneration && chartRequests.get(chartName) === request;
     try {
       // 确保DOM已更新
       await nextTick();
-
-      // 销毁现有图表
-      destroyChart(chartName);
+      if (!isCurrent()) return;
 
       // 检查图表容器是否存在
       const chartRef = chartRefs[chartName];
@@ -212,12 +227,17 @@ export function useCharts(chartRefs = {}) {
       }
 
       // 初始化新图表
-      const chartInstance = await initFunction();
+      const container = chartRef.value;
+      const chartInstance = await initFunction({ isCurrent });
+      if (!isCurrent() || chartRef.value !== container) {
+        chartInstance?.destroy();
+        return;
+      }
       if (chartInstance) {
         chartInstances[chartName] = chartInstance;
       }
     } catch (error) {
-      console.error(`初始化图表 ${chartName} 失败:`, error);
+      if (isCurrent()) console.error(`初始化图表 ${chartName} 失败:`, error);
     }
   };
 
@@ -226,13 +246,14 @@ export function useCharts(chartRefs = {}) {
    * @param {Object} chartInitializers - 图表初始化函数映射
    */
   const initAllCharts = async (chartInitializers) => {
+    const startedGeneration = generation;
     try {
       const initPromises = Object.entries(chartInitializers).map(
         ([chartName, initFunction]) => initChart(chartName, initFunction)
       );
 
       await Promise.allSettled(initPromises);
-      chartsReady.value = true;
+      if (!disposed && generation === startedGeneration) chartsReady.value = true;
     } catch (error) {
       console.error('初始化图表失败:', error);
     }
@@ -249,8 +270,8 @@ export function useCharts(chartRefs = {}) {
 
     try {
       // 深拷贝，防止Vue响应式Proxy传入Chart.js导致递归
-      const safeLabels = newData.labels ? JSON.parse(JSON.stringify(newData.labels)) : undefined;
-      const safeDatasets = newData.datasets ? JSON.parse(JSON.stringify(newData.datasets)) : undefined;
+      const safeLabels = newData.labels ? cloneDeep(newData.labels) : undefined;
+      const safeDatasets = newData.datasets ? cloneDeep(newData.datasets) : undefined;
 
       if (safeLabels) {
         chart.data.labels = safeLabels;
@@ -271,6 +292,7 @@ export function useCharts(chartRefs = {}) {
    * 调整图表大小
    */
   const resizeCharts = debounce(() => {
+    if (disposed) return;
     Object.values(chartInstances).forEach(chart => {
       if (chart && typeof chart.resize === 'function') {
         chart.resize();
@@ -284,6 +306,8 @@ export function useCharts(chartRefs = {}) {
   });
 
   onUnmounted(() => {
+    disposed = true;
+    resizeCharts.cancel();
     window.removeEventListener('resize', resizeCharts);
     destroyAllCharts();
   });
@@ -300,117 +324,5 @@ export function useCharts(chartRefs = {}) {
     destroyChart,
     destroyAllCharts,
     resizeCharts
-  };
-}
-
-/**
- * 数据过滤和搜索
- * @param {Array} dataSource - 数据源
- * @param {Object} options - 配置选项
- */
-export function useDataFilter(dataSource, options = {}) {
-  const {
-    searchFields = ['name'],
-    pageSize = 10
-  } = options;
-
-  const searchKeyword = ref('');
-  const currentPage = ref(1);
-  const sortField = ref('');
-  const sortOrder = ref('');
-
-  /**
-   * 过滤数据
-   */
-  const filteredData = computed(() => {
-    let result = [...dataSource.value];
-
-    // 搜索过滤
-    if (searchKeyword.value) {
-      const keyword = searchKeyword.value.toLowerCase();
-      result = result.filter(item =>
-        searchFields.some(field =>
-          String(item[field] || '').toLowerCase().includes(keyword)
-        )
-      );
-    }
-
-    // 排序
-    if (sortField.value) {
-      result.sort((a, b) => {
-        const aVal = a[sortField.value];
-        const bVal = b[sortField.value];
-
-        if (typeof aVal === 'number' && typeof bVal === 'number') {
-          return sortOrder.value === 'desc' ? bVal - aVal : aVal - bVal;
-        }
-
-        const aStr = String(aVal || '');
-        const bStr = String(bVal || '');
-        return sortOrder.value === 'desc'
-          ? bStr.localeCompare(aStr)
-          : aStr.localeCompare(bStr);
-      });
-    }
-
-    return result;
-  });
-
-  /**
-   * 分页数据
-   */
-  const paginatedData = computed(() => {
-    const start = (currentPage.value - 1) * pageSize;
-    const end = start + pageSize;
-    return filteredData.value.slice(start, end);
-  });
-
-  /**
-   * 总页数
-   */
-  const totalPages = computed(() => {
-    return Math.ceil(filteredData.value.length / pageSize);
-  });
-
-  /**
-   * 设置搜索关键词
-   */
-  const setSearchKeyword = debounce((keyword) => {
-    searchKeyword.value = keyword;
-    currentPage.value = 1; // 重置到第一页
-  }, 300);
-
-  /**
-   * 设置排序
-   */
-  const setSort = (field, order = 'asc') => {
-    sortField.value = field;
-    sortOrder.value = order;
-  };
-
-  /**
-   * 重置过滤条件
-   */
-  const resetFilter = () => {
-    searchKeyword.value = '';
-    currentPage.value = 1;
-    sortField.value = '';
-    sortOrder.value = '';
-  };
-
-  return {
-    // 数据
-    searchKeyword,
-    currentPage,
-    sortField,
-    sortOrder,
-    filteredData,
-    paginatedData,
-    totalPages,
-
-    // 方法
-    setSearchKeyword,
-    setSort,
-    resetFilter
   };
 }

@@ -88,7 +88,7 @@
 
       <div class="pagination-container">
         <el-pagination v-model:current-page="page" v-model:page-size="pageSize"
-          :total="total" :page-sizes="[20,50,100]" layout="total, sizes, prev, pager, next" @change="fetchList" />
+          :total="total" :page-sizes="PAGE_SIZE_OPTIONS" layout="total, sizes, prev, pager, next" @change="fetchList" />
       </div>
     </el-card>
 
@@ -223,6 +223,8 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, computed, onMounted } from 'vue'
@@ -247,7 +249,7 @@ const keyword = ref('')
 const filterType = ref('')
 const filterStatus = ref('')
 const page = ref(1)
-const pageSize = ref(20)
+const pageSize = ref(getThemeDefaultPageSize(20))
 const total = ref(0)
 const tableData = ref([])
 const {

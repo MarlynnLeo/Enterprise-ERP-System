@@ -10,6 +10,7 @@ import { ref, computed } from 'vue'
 import api from '../api'
 import { resetCsrfToken } from '../api/client'
 import { buildResourceUrl } from '@/config/app'
+import { resetThemeForSession } from '@/composables/useTheme'
 
 // 存储键名
 const STORAGE_KEYS = {
@@ -156,10 +157,6 @@ export const useAuthStore = defineStore('auth', () => {
     // 登录标记：session 为主，local 仅布尔标记
     sessionStorage.setItem(STORAGE_KEYS.IS_LOGGED_IN, 'true')
     localStorage.setItem(STORAGE_KEYS.IS_LOGGED_IN, 'true')
-    if (typeof window !== 'undefined') {
-      delete window.__mobileThemeLoaded
-      delete window.__mobileThemeLoadedFor
-    }
     setAuthHeader()
   }
 
@@ -167,6 +164,7 @@ export const useAuthStore = defineStore('auth', () => {
    * 清除认证信息
    */
   const clearAuthData = () => {
+    resetThemeForSession()
     authGeneration++
     permissionsGeneration++
     _permissionsPromise = null
@@ -188,10 +186,6 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('refreshToken')
     sessionStorage.removeItem(STORAGE_KEYS.PERMISSIONS)
     localStorage.removeItem(STORAGE_KEYS.PERMISSIONS)
-    if (typeof window !== 'undefined') {
-      delete window.__mobileThemeLoaded
-      delete window.__mobileThemeLoadedFor
-    }
 
     setAuthHeader()
     resetCsrfToken()
@@ -276,6 +270,9 @@ export const useAuthStore = defineStore('auth', () => {
       const userData = normalizeUserData(response.data)
 
       if (userData) {
+        if (user.value?.id && String(user.value.id) !== String(userData.id)) {
+          resetThemeForSession()
+        }
         user.value = userData
         profileLoaded.value = true
         sessionProbed.value = true

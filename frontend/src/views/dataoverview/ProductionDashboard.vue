@@ -95,40 +95,39 @@
         </el-card>
       </el-col>
     </el-row>
-    <!-- 待处理生产任务 -->
+    <!-- 生产任务 -->
     <el-row class="mt-20">
       <el-col :span="24">
         <el-card class="dashboard-card" shadow="hover">
           <template #header>
             <div class="card-header-with-search">
-              <span>待处理生产任务</span>
+              <span>生产任务</span>
               <div class="header-actions">
                 <el-input
                   v-model="search"
-                  placeholder="搜索"
+                  placeholder="搜索任务编号 / 产品 / 生产组 / 状态"
                   class="search-input"
-                  :prefix-icon="Search" />
+                  :prefix-icon="Search"
+                  clearable />
               </div>
             </div>
           </template>
-          <div v-if="pendingPlans.length === 0 && !loading" class="empty-data-tip">
-            暂无待处理任务数据
-          </div>
           <el-table
-            :data="filteredPendingTasks"
+            :data="productionTasks"
             class="table-row-click w-full"
-            v-loading="loading"
+            v-loading="taskLoading"
             border
-            @row-click="(row, column, event) => handleTableRowView(row, column, event, () => router.push(`/production/plan?id=${row.id}`))">
-            <el-table-column label="计划编号" prop="code" min-width="120" />
-            <el-table-column label="产品名称" prop="productName" min-width="120" />
-            <el-table-column label="产品编码" prop="productCode" min-width="120" />
-            <el-table-column label="计划日期" min-width="120">
+            @row-click="(row, column, event) => handleTableRowView(row, column, event, () => router.push('/production/task'))">
+            <el-table-column label="任务编号" prop="code" min-width="130" show-overflow-tooltip />
+            <el-table-column label="产品名称" prop="productName" min-width="130" show-overflow-tooltip />
+            <el-table-column label="物料编码" prop="productCode" min-width="120" show-overflow-tooltip />
+            <el-table-column label="规格型号" prop="specs" min-width="140" show-overflow-tooltip />
+            <el-table-column label="开始日期" min-width="120">
               <template #default="scope">
                 {{ formatDate(scope.row.startDate) }}
               </template>
             </el-table-column>
-            <el-table-column label="计划数量" min-width="100">
+            <el-table-column label="数量" min-width="100">
               <template #default="scope">
                 {{ scope.row.quantity !== undefined && scope.row.quantity !== null ? scope.row.quantity : '-' }}
               </template>
@@ -140,19 +139,15 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="负责人" min-width="100">
-              <template #default="scope">
-                {{ scope.row.manager || '-' }}
-              </template>
-            </el-table-column>
+            <el-table-column label="生产组" min-width="100" prop="manager" show-overflow-tooltip />
           </el-table>
-          <div class="pagination-container" v-if="pendingPlans.length > 0">
+          <div class="pagination-container" v-if="taskTotal > 0">
             <el-pagination
               v-model:current-page="currentPage"
               v-model:page-size="pageSize"
-              :page-sizes="[5, 10, 20, 50]"
+              :page-sizes="[5, ...PAGE_SIZE_OPTIONS]"
               layout="total, sizes, prev, pager, next"
-              :total="pendingPlans.length"
+              :total="taskTotal"
               @size-change="handleSizeChange"
               @current-change="handleCurrentChange"
             />
@@ -163,20 +158,22 @@
   </div>
 </template>
 <script setup>
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { handleTableRowView } from '@/utils/tableRowView'
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch, toRefs } from 'vue';
+import { debounce } from 'lodash-es';
+import { usePaginatedFetching } from '@/composables/useDataFetching';
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination';
 import { useRouter } from 'vue-router';
-import { getProductionStatusColor } from '@/constants/systemConstants'
+import { getProductionStatusColor, getProductionStatusText, PRODUCTION_STATUS_KEYS } from '@/constants/systemConstants'
 import { formatDate as formatDateUtil } from '@/utils/helpers/formatters';
 import Chart from '@/utils/chartCore';
-import { ElMessage } from 'element-plus/es/components/message/index';
 import { Search } from '@element-plus/icons-vue';
 import { productionApi } from '@/api';
 import { useDashboard, useCharts } from '@/composables/useDashboard';
 // 权限计算属性
 import {
   handleDashboardError,
-  getDefaultStatistics,
   generateMonthLabels
 } from '@/utils/dashboardUtils';
 import {
@@ -198,7 +195,6 @@ const productionTrendType = ref('quantity');
 const productionTimeRange = ref('year');
 // 使用仪表盘组合式函数
 const {
-  loading,
   statistics,
   lastUpdated,
   loadData
@@ -209,38 +205,36 @@ const {
 });
 // 使用图表管理组合式函数
 const {
+  chartInstances,
+  initChart,
   initAllCharts,
 } = useCharts(chartRefs);
-// 待处理生产任务数据
-const pendingPlans = ref([]);
+// Task filtering and pagination share the API query; no fixed first-page snapshot.
 const search = ref('');
-const currentPage = ref(1);
-const pageSize = ref(10);
-// 筛选后的待处理任务
-const filteredPendingTasks = computed(() => {
-  const startIndex = (currentPage.value - 1) * pageSize.value;
-  const endIndex = startIndex + pageSize.value;
-  // 确保pendingPlans是数组
-  let tasks = Array.isArray(pendingPlans.value) ? pendingPlans.value : [];
-  if (search.value) {
-    const searchValue = search.value.toLowerCase();
-    tasks = tasks.filter(task =>
-      (task.code && task.code.toLowerCase().includes(searchValue)) ||
-      (task.productName && task.productName.toLowerCase().includes(searchValue)) ||
-      (task.productCode && task.productCode.toLowerCase().includes(searchValue)) ||
-      (task.status && task.status.toLowerCase().includes(searchValue))
-    );
-  }
-  return tasks.slice(startIndex, endIndex);
-});
-// 分页处理
-function handleSizeChange(size) {
-  pageSize.value = size;
+const {
+  loading: taskLoading, data: taskRows, pagination: taskPagination,
+  fetchData: fetchTaskPage, handleSizeChange, handlePageChange: handleCurrentChange
+} = usePaginatedFetching(query => {
+  const keyword = search.value.trim();
+  const keywordStatuses = Object.values(PRODUCTION_STATUS_KEYS).filter(status =>
+    keyword && getProductionStatusText(status).toLowerCase().includes(keyword.toLowerCase())
+  );
+  return productionApi.getProductionTasks({ ...query, keyword, keywordStatuses: keywordStatuses.join(',') });
+}, { pageSize: getThemeDefaultPageSize(10), errorMessage: '获取生产任务失败' });
+const { current: currentPage, pageSize, total: taskTotal } = toRefs(taskPagination);
+const productionTasks = computed(() => taskRows.value.map(item => ({
+  ...item,
+  specs: item.specification || '-',
+  startDate: item.startDate || item.plannedStartTime || item.createdAt,
+  manager: item.manager || '-'
+})));
+const fetchProductionTasks = () => fetchTaskPage();
+const searchTasks = debounce(() => {
   currentPage.value = 1;
-}
-function handleCurrentChange(page) {
-  currentPage.value = page;
-}
+  fetchProductionTasks();
+}, 300);
+watch(search, searchTasks);
+
 // 格式化日期
 function formatDate(date) {
   if (!date) return '-';
@@ -250,67 +244,26 @@ function formatDate(date) {
 function getStatusType(status) {
   return getProductionStatusColor(status);
 }
-// 获取状态文本
-function getStatusText(status) {
-  const statusTextMap = {
-    pending: '待处理',
-    allocated: '分配中',
-    preparing: '配料中',
-    material_issuing: '发料中',
-    material_issued: '已发料',
-    inProgress: '进行中',
-    in_progress: '进行中',
-    inspection: '待检验',
-    warehousing: '入库中',
-    completed: '已完成',
-    cancelled: '已取消'
-  };
-  return statusTextMap[status] || '未知状态';
-}
+const getStatusText = getProductionStatusText;
 // 加载生产数据
 async function loadProductionData() {
-  try {
-    // 并行获取多个数据源
-    const [dashboardStats, completionStats] = await Promise.allSettled([
-      productionApi.getDashboardStatistics(),
-      productionApi.getProcessCompletionRates(),
-      fetchPendingPlans()
-    ]);
-    // 处理统计数据 - axios拦截器已解包
-    let stats = getDefaultStatistics('production');
-    if (dashboardStats.status === 'fulfilled' && dashboardStats.value) {
-      const data = dashboardStats.value.data || dashboardStats.value;
-      stats = {
-        plans: {
-          total: data.plans?.total || 0,
-          pending: data.plans?.pending || 0
-        },
-        tasks: {
-          total: data.tasks?.total || 0,
-          inProgress: data.tasks?.inProgress || data.tasks?.in_progress || 0
-        },
-        processes: {
-          completed: data.processes?.completed || 0,
-          rate: data.processes?.rate || '0%'
-        },
-        reports: {
-          total: data.reports?.total || 0,
-          today: data.reports?.today || 0
-        }
-      };
-    }
-    if (completionStats.status === 'fulfilled' && completionStats.value) {
-      const completionDataList = completionStats.value.data || completionStats.value || [];
-      stats.processCompletion = Array.isArray(completionDataList) ? completionDataList.map(item => ({
-        name: item.processName || `工序${item.taskId || ''}`,
-        rate: item.completionRate || '0%'
-      })) : [];
-    }
-    return stats;
-  } catch (error) {
-    console.error('获取生产数据失败:', error);
-    throw error;
-  }
+  const [dashboardResponse, completionResponse] = await Promise.all([
+    productionApi.getDashboardStatistics(),
+    productionApi.getProcessCompletionRates(),
+    fetchProductionTasks()
+  ]);
+  const data = dashboardResponse.data || {};
+  const completion = completionResponse.data;
+  return {
+    plans: { total: data.plans?.total || 0, pending: data.plans?.pending || 0 },
+    tasks: { total: data.tasks?.total || 0, inProgress: data.tasks?.inProgress || 0 },
+    processes: { completed: data.processes?.completed || 0, rate: data.processes?.rate || '0%' },
+    reports: { total: data.reports?.total || 0, today: data.reports?.today || 0 },
+    processCompletion: Array.isArray(completion) ? completion.map(item => ({
+      name: item.processName || `工序${item.taskId || ''}`,
+      rate: item.completionRate || '0%'
+    })) : []
+  };
 }
 // 初始化生产趋势图表
 function initProductionTrendChart() {
@@ -333,8 +286,8 @@ function initProductionTrendChart() {
         {
           label: productionTrendType.value === 'quantity' ? '完成数量' : '生产计划',
           data: productionTrendType.value === 'quantity' ? completedData : planData,
-          borderColor: chartColors.primary[0],
-          backgroundColor: chartColors.primary[4],
+          borderColor: () => chartColors.primary[0],
+          backgroundColor: () => chartColors.primary[4],
           tension: 0.4,
           fill: true
         }
@@ -385,8 +338,8 @@ function initProcessChart() {
         {
           label: '完成率',
           data: completionData,
-          backgroundColor: chartColors.primary[0],
-          borderColor: chartColors.primary[1],
+          backgroundColor: () => chartColors.primary[0],
+          borderColor: () => chartColors.primary[1],
           borderWidth: 1
         }
       ]
@@ -396,51 +349,13 @@ function initProcessChart() {
 }
 // 重新创建生产趋势图表
 let productionTrendChart = null;
-function recreateProductionTrendChart() {
-  try {
-    // 销毁现有图表
-    if (productionTrendChart) {
-      productionTrendChart.destroy();
-      productionTrendChart = null;
-    }
-    if (!chartRefs.productionTrend?.value) return;
-    const ctx = chartRefs.productionTrend.value.getContext('2d');
-    // 根据时间范围生成标签和数据
-    let labels, data;
-    if (productionTimeRange.value === 'year') {
-      // 年度：按月显示
-      labels = generateMonthLabels(12);
-      data = new Array(12).fill(null);
-    } else {
-      // 月度：按日显示
-      labels = generateDayLabels();
-      data = new Array(labels.length).fill(null);
-    }
-    const config = createLineChartConfig({
-      yAxisTitle: '数量'
-    });
-    productionTrendChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [
-          {
-            label: productionTrendType.value === 'quantity' ? '完成数量' : '生产计划',
-            data: data,
-            borderColor: chartColors.primary[0],
-            backgroundColor: chartColors.primary[4],
-            tension: 0.4,
-            fill: true
-          }
-        ]
-      },
-      options: config
-    });
-    // 重新加载数据
-    loadAndUpdateProductionTrends();
-  } catch (error) {
-    console.error('[生产趋势图表] 重新创建失败:', error);
-  }
+let disposed = false;
+let trendRequest = 0;
+async function recreateProductionTrendChart() {
+  await initChart('productionTrend', initProductionTrendChart);
+  if (disposed) return;
+  productionTrendChart = chartInstances.productionTrend || null;
+  if (productionTrendChart) await loadAndUpdateProductionTrends();
 }
 // 监听生产趋势类型变化
 watch(productionTrendType, () => {
@@ -471,12 +386,12 @@ function updateProcessCompletionChart() {
     console.error('[工序完成率图表] 更新失败:', error);
   }
 }
+watch(() => statistics.processCompletion, updateProcessCompletionChart);
 // 生命周期钩子
 onBeforeUnmount(() => {
-  if (productionTrendChart) {
-    productionTrendChart.destroy();
-    productionTrendChart = null;
-  }
+  disposed = true;
+  searchTasks.cancel();
+  productionTrendChart = null;
 });
 
 onMounted(async () => {
@@ -486,56 +401,23 @@ onMounted(async () => {
       productionTrend: initProductionTrendChart,
       processCompletion: initProcessChart
     });
+    if (disposed) return;
     // 保存图表实例
     productionTrendChart = chartRefs.productionTrend.value ?
       Chart.getChart(chartRefs.productionTrend.value) : null;
     // 加载数据（统计卡片等）
     await loadData();
-    // 数据加载完成后，更新工序完成率图表（因为 initProcessChart 在数据到达前就已创建空图表）
-    updateProcessCompletionChart();
+    if (disposed) return;
     // 加载并更新月度生产趋势
     await loadAndUpdateProductionTrends();
   } catch (error) {
     handleDashboardError(error, '生产仪表盘初始化失败');
   }
 });
-// 获取待处理生产任务
-async function fetchPendingPlans() {
-  try {
-    loading.value = true;
-    // 获取状态为待处理的生产任务
-    const params = {
-      status: ['pending'],
-      pageSize: 50
-    };
-    const response = await productionApi.getProductionTasks(params);
-    // 拦截器已解包，response.data 就是业务数据
-    const responseData = response.data;
-    const plansList = responseData?.items || responseData?.list || (Array.isArray(responseData) ? responseData : []);
-
-    pendingPlans.value = plansList.map(item => ({
-      id: item.id,
-      code: item.code,
-      productId: item.productId,
-      productName: item.productName || '未知产品',
-      productCode: item.productCode || '-',
-      quantity: item.quantity,
-      startDate: item.startDate || item.createdAt,
-      endDate: item.endDate || item.deadline,
-      manager: item.operator || item.manager || '-',
-      status: item.status
-    }));
-  } catch (error) {
-    console.error('获取待处理生产任务失败:', error);
-    console.error('错误详情:', error.response || error.message);
-    ElMessage.error('获取待处理生产任务失败');
-    pendingPlans.value = [];
-  } finally {
-    loading.value = false;
-  }
-}
 // 从后端加载趋势数据并更新图表
 async function loadAndUpdateProductionTrends() {
+  const request = ++trendRequest;
+  const chart = productionTrendChart;
   try {
     let labels, data;
     if (productionTimeRange.value === 'year') {
@@ -567,7 +449,7 @@ async function loadAndUpdateProductionTrends() {
       data = productionTrendType.value === 'quantity' ? completed : planned;
     }
     // 更新图表
-    if (productionTrendChart) {
+    if (!disposed && request === trendRequest && chart && chart === chartInstances.productionTrend) {
       productionTrendChart.data.labels = labels;
       productionTrendChart.data.datasets[0].label = productionTrendType.value === 'quantity' ? '完成数量' : '生产计划';
       productionTrendChart.data.datasets[0].data = data;
@@ -588,7 +470,7 @@ async function loadAndUpdateProductionTrends() {
   font-weight: bold;
 }
 /* 响应式调整 */
-
+
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;

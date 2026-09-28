@@ -105,4 +105,35 @@ describe('sidebar interaction isolation', () => {
     await wrapper.find('.app-menu-title').trigger('click')
     expect(parentRenders).toBe(1)
   })
+
+  test('collapses a filtered branch without closing unrelated expanded branches', async () => {
+    mountMenu({ multiple: true, openChain: ['finance', 'gl', 'production'] })
+    await branch(0).trigger('click')
+    expect(wrapper.get('[data-menu-index="entries"]').element.hidden).toBe(true)
+    expect(wrapper.get('[data-menu-index="plan"]').element.hidden).toBe(false)
+    expect(wrapper.get('[data-menu-index="production"] button').attributes('aria-expanded')).toBe('true')
+    await branch(0).trigger('click')
+    expect(wrapper.get('[data-menu-index="plan"]').element.hidden).toBe(false)
+  })
+
+  test('supports keyboard traversal and opens or closes branches without entering hidden descendants', async () => {
+    wrapper = mount(SidebarMenu, {
+      attachTo: document.body,
+      props: { menus },
+      global: { stubs: { 'el-icon': true } }
+    })
+    const finance = wrapper.get('[data-menu-index="finance"] button')
+    finance.element.focus()
+    await finance.trigger('keydown', { key: 'ArrowRight' })
+    expect(document.activeElement.closest('li').dataset.menuIndex).toBe('gl')
+    await wrapper.get('[data-menu-index="gl"] button').trigger('keydown', { key: 'ArrowRight' })
+    expect(document.activeElement.closest('li').dataset.menuIndex).toBe('entries')
+    await wrapper.get('[data-menu-index="entries"] button').trigger('keydown', { key: 'ArrowLeft' })
+    expect(document.activeElement.closest('li').dataset.menuIndex).toBe('gl')
+    await wrapper.get('[data-menu-index="gl"] button').trigger('keydown', { key: 'ArrowLeft' })
+    await wrapper.get('[data-menu-index="gl"] button').trigger('keydown', { key: 'ArrowDown' })
+    expect(document.activeElement.closest('li').dataset.menuIndex).toBe('production')
+    await wrapper.get('[data-menu-index="production"] button').trigger('keydown', { key: 'Home' })
+    expect(document.activeElement).toBe(finance.element)
+  })
 })

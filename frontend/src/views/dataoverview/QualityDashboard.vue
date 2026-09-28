@@ -153,7 +153,7 @@
             <el-pagination
               v-model:current-page="pagination.current"
               v-model:page-size="pagination.pageSize"
-              :page-sizes="[5, 10, 20, 50]"
+              :page-sizes="[5, 10, 20, 25, 50]"
               layout="total, sizes, prev, pager, next"
               :total="pagination.total"
               @size-change="handleSizeChange"
@@ -167,7 +167,7 @@
 </template>
 
 <script setup>
-import { getQualityInspectionTypeText } from '@/constants/systemConstants';
+import { getInspectionTypeText } from '@/constants/inspection';
 import { handleTableRowView } from '@/utils/tableRowView';
 import { formatDate } from '@/utils/helpers/dateUtils';
 
@@ -230,11 +230,6 @@ watch(search, (value, _previous, onCleanup) => {
   }, 300);
   onCleanup(() => clearTimeout(timer));
 });
-
-// 获取检验类型文本
-function getInspectionTypeText(type) {
-  return getQualityInspectionTypeText(type) || type;
-}
 
 // 获取检验类型颜色
 function getInspectionTypeColor(type) {
@@ -390,8 +385,8 @@ async function initPassRateChart() {
           {
             label: '来料检验',
             data: incomingData,
-            borderColor: chartColors.primary[0],
-            backgroundColor: alphaColor('primary', 0.1),
+            borderColor: () => chartColors.primary[0],
+            backgroundColor: () => alphaColor('primary', 0.1),
             borderWidth: 2,
             ...config.elements.line,
             fill: false,
@@ -399,8 +394,8 @@ async function initPassRateChart() {
           {
             label: '过程检验',
             data: processData,
-            borderColor: chartColors.success[0],
-            backgroundColor: alphaColor('success', 0.1),
+            borderColor: () => chartColors.success[0],
+            backgroundColor: () => alphaColor('success', 0.1),
             borderWidth: 2,
             ...config.elements.line,
             fill: false,
@@ -408,8 +403,8 @@ async function initPassRateChart() {
           {
             label: '成品检验',
             data: finalData,
-            borderColor: chartColors.warning[0],
-            backgroundColor: alphaColor('warning', 0.1),
+            borderColor: () => chartColors.warning[0],
+            backgroundColor: () => alphaColor('warning', 0.1),
             borderWidth: 2,
             ...config.elements.line,
             fill: false,
@@ -448,7 +443,7 @@ async function initDefectTypeChart() {
     if (disposed || !defectTypeChart.value) return;
 
     // 颜色配置重置为新版科幻组合
-    const backgroundColors = [
+    const backgroundColors = () => [
       chartColors.primary[0],
       chartColors.success[0],
       chartColors.warning[0],

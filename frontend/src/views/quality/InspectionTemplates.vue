@@ -219,7 +219,7 @@
           <el-pagination
             v-model:current-page="currentPage"
             v-model:page-size="pageSize"
-            :page-sizes="[10, 20, 50, 100]"
+            :page-sizes="PAGE_SIZE_OPTIONS"
             :small="false"
             :disabled="false"
             :background="true"
@@ -803,7 +803,7 @@
             <el-pagination
               v-model:current-page="pickerPage"
               v-model:page-size="pickerPageSize"
-              :page-sizes="[20, 50, 100, 200]"
+              :page-sizes="PAGE_SIZE_OPTIONS"
               :total="pickerTotal"
               size="small"
               background
@@ -1061,7 +1061,7 @@
                   <el-input
                     v-if="parsedTemplateData.isAql"
                     v-model="parsedTemplateData.aqlLevel"
-                    placeholder="如 GB/T 2828.1 II"
+                    placeholder="数值 AQL，如 0.65、1.0"
                     size="small"
                     style="margin-top: 6px"
                   />
@@ -1069,6 +1069,7 @@
               </el-col>
             </el-row>
 
+            <el-alert v-if="parsedTemplateData.samplingWarning" :title="parsedTemplateData.samplingWarning" type="warning" :closable="false" show-icon />
             <el-form-item label="描述/依据">
               <el-input v-model="parsedTemplateData.description" type="textarea" :rows="2" />
             </el-form-item>
@@ -1155,6 +1156,8 @@
   </div>
 </template>
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { handleTableRowView } from '@/utils/tableRowView';
 import { ref, reactive, onMounted, computed, nextTick } from 'vue';
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
@@ -1212,7 +1215,7 @@ const {
   setCurrentItem: setCurrentViewTemplate,
 } = useListDetailNavigation(templateList);
 const currentPage = ref(1);
-const pageSize = ref(20);
+const pageSize = ref(getThemeDefaultPageSize(20));
 const total = ref(0);
 // 物料列表数据
 const materialsList = ref([]);

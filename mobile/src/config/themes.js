@@ -121,6 +121,19 @@ export const themes = Object.freeze([
       accent: '#166534',
       bg: '#EFF3F8'
     }
+  },
+  {
+    name: 'workspace',
+    label: '经典主题',
+    description: '清晰紧凑的表格布局，适合日常业务操作',
+    icon: 'desktop-o',
+    dataTheme: 'workspace',
+    isDark: false,
+    preview: {
+      primary: '#4263EB',
+      accent: '#4263EB',
+      bg: '#F8FAFC'
+    }
   }
 ])
 

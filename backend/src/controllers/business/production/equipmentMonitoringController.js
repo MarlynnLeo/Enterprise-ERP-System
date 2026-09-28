@@ -134,7 +134,7 @@ const batchRecordEquipmentData = async (req, res) => {
           success: true,
           result,
         });
-      } catch (error) {
+      } catch {
         results.push({
           parameterCode: dataPoint.parameterCode,
           success: false,

@@ -12,6 +12,10 @@
 [data-theme] .el-table {
   border-radius: var(--radius-lg, 8px);
   overflow: hidden;
+  --el-table-tr-bg-color: var(--erp-table-fixed-cell-bg);
+  --el-table-header-bg-color: var(--erp-table-fixed-header-bg);
+  --el-table-row-hover-bg-color: var(--erp-table-fixed-hover-bg);
+  --el-table-current-row-bg-color: var(--erp-table-fixed-current-bg);
 }
 
 [data-theme] .el-table th.el-table__cell {
@@ -22,6 +26,7 @@
   font-weight: 600 !important;
   border-bottom: 1px solid var(--color-border-base) !important;
   padding: 8px 0 !important;
+  background-image: var(--erp-table-header-image, none) !important;
 }
 
 [data-theme] .el-table td.el-table__cell {
@@ -41,16 +46,17 @@
   border-right: 1px solid var(--color-border-base) !important;
 }
 
-[data-theme] .el-table__body tr:hover > td.el-table__cell {
-  background-color: color-mix(in srgb, var(--color-primary) 8%, transparent) !important;
+[data-theme] .el-table__body tr:hover:not(.current-row) > td.el-table__cell,
+[data-theme] .el-table__body tr.hover-row:not(.current-row) > td.el-table__cell {
+  background-color: var(--erp-table-fixed-hover-bg) !important;
 }
 
 [data-theme] .el-table__body tr.current-row > td.el-table__cell {
-  background-color: var(--color-primary-light-9, color-mix(in srgb, var(--color-primary) 12%, var(--color-bg-base))) !important;
+  background-color: var(--erp-table-fixed-current-bg) !important;
 }
 
-[data-theme] .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
-  background-color: color-mix(in srgb, var(--color-bg-section) 72%, transparent) !important;
+[data-theme] .el-table--striped .el-table__body tr.el-table__row--striped:not(.current-row):not(.hover-row):not(:hover) td.el-table__cell {
+  background-color: var(--erp-table-fixed-striped-bg) !important;
 }
 
 [data-theme] .el-table .ascending .sort-caret.ascending {
@@ -179,71 +185,45 @@
     var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.08)) !important;
 }
 
-[data-theme] .el-button--primary:not(.is-plain):not(.is-text):not(.is-link) {
-  background: linear-gradient(
-    135deg,
-    var(--color-primary),
-    var(--color-primary-dark-2, var(--color-primary))
-  ) !important;
-  border-color: var(--color-primary) !important;
-  color: var(--color-on-primary, #fff) !important;
-  box-shadow: 0 2px 6px color-mix(in srgb, var(--color-primary) 28%, transparent) !important;
+/* All filled/plain button types share the same state transitions. */
+[data-theme] .el-button:not(.is-text):not(.is-link):not(.is-disabled) {
+  background: var(--el-button-bg-color) !important;
+  border-color: var(--el-button-border-color) !important;
+  color: var(--el-button-text-color) !important;
 }
 
-[data-theme] .el-button--primary:not(.is-plain):not(.is-text):not(.is-link):hover {
-  background: linear-gradient(
-    135deg,
-    var(--color-primary-dark-2, var(--color-primary)),
-    var(--color-primary)
-  ) !important;
-  box-shadow: 0 4px 16px color-mix(in srgb, var(--color-primary) 36%, transparent) !important;
-  color: var(--color-on-primary, #fff) !important;
+[data-theme] .el-button:not(.is-text):not(.is-link):not(.is-disabled):hover {
+  background: var(--el-button-hover-bg-color) !important;
+  border-color: var(--el-button-hover-border-color) !important;
+  color: var(--el-button-hover-text-color) !important;
 }
 
-[data-theme] .el-button--success:not(.is-plain):not(.is-text):not(.is-link) {
-  background: linear-gradient(
-    135deg,
-    var(--color-success),
-    var(--color-success-dark, var(--color-success))
-  ) !important;
-  border-color: var(--color-success) !important;
-  color: var(--color-on-success, #fff) !important;
-  box-shadow: 0 2px 6px color-mix(in srgb, var(--color-success) 24%, transparent) !important;
+[data-theme] .el-button:not(.is-text):not(.is-link):not(.is-disabled):active {
+  background: var(--el-button-active-bg-color) !important;
+  border-color: var(--el-button-active-border-color) !important;
+  color: var(--el-button-active-text-color) !important;
 }
 
-[data-theme] .el-button--warning:not(.is-plain):not(.is-text):not(.is-link) {
-  background: linear-gradient(
-    135deg,
-    var(--color-warning),
-    var(--color-warning-dark, var(--color-warning))
-  ) !important;
-  border-color: var(--color-warning) !important;
-  color: var(--color-on-warning, #fff) !important;
-  box-shadow: 0 2px 6px color-mix(in srgb, var(--color-warning) 24%, transparent) !important;
+[data-theme] .el-button:not(.is-text):not(.is-link):not(.is-disabled):not(.is-plain) {
+  background-image: var(--theme-button-image) !important;
 }
 
-[data-theme] .el-button--danger:not(.is-plain):not(.is-text):not(.is-link) {
-  background: linear-gradient(
-    135deg,
-    var(--color-danger),
-    var(--color-danger-dark, var(--color-danger))
-  ) !important;
-  border-color: var(--color-danger) !important;
-  color: var(--color-on-danger, #fff) !important;
-  box-shadow: 0 2px 6px color-mix(in srgb, var(--color-danger) 24%, transparent) !important;
+[data-theme] .el-button:not(.is-text):not(.is-link):not(.is-disabled):not(.is-plain):hover {
+  background-image: var(--theme-button-hover-image) !important;
 }
 
-[data-theme]
-  .el-button:not(.el-button--primary):not(.el-button--success):not(.el-button--warning):not(
-    .el-button--danger
-  ):not(.el-button--info):not(.is-text):not(.is-link):hover {
-  border-color: var(--color-primary) !important;
-  color: var(--color-primary) !important;
+[data-theme] .el-button:not(.is-text):not(.is-link):not(.is-disabled):not(.is-plain):active {
+  background-image: var(--theme-button-active-image) !important;
+}
+
+[data-theme] .el-button.is-disabled:not(.is-text):not(.is-link) {
+  background: var(--el-button-disabled-bg-color) !important;
+  border-color: var(--el-button-disabled-border-color) !important;
+  color: var(--el-button-disabled-text-color) !important;
 }
 
 [data-theme] .el-button.is-disabled,
 [data-theme] .el-button.is-disabled:hover {
-  opacity: 0.45 !important;
   transform: none !important;
   box-shadow: none !important;
 }
@@ -408,19 +388,6 @@
 [data-theme] .el-checkbox__inner:hover,
 [data-theme] .el-radio__inner:hover {
   border-color: var(--color-primary) !important;
-}
-
-[data-theme] .el-input__wrapper.is-focus,
-[data-theme] .el-select .el-input.is-focus .el-input__wrapper {
-  box-shadow:
-    0 0 0 1px var(--color-primary) inset,
-    0 0 0 3px color-mix(in srgb, var(--color-primary) 10%, transparent) !important;
-}
-
-[data-theme] .el-textarea__inner:focus {
-  box-shadow:
-    0 0 0 1px var(--color-primary) inset,
-    0 0 0 3px color-mix(in srgb, var(--color-primary) 10%, transparent) !important;
 }
 
 /* ========== 侧栏菜单（浅色壳默认；深色反转侧栏由主题覆盖 shell-* token） ========== */
@@ -801,48 +768,62 @@
   box-shadow: var(--shadow-lg, 0 12px 40px rgba(0, 0, 0, 0.08)) !important;
 }
 
-/* 语义 Tag：浅底 + 主色字（各主题 token 自适应） */
+/* Tags use one semantic palette and preserve light, dark and plain effects. */
 [data-theme] .el-tag--primary {
-  background-color: var(
-    --color-primary-light-9,
-    color-mix(in srgb, var(--color-primary) 12%, transparent)
-  ) !important;
-  border-color: transparent !important;
-  color: var(--color-primary) !important;
-  border-radius: var(--radius-round, 999px) !important;
-  font-weight: 600;
+  --theme-tag-bg: var(--theme-status-primary-bg);
+  --theme-tag-color: var(--theme-status-primary-color);
+  --theme-tag-border: var(--theme-status-primary-border);
+  --theme-tag-solid-bg: var(--color-primary);
+  --theme-tag-solid-color: var(--color-on-primary);
 }
 
 [data-theme] .el-tag--success {
-  background-color: var(--color-success-light, color-mix(in srgb, var(--color-success) 14%, transparent)) !important;
-  border-color: transparent !important;
-  color: var(--color-success-dark, var(--color-success)) !important;
-  border-radius: var(--radius-round, 999px) !important;
-  font-weight: 600;
+  --theme-tag-bg: var(--theme-status-success-bg);
+  --theme-tag-color: var(--theme-status-success-color);
+  --theme-tag-border: var(--theme-status-success-border);
+  --theme-tag-solid-bg: var(--color-success);
+  --theme-tag-solid-color: var(--color-on-success);
 }
 
 [data-theme] .el-tag--warning {
-  background-color: var(--color-warning-light, color-mix(in srgb, var(--color-warning) 14%, transparent)) !important;
-  border-color: transparent !important;
-  color: var(--color-warning-dark, var(--color-warning)) !important;
-  border-radius: var(--radius-round, 999px) !important;
-  font-weight: 600;
+  --theme-tag-bg: var(--theme-status-warning-bg);
+  --theme-tag-color: var(--theme-status-warning-color);
+  --theme-tag-border: var(--theme-status-warning-border);
+  --theme-tag-solid-bg: var(--color-warning);
+  --theme-tag-solid-color: var(--color-on-warning);
 }
 
 [data-theme] .el-tag--danger {
-  background-color: var(--color-danger-light, color-mix(in srgb, var(--color-danger) 14%, transparent)) !important;
-  border-color: transparent !important;
-  color: var(--color-danger-dark, var(--color-danger)) !important;
-  border-radius: var(--radius-round, 999px) !important;
-  font-weight: 600;
+  --theme-tag-bg: var(--theme-status-danger-bg);
+  --theme-tag-color: var(--theme-status-danger-color);
+  --theme-tag-border: var(--theme-status-danger-border);
+  --theme-tag-solid-bg: var(--color-danger);
+  --theme-tag-solid-color: var(--color-on-danger);
 }
 
 [data-theme] .el-tag--info {
-  background-color: var(--color-info-light, color-mix(in srgb, var(--color-info) 14%, transparent)) !important;
-  border-color: transparent !important;
-  color: var(--color-text-secondary) !important;
-  border-radius: var(--radius-round, 999px) !important;
+  --theme-tag-bg: var(--theme-status-info-bg);
+  --theme-tag-color: var(--theme-status-info-color);
+  --theme-tag-border: var(--theme-status-info-border);
+  --theme-tag-solid-bg: var(--color-info);
+  --theme-tag-solid-color: var(--color-on-info);
+}
+
+[data-theme] .el-tag {
+  background: var(--theme-tag-bg) !important;
+  border-color: var(--theme-tag-border) !important;
+  color: var(--theme-tag-color) !important;
   font-weight: 600;
+}
+
+[data-theme] .el-tag.el-tag--dark {
+  background: var(--theme-tag-solid-bg) !important;
+  border-color: var(--theme-tag-solid-bg) !important;
+  color: var(--theme-tag-solid-color) !important;
+}
+
+[data-theme] .el-tag.el-tag--plain {
+  background: transparent !important;
 }
 
 /* 统计卡微交互（玻璃底仍由主题叠加） */

@@ -90,14 +90,14 @@
         <template #empty>
           <EmptyState description="暂无检验单数据" />
         </template>
-        <el-table-column prop="inspectionNo" label="检验单号" min-width="120" show-overflow-tooltip />
-        <el-table-column prop="purchaseOrderNo" label="采购单号" min-width="110" show-overflow-tooltip />
-        <el-table-column prop="itemCode" label="物料编码" min-width="120" show-overflow-tooltip>
+        <el-table-column prop="inspectionNo" label="检验单号" min-width="150" show-overflow-tooltip />
+        <el-table-column prop="purchaseOrderNo" label="采购单号" min-width="150" show-overflow-tooltip />
+        <el-table-column prop="itemCode" label="物料编码" min-width="130" show-overflow-tooltip>
           <template #default="{ row }">
             {{ row.itemCode || row.productCode || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="itemName" label="物料名称" min-width="130" show-overflow-tooltip>
+        <el-table-column prop="itemName" label="物料名称" min-width="180" show-overflow-tooltip>
           <template #default="{ row }">
             {{ row.itemName || row.materialName || row.productName || extractMaterialName(row) }}
           </template>
@@ -107,13 +107,13 @@
             {{ row.itemSpecs || row.specs || row.materialSpecs || row.productCode || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="supplierName" label="供应商" min-width="150" show-overflow-tooltip />
-        <el-table-column prop="quantity" label="检验数" min-width="90" show-overflow-tooltip>
+        <el-table-column prop="supplierName" label="供应商" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="quantity" label="检验数" min-width="85" show-overflow-tooltip>
           <template #default="scope">
             {{ Math.floor(scope.row.quantity || 0) }}
           </template>
         </el-table-column>
-        <el-table-column prop="qualifiedQuantity" label="合格数" min-width="90" show-overflow-tooltip>
+        <el-table-column prop="qualifiedQuantity" label="合格数" min-width="85" show-overflow-tooltip>
           <template #default="scope">
             <span v-if="scope.row.qualifiedQuantity !== null && scope.row.qualifiedQuantity !== undefined" class="text-success font-weight-700">
               {{ Math.floor(scope.row.qualifiedQuantity) }}
@@ -121,7 +121,7 @@
             <span v-else class="text-muted">-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="unqualifiedQuantity" label="不合格" min-width="70" show-overflow-tooltip>
+        <el-table-column prop="unqualifiedQuantity" label="不合格" min-width="80" show-overflow-tooltip>
           <template #default="scope">
             <span v-if="scope.row.unqualifiedQuantity !== null && scope.row.unqualifiedQuantity !== undefined && scope.row.unqualifiedQuantity > 0" class="text-danger font-weight-700">
               {{ Math.floor(scope.row.unqualifiedQuantity) }}
@@ -130,21 +130,21 @@
             <span v-else class="text-muted">-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="plannedDate" label="检验日期" min-width="100" show-overflow-tooltip>
+        <el-table-column prop="plannedDate" label="检验日期" min-width="110" show-overflow-tooltip>
           <template #default="scope">
             {{ formatDate(scope.row.actualDate || scope.row.plannedDate) }}
           </template>
         </el-table-column>
-        <el-table-column prop="inspectorName" label="检验员" min-width="70" show-overflow-tooltip />
-        <el-table-column prop="status" label="检验状态" min-width="92" show-overflow-tooltip>
+        <el-table-column prop="inspectorName" label="检验员" min-width="85" show-overflow-tooltip />
+        <el-table-column prop="status" label="检验状态" min-width="95" show-overflow-tooltip>
           <template #default="scope">
             <el-tag :type="getQualityStatusColor(scope.row.status)">
               {{ getQualityStatusText(scope.row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="batchNo" label="批次号" min-width="170" show-overflow-tooltip />
-        <el-table-column label="操作" fixed="right" min-width="320" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+        <el-table-column prop="batchNo" label="批次号" min-width="150" show-overflow-tooltip />
+        <el-table-column label="操作" fixed="right" min-width="150" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
       >
           <template #default="scope">
             

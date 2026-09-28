@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="module-page budget-list-container">
     <PageHeader title="预算列表" subtitle="管理预算方案、审批状态与执行周期">
       <template #actions>
@@ -149,7 +149,7 @@
         v-model:current-page="pagination.page"
         v-model:page-size="pagination.pageSize"
         :total="pagination.total"
-        :page-sizes="[10, 20, 50, 100]"
+        :page-sizes="PAGE_SIZE_OPTIONS"
         layout="total, sizes, prev, pager, next, jumper"
         @size-change="fetchData"
         @current-change="fetchData"
@@ -159,6 +159,8 @@
   </div>
 </template>
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { useDictionaryStore } from '@/stores/dictionary'
 import { ref, reactive, onMounted, onActivated } from 'vue';
@@ -192,7 +194,7 @@ const loading = ref(false);
 // 分页
 const pagination = reactive({
   page: 1,
-  pageSize: 20,
+  pageSize: getThemeDefaultPageSize(20),
   total: 0
 });
 // 获取数据

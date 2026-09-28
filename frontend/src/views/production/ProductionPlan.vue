@@ -7,6 +7,8 @@
  */
 -->
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
 import dayjs from 'dayjs'
@@ -52,7 +54,7 @@ const searchForm = ref({
 // 添加响应式分页对象
 const pagination = reactive({
   currentPage: 1,
-  pageSize: 10,
+  pageSize: getThemeDefaultPageSize(10),
   total: 0
 })
 // 表单相关
@@ -350,7 +352,7 @@ const searchProducts = async (query) => {
       // 搜索词太短时，从API加载默认产品列表
       try {
         const defaultResults = await searchMaterials(baseDataApi, '', {
-          pageSize: 10,
+          pageSize: getThemeDefaultPageSize(10),
           category: 'product',
           includeAll: true
         })
@@ -1088,9 +1090,6 @@ const preloadMaterialSpecs = async () => {
 };
 // 生命周期钩子
 onMounted(async () => {
-  pagination.currentPage = 1;
-  pagination.pageSize = 10;
-  pagination.total = 0;
   preloadMaterialSpecs();
   departmentOptions.value = await loadDepartmentOptions().catch(() => []);
   fetchPlanList();
@@ -1614,7 +1613,7 @@ watch(
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
           :current-page="pagination.currentPage"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :page-size="pagination.pageSize"
           :small="false"
           :disabled="false"

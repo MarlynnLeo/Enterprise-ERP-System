@@ -88,7 +88,7 @@
         </el-table-column>
       </el-table>
 
-      <el-pagination
+      <el-pagination :page-sizes="PAGE_SIZE_OPTIONS"
         v-if="total > 0"
         :current-page="page" :page-size="pageSize" :total="total"
         layout="total, prev, pager, next"
@@ -149,6 +149,8 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, reactive, onMounted } from 'vue'
 import { Plus, Edit, Delete } from '@element-plus/icons-vue'
@@ -162,7 +164,7 @@ const saving = ref(false)
 const list = ref([])
 const total = ref(0)
 const page = ref(1)
-const pageSize = ref(20)
+const pageSize = ref(getThemeDefaultPageSize(20))
 const lines = ref([])
 const statusList = ref([])
 const filters = reactive({ lineCode: '', stationType: '', keyword: '' })

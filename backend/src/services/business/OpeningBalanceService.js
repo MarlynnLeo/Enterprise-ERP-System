@@ -50,7 +50,7 @@ function normalizeBalanceDate(value) {
   return date;
 }
 
-function normalizeManualAmount(value, accountId) {
+function normalizeManualAmount(value) {
   const amount =
     value === undefined || value === null || value === '' ? 0 : Number.parseFloat(value);
   if (!Number.isFinite(amount) || amount < 0) {
@@ -441,7 +441,7 @@ async function initialize({ balanceDate, manualBalances, setBy }) {
     }
 
     const manual = manualByAccountId.get(Number(row.id));
-    const amount = normalizeManualAmount(manual?.amount ?? row.opening_amount, row.id);
+    const amount = normalizeManualAmount(manual?.amount ?? row.opening_amount);
     const isDebit = isDebitAccount(row);
     return {
       accountId: row.id,

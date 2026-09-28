@@ -415,6 +415,7 @@ html.dark .app-shell {
   flex-direction: column;
   overflow: hidden;
   gap: var(--shell-float-gap);
+  outline: none;
 }
 .main-content {
   padding: 20px;
@@ -425,6 +426,7 @@ html.dark .app-shell {
   position: relative;
   z-index: 1;
   margin: 0;
+  outline: none;
 }
 /* ===== 侧边栏折叠 ===== */
 .sidebar.collapsed {

@@ -153,37 +153,6 @@ export function safeGet(data, path, defaultValue = null) {
 }
 
 /**
- * 防抖函数
- * @param {Function} func - 要防抖的函数
- * @param {number} delay - 延迟时间（毫秒）
- * @returns {Function} 防抖后的函数
- */
-export function debounce(func, delay) {
-  let timeoutId;
-  return function (...args) {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => func.apply(this, args), delay);
-  };
-}
-
-/**
- * 节流函数
- * @param {Function} func - 要节流的函数
- * @param {number} delay - 延迟时间（毫秒）
- * @returns {Function} 节流后的函数
- */
-export function throttle(func, delay) {
-  let lastCall = 0;
-  return function (...args) {
-    const now = Date.now();
-    if (now - lastCall >= delay) {
-      lastCall = now;
-      return func.apply(this, args);
-    }
-  };
-}
-
-/**
  * 创建重试机制的API调用
  * @param {Function} apiCall - API调用函数
  * @param {number} maxRetries - 最大重试次数

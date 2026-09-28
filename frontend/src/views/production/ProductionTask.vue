@@ -271,7 +271,7 @@
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
           :current-page="currentPage"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :page-size="pageSize"
           :small="false"
           :disabled="false"
@@ -751,6 +751,8 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { useProductProcessSelection } from '@/composables/useProductProcessSelection'
 import { routeOptionLabel } from '@/utils/productProcessRoute'
@@ -786,7 +788,7 @@ const loading = ref(false)
 const taskTableRef = ref(null)
 const taskColumnWidths = useTableColumnWidths(taskTableRef, { operations: 72 })
 const currentPage = ref(1)
-const pageSize = ref(10)
+const pageSize = ref(getThemeDefaultPageSize(10))
 const total = ref(0)
 const taskList = ref([])
 const planList = ref([])              // 生产计划缓存

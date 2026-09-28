@@ -3,6 +3,8 @@
     @command="handleThemeChange"
     trigger="click"
     placement="bottom-end"
+    max-height="min(70dvh, 600px)"
+    :popper-options="dropdownPopperOptions"
     :persistent="false"
   >
     <button class="theme-selector" type="button" :aria-label="currentPresetAriaLabel">
@@ -21,6 +23,7 @@
           v-for="preset in themePresetList"
           :key="preset.id"
           :command="preset.id"
+          :aria-current="currentPreset === preset.id ? 'true' : undefined"
           :divided="preset.id === firstPresetId"
           @mouseenter="prefetchPreset(preset.id)"
           @focus="prefetchPreset(preset.id)"
@@ -50,8 +53,9 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, watch, onUnmounted } from 'vue'
 import { useThemeStore } from '@/stores/theme'
+import { useAuthStore } from '@/stores/auth'
 import {
   Briefcase,
   Brush,
@@ -68,6 +72,12 @@ import { ElMessage } from 'element-plus/es/components/message/index'
 import { prefetchThemeCss } from '@/utils/themeLoader'
 
 const themeStore = useThemeStore()
+const authStore = useAuthStore()
+const dropdownPopperOptions = { modifiers: [{ name: 'preventOverflow', options: { padding: 8, altAxis: true } }] }
+let selectionRevision = 0
+
+watch(() => [authStore.isAuthenticated, authStore.user?.id], () => { selectionRevision++ }, { flush: 'sync' })
+onUnmounted(() => { selectionRevision++ })
 
 const themePresetList = computed(() => themeStore.themePresetList)
 const firstPresetId = computed(() => themePresetList.value[0]?.id)
@@ -111,7 +121,21 @@ const handleThemeChange = async (presetId) => {
     return
   }
 
-  const synced = await themeStore.applyPreset(presetId)
+  const revision = ++selectionRevision
+  let synced
+  try {
+    synced = await themeStore.applyPreset(presetId)
+  } catch {
+    if (revision === selectionRevision) {
+      ElMessage.error({ message: '主题切换失败，请重试', duration: 2400 })
+    }
+    return
+  }
+  if (revision !== selectionRevision) return
+  if (themeStore.appearance.preset !== presetId) {
+    ElMessage.error({ message: `未能加载 ${preset.name}，请重试`, duration: 2400 })
+    return
+  }
   if (synced) {
     ElMessage.success({
       message: `已切换到 ${preset.name}`,
@@ -164,13 +188,13 @@ const handleThemeChange = async (presetId) => {
 
 .theme-dropdown__title {
   width: 100%;
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
   font-weight: 600;
   color: var(--color-text-primary);
 }
 
 .theme-dropdown__current {
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   color: var(--color-text-secondary);
 }
 
@@ -233,7 +257,7 @@ const handleThemeChange = async (presetId) => {
 }
 
 .theme-item__name {
-  font-size: 14px;
+  font-size: var(--font-size-base, 14px);
   font-weight: 500;
   color: var(--color-text-primary);
 }
@@ -243,7 +267,7 @@ const handleThemeChange = async (presetId) => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   color: var(--color-text-secondary);
 }
 

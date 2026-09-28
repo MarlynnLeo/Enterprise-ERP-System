@@ -208,7 +208,7 @@
 
       <!-- 分页 -->
       <div class="pagination-container">
-        <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize" :page-sizes="[10, 20, 50, 100]"
+        <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize" :page-sizes="PAGE_SIZE_OPTIONS"
           :small="false" :disabled="false" :background="true" layout="total, sizes, prev, pager, next, jumper"
           :total="Number(total)" @size-change="handleSizeChange" @current-change="handleCurrentChange" />
       </div>
@@ -634,6 +634,8 @@
 </template>
 
 <script>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { ref, reactive, onMounted, computed, nextTick, h } from 'vue'
 import { formatQuantityNumber } from '@/utils/helpers/quantity'
 import { formatOutboundQuantity } from '@/utils/inventory/outboundQuantity'
@@ -721,7 +723,7 @@ export default {
     } = useListDetailNavigation(outboundList)
     const loading = ref(false)
     const currentPage = ref(1)
-    const pageSize = ref(10)
+    const pageSize = ref(getThemeDefaultPageSize(10))
     const total = ref(0) // 确保是数字类型
     const searchKeyword = ref('')
 
@@ -2347,6 +2349,7 @@ export default {
     }
 
     return {
+      PAGE_SIZE_OPTIONS,
       formatUnit,
       formatQuantityNumber,
       formatOutboundQuantity,

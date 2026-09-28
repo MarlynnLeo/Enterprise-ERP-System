@@ -66,7 +66,7 @@
         <el-pagination
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           layout="total, sizes, prev, pager, next, jumper"
           :total="total"
           @size-change="handleSizeChange"
@@ -204,6 +204,8 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, reactive, computed, onMounted } from 'vue'
 import { Plus, InfoFilled, Check } from '@element-plus/icons-vue'
@@ -223,7 +225,7 @@ const searchForm = reactive({
 
 // 分页
 const currentPage = ref(1)
-const pageSize = ref(10)
+const pageSize = ref(getThemeDefaultPageSize(10))
 const total = ref(0)
 
 // 列表查询

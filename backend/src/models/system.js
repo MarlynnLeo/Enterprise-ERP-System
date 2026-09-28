@@ -9,6 +9,7 @@ const { pool } = require('../config/db');
 const { logger } = require('../utils/logger');
 const PasswordSecurity = require('../utils/passwordSecurity');
 const { normalizeUsername } = require('../utils/usernameSecurity');
+const { normalizeSignatureCode } = require('../utils/signatureCode');
 const { isSuperAdminRole, isReservedRoleCode } = require('../authorization/superAdmin');
 const {
   disconnectUserSessions,
@@ -347,6 +348,7 @@ const systemModel = {
     const listSql = appendPaginationSQL(
       `SELECT u.id, u.username, u.real_name, u.email, u.phone,
               u.department_id, u.position, u.role, u.avatar, u.bio,
+              u.signature_code, u.signature_code AS signatureCode,
               u.status, u.created_at, u.updated_at,
               COALESCE(u.failed_login_attempts, 0) AS failed_login_attempts,
               u.locked_until,
@@ -409,7 +411,9 @@ const systemModel = {
 
       const [rows] = await pool.execute(
         `SELECT id, username, real_name, email, phone, department_id,
-                position, role, avatar, bio, status, created_at, updated_at,
+                position, role, avatar, bio,
+                signature_code, signature_code AS signatureCode,
+                status, created_at, updated_at,
                 COALESCE(failed_login_attempts, 0) AS failed_login_attempts,
                 locked_until,
                 CASE WHEN locked_until IS NOT NULL AND locked_until > NOW() THEN 1 ELSE 0 END AS login_locked,
@@ -484,10 +488,14 @@ const systemModel = {
         }
       }
 
+      const signatureCode = normalizeSignatureCode(
+        userData.signature_code !== undefined ? userData.signature_code : userData.signatureCode
+      );
+
       // 插入用户基本信息
       const [result] = await connection.execute(
-        `INSERT INTO users (username, password, real_name, email, department_id, position, role, status, force_password_change, password_changed_at, password_expires_at, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NOW(), NULL, NOW(), NOW())`,
+        `INSERT INTO users (username, password, real_name, email, department_id, position, role, signature_code, status, force_password_change, password_changed_at, password_expires_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NOW(), NULL, NOW(), NOW())`,
         [
           username,
           hashedPassword,
@@ -496,6 +504,7 @@ const systemModel = {
           departmentId,
           userData.position || null,
           roleCode,
+          signatureCode,
           status,
         ]
       );
@@ -532,6 +541,8 @@ const systemModel = {
         department_id: departmentId,
         position: userData.position || null,
         role: roleCode,
+        signature_code: signatureCode,
+        signatureCode,
         status,
         roleIds,
       };
@@ -552,7 +563,7 @@ const systemModel = {
         throw new Error('invalid user id');
       }
       const [[existingUser]] = await connection.execute(
-        'SELECT id, username, real_name, email, phone, role, status, department_id, position, token_version FROM users WHERE id = ? FOR UPDATE',
+        'SELECT id, username, real_name, email, phone, role, status, department_id, position, token_version, signature_code FROM users WHERE id = ? FOR UPDATE',
         [userId]
       );
       if (!existingUser) {
@@ -592,6 +603,14 @@ const systemModel = {
             : existingUser.real_name;
       const nextEmail = userData.email !== undefined ? userData.email : existingUser.email;
       const nextPhone = userData.phone !== undefined ? userData.phone : existingUser.phone;
+      const nextSignatureCode =
+        userData.signature_code !== undefined || userData.signatureCode !== undefined
+          ? normalizeSignatureCode(
+              userData.signature_code !== undefined
+                ? userData.signature_code
+                : userData.signatureCode
+            )
+          : existingUser.signature_code;
       const rolesChanged =
         roleIds !== null &&
         (() => {
@@ -623,6 +642,7 @@ const systemModel = {
           department_id = ?,
           position = ?,
           role = ?,
+          signature_code = ?,
           status = ?,
            token_version = CASE
              WHEN ? = 1 THEN COALESCE(token_version, 0) + 1
@@ -637,6 +657,7 @@ const systemModel = {
           nextDepartmentId,
           nextPosition,
           roleCode,
+          nextSignatureCode,
           status,
           securityAttributesChanged ? 1 : 0,
           userId,
@@ -683,6 +704,8 @@ const systemModel = {
         department_id: nextDepartmentId,
         position: nextPosition,
         role: roleCode,
+        signature_code: nextSignatureCode,
+        signatureCode: nextSignatureCode,
         status,
         roleIds: roleIds || existingRoleIds,
         audit: {
@@ -694,6 +717,8 @@ const systemModel = {
             department_id: existingUser.department_id,
             position: existingUser.position,
             role: existingUser.role,
+            signature_code: existingUser.signature_code,
+            signatureCode: existingUser.signature_code,
             roleIds: existingRoleIds,
             status: existingUser.status,
           },
@@ -705,6 +730,8 @@ const systemModel = {
             department_id: nextDepartmentId,
             position: nextPosition,
             role: roleCode,
+            signature_code: nextSignatureCode,
+            signatureCode: nextSignatureCode,
             roleIds: roleIds || existingRoleIds,
             status,
           },

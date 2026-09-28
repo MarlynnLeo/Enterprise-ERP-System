@@ -172,7 +172,7 @@
         <el-pagination
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :small="false"
           :disabled="false"
           :background="true"
@@ -567,7 +567,7 @@
           v-model:current-page="productDialog.page"
           v-model:page-size="productDialog.pageSize"
           layout="total, sizes, prev, pager, next"
-          :page-sizes="[10, 20, 50]"
+          :page-sizes="[10, 20, 25, 50]"
           :total="productDialog.total"
           @current-change="loadProducts"
           @size-change="onProductPageSize"
@@ -619,7 +619,7 @@
           v-model:current-page="orderDialog.page"
           v-model:page-size="orderDialog.pageSize"
           layout="total, sizes, prev, pager, next"
-          :page-sizes="[10, 20, 50]"
+          :page-sizes="[10, 20, 25, 50]"
           :total="orderDialog.total"
           @current-change="loadCompletedOrders"
           @size-change="onOrderPageSizeChange"
@@ -634,6 +634,8 @@
   </div>
 </template>
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { parseListData } from '@/utils/responseParser';
@@ -657,7 +659,7 @@ const {
   setCurrentItem: setCurrentViewExchange
 } = useListDetailNavigation(exchangeRecords)
 const currentPage = ref(1)
-const pageSize = ref(10)
+const pageSize = ref(getThemeDefaultPageSize(10))
 const total = ref(0)
 const searchQuery = ref('')
 const statusFilter = ref('')
@@ -703,7 +705,7 @@ const orderDialog = ref({
   visible: false,
   keyword: '',
   page: 1,
-  pageSize: 10,
+  pageSize: getThemeDefaultPageSize(10),
   total: 0,
   list: []
 })
@@ -725,7 +727,7 @@ const productDialogVisible = ref(false)
 const productDialog = ref({
   keyword: '',
   page: 1,
-  pageSize: 10,
+  pageSize: getThemeDefaultPageSize(10),
   total: 0,
   list: []
 })

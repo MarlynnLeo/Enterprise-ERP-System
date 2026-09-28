@@ -5,7 +5,7 @@
     that have been opened in the DOM and only toggle their `hidden` state;
     repeat expand/collapse operations therefore reuse the same VNodes.
   -->
-  <ul class="app-menu-list" role="menu" data-sidebar-performance="2">
+  <ul class="app-menu-list" role="menu" data-sidebar-performance="2" @keydown="handleKeydown">
     <li
       v-for="item in renderedItems"
       :key="item.key"
@@ -17,6 +17,7 @@
         'is-active': item.active
       }"
       :data-depth="item.depth"
+      :data-menu-index="item.menu.menuIndex"
       :hidden="!item.visible"
       :aria-hidden="item.visible ? undefined : 'true'"
       role="none"
@@ -58,10 +59,11 @@
 </template>
 
 <script setup>
-import { computed, shallowRef, watch } from 'vue'
+import { computed, nextTick, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getIconComponent } from '../../utils/menuIcons'
 import { isRouteMatch } from '../../utils/menuTree'
+import { getMenuLabel } from '../../utils/menuLabels'
 
 defineOptions({ name: 'SidebarMenu' })
 
@@ -69,7 +71,8 @@ const props = defineProps({
   menus: { type: Array, default: () => [] },
   openChain: { type: Array, default: () => [] },
   activePath: { type: String, default: '' },
-  mini: { type: Boolean, default: false }
+  mini: { type: Boolean, default: false },
+  multiple: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['expand', 'navigate'])
@@ -80,188 +83,6 @@ const mountedBranches = shallowRef(new Set())
 // Branch clicks belong to this component. Updating Layout's state here used
 // to invalidate its Element Plus slots and update the current business page.
 const localOpenChain = shallowRef([])
-
-const pathToI18nKey = {
-  '/production': 'menu.production',
-  '/basedata': 'menu.baseData',
-  '/inventory': 'menu.inventory',
-  '/purchase': 'menu.purchase',
-  '/sales': 'menu.sales',
-  '/system': 'menu.system',
-  '/quality': 'menu.quality',
-  '/finance': 'menu.finance',
-  '/equipment': 'menu.equipment',
-  '/hr': 'menu.hr',
-  '/dataoverview/production': 'menu.productionBoard',
-  '/dataoverview/inventory': 'menu.inventoryBoard',
-  '/dataoverview/sales': 'menu.salesBoard',
-  '/dataoverview/finance': 'menu.financeBoard',
-  '/dataoverview/quality': 'menu.qualityBoard',
-  '/dataoverview/purchase': 'menu.purchaseBoard',
-  '/production/plan': 'menu.productionPlan',
-  '/production/task': 'menu.productionTask',
-  '/production/process': 'menu.productionProcess',
-  '/production/report': 'menu.productionReport',
-  '/production/equipment-monitoring': 'menu.equipmentMonitoring',
-  '/production/material-shortage': 'menu.materialShortage',
-  '/production/material-readiness': 'menu.materialReadiness',
-  '/production/data-view': 'menu.productionDataView',
-  '/production/gantt': 'menu.productionGantt',
-  '/production/calendar': 'menu.productionCalendar',
-  '/production/anomaly': 'menu.productionAnomaly',
-  '/production/work-stations': 'menu.workStations',
-  '/production/process-routes': 'menu.processRoutes',
-  '/production/assembly-board': 'menu.assemblyBoard',
-  '/basedata/materials': 'menu.materials',
-  '/basedata/boms': 'menu.boms',
-  '/basedata/customers': 'menu.customers',
-  '/basedata/suppliers': 'menu.suppliers',
-  '/basedata/categories': 'menu.categories',
-  '/basedata/units': 'menu.units',
-  '/basedata/locations': 'menu.locations',
-  '/basedata/process-templates': 'menu.processTemplates',
-  '/basedata/product-categories': 'menu.productCategories',
-  '/basedata/ecn': 'menu.ecnManagement',
-  '/inventory/stock': 'menu.stock',
-  '/inventory/inbound': 'menu.inbound',
-  '/inventory/outbound': 'menu.outbound',
-  '/inventory/transfer': 'menu.transfer',
-  '/inventory/check': 'menu.check',
-  '/inventory/report': 'menu.inventoryReport',
-  '/inventory/transaction': 'menu.transaction',
-  '/inventory/manual-transaction': 'menu.manualTransaction',
-  '/inventory/year-end': 'menu.yearEnd',
-  '/purchase/requisitions': 'menu.requisitions',
-  '/purchase/orders': 'menu.orders',
-  '/purchase/receipts': 'menu.receipts',
-  '/purchase/returns': 'menu.returns',
-  '/purchase/processing': 'menu.processing',
-  '/purchase/processing-receipts': 'menu.processingReceipts',
-  '/purchase/history': 'menu.purchaseHistory',
-  '/sales/orders': 'menu.salesOrders',
-  '/sales/outbound': 'menu.salesOutbound',
-  '/sales/returns': 'menu.salesReturns',
-  '/sales/exchanges': 'menu.exchanges',
-  '/sales/quotations': 'menu.quotations',
-  '/sales/packing-lists': 'menu.packingLists',
-  '/sales/delivery-stats': 'menu.deliveryStats',
-  '/sales/contracts': 'menu.contracts',
-  '/quality/incoming': 'menu.incoming',
-  '/quality/process': 'menu.processInspection',
-  '/quality/first-article': 'menu.firstArticle',
-  '/quality/final': 'menu.final',
-  '/quality/templates': 'menu.templates',
-  '/quality/traceability': 'menu.traceability',
-  '/quality/nonconforming': 'menu.nonconforming',
-  '/quality/8d-reports': 'menu.eightDReport',
-  '/quality/aql-standards': 'menu.aqlStandards',
-  '/quality/replacement-orders': 'menu.replacementOrders',
-  '/quality/rework-tasks': 'menu.reworkTasks',
-  '/quality/scrap-records': 'menu.scrapRecords',
-  '/quality/statistics': 'menu.qualityStatistics',
-  '/quality/gauges': 'menu.gaugeManagement',
-  '/quality/spc': 'menu.spcControlChart',
-  '/quality/supplier-quality': 'menu.supplierQuality',
-  '/equipment/list': 'menu.equipmentList',
-  '/equipment/maintenance': 'menu.maintenance',
-  '/equipment/inspection': 'menu.inspection',
-  '/equipment/status': 'menu.equipmentStatus',
-  '/hr/employees': 'menu.employees',
-  '/hr/attendance': 'menu.attendance',
-  '/hr/salary': 'menu.salary',
-  '/hr/performance': 'menu.performance',
-  '/system/users': 'menu.users',
-  '/system/departments': 'menu.departments',
-  '/system/permissions': 'menu.permissions',
-  '/system/print': 'menu.print',
-  '/system/notifications': 'menu.notifications',
-  '/system/notification-rules': 'menu.notificationRules',
-  '/system/business-types': 'menu.businessTypes',
-  '/system/technical-communication': 'menu.technicalCommunication',
-  '/system/workflow': 'menu.workflow',
-  '/system/coding-rules': 'menu.codingRules',
-  '/system/documents': 'menu.documents',
-  '/system/business-alerts': 'menu.businessAlerts',
-  '/finance/gl/accounts': 'menu.accounts',
-  '/finance/gl/entries': 'menu.entries',
-  '/finance/gl/periods': 'menu.periods',
-  '/finance/gl/trial-balance': 'menu.trialBalance',
-  '/finance/gl/period-closing': 'menu.periodClosing',
-  '/finance/gl/opening-balances': 'menu.openingBalances',
-  '/finance/gl/entries/receipt': 'menu.entries',
-  '/finance/gl/entries/payment': 'menu.entries',
-  '/finance/gl/entries/transfer': 'menu.entries',
-  '/finance/gl/entries/general': 'menu.entries',
-  '/finance/ar/invoices': 'menu.arInvoices',
-  '/finance/ar/receipts': 'menu.receiptsManagement',
-  '/finance/ar/settlement': 'menu.arSettlement',
-  '/finance/ar/aging': 'menu.arAging',
-  '/finance/ap/invoices': 'menu.apInvoices',
-  '/finance/ap/payments': 'menu.payments',
-  '/finance/ap/settlement': 'menu.apSettlement',
-  '/finance/ap/three-way-match': 'menu.apThreeWayMatch',
-  '/finance/ap/aging': 'menu.apAging',
-  '/finance/assets/list': 'menu.assets',
-  '/finance/assets/categories': 'menu.assetCategories',
-  '/finance/assets/depreciation': 'menu.depreciation',
-  '/finance/assets/cip': 'menu.assetCIP',
-  '/finance/assets/inventory': 'menu.assetInventory',
-  '/finance/assets/reports': 'menu.assetReports',
-  '/finance/cash': 'menu.cashierManagement',
-  '/finance/cash/accounts': 'menu.bankAccounts',
-  '/finance/cash/bank-transactions': 'menu.bankTransactions',
-  '/finance/cash/cash-transactions': 'menu.cashTransactions',
-  '/finance/cash/reconciliation': 'menu.reconciliation',
-  '/finance/reports/balance-sheet': 'menu.balanceSheet',
-  '/finance/reports/income-statement': 'menu.incomeStatement',
-  '/finance/reports/cash-flow': 'menu.cashFlow',
-  '/finance/reports/standard-cash-flow': 'menu.standardCashFlow',
-  '/finance/automation': 'menu.financeAutomation',
-  '/finance/settings?tab=automation': 'menu.financeAutomation',
-  '/finance/tax/invoices': 'menu.taxInvoices',
-  '/finance/tax/returns': 'menu.taxReturns',
-  '/finance/tax/account-config': 'menu.taxAccountConfig',
-  '/finance/budget/list': 'menu.budgetList',
-  '/finance/budget/edit': 'menu.budgetManagement',
-  '/finance/budget/execution': 'menu.budgetExecution',
-  '/finance/budget/ai': 'menu.budgetAI',
-  '/finance/cost/dashboard': 'menu.costDashboard',
-  '/finance/cost/standard': 'menu.standardCost',
-  '/finance/cost/actual': 'menu.actualCost',
-  '/finance/cost/variance': 'menu.costVariance',
-  '/finance/cost/settings': 'menu.costSettings',
-  '/finance/cost/center': 'menu.costCenter',
-  '/finance/cost/ledger': 'menu.costLedger',
-  '/finance/cost/profitability': 'menu.profitability',
-  '/finance/cost/abc': 'menu.activityBasedCosting',
-  '/finance/cost/versions': 'menu.standardCost',
-  '/finance/expenses': 'menu.expenses',
-  '/finance/expenses/categories': 'menu.expenseCategories',
-  '/finance/pricing': 'menu.productPricing',
-  '/finance/settings': 'menu.financeSettings',
-  '/finance/settings/exchange-rates': 'menu.exchangeRates'
-}
-
-const permissionToI18nKey = {
-  dataoverview: 'menu.dataOverview',
-  'finance:gl': 'menu.entries',
-  'finance:ar': 'menu.arInvoices',
-  'finance:ap': 'menu.apInvoices',
-  'finance:assets': 'menu.assets',
-  'finance:cash': 'menu.cashierManagement',
-  'finance:reports': 'menu.balanceSheet',
-  'finance:tax': 'menu.taxManagement',
-  'finance:budgets': 'menu.budgetManagement',
-  'finance:cost': 'menu.costAccounting',
-  'finance:expenses': 'menu.expenses'
-}
-
-const getMenuLabel = (menu) => {
-  const key = menu.path && pathToI18nKey[menu.path]
-  if (key) return t(key)
-  const permissionKey = menu.permission && permissionToI18nKey[menu.permission]
-  return permissionKey ? t(permissionKey) : menu.name
-}
 
 const openSet = computed(() => new Set(localOpenChain.value))
 
@@ -332,7 +153,7 @@ const indexedItems = computed(() => {
         menu,
         depth,
         parentChain,
-        label: getMenuLabel(menu),
+        label: getMenuLabel(menu, t),
         icon: menu.icon ? getIconComponent(menu.icon) : null
       })
       if (menu.hasChildren) {
@@ -361,14 +182,57 @@ const renderedItems = computed(() => {
 
 const toggleMenu = (item) => {
   const position = localOpenChain.value.indexOf(item.menu.menuIndex)
-  localOpenChain.value = position >= 0 && !props.mini
-    ? localOpenChain.value.slice(0, position)
-    : [...item.parentChain, item.menu.menuIndex]
+  if (props.multiple) {
+    const descendants = new Set(indexedItems.value
+      .filter((child) => child.parentChain.includes(item.menu.menuIndex))
+      .map((child) => child.menu.menuIndex))
+    localOpenChain.value = position >= 0 && !props.mini
+      ? localOpenChain.value.filter((index) => index !== item.menu.menuIndex && !descendants.has(index))
+      : [...new Set([...localOpenChain.value, ...item.parentChain, item.menu.menuIndex])]
+  } else {
+    localOpenChain.value = position >= 0 && !props.mini
+      ? localOpenChain.value.slice(0, position)
+      : [...item.parentChain, item.menu.menuIndex]
+  }
   syncMountedBranches()
   if (props.mini) emit('expand')
 }
 
 const navigate = (path) => {
   if (path) emit('navigate', path)
+}
+
+const handleKeydown = async (event) => {
+  const button = event.target.closest('[role="menuitem"]')
+  if (!button) return
+  const container = event.currentTarget
+  const visibleButtons = () => [...container.querySelectorAll('[role="menuitem"]')]
+    .filter((item) => !item.closest('.app-menu-node').hidden)
+  const buttons = visibleButtons()
+  const position = buttons.indexOf(button)
+  if (position < 0) return
+  const menuIndex = button.closest('.app-menu-node').dataset.menuIndex
+  const item = renderedItems.value.find((entry) => entry.menu.menuIndex === menuIndex)
+  let destination
+  if (event.key === 'ArrowDown') destination = buttons[(position + 1) % buttons.length]
+  else if (event.key === 'ArrowUp') destination = buttons[(position - 1 + buttons.length) % buttons.length]
+  else if (event.key === 'Home') destination = buttons[0]
+  else if (event.key === 'End') destination = buttons.at(-1)
+  else if (event.key === 'ArrowRight' && item?.menu.hasChildren) {
+    event.preventDefault()
+    if (!item.open || props.mini) toggleMenu(item)
+    await nextTick()
+    destination = visibleButtons()[position + 1]
+  } else if (event.key === 'ArrowLeft' && item) {
+    event.preventDefault()
+    if (item.menu.hasChildren && item.open && !props.mini) toggleMenu(item)
+    else {
+      destination = buttons.find((entry) => entry.closest('.app-menu-node').dataset.menuIndex === item.parentChain.at(-1))
+    }
+  }
+  if (destination) {
+    event.preventDefault()
+    destination.focus()
+  }
 }
 </script>

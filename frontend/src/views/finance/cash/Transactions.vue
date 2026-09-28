@@ -325,7 +325,7 @@
         <el-pagination
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :small="false"
           :disabled="false"
           :background="true"
@@ -647,6 +647,8 @@
   </div>
 </template>
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { handleTableRowView } from '@/utils/tableRowView';
 import { formatLocalDate } from '@/utils/format';
 import { parsePaginatedData, parseListData, parseDataObject } from '@/utils/responseParser';
@@ -684,7 +686,7 @@ const loading = ref(false);
 const saveLoading = ref(false);
 // 分页相关
 const total = ref(0);
-const pageSize = ref(10);
+const pageSize = ref(getThemeDefaultPageSize(10));
 const currentPage = ref(1);
 // 对话框状态
 const dialogVisible = ref(false);

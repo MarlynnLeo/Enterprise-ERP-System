@@ -5,6 +5,7 @@
 import { ref, computed } from 'vue'
 import { metalPricesApi } from '@/api'
 import { ElMessage } from 'element-plus/es/components/message/index'
+import { observeChartTheme } from '../../../utils/chartThemeObserver'
 // 单位转换系数
 const TROY_OUNCE_GRAMS = 31.1034768
 
@@ -14,7 +15,10 @@ const toDisplayPrice = (symbol, payload) => {
   return symbol === 'GOLD' || symbol === 'SILVER' ? raw / TROY_OUNCE_GRAMS : raw
 }
 
-export function useMetalPrices(updateMiniChartsGeneric) {
+export function useMetalPrices(updateMiniChartsGeneric, disposeMiniChart) {
+  let stopThemeRefresh
+  let lifecycle = 0
+  let priceRequest = 0
   // 金属价格数据（贵金属按克、有色按吨）
   const metalPrices = ref({
     GOLD: { name: '黄金', price: '--', changePercent: 0, unit: '¥/克', source: '' },
@@ -48,6 +52,10 @@ export function useMetalPrices(updateMiniChartsGeneric) {
   const setMetalMiniChartRef = (key, el) => {
     if (el) {
       metalMiniChartRefs.value[key] = el
+    } else {
+      disposeChart(metalMiniCharts.value[key])
+      delete metalMiniCharts.value[key]
+      delete metalMiniChartRefs.value[key]
     }
   }
   // 获取金属价格数据
@@ -82,23 +90,30 @@ export function useMetalPrices(updateMiniChartsGeneric) {
   }
 
   const fetchMetalPrices = async ({ force = false } = {}) => {
+    const requestLifecycle = lifecycle
+    const request = ++priceRequest
+    const isCurrent = () => requestLifecycle === lifecycle && request === priceRequest
     metalPricesLoading.value = true
     try {
       const response = force
         ? await metalPricesApi.refreshPrices()
         : await metalPricesApi.getRealTimePrices()
-      if (response.data) applyMetalPayload(response.data)
+      if (!isCurrent() || !response.data) return false
+      applyMetalPayload(response.data)
+      return true
     } catch (error) {
-      if (error?.response?.status === 403) return
+      if (!isCurrent() || error?.response?.status === 403) return false
       console.error('获取金属价格数据失败:', error)
       ElMessage.error('获取金属价格数据失败，请检查网络连接')
+      return false
     } finally {
-      metalPricesLoading.value = false
+      if (isCurrent()) metalPricesLoading.value = false
     }
   }
   // 更新金属价格迷你图表
   const updateMetalMiniCharts = () => {
-    if (updateMiniChartsGeneric) {
+    if (updateMiniChartsGeneric && Object.keys(metalMiniChartRefs.value).length) {
+      if (!stopThemeRefresh) stopThemeRefresh = observeChartTheme(updateMetalMiniCharts)
       updateMiniChartsGeneric(
         metalMiniChartRefs.value,
         metalMiniCharts.value,
@@ -109,14 +124,21 @@ export function useMetalPrices(updateMiniChartsGeneric) {
   }
   // 刷新金属价格
   const refreshMetalPrices = async () => {
-    await fetchMetalPrices({ force: true })
-    ElMessage.success('金属价格数据已手动更新')
+    if (await fetchMetalPrices({ force: true })) ElMessage.success('金属价格数据已手动更新')
   }
   // 销毁图表
+  const disposeChart = (chart) => {
+    if (!chart) return
+    if (disposeMiniChart) disposeMiniChart(chart)
+    else if (!chart.isDisposed()) chart.dispose()
+  }
   const disposeMetalCharts = () => {
-    Object.values(metalMiniCharts.value).forEach(chart => {
-      if (chart) chart.dispose()
-    })
+    lifecycle++
+    stopThemeRefresh?.()
+    stopThemeRefresh = undefined
+    Object.values(metalMiniCharts.value).forEach(disposeChart)
+    metalMiniCharts.value = {}
+    metalMiniChartRefs.value = {}
   }
   return {
     metalPrices,

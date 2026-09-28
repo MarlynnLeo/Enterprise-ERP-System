@@ -81,6 +81,38 @@ export default {
     userMenu: 'User Menu'
   },
 
+  workspaceNavigation: {
+    navigation: 'Workspace navigation',
+    mainNavigation: 'Main navigation',
+    modules: 'Business modules',
+    title: 'Data workspace',
+    close: 'Close navigation',
+    itemCount: '{count} items',
+    filterPlaceholder: 'Filter this module',
+    filterLabel: 'Filter menus in the current module',
+    noMatches: 'No matching features',
+    noMenus: 'No menus available',
+    pageContent: 'Current page content',
+    loadFailed: 'Unable to load menus. Refresh the page to retry.'
+  },
+  navigationTabs: {
+    openPages: 'Open pages',
+    pageTabs: 'Page tabs',
+    scrollLeft: 'Scroll tabs left',
+    scrollRight: 'Scroll tabs right',
+    closeTab: 'Close {title}',
+    closeOthers: 'Close others',
+    keepCurrentAndHome: 'Keep the current page and dashboard'
+  },
+  navigationPages: {
+    receiptVoucher: 'Receipt Voucher',
+    paymentVoucher: 'Payment Voucher',
+    transferVoucher: 'Transfer Voucher',
+    generalVoucher: 'General Journal Voucher',
+    costVersions: 'Standard Cost Versions',
+    costClosing: 'Cost Closing'
+  },
+
   // Navigation Menu
   menu: {
     dashboard: 'Dashboard',

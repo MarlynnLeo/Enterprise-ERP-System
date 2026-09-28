@@ -1,6 +1,5 @@
 const { pool } = require('../config/db');
 const { logger } = require('../utils/logger');
-const ExcelJS = require('exceljs');
 const { softDelete } = require('../utils/softDelete');
 
 // 合法 SQL 标识符（列名）白名单校验，防止物料字段被用作列名注入
@@ -474,47 +473,6 @@ const materialService = {
       throw error;
     } finally {
       connection.release();
-    }
-  },
-
-  async exportMaterials(filters = {}) {
-    try {
-      const { data } = await this.getAllMaterials(1, null, filters);
-
-      const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet('Materials');
-
-      // 设置列
-      worksheet.columns = [
-        { header: '物料编码', key: 'code', width: 15 },
-        { header: '物料名称', key: 'name', width: 25 },
-        { header: '规格型号', key: 'specs', width: 20 },
-        { header: '分类', key: 'category_name', width: 15 },
-        { header: '单位', key: 'unit_name', width: 10 },
-        { header: '库存数量', key: 'stock_quantity', width: 12 },
-        { header: '状态', key: 'status', width: 10 },
-        { header: '备注', key: 'remark', width: 30 },
-      ];
-
-      // 添加数据
-      data.forEach((item) => {
-        worksheet.addRow({
-          code: item.code,
-          name: item.name,
-          specs: item.specs,
-          category_name: item.category_name,
-          unit_name: item.unit_name,
-          stock_quantity: item.stock_quantity,
-          status: item.status === 1 ? '启用' : '禁用',
-          remark: item.remark,
-        });
-      });
-
-      // 生成 Buffer
-      return await workbook.xlsx.writeBuffer();
-    } catch (error) {
-      logger.error('exportMaterials error:', error);
-      throw error;
     }
   },
 

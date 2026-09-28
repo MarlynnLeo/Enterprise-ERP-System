@@ -142,7 +142,7 @@
           v-model:current-page="pagination.current"
           v-model:page-size="pagination.size"
           :total="Math.max(parseInt(pagination.total) || 0, 0)"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           @size-change="handleSizeChange"
           @current-change="handlePageChange"
         />
@@ -214,6 +214,7 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { parsePaginatedData } from '@/utils/responseParser';

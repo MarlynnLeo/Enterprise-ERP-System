@@ -119,7 +119,7 @@
         <el-pagination
           v-model:current-page="pagination.page"
           v-model:page-size="pagination.pageSize"
-          :page-sizes="[10, 20, 50]"
+          :page-sizes="[10, 20, 25, 50]"
           :total="pagination.total"
           layout="total, sizes, prev, pager, next, jumper"
           @size-change="loadData"
@@ -261,6 +261,7 @@
 </template>
 
 <script setup>
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { getApiErrorMessage } from '@/utils/errorHandler'
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted } from 'vue'
@@ -292,7 +293,7 @@ const searchForm = reactive({
 
 const pagination = reactive({
   page: 1,
-  pageSize: 10,
+  pageSize: getThemeDefaultPageSize(10),
   total: 0,
 })
 

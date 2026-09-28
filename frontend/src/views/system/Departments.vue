@@ -138,7 +138,7 @@
 
       <!-- 分页 -->
       <div class="pagination-container flex-end mt-20">
-        <el-pagination
+        <el-pagination :page-sizes="PAGE_SIZE_OPTIONS"
           background
           layout="total, sizes, prev, pager, next, jumper"
           :total="totalDepartments"
@@ -237,6 +237,8 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -265,7 +267,7 @@ const userOptions = ref([]);
 
 // 分页相关
 const totalDepartments = ref(0);
-const pageSize = ref(10);
+const pageSize = ref(getThemeDefaultPageSize(10));
 const currentPage = ref(1);
 
 const pagedDepartmentList = computed(() => {

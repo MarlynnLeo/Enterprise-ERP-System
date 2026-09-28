@@ -1,0 +1,56 @@
+import fs from 'node:fs'
+import { resolve } from 'node:path'
+import postcss from 'postcss'
+import { describe, expect, test } from 'vitest'
+import { getAccessibleTextColor } from '@/config/themePresets'
+import { collectRootTokens } from '../../scripts/check-theme-tokens.mjs'
+
+const readStyles = (name) => postcss.parse(fs.readFileSync(resolve(process.cwd(), 'src/assets/themes/pc', `${name}.css`), 'utf8'))
+
+describe('classic theme component contracts', () => {
+  test('filled buttons retain readable text on normal and pressed surfaces', () => {
+    const tokens = collectRootTokens([readStyles('workspace')], 'workspace')
+    for (const type of ['primary', 'success', 'warning', 'danger', 'info']) {
+      const text = tokens.get(`--color-on-${type}`)
+      for (const suffix of ['', type === 'primary' ? '-dark-2' : '-dark']) {
+        expect(getAccessibleTextColor(tokens.get(`--color-${type}${suffix}`))).toBe(text)
+      }
+    }
+  })
+
+  test('control borders remain owned by Element Plus validation and focus states', () => {
+    for (const name of ['workspace', 'theme-components']) {
+      const resets = []
+      readStyles(name).walkRules((rule) => {
+        if (!/\.el-(?:input__wrapper|select__wrapper|textarea__inner|range-editor)/.test(rule.selector)) return
+        rule.walkDecls('box-shadow', (decl) => {
+          if (decl.important) resets.push(`${rule.selector}: ${decl.value}`)
+        })
+      })
+      expect(resets).toEqual([])
+    }
+  })
+
+  test('text uses configurable typography and table palettes have a single alias direction', () => {
+    const violations = []
+    readStyles('workspace').walkDecls((decl) => {
+      if (decl.prop === 'font-size' && /^\d+px$/.test(decl.value) && !/icon/.test(decl.parent.selector)) violations.push(decl.toString())
+      if (decl.prop.startsWith('--erp-table-') && /var\(--el-table-/.test(decl.value)) violations.push(decl.toString())
+    })
+    expect(violations).toEqual([])
+  })
+
+  test('reduced motion overrides component declarations regardless of selector specificity', () => {
+    const declarations = []
+    readStyles('theme-compat').walkAtRules('media', (media) => {
+      if (media.params !== '(prefers-reduced-motion: reduce)') return
+      expect(media.parent.name).toBe('layer')
+      expect(media.parent.params).toBe('accessibility')
+      media.walkDecls((decl) => {
+        if (['transition-duration', 'animation-duration'].includes(decl.prop)) declarations.push(decl)
+      })
+    })
+    expect(declarations).toHaveLength(2)
+    expect(declarations.every((decl) => decl.important && parseFloat(decl.value) <= 0.01)).toBe(true)
+  })
+})

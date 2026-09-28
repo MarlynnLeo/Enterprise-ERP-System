@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="module-page cost-version-manage">
     <PageHeader title="成本版本" subtitle="按周期管理标准成本的测算、提交、审核和发布">
       <template #actions>
@@ -63,7 +63,7 @@
           v-model:current-page="pagination.page"
           v-model:page-size="pagination.pageSize"
           :total="pagination.total"
-          :page-sizes="[10, 20, 50]"
+          :page-sizes="[10, 20, 25, 50]"
           layout="total, sizes, prev, pager, next"
           @size-change="fetchVersions"
           @current-change="fetchVersions"
@@ -107,6 +107,7 @@
 </template>
 
 <script setup>
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { getApiErrorMessage } from '@/utils/errorHandler'
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted } from 'vue';
@@ -127,7 +128,7 @@ const filterStatus = ref('');
 const versionList = ref([]);
 const pagination = reactive({
   page: 1,
-  pageSize: 20,
+  pageSize: getThemeDefaultPageSize(20),
   total: 0
 });
 

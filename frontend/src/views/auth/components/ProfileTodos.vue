@@ -624,7 +624,7 @@ function getParticipantRecords(todo) {
 
 function getParticipantIds(todo) {
   return getParticipantRecords(todo)
-    .map(participant => Number(participant.userId ?? participant.userId ?? participant.user?.id))
+    .map(participant => Number(participant.userId ?? participant.user?.id))
     .filter(id => Number.isInteger(id) && id > 0)
 }
 
@@ -632,7 +632,6 @@ function getParticipantNames(todo) {
   return getParticipantRecords(todo)
     .map((participant) => {
       const name = getUserDisplayName(participant.user)
-      const userId = participant.userId ?? participant.userId
       return name || '未命名用户'
     })
     .filter(Boolean)

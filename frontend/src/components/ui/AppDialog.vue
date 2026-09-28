@@ -248,7 +248,7 @@ const onUpdateVisible = (val) => {
 
 .app-dialog-view-body,
 .app-dialog-form-body {
-  min-height: 200px;
+  min-height: var(--app-dialog-content-min-height, 200px);
   box-sizing: border-box;
 }
 </style>

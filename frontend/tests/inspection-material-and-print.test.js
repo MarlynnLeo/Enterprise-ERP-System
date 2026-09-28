@@ -25,6 +25,35 @@ describe('inspection material name compatibility', () => {
 })
 
 describe('print table auto-fit', () => {
+  it('preserves fixed-size inspection data across repeated fitting while fitting other cells', () => {
+    const printDocument = document.implementation.createHTMLDocument('fixed-size')
+    printDocument.body.innerHTML = `
+      <table><tbody><tr><td style="font-size:12px">需要自动缩小的单据信息</td></tr></tbody></table>
+      <table class="items">
+        <thead><tr><th>项目</th><th>检验要求/标准</th><th>检测方法</th></tr></thead>
+        <tbody data-print-autofit="false"><tr>
+          <td style="font-size:22pt;white-space:normal">尺寸</td>
+          <td style="font-size:22pt;white-space:normal">检验要求文字超过十四个字后允许换行显示</td>
+          <td style="font-size:22pt;white-space:normal">游标卡尺</td>
+        </tr></tbody>
+      </table>
+      <table><tr><td data-print-autofit="false" style="font-size:22pt">固定字号</td></tr></table>`
+    const fixedCells = Array.from(printDocument.querySelectorAll('.items tbody td, td[data-print-autofit="false"]'))
+    const originalStyles = fixedCells.map(cell => cell.getAttribute('style'))
+    const automaticCell = printDocument.querySelector('td')
+    Object.defineProperty(automaticCell, 'clientWidth', { value: 40 })
+    Object.defineProperty(automaticCell, 'scrollWidth', {
+      get: () => automaticCell.textContent.length * Number.parseFloat(automaticCell.style.fontSize)
+    })
+
+    autoFitPrintDocument(printDocument)
+    autoFitPrintDocument(printDocument)
+
+    expect(findPrintAutoFitCells(printDocument)).toEqual([])
+    expect(fixedCells.map(cell => cell.getAttribute('style'))).toEqual(originalStyles)
+    expect(Number.parseFloat(automaticCell.style.fontSize)).toBeLessThan(12)
+  })
+
   it('finds QRZK columns by col class and custom columns by header text', () => {
     const documentWithClasses = document.implementation.createHTMLDocument('classes')
     documentWithClasses.body.innerHTML = `

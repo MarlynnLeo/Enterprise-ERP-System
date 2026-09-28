@@ -249,27 +249,6 @@
 
 /* Keep all Element Plus fixed table columns opaque while horizontal scrolling. */
 .el-table {
-  --erp-table-fixed-cell-bg: var(
-    --el-table-tr-bg-color,
-    var(--color-bg-section, var(--el-bg-color))
-  );
-  --erp-table-fixed-header-bg: var(
-    --el-table-header-bg-color,
-    var(--color-bg-light, var(--el-bg-color))
-  );
-  --erp-table-fixed-hover-bg: var(
-    --el-table-row-hover-bg-color,
-    var(--color-bg-hover, var(--erp-table-fixed-cell-bg))
-  );
-  --erp-table-fixed-current-bg: var(
-    --el-table-current-row-bg-color,
-    var(--color-primary-light-9, var(--erp-table-fixed-hover-bg))
-  );
-  --erp-table-fixed-striped-bg: var(
-    --el-fill-color-lighter,
-    var(--color-bg-hover, var(--erp-table-fixed-cell-bg))
-  );
-  --erp-table-fixed-border-color: var(--color-border-base, var(--el-border-color-lighter));
   --el-table-fixed-left-column: inset 10px 0 10px -10px rgba(0, 0, 0, 0.28);
   --el-table-fixed-right-column: inset -10px 0 10px -10px rgba(0, 0, 0, 0.28);
 }
@@ -319,6 +298,7 @@
   background: var(--erp-table-fixed-header-bg) !important;
   background-color: var(--erp-table-fixed-header-bg) !important;
   z-index: calc(var(--el-table-index, 1) + 4);
+  background-image: var(--erp-table-header-image, none) !important;
 }
 
 .el-table .el-table__body-wrapper tr > td.el-table__cell.el-table-fixed-column--left,
@@ -334,20 +314,20 @@
 
 .el-table.el-table--striped
   .el-table__body-wrapper
-  tr.el-table__row--striped
+  tr.el-table__row--striped:not(.current-row):not(.hover-row):not(:hover)
   > td.el-table__cell.el-table-fixed-column--left,
 .el-table.el-table--striped
   .el-table__body-wrapper
-  tr.el-table__row--striped
+  tr.el-table__row--striped:not(.current-row):not(.hover-row):not(:hover)
   > td.el-table__cell.el-table-fixed-column--right,
 .el-table.el-table--striped
   .el-table__fixed-body-wrapper
-  tr.el-table__row--striped
+  tr.el-table__row--striped:not(.current-row):not(.hover-row):not(:hover)
   > td.el-table__cell,
 .el-table.el-table--striped
   .el-table__fixed-right
   .el-table__fixed-body-wrapper
-  tr.el-table__row--striped
+  tr.el-table__row--striped:not(.current-row):not(.hover-row):not(:hover)
   > td.el-table__cell {
   background: var(--erp-table-fixed-striped-bg) !important;
   background-color: var(--erp-table-fixed-striped-bg) !important;
@@ -361,14 +341,14 @@
   background-color: var(--erp-table-fixed-current-bg) !important;
 }
 
-.el-table .el-table__body-wrapper tr:hover > td.el-table__cell.el-table-fixed-column--left,
-.el-table .el-table__body-wrapper tr:hover > td.el-table__cell.el-table-fixed-column--right,
-.el-table .el-table__body-wrapper tr.hover-row > td.el-table__cell.el-table-fixed-column--left,
-.el-table .el-table__body-wrapper tr.hover-row > td.el-table__cell.el-table-fixed-column--right,
-.el-table .el-table__fixed-body-wrapper tr:hover > td.el-table__cell,
-.el-table .el-table__fixed-body-wrapper tr.hover-row > td.el-table__cell,
-.el-table .el-table__fixed-right .el-table__fixed-body-wrapper tr:hover > td.el-table__cell,
-.el-table .el-table__fixed-right .el-table__fixed-body-wrapper tr.hover-row > td.el-table__cell {
+.el-table .el-table__body-wrapper tr:hover:not(.current-row) > td.el-table__cell.el-table-fixed-column--left,
+.el-table .el-table__body-wrapper tr:hover:not(.current-row) > td.el-table__cell.el-table-fixed-column--right,
+.el-table .el-table__body-wrapper tr.hover-row:not(.current-row) > td.el-table__cell.el-table-fixed-column--left,
+.el-table .el-table__body-wrapper tr.hover-row:not(.current-row) > td.el-table__cell.el-table-fixed-column--right,
+.el-table .el-table__fixed-body-wrapper tr:hover:not(.current-row) > td.el-table__cell,
+.el-table .el-table__fixed-body-wrapper tr.hover-row:not(.current-row) > td.el-table__cell,
+.el-table .el-table__fixed-right .el-table__fixed-body-wrapper tr:hover:not(.current-row) > td.el-table__cell,
+.el-table .el-table__fixed-right .el-table__fixed-body-wrapper tr.hover-row:not(.current-row) > td.el-table__cell {
   background: var(--erp-table-fixed-hover-bg) !important;
   background-color: var(--erp-table-fixed-hover-bg) !important;
 }

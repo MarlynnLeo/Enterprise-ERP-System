@@ -184,7 +184,7 @@
         <el-pagination
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :small="false"
           :disabled="false"
           :background="true"
@@ -354,7 +354,7 @@
           v-model:current-page="outboundDialog.page"
           v-model:page-size="outboundDialog.pageSize"
           layout="total, sizes, prev, pager, next"
-          :page-sizes="[20, 50, 100, 200]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :total="outboundDialog.total"
           @current-change="loadOutbounds"
           @size-change="onOutboundPageSize"
@@ -370,6 +370,8 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { formatDate, formatDateTime } from '@/utils/helpers/dateUtils'
 import { formatCurrency } from '@/utils/helpers/formatters'
@@ -443,7 +445,7 @@ const {
   setCurrentItem: setCurrentViewReturn
 } = useListDetailNavigation(returnRecords)
 const currentPage = ref(1)
-const pageSize = ref(20)
+const pageSize = ref(getThemeDefaultPageSize(20))
 const total = ref(0)
 const searchQuery = ref('')
 const statusFilter = ref('')

@@ -205,7 +205,7 @@
             <el-pagination
               v-model:current-page="unreconciledPage"
               v-model:page-size="unreconciledPageSize"
-              :page-sizes="[10, 20, 50, 100]"
+              :page-sizes="PAGE_SIZE_OPTIONS"
               layout="total, sizes, prev, pager, next, jumper"
               :total="unreconciledTotal"
               @size-change="searchReconciliation"
@@ -283,7 +283,7 @@
           </el-table>
           <el-pagination
             v-if="statementTotal > 0" v-model:current-page="statementPage" v-model:page-size="statementPageSize"
-            :page-sizes="[10, 20, 50, 100]" :total="statementTotal" layout="total, sizes, prev, pager, next"
+            :page-sizes="PAGE_SIZE_OPTIONS" :total="statementTotal" layout="total, sizes, prev, pager, next"
             @current-change="searchReconciliation" @size-change="searchReconciliation"
           />
         </el-tab-pane>
@@ -322,7 +322,7 @@
             <el-pagination
               v-model:current-page="reconciledPage"
               v-model:page-size="reconciledPageSize"
-              :page-sizes="[10, 20, 50, 100]"
+              :page-sizes="PAGE_SIZE_OPTIONS"
               layout="total, sizes, prev, pager, next, jumper"
               :total="reconciledTotal"
               @size-change="searchReconciliation"
@@ -394,6 +394,7 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { getApiErrorMessage } from '@/utils/errorHandler'
 
 import { formatCurrency, formatLocalDate } from '@/utils/format'

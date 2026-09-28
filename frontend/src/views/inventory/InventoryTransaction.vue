@@ -161,7 +161,7 @@
               @size-change="handleSizeChange"
               @current-change="handleCurrentChange"
               :current-page="pagination.currentPage || 1"
-              :page-sizes="[10, 20, 50, 100]"
+              :page-sizes="PAGE_SIZE_OPTIONS"
               :page-size="pagination.pageSize || 10"
               :background="true"
               layout="total, sizes, prev, pager, next, jumper"
@@ -239,6 +239,8 @@
   </div>
 </template>
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { inventoryApi } from '@/api/inventory';
 import { loadLocationOptions } from '@/utils/optionLoaders';
@@ -274,7 +276,7 @@ const transactionTypeOptions = computed(() =>
 // 分页数据 - 使用 reactive 确保响应性
 const pagination = reactive({
   currentPage: 1,
-  pageSize: 10,
+  pageSize: getThemeDefaultPageSize(10),
   total: 0
 })
 // 统计信息
@@ -920,12 +922,6 @@ const handleCurrentChange = (val) => {
 }
 // 初始化所有响应式数据
 const initializeData = () => {
-  // 确保分页参数有默认值
-  if (pagination) {
-    pagination.currentPage = 1
-    pagination.pageSize = 10
-    pagination.total = 0
-  }
   // 确保统计数据有默认值
   if (statistics.value) {
     statistics.value = {

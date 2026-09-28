@@ -61,10 +61,6 @@ const clearClientAuthState = () => {
   sessionStorage.removeItem('user_permissions')
   localStorage.removeItem('user_permissions')
   resetCsrfToken()
-  if (typeof window !== 'undefined') {
-    delete window.__mobileThemeLoaded
-    delete window.__mobileThemeLoadedFor
-  }
 }
 
 const getLoginUrlWithRedirect = () => {

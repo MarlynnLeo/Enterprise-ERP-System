@@ -93,6 +93,7 @@ const getExplicitCellKind = (cell) => {
 
 const setTarget = (targets, cell, kind = null) => {
   if (!cell || !cell.tagName || !['TD', 'TH'].includes(cell.tagName)) return
+  if (cell.closest?.('[data-print-autofit="false"]')) return
   if (!targets.has(cell) || kind) targets.set(cell, kind)
 }
 
@@ -181,6 +182,8 @@ const setPrintStyle = (cell, property, value) => {
 
 const fitCell = (cell, options, view, kind = null) => {
   if (!cell) return false
+  // 固定字号的模板区域（例如检验项目数据）保留原字号及换行规则。
+  if (cell.closest?.('[data-print-autofit="false"]')) return false
 
   const text = normalizeText(cell.textContent)
   const baseSize = getBaseFontSize(cell, view)

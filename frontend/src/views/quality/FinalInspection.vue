@@ -85,7 +85,7 @@
         border
         class="table-row-click w-full mt-md"
         v-loading="loading"
-      
+
       @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
         <el-table-column prop="inspectionNo" label="检验单号" min-width="130" />
         <el-table-column prop="itemName" label="产品名称" min-width="180" />
@@ -131,7 +131,7 @@
         <el-table-column label="操作" fixed="right" min-width="320" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
       >
           <template #default="scope">
-            
+
             <el-button
               v-if="scope.row.status === 'pending'"
               v-permission="'quality:inspections:update'"
@@ -183,7 +183,7 @@
         <el-pagination
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :small="false"
           :disabled="false"
           :background="true"
@@ -745,6 +745,8 @@
   </div>
 </template>
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { parseListData, parseResponseData } from '@/utils/responseParser';
@@ -819,7 +821,7 @@ const {
   setCurrentItem: setCurrentViewInspection
 } = useListDetailNavigation(inspectionList)
 const currentPage = ref(1)
-const pageSize = ref(10)
+const pageSize = ref(getThemeDefaultPageSize(10))
 const total = ref(0)
 // 创建检验单相关
 const createDialogVisible = ref(false)
@@ -1193,12 +1195,12 @@ const handleRefresh = () => {
   filters.startDate = ''
   filters.endDate = ''
   currentPage.value = 1
-  pageSize.value = 20
   fetchData()
 }
 // 分页相关
 const handleSizeChange = (val) => {
   pageSize.value = val
+  currentPage.value = 1
   fetchData()
 }
 const handleCurrentChange = (val) => {

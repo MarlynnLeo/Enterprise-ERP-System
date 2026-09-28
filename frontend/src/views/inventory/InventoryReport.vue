@@ -204,7 +204,7 @@
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
           :current-page="pagination.currentPage || 1"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :page-size="pagination.pageSize || 10"
           :background="true"
           layout="total, sizes, prev, pager, next, jumper"
@@ -301,7 +301,7 @@
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
           :current-page="pagination.currentPage || 1"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :page-size="pagination.pageSize || 10"
           :background="true"
           layout="total, sizes, prev, pager, next, jumper"
@@ -382,7 +382,7 @@
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
           :current-page="pagination.currentPage || 1"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :page-size="pagination.pageSize || 10"
           :background="true"
           layout="total, sizes, prev, pager, next, jumper"
@@ -461,7 +461,7 @@
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
           :current-page="pagination.currentPage || 1"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :page-size="pagination.pageSize || 10"
           :background="true"
           layout="total, sizes, prev, pager, next, jumper"
@@ -530,7 +530,7 @@
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
           :current-page="pagination.currentPage || 1"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :page-size="pagination.pageSize || 10"
           :background="true"
           layout="total, sizes, prev, pager, next, jumper"
@@ -574,7 +574,7 @@
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
           :current-page="pagination.currentPage || 1"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :page-size="pagination.pageSize || 10"
           :background="true"
           layout="total, sizes, prev, pager, next, jumper"
@@ -627,7 +627,7 @@
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
           :current-page="pagination.currentPage || 1"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :page-size="pagination.pageSize || 10"
           :background="true"
           layout="total, sizes, prev, pager, next, jumper"
@@ -693,7 +693,7 @@
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
           :current-page="pagination.currentPage || 1"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :page-size="pagination.pageSize || 10"
           :background="true"
           layout="total, sizes, prev, pager, next, jumper"
@@ -705,6 +705,8 @@
   </div>
 </template>
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { formatCurrency, formatNumber } from '@/utils/format'
 import { debounce } from '@/utils/commonHelpers'
@@ -720,7 +722,7 @@ const reportData = ref([])
 // 分页数据
 const pagination = reactive({
   currentPage: 1,
-  pageSize: 10,
+  pageSize: getThemeDefaultPageSize(10),
   total: 0
 })
 // 统计信息
@@ -1124,12 +1126,6 @@ const getTurnoverSuggestion = (rate, days) => {
 }
 // 初始化
 onMounted(() => {
-  // 确保分页参数有默认值
-  if (pagination) {
-    pagination.currentPage = 1
-    pagination.pageSize = 10
-    pagination.total = 0
-  }
   // 设置默认日期为当月
   const now = new Date()
   const year = now.getFullYear()

@@ -126,7 +126,7 @@ class TaskRepository {
        LEFT JOIN units u ON p.unit_id = u.id
        ${scopeClause.join || ''}
        WHERE pt.deleted_at IS NULL ${whereClause}${scopeClause.where || ''}
-       ORDER BY pt.created_at DESC`,
+       ORDER BY pt.created_at DESC, pt.id DESC`,
       pagination.limit,
       pagination.offset
     );
@@ -532,7 +532,7 @@ class TaskRepository {
    * @returns {{ whereClause: string, queryParams: Array }}
    */
   static buildFilterConditions(params) {
-    const { status, statusList, code, product, keyword, manager, startDate, endDate } = params;
+    const { status, statusList, code, product, keyword, keywordStatuses, manager, startDate, endDate } = params;
     let whereClause = '';
     const queryParams = [];
 
@@ -558,8 +558,16 @@ class TaskRepository {
     }
 
     if (keyword) {
-      whereClause += ' AND (pt.code LIKE ? OR p.name LIKE ? OR p.code LIKE ? OR p.specs LIKE ?)';
-      queryParams.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
+      // Localized status labels are resolved by the client dictionary; only known
+      // status codes may join the keyword search, using the same count/list filter.
+      const statuses = [...new Set(String(keywordStatuses || '').split(','))].filter(
+        (value) => Object.values(PRODUCTION_STATUS_KEYS).includes(value)
+      );
+      const statusMatch = statuses.length
+        ? ` OR pt.status IN (${statuses.map(() => '?').join(',')})`
+        : '';
+      whereClause += ` AND (pt.code LIKE ? OR p.name LIKE ? OR p.code LIKE ? OR p.specs LIKE ? OR pt.manager LIKE ? OR pt.status LIKE ?${statusMatch})`;
+      queryParams.push(...Array(6).fill(`%${keyword}%`), ...statuses);
     } else {
       if (code) {
         whereClause += ' AND pt.code LIKE ?';

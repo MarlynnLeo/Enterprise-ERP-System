@@ -1,3 +1,4 @@
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 /**
  * 产品定价相关逻辑复用
  * 包含列表、搜索、定价表单等功能
@@ -12,7 +13,7 @@ export function usePricing() {
     const loading = ref(false);
     const tableData = ref([]);
     const currentPage = ref(1);
-    const pageSize = ref(10);
+    const pageSize = ref(getThemeDefaultPageSize(10));
     const total = ref(0);
     const searchQuery = ref('');
     const filterType = ref('');

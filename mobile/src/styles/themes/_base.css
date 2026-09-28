@@ -38,6 +38,7 @@
 
   /* Enterprise semantic palette. Component styles should reference these tokens. */
   --color-on-primary: #ffffff;
+  --van-button-primary-color: var(--color-on-primary);
   --color-primary-active: color-mix(in srgb, var(--color-primary, #1a73e8) 82%, black);
   --color-accent-bg: var(--color-primary-bg, color-mix(in srgb, var(--color-primary, #1a73e8) 12%, transparent));
   --color-brand: var(--color-on-primary);

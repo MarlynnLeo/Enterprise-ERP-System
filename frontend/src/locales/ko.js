@@ -81,6 +81,38 @@ export default {
     userMenu: '사용자 메뉴'
   },
 
+  workspaceNavigation: {
+    navigation: '워크스페이스 탐색',
+    mainNavigation: '기본 탐색',
+    modules: '업무 모듈',
+    title: '데이터 워크스페이스',
+    close: '탐색 닫기',
+    itemCount: '{count}개',
+    filterPlaceholder: '현재 모듈 필터',
+    filterLabel: '현재 모듈의 메뉴 필터',
+    noMatches: '일치하는 기능이 없습니다',
+    noMenus: '사용 가능한 메뉴가 없습니다',
+    pageContent: '현재 페이지 내용',
+    loadFailed: '메뉴를 불러오지 못했습니다. 페이지를 새로고침하여 다시 시도하세요.'
+  },
+  navigationTabs: {
+    openPages: '열린 페이지',
+    pageTabs: '페이지 탭',
+    scrollLeft: '탭을 왼쪽으로 스크롤',
+    scrollRight: '탭을 오른쪽으로 스크롤',
+    closeTab: '{title} 닫기',
+    closeOthers: '다른 탭 닫기',
+    keepCurrentAndHome: '현재 페이지와 대시보드 유지'
+  },
+  navigationPages: {
+    receiptVoucher: '입금 전표',
+    paymentVoucher: '출금 전표',
+    transferVoucher: '이체 전표',
+    generalVoucher: '일반 분개 전표',
+    costVersions: '표준 원가 버전 관리',
+    costClosing: '원가 마감'
+  },
+
   // 네비게이션 메뉴
   menu: {
     dashboard: '대시보드',

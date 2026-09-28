@@ -115,6 +115,7 @@ describe('AQL sampling lookup', () => {
     '0',
     -1,
     '-1',
+    1.5,
     NaN,
     Infinity,
     'Infinity',
@@ -168,5 +169,55 @@ describe('AQL sampling lookup', () => {
     expect(res.json.mock.calls[0][0]).toEqual(
       expect.objectContaining({ success: false, errorCode: 'SERVER_ERROR' })
     );
+  });
+
+  test('rejects overlapping matches instead of choosing whichever row arrives first', async () => {
+    pool.query.mockResolvedValueOnce([
+      [{ ...samplingRule }, { ...samplingRule, aql_standard_id: 13, sample_size: 125 }],
+    ]);
+    const res = createResponse();
+    await AqlController.calculateSampling({ body: { batchSize: 4000, aqlLevel: 1 } }, res);
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json.mock.calls[0][0].errorCode).toBe('AQL_RULE_CONFLICT');
+  });
+
+  test('rejects a corrupt rule before it becomes a matched sampling plan', async () => {
+    pool.query.mockResolvedValueOnce([[{ ...samplingRule, accept_limit: 200, reject_limit: 201 }]]);
+    const res = createResponse();
+    await AqlController.calculateSampling({ body: { batchSize: 4000, aqlLevel: 1 } }, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  test('validates the stored sample size before capping it to a small batch', async () => {
+    pool.query.mockResolvedValueOnce([
+      [{ ...samplingRule, sample_size: 5.5, accept_limit: 0, reject_limit: 1 }],
+    ]);
+    const res = createResponse();
+    await AqlController.calculateSampling({ body: { batchSize: 1, aqlLevel: 2.5 } }, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  test('uses an explicit one-unit rule before the first GB/T range', async () => {
+    pool.query.mockResolvedValueOnce([
+      [{ ...samplingRule, sample_size: 1, accept_limit: 0, reject_limit: 1 }],
+    ]);
+    const result = await AqlService.calculate(1, 2.5);
+    expect(result.data.sample_size).toBe(1);
+    expect(pool.query).toHaveBeenCalledTimes(1);
+    expect(pool.query.mock.calls[0][1]).toEqual([2.5, 1, 1]);
+  });
+
+  test('uses the first GB/T range for a one-unit batch only when its own range is absent', async () => {
+    pool.query
+      .mockResolvedValueOnce([[]])
+      .mockResolvedValueOnce([
+        [{ ...samplingRule, sample_size: 5, accept_limit: 0, reject_limit: 1 }],
+      ]);
+    const result = await AqlService.calculate(1, 2.5);
+    expect(result.data.sample_size).toBe(1);
+    expect(pool.query.mock.calls.map(([, values]) => values)).toEqual([
+      [2.5, 1, 1],
+      [2.5, 2, 2],
+    ]);
   });
 });

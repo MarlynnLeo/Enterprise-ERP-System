@@ -12,12 +12,12 @@
 
     <AppDialog
       v-model="visible"
+      title="搜索菜单"
       mode="form"
       width="600px"
       :show-close="false"
       custom-class="search-dialog"
       @opened="onOpened"
-      @closed="onClosed"
     >
       <div class="search-input-wrapper">
         <el-input
@@ -26,10 +26,13 @@
           placeholder="搜索菜单..."
           size="large"
           clearable
-          @input="handleSearch"
-          @keydown.down.prevent="navigateOptions('next')"
-          @keydown.up.prevent="navigateOptions('prev')"
-          @keydown.enter.prevent="selectActive"
+          container-role="combobox"
+          aria-label="搜索菜单"
+          aria-autocomplete="list"
+          :aria-expanded="filteredOptions.length > 0"
+          :aria-controls="resultsId"
+          :aria-activedescendant="activeOptionId"
+          @keydown="handleInputKeydown"
         >
           <template #prefix>
             <el-icon class="search-icon"><Search /></el-icon>
@@ -37,14 +40,17 @@
         </el-input>
       </div>
 
-      <div v-if="keyword" class="search-results">
+      <div v-if="keyword.trim()" ref="resultsRef" class="search-results" :aria-busy="selecting">
         <div v-if="filteredOptions.length === 0" class="no-results">
           <EmptyState description="未找到相关菜单" :image-size="60" />
         </div>
-        <div v-else class="results-list">
+        <div :id="resultsId" class="results-list" role="listbox" aria-label="菜单搜索结果">
           <div
             v-for="(item, index) in filteredOptions"
             :key="item.path"
+            :id="`${resultsId}-${index}`"
+            role="option"
+            :aria-selected="activeIndex === index"
             class="result-item"
             :class="{ active: activeIndex === index }"
             @click="handleSelect(item)"
@@ -69,6 +75,7 @@
           </div>
         </div>
       </div>
+      <p v-if="searchError" class="search-error" role="alert">{{ searchError }}</p>
 
       <div class="search-footer">
         <div class="key-hint">
@@ -90,10 +97,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, watch, useId, onMounted, onUnmounted, nextTick } from 'vue'
+import { useRouter, isNavigationFailure, NavigationFailureType } from 'vue-router'
 import { usePermissionStore } from '../../stores/permissionStore'
 import { buildMenuSearchOptions } from '../../utils/menuSearch'
+import logger from '../../utils/logger'
 import {
   Search, Menu, ArrowRight, Right
 } from '@element-plus/icons-vue'
@@ -105,14 +113,19 @@ const visible = ref(false)
 const keyword = ref('')
 const activeIndex = ref(0)
 const inputRef = ref(null)
+const resultsRef = ref(null)
+const resultsId = `menu-search-${useId()}`
+const selecting = ref(false)
+const searchError = ref('')
+let navigationRevision = 0
 
 const menuOptions = computed(() =>
   buildMenuSearchOptions(permissionStore.preparedMenuTree)
 )
 
 const filteredOptions = computed(() => {
-  if (!keyword.value) return []
-  const k = keyword.value.toLowerCase()
+  const k = keyword.value.trim().toLowerCase()
+  if (!k) return []
   return menuOptions.value.filter(item =>
     item.title.toLowerCase().includes(k) ||
     item.path.toLowerCase().includes(k) ||
@@ -120,7 +133,27 @@ const filteredOptions = computed(() => {
   ).slice(0, 15)
 })
 
+const activeOptionId = computed(() => filteredOptions.value[activeIndex.value]
+  ? `${resultsId}-${activeIndex.value}`
+  : undefined)
+
+watch(filteredOptions, () => {
+  activeIndex.value = 0
+  searchError.value = ''
+}, { flush: 'sync' })
+
+watch(visible, (open) => {
+  navigationRevision++
+  selecting.value = false
+  searchError.value = ''
+  if (!open) keyword.value = ''
+}, { flush: 'sync' })
+
 const openSearch = () => {
+  if (visible.value) {
+    inputRef.value?.focus()
+    return
+  }
   visible.value = true
   keyword.value = ''
   activeIndex.value = 0
@@ -128,19 +161,11 @@ const openSearch = () => {
 
 const onOpened = () => {
   nextTick(() => {
-    inputRef.value?.focus()
+    if (visible.value) inputRef.value?.focus()
   })
 }
 
-const onClosed = () => {
-  keyword.value = ''
-}
-
-const handleSearch = () => {
-  activeIndex.value = 0
-}
-
-const navigateOptions = (direction) => {
+const navigateOptions = async (direction) => {
   if (filteredOptions.value.length === 0) return
 
   if (direction === 'next') {
@@ -149,25 +174,44 @@ const navigateOptions = (direction) => {
     activeIndex.value = (activeIndex.value - 1 + filteredOptions.value.length) % filteredOptions.value.length
   }
 
-  const el = document.querySelector('.result-item.active')
-  if (el) {
-    el.scrollIntoView({ block: 'nearest' })
-  }
+  await nextTick()
+  resultsRef.value?.querySelector('.result-item.active')?.scrollIntoView({ block: 'nearest' })
 }
 
-const selectActive = () => {
-  if (filteredOptions.value.length > 0) {
+const handleInputKeydown = (event) => {
+  // IME uses Enter and arrow keys to confirm or select composition candidates.
+  if (event.isComposing || event.keyCode === 229) return
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    event.preventDefault()
+    navigateOptions(event.key === 'ArrowDown' ? 'next' : 'prev')
+  } else if (event.key === 'Enter') {
+    event.preventDefault()
     handleSelect(filteredOptions.value[activeIndex.value])
   }
 }
 
-const handleSelect = (item) => {
-  visible.value = false
-  router.push(item.path)
+const handleSelect = async (item) => {
+  if (!item?.path || selecting.value) return
+  const revision = ++navigationRevision
+  selecting.value = true
+  searchError.value = ''
+  try {
+    const failure = await router.push(item.path)
+    if (revision !== navigationRevision) return
+    if (!failure || isNavigationFailure(failure, NavigationFailureType.duplicated)) {
+      visible.value = false
+    }
+  } catch (error) {
+    if (revision !== navigationRevision) return
+    logger.warn('菜单搜索导航失败:', error)
+    searchError.value = '无法打开菜单，请重试'
+  } finally {
+    if (revision === navigationRevision) selecting.value = false
+  }
 }
 
 const handleGlobalKeydown = (e) => {
-  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+  if (!e.isComposing && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
     e.preventDefault()
     openSearch()
   }
@@ -178,6 +222,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  navigationRevision++
   window.removeEventListener('keydown', handleGlobalKeydown)
 })
 </script>
@@ -213,43 +258,49 @@ onUnmounted(() => {
   font-size: 20px;
 }
 
-:deep(.search-dialog) {
+:global(.el-dialog.search-dialog) {
+  --app-dialog-content-min-height: 0px;
   border-radius: var(--theme-dialog-radius, var(--radius-lg));
   overflow: hidden;
   box-shadow: var(--theme-dialog-shadow, var(--shadow-lg));
+}
 
-  .el-dialog__header {
-    display: none;
-  }
+:global(.search-dialog .el-dialog__header) {
+  display: none;
+}
 
-  .el-dialog__body {
-    padding: 0;
-    max-height: 80vh;
-    display: flex;
-    flex-direction: column;
-  }
+:global(.search-dialog .el-dialog__body) {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  max-height: 80vh;
+}
+
+:global(.search-dialog .app-dialog-form-body) {
+  display: flex;
+  flex-direction: column;
 }
 
 .search-input-wrapper {
+  flex-shrink: 0;
   padding: 16px;
   border-bottom: 1px solid var(--color-border-lighter);
 }
 
-:deep(.el-input__wrapper) {
-  background-color: var(--color-bg-hover);
-  box-shadow: none !important;
-  border-radius: var(--shell-radius-md, var(--radius-md));
-
-  &.is-focus {
-    background-color: var(--color-bg-base);
-    box-shadow: var(--shell-focus-ring, 0 0 0 2px var(--shell-accent, var(--color-primary))) !important;
-  }
+:deep(.el-input) {
+  --el-input-bg-color: var(--color-bg-hover);
 }
 
 .search-results {
-  max-height: 400px;
+  min-height: 0;
+  max-height: min(400px, calc(70dvh - 136px));
   overflow-y: auto;
   padding: 8px;
+}
+
+.search-error {
+  margin: 8px 16px;
+  color: var(--color-danger, var(--el-color-danger));
 }
 
 .result-item {
@@ -298,16 +349,18 @@ onUnmounted(() => {
 }
 
 .item-title {
-  font-size: 15px;
+  font-size: var(--font-size-base, 14px);
   font-weight: 500;
   color: var(--color-text-primary);
   margin-bottom: 4px;
 }
 
 .item-path {
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   color: var(--color-text-secondary);
   display: flex;
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
   align-items: center;
 }
 
@@ -324,9 +377,11 @@ onUnmounted(() => {
 }
 
 .search-footer {
+  flex-shrink: 0;
   padding: 8px 16px;
   background-color: var(--color-bg-hover);
   display: flex;
+  flex-wrap: wrap;
   gap: 16px;
   border-top: 1px solid var(--color-border-lighter);
 }
@@ -334,7 +389,7 @@ onUnmounted(() => {
 .key-hint {
   display: flex;
   align-items: center;
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   color: var(--color-text-secondary);
   gap: 6px;
 }

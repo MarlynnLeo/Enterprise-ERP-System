@@ -73,6 +73,7 @@ const inspection = (overrides = {}) => ({
   isAql: true,
   aqlLevel: 1,
   aqlStandardId: 9,
+  sampleQuantity: null,
   acceptLimit: 3,
   rejectLimit: 4,
   items: [{ id: 1, itemName: '外观', standard: '无破损', method: '目视' }],
@@ -171,6 +172,7 @@ describe('incoming inspection AQL selection', () => {
     expect(qualityApi.calculateAqlSampling).toHaveBeenCalledTimes(1)
     expect(qualityApi.calculateAqlSampling).toHaveBeenCalledWith({ batchSize: 4000, aqlLevel: '1' })
     expect(form()).toMatchObject({ aql_standard_id: 24, acceptLimit: 5, rejectLimit: 6 })
+    expect(form().sampleQuantity).toBe(200)
     expect(wrapper.findComponent(Table).props('data')[0].measurements).toHaveLength(6)
     completeMeasurements()
     await submit()
@@ -236,6 +238,7 @@ describe('incoming inspection AQL selection', () => {
     const savedMeasurements = ['√', '×', '√']
     qualityApi.getIncomingInspection.mockResolvedValue({ data: inspection({
       aqlStandardId: standardId,
+      sampleQuantity: standardId ? 200 : null,
       items: [{ id: 1, itemName: '外观', standard: '无破损', measurements: savedMeasurements }],
     }) })
     await openInspection()
@@ -292,11 +295,113 @@ describe('incoming inspection AQL selection', () => {
     await flushPromises()
 
     expect(form()).toMatchObject({ is_aql: false, aql_standard_id: null })
+    expect(form().sampleQuantity).toBeNull()
     expect(wrapper.findAllComponents(Alert).filter(alert => alert.props('type') === 'warning')).toHaveLength(0)
     completeMeasurements()
     await submit()
     expect(qualityApi.updateIncomingInspection).toHaveBeenCalledWith(7, expect.objectContaining({
       is_aql: false, aql_standard_id: null,
     }))
+  })
+
+  test('shows the matched sample count separately from the 1000-piece lot and six input columns', async () => {
+    qualityApi.getIncomingInspection.mockResolvedValue({ data: inspection({ quantity: 1000, sampleQuantity: null }) })
+    qualityApi.calculateAqlSampling.mockResolvedValue(matched({ aqlStandardId: 22, sampleSize: 80, acceptLimit: 2, rejectLimit: 3 }))
+    await openInspection()
+
+    expect(form().quantity).toBe(1000)
+    expect(form().sampleQuantity).toBe(80)
+    expect(wrapper.get('[data-label="抽样数量"]').text()).toBe('80')
+    expect(wrapper.findComponent(Table).props('data')[0].measurements).toHaveLength(6)
+  })
+
+  test('keeps the saved sample and limits when a rule was changed after the inspection was created', async () => {
+    qualityApi.getIncomingInspection.mockResolvedValue({ data: inspection({ quantity: 1000, sampleQuantity: 80, aqlStandardId: 22, acceptLimit: 2, rejectLimit: 3 }) })
+    qualityApi.calculateAqlSampling.mockResolvedValue(matched({ aqlStandardId: 22, sampleSize: 125 }))
+    await openInspection()
+    expect(qualityApi.calculateAqlSampling).not.toHaveBeenCalled()
+    expect(form()).toMatchObject({ sampleQuantity: 80, acceptLimit: 2, rejectLimit: 3 })
+  })
+
+  test('rejects a standard identifier used as numeric AQL before making the request', async () => {
+    qualityApi.getIncomingInspection.mockResolvedValue({ data: inspection({ aqlLevel: 'GB/T 2828.1 II' }) })
+    await openInspection()
+    expect(qualityApi.calculateAqlSampling).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('请选择实际 AQL')
+    expect(submitButton().find('button').element.disabled).toBe(true)
+  })
+
+  test('does not accept a sample count larger than the lot', async () => {
+    qualityApi.getIncomingInspection.mockResolvedValue({ data: inspection({ quantity: 1000 }) })
+    qualityApi.calculateAqlSampling.mockResolvedValue(matched({ sampleSize: 1001 }))
+    await openInspection()
+    expect(form().aql_standard_id).toBeNull()
+    expect(form().sampleQuantity).toBeNull()
+  })
+
+  test('explicitly turns off full inspection when switching to AQL', async () => {
+    qualityApi.getIncomingInspection.mockResolvedValue({ data: inspection({ isAql: false, isFullInspection: true, sampleQuantity: 4000 }) })
+    await openInspection()
+    await wrapper.findComponent(Switch).get('input').setValue(true)
+    await flushPromises()
+    completeMeasurements()
+    await submit()
+    expect(qualityApi.updateIncomingInspection).toHaveBeenCalledWith(7, expect.objectContaining({ is_aql: true, isFullInspection: false }))
+  })
+
+  test('keeps a saved sampling snapshot when a missing item list is populated from a changed template', async () => {
+    qualityApi.getIncomingInspection.mockResolvedValue({ data: inspection({
+      materialId: 5, specs: '规格', sampleQuantity: 80, acceptLimit: 2, rejectLimit: 3, items: [],
+    }) })
+    qualityApi.getTemplates.mockResolvedValue({ data: [{
+      id: 15, templateName: '物料检验模板', isAql: false,
+      items: [{ itemName: '外观', standard: '无破损' }],
+    }] })
+    await openInspection()
+    expect(form()).toMatchObject({ is_aql: true, aql_standard_id: 9, sampleQuantity: 80, acceptLimit: 2, rejectLimit: 3 })
+    expect(form().items).toHaveLength(1)
+    expect(qualityApi.calculateAqlSampling).not.toHaveBeenCalled()
+  })
+
+  test('does not reuse another material template when reopening an inspection with no templates', async () => {
+    qualityApi.getIncomingInspection.mockResolvedValue({ data: inspection({ materialId: 5, specs: '规格', isAql: false, items: [] }) })
+    qualityApi.getTemplates.mockResolvedValueOnce({ data: [{
+      id: 15, templateName: '第一物料模板', items: [{ itemName: '外观', standard: '无破损' }],
+    }] }).mockResolvedValueOnce({ data: [] })
+    await openInspection()
+    expect(form().items).toHaveLength(1)
+    await wrapper.setProps({ visible: false })
+    await wrapper.setProps({ visible: true, row: { id: 8 } })
+    await flushPromises()
+    expect(form().items).toEqual([])
+    expect(message.warning).toHaveBeenCalledWith('当前物料未匹配检验模板，请先维护检验模板')
+    expect(console.error).not.toHaveBeenCalled()
+  })
+
+  test('ignores a previous inspection response after opening another record', async () => {
+    const previous = deferred()
+    qualityApi.getIncomingInspection.mockReturnValueOnce(previous.promise)
+      .mockResolvedValueOnce({ data: inspection({ id: 8, inspectionNo: 'QC-008', sampleQuantity: 80 }) })
+    await openInspection()
+    expect(submitButton().find('button').element.disabled).toBe(true)
+    await wrapper.setProps({ row: { id: 8 } })
+    await flushPromises()
+    expect(form().id).toBe(8)
+    previous.resolve({ data: inspection({ id: 7, sampleQuantity: 200 }) })
+    await flushPromises()
+    expect(form().id).toBe(8)
+    expect(form().sampleQuantity).toBe(80)
+  })
+
+  test('does not turn a failing recorded measurement into a pass using the entire AQL sample allowance', async () => {
+    qualityApi.getIncomingInspection.mockResolvedValue({ data: inspection({
+      sampleQuantity: 80, acceptLimit: 2, rejectLimit: 3,
+      items: [{ itemName: '尺寸', standard: '10±1mm', measurements: [8, 10, 10, 10, 10, 10] }],
+    }) })
+    await openInspection()
+    const item = form().items[0]
+    wrapper.vm.checkNumericStandard(item)
+    expect(item.result).toBe('failed')
+    expect(item.isQualified).toBe(false)
   })
 })

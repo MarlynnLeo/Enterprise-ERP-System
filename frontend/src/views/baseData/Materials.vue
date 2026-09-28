@@ -161,6 +161,7 @@
 </template>
 
 <script setup>
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { getApiErrorMessage } from '@/utils/errorHandler'
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted, computed } from 'vue';
@@ -201,7 +202,7 @@ const loading = ref(false);
 const tableData = ref([]);
 const total = ref(0);
 const currentPage = ref(1);
-const pageSize = ref(10);
+const pageSize = ref(getThemeDefaultPageSize(10));
 const dialogVisible = ref(false);
 const viewDialogVisible = ref(false);
 const locateDialogVisible = ref(false);

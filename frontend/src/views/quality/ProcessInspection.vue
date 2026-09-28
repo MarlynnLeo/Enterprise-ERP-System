@@ -147,7 +147,7 @@
         <el-pagination
           v-model:current-page="pagination.currentPage"
           v-model:page-size="pagination.pageSize"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :small="false"
           :disabled="false"
           :background="true"
@@ -301,6 +301,8 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, onMounted, defineAsyncComponent, computed } from 'vue'
 import { Plus, Setting } from '@element-plus/icons-vue'
@@ -347,7 +349,7 @@ const {
 // 分页对象
 const pagination = reactive({
   currentPage: 1,
-  pageSize: 10,
+  pageSize: getThemeDefaultPageSize(10),
   total: 0
 })
 
@@ -586,7 +588,6 @@ const handleRefresh = () => {
   statusFilter.value = ''
   dateRange.value = []
   pagination.currentPage = 1
-  pagination.pageSize = 10
   fetchData()
 }
 

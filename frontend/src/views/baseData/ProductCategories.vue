@@ -144,7 +144,7 @@
         <el-pagination
           v-model:current-page="categoryPagination.current"
           v-model:page-size="categoryPagination.size"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :small="false"
           :disabled="false"
           :background="true"
@@ -206,7 +206,7 @@
             v-model:current-page="sourcePagination.current"
             v-model:page-size="sourcePagination.size"
             :total="sourcePagination.total"
-            :page-sizes="[10, 20, 50, 100]"
+            :page-sizes="PAGE_SIZE_OPTIONS"
             @size-change="handleSourceSizeChange"
             @current-change="handleSourcePageChange"
           />
@@ -256,7 +256,7 @@
             v-model:current-page="inspectionPagination.current"
             v-model:page-size="inspectionPagination.size"
             :total="inspectionPagination.total"
-            :page-sizes="[10, 20, 50, 100]"
+            :page-sizes="PAGE_SIZE_OPTIONS"
             @size-change="handleInspectionSizeChange"
             @current-change="handleInspectionPageChange"
           />
@@ -431,6 +431,7 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { getApiErrorMessage } from '@/utils/errorHandler'
 import { parsePaginatedData } from '@/utils/responseParser';
 import { ref, reactive, onMounted, watch, computed } from 'vue'

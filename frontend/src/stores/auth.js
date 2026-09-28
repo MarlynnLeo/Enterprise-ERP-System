@@ -17,6 +17,7 @@ import { userApi } from '@/api/user'
 import { tokenManager, permissionManager } from '../utils/unifiedStorage'
 import { clearAllRequestCaches, setRequestCacheUserId } from '@/utils/requestOptimizer'
 import { resetCsrfToken } from '@/services/axiosInstance'
+import { useThemeStore } from '@/stores/theme'
 
 /**
  * 用户信息对象
@@ -156,6 +157,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const clearClientSession = () => {
+    useThemeStore().resetForSession()
     authGeneration++
     profileGeneration++
     permissionsGeneration++
@@ -170,7 +172,6 @@ export const useAuthStore = defineStore('auth', () => {
     permissionsLoading.value = false
     sessionProbed.value = false
     permissionManager.clearUserPermissions()
-    localStorage.removeItem('theme_settings')
     tokenManager.clearAll()
     setRequestCacheUserId(null)
     clearAllRequestCaches()
@@ -278,6 +279,9 @@ export const useAuthStore = defineStore('auth', () => {
         const response = await userApi.getProfileFast({ skipAuthRedirect })
         if (!isCurrent()) return false
         if (!response.data?.id) throw new Error('用户资料数据格式不正确')
+        if (user.value?.id && String(user.value.id) !== String(response.data.id)) {
+          useThemeStore().resetForSession()
+        }
         user.value = normalizeUserData(response.data)
         tokenManager.setUser(user.value)
         if (user.value?.id) {

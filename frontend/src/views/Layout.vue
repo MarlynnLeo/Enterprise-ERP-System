@@ -7,10 +7,41 @@
  */
 -->
 <template>
-  <el-container class="layout-container app-shell">
+  <el-container class="layout-container app-shell" :class="{ 'workspace-layout': isWorkspace }">
+    <ElFocusTrap
+      :trapped="mobileNavigationOpen"
+      :loop="mobileNavigationOpen"
+      :focus-trap-el="sidebarElement"
+      @release-requested="closeSidebar"
+      @focus-after-released="restoreSidebarFocus"
+    >
+    <WorkspaceNavigation
+      v-if="isWorkspace"
+      id="app-navigation"
+      ref="sidebar"
+      :collapsed="sidebarCollapsed"
+      :mobile="isMobile"
+      :role="mobileNavigationOpen ? 'dialog' : undefined"
+      :aria-modal="mobileNavigationOpen ? 'true' : undefined"
+      :inert="isMobile && sidebarCollapsed ? '' : undefined"
+      :aria-hidden="isMobile && sidebarCollapsed ? 'true' : undefined"
+      tabindex="-1"
+      @expand="expandSidebar"
+      @close="closeSidebar"
+      @navigate="navigateToMenu"
+    />
     <!-- 侧边栏 -->
     <el-aside
+      v-else
+      id="app-navigation"
+      ref="sidebar"
       width="220px"
+      :role="mobileNavigationOpen ? 'dialog' : undefined"
+      :aria-label="t('workspaceNavigation.mainNavigation')"
+      :aria-modal="mobileNavigationOpen ? 'true' : undefined"
+      :inert="isMobile && sidebarCollapsed ? '' : undefined"
+      :aria-hidden="isMobile && sidebarCollapsed ? 'true' : undefined"
+      tabindex="-1"
       class="sidebar app-sidebar"
       :class="{
         collapsed: sidebarCollapsed,
@@ -25,7 +56,7 @@
       <nav
         class="sidebar-menu app-menu"
         :class="{ 'is-mini-menu': isSidebarMenuCollapsed }"
-        aria-label="主导航"
+        :aria-label="t('workspaceNavigation.mainNavigation')"
       >
         <sidebar-menu
           v-if="dynamicMenuTree.length > 0"
@@ -38,39 +69,44 @@
         />
       </nav>
     </el-aside>
+    </ElFocusTrap>
     <div
       v-if="isMobile && !sidebarCollapsed"
       class="sidebar-backdrop"
-      @click="sidebarCollapsed = true"
+      aria-hidden="true"
+      @click="closeSidebar"
     ></div>
     <!-- 主内容区 -->
-    <el-container class="main-container">
+    <el-container class="main-container" :inert="mobileNavigationOpen ? '' : undefined">
       <!-- 头部导航 -->
       <el-header class="header app-header">
         <div class="header-left">
           <button
             type="button"
+            ref="sidebarToggle"
             class="icon-button toggle-sidebar"
-            title="展开/收起侧边栏"
-            aria-label="展开或收起侧边栏"
+            :title="t('common.expandCollapseSidebar')"
+            :aria-label="t('common.expandCollapseSidebar')"
             :aria-expanded="!sidebarCollapsed"
+            aria-controls="app-navigation"
             @click="toggleSidebar"
           >
             <el-icon>
               <icon-menu />
             </el-icon>
           </button>
-          <breadcrumb />
+          <NavigationTabs ref="navigationTabs" v-show="isWorkspace" />
+          <breadcrumb v-if="!isWorkspace" />
         </div>
         <div class="header-right">
           <!-- 菜单搜索 -->
           <MenuSearch />
           <!-- 主题选择器 -->
-          <div class="icon-button-wrapper" aria-label="主题设置">
+          <div class="icon-button-wrapper" :aria-label="t('common.themeSettings')">
             <ThemeSelector />
           </div>
           <!-- 通知中心 -->
-          <div class="icon-button-wrapper" aria-label="通知中心" title="通知中心" role="button" tabindex="0">
+          <div class="icon-button-wrapper" :aria-label="t('common.notificationCenter')" :title="t('common.notificationCenter')">
             <NotificationCenter />
           </div>
           <el-dropdown trigger="click" :persistent="false">
@@ -79,7 +115,7 @@
                 :frame="activeAvatarFrame"
                 :avatar="userAvatar"
                 :name="userName"
-                :size="44"
+                :size="isWorkspace || isMobile ? 30 : 44"
                 class="header-avatar-frame"
                 @avatar-error="handleAvatarError"
               />
@@ -132,30 +168,36 @@
       </el-header>
 
       <!-- 内容区 -->
-      <LayoutContent />
+      <LayoutContent :tabbed="isWorkspace" />
     </el-container>
   </el-container>
 </template>
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../stores/auth'
 import { useLanguageStore } from '../stores/language'
+import { useThemeStore } from '../stores/theme'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { ElMessage } from 'element-plus/es/components/message/index'
-import Breadcrumb from '../components/layout/Breadcrumb.vue'
+import ElFocusTrap from 'element-plus/es/components/focus-trap/index'
 import ThemeSelector from '../components/common/ThemeSelector.vue'
 import NotificationCenter from '../components/NotificationCenter.vue'
 import MenuSearch from '../components/common/MenuSearch.vue'
 import SidebarMenu from '../components/layout/SidebarMenu.vue'
+import Breadcrumb from '../components/layout/Breadcrumb.vue'
 import LayoutContent from '../components/layout/LayoutContent.vue'
+import WorkspaceNavigation from '../components/layout/WorkspaceNavigation.vue'
+import NavigationTabs from '../components/layout/NavigationTabs.vue'
 import DecorativeAvatarFrame from './auth/components/DecorativeAvatarFrame.vue'
 import { usePermissionStore } from '../stores/permissionStore'
 import { userApi } from '../api/user'
+import { useWorkspaceMenus } from '../composables/useWorkspaceMenus'
 import { resolveMenuNavigationState } from '../utils/menuTree'
 import { DEFAULT_AVATAR_FRAME, getAvatarFrameConfig } from '../utils/avatarFrames'
 import './layout.css'
+import './workspace-layout.css'
 // 图标组件
 import {
   Menu as IconMenu,
@@ -172,28 +214,44 @@ const { t, locale } = useI18n()
 const authStore = useAuthStore()
 const languageStore = useLanguageStore()
 const permissionStore = usePermissionStore()
+const themeStore = useThemeStore()
+const isWorkspace = computed(() => themeStore.appearance.preset === 'workspace')
 const isMobile = ref(window.innerWidth <= 768)
 const sidebarCollapsed = ref(isMobile.value)
+const sidebar = ref(null)
+const sidebarToggle = ref(null)
+const navigationTabs = ref(null)
+const sidebarElement = computed(() => sidebar.value?.$el || sidebar.value)
+const mobileNavigationOpen = computed(() => isMobile.value && !sidebarCollapsed.value)
+const closeSidebar = () => { sidebarCollapsed.value = true }
+const restoreSidebarFocus = async (event) => {
+  event.preventDefault()
+  await nextTick()
+  if (isMobile.value && sidebarToggle.value?.isConnected) sidebarToggle.value.focus()
+}
+watch(isWorkspace, async () => {
+  const focusedElement = document.activeElement
+  const navigationHadFocus = sidebarElement.value?.contains(focusedElement)
+    || navigationTabs.value?.$el?.contains(focusedElement)
+  if (mobileNavigationOpen.value) closeSidebar()
+  await nextTick()
+  if (navigationHadFocus && (document.activeElement === document.body || document.activeElement === focusedElement)) {
+    sidebarToggle.value?.focus()
+  }
+})
 // 动态菜单树
 const dynamicMenuTree = computed(() => permissionStore.preparedMenuTree)
-// 加载动态菜单（使用新的用户菜单API，返回已过滤的树形结构）
-const loadDynamicMenus = async () => {
-  try {
-    const response = await userApi.getUserMenus()
-    if (response.data && Array.isArray(response.data)) {
-      // API直接返回树形结构，无需转换
-      permissionStore.setMenuTree(response.data)
-    } else {
-      permissionStore.setMenuTree([])
-    }
-  } catch (error) {
+useWorkspaceMenus({
+  auth: authStore,
+  permissionStore,
+  loadMenus: async () => (await userApi.getUserMenus()).data,
+  onError: (error) => {
     console.error('加载菜单失败:', error)
-    permissionStore.setMenuTree([])
-    ElMessage.error('菜单加载失败，请刷新后重试')
+    ElMessage.error(t('workspaceNavigation.loadFailed'))
   }
-}
+})
 const menuNavigationState = computed(() =>
-  resolveMenuNavigationState(dynamicMenuTree.value, route.path)
+  resolveMenuNavigationState(dynamicMenuTree.value, route.fullPath)
 )
 // 当前激活的菜单项
 const activeMenu = computed(() => {
@@ -204,9 +262,14 @@ const defaultOpeneds = computed(() => {
   return menuNavigationState.value.openeds || []
 })
 const isSidebarMenuCollapsed = computed(() => !isMobile.value && sidebarCollapsed.value)
-const navigateToMenu = (path) => {
-  if (path && path !== route.path) router.push(path).catch(() => {})
-  if (isMobile.value) sidebarCollapsed.value = true
+const navigateToMenu = async (path) => {
+  if (!path) return
+  try {
+    const failure = path !== route.fullPath ? await router.push(path) : undefined
+    if (!failure && isMobile.value) closeSidebar()
+  } catch {
+    // Router error handling reports failed imports; keep the menu available for another choice.
+  }
 }
 
 // 用户信息
@@ -268,14 +331,9 @@ const handleLogout = () => {
     ElMessage.success(t('message.logoutSuccess'))
   }).catch(() => {})
 }
-// 路由变化时只补展开当前路径的父菜单，避免重建菜单导致滚动位置丢失。
-// 确保在组件挂载时加载用户信息和权限
-onMounted(async () => {
+onMounted(() => {
   syncMobileLayout()
   window.addEventListener('resize', syncMobileLayout, { passive: true })
-
-  // 权限与用户信息已由路由守卫统一预加载，此处仅按需挂载动态菜单
-  await loadDynamicMenus()
 })
 onBeforeUnmount(() => {
   window.removeEventListener('resize', syncMobileLayout)

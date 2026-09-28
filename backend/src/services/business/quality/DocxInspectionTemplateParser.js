@@ -8,6 +8,7 @@ const zlib = require('zlib');
 const fs = require('fs');
 const path = require('path');
 const { logger } = require('../../../utils/logger');
+const { isValidAqlLevel } = require('../../../utils/quality/aqlValidation');
 
 class DocxInspectionTemplateParser {
   /**
@@ -145,18 +146,28 @@ class DocxInspectionTemplateParser {
       }
 
       // 抽样方案 / AQL
-      if (
-        rowText.includes('抽样方案') ||
-        rowText.includes('AQL') ||
-        rowText.includes('GB/T 2828')
-      ) {
-        meta.samplingPlan = rowText.replace(/^.*抽样方案[：:]\s*/, '').trim();
+      if (rowText.includes('抽样方案') || /AQL/i.test(rowText) || rowText.includes('GB/T 2828')) {
+        const planLine = rowText.replace(/^.*抽样方案[：:]\s*/, '').trim();
+        meta.samplingPlan = [meta.samplingPlan, planLine].filter(Boolean).join('；');
         meta.isAql = true;
-        if (meta.samplingPlan.includes('GB/T 2828')) {
-          meta.aqlLevel = 'GB/T 2828.1 II';
-        } else {
-          meta.aqlLevel = 'II';
-        }
+        const levels = [
+          ...new Set(
+            Array.from(
+              meta.samplingPlan.matchAll(/AQL\s*(?:[=＝:：]\s*)?(-?\d+(?:\.\d+)?)(?![\d.])/gi),
+              (match) => Number(match[1])
+            )
+          ),
+        ];
+        // A standard identifier or inspection level is not an AQL percentage.
+        // Keep multi-category plans intact in the description for explicit configuration.
+        const validSingleLevel = levels.length === 1 && isValidAqlLevel(levels[0]);
+        meta.aqlLevel = validSingleLevel ? String(levels[0]) : null;
+        meta.samplingWarning =
+          levels.length > 1
+            ? '文档包含多个 AQL，已保留完整方案；请按缺陷类别配置，不能自动合并为单一 AQL。'
+            : !validSingleLevel
+              ? '文档未给出数值 AQL，请配置后再启用抽样规则。'
+              : '';
       }
 
       // 识别检验项目表头行
@@ -385,7 +396,8 @@ class DocxInspectionTemplateParser {
       spec: meta.spec,
       partName: meta.partName,
       isAql: meta.isAql,
-      aqlLevel: meta.aqlLevel || 'GB/T 2828.1 II',
+      aqlLevel: meta.aqlLevel || null,
+      samplingWarning: meta.samplingWarning || '',
       priority: 100,
       items,
     };

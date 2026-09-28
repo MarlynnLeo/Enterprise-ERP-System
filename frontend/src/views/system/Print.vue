@@ -110,7 +110,7 @@
         <el-pagination
           v-model:current-page="templatesQuery.page"
           v-model:page-size="templatesQuery.limit"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :small="false"
           :disabled="false"
           :background="true"
@@ -355,6 +355,7 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'

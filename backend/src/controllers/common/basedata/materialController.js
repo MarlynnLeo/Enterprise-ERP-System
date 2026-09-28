@@ -44,6 +44,7 @@ const buildMaterialExportRows = (items = []) =>
       code: item.code || '',
       name: item.name || '',
       specs: item.specs ?? item.specification ?? '',
+      drawing_no: item.drawing_no ?? item.drawingNo ?? item.drawing_code ?? item.drawingCode ?? '',
       material: item.material ?? item.materialName ?? '',
       category_name: item.category_name ?? item.categoryName ?? '',
       unit_name: item.unit_name ?? item.unitName ?? item.unit ?? '',
@@ -52,6 +53,13 @@ const buildMaterialExportRows = (items = []) =>
         item.materialSourceName ??
         MATERIAL_SOURCE_LABELS[sourceType] ??
         sourceType ??
+        '',
+      location_name:
+        item.location_name ??
+        item.locationName ??
+        item.location_detail ??
+        item.locationDetail ??
+        item.location ??
         '',
       safety_stock: item.safety_stock ?? item.safetyStock ?? 0,
       min_stock: item.min_stock ?? item.minStock ?? 0,
@@ -858,10 +866,12 @@ const materialController = {
         { header: '物料编码', key: 'code', width: 20 },
         { header: '物料名称', key: 'name', width: 25 },
         { header: '规格型号', key: 'specs', width: 20 },
+        { header: '物料号', key: 'drawing_no', width: 20 },
         { header: '材料', key: 'material', width: 20 },
         { header: '分类', key: 'category_name', width: 15 },
         { header: '单位', key: 'unit_name', width: 10 },
         { header: '物料来源', key: 'source_type', width: 15 },
+        { header: '库位', key: 'location_name', width: 15 },
         { header: '安全库存', key: 'safety_stock', width: 12 },
         { header: '最小库存', key: 'min_stock', width: 12 },
         { header: '最大库存', key: 'max_stock', width: 12 },

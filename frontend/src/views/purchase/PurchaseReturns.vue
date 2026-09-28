@@ -171,7 +171,7 @@
         <el-pagination
           v-model:current-page="pagination.current"
           v-model:page-size="pagination.size"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :background="true"
           layout="total, sizes, prev, pager, next, jumper"
           :total="pagination.total"
@@ -390,6 +390,7 @@
   </div>
 </template>
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
 import { buildPurchaseReturnItems, purchaseReturnLineAmount, purchaseReturnTotal } from '@/utils/purchaseReturns';

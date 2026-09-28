@@ -136,6 +136,12 @@
   --shell-sidebar-accent: var(--color-primary);
   --shell-sidebar-indicator-width: 0px;
   --shell-header-bg: rgba(5, 5, 5, 0.96);
+  --erp-table-fixed-cell-bg: var(--color-bg-base);
+  --erp-table-fixed-header-bg: var(--color-bg-section);
+  --erp-table-fixed-current-bg: var(--color-bg-section);
+  --erp-table-fixed-striped-bg: var(--color-bg-section);
+  --erp-table-fixed-border-color: rgba(255, 255, 255, 0.08);
+  --erp-table-fixed-hover-bg: color-mix(in srgb, white 4.5%, var(--color-bg-base));
 }
 
 [data-theme="premium"] body,
@@ -273,7 +279,6 @@
 
 /* 表格：密度 → theme-components；杂志风表头/hover 用 token 覆盖 */
 :root[data-theme="premium"] {
-  --erp-table-fixed-header-bg: transparent;
   --theme-dialog-radius: 8px;
 }
 
@@ -282,17 +287,11 @@
   font-size: 12px !important;
   font-weight: 900 !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
-  background: transparent !important;
-  background-color: transparent !important;
 }
 
 [data-theme="premium"] .el-table td.el-table__cell {
   border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
   color: var(--color-text-regular) !important;
-}
-
-[data-theme="premium"] .el-table__body tr:hover > td.el-table__cell {
-  background: rgba(255, 255, 255, 0.045) !important;
 }
 
 /* 输入表面：半透明深色（共享壳默认 bg-base，此处覆盖） */
@@ -312,24 +311,6 @@
 [data-theme="premium"] .el-tag {
   border-radius: 999px !important;
   font-weight: 800 !important;
-  border-color: rgba(255, 255, 255, 0.1) !important;
-  background: rgba(255, 255, 255, 0.055) !important;
-  color: #d4d4d8 !important;
-}
-
-[data-theme="premium"] .el-tag--success {
-  color: #86efac !important;
-  background: rgba(34, 197, 94, 0.13) !important;
-}
-
-[data-theme="premium"] .el-tag--warning {
-  color: #fbbf24 !important;
-  background: rgba(217, 119, 6, 0.15) !important;
-}
-
-[data-theme="premium"] .el-tag--danger {
-  color: #fca5a5 !important;
-  background: rgba(239, 68, 68, 0.13) !important;
 }
 
 /* 弹层表面（杂志风深色，非共享壳默认） */
@@ -487,12 +468,6 @@
 /* Badge */
 [data-theme="premium"] .el-badge__content--primary {
   background-color: var(--color-primary) !important;
-  color: var(--color-on-primary) !important;
-}
-
-/* Message box / Popconfirm confirm button */
-[data-theme="premium"] .el-message-box__btns .el-button--primary,
-[data-theme="premium"] .el-popconfirm__action .el-button--primary {
   color: var(--color-on-primary) !important;
 }
 

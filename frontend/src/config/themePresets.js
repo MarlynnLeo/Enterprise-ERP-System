@@ -74,6 +74,15 @@ export const THEME_PRESET_LIST = Object.freeze([
     primaryColor: '#15803D',
     mode: 'light',
     icon: 'OfficeBuilding'
+  },
+  {
+    id: 'workspace',
+    name: '经典主题',
+    description: '清晰紧凑的表格布局，适合日常业务操作',
+    primaryColor: '#4263EB',
+    mode: 'light',
+    icon: 'Briefcase',
+    defaultPageSize: 25
   }
 ])
 
@@ -88,16 +97,18 @@ export const DEFAULT_THEME_SETTINGS = Object.freeze({
   fontSize: DEFAULT_FONT_SIZE
 })
 
-export const isThemePreset = (presetId) => Object.hasOwn(THEME_PRESETS, presetId)
+export const isThemePreset = (presetId) => typeof presetId === 'string' && Object.hasOwn(THEME_PRESETS, presetId)
 
 export const getThemePreset = (presetId) => {
-  return THEME_PRESETS[presetId] || THEME_PRESETS[DEFAULT_THEME_PRESET_ID]
+  return THEME_PRESETS[isThemePreset(presetId) ? presetId : DEFAULT_THEME_PRESET_ID]
 }
 
 export const normalizePrimaryColor = (value, fallback = THEME_PRESETS[DEFAULT_THEME_PRESET_ID].primaryColor) => {
-  return typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value)
-    ? value.toUpperCase()
-    : fallback
+  if (typeof value !== 'string' || !/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value)) return fallback
+  const color = value.toUpperCase()
+  return color.length === 4
+    ? `#${[...color.slice(1)].map((channel) => channel.repeat(2)).join('')}`
+    : color
 }
 
 const parseHexColor = (value) => {
@@ -132,6 +143,7 @@ export const getAccessibleTextColor = (backgroundColor) => {
 }
 
 const normalizeFontSize = (value) => {
+  if (!['number', 'string'].includes(typeof value) || String(value).trim() === '') return DEFAULT_FONT_SIZE
   const fontSize = Number(value)
   if (!Number.isFinite(fontSize)) {
     return DEFAULT_FONT_SIZE
@@ -141,7 +153,7 @@ const normalizeFontSize = (value) => {
 }
 
 export const normalizeThemeAppearance = (appearance = {}) => {
-  const source = appearance && typeof appearance === 'object' ? appearance : {}
+  const source = appearance && typeof appearance === 'object' && !Array.isArray(appearance) ? appearance : {}
   const preset = getThemePreset(source.preset)
   let primaryColor = normalizePrimaryColor(source.primaryColor, preset.primaryColor)
 

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="module-page standard-cost-container">
     <!-- 页面标题 -->
     <PageHeader title="标准成本" subtitle="设置和查询产品标准成本">
@@ -79,7 +79,7 @@
         <el-pagination
           v-model:current-page="pagination.page"
           v-model:page-size="pagination.pageSize"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :total="pagination.total"
           layout="total, sizes, prev, pager, next, jumper"
           @size-change="loadStandardCosts"
@@ -281,6 +281,8 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
@@ -313,7 +315,7 @@ const calculateForm = reactive({
 // 分页
 const pagination = reactive({
   page: 1,
-  pageSize: 20,
+  pageSize: getThemeDefaultPageSize(20),
   total: 0
 });
 

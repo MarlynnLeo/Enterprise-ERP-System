@@ -9,6 +9,10 @@
 
 const isFlagEnabled = (value) => value === undefined || value === null || Number(value) !== 0
 
+// Vue Router's non-strict routes accept an optional trailing slash. Use one
+// page identity for both spellings while retaining fullPath for navigation.
+export const normalizeRoutePath = (path) => path.replace(/\/+$/, '') || '/'
+
 export const isMenuDisplayable = (menu) => {
   return Boolean(menu) && menu.path !== '/production/process-routes' && Number(menu.type) !== 2 && isFlagEnabled(menu.visible) && isFlagEnabled(menu.status)
 }
@@ -43,14 +47,14 @@ export const prepareMenuTree = (nodes) => {
     return index
   }
 
-  const prepare = (items, parentIndex = '', parentPath = '') => {
+  const prepare = (items, parentIndex = '') => {
     const result = []
     for (const [position, item] of items.entries()) {
       if (!item || typeof item !== 'object') continue
 
       const normalizedPath = item.path || ''
       const children = Array.isArray(item.children)
-        ? prepare(item.children, item.menuIndex || parentIndex, normalizedPath || parentPath)
+        ? prepare(item.children, item.menuIndex || parentIndex)
         : []
       const prepared = {
         ...item,
@@ -71,9 +75,45 @@ export const prepareMenuTree = (nodes) => {
   return prepare(nodes)
 }
 
+const splitRouteLocation = (fullPath) => {
+  const hashIndex = fullPath.indexOf('#')
+  const withoutHash = hashIndex < 0 ? fullPath : fullPath.slice(0, hashIndex)
+  const queryIndex = withoutHash.indexOf('?')
+  return {
+    path: normalizeRoutePath(queryIndex < 0 ? withoutHash : withoutHash.slice(0, queryIndex)),
+    query: new URLSearchParams(queryIndex < 0 ? '' : withoutHash.slice(queryIndex + 1)),
+    hash: hashIndex < 0 ? '' : fullPath.slice(hashIndex)
+  }
+}
+
+const routeMatchScore = (menuPath, currentPath) => {
+  if (!menuPath || !currentPath) return -1
+  const menu = splitRouteLocation(menuPath)
+  const current = splitRouteLocation(currentPath)
+  const pathMatches = current.path === menu.path || (
+    menu.path !== '/' && current.path.startsWith(`${menu.path}/`)
+  )
+  if (!pathMatches || (menu.hash && menu.hash !== current.hash)) return -1
+
+  // A menu may select a page section while the route also carries filters.
+  // Match the required query pairs independently of order, including repeated
+  // values, rather than comparing the entire query string.
+  const remainingQuery = [...current.query]
+  let specificity = menu.hash ? 1 : 0
+  for (const [key, value] of menu.query) {
+    const index = remainingQuery.findIndex(([currentKey, currentValue]) => currentKey === key && currentValue === value)
+    if (index < 0) return -1
+    remainingQuery.splice(index, 1)
+    specificity++
+  }
+  // A deeper pathname always wins. At the same pathname, more explicit query
+  // or hash conditions win without letting a long query outweigh a child page.
+  return menu.path.length + specificity / (specificity + 1)
+}
+
 export const isRouteMatch = (menuPath, currentPath) => {
-  if (!menuPath || menuPath === '/') return currentPath === menuPath
-  return currentPath === menuPath || currentPath.startsWith(`${menuPath}/`)
+  if (!menuPath) return currentPath === menuPath
+  return routeMatchScore(menuPath, currentPath) >= 0
 }
 
 /**
@@ -87,8 +127,8 @@ export const resolveMenuNavigationState = (nodes, currentPath, ancestors = []) =
     const menuHasChildren = menu.hasChildren
     const nextAncestors = menuHasChildren ? [...ancestors, menu.menuIndex] : ancestors
 
-    if (menu.path && isRouteMatch(menu.path, currentPath)) {
-      const score = menu.path.length
+    if (menu.path) {
+      const score = routeMatchScore(menu.path, currentPath)
       if (score > best.score) {
         best = {
           activePath: menu.path,

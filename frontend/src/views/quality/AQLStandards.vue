@@ -90,7 +90,7 @@
         <el-pagination
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
           @size-change="handleSizeChange"
@@ -120,12 +120,12 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="AQL 级别" prop="aqlLevel">
-              <el-input-number v-model="form.aqlLevel" :precision="2" :step="0.1" :min="0.01" class="w-full" placeholder="如 0.65" />
+              <el-input-number v-model="form.aqlLevel" :precision="5" :step="0.001" :min="0.00001" :max="999.99999" class="w-full" placeholder="如 0.065、0.65" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="抽样数 (n)" prop="sampleSize">
-              <el-input-number v-model="form.sampleSize" :min="1" class="w-full" />
+              <el-input-number v-model="form.sampleSize" :precision="0" :min="1" class="w-full" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -133,7 +133,7 @@
         <el-form-item label="适用批量范围" required>
           <el-col :span="11">
             <el-form-item prop="batchMin">
-              <el-input-number v-model="form.batchMin" :min="1" class="w-full" placeholder="最小批量" />
+              <el-input-number v-model="form.batchMin" :precision="0" :min="1" class="w-full" placeholder="最小批量" />
             </el-form-item>
           </el-col>
           <el-col class="text-center" :span="2" style="text-align: center; line-height: 32px;">
@@ -141,7 +141,7 @@
           </el-col>
           <el-col :span="11">
             <el-form-item prop="batchMax">
-              <el-input-number v-model="form.batchMax" :min="form.batchMin" class="w-full" placeholder="最大批量" />
+              <el-input-number v-model="form.batchMax" :precision="0" :min="form.batchMin" class="w-full" placeholder="最大批量" />
             </el-form-item>
           </el-col>
         </el-form-item>
@@ -149,12 +149,12 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="允收数 (Ac)" prop="acceptLimit">
-              <el-input-number v-model="form.acceptLimit" :min="0" class="w-full" />
+              <el-input-number v-model="form.acceptLimit" :precision="0" :min="0" :max="form.sampleSize - 1" class="w-full" @change="form.rejectLimit = Number(form.acceptLimit) + 1" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="拒收数 (Re)" prop="rejectLimit">
-              <el-input-number v-model="form.rejectLimit" :min="form.acceptLimit + 1" class="w-full" />
+              <el-input-number v-model="form.rejectLimit" :precision="0" :min="form.acceptLimit + 1" :max="form.acceptLimit + 1" class="w-full" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -182,6 +182,8 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, computed, onMounted } from 'vue';
 import { formatDate } from '@/utils/helpers/dateUtils'
@@ -199,7 +201,7 @@ const submitting = ref(false);
 const tableData = ref([]);
 const total = ref(0);
 const currentPage = ref(1);
-const pageSize = ref(10);
+const pageSize = ref(getThemeDefaultPageSize(10));
 const searchKeyword = ref('');
 const searchStatus = ref('');
 const searchForm = computed(() => ({ keyword: searchKeyword.value, status: searchStatus.value }));

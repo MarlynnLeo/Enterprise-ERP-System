@@ -76,7 +76,7 @@
 
       <!-- 分页 -->
       <div class="pagination-container">
-        <el-pagination
+        <el-pagination :page-sizes="PAGE_SIZE_OPTIONS"
           background
           layout="total, sizes, prev, pager, next, jumper"
           :total="total"
@@ -144,6 +144,8 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus/es/components/message/index';
 import { Plus } from '@element-plus/icons-vue';
@@ -157,7 +159,7 @@ const saveLoading = ref(false);
 
 // 分页相关
 const total = ref(0);
-const pageSize = ref(10);
+const pageSize = ref(getThemeDefaultPageSize(10));
 const currentPage = ref(1);
 
 // 表单相关

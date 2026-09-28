@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="module-page cost-variance-container">
     <!-- 页面标题 -->
     <PageHeader title="成本差异" subtitle="标准成本与实际成本差异对比 / 效率差异分析" />
@@ -69,7 +69,7 @@
           <el-pagination
             v-model:current-page="pagination.page"
             v-model:page-size="pagination.pageSize"
-            :page-sizes="[10, 20, 50]"
+            :page-sizes="[10, 20, 25, 50]"
             :total="pagination.total"
             layout="total, sizes, prev, pager, next"
             class="pagination-end"
@@ -284,6 +284,7 @@
 </template>
 
 <script setup>
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus/es/components/message/index';
@@ -311,7 +312,7 @@ const searchForm = reactive({
 // 分页
 const pagination = reactive({
   page: 1,
-  pageSize: 20,
+  pageSize: getThemeDefaultPageSize(20),
   total: 0
 });
 

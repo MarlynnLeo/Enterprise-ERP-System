@@ -161,7 +161,7 @@
             <el-pagination
               v-model:current-page="currentPage"
               v-model:page-size="pageSize"
-              :page-sizes="[5, 10, 20, 50]"
+              :page-sizes="[5, 10, 20, 25, 50]"
               layout="total, sizes, prev, pager, next"
               :total="filteredTotal"
               @size-change="handleSizeChange"
@@ -175,6 +175,7 @@
 </template>
 
 <script setup>
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search } from '@element-plus/icons-vue'
@@ -211,7 +212,7 @@ const rawCategories = ref([])
 const purchaseOrders = ref([])
 const search = ref('')
 const currentPage = ref(1)
-const pageSize = ref(10)
+const pageSize = ref(getThemeDefaultPageSize(10))
 
 // Canvas 引用与图表实例
 const purchaseTrend = ref(null)
@@ -362,16 +363,16 @@ function renderPurchaseTrendChart() {
         {
           label: '采购申请',
           data: reqData,
-          borderColor: chartColors.primary[0],
-          backgroundColor: chartColors.primary[4],
+          borderColor: () => chartColors.primary[0],
+          backgroundColor: () => chartColors.primary[4],
           tension: 0.4,
           fill: false
         },
         {
           label: '采购订单',
           data: orderData,
-          borderColor: chartColors.success[0],
-          backgroundColor: chartColors.success[4],
+          borderColor: () => chartColors.success[0],
+          backgroundColor: () => chartColors.success[4],
           tension: 0.4,
           fill: false
         }
@@ -405,7 +406,7 @@ function renderCategoryChart() {
       datasets: [
         {
           data,
-          backgroundColor: chartColors.gradient,
+          backgroundColor: () => chartColors.gradient,
           borderWidth: 0
         }
       ]

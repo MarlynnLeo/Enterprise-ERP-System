@@ -200,7 +200,7 @@
         <el-pagination
           v-model:current-page="pagination.currentPage"
           v-model:page-size="pagination.pageSize"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :background="true"
           layout="total, sizes, prev, pager, next, jumper"
           :total="pagination.total"
@@ -392,7 +392,7 @@
             <el-pagination
               v-model:current-page="purchasePagination.currentPage"
               v-model:page-size="purchasePagination.pageSize"
-              :page-sizes="[10, 20, 50]"
+              :page-sizes="[10, 20, 25, 50]"
               :background="true"
               layout="total, sizes, prev, pager, next"
               :total="purchasePagination.total"
@@ -441,7 +441,7 @@
             <el-pagination
               v-model:current-page="salesPagination.currentPage"
               v-model:page-size="salesPagination.pageSize"
-              :page-sizes="[10, 20, 50]"
+              :page-sizes="[10, 20, 25, 50]"
               :background="true"
               layout="total, sizes, prev, pager, next"
               :total="salesPagination.total"
@@ -491,6 +491,8 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { parseListData, parseResponseData } from '@/utils/responseParser';
 import { ref, onMounted, reactive, computed } from 'vue'
@@ -573,8 +575,8 @@ const salesHistory = ref([])
 const purchaseLoading = ref(false)
 const salesLoading = ref(false)
 // F5: 采购/销售历史分页
-const purchasePagination = reactive({ currentPage: 1, pageSize: 10, total: 0 })
-const salesPagination = reactive({ currentPage: 1, pageSize: 10, total: 0 })
+const purchasePagination = reactive({ currentPage: 1, pageSize: getThemeDefaultPageSize(10), total: 0 })
+const salesPagination = reactive({ currentPage: 1, pageSize: getThemeDefaultPageSize(10), total: 0 })
 // F6: 批次过滤
 const currentBatchFilter = ref('')
 // F7: 流水显示数量限制
@@ -628,7 +630,7 @@ const getDocumentType = (transactionType, documentNo) => {
 // 添加响应式分页对象
 const pagination = reactive({
   currentPage: 1,
-  pageSize: 10,
+  pageSize: getThemeDefaultPageSize(10),
   total: 0
 })
 

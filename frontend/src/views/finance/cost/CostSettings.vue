@@ -421,7 +421,7 @@
             v-model:page-size="stdCostPageSize"
             :total="stdCostTotal"
             layout="total, sizes, prev, pager, next"
-            :page-sizes="[10, 20, 50]"
+            :page-sizes="[10, 20, 25, 50]"
             class="pagination-end"
             @size-change="fetchMaterialStandardCosts"
             @current-change="fetchMaterialStandardCosts"

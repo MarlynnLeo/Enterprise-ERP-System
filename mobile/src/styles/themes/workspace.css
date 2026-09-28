@@ -1,0 +1,72 @@
+/**
+ * 经典主题，与桌面端保持一致的浅色配色。
+ */
+
+:root[data-theme="workspace"] {
+  --bg-primary: #f8fafc;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f1f5f9;
+  --bg-header: #ffffff;
+
+  --border-subtle: rgba(15, 23, 42, 0.08);
+  --surface-hover: #f1f5f9;
+  --surface-active: color-mix(in srgb, var(--color-primary) 10%, transparent);
+
+  --surface-elevated: #ffffff;
+  --surface-elevated-hover: var(--surface-hover);
+  --surface-elevated-active: var(--surface-active);
+  --surface-border: var(--border-subtle);
+  --surface-border-hover: color-mix(in srgb, var(--color-primary) 24%, transparent);
+
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #64748b;
+  --text-disabled: #94a3b8;
+  --text-on-dark: #ffffff;
+  --text-on-dark-secondary: rgba(255, 255, 255, 0.85);
+
+  --color-primary: #4263eb;
+  --color-primary-bg: #eef1ff;
+  --color-success: #059669;
+  --color-success-bg: #ecfdf5;
+  --color-warning: #d97706;
+  --color-warning-bg: #fffbeb;
+  --color-error: #dc2626;
+  --color-error-bg: #fef2f2;
+  --color-info: #475569;
+  --color-info-bg: #f1f5f9;
+  --color-accent: #4263eb;
+
+  --module-blue: #4263eb;
+  --module-green: #059669;
+  --module-red: #dc2626;
+  --module-orange: #d97706;
+  --module-purple: #7c3aed;
+  --module-yellow: #f59e0b;
+
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.07);
+  --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.08);
+  --shadow-glow: 0 0 18px color-mix(in srgb, var(--color-primary) 16%, transparent);
+
+  --van-primary-color: var(--color-primary);
+  --van-success-color: var(--color-success);
+  --van-danger-color: var(--color-error);
+  --van-warning-color: var(--color-warning);
+  --van-text-color: var(--text-primary);
+  --van-text-color-2: var(--text-secondary);
+  --van-text-color-3: var(--text-tertiary);
+  --van-active-color: var(--surface-active);
+  --van-background: var(--bg-primary);
+  --van-background-2: var(--bg-secondary);
+
+  --van-card-background: var(--surface-elevated);
+  --van-cell-background: var(--bg-secondary);
+  --van-nav-bar-background: var(--bg-header);
+  --van-nav-bar-title-text-color: var(--text-primary);
+  --van-nav-bar-icon-color: var(--color-primary);
+  --van-tabbar-background: var(--bg-header);
+  --van-tabbar-item-active-color: var(--color-primary);
+  --van-tabbar-item-text-color: var(--text-secondary);
+  --van-border-color: var(--border-subtle);
+}

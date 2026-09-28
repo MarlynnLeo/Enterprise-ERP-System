@@ -183,6 +183,8 @@
   --z-index-modal: 1050;
   --z-index-popover: 1060;
   --z-index-tooltip: 1070;
+  --theme-button-primary-image: linear-gradient(180deg, color-mix(in srgb, var(--color-primary) 90%, white), var(--color-primary));
+  --theme-button-primary-hover-image: linear-gradient(180deg, var(--color-primary-light-3), var(--color-primary));
 }
 
 /* ==================== 专业主题企业级特有视觉规则 ==================== */
@@ -227,31 +229,6 @@
   color: var(--color-text-primary) !important;
 }
 
-/* 4. 主按钮企业级微渐变与按压反馈 */
-[data-theme="professional"] .el-button--primary {
-  background: linear-gradient(180deg, #245888 0%, #1F4E79 100%) !important;
-  border-color: #173B5C !important;
-  color: #FFFFFF !important;
-  font-weight: 500 !important;
-  border-radius: var(--radius-md, 4px) !important;
-  box-shadow: 0 1px 2px 0 rgba(31, 78, 121, 0.18) !important;
-  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease !important;
-}
-
-[data-theme="professional"] .el-button--primary:hover,
-[data-theme="professional"] .el-button--primary:focus {
-  background: linear-gradient(180deg, #2A669D 0%, #245888 100%) !important;
-  border-color: #1A446B !important;
-  box-shadow: 0 2px 6px 0 rgba(31, 78, 121, 0.25) !important;
-}
-
-[data-theme="professional"] .el-button--primary:active {
-  background: #173B5C !important;
-  border-color: #122F4A !important;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2) !important;
-  transform: translateY(1px);
-}
-
 /* 5. 统计卡微排版强化与顶部品牌光条 */
 [data-theme="professional"] .stat-card {
   border-radius: var(--radius-md, 4px) !important;
@@ -281,7 +258,7 @@
   color: var(--color-text-primary) !important;
 }
 
-/* 6. 表单输入专属微蓝聚焦光环（Focus Ring） */
+/* 6. 表单输入保留细边框聚焦高亮 */
 [data-theme="professional"] .el-input__wrapper {
   border-radius: var(--radius-md, 4px) !important;
   border: 1px solid var(--color-border-dark) !important;
@@ -293,13 +270,14 @@
   border-color: var(--color-primary-light-3) !important;
 }
 
-[data-theme="professional"] .el-input__wrapper.is-focus {
+[data-theme="professional"] .el-input__wrapper.is-focus,
+[data-theme="professional"] .el-range-editor.is-active {
   border-color: var(--color-primary) !important;
-  box-shadow: 0 0 0 2px rgba(31, 78, 121, 0.16) !important;
+  box-shadow: none !important;
 }
 
 /* 7. 对话框企业级微圆角与底衬 */
-[data-theme="professional"] .el-dialog {
+[data-theme="professional"] .el-dialog:not(.is-fullscreen) {
   border-radius: var(--radius-md, 4px) !important;
   border: 1px solid var(--color-border-base) !important;
   box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.15), 0 8px 10px -6px rgba(15, 23, 42, 0.1) !important;
@@ -332,34 +310,4 @@
   border-style: solid !important;
   font-weight: 500 !important;
   font-size: 12px !important;
-}
-
-[data-theme="professional"] .el-tag--primary {
-  background: #EAF2F8 !important;
-  border-color: #C3D7EA !important;
-  color: #1F4E79 !important;
-}
-
-[data-theme="professional"] .el-tag--success {
-  background: #F0FDF4 !important;
-  border-color: #BBF7D0 !important;
-  color: #166534 !important;
-}
-
-[data-theme="professional"] .el-tag--warning {
-  background: #FEF3C7 !important;
-  border-color: #FDE68A !important;
-  color: #92400E !important;
-}
-
-[data-theme="professional"] .el-tag--danger {
-  background: #FEF2F2 !important;
-  border-color: #FECACA !important;
-  color: #991B1B !important;
-}
-
-[data-theme="professional"] .el-tag--info {
-  background: #F1F5F9 !important;
-  border-color: #CBD5E1 !important;
-  color: #334155 !important;
 }

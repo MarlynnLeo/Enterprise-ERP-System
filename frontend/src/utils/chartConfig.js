@@ -5,8 +5,7 @@
 import { formatCurrency, formatPercentage } from './dashboardUtils';
 import { alphaColor, getChartPalette, getCssTokenValue } from './designTokens';
 import { getAppFontFamily } from './typography';
-
-const chartPalette = getChartPalette();
+import { cloneDeep } from 'lodash-es';
 
 /**
  * 基础图表配置
@@ -26,14 +25,14 @@ export const baseChartConfig = {
           family: getAppFontFamily(),
           weight: '500'
         },
-        color: getCssTokenValue('textSecondary')
+        color: () => getCssTokenValue('textSecondary')
       }
     },
     tooltip: {
-      backgroundColor: alphaColor('textPrimary', 0.95),
-      titleColor: getCssTokenValue('surface'),
-      bodyColor: getCssTokenValue('borderLight'),
-      borderColor: alphaColor('surface', 0.1),
+      backgroundColor: () => alphaColor('textPrimary', 0.95),
+      titleColor: () => getCssTokenValue('surface'),
+      bodyColor: () => getCssTokenValue('borderLight'),
+      borderColor: () => alphaColor('surface', 0.1),
       borderWidth: 1,
       cornerRadius: 10,
       padding: 14,
@@ -65,13 +64,13 @@ export const createCartesianScales = () => ({
       font: {
         size: 11
       },
-      color: getCssTokenValue('textMuted')
+      color: () => getCssTokenValue('textMuted')
     }
   },
   y: {
     beginAtZero: true,
     grid: {
-      color: alphaColor('textPrimary', 0.04),
+      color: () => alphaColor('textPrimary', 0.04),
       lineWidth: 1,
       borderDash: [5, 5]
     },
@@ -82,7 +81,7 @@ export const createCartesianScales = () => ({
       font: {
         size: 11
       },
-      color: getCssTokenValue('textMuted')
+      color: () => getCssTokenValue('textMuted')
     }
   }
 });
@@ -115,7 +114,7 @@ export const lineChartConfig = {
       radius: 0,
       hoverRadius: 8,
       borderWidth: 2,
-      backgroundColor: getCssTokenValue('surface'),
+      backgroundColor: () => getCssTokenValue('surface'),
       hoverBorderWidth: 3
     }
   },
@@ -130,7 +129,7 @@ export const pieChartConfig = {
   elements: {
       arc: {
           borderWidth: 3,
-          borderColor: getCssTokenValue('surface')
+          borderColor: () => getCssTokenValue('surface')
       }
   },
   plugins: {
@@ -153,50 +152,21 @@ export const pieChartConfig = {
  * 环形图配置
  */
 export const doughnutChartConfig = {
-  ...JSON.parse(JSON.stringify(pieChartConfig)),
+  ...cloneDeep(pieChartConfig),
   cutout: '70%'
 };
 
 /**
  * 颜色配置 (Tech/Modern Vibe)
  */
+const colorRamp = (token) => [getCssTokenValue(token), ...[0.8, 0.6, 0.4, 0.2].map(alpha => alphaColor(token, alpha))];
 export const chartColors = {
-  primary: chartPalette,
-  success: [
-    getCssTokenValue('success'),
-    alphaColor('success', 0.8),
-    alphaColor('success', 0.6),
-    alphaColor('success', 0.4),
-    alphaColor('success', 0.2)
-  ],
-  warning: [
-    getCssTokenValue('warning'),
-    alphaColor('warning', 0.8),
-    alphaColor('warning', 0.6),
-    alphaColor('warning', 0.4),
-    alphaColor('warning', 0.2)
-  ],
-  danger: [
-    getCssTokenValue('danger'),
-    alphaColor('danger', 0.8),
-    alphaColor('danger', 0.6),
-    alphaColor('danger', 0.4),
-    alphaColor('danger', 0.2)
-  ],
-  info: [
-    getCssTokenValue('info'),
-    alphaColor('info', 0.8),
-    alphaColor('info', 0.6),
-    alphaColor('info', 0.4),
-    alphaColor('info', 0.2)
-  ],
-  gradient: [
-    alphaColor('primary', 0.8),
-    alphaColor('success', 0.8),
-    alphaColor('warning', 0.8),
-    alphaColor('danger', 0.8),
-    alphaColor('info', 0.8)
-  ]
+  get primary() { return getChartPalette(); },
+  get success() { return colorRamp('success'); },
+  get warning() { return colorRamp('warning'); },
+  get danger() { return colorRamp('danger'); },
+  get info() { return colorRamp('info'); },
+  get gradient() { return ['primary', 'success', 'warning', 'danger', 'info'].map(token => alphaColor(token, 0.8)); }
 };
 
 /**
@@ -205,7 +175,7 @@ export const chartColors = {
  * @returns {Object} 图表配置
  */
 export function createBarChartConfig(options = {}) {
-  const config = JSON.parse(JSON.stringify(barChartConfig));
+  const config = cloneDeep(barChartConfig);
 
   if (options.yAxisFormatter) {
     config.scales.y.ticks.callback = options.yAxisFormatter;
@@ -231,7 +201,7 @@ export function createBarChartConfig(options = {}) {
  * @returns {Object} 图表配置
  */
 export function createLineChartConfig(options = {}) {
-  const config = JSON.parse(JSON.stringify(lineChartConfig));
+  const config = cloneDeep(lineChartConfig);
 
   if (options.yAxisFormatter) {
     config.scales.y.ticks.callback = options.yAxisFormatter;
@@ -245,7 +215,7 @@ export function createLineChartConfig(options = {}) {
 
   if (options.fill) {
     config.elements.line.fill = true;
-    config.elements.line.backgroundColor = options.fillColor || alphaColor('primary', 0.15);
+    config.elements.line.backgroundColor = options.fillColor || (() => alphaColor('primary', 0.15));
   }
 
   return config;
@@ -257,7 +227,7 @@ export function createLineChartConfig(options = {}) {
  * @returns {Object} 图表配置
  */
 export function createPieChartConfig(options = {}) {
-  const config = JSON.parse(JSON.stringify(pieChartConfig));
+  const config = cloneDeep(pieChartConfig);
 
   if (options.tooltipFormatter) {
     config.plugins.tooltip.callbacks = {
@@ -269,7 +239,7 @@ export function createPieChartConfig(options = {}) {
         const label = context.label || '';
         const value = context.raw || 0;
         const total = context.dataset.data.reduce((acc, val) => acc + val, 0);
-        const percentage = Math.round((value / total) * 100);
+        const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
         return `${label}: ${percentage}%`;
       }
     };
@@ -284,7 +254,7 @@ export function createPieChartConfig(options = {}) {
  * @returns {Object} 图表配置
  */
 export function createMixedChartConfig(options = {}) {
-  const config = JSON.parse(JSON.stringify(barChartConfig));
+  const config = cloneDeep(barChartConfig);
 
   config.scales.y1 = {
     type: 'linear',
@@ -298,7 +268,7 @@ export function createMixedChartConfig(options = {}) {
       font: {
         size: 11
       },
-      color: getCssTokenValue('textMuted')
+      color: () => getCssTokenValue('textMuted')
     }
   };
 
@@ -426,16 +396,16 @@ export function getResponsiveConfig(breakpoint) {
  */
 export const chartThemes = {
   light: {
-    backgroundColor: getCssTokenValue('surface'),
-    textColor: getCssTokenValue('textPrimary'),
-    gridColor: alphaColor('textPrimary', 0.04),
-    borderColor: alphaColor('textPrimary', 0.1)
+    backgroundColor: () => getCssTokenValue('surface'),
+    textColor: () => getCssTokenValue('textPrimary'),
+    gridColor: () => alphaColor('textPrimary', 0.04),
+    borderColor: () => alphaColor('textPrimary', 0.1)
   },
   dark: {
-    backgroundColor: getCssTokenValue('textPrimary'),
-    textColor: getCssTokenValue('surface'),
-    gridColor: alphaColor('surface', 0.06),
-    borderColor: alphaColor('surface', 0.1)
+    backgroundColor: () => getCssTokenValue('textPrimary'),
+    textColor: () => getCssTokenValue('surface'),
+    gridColor: () => alphaColor('surface', 0.06),
+    borderColor: () => alphaColor('surface', 0.1)
   }
 };
 
@@ -449,7 +419,7 @@ export function applyTheme(config, theme = 'light') {
   const themeConfig = chartThemes[theme];
   if (!themeConfig) return config;
 
-  const themedConfig = JSON.parse(JSON.stringify(config));
+  const themedConfig = cloneDeep(config);
 
   // 应用网格颜色
   if (themedConfig.scales) {

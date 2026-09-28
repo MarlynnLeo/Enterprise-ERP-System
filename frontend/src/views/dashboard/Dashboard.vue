@@ -171,6 +171,7 @@ const {
   initExchangeRateChart,
   updateMiniCharts,
   updateMiniChartsGeneric,
+  disposeMiniChart,
   disposeCharts
 } = useExchangeRate()
 const setExchangeRateChartRef = (element) => {
@@ -184,7 +185,7 @@ const {
   fetchMetalPrices,
   updateMetalMiniCharts,
   disposeMetalCharts
-} = useMetalPrices(updateMiniChartsGeneric)
+} = useMetalPrices(updateMiniChartsGeneric, disposeMiniChart)
 const {
   pendingTasks,
   completedTasks,
@@ -266,11 +267,14 @@ const statCards = computed(() => [
 // 价格面板 Tab 切换后刷新对应图表
 const onPricePanelTabChange = async (tab) => {
   await nextTick()
+  if (disposed) return
   if (tab === 'metal') {
     await ensureEcharts()
+    if (disposed) return
     updateMetalMiniCharts()
   } else {
     await initExchangeRateChart()
+    if (disposed) return
     updateMiniCharts()
   }
 }
@@ -281,13 +285,15 @@ let dashboardRefreshPromise = null
 let secondaryDashboardPromise = null
 let idleInitHandle = null
 let idleInitUsesIdleCallback = false
+let disposed = false
 
 const runWhenIdle = (callback, timeout = 400) => {
+  if (disposed) return
   if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
     idleInitUsesIdleCallback = true
     idleInitHandle = window.requestIdleCallback(() => {
       idleInitHandle = null
-      callback()
+      if (!disposed) callback()
     }, { timeout })
     return
   }
@@ -295,7 +301,7 @@ const runWhenIdle = (callback, timeout = 400) => {
   idleInitUsesIdleCallback = false
   idleInitHandle = window.setTimeout(() => {
     idleInitHandle = null
-    callback()
+    if (!disposed) callback()
   }, timeout)
 }
 
@@ -367,8 +373,8 @@ const loadDashboardStats = async () => {
 // 刷新所有价格数据（金属+汇率）
 const refreshAllPrices = async () => {
   try {
-    await Promise.all([fetchMetalPrices({ force: true }), fetchExchangeRates()])
-    ElMessage.success('数据已更新')
+    const results = await Promise.all([fetchMetalPrices({ force: true }), fetchExchangeRates()])
+    if (!disposed && results.every(Boolean)) ElMessage.success('数据已更新')
   } catch (error) {
     logger.error('刷新价格数据失败:', error)
     ElMessage.error('刷新数据失败，请稍后重试')
@@ -432,6 +438,7 @@ onMounted(async () => {
 
   // === 第一阶段：首屏快速渲染核心待办与顶部指标 ===
   await refreshDashboardData(false)
+  if (disposed) return
 
   // 初始化轻量日历数据
   calendarDays.value = generateCalendarDays(currentDate.value)
@@ -449,7 +456,15 @@ onMounted(async () => {
         fetchWeatherData(),
         fetchExchangeRates(),
         fetchMetalPrices()
-      ]).catch((error) => {
+      ]).then(async () => {
+        if (disposed) return
+        await ensureEcharts()
+        if (disposed) return
+        await initExchangeRateChart()
+        if (disposed) return
+        updateMiniCharts()
+        updateMetalMiniCharts()
+      }).catch((error) => {
         logger.error('加载仪表盘环境数据失败:', error)
       })
     }, 1200)
@@ -468,6 +483,7 @@ onMounted(async () => {
 })
 // 组件卸载时清除定时器和图表
 onUnmounted(() => {
+  disposed = true
   window.removeEventListener('erp:user-profile-updated', handleUserProfileUpdated)
   cancelIdleInitialization()
   if (userDataTimer) {

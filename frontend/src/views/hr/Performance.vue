@@ -121,7 +121,15 @@
       </template>
 
       <div class="pagination-container">
-        <el-pagination v-model:current-page="page" :total="total" layout="total, prev, pager, next" @change="fetchData" />
+        <el-pagination
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
+          :total="total"
+          :page-sizes="PAGE_SIZE_OPTIONS"
+          layout="total, sizes, prev, pager, next"
+          @size-change="handleSizeChange"
+          @current-change="fetchData"
+        />
       </div>
     </el-card>
 
@@ -180,9 +188,13 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView'
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, toRefs } from 'vue'
+import { usePaginatedFetching } from '@/composables/useDataFetching'
+import { parseListData } from '@/utils/responseParser'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { Edit, Delete, VideoPlay, Check } from '@element-plus/icons-vue'
 import { performanceApi } from '@/api/enhanced'
@@ -194,11 +206,19 @@ import {
 } from '@/constants/systemConstants'
 
 const activeTab = ref('indicators')
-const loading = ref(false)
 const saving = ref(false)
-const page = ref(1)
-const total = ref(0)
-const tableData = ref([])
+const { loading, data: tableData, pagination, fetchData: fetchPage, handleSizeChange } = usePaginatedFetching(
+  async query => {
+    if (activeTab.value === 'indicators') return performanceApi.getIndicators(query)
+    if (activeTab.value === 'evaluations') return performanceApi.getEvaluations(query)
+    const response = await performanceApi.getPeriods()
+    const periods = parseListData(response, { enableLog: false })
+    const start = (query.page - 1) * query.pageSize
+    return { data: { list: periods.slice(start, start + query.pageSize), total: periods.length } }
+  },
+  { pageSize: getThemeDefaultPageSize(20), errorMessage: '加载失败' }
+)
+const { current: page, pageSize, total } = toRefs(pagination)
 
 const indicatorVis = ref(false)
 const indicatorForm = ref({})
@@ -209,20 +229,7 @@ const catLabel = { work_quality:'工作质量', work_quantity:'工作数量', wo
 const periodTypeLabel = { monthly:'月度', quarterly:'季度', semi_annual:'半年度', annual:'年度' }
 const gradeTag = { S:'danger', A:'success', B:'primary', C:'warning', D:'info' }
 
-const fetchData = async () => {
-  loading.value = true
-  try {
-    let res
-    if (activeTab.value === 'indicators') res = await performanceApi.getIndicators({ page: page.value, pageSize: 20 })
-    else if (activeTab.value === 'periods') { res = await performanceApi.getPeriods(); res = { data: { list: res.data || res, total: (res.data || res).length } } }
-    else res = await performanceApi.getEvaluations({ page: page.value, pageSize: 20 })
-    const d = res.data || res
-    tableData.value = d.list || d || []
-    total.value = d.total || tableData.value.length
-  } catch { ElMessage.error('加载失败') }
-  finally { loading.value = false }
-}
-
+const fetchData = () => fetchPage()
 const onTabChange = () => { page.value = 1; fetchData() }
 const openIndicatorForm = (row) => { indicatorForm.value = row ? { ...row } : { code:'', name:'', category:'other', weight:0, target_value:null, scoring_method:'manual' }; indicatorVis.value = true }
 const openPeriodForm = () => { periodForm.value = { name:'', type:'quarterly', start_date:'', end_date:'' }; periodVis.value = true }

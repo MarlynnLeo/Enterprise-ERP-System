@@ -5,6 +5,22 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ERP + MES System</title>
+    <style>
+      /* 通用文档层重置：保障首帧一致性与消除非交互容器原生焦点轮廓 */
+      html,
+      body,
+      #app {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        outline: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+      /* 遵循 W3C 规范：非键盘 Tab 激活的容器与元素不展示浏览器内置高对比度焦点环 */
+      :focus:not(:focus-visible) {
+        outline: none;
+      }
+    </style>
   </head>
   <body>
     <div id="app"></div>

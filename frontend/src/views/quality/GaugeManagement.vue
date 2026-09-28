@@ -122,7 +122,7 @@
 
       <div class="pagination-container">
         <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize"
-          :page-sizes="[10, 20, 50]" :total="total"
+          :page-sizes="[10, 20, 25, 50]" :total="total"
           layout="total, sizes, prev, pager, next, jumper"
           @size-change="fetchData" @current-change="fetchData" />
       </div>
@@ -271,6 +271,7 @@
 </template>
 
 <script setup>
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, reactive, computed, onMounted } from 'vue'
 
@@ -287,7 +288,7 @@ const submitting = ref(false);
 const tableData = ref([]);
 const total = ref(0);
 const currentPage = ref(1);
-const pageSize = ref(20);
+const pageSize = ref(getThemeDefaultPageSize(20));
 const searchKeyword = ref('');
 const searchStatus = ref('');
 const onlyOverdue = ref(false);

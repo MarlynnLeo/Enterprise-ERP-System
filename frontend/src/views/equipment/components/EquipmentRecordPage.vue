@@ -47,7 +47,7 @@
           v-model:page-size="query.pageSize"
           background
           layout="total, sizes, prev, pager, next"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :total="total"
           @size-change="handlePageChange"
           @current-change="handlePageChange"
@@ -58,6 +58,8 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { Refresh } from '@element-plus/icons-vue'
@@ -91,7 +93,7 @@ const rows = ref([])
 const total = ref(0)
 const query = reactive({
   page: 1,
-  pageSize: 20,
+  pageSize: getThemeDefaultPageSize(20),
   search: '',
   status: ''
 })

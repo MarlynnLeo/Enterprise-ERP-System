@@ -200,7 +200,7 @@
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
           :current-page="pagination.currentPage"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :page-size="pagination.pageSize"
           :background="true"
           layout="total, sizes, prev, pager, next, jumper"
@@ -510,7 +510,7 @@
         <el-pagination
           v-model:current-page="materialCurrentPage"
           v-model:page-size="materialPageSize"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :total="materialTotal"
           layout="total, sizes, prev, pager, next, jumper"
           @size-change="handleMaterialSizeChange"
@@ -631,6 +631,8 @@
   </div>
 </template>
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
@@ -687,7 +689,7 @@ const loading = ref(false)
 // 添加响应式分页对象
 const pagination = reactive({
   currentPage: 1,
-  pageSize: 10,
+  pageSize: getThemeDefaultPageSize(10),
   total: 0
 })
 // 对话框相关
@@ -1507,10 +1509,6 @@ const updateStats = async () => {
 };
 onMounted(async () => {
   await dictionaryStore.fetchDictionary()
-  // 确保分页参数有默认值
-  pagination.currentPage = 1;
-  pagination.pageSize = 10;
-  pagination.total = 10; // 确保分页组件显示
   await loadLocations();
   loadMaterials();
   loadUnits();

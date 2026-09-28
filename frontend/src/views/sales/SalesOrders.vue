@@ -231,7 +231,7 @@
         <el-pagination
           :current-page="currentPage"
           :page-size="pageSize"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :small="false"
           :disabled="false"
           :background="true"
@@ -621,6 +621,8 @@
   </div>
 </template>
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -713,7 +715,7 @@ const {
     const orders = normalizeOrdersData(rawOrders)
     return { ...response, data: { items: orders, total: response.data.total || orders.length } }
   },
-  { pageSize: 10, immediate: true }
+  { pageSize: getThemeDefaultPageSize(10), immediate: true }
 )
 const tableData = computed(() => ordersData.value)
 const currentPage = computed(() => pagination.current)

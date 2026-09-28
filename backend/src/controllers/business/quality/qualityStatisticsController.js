@@ -127,6 +127,20 @@ const getDefectItems = async (req, res) => {
   try {
     const { page = 1, pageSize = 10, keyword, startDate, endDate } = req.query;
 
+    // 与检验列表保持相同物料来源，兼容仅存物料外键的来料单和历史产品快照。
+    const materialJoins = `
+      LEFT JOIN materials m ON qi.inspection_type = 'incoming' AND qi.material_id = m.id
+      LEFT JOIN materials proc_m ON qi.inspection_type IN ('process', 'final', 'first_article') AND qi.product_id = proc_m.id
+      LEFT JOIN production_tasks pt ON qi.inspection_type IN ('process', 'final', 'first_article') AND COALESCE(qi.task_id, qi.reference_id) = pt.id
+      LEFT JOIN materials task_m ON pt.product_id = task_m.id`;
+    const materialField = (field) => `(CASE
+      WHEN qi.inspection_type = 'incoming' THEN COALESCE(NULLIF(m.${field}, ''), NULLIF(qi.product_${field}, ''))
+      WHEN qi.inspection_type = 'final' THEN COALESCE(NULLIF(task_m.${field}, ''), NULLIF(qi.product_${field}, ''), NULLIF(proc_m.${field}, ''))
+      ELSE COALESCE(NULLIF(qi.product_${field}, ''), NULLIF(proc_m.${field}, ''), NULLIF(task_m.${field}, ''))
+    END)`;
+    const materialName = materialField('name');
+    const materialCode = materialField('code');
+
     const whereConds = ['qi.deleted_at IS NULL', DEFECT_INSPECTION_STATUS_CONDITION];
     const params = [];
     const scopeClause = await ScopeGuard.applyListScope(req, 'quality_inspection', {
@@ -136,7 +150,7 @@ const getDefectItems = async (req, res) => {
 
     if (keyword) {
       whereConds.push(
-        `(qi.inspection_no LIKE ? OR qi.product_name LIKE ? OR qi.product_code LIKE ? OR qii.remark LIKE ?)`
+        `(qi.inspection_no LIKE ? OR ${materialName} LIKE ? OR ${materialCode} LIKE ? OR qii.remark LIKE ?)`
       );
       const kw = `%${keyword}%`;
       params.push(kw, kw, kw, kw);
@@ -155,6 +169,7 @@ const getDefectItems = async (req, res) => {
       `SELECT COUNT(DISTINCT qi.id) as total
             FROM quality_inspections qi
             LEFT JOIN quality_inspection_items qii ON qi.id = qii.inspection_id
+            ${materialJoins}
             ${scopeClause.join || ''}
             ${where}`,
       params
@@ -167,7 +182,7 @@ const getDefectItems = async (req, res) => {
     const [rows] = await pool.query(
       appendPaginationSQL(
         `SELECT DISTINCT qi.id, qi.inspection_no as inspectionNo, qi.inspection_type as inspectionType,
-              qi.product_name as materialName, qi.product_code as materialCode,
+              MAX(${materialName}) as materialName, MAX(${materialCode}) as materialCode,
               DATE_FORMAT(qi.created_at, '%Y-%m-%d') as inspectionDate,
               qi.quantity as defectQty,
               GROUP_CONCAT(DISTINCT CASE WHEN ${DEFECT_ITEM_RESULT_CONDITION} OR COALESCE(qii.remark, '') != '' THEN COALESCE(NULLIF(qii.remark, ''), qii.item_name) ELSE qii.item_name END SEPARATOR ', ') as defectReason,
@@ -175,6 +190,7 @@ const getDefectItems = async (req, res) => {
                    WHEN qi.status = 'pending' THEN '待处理' ELSE '处理中' END as processResult
             FROM quality_inspections qi
             LEFT JOIN quality_inspection_items qii ON qi.id = qii.inspection_id
+            ${materialJoins}
             ${scopeClause.join || ''}
             ${where}
             GROUP BY qi.id ORDER BY qi.created_at DESC

@@ -226,7 +226,7 @@
         <el-pagination
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :small="false"
           :disabled="false"
           :background="true"
@@ -405,6 +405,8 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { handleTableRowView } from '@/utils/tableRowView'
 // Vue核心和路由
 import { ref, reactive, computed, onMounted, watch } from 'vue';
@@ -456,7 +458,7 @@ const loading = ref(false);
 
 // 分页相关
 const total = ref(0);
-const pageSize = ref(10);
+const pageSize = ref(getThemeDefaultPageSize(10));
 const currentPage = ref(1);
 
 // 凭证列表

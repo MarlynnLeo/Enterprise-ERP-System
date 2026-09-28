@@ -36,7 +36,7 @@
       <!-- 数量信息 -->
       <CellGroup inset title="数量信息">
         <Cell title="入仓总数" :value="`${inspection.quantity || 0} ${inspection.unit || '件'}`" />
-        <Cell title="抽检数量" :value="`${inspection.sampleSize || 0}`" />
+        <Cell title="抽检数量" :value="`${inspection.sampleQuantity ?? '未记录'}`" />
       </CellGroup>
 
       <!-- 检验结果 -->

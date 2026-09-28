@@ -95,6 +95,8 @@ const qualityInspectionMap = {
       status: row.status ?? null,
       batchNo: row.batch_no ?? null,
       quantity: row.quantity != null ? toNumber(row.quantity, 0) : null,
+      sampleQuantity: row.sample_quantity != null ? toNumber(row.sample_quantity, 0) : null,
+      samplingPlan: row.sampling_plan ?? null,
       qualifiedQuantity:
         row.qualified_quantity != null ? toNumber(row.qualified_quantity, 0) : null,
       unqualifiedQuantity:
@@ -105,6 +107,7 @@ const qualityInspectionMap = {
       actualDate: formatDate(row.actual_date),
       inspectorId: row.inspector_id ?? null,
       inspectorName: row.inspector_name ?? null,
+      inspectorSignatureCode: row.inspector_signature_code ?? null,
       materialId: row.material_id ?? null,
       productId: row.product_id ?? null,
       productName: row.product_name ?? null,
@@ -124,7 +127,9 @@ const qualityInspectionMap = {
       templateId: row.template_id ?? null,
       templateCode: row.template_code ?? null,
       templateName: row.template_name ?? null,
+      templateDescription: row.template_description ?? null,
       aqlStandardId: row.aql_standard_id ?? null,
+      aqlStandardName: row.aql_standard_name ?? null,
       aqlLevel: row.aql_level ?? null,
       acceptLimit: row.accept_limit ?? null,
       rejectLimit: row.reject_limit ?? null,

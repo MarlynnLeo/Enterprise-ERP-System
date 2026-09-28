@@ -122,7 +122,7 @@
         :current-page="currentPage"
         :page-size="pageSize"
         :total="parseInt(total) || 0"
-        :page-sizes="[10, 20, 50, 100]"
+        :page-sizes="PAGE_SIZE_OPTIONS"
         @size-change="handleSizeChange"
         @current-change="handleCurrentChange"
       />
@@ -130,6 +130,7 @@
   </div>
 </template>
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { Edit, Delete, Check, Close, RefreshRight } from '@element-plus/icons-vue'
 import { DateFormatter } from '@/utils/commonHelpers'

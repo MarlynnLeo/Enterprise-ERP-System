@@ -15,6 +15,7 @@ const InspectionTemplateResolver = require('../services/business/InspectionTempl
 const { firstValidUserId } = require('../utils/userUtils');
 const InspectionClosureService = require('../services/quality/InspectionClosureService');
 const InspectionLockService = require('../services/quality/InspectionLockService');
+const InspectionSamplingService = require('../services/quality/InspectionSamplingService');
 const { normalizeTerminalInspectionQuantities } = require('../utils/quality/inspectionQuantities');
 const { purchaseQuantity } = require('../utils/purchase/purchaseValidation');
 const {
@@ -65,6 +66,8 @@ const UPDATEABLE_INSPECTION_FIELDS = new Set([
   'process_name',
   'batch_no',
   'quantity',
+  'sample_quantity',
+  'sampling_plan',
   'qualified_quantity',
   'unqualified_quantity',
   'unit',
@@ -102,6 +105,7 @@ const TERMINAL_VALIDATION_UPDATE_FIELDS = new Set([
   'qualified_quantity',
   'unqualified_quantity',
   'is_aql',
+  'is_full_inspection',
   'aql_standard_id',
   'aql_level',
   'accept_limit',
@@ -250,12 +254,15 @@ class QualityInspection {
 
     const numericFields = new Set([
       'quantity',
+      'sample_quantity',
       'qualified_quantity',
       'unqualified_quantity',
       'supplier_id',
       'unit_id',
       'is_aql',
+      'is_full_inspection',
       'aql_standard_id',
+      'aql_level',
       'accept_limit',
       'reject_limit',
     ]);
@@ -263,7 +270,6 @@ class QualityInspection {
       ...numericFields,
       'status',
       'unit',
-      'aql_level',
       'standard_type',
       'standard_no',
       'template_id',
@@ -429,7 +435,8 @@ class QualityInspection {
           ELSE proc_m.specs
         END AS item_specs,
         COALESCE((SELECT COUNT(*) FROM process_inspection_punch_records WHERE inspection_id = qi.id), 0) AS punch_count,
-        pt.status AS task_status
+        pt.status AS task_status,
+        inspector_user.signature_code AS inspector_signature_code
 
     `;
 
@@ -450,6 +457,7 @@ class QualityInspection {
       LEFT JOIN materials proc_m ON qi.inspection_type IN('process', 'final') AND qi.product_id = proc_m.id
       LEFT JOIN production_tasks pt ON qi.inspection_type IN('process', 'final') AND qi.reference_id = pt.id
       LEFT JOIN materials task_m ON pt.product_id = task_m.id
+      LEFT JOIN users inspector_user ON qi.inspector_id = inspector_user.id
       ${scopeClause.join || ''}
       `;
 
@@ -587,7 +595,10 @@ class QualityInspection {
               ELSE proc_m.specs
             END AS item_specs,
         it.template_code,
-        it.template_name
+        it.template_name,
+        it.description AS template_description,
+        aql.name AS aql_standard_name,
+        inspector_user.signature_code AS inspector_signature_code
           `;
 
         // 根据选项添加额外字段
@@ -606,6 +617,8 @@ class QualityInspection {
           LEFT JOIN production_tasks pt ON qi.inspection_type = 'final' AND qi.reference_id = pt.id
           LEFT JOIN materials task_m ON pt.product_id = task_m.id
           LEFT JOIN inspection_templates it ON qi.template_id = it.id
+          LEFT JOIN quality_aql_standards aql ON qi.aql_standard_id = aql.id
+          LEFT JOIN users inspector_user ON qi.inspector_id = inspector_user.id
         `;
 
         // 根据选项添加供应商连接
@@ -726,6 +739,8 @@ class QualityInspection {
   }
 
   static async createInspection(inspection, externalConnection = null) {
+    inspection = { ...inspection };
+    InspectionSamplingService.assertExclusiveMode(inspection);
     let connection;
     const useOwnConnection = !externalConnection;
     try {
@@ -888,7 +903,10 @@ class QualityInspection {
             inspection.note =
               (inspection.note ? inspection.note + ' | ' : '') +
               '依据物料免检配置，系统自动判定合格';
-          } else if (methodCode === 'sampling') {
+          } else if (
+            methodCode === 'sampling' &&
+            ![true, 1, '1'].includes(inspection.is_full_inspection)
+          ) {
             isSampling = true;
             logger.info(
               `AQL sampling enabled by material inspection method: materialId=${inspection.material_id}`
@@ -996,7 +1014,9 @@ class QualityInspection {
         inspection.template_id = appliedTemplate.id;
         const updateFields = ['template_id = ?'];
         const updateValues = [appliedTemplate.id];
-        const templateUsesAql = appliedTemplate.is_aql === true || appliedTemplate.is_aql === 1;
+        const templateUsesAql =
+          [true, 1, '1'].includes(appliedTemplate.is_aql) &&
+          ![true, 1, '1'].includes(inspection.is_full_inspection);
 
         if (templateUsesAql && !inspection.is_aql) {
           inspection.is_aql = 1;
@@ -1027,9 +1047,19 @@ class QualityInspection {
         }
       }
 
-      if (inspection.is_aql && !inspection.aql_level) {
-        throw InspectionTemplateResolver.createValidationError(
-          'AQL抽检已启用，但未配置AQL等级；请在检验模板或检验单中维护AQL等级'
+      const sampling = await InspectionSamplingService.resolve(connection, inspection);
+      const hasSamplingConfiguration =
+        inspection.is_aql ||
+        inspection.is_full_inspection ||
+        inspection.aql_level != null ||
+        inspection.aql_standard_id != null;
+      Object.assign(inspection, sampling);
+      InspectionSamplingService.assertReadyForCompletion(inspection);
+      if (hasSamplingConfiguration) {
+        const fields = Object.keys(sampling);
+        await connection.query(
+          `UPDATE quality_inspections SET ${fields.map((field) => `${field} = ?`).join(', ')} WHERE id = ?`,
+          [...fields.map((field) => sampling[field]), inspectionId]
         );
       }
 
@@ -1193,6 +1223,18 @@ class QualityInspection {
    * @returns {Promise<object>} 更新后的检验单
    */
   static async updateInspection(id, data, externalConnection = null) {
+    // Sampling facts are server-derived, including calls that bypass the API mapper.
+    data = { ...data };
+    for (const field of [
+      'sample_quantity',
+      'sampleQuantity',
+      'sampling_plan',
+      'samplingPlan',
+      'accept_limit',
+      'reject_limit',
+    ]) {
+      delete data[field];
+    }
     let connection;
     const useOwnConnection = !externalConnection;
     try {
@@ -1262,6 +1304,16 @@ class QualityInspection {
           }
         }
         await this._assertNonconformanceEvidenceUnchanged(connection, inspection, data);
+        if (InspectionSamplingService.shouldRefresh(inspection, data)) {
+          Object.assign(
+            data,
+            await InspectionSamplingService.resolve(connection, { ...inspection, ...data })
+          );
+        }
+        InspectionSamplingService.assertReadyForCompletion(
+          { ...inspection, ...data, status: effectiveStatus },
+          inspection
+        );
         const shouldValidateTerminalStatus = Object.keys(data).some((key) =>
           TERMINAL_VALIDATION_UPDATE_FIELDS.has(key)
         );

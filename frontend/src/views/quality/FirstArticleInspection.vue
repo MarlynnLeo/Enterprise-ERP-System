@@ -103,7 +103,7 @@
 
       <!-- 分页 -->
       <div class="pagination-container">
-        <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize" :page-sizes="[10, 20, 50, 100]" background layout="total, sizes, prev, pager, next, jumper" :total="total" @size-change="handleSizeChange" @current-change="handleCurrentChange" />
+        <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize" :page-sizes="PAGE_SIZE_OPTIONS" background layout="total, sizes, prev, pager, next, jumper" :total="total" @size-change="handleSizeChange" @current-change="handleCurrentChange" />
       </div>
     </el-card>
     <!-- 新建首检单弹窗 -->
@@ -120,6 +120,8 @@
   </div>
 </template>
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, computed, onMounted, defineAsyncComponent } from 'vue'
 import { Plus, Setting } from '@element-plus/icons-vue'
@@ -149,7 +151,7 @@ const inspectionList = ref([])
 const stats = reactive({ total: 0, pending: 0, passed: 0, failed: 0, conditional: 0 })
 const total = ref(0)
 const currentPage = ref(1)
-const pageSize = ref(20)
+const pageSize = ref(getThemeDefaultPageSize(20))
 // 搜索条件
 const searchKeyword = ref('')
 const statusFilter = ref('')

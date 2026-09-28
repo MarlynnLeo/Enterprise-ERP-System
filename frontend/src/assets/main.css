@@ -1,3 +1,16 @@
+/* ==================== Custom Electronic Signature Font ==================== */
+@font-face {
+  font-family: 'SPPLMFONT';
+  src: url('./fonts/SPPLMFONT.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+.signature-font {
+  font-family: 'SPPLMFONT', sans-serif !important;
+}
+
 /* ==================== Global Design Tokens ==================== */
 :root {
   /* 统一正文、数字和标题；旧字体 token 保留为兼容别名。 */
@@ -16,6 +29,43 @@ html, body {
   width: 100%;
   overflow-x: hidden;
   font-family: var(--font-sans);
+  outline: none;
+}
+
+/* 1. 基础容器层：布局壳体与非交互容器默认不展示焦点轮廓 */
+#app,
+main,
+header,
+footer,
+aside,
+nav,
+section,
+article {
+  outline: none;
+}
+
+/* 2. 交互状态重置：避免鼠标点击、刷新恢复焦点及可滚动区域触发原生生硬黑框 */
+:focus {
+  outline: none;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* 3. 键盘焦点提示：Element Plus 输入控件由组件边框提示焦点。
+ * 文本输入框在鼠标点击时也可能匹配 :focus-visible，不能再叠加 outline。
+ * tabindex 分支同样排除表单控件，避免绕过上面的组件排除规则。
+ */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible:not(:where(.el-input__inner, .el-select__input, .el-range-input, .el-cascader__search-input)),
+select:focus-visible,
+textarea:focus-visible:not(.el-textarea__inner),
+[role="button"]:focus-visible,
+[tabindex]:not([tabindex="-1"]):not(:where(html, body, #app, main, input, select, textarea)):focus-visible {
+  outline: 2px solid var(--color-primary, #409eff);
+  outline-offset: 1px;
 }
 
 /* 原生控件和代码/编号文本继承字体，不覆盖图标字体。 */

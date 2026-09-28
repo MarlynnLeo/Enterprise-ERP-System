@@ -65,7 +65,7 @@
         </el-table>
 
         <div class="pagination-container">
-          <el-pagination v-model:current-page="page" v-model:page-size="pageSize" :total="total" layout="total, prev, pager, next" @change="fetchData" />
+          <el-pagination :page-sizes="PAGE_SIZE_OPTIONS" v-model:current-page="page" v-model:page-size="pageSize" :total="total" layout="total, prev, pager, next" @change="fetchData" />
         </div>
       </template>
 
@@ -156,6 +156,8 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -168,7 +170,7 @@ const loading = ref(false)
 const matrixLoading = ref(false)
 const saving = ref(false)
 const page = ref(1)
-const pageSize = ref(20)
+const pageSize = ref(getThemeDefaultPageSize(20))
 const total = ref(0)
 const tableData = ref([])
 const categories = ref([])

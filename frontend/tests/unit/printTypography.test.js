@@ -62,4 +62,23 @@ describe('print typography', () => {
     expect(printDocument.querySelector('p').hasAttribute('onclick')).toBe(false)
     expect(printDocument.querySelectorAll('#erp-print-typography')).toHaveLength(1)
   })
+
+  test('preserves explicit template backgrounds and only applies glyph fonts to signature values', () => {
+    const printDocument = renderPrint(`<html><head><style>
+      .signature-label { font-family: Arial; }
+      .signature-handwritten { font-family: SPPLMFONT; }
+      td { background: #e0e0e0; }
+    </style></head><body>
+      <table><tr><td>表头</td></tr></table>
+      <span class="signature-label">检验员</span><span class="signature-handwritten">O</span>
+    </body></html>`)
+    applyPrintTypography(printDocument)
+    const rules = printDocument.querySelector('style').sheet.cssRules
+    expect(rules[0].style.getPropertyValue('font-family')).toContain('Microsoft YaHei')
+    expect(rules[1].style.getPropertyValue('font-family')).toBe('SPPLMFONT')
+    expect(rules[2].style.getPropertyValue('background')).toBe('#e0e0e0')
+    expect(printDocument.querySelector('#erp-print-typography').textContent).not.toContain('background')
+    expect(printDocument.querySelectorAll('#erp-print-spplmfont')).toHaveLength(1)
+    expect(printDocument.querySelector('#erp-print-spplmfont').textContent).toContain('data:')
+  })
 })

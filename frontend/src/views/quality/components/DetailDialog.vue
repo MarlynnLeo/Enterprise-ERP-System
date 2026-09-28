@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * DetailDialog.vue
  * @description 检验单详情查看弹窗
@@ -30,7 +30,9 @@
           <el-descriptions-item label="产品型号">{{ inspection.productCode || inspection.itemSpecs || inspection.specs || '-' }}</el-descriptions-item>
           <el-descriptions-item label="供应商">{{ inspection.supplierName || '-' }}</el-descriptions-item>
           <el-descriptions-item label="批次号">{{ inspection.batchNo || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="检验数量">{{ Math.floor(inspection.quantity || 0) }}</el-descriptions-item>
+          <el-descriptions-item label="到货数量">{{ Math.floor(inspection.quantity || 0) }}</el-descriptions-item>
+          <el-descriptions-item label="抽样数量">{{ getInspectionSampleQuantity(inspection) ?? '-' }}</el-descriptions-item>
+          <el-descriptions-item label="抽样方案" :span="2">{{ getInspectionSamplingPlan(inspection) }}</el-descriptions-item>
           <el-descriptions-item label="合格数">
             <span v-if="inspection.qualifiedQuantity !== null && inspection.qualifiedQuantity !== undefined" class="text-success font-weight-700">{{ Math.floor(inspection.qualifiedQuantity) }}</span>
             <span v-else class="text-muted">-</span>
@@ -107,6 +109,7 @@ import {
   MAX_INSPECTION_MEASUREMENT_COLUMNS
 } from '@/utils/inspectionHelpers'
 import { formatInspectionMeasurement } from '@/utils/inspectionMeasurement'
+import { getInspectionSampleQuantity, getInspectionSamplingPlan } from '@/utils/inspectionSampling'
 import AttachmentUpload from '@/components/AttachmentUpload.vue'
 const props = defineProps({
   visible: Boolean,

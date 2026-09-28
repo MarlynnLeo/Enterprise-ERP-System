@@ -3,6 +3,7 @@ import { ElMessage } from 'element-plus/es/components/message/index'
 import { parsePaginatedData } from '@/utils/responseParser'
 import { clearAllRequestCaches } from '@/utils/requestOptimizer'
 import { getApiErrorMessage } from '@/utils/errorHandler'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 
 const errorText = (error, fallback) => {
   return getApiErrorMessage(error, fallback)
@@ -14,7 +15,7 @@ const errorText = (error, fallback) => {
  */
 export function usePaginatedFetching(apiFunction, options = {}) {
   const {
-    immediate = false, defaultParams = {}, pageSize = 10,
+    immediate = false, defaultParams = {}, pageSize = getThemeDefaultPageSize(10),
     errorMessage = '数据获取失败', successMessage = null, transform,
   } = options
   const loading = ref(false)
@@ -48,7 +49,7 @@ export function usePaginatedFetching(apiFunction, options = {}) {
       const result = transform ? await transform(response) : response
       if (!current()) return null
       const responseLike = result?.data !== undefined ? result : { data: result }
-      const parsed = parsePaginatedData(responseLike, { enableLog: false })
+      const parsed = parsePaginatedData(responseLike, { enableLog: false, pageSize: query.pageSize })
       data.value = Array.isArray(result) ? result : parsed.list
       pagination.total = Array.isArray(result) ? result.length : parsed.total
       statistics.value = parsed.statistics

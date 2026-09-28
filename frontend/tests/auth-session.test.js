@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { userApi } from '@/api/user'
 import { tokenManager, permissionManager } from '@/utils/unifiedStorage'
 import { useAuthStore } from '@/stores/auth'
+import { useThemeStore } from '@/stores/theme'
 
 vi.mock('@/api/user', () => ({
   userApi: {
@@ -114,5 +115,13 @@ describe('desktop authentication session isolation', () => {
     userApi.getPermissions.mockResolvedValueOnce({ data: ['*', null] })
     await expect(auth.fetchUserPermissions()).rejects.toThrow('权限数据格式不正确')
     expect(auth.hasPermission('sales:orders:view')).toBe(false)
+  })
+
+  test.each([1, 2])('only resets theme work when the confirmed account changes to %s', async (id) => {
+    const theme = useThemeStore()
+    const reset = vi.spyOn(theme, 'resetForSession')
+    userApi.getProfileFast.mockResolvedValueOnce({ data: { id, username: `user-${id}` } })
+    expect(await auth.fetchUserProfile()).toBe(true)
+    expect(reset).toHaveBeenCalledTimes(id === 1 ? 0 : 1)
   })
 })

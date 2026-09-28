@@ -1,4 +1,5 @@
 const VALID_INSPECTION_TYPES = new Set(['incoming', 'process', 'final', 'first_article']);
+const { isValidAqlLevel } = require('../../utils/quality/aqlValidation');
 
 class InspectionTemplateResolverService {
   static normalizeBoolean(value) {
@@ -117,6 +118,9 @@ class InspectionTemplateResolverService {
     }
     if (!String(payload.version || '').trim()) {
       errors.push('版本号不能为空');
+    }
+    if (normalized.isAql && !isValidAqlLevel(normalized.aqlLevel)) {
+      errors.push('启用 AQL 时须填写大于 0 的数值 AQL，不能填写标准编号或检验水平');
     }
     if (normalized.invalidMaterialType) {
       errors.push('所选物料格式不正确，请重新选择');

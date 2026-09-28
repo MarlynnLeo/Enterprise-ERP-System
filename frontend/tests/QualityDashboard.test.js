@@ -1,4 +1,4 @@
-import { defineComponent, h } from 'vue'
+import { computed, defineComponent, h, inject, provide } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import QualityDashboard from '@/views/dataoverview/QualityDashboard.vue'
@@ -24,14 +24,26 @@ vi.mock('element-plus/es/components/message/index', () => ({ ElMessage: message 
 vi.mock('element-plus/es/components/message/style/css', () => ({}))
 
 const Passthrough = defineComponent({ template: '<div><slot name="header"/><slot/></div>' })
+const tableRows = Symbol('tableRows')
 const Table = defineComponent({
   props: ['data', 'emptyText'],
   emits: ['row-click'],
-  setup: (props, { emit }) => () => h('div', Array.isArray(props.data) && props.data.length
-    ? props.data.map(row => h('button', {
-      onClick: () => emit('row-click', row, { type: 'default' }, { target: document.body }),
-    }, row.inspectionNo))
-    : props.emptyText),
+  setup(props, { emit, slots }) {
+    provide(tableRows, computed(() => props.data))
+    return () => h('div', Array.isArray(props.data) && props.data.length
+      ? [props.data.map(row => h('button', {
+        onClick: () => emit('row-click', row, { type: 'default' }, { target: document.body }),
+      }, row.inspectionNo)), slots.default?.()]
+      : props.emptyText)
+  },
+})
+const TableColumn = defineComponent({
+  props: ['label', 'prop'],
+  setup(props, { slots }) {
+    const rows = inject(tableRows)
+    return () => h('div', { 'data-column': props.label }, rows.value.map(row =>
+      h('span', { 'data-row': row.id }, slots.default ? slots.default({ row }) : row[props.prop])))
+  },
 })
 const Pagination = defineComponent({
   props: ['total', 'currentPage', 'pageSize'],
@@ -75,12 +87,12 @@ const openDashboard = () => {
       ElCol: Passthrough,
       ElCard: Passthrough,
       ElTable: Table,
-      ElTableColumn: true,
+      ElTableColumn: TableColumn,
       ElPagination: Pagination,
       ElInput: SearchInput,
       ElRadioGroup: RadioGroup,
       ElRadioButton: true,
-      ElTag: true,
+      ElTag: Passthrough,
       EmptyState,
     },
     directives: { loading: () => {} },
@@ -108,6 +120,22 @@ afterEach(() => {
 })
 
 describe('quality dashboard API contract', () => {
+  test('renders Chinese inspection types and material fields from defect rows without a dictionary', async () => {
+    qualityApi.getDefectItems.mockResolvedValue(paginated([
+      { ...inspection(1), materialName: '接触片', materialCode: 'MAT-001' },
+      { ...inspection(2), inspectionType: 'process', materialName: '开关组件', materialCode: 'PRD-002' },
+      { ...inspection(3), inspectionType: 'final', materialName: '成品开关', materialCode: 'PRD-003' },
+      { ...inspection(4), inspectionType: 'first_article', materialName: '首件开关', materialCode: 'PRD-004' },
+    ]))
+    openDashboard()
+    await flushPromises()
+
+    const cells = label => wrapper.findAll(`[data-column="${label}"] > [data-row]`).map(cell => cell.text())
+    expect(cells('检验类型')).toEqual(['来料检验', '过程检验', '成品检验', '首件检验'])
+    expect(cells('产品名称')).toEqual(['接触片', '开关组件', '成品开关', '首件开关'])
+    expect(cells('物料编码')).toEqual(['MAT-001', 'PRD-002', 'PRD-003', 'PRD-004'])
+  })
+
   test('renders response.data statistics and camelCase trend and defect fields', async () => {
     openDashboard()
     await flushPromises()

@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { flushPromises } from '@vue/test-utils'
 import api from '@/api'
 import { useAuthStore } from '@/stores/auth'
+import { useTheme } from '@/composables/useTheme'
 
 vi.mock('@/api', () => ({
   default: {
@@ -138,5 +139,12 @@ describe('mobile authentication session isolation', () => {
     await flushPromises()
     expect(auth.hasPermission('inventory:outbound:create')).toBe(false)
     expect(auth.permissionsLoaded).toBe(false)
+  })
+
+  test.each([1, 2])('resets the previous theme only when the profile confirms account %s', async (id) => {
+    await useTheme().setTheme('workspace', { syncServer: false })
+    api.get.mockResolvedValueOnce({ data: { id, username: `user-${id}` } })
+    expect(await auth.fetchUserProfile()).toBe(true)
+    expect(useTheme().currentThemeName.value).toBe(id === 1 ? 'workspace' : 'kacon')
   })
 })

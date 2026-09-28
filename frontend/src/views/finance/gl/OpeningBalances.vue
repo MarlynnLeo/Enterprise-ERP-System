@@ -211,7 +211,7 @@
         <el-pagination
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :background="true"
           layout="total, sizes, prev, pager, next, jumper"
           :total="filteredAccountList.length"
@@ -222,6 +222,8 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -245,7 +247,7 @@ const searchForm = reactive({
 })
 
 const currentPage = ref(1)
-const pageSize = ref(20)
+const pageSize = ref(getThemeDefaultPageSize(20))
 
 // 过滤后的科目列表
 const filteredAccountList = computed(() => {

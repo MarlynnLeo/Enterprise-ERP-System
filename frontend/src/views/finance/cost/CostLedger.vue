@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="module-page cost-ledger-container">
     <!-- 页面标题 -->
     <PageHeader title="成本明细账" subtitle="多维度成本查询与分析">
@@ -81,7 +81,7 @@
             v-model:current-page="pagination.page"
             v-model:page-size="pagination.pageSize"
             :total="pagination.total"
-            :page-sizes="[10, 20, 50, 100]"
+            :page-sizes="PAGE_SIZE_OPTIONS"
             layout="total, sizes, prev, pager, next, jumper"
             class="pagination-bar"
             @change="loadLedger"
@@ -245,6 +245,8 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus/es/components/message/index';
 import { Download } from '@element-plus/icons-vue';
@@ -276,7 +278,7 @@ const productOptions = ref([]);
 const ledgerList = ref([]);
 const pagination = reactive({
   page: 1,
-  pageSize: 20,
+  pageSize: getThemeDefaultPageSize(20),
   total: 0
 });
 

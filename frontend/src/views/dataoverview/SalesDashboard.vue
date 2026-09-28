@@ -152,7 +152,7 @@
             <el-pagination
               v-model:current-page="currentPage"
               v-model:page-size="pageSize"
-              :page-sizes="[5, 10, 20, 50]"
+              :page-sizes="[5, 10, 20, 25, 50]"
               layout="total, sizes, prev, pager, next"
               :total="recentOrders.length"
               @size-change="handleSizeChange"
@@ -166,6 +166,7 @@
 </template>
 
 <script setup>
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search } from '@element-plus/icons-vue'
@@ -200,7 +201,7 @@ const rawTrend = ref([])
 const recentOrders = ref([])
 const search = ref('')
 const currentPage = ref(1)
-const pageSize = ref(10)
+const pageSize = ref(getThemeDefaultPageSize(10))
 
 // Canvas 引用与图表实例
 const salesTrend = ref(null)
@@ -369,8 +370,8 @@ function renderSalesTrendChart() {
         {
           label: isAmount ? '销售金额' : '订单数量',
           data: salesData,
-          borderColor: chartColors.primary[0],
-          backgroundColor: chartColors.primary[4],
+          borderColor: () => chartColors.primary[0],
+          backgroundColor: () => chartColors.primary[4],
           tension: 0.4,
           fill: true
         }
@@ -406,8 +407,8 @@ function renderCustomerRankChart() {
         {
           label: '销售金额',
           data,
-          backgroundColor: chartColors.primary[0],
-          borderColor: chartColors.primary[1],
+          backgroundColor: () => chartColors.primary[0],
+          borderColor: () => chartColors.primary[1],
           borderWidth: 1
         }
       ]
@@ -432,7 +433,7 @@ async function loadData() {
       salesApi.getSalesTrend(),
       salesApi.getOrders({
         page: 1,
-        pageSize: 20,
+        pageSize: getThemeDefaultPageSize(20),
         sort: 'created_at',
         order: 'desc'
       })

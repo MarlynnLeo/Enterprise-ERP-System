@@ -9,17 +9,17 @@
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
-      @search="fetchList"
+      @search="searchList"
       @reset="resetSearch"
     >
       <template #basic>
         <el-form-item label="变更标题">
-          <el-input v-model="keyword" placeholder="变更标题" clearable @keyup.enter="fetchList" />
+          <el-input v-model="keyword" placeholder="变更标题" clearable @keyup.enter="searchList" @clear="searchList" />
         </el-form-item>
       </template>
       <template #advanced>
         <el-form-item label="状态">
-          <el-select v-model="filterStatus" placeholder="全部" clearable @change="fetchList">
+          <el-select v-model="filterStatus" placeholder="全部" clearable @change="searchList">
             <el-option
               v-for="opt in ECN_STATUS_OPTIONS"
               :key="opt.value"
@@ -90,7 +90,15 @@
       </el-table>
 
       <div class="pagination-container">
-        <el-pagination v-model:current-page="page" :total="total" layout="total, prev, pager, next" @change="fetchList" />
+        <el-pagination
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
+          :total="total"
+          :page-sizes="PAGE_SIZE_OPTIONS"
+          layout="total, sizes, prev, pager, next"
+          @size-change="handleSizeChange"
+          @current-change="fetchList"
+        />
       </div>
     </el-card>
 
@@ -262,8 +270,11 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { handleTableRowView } from '@/utils/tableRowView'
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, toRefs } from 'vue'
+import { usePaginatedFetching } from '@/composables/useDataFetching'
 import BusinessApprovalDialog from '@/components/workflow/BusinessApprovalDialog.vue'
 import { useBusinessApproval } from '@/composables/useBusinessApproval'
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -288,13 +299,14 @@ const ecnApprovalSummary = computed(() => {
     { label: '申请人', value: row.requestedByName || '-' }
   ]
 })
-const loading = ref(false)
 const saving = ref(false)
 const keyword = ref('')
 const filterStatus = ref('')
-const page = ref(1)
-const total = ref(0)
-const tableData = ref([])
+const { loading, data: tableData, pagination, fetchData: fetchPage, handleSizeChange } = usePaginatedFetching(
+  query => ecnApi.getList({ ...query, keyword: keyword.value, status: filterStatus.value }),
+  { pageSize: getThemeDefaultPageSize(20), errorMessage: '加载失败' }
+)
+const { current: page, pageSize, total } = toRefs(pagination)
 const formVis = ref(false)
 const formData = ref({})
 
@@ -384,17 +396,8 @@ const dialogTitle = computed(() => {
 // 是否可编辑：新建或草稿状态
 const isEditable = computed(() => !formData.value.id || formData.value.status === 'draft')
 
-// 获取列表
-const fetchList = async () => {
-  loading.value = true
-  try {
-    const res = await ecnApi.getList({ keyword: keyword.value, status: filterStatus.value, page: page.value, pageSize: 20 })
-    const d = res.data || res
-    tableData.value = d.list || []
-    total.value = d.total || 0
-  } catch { ElMessage.error('加载失败') }
-  finally { loading.value = false }
-}
+const fetchList = () => fetchPage()
+const searchList = () => { page.value = 1; return fetchList() }
 
 const resetSearch = () => {
   keyword.value = ''

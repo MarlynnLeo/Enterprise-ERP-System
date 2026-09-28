@@ -321,12 +321,12 @@
         <el-pagination
           v-model:current-page="pickerPage"
           v-model:page-size="pickerPageSize"
-          :page-sizes="[20, 50, 100, 200]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :total="pickerTotal"
           size="small"
           background
           layout="total, sizes, prev, pager, next"
-          @size-change="fetchPickerMaterials"
+          @size-change="handlePickerSizeChange"
           @current-change="fetchPickerMaterials"
         />
       </div>
@@ -343,6 +343,8 @@
   </AppDialog>
 </template>
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { Plus, Delete, InfoFilled, Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -383,7 +385,7 @@ const pickerTableData = ref([])
 const pickerLoading = ref(false)
 const pickerTotal = ref(0)
 const pickerPage = ref(1)
-const pickerPageSize = ref(50)
+const pickerPageSize = ref(getThemeDefaultPageSize(50))
 const pickerSelectedRow = ref(null)
 const pickerInputRef = ref(null)
 const pickerTableRef = ref(null)
@@ -855,6 +857,12 @@ const fetchPickerMaterials = async () => {
   } finally {
     pickerLoading.value = false
   }
+}
+
+const handlePickerSizeChange = (size) => {
+  pickerPageSize.value = size
+  pickerPage.value = 1
+  return fetchPickerMaterials()
 }
 
 const handlePickerSearch = () => {

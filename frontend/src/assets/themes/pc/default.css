@@ -215,31 +215,6 @@
   font-weight: var(--font-weight-medium);
 }
 
-:root[data-theme="default"] .el-tag--primary {
-  background-color: var(--color-primary-light-9);
-  color: var(--color-primary);
-}
-
-:root[data-theme="default"] .el-tag--success {
-  background-color: var(--color-success-light);
-  color: var(--color-success);
-}
-
-:root[data-theme="default"] .el-tag--warning {
-  background-color: var(--color-warning-light);
-  color: var(--color-warning);
-}
-
-:root[data-theme="default"] .el-tag--danger {
-  background-color: var(--color-danger-light);
-  color: var(--color-danger);
-}
-
-:root[data-theme="default"] .el-tag--info {
-  background-color: var(--color-info-light);
-  color: var(--color-info);
-}
-
 /* 消息/通知尺寸与阴影 */
 :root[data-theme="default"] .el-message {
   border-radius: var(--radius-md);

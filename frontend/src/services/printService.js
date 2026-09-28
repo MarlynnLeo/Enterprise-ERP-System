@@ -14,21 +14,48 @@ import {
   sanitizePrintHtml,
   writeSafeHtmlDocument,
 } from '@/utils/htmlSecurity'
-import { getCssTokenValue } from '@/utils/designTokens'
 import { parseResponseData } from '@/utils/responseParser'
 import { renderPrintTemplate } from '@/utils/cspSafePrintRenderer'
 import { autoFitPrintDocument } from '@/utils/printAutoFit'
 import { getAppFontFamily } from '@/utils/typography'
-
-const getPrintTokens = () => ({
-  border: getCssTokenValue('textPrimary'),
-  headerBg: getCssTokenValue('page')
-})
+import { SPPLM_FONT_FACE_CSS } from '@/assets/fonts/signatureFont'
+import { resolveSignatureCode } from '@/constants/signatureConstants'
 
 const getTemplateField = (template, snakeKey, camelKey, fallback = undefined) => {
   if (template?.[snakeKey] !== undefined && template?.[snakeKey] !== null) return template[snakeKey]
   if (template?.[camelKey] !== undefined && template?.[camelKey] !== null) return template[camelKey]
   return fallback
+}
+
+async function waitForPrintAssets(printDocument) {
+  let timeout
+  try {
+    const ready = async () => {
+      if (printDocument.fonts) {
+        // Force layout to discover template fonts before observing FontFaceSet.ready.
+        printDocument.body.getBoundingClientRect()
+        const signatures = Array.from(printDocument.querySelectorAll('.signature-handwritten, .signature-font'))
+          .map(element => element.textContent).join('')
+        if (signatures.trim()) await printDocument.fonts.load('24pt SPPLMFONT', signatures)
+        await printDocument.fonts.ready
+      }
+      await Promise.all(Array.from(printDocument.images, image => {
+        if (image.complete) {
+          return image.naturalWidth ? undefined : Promise.reject(new Error('打印图片加载失败'))
+        }
+        return new Promise((resolve, reject) => {
+          image.onload = resolve
+          image.onerror = () => reject(new Error('打印图片加载失败'))
+        })
+      }))
+    }
+    await Promise.race([
+      ready(),
+      new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error('打印字体或图片加载超时，请重试')), 15000) }),
+    ])
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 /**
@@ -125,6 +152,15 @@ export function normalizePrintData(data) {
       out[snake] = normalizedValue;
     }
   }
+
+  for (const role of ['inspector', 'reviewer', 'technical', 'approver']) {
+    const code = resolveSignatureCode(out[`${role}_signature_code`] ?? out[`${role}_signature`])
+    if (code || Object.hasOwn(out, `${role}_signature`) || Object.hasOwn(out, `${role}_signature_code`)) {
+      out[`${role}_signature`] = code
+      out[`${role}_signature_code`] = code
+    }
+  }
+
   return out;
 }
 
@@ -270,151 +306,47 @@ const printService = {
       throw new Error('打印模板内容为空，请先配置打印模板');
     }
 
-    try {
-      // 解码 HTML 实体（如果模板内容被转义了）
-      let templateContent = template.content;
-      if (templateContent && (templateContent.includes('&lt;') || templateContent.includes('&gt;'))) {
-        templateContent = decodeHtmlEntities(templateContent);
-      }
-
-      // CSP-safe renderer（不使用 Handlebars.compile / new Function）
-      const content = renderPrintTemplate(
-        templateContent,
-        normalizePrintData(data || {})
-      );
-
-      // 构建打印样式
-      const printTokens = getPrintTokens()
-      const mt = getTemplateField(template, 'margin_top', 'marginTop', 10) || 10
-      const mr = getTemplateField(template, 'margin_right', 'marginRight', 10) || 10
-      const mb = getTemplateField(template, 'margin_bottom', 'marginBottom', 10) || 10
-      const ml = getTemplateField(template, 'margin_left', 'marginLeft', 10) || 10
-      const paperSize = getTemplateField(template, 'paper_size', 'paperSize', 'A4') || 'A4'
-      const orientation = getTemplateField(template, 'orientation', 'orientation', 'portrait') || 'portrait'
-      const style = `
-        <style>
-          @page {
-            size: ${paperSize} ${orientation};
-            margin: 0;
-          }
-          body {
-            font-family: ${getAppFontFamily()};
-            font-size: 12pt;
-            margin: 0;
-            padding: ${mt}mm ${mr}mm ${mb}mm ${ml}mm;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-          .page-break {
-            page-break-after: always;
-          }
-          table {
-            width: 100%;
-            border-collapse: collapse;
-          }
-          th, td {
-            border: 1px solid ${printTokens.border};
-            padding: 5px;
-          }
-          th {
-            background-color: ${printTokens.headerBg};
-          }
-        </style>
-      `;
-
-      const docTitle = template.name || data?.title || '打印文档'
-      return sanitizePrintHtml(`<!DOCTYPE html>
-        <html>
-          <head>
-            <meta charset="utf-8">
-            <title>${docTitle}</title>
-            ${style}
-          </head>
-          <body>
-            ${content}
-          </body>
-        </html>
-      `);
-    } catch {
-      // 如果Handlebars不可用或出错，回退到简单的变量替换
-      let content = template.content;
-
-      // 验证内容是否存在
-      if (!content) {
-        throw new Error('模板内容为空，无法生成打印内容');
-      }
-
-      // 解码 HTML 实体
-      if (content && (content.includes('&lt;') || content.includes('&gt;'))) {
-        content = decodeHtmlEntities(content);
-      }
-
-      // 替换变量占位符
-      if (data) {
-        Object.keys(data).forEach(key => {
-          // 只替换简单变量，不处理复杂的模板标签
-          if (typeof data[key] !== 'object' && key !== 'items') {
-            const regex = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
-            content = content.replace(regex, escapeHtml(data[key] || ''));
-          }
-        });
-      }
-
-      // 构建打印样式
-      const printTokens = getPrintTokens()
-       const mt = getTemplateField(template, 'margin_top', 'marginTop', 10) || 10
-       const mr = getTemplateField(template, 'margin_right', 'marginRight', 10) || 10
-       const mb = getTemplateField(template, 'margin_bottom', 'marginBottom', 10) || 10
-       const ml = getTemplateField(template, 'margin_left', 'marginLeft', 10) || 10
-       const paperSize = getTemplateField(template, 'paper_size', 'paperSize', 'A4') || 'A4'
-       const orientation = getTemplateField(template, 'orientation', 'orientation', 'portrait') || 'portrait'
-      const style = `
-        <style>
-          @page {
-            size: ${paperSize} ${orientation};
-            margin: 0;
-          }
-          body {
-            font-family: ${getAppFontFamily()};
-            font-size: 12pt;
-            margin: 0;
-            padding: ${mt}mm ${mr}mm ${mb}mm ${ml}mm;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-          .page-break {
-            page-break-after: always;
-          }
-          table {
-            width: 100%;
-            border-collapse: collapse;
-          }
-          th, td {
-            border: 1px solid ${printTokens.border};
-            padding: 5px;
-          }
-          th {
-            background-color: ${printTokens.headerBg};
-          }
-        </style>
-      `;
-
-      const docTitle = template.name || data?.title || '打印文档'
-      return sanitizePrintHtml(`<!DOCTYPE html>
-        <html>
-          <head>
-            <meta charset="utf-8">
-            <title>${docTitle}</title>
-            ${style}
-          </head>
-          <body>
-            ${content}
-          </body>
-        </html>
-      `);
+    let templateContent = template.content
+    if (templateContent.includes('&lt;') || templateContent.includes('&gt;')) {
+      templateContent = decodeHtmlEntities(templateContent)
     }
+    // Rendering errors must reach the caller. Partial placeholder replacement can silently
+    // omit inspection rows and conditionals from an otherwise plausible report.
+    const content = renderPrintTemplate(templateContent, normalizePrintData(data || {}))
+    const mt = getTemplateField(template, 'margin_top', 'marginTop', 10)
+    const mr = getTemplateField(template, 'margin_right', 'marginRight', 10)
+    const mb = getTemplateField(template, 'margin_bottom', 'marginBottom', 10)
+    const ml = getTemplateField(template, 'margin_left', 'marginLeft', 10)
+    const paperSize = getTemplateField(template, 'paper_size', 'paperSize', 'A4')
+    const orientation = getTemplateField(template, 'orientation', 'orientation', 'portrait')
+    const docTitle = escapeHtml(template.name || data?.title || '打印文档')
+    return sanitizePrintHtml(`<!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <title>${docTitle}</title>
+          <style id="erp-print-spplmfont">${SPPLM_FONT_FACE_CSS}</style>
+          <style>
+            @page { size: ${paperSize} ${orientation}; margin: 0; }
+            body {
+              font-family: ${getAppFontFamily()};
+              font-size: 12pt;
+              color: #111;
+              background: #fff;
+              margin: 0;
+              padding: ${mt}mm ${mr}mm ${mb}mm ${ml}mm;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            .page-break { page-break-after: always; }
+            table { width: 100%; border-collapse: collapse; }
+            th, td { border: 1px solid #333; padding: 5px; }
+            th { background-color: #fff; }
+          </style>
+        </head>
+        <body>${content}</body>
+      </html>`)
   },
-
   async generateByDefaultTemplate(module, type, data) {
     const template = await this.getDefaultTemplateData(module, type)
     let companyInfo = {}
@@ -450,72 +382,39 @@ const printService = {
    * @param {String} html - 打印内容 HTML
    * @returns {Promise} - 打印完成后 resolve
    */
-  printDocument(html) {
-    return new Promise((resolve) => {
-      // 移除上一次可能残留的打印 iframe
-      const existingFrame = document.getElementById('__erp_print_frame__')
-      if (existingFrame) {
-        existingFrame.remove()
-      }
-
-      // 创建隐藏 iframe
-      const iframe = document.createElement('iframe')
-      iframe.id = '__erp_print_frame__'
-      // 保留实际纸张尺寸，自动缩放工具需要可计算的单元格宽度。
-      // 仍放在视口外，不会影响当前页面，也不会闪出空白窗口。
-      iframe.style.cssText = 'position:fixed;top:-10000px;left:-10000px;width:210mm;height:297mm;border:none;'
-      document.body.appendChild(iframe)
-
-      const iframeDoc = iframe.contentDocument || iframe.contentWindow.document
-      writeSafeHtmlDocument(iframe.contentWindow, html)
-
-      const fitPrintText = () => {
+  async printDocument(html) {
+    if (document.getElementById('__erp_print_frame__')) {
+      throw new Error('已有打印任务正在进行，请关闭当前打印对话框后重试')
+    }
+    const iframe = document.createElement('iframe')
+    iframe.id = '__erp_print_frame__'
+    iframe.style.cssText = 'position:fixed;top:-10000px;left:-10000px;width:210mm;height:297mm;border:none;'
+    document.body.appendChild(iframe)
+    const printWindow = iframe.contentWindow
+    let fallbackTimer
+    try {
+      writeSafeHtmlDocument(printWindow, html)
+      const printDocument = printWindow.document
+      await waitForPrintAssets(printDocument)
+      autoFitPrintDocument(printDocument)
+      await new Promise((resolve, reject) => {
+        // Some browsers dispatch afterprint before print() returns.
+        const supportsAfterPrint = 'onafterprint' in printWindow
+        printWindow.onafterprint = resolve
         try {
-          autoFitPrintDocument(iframeDoc)
+          printWindow.focus()
+          printWindow.print()
+          if (!supportsAfterPrint) fallbackTimer = setTimeout(resolve, 3000)
         } catch (error) {
-          console.warn('打印文本自动适配失败:', error)
+          reject(error)
         }
-      }
-      // document.write 后先执行一次，字体加载完成及打印前再执行一次，
-      // 兼容自定义模板字体或浏览器延迟布局的情况。
-      setTimeout(fitPrintText, 0)
-      if (iframeDoc.fonts?.ready && typeof iframeDoc.fonts.ready.then === 'function') {
-        iframeDoc.fonts.ready.then(fitPrintText).catch(() => {})
-      }
-
-      // 等待 iframe 渲染完成后触发打印
-      const triggerPrint = () => {
-        fitPrintText()
-        try {
-          iframe.contentWindow.focus()
-          iframe.contentWindow.print()
-        } catch (e) {
-          console.warn('打印调用失败:', e)
-        }
-
-        // 打印完成或取消后清理 iframe
-        const cleanup = () => {
-          setTimeout(() => {
-            iframe.remove()
-            resolve()
-          }, 100)
-        }
-
-        // 优先使用 onafterprint 事件，兼容直接延迟清理
-        if ('onafterprint' in iframe.contentWindow) {
-          iframe.contentWindow.onafterprint = cleanup
-        } else {
-          // Safari 不支持 onafterprint，延迟清理
-          setTimeout(cleanup, 3000)
-        }
-      }
-
-      // iframe 使用 document.write 后 load 事件在部分浏览器不触发
-      // 用 requestAnimationFrame + setTimeout 确保渲染完成
-      setTimeout(triggerPrint, 300)
-    })
+      })
+    } finally {
+      clearTimeout(fallbackTimer)
+      printWindow.onafterprint = null
+      iframe.remove()
+    }
   },
-
   /**
    * 打印预览（等同于打印，统一使用隐藏 iframe）
    * @param {String} html - 打印内容 HTML

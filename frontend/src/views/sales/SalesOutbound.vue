@@ -222,7 +222,7 @@
         <el-pagination
           v-model:current-page="outboundPagination.page"
           v-model:page-size="outboundPagination.pageSize"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :small="false"
           :disabled="false"
           :background="true"
@@ -640,6 +640,8 @@
   </div>
 </template>
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { parseListData, parseResponseData } from '@/utils/responseParser';
 import { formatDate } from '@/utils/helpers/dateUtils'
@@ -797,7 +799,7 @@ const {
     };
   },
   {
-    pageSize: 10,
+    pageSize: getThemeDefaultPageSize(10),
     immediate: true
   }
 );

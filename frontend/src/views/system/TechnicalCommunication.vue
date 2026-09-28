@@ -157,7 +157,7 @@
         v-model:current-page="pagination.page"
         v-model:page-size="pagination.pageSize"
         :total="total"
-        :page-sizes="[10, 20, 50, 100]"
+        :page-sizes="PAGE_SIZE_OPTIONS"
         layout="total, sizes, prev, pager, next, jumper"
         @size-change="handleSizeChange"
         @current-change="handlePageChange"
@@ -369,6 +369,8 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { NOTIFICATION_PERMISSIONS } from '@/constants/notification'
 import { useDictionaryStore } from '@/stores/dictionary'
 import { ref, reactive, computed, onMounted, watch } from 'vue'
@@ -398,7 +400,7 @@ const communicationList = ref([])
 const total = ref(0)
 const pagination = reactive({
   page: 1,
-  pageSize: 10
+  pageSize: getThemeDefaultPageSize(10)
 })
 
 const filterForm = reactive({

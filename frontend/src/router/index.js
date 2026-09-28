@@ -95,7 +95,8 @@ const router = createRouter({
           component: () => import('../views/UserProfile.vue'),
           meta: {
             requiresAuth: true,
-            title: '个人中心'
+            title: '个人中心',
+            titleKey: 'user.profile'
           },
           beforeEnter: async () => {
             const authStore = useAuthStore()
@@ -232,9 +233,11 @@ router.beforeEach(async (to) => {
     const themeOwner = authStore.user?.id || authStore.user?.username || authStore.user?.name || 'authenticated'
     const themeStore = useThemeStore()
     if (themeStore.loadedForUser !== themeOwner) {
-      themeStore.loadedForUser = themeOwner
       runWhenIdle(() => {
-        themeStore.loadThemeFromServer().catch(() => {})
+        if (!authStore.isAuthenticated) return
+        const currentOwner = authStore.user?.id || authStore.user?.username || authStore.user?.name || 'authenticated'
+        if (currentOwner !== themeOwner) return
+        themeStore.loadThemeForUser(themeOwner).catch(() => {})
       }, 3000)
     }
   }

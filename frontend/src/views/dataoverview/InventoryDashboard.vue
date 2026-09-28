@@ -137,7 +137,7 @@
             <el-pagination
               v-model:current-page="alertCurrentPage"
               v-model:page-size="alertPageSize"
-              :page-sizes="[5, 10, 20, 50]"
+              :page-sizes="[5, 10, 20, 25, 50]"
               layout="total, sizes, prev, pager, next"
               :total="alertItems.length"
               @size-change="handleAlertSizeChange"
@@ -316,16 +316,16 @@ const renderCharts = async () => {
           {
             label: '入库',
             data: monthlyTrend.value.map(item => item.inbound),
-            borderColor: chartColors.success[0],
-            backgroundColor: chartColors.success[4],
+            borderColor: () => chartColors.success[0],
+            backgroundColor: () => chartColors.success[4],
             tension: 0.4,
             fill: true
           },
           {
             label: '出库',
             data: monthlyTrend.value.map(item => item.outbound),
-            borderColor: chartColors.warning[0],
-            backgroundColor: chartColors.warning[4],
+            borderColor: () => chartColors.warning[0],
+            backgroundColor: () => chartColors.warning[4],
             tension: 0.4,
             fill: true
           }
@@ -346,7 +346,7 @@ const renderCharts = async () => {
     const data = hasCategoryData
       ? categoryDistribution.value.map(item => item.value)
       : [1]
-    const bgColors = hasCategoryData
+    const bgColors = () => hasCategoryData
       ? chartColors.gradient
       : [alphaColor('textPrimary', 0.08)]
 

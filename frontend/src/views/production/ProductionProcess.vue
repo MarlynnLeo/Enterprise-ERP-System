@@ -282,7 +282,7 @@
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
           :current-page="currentPage"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :page-size="pageSize"
           :small="false"
           :disabled="false"
@@ -828,6 +828,8 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { processSnapshotInstructions } from '@/utils/productProcessRoute'
 import { defineAsyncComponent, ref, onMounted, watch, computed } from 'vue'
@@ -889,7 +891,7 @@ const VueOfficeExcel = defineAsyncComponent(() => import('@vue-office/excel/lib/
 const loading = ref(false)
 const taskList = ref([])
 const currentPage = ref(1)
-const pageSize = ref(10)
+const pageSize = ref(getThemeDefaultPageSize(10))
 const total = ref(0)
 const expandedRowKeys = ref([])
 

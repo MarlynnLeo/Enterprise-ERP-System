@@ -8,7 +8,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { showToast } from 'vant'
 import { useAuthStore } from '@/stores/auth'
-import { loadThemeFromServer } from '@/composables/useTheme'
+import { loadThemeForUser } from '@/composables/useTheme'
 
 // ==================== 导入路由模块 ====================
 import { commonRoutes } from './modules/common'
@@ -228,9 +228,8 @@ router.beforeEach(async (to) => {
   }
 
   const themeOwner = authStore.userId || authStore.username || 'authenticated'
-  if (isAuthenticated && to.name !== 'Login' && window.__mobileThemeLoadedFor !== themeOwner) {
-    window.__mobileThemeLoadedFor = themeOwner
-    loadThemeFromServer().catch(() => {})
+  if (isAuthenticated && to.name !== 'Login') {
+    loadThemeForUser(themeOwner).catch(() => {})
   }
 
   if (to.meta.permission && isAuthenticated) {

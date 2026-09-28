@@ -19,6 +19,7 @@ import { getApiErrorMessage } from '@/utils/errorHandler';
  * @typedef {Object} ParseOptions
  * @property {string} [logPrefix=''] - 日志前缀，用于调试追踪
  * @property {boolean} [enableLog] - 是否启用日志（默认：开发环境且 VITE_ENABLE_RESPONSE_LOG=true）
+ * @property {number} [pageSize=20] - 分页响应未返回条数时使用的请求条数
  */
 
 /**
@@ -244,6 +245,12 @@ export const getResponseError = (response, defaultMessage = '操作失败') => {
  */
 export const parsePaginatedData = (response, options = {}) => {
   const { logPrefix = '', enableLog = isDev } = options;
+  const integer = (value, minimum, fallback) => {
+    const number = typeof value === 'number' || (typeof value === 'string' && value.trim())
+      ? Number(value) : NaN;
+    return Number.isSafeInteger(number) && number >= minimum ? number : fallback;
+  };
+  const defaultPageSize = integer(options.pageSize, 1, 20);
 
   // 拦截器已解包，response.data 就是业务数据
   if (response?.data && typeof response.data === 'object') {
@@ -251,10 +258,10 @@ export const parsePaginatedData = (response, options = {}) => {
     const pag = data.pagination || {}; // 兼容 { data: [...], pagination: { total } } 格式
     const list = parseListData(response, { logPrefix, enableLog });
     // 确保 total, page, pageSize 是数字类型，避免 Element Plus 类型警告
-    const total = Number(data.total || data.totalCount || pag.total || pag.totalCount || list.length) || 0;
-    const page = Number(data.page || data.currentPage || pag.page || pag.current || 1) || 1;
-    const pageSize = Number(data.pageSize || data.limit || data.size || pag.pageSize || pag.limit || 20) || 20;
-    const totalPages = Number(data.totalPages || pag.totalPages) || Math.ceil(total / pageSize);
+    const total = integer(data.total ?? data.totalCount ?? pag.total ?? pag.totalCount, 0, list.length);
+    const page = integer(data.page ?? data.currentPage ?? pag.page ?? pag.current, 1, 1);
+    const pageSize = integer(data.pageSize ?? data.limit ?? data.size ?? pag.pageSize ?? pag.limit, 1, defaultPageSize);
+    const totalPages = integer(data.totalPages ?? pag.totalPages, 0, Math.ceil(total / pageSize));
     const statistics = data.statistics || null;
     const extra = data.extra || null;
 
@@ -265,7 +272,7 @@ export const parsePaginatedData = (response, options = {}) => {
 
   // 默认返回空数据
   enableLog && diagnosticLogger.warn(`${logPrefix}⚠️ 无法解析分页数据`);
-  return { list: [], total: 0, page: 1, pageSize: 20, totalPages: 0, statistics: null, extra: null };
+  return { list: [], total: 0, page: 1, pageSize: defaultPageSize, totalPages: 0, statistics: null, extra: null };
 };
 
 /**

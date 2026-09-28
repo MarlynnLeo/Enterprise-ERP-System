@@ -28,6 +28,8 @@ class AqlController {
       if (error.code === 'ER_DUP_ENTRY') {
         return ResponseHandler.error(res, '标准代码已存在', 'CONFLICT', 409);
       }
+      if (error.statusCode)
+        return ResponseHandler.error(res, error.message, error.code, error.statusCode);
       logger.error('Error creating AQL standard:', error);
       return ResponseHandler.error(res, '创建失败', 'SERVER_ERROR', 500, error);
     }
@@ -51,6 +53,8 @@ class AqlController {
       if (error.message === 'AQL Standard not found') {
         return ResponseHandler.error(res, '标准不存在', 'NOT_FOUND', 404);
       }
+      if (error.statusCode)
+        return ResponseHandler.error(res, error.message, error.code, error.statusCode);
       logger.error('Error updating AQL standard:', error);
       return ResponseHandler.error(res, '更新失败', 'SERVER_ERROR', 500, error);
     }
@@ -65,6 +69,8 @@ class AqlController {
       await AqlService.deleteStandard(id);
       return ResponseHandler.success(res, { id }, 'AQL 标准删除成功');
     } catch (error) {
+      if (error.statusCode)
+        return ResponseHandler.error(res, error.message, error.code, error.statusCode);
       logger.error('Error deleting AQL standard:', error);
       return ResponseHandler.error(res, '删除失败', 'SERVER_ERROR', 500, error);
     }
@@ -109,10 +115,14 @@ class AqlController {
         Number.isFinite(Number(value)) &&
         Number(value) > 0;
 
-      if (!isPositiveNumber(batchSize) || !isPositiveNumber(aqlLevel)) {
+      if (
+        !isPositiveNumber(batchSize) ||
+        !Number.isInteger(Number(batchSize)) ||
+        !isPositiveNumber(aqlLevel)
+      ) {
         return ResponseHandler.error(
           res,
-          '批量 (batchSize) 和 AQL级别 (aqlLevel) 必须为大于0的有效数值',
+          '批量 (batchSize) 必须为正整数，AQL级别 (aqlLevel) 必须为大于0的有效数值',
           'VALIDATION_ERROR',
           400
         );
@@ -122,6 +132,8 @@ class AqlController {
 
       return ResponseHandler.success(res, result, result.matched ? '计算成功' : result.message);
     } catch (error) {
+      if (error.statusCode)
+        return ResponseHandler.error(res, error.message, error.code, error.statusCode);
       logger.error('Error calculating AQL sampling:', error);
       return ResponseHandler.error(res, 'AQL抽样计算失败', 'SERVER_ERROR', 500, error);
     }

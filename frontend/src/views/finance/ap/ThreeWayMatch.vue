@@ -91,7 +91,7 @@
         </el-table-column>
       </el-table>
       <div class="pagination-container">
-        <el-pagination
+        <el-pagination :page-sizes="PAGE_SIZE_OPTIONS"
           v-model:current-page="page"
           v-model:page-size="pageSize"
           :total="total"
@@ -216,6 +216,8 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -232,7 +234,7 @@ const confirmingId = ref(null)
 const list = ref([])
 const total = ref(0)
 const page = ref(1)
-const pageSize = ref(20)
+const pageSize = ref(getThemeDefaultPageSize(20))
 const filter = reactive({ status: '' })
 const createVisible = ref(false)
 const createForm = reactive({ receiptId: null, supplierInvoiceNumber: '' })

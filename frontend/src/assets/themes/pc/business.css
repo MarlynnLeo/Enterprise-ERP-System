@@ -164,6 +164,7 @@
   --theme-feature-card-hover-shadow: 0 4px 12px rgba(44, 62, 80, 0.12);
   --theme-feature-card-decor: radial-gradient(circle at 100% 0%, rgba(185, 147, 47, 0.08) 0%, transparent 70%);
   --color-border: var(--color-border-base);
+  --erp-table-fixed-hover-bg: color-mix(in srgb, var(--color-gold) 8%, var(--color-bg-base));
 }
 
 /* ========== 商务主题全局样式覆盖 ========== */
@@ -206,6 +207,3 @@
 }
 
 /* 表格：密度 → theme-components；仅金色 hover */
-[data-theme="business"] .el-table__body tr:hover > td.el-table__cell {
-  background-color: color-mix(in srgb, var(--color-gold) 8%, transparent) !important;
-}

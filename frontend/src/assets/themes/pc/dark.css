@@ -165,6 +165,12 @@
   --theme-feature-card-hover-shadow: 0 4px 18px rgba(96, 165, 250, 0.25);
   --theme-feature-card-decor: radial-gradient(circle at 100% 0%, rgba(96, 165, 250, 0.12) 0%, transparent 70%);
   --color-border: var(--color-border-base);
+  --erp-table-fixed-cell-bg: var(--color-bg-page);
+  --erp-table-fixed-header-bg: var(--color-bg-base);
+  --erp-table-fixed-hover-bg: var(--color-bg-hover);
+  --erp-table-fixed-current-bg: var(--color-bg-section);
+  --erp-table-fixed-striped-bg: var(--color-bg-section);
+  --erp-table-fixed-border-color: var(--color-border-extra-light);
 }
 
 /* ========== 深色主题全局样式覆盖 ========== */

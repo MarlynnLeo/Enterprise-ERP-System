@@ -63,7 +63,7 @@
 .el-dialog.app-dialog--form:not(.is-fullscreen) .el-dialog__body,
 .el-dialog.app-dialog--view:not(.is-fullscreen) .el-dialog__body {
   flex: 1 1 auto;
-  min-height: 180px;
+  min-height: var(--app-dialog-content-min-height, 180px);
   max-height: var(--app-dialog-modal-body-max-height);
   overflow: auto;
   box-sizing: border-box;

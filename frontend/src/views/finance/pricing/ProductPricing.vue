@@ -90,7 +90,7 @@
           v-model:current-page="pricing.currentPage.value"
           v-model:page-size="pricing.pageSize.value"
           :total="pricing.total.value"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           layout="total, sizes, prev, pager, next, jumper"
           @size-change="pricing.handleSearch"
           @current-change="pricing.fetchData"
@@ -336,6 +336,7 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { ref, onMounted, watch, computed } from 'vue';
 import { Search, Refresh, List, Download, Setting, Money } from '@element-plus/icons-vue'
 

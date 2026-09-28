@@ -81,6 +81,38 @@ export default {
     userMenu: '用户菜单'
   },
 
+  workspaceNavigation: {
+    navigation: '工作空间导航',
+    mainNavigation: '主导航',
+    modules: '业务模块',
+    title: '数据工作台',
+    close: '关闭导航',
+    itemCount: '{count} 项',
+    filterPlaceholder: '筛选当前模块',
+    filterLabel: '筛选当前模块菜单',
+    noMatches: '没有匹配的功能',
+    noMenus: '暂无可用菜单',
+    pageContent: '当前页面内容',
+    loadFailed: '菜单加载失败，请刷新后重试'
+  },
+  navigationTabs: {
+    openPages: '已打开的页面',
+    pageTabs: '页面标签',
+    scrollLeft: '向左滚动标签',
+    scrollRight: '向右滚动标签',
+    closeTab: '关闭 {title}',
+    closeOthers: '关闭其他',
+    keepCurrentAndHome: '保留当前页和首页'
+  },
+  navigationPages: {
+    receiptVoucher: '收款凭证',
+    paymentVoucher: '付款凭证',
+    transferVoucher: '转账凭证',
+    generalVoucher: '记账凭证',
+    costVersions: '标准成本版本管理',
+    costClosing: '成本关账'
+  },
+
   // 导航菜单
   menu: {
     dashboard: '仪表盘',

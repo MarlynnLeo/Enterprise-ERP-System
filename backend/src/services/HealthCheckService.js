@@ -70,7 +70,7 @@ class HealthCheckService {
         } else {
           results.summary.unhealthy++;
         }
-      } catch (error) {
+      } catch {
         results.checks[name] = {
           status: 'unhealthy',
           message: '健康检查项执行失败',
@@ -132,7 +132,7 @@ class HealthCheckService {
       } finally {
         connection.release();
       }
-    } catch (error) {
+    } catch {
       return {
         status: 'unhealthy',
         message: '数据库连接失败',
@@ -153,7 +153,7 @@ class HealthCheckService {
         message: poolsHealth.status === 'healthy' ? '所有连接池运行正常' : '部分连接池存在问题',
         details: poolsHealth.pools,
       };
-    } catch (error) {
+    } catch {
       return {
         status: 'unhealthy',
         message: '连接池检查失败',
@@ -193,7 +193,7 @@ class HealthCheckService {
         message: '缓存服务正常',
         details: stats,
       };
-    } catch (error) {
+    } catch {
       return {
         status: 'unhealthy',
         message: '缓存服务异常',
@@ -250,7 +250,7 @@ class HealthCheckService {
           note: '详细磁盘信息需要额外配置',
         },
       };
-    } catch (error) {
+    } catch {
       return {
         status: 'warning',
         message: '无法获取磁盘信息',

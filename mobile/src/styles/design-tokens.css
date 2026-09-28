@@ -18,6 +18,7 @@
 @import './themes/nature.css';
 @import './themes/professional.css';
 @import './themes/tech.css';
+@import './themes/workspace.css';
 
 :root[data-theme="dark"],
 :root[data-theme="tech"] {
@@ -29,7 +30,8 @@
 :root[data-theme="kacon"],
 :root[data-theme="nature"],
 :root[data-theme="professional"],
-:root[data-theme="vibrant"] {
+:root[data-theme="vibrant"],
+:root[data-theme="workspace"] {
   --color-on-primary: #ffffff;
 }
 

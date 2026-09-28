@@ -68,7 +68,7 @@
       <el-pagination
         :current-page="currentPage"
         :page-size="pageSize"
-        :page-sizes="[10, 20, 50, 100]"
+        :page-sizes="PAGE_SIZE_OPTIONS"
         :small="false"
         :disabled="false"
         :background="true"
@@ -82,6 +82,7 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { getMaterialTypeLabel } from '@/utils/materialTypes'
 import TableRowActions from '@/components/common/TableRowActions.vue'
 

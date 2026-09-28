@@ -46,7 +46,7 @@
           </template>
         </el-table-column>
       </el-table>
-      <div class="pagination-container"><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :total="total" :page-sizes="[10, 20, 50, 100]" layout="total, sizes, prev, pager, next" @current-change="loadRoutes" @size-change="search" /></div>
+      <div class="pagination-container"><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :total="total" :page-sizes="PAGE_SIZE_OPTIONS" layout="total, sizes, prev, pager, next" @current-change="loadRoutes" @size-change="search" /></div>
     </el-card>
 
     <AppDialog v-model="editVisible" :title="draft.id ? '编辑工艺草稿' : draft.sourceTemplateId ? '创建工艺新版本' : '新增产品工艺'" mode="form" content-width="wide" width="1120px">
@@ -130,6 +130,8 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { ref, reactive, computed, onMounted, defineAsyncComponent } from 'vue'
 import { useRoute } from 'vue-router'
 import { Plus, Download, Upload } from '@element-plus/icons-vue'
@@ -152,7 +154,7 @@ const canDelete = computed(() => hasProductProcessPermission(auth, 'delete'))
 const canExport = computed(() => hasProductProcessPermission(auth, 'export'))
 const route = useRoute()
 const filters = reactive({ productId: Number(route.query.productId) || '', name: String(route.query.name || ''), status: '' })
-const page = ref(1), pageSize = ref(10), total = ref(0), routes = ref([]), loading = ref(false), saving = ref(false)
+const page = ref(1), pageSize = ref(getThemeDefaultPageSize(10)), total = ref(0), routes = ref([]), loading = ref(false), saving = ref(false)
 const products = ref([]), departments = ref([]), stations = ref([]), materialOptions = ref([])
 const draft = ref(createRouteDraft()), formRef = ref(null), editVisible = ref(false), stepVisible = ref(false), editingStep = ref(null)
 const viewData = ref(null), viewVisible = ref(false), previewVisible = ref(false), previewDoc = ref(null)

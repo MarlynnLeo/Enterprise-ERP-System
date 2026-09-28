@@ -193,7 +193,7 @@
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
           :total="Math.max(parseInt(total) || 0, 0)"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
         />
@@ -213,6 +213,8 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { parsePaginatedData, parseResponseData } from '@/utils/responseParser'
 import { normalizeCustomerStatus } from '@/utils/customerStatus'
@@ -241,7 +243,7 @@ const loading = ref(false);
 const tableData = ref([]);
 const total = ref(0);
 const currentPage = ref(1);
-const pageSize = ref(10);
+const pageSize = ref(getThemeDefaultPageSize(10));
 const {
   previousItem: previousViewCustomer,
   nextItem: nextViewCustomer,
@@ -276,7 +278,6 @@ const dialogReadonly = ref(false);
 onMounted(() => {
   // 初始化时加载第一页数据
   currentPage.value = 1;
-  pageSize.value = 10;
   fetchStats(); // 获取全量统计数据
   fetchData();
 });

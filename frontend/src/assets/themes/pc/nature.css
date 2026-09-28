@@ -167,6 +167,11 @@
   --theme-feature-card-hover-shadow: 0 4px 14px rgba(81, 207, 102, 0.2);
   --theme-feature-card-decor: radial-gradient(circle at 100% 0%, rgba(81, 207, 102, 0.1) 0%, transparent 70%);
   --color-border: var(--color-border-base);
+  --erp-table-header-image: linear-gradient(
+    180deg,
+    var(--color-bg-hover) 0%,
+    var(--color-primary-light-8) 100%
+  );
 }
 
 /* ========== 自然主题全局样式覆盖 ========== */
@@ -226,18 +231,16 @@
 }
 
 [data-theme="nature"] .el-table th.el-table__cell {
-  background: linear-gradient(
-    180deg,
-    var(--color-bg-hover) 0%,
-    var(--color-primary-light-8) 100%
-  ) !important;
-  background-color: transparent !important;
   border-bottom: 2px solid var(--color-primary-light-3) !important;
 }
 
-[data-theme="nature"] .el-input__wrapper:hover,
-[data-theme="nature"] .el-input__wrapper.is-focus {
+[data-theme="nature"] .el-input__wrapper:hover {
   border-color: var(--color-primary-light-3) !important;
-  box-shadow: 0 0 10px color-mix(in srgb, var(--color-bg-overlay) 20%, transparent) !important;
+  box-shadow: 0 0 0 1px var(--color-primary-light-3) inset !important;
+}
+
+[data-theme="nature"] .el-input__wrapper.is-focus {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 1px var(--color-primary) inset !important;
 }
 

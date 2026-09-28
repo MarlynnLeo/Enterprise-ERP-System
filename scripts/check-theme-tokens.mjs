@@ -1,170 +1,182 @@
 #!/usr/bin/env node
-/**
- * CI：主题 token 最低一致性
- * - 每套主题 --font-size-base 为 14px
- * - themePresets.primaryColor 与 CSS --color-primary 一致（hex）
- * - 禁止 premium 使用纯白 #ffffff 作为 --color-primary
- * - theme-compat 必须定义 --color-border 别名
- */
+/** Validate preset palettes and shared CSS contracts without binding to duplicated selectors. */
 import fs from 'node:fs'
 import path from 'node:path'
+import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
+import { THEME_PRESET_LIST } from '../frontend/src/config/themePresets.js'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const root = path.resolve(__dirname, '..')
-const themesDir = path.join(root, 'frontend/src/assets/themes/pc')
-const presetsPath = path.join(root, 'frontend/src/config/themePresets.js')
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const require = createRequire(path.join(root, 'frontend/package.json'))
+const postcss = require('postcss')
+const parse = (relativePath) => postcss.parse(fs.readFileSync(path.join(root, relativePath), 'utf8'), { from: path.join(root, relativePath) })
+const selectorsOf = (rule) => postcss.list.comma(rule.selector).map((selector) => selector.replace(/\s+/g, ' ').trim())
+const declarationValue = (rule, name) => rule.nodes?.filter((node) => node.type === 'decl' && node.prop === name).at(-1)?.value
 
-const THEMES = [
-  'default',
-  'tech',
-  'business',
-  'vibrant',
-  'nature',
-  'dark',
-  'premium',
-  'professional',
-  'kacon',
-]
-
-function extractToken(css, name) {
-  const re = new RegExp(`${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*:\\s*([^;]+);`)
-  const m = css.match(re)
-  return m ? m[1].trim() : null
+export function hasRuleDeclarations(stylesheet, selector, declarations) {
+  let found = false
+  stylesheet.walkRules((rule) => {
+    if (!selectorsOf(rule).includes(selector)) return
+    if (Object.entries(declarations).every(([name, value]) => declarationValue(rule, name) === value)) found = true
+  })
+  return found
 }
 
-function extractPresetPrimary(src, id) {
-  const re = new RegExp(`id:\\s*'${id}'[\\s\\S]*?primaryColor:\\s*'([^']+)'`, 'm')
-  const m = src.match(re)
-  return m ? m[1].toUpperCase() : null
+/** Resolve declarations that apply to the document root, using specificity and !important. */
+export function collectRootTokens(stylesheets, presetId) {
+  const tokens = new Map()
+  for (const stylesheet of stylesheets) {
+    stylesheet.walkRules((rule) => {
+      const specificity = selectorsOf(rule).reduce((maximum, selector) => {
+        const match = selector.match(/^(?:(:root|html))?(\[data-theme(?:=["']([^"']+)["'])?\])?$/)
+        if (!match || (!match[1] && !match[2]) || (match[3] && match[3] !== presetId)) return maximum
+        return Math.max(maximum, (match[1] === ':root' ? 10 : match[1] ? 1 : 0) + (match[2] ? 10 : 0))
+      }, -1)
+      if (specificity < 0) return
+      for (const node of rule.nodes || []) {
+        if (node.type !== 'decl' || !node.prop.startsWith('--')) continue
+        const rank = specificity + (node.important ? 1000 : 0)
+        if (!tokens.has(node.prop) || tokens.get(node.prop).rank <= rank) tokens.set(node.prop, { value: node.value, rank })
+      }
+    })
+  }
+  return new Map([...tokens].map(([name, entry]) => [name, entry.value]))
 }
 
-const errors = []
-const presetsSrc = fs.readFileSync(presetsPath, 'utf8')
-const compat = fs.readFileSync(path.join(themesDir, 'theme-compat.css'), 'utf8')
+export function findTokenCycles(tokens) {
+  const cycles = []
+  const visited = new Set()
+  const active = []
+  const visit = (name) => {
+    const cycleStart = active.indexOf(name)
+    if (cycleStart >= 0) {
+      cycles.push([...active.slice(cycleStart), name].join(' → '))
+      return
+    }
+    if (visited.has(name)) return
+    visited.add(name)
+    active.push(name)
+    for (const [, dependency] of tokens.get(name)?.matchAll(/var\(\s*(--[\w-]+)/g) || []) {
+      if (tokens.has(dependency)) visit(dependency)
+    }
+    active.pop()
+  }
+  for (const name of tokens.keys()) visit(name)
+  return cycles
+}
 
-if (!/--color-border\s*:\s*var\(--color-border-base\)/.test(compat)) {
-  errors.push('theme-compat.css 缺少 --color-border: var(--color-border-base)')
-}
-if (!/--font-size-base\s*:\s*14px/.test(compat)) {
-  errors.push('theme-compat.css 缺少全局 --font-size-base: 14px')
-}
-if (!/--el-color-primary\s*:\s*var\(--color-primary\)/.test(compat)) {
-  errors.push('theme-compat.css 缺少 --el-color-primary: var(--color-primary)')
-}
-
-const mainJs = fs.readFileSync(path.join(root, 'frontend/src/main.js'), 'utf8')
-if (!mainJs.includes("themes/pc/theme-components.css")) {
-  errors.push('main.js 未引入 theme-components.css（全主题共享组件壳）')
-}
-if (!mainJs.includes("themes/pc/theme-compat.css")) {
-  errors.push('main.js 未引入 theme-compat.css')
-}
-const componentsCss = path.join(themesDir, 'theme-components.css')
-if (!fs.existsSync(componentsCss)) {
-  errors.push('缺少 theme-components.css')
-} else {
-  const shell = fs.readFileSync(componentsCss, 'utf8')
-  for (const must of [
-    '[data-theme] .el-table',
-    '[data-theme] .el-button--primary',
-    '[data-theme] .el-card',
-    // 布局壳：侧栏密度 / 顶栏 / 控件（从 kacon 上收，全主题可用）
-    '[data-theme] .sidebar-menu',
-    '[data-theme] .app-header',
-    '[data-theme] .icon-button',
-    '[data-theme] .user-info',
-    '[data-theme] .el-card.data-card',
-    '[data-theme] .el-dropdown-menu',
-    '[data-theme] .el-tag--primary',
-  ]) {
-    if (!shell.includes(must)) {
-      errors.push(`theme-components.css 缺少共享规则: ${must}`)
+export function auditThemeTokens() {
+  const errors = []
+  const main = parse('frontend/src/assets/main.css')
+  const compat = parse('frontend/src/assets/themes/pc/theme-compat.css')
+  const components = parse('frontend/src/assets/themes/pc/theme-components.css')
+  const common = parse('frontend/src/assets/common-styles.css')
+  const mainJs = fs.readFileSync(path.join(root, 'frontend/src/main.js'), 'utf8')
+  const requireRule = (stylesheet, selector, declarations) => {
+    if (!hasRuleDeclarations(stylesheet, selector, declarations)) {
+      errors.push(`${stylesheet.source.input.file}: 缺少规则 ${selector} 的声明 ${JSON.stringify(declarations)}`)
     }
   }
-}
 
-/** 全主题均应声明侧栏 shell（浅色可用与 compat 默认一致的显式值） */
-const SIDEBAR_SHELL_THEMES = new Set(THEMES)
-const SIDEBAR_SHELL_TOKENS = [
-  '--shell-sidebar-bg',
-  '--shell-sidebar-text-muted',
-  '--shell-sidebar-active-bg',
-  '--shell-sidebar-active-text',
-  '--shell-sidebar-accent',
-]
-
-for (const id of THEMES) {
-  const css = fs.readFileSync(path.join(themesDir, `${id}.css`), 'utf8')
-  const fontBase = extractToken(css, '--font-size-base')
-  // 允许 media query 里再次声明 14px；主声明必须是 14px
-  const baseDecls = [...css.matchAll(/--font-size-base\s*:\s*([^;]+);/g)].map((m) => m[1].trim())
-  if (!baseDecls.length) {
-    errors.push(`${id}: 缺少 --font-size-base`)
-  } else if (!baseDecls.every((v) => v === '14px')) {
-    errors.push(`${id}: --font-size-base 必须全部为 14px，当前: ${baseDecls.join(', ')}`)
+  requireRule(compat, ':root', { '--color-border': 'var(--color-border-base)', '--font-size-base': '14px', '--el-color-primary': 'var(--color-primary)' })
+  for (const file of ['theme-components.css', 'theme-compat.css']) {
+    if (!mainJs.includes(`themes/pc/${file}`)) errors.push(`main.js 未引入 ${file}`)
+  }
+  const sharedSelectors = []
+  components.walkRules((rule) => {
+    if (rule.nodes.some((node) => node.type === 'decl')) sharedSelectors.push(...selectorsOf(rule))
+  })
+  for (const selector of ['[data-theme] .el-table', '[data-theme] .el-card', '[data-theme] .sidebar-menu', '[data-theme] .app-header', '[data-theme] .icon-button', '[data-theme] .user-info', '[data-theme] .el-card.data-card', '[data-theme] .el-dropdown-menu', '[data-theme] .el-tag--primary']) {
+    if (!sharedSelectors.includes(selector)) errors.push(`theme-components.css 缺少共享规则: ${selector}`)
   }
 
-  const cssPrimary = (extractToken(css, '--color-primary') || '').toUpperCase()
-  const presetPrimary = extractPresetPrimary(presetsSrc, id)
-  if (id === 'premium' && (cssPrimary === '#FFFFFF' || presetPrimary === '#FFFFFF')) {
-    errors.push('premium: 禁止使用 #FFFFFF 作为 primary（控件不可见）')
+  // Buttons have one shared state implementation. Each semantic type supplies EP variables.
+  for (const type of ['primary', 'success', 'warning', 'danger', 'info']) {
+    requireRule(compat, `:root[data-theme] .el-button--${type}`, {
+      '--el-button-bg-color': `var(--color-${type})`,
+      '--el-button-text-color': `var(--color-on-${type})`
+    })
+    requireRule(compat, `:root[data-theme] .el-button--${type}.is-plain`, {
+      '--el-button-text-color': `var(--color-${type})`,
+      '--el-button-hover-text-color': `var(--color-on-${type})`
+    })
   }
-  if (
-    presetPrimary &&
-    cssPrimary &&
-    /^#[0-9A-F]{6}$/.test(cssPrimary) &&
-    /^#[0-9A-F]{6}$/.test(presetPrimary) &&
-    presetPrimary !== cssPrimary
-  ) {
-    errors.push(`${id}: preset primaryColor ${presetPrimary} ≠ CSS ${cssPrimary}`)
-  }
+  const enabledButton = '[data-theme] .el-button:not(.is-text):not(.is-link):not(.is-disabled)'
+  requireRule(components, enabledButton, { background: 'var(--el-button-bg-color)', color: 'var(--el-button-text-color)' })
+  requireRule(components, `${enabledButton}:hover`, { background: 'var(--el-button-hover-bg-color)', color: 'var(--el-button-hover-text-color)' })
+  requireRule(components, '[data-theme] .el-button.is-disabled:not(.is-text):not(.is-link)', { background: 'var(--el-button-disabled-bg-color)', color: 'var(--el-button-disabled-text-color)' })
+  requireRule(components, '[data-theme] .el-tag.el-tag--dark', { background: 'var(--theme-tag-solid-bg)', color: 'var(--theme-tag-solid-color)' })
+  requireRule(components, '[data-theme] .el-tag.el-tag--plain', { background: 'transparent' })
+  requireRule(components, '[data-theme] .el-table', {
+    '--el-table-tr-bg-color': 'var(--erp-table-fixed-cell-bg)',
+    '--el-table-header-bg-color': 'var(--erp-table-fixed-header-bg)',
+    '--el-table-row-hover-bg-color': 'var(--erp-table-fixed-hover-bg)',
+    '--el-table-current-row-bg-color': 'var(--erp-table-fixed-current-bg)'
+  })
+  requireRule(compat, '[data-theme] .el-dialog.is-fullscreen', { border: 'none', 'border-radius': '0', 'box-shadow': 'none' })
 
-  if (SIDEBAR_SHELL_THEMES.has(id)) {
-    for (const tok of SIDEBAR_SHELL_TOKENS) {
-      if (!css.includes(tok)) {
-        errors.push(`${id}: 缺少侧栏 shell token ${tok}`)
+  const verifyInteractionRules = (stylesheet, isPreset = false) => stylesheet.walkRules((rule) => {
+    const paintsBackground = rule.nodes.some((node) => node.type === 'decl' && /^(background|background-color)$/.test(node.prop))
+    for (const selector of selectorsOf(rule)) {
+      if (paintsBackground && /tr\.el-table__row--striped/.test(selector) && !selector.includes(':not(.current-row):not(.hover-row):not(:hover)')) {
+        errors.push(`${stylesheet.source.input.file}: 条纹背景未排除选中或悬停行: ${selector}`)
+      }
+      if (paintsBackground && /tr(?::hover|\.hover-row)/.test(selector) && !selector.includes(':not(.current-row)')) {
+        errors.push(`${stylesheet.source.input.file}: 悬停背景未排除选中行: ${selector}`)
+      }
+      if (selector.includes('.el-table') && selector.includes('th.el-table__cell') && ['background', 'background-color'].some((property) => declarationValue(rule, property) === 'transparent')) {
+        errors.push(`${stylesheet.source.input.file}: 表头背景必须与不透明固定列表头共享 token: ${selector}`)
+      }
+      const targetsTableHeader = selector.includes('.el-table') && /(?:\bth\b|\bthead\b|\.el-table__(?:header|fixed-header|fixed-right-header)(?:-wrapper)?\b)/.test(selector)
+      if (isPreset && targetsTableHeader && rule.nodes.some((node) => node.type === 'decl' && /^background(?:-|$)/.test(node.prop))) {
+        errors.push(`${stylesheet.source.input.file}: 主题表头不能单独覆写背景，请声明共享 --erp-table-fixed-header-bg / --erp-table-header-image token: ${selector}`)
+      }
+      const radius = declarationValue(rule, 'border-radius')
+      if (/\.el-dialog$/.test(selector) && radius && !/^0(?:px)?$/.test(radius)) {
+        errors.push(`${stylesheet.source.input.file}: 弹窗圆角规则必须排除全屏: ${selector}`)
       }
     }
-  }
+  })
+  verifyInteractionRules(common)
+  verifyInteractionRules(components)
+  verifyInteractionRules(compat)
 
-  // 禁止主题再写菜单激活背景/文字色（应走 shell token + theme-components）
-  // 允许：.is-active .el-icon、分支菜单 active-path、仅 font-weight 已迁到 token
-  const menuActiveBlocks = [
-    ...css.matchAll(
-      /\[data-theme[^\]]*\][^{]*\.app-menu-link\.is-active(?![-\w.])[^{]*\{([^}]*)\}/g
-    ),
-  ]
-  for (const m of menuActiveBlocks) {
-    const body = m[1]
-    const sel = m[0].slice(0, m[0].indexOf('{')).replace(/\s+/g, ' ').trim()
-    // 仅图标 opacity 可保留
-    if (/\.el-icon/.test(sel)) continue
-    if (/background(?:-color)?\s*:/.test(body) || /(?<!-)\bcolor\s*:/.test(body)) {
-      errors.push(
-        `${id}: 菜单 is-active 仍写 background/color（请改 shell token）: ${sel.slice(0, 80)}`
-      )
+  for (const preset of THEME_PRESET_LIST) {
+    const stylesheet = parse(`frontend/src/assets/themes/pc/${preset.id}.css`)
+    const tokens = collectRootTokens([main, compat, stylesheet], preset.id)
+    const presetTokens = collectRootTokens([stylesheet], preset.id)
+    const primary = presetTokens.get('--color-primary')?.toUpperCase()
+    if (primary !== preset.primaryColor.toUpperCase()) errors.push(`${preset.id}: CSS 主色 ${primary} 与预设 ${preset.primaryColor} 不一致`)
+    if (preset.id === 'premium' && primary === '#FFFFFF') errors.push('premium: 主色不能回退为旧版 #FFFFFF')
+    const fontSizes = []
+    stylesheet.walkDecls('--font-size-base', (declaration) => fontSizes.push(declaration.value))
+    if (!fontSizes.length || fontSizes.some((value) => value !== '14px')) errors.push(`${preset.id}: --font-size-base 必须为 14px`)
+    for (const token of ['--shell-sidebar-bg', '--shell-sidebar-text-muted', '--shell-sidebar-active-bg', '--shell-sidebar-active-text', '--shell-sidebar-accent']) {
+      let declared = presetTokens.has(token)
+      stylesheet.walkRules((rule) => {
+        if (selectorsOf(rule).some((selector) => selector === `[data-theme="${preset.id}"] .app-shell`) && declarationValue(rule, token)) declared = true
+      })
+      if (!declared) errors.push(`${preset.id}: 缺少侧栏 token ${token}`)
     }
+    for (const cycle of findTokenCycles(tokens)) errors.push(`${preset.id}: CSS token 循环引用 ${cycle}`)
+    verifyInteractionRules(stylesheet, true)
+    stylesheet.walkRules((rule) => {
+      for (const selector of selectorsOf(rule)) {
+        if (/\.app-menu-link\.is-active(?![-\w.])/.test(selector) && !selector.includes('.el-icon') && rule.nodes.some((node) => node.type === 'decl' && /^(color|background|background-color)$/.test(node.prop))) {
+          errors.push(`${preset.id}: 菜单选中态应使用共享 shell token: ${selector}`)
+        }
+      }
+    })
+  }
+  return errors
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const errors = auditThemeTokens()
+  if (errors.length) {
+    console.error('check-theme-tokens 失败:\n' + errors.map((error) => `  - ${error}`).join('\n'))
+    process.exitCode = 1
+  } else {
+    console.log('check-theme-tokens: 主题 token、组件状态和字体引用检查通过')
   }
 }
-
-// theme-components 侧栏壳必须存在
-const componentsSrc = fs.readFileSync(componentsCss, 'utf8')
-for (const must of [
-  '--shell-sidebar-active-bg',
-  '--shell-sidebar-active-shadow',
-  '--shell-sidebar-rail-width',
-    '.sidebar .app-menu-link.is-active',
-]) {
-  if (!componentsSrc.includes(must)) {
-    errors.push(`theme-components.css 缺少侧栏壳: ${must}`)
-  }
-}
-
-if (errors.length) {
-  console.error('❌ check-theme-tokens 失败:\n')
-  for (const e of errors) console.error('  -', e)
-  process.exit(1)
-}
-
-console.log('✅ check-theme-tokens: 主题 token 一致性通过')

@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, test } from 'vitest'
+import postcss from 'postcss'
+import { collectRootTokens } from '../../scripts/check-theme-tokens.mjs'
 import {
   THEME_PRESET_LIST,
   getAccessibleTextColor,
@@ -41,7 +43,14 @@ const contrastRatio = (foreground, background) => {
   return (lighter + 0.05) / (darker + 0.05)
 }
 
-const readToken = (css, token) => css.match(new RegExp(`${token}:\\s*(#[0-9a-fA-F]{6})`))?.[1]
+const readToken = (tokens, token, seen = new Set()) => {
+  if (seen.has(token)) return undefined
+  seen.add(token)
+  const value = tokens.get(token)
+  if (/^#[0-9a-f]{6}$/i.test(value || '')) return value
+  const reference = value?.match(/^var\(\s*(--[\w-]+)\s*\)$/)
+  return reference ? readToken(tokens, reference[1], seen) : undefined
+}
 
 describe('theme system', () => {
   test.each(THEME_PRESET_LIST)('$id declares a scoped root and accessible primary text', (preset) => {
@@ -68,7 +77,7 @@ describe('theme system', () => {
 
   test('normalizes invalid primary colors instead of keeping stale derivatives', () => {
     expect(normalizePrimaryColor('red', '#51CF66')).toBe('#51CF66')
-    expect(normalizePrimaryColor('#fff', '#51CF66')).toBe('#51CF66')
+    expect(normalizePrimaryColor('#fff', '#51CF66')).toBe('#FFFFFF')
     expect(normalizePrimaryColor('', '#51CF66')).toBe('#51CF66')
     expect(normalizePrimaryColor('#aabbcc', '#51CF66')).toBe('#AABBCC')
     expect(normalizeThemeAppearance({ preset: 'nature', primaryColor: 'red' }).primaryColor).toBe('#51CF66')
@@ -76,7 +85,8 @@ describe('theme system', () => {
 
   test.each(THEME_PRESET_LIST)('$id keeps content text tokens readable', (preset) => {
     const css = readTheme(preset.id)
-    const background = readToken(css, '--color-bg-base')
+    const tokens = collectRootTokens([postcss.parse(css)], preset.id)
+    const background = readToken(tokens, '--color-bg-base')
     const textTokens = [
       '--color-text-primary',
       '--color-text-regular',
@@ -87,7 +97,7 @@ describe('theme system', () => {
 
     expect(background).toBeTruthy()
     textTokens.forEach((token) => {
-      const value = readToken(css, token)
+      const value = readToken(tokens, token)
       expect(value, `${preset.id} is missing ${token}`).toBeTruthy()
       expect(contrastRatio(value, background), `${preset.id} ${token}`).toBeGreaterThanOrEqual(4.5)
     })
@@ -129,15 +139,12 @@ describe('theme system', () => {
     expect(kacon).not.toMatch(/\[data-theme="kacon"\]\s+::-webkit-scrollbar/)
   })
 
-  test('lazy themes load the final compatibility layer after their own CSS', () => {
-    const finalCompatibility = readFileSync(resolve(themesDirectory, 'theme-compat-final.css'), 'utf8')
+  test('shared compatibility styles load once at startup', () => {
     const loader = readFileSync(resolve(process.cwd(), 'src/utils/themeLoader.js'), 'utf8')
     const main = readFileSync(resolve(process.cwd(), 'src/main.js'), 'utf8')
 
-    // theme-compat 由 main 静态引入；final 仅作后加载钩子，禁止重复 @import
     expect(main).toContain('theme-compat.css')
-    expect(finalCompatibility).not.toContain("@import './theme-compat.css';")
-    expect(loader).toContain('.then(() => ensureFinalCompatibilityCss())')
+    expect(loader).not.toContain('theme-compat-final.css')
   })
 
   test('startup mounts even when theme initialization rejects', () => {

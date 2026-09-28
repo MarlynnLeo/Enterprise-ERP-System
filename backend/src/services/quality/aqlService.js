@@ -1,6 +1,7 @@
 const AqlStandard = require('../../models/quality/aqlStandard');
 const { logger } = require('../../utils/logger');
 const { parsePagination } = require('../../utils/safePagination');
+const { validateSamplingCounts } = require('../../utils/quality/aqlValidation');
 
 class AqlService {
   /**
@@ -16,10 +17,6 @@ class AqlService {
    */
   static async updateStandard(id, data) {
     logger.info(`Updating AQL Standard ID: ${id}`);
-    const standard = await AqlStandard.findById(id);
-    if (!standard) {
-      throw new Error('AQL Standard not found');
-    }
     return AqlStandard.update(id, data);
   }
 
@@ -28,10 +25,6 @@ class AqlService {
    */
   static async deleteStandard(id) {
     logger.info(`Deleting AQL Standard ID: ${id}`);
-    const standard = await AqlStandard.findById(id);
-    if (!standard) {
-      throw new Error('AQL Standard not found');
-    }
     return AqlStandard.delete(id);
   }
 
@@ -82,14 +75,11 @@ class AqlService {
       };
     }
 
-    // 针对抽样数大于批量本身的极端保护 (如果发生)
-    if (result.sample_size > batchSize) {
-      result.sample_size = batchSize;
-    }
+    validateSamplingCounts(result);
 
     return {
       matched: true,
-      data: result,
+      data: { ...result, sample_size: Math.min(Number(result.sample_size), batchSize) },
     };
   }
 

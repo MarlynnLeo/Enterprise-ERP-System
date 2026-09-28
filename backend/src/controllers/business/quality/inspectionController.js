@@ -491,8 +491,16 @@ const inspectionController = {
   async updateInspectionStatusAndTrace(req, res) {
     try {
       const { id } = req.params;
-      const { status, result, remarks, batch_number, qualified_quantity, unqualified_quantity } =
-        mapKeysToSnake(req.body || {});
+      const {
+        status,
+        remarks,
+        qualified_quantity,
+        unqualified_quantity,
+        is_aql,
+        is_full_inspection,
+        aql_standard_id,
+        aql_level,
+      } = mapKeysToSnake(req.body || {});
 
       if (!id || !status) {
         return ResponseHandler.error(res, '检验单ID和状态不能为空', 'VALIDATION_ERROR', 400);
@@ -515,11 +523,13 @@ const inspectionController = {
       const InspectionService = require('../../../services/quality/inspectionService');
       const serviceResult = await InspectionService.updateInspectionStatusAndTrace(id, {
         status,
-        result,
         remarks,
-        batch_number,
         qualified_quantity,
         unqualified_quantity,
+        is_aql,
+        is_full_inspection,
+        aql_standard_id,
+        aql_level,
       });
 
       if (serviceResult.traceError) {

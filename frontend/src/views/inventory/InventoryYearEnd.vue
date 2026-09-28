@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="module-page year-end-container">
     <PageHeader title="年度库存结存" subtitle="执行年度库存结存、冻结和查看明细" />
 
@@ -166,7 +166,7 @@
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
           :current-page="pagination.currentPage"
-          :page-sizes="[20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :page-size="pagination.pageSize"
           :background="true"
           layout="total, sizes, prev, pager, next, jumper"
@@ -243,6 +243,8 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
+import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -300,7 +302,7 @@ const statusInfo = ref(createEmptyStatusInfo())
 const balanceList = ref([])
 const pagination = reactive({
   currentPage: 1,
-  pageSize: 20,
+  pageSize: getThemeDefaultPageSize(20),
   total: 0
 })
 

@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * Users.vue
  * @description 前端界面组件文件
@@ -74,6 +74,15 @@
         <el-table-column prop="phone" label="手机号" width="130"></el-table-column>
         <el-table-column prop="departmentName" label="所属部门" width="120"></el-table-column>
         <el-table-column prop="roleNames" label="角色" min-width="180"></el-table-column>
+        <el-table-column label="电子签名" width="140" align="center">
+          <template #default="scope">
+            <div v-if="scope.row.signatureCode" class="table-signature-cell">
+              <span class="table-signature-render">{{ scope.row.signatureCode }}</span>
+              <span class="table-signature-code">({{ scope.row.signatureCode }})</span>
+            </div>
+            <span v-else class="table-signature-empty">-</span>
+          </template>
+        </el-table-column>
         <el-table-column label="状态" width="100">
           <template #default="scope">
             <el-tag :type="getStatusType(scope.row.status)">
@@ -159,7 +168,7 @@
       v-model="dialogVisible"
       :title="dialogTitle"
       :mode="isViewMode ? 'view' : 'form'"
-      width="600px"
+      width="640px"
       content-width="wide"
     >
       <template v-if="isViewMode">
@@ -170,6 +179,10 @@
           <el-descriptions-item label="手机号">{{ userForm.phone || '-' }}</el-descriptions-item>
           <el-descriptions-item label="所属部门">
              {{ departmentOptions.find(d => d.id === userForm.departmentId)?.name || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="电子签名代号">
+            <el-tag v-if="userForm.signatureCode" size="small" type="primary">{{ userForm.signatureCode }}</el-tag>
+            <span v-else class="text-placeholder">未设置</span>
           </el-descriptions-item>
           <el-descriptions-item label="状态">
             <el-tag :type="getStatusType(userForm.status)">
@@ -185,14 +198,90 @@
              <span v-else>-</span>
           </el-descriptions-item>
         </el-descriptions>
+
+        <!-- 电子签名只读展示卡片（只查看，不可编辑） -->
+        <div class="signature-section">
+          <div class="signature-section-header">
+            <span class="section-title">
+              <el-icon><EditPen /></el-icon> 电子签名手写体展示 (SPPLMFONT 字体)
+            </span>
+            <el-tag v-if="userForm.signatureCode" size="small" type="success" effect="plain">已配置签名</el-tag>
+            <el-tag v-else size="small" type="info" effect="plain">未配置</el-tag>
+          </div>
+
+          <div class="signature-display-card">
+            <template v-if="userForm.signatureCode">
+              <div class="signature-canvas">
+                <span class="signature-render-text">
+                  {{ userForm.signatureCode }}
+                </span>
+              </div>
+              <div class="signature-info-bar">
+                <span v-if="resolvePersonBySignatureCode(userForm.signatureCode)" class="match-tip match-success">
+                  <el-icon><CircleCheck /></el-icon> 匹配签名人：<strong>{{ resolvePersonBySignatureCode(userForm.signatureCode) }}</strong>（代号：{{ userForm.signatureCode }}）
+                </span>
+                <span v-else class="match-tip">
+                  已绑定签名代号：{{ userForm.signatureCode }}
+                </span>
+                <span class="read-only-tip">
+                  <el-icon><CircleCheck /></el-icon> 审批与检验打印时将自动使用此签名
+                </span>
+              </div>
+            </template>
+            <template v-else>
+              <div class="signature-empty-container">
+                <div class="empty-tip-title">暂未配置电子签名</div>
+                <div class="empty-tip-desc">如需配置，请先在列表中【禁用】该用户，然后点击【编辑】进行设置并保存。</div>
+              </div>
+            </template>
+          </div>
+        </div>
       </template>
 
-      <el-form v-else :model="userForm" :rules="userRules" ref="userFormRef" label-width="100px">
+      <el-form v-else :model="userForm" :rules="userRules" ref="userFormRef" label-width="110px">
         <el-form-item label="用户名" prop="username">
           <el-input v-model="userForm.username" placeholder="请输入用户名" :disabled="userForm.id"></el-input>
         </el-form-item>
         <el-form-item label="姓名" prop="name">
           <el-input v-model="userForm.name" placeholder="请输入姓名"></el-input>
+        </el-form-item>
+        <el-form-item label="电子签名代号" prop="signatureCode">
+          <div class="signature-edit-box">
+            <el-input
+              v-model="userForm.signatureCode"
+              placeholder="请输入签名代号（例如：O 对应王晓敏，A 对应陈挺，C 对应陈贤萍）"
+              clearable
+              maxlength="1"
+            >
+              <template #append>
+                <el-button
+                  v-for="opt in PRESET_SIGNATURE_OPTIONS"
+                  :key="opt.code"
+                  @click="userForm.signatureCode = opt.code"
+                >填入 {{ opt.code }} ({{ opt.name }})</el-button>
+              </template>
+            </el-input>
+
+            <!-- 输入时实时预览 -->
+            <div class="form-signature-preview-box">
+              <div class="preview-canvas-mini">
+                <span v-if="userForm.signatureCode" class="signature-render-text-mini">
+                  {{ userForm.signatureCode }}
+                </span>
+                <span v-else class="preview-empty-text">
+                  输入签名代号后在此实时预览手写效果（例：输入 O、A、C）
+                </span>
+              </div>
+              <div v-if="userForm.signatureCode" class="preview-match-row">
+                <span v-if="resolvePersonBySignatureCode(userForm.signatureCode)" class="match-tip match-success">
+                  <el-icon><CircleCheck /></el-icon> 实时匹配：<strong>{{ resolvePersonBySignatureCode(userForm.signatureCode) }}</strong>
+                </span>
+                <span v-else class="match-tip">
+                  字体字形效果：{{ userForm.signatureCode }}
+                </span>
+              </div>
+            </div>
+          </div>
         </el-form-item>
         <el-form-item label="邮箱" prop="email">
           <el-input v-model="userForm.email" placeholder="请输入邮箱"></el-input>
@@ -245,9 +334,10 @@ import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index';
-import { Plus, Check, Close, Edit, Key, Unlock } from '@element-plus/icons-vue';
+import { Plus, Check, Close, Edit, Key, Unlock, EditPen, CircleCheck } from '@element-plus/icons-vue';
 import { systemApi } from '@/api';
 import { getUserStatusText, getUserStatusColor } from '@/constants/systemConstants';
+import { resolvePersonBySignatureCode, resolveSignatureCode, PRESET_SIGNATURE_OPTIONS } from '@/constants/signatureConstants';
 import { getApiErrorMessage } from '@/utils/errorHandler'
 // 权限计算属性
 
@@ -301,6 +391,7 @@ const userForm = reactive({
   phone: '',
   departmentId: null,
   roleIds: [],
+  signatureCode: '',
   status: 1
 });
 
@@ -343,6 +434,9 @@ const userRules = {
   ],
   roleIds: [
     { required: true, message: '请选择角色', trigger: 'change' }
+  ],
+  signatureCode: [
+    { pattern: /^[A-Za-z]?$/, message: '签名代号只能是一个英文字母', trigger: 'blur' }
   ]
 };
 
@@ -378,6 +472,7 @@ const loadUsers = async () => {
       return {
         ...user,
         departmentName,
+        signatureCode: user.signatureCode || '',
         status: Number(user.status) === 1 ? 1 : 0,
         loginLocked: user.loginLocked === true || Number(user.loginLocked) === 1
       };
@@ -524,6 +619,8 @@ const loadUserDataForDialog = async (row, displayTitle) => {
       userForm.roleIds = [];
     }
 
+    userForm.signatureCode = user.signatureCode || '';
+
     userForm.status = user.status === undefined ? 1 : Number(user.status);
 
     dialogVisible.value = true;
@@ -630,6 +727,7 @@ const resetUserForm = () => {
   userForm.phone = '';
   userForm.departmentId = null;
   userForm.roleIds = [];
+  userForm.signatureCode = '';
   userForm.status = 1;
 };
 
@@ -659,7 +757,8 @@ const saveUser = async () => {
       // 确保状态为数字
       status: Number(userForm.status),
       // 确保部门ID为数字
-      departmentId: userForm.departmentId ? Number(userForm.departmentId) : null
+      departmentId: userForm.departmentId ? Number(userForm.departmentId) : null,
+      signatureCode: resolveSignatureCode(userForm.signatureCode) || null
     }
 
     if (userData.id) {
@@ -747,5 +846,177 @@ onMounted(async () => {
   align-items: center;
   gap: 8px;
   min-width: 0;
+}
+
+/* 电子签名样式 */
+.table-signature-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.table-signature-render {
+  font-family: 'SPPLMFONT', sans-serif !important;
+  font-size: 24px;
+  line-height: 1;
+  color: #1f2937;
+  display: inline-block;
+  vertical-align: middle;
+  text-transform: uppercase;
+}
+
+.table-signature-code {
+  font-size: 12px;
+  color: var(--color-text-secondary, #6b7280);
+}
+
+.table-signature-empty {
+  color: var(--color-text-placeholder, #9ca3af);
+}
+
+.signature-section {
+  margin-top: 16px;
+  border-top: 1px dashed var(--color-border-base, #e5e7eb);
+  padding-top: 16px;
+}
+
+.signature-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.signature-section-header .section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary, #1f2937);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 查看模式：只读卡片 */
+.signature-display-card {
+  background: var(--color-bg-base, #f9fafb);
+  border: 1px solid var(--color-border-light, #e5e7eb);
+  border-radius: 8px;
+  padding: 16px 20px;
+}
+
+.signature-canvas {
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  border: 1px dashed var(--color-border-base, #cbd5e1);
+  border-radius: 6px;
+  padding: 10px;
+}
+
+.signature-render-text {
+  font-family: 'SPPLMFONT', sans-serif !important;
+  font-size: 44px;
+  line-height: 1;
+  color: #111827;
+  letter-spacing: 2px;
+  user-select: none;
+  text-transform: uppercase;
+}
+
+.signature-info-bar {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--color-text-secondary, #6b7280);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.signature-empty-container {
+  padding: 24px 16px;
+  text-align: center;
+  background: #ffffff;
+  border: 1px dashed var(--color-border-base, #cbd5e1);
+  border-radius: 6px;
+}
+
+.empty-tip-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-secondary, #6b7280);
+  margin-bottom: 6px;
+}
+
+.empty-tip-desc {
+  font-size: 12px;
+  color: var(--color-text-placeholder, #9ca3af);
+  margin-top: 4px;
+}
+
+.read-only-tip {
+  font-size: 12px;
+  color: var(--color-text-secondary, #6b7280);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.match-tip.match-success {
+  color: #10b981;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+}
+
+/* 编辑模式：输入与实时预览 */
+.signature-edit-box {
+  width: 100%;
+}
+
+.form-signature-preview-box {
+  margin-top: 10px;
+  background: var(--color-bg-base, #f9fafb);
+  border: 1px solid var(--color-border-light, #e5e7eb);
+  border-radius: 6px;
+  padding: 10px 14px;
+}
+
+.preview-canvas-mini {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  border: 1px dashed var(--color-border-base, #cbd5e1);
+  border-radius: 4px;
+}
+
+.signature-render-text-mini {
+  font-family: 'SPPLMFONT', sans-serif !important;
+  font-size: 34px;
+  line-height: 1;
+  color: #111827;
+  letter-spacing: 2px;
+  user-select: none;
+  text-transform: uppercase;
+}
+
+.preview-empty-text {
+  font-size: 12px;
+  color: var(--color-text-placeholder, #9ca3af);
+}
+
+.preview-match-row {
+  margin-top: 8px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 </style>

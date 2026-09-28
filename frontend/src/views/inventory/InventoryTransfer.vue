@@ -241,7 +241,7 @@
           @update:page-size="handleSizeChange"
           @update:current-page="handleCurrentChange"
           :currentPage="pagination.current"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :pageSize="pagination.size"
           :background="true"
           layout="total, sizes, prev, pager, next, jumper"
@@ -517,6 +517,7 @@
 </template>
 
 <script setup>
+import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { handleTableRowView } from '@/utils/tableRowView';
 import { ref, reactive, onMounted, computed } from 'vue';
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
