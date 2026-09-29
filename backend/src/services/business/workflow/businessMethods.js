@@ -134,14 +134,7 @@ module.exports = {
     const allowSelf =
       templateNode.approver_type === 'self' || Boolean(templateNode.allow_self_approval);
     if (!allowSelf) {
-      const nonSelf = candidateIds.filter((id) => id !== Number(initiatorId));
-      if (nonSelf.length > 0) {
-        candidateIds = nonSelf;
-      } else {
-        logger.warn(
-          `审批节点 ${nodeId} (${label}) 无其他审批候选人，已自动降级允许发起人 [${initiatorId}] 审批`
-        );
-      }
+      candidateIds = candidateIds.filter((id) => id !== Number(initiatorId));
     }
     const authorizedIds = [];
     for (const candidateId of candidateIds) {
@@ -169,7 +162,9 @@ module.exports = {
            JOIN user_roles ur ON ur.user_id = u.id
            JOIN roles r ON r.id = ur.role_id AND r.status = 1
            WHERE r.is_super_admin = 1 AND u.status = 1
-           ORDER BY u.id LIMIT 3`
+             AND (? = 1 OR u.id <> ?)
+           ORDER BY u.id LIMIT 3`,
+        [allowSelf ? 1 : 0, Number(initiatorId)]
       );
       if (adminUsers.length > 0) {
         candidateIds = adminUsers.map((a) => Number(a.id));

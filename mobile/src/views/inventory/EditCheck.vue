@@ -157,6 +157,8 @@
           <List
             v-model:loading="loadingMaterials"
             :finished="materialListFinished"
+            v-model:error="materialListError"
+            error-text="加载失败，点击重试"
             finished-text="没有更多物料"
             @load="loadMaterials"
           >
@@ -194,6 +196,7 @@ import {
   showToast
 } from 'vant';
 import { inventoryApi } from '@/api';
+import { usePagination } from '@/composables/usePagination';
 import { getApiErrorMessage } from '@/utils/errorHandler';
 
 const router = useRouter();
@@ -201,10 +204,11 @@ const route = useRoute();
 const loading = ref(true);
 const submitting = ref(false);
 const showMaterialPicker = ref(false);
-const loadingMaterials = ref(false);
-const materialListFinished = ref(false);
 const materialSearch = ref('');
-const materialList = ref([]);
+const {
+  list: materialList, loading: loadingMaterials, finished: materialListFinished,
+  error: materialListError, onLoad: loadMaterials, onRefresh: refreshMaterials,
+} = usePagination(params => inventoryApi.getAllMaterials(params), { immediate: false });
 const editableMaterials = ref(true); // 是否可编辑物料（只有草稿状态下可以编辑）
 
 // 盘点单表单（纯 camel）
@@ -218,13 +222,6 @@ const checkForm = ref({
   description: '',
   remarks: '',
   items: []
-});
-
-// 物料分页
-const materialPagination = ref({
-  page: 1,
-  limit: 20,
-  total: 0
 });
 
 // 返回上一页
@@ -265,50 +262,8 @@ const removeItem = (index) => {
   checkForm.value.items.splice(index, 1);
 };
 
-// 搜索物料
-const onSearchMaterial = () => {
-  materialPagination.value.page = 1;
-  materialList.value = [];
-  materialListFinished.value = false;
-  loadMaterials();
-};
-
-// 加载物料列表
-const loadMaterials = async () => {
-  if (loadingMaterials.value) return;
-
-  loadingMaterials.value = true;
-  try {
-    const params = {
-      page: materialPagination.value.page,
-      limit: materialPagination.value.limit,
-      search: materialSearch.value || undefined
-    };
-
-    const response = await inventoryApi.getAllMaterials(params);
-
-    if (response.data && Array.isArray(response.data.items)) {
-      materialList.value = [...materialList.value, ...response.data.items];
-      materialPagination.value.total = response.data.total || 0;
-
-      materialListFinished.value = materialList.value.length >= materialPagination.value.total;
-
-      if (response.data.items.length > 0) {
-        materialPagination.value.page++;
-      } else {
-        materialListFinished.value = true;
-      }
-    } else {
-      materialListFinished.value = true;
-    }
-  } catch (error) {
-    console.error('加载物料列表失败:', error);
-    showToast('加载物料列表失败');
-    materialListFinished.value = true;
-  } finally {
-    loadingMaterials.value = false;
-  }
-};
+// Changing the query starts a new pagination generation and discards old responses.
+const onSearchMaterial = () => refreshMaterials({ search: materialSearch.value || undefined });
 
 // 选择物料
 const selectMaterial = async (material) => {

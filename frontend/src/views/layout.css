@@ -54,7 +54,8 @@ html.dark .app-shell {
   height: auto;
   margin: 0;
   border-radius: var(--shell-radius-lg);
-  transform: translateZ(0);
+  /* Do not force the full sidebar into a GPU layer. On software-rendered
+     Windows clients this can turn row updates into full-surface repaints. */
   display: flex;
   flex-direction: column;
   /* 避免 layout contain 把内部 fixed 弹层限制在侧栏盒内 */
@@ -239,6 +240,19 @@ html.dark .app-shell {
   height: 16px;
   background: linear-gradient(180deg, var(--shell-accent), color-mix(in srgb, var(--shell-accent) 30%, transparent));
   border-radius: 2px;
+}
+/* Navigation must respond immediately in every palette, including themes
+   loaded after this stylesheet. Keep their colors/gradients, but avoid extra
+   transition frames and backdrop sampling while menu rows appear/disappear. */
+:root[data-theme] .sidebar,
+:root[data-theme] .sidebar .logo-container {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+:root[data-theme] .sidebar .app-menu-list,
+:root[data-theme] .sidebar .app-menu-list * {
+  transition: none !important;
+  animation: none !important;
 }
 .header {
   display: flex;

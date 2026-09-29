@@ -274,7 +274,7 @@
 </template>
 
 <script setup>
-  import { ref, reactive, computed, onMounted } from 'vue'
+  import { ref, reactive, computed, watch, onBeforeUnmount } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import {
     NavBar,
@@ -295,6 +295,7 @@
   import { buildResourceUrl } from '@/config/app'
   import { extractApiData, extractApiList } from '@/utils/apiHelper'
   import { getApiErrorMessage } from '@/utils/errorHandler'
+  import { getMeasurementState, buildInspectionItemPayload } from '@/utils/inspectionItemPayload'
   import { useAuthStore } from '@/stores/auth'
   import {
     isNumericInspectionItem,
@@ -513,7 +514,9 @@
   // 规范化单条检验项（统一底层规则，与 PC 端保持一致）
   const normalizeInspectionItem = (item) => {
     const isNumeric = isNumericInspectionItem(item)
-    const actualVal = item.actualValue || item.measure1 || ''
+    const measurementState = getMeasurementState(item)
+    const actualVal = item.actualValue !== '' && item.actualValue != null
+      ? item.actualValue : measurementState.measure1 ?? ''
 
     const readField = (...names) => {
       for (const name of names) {
@@ -524,7 +527,7 @@
 
     let result = item.result || ''
     // 若已有实测值且尚未判定，自动通过通用引擎计算公差结果
-    if (isNumeric && actualVal && !result) {
+    if (isNumeric && actualVal !== '' && !result) {
       const evaluation = compareInspectionMeasurement(item, actualVal)
       if (evaluation.result) result = evaluation.result
     }
@@ -551,6 +554,7 @@
       dimensionValue: item.dimensionValue ?? item.dimension_value ?? null,
       toleranceUpper: item.toleranceUpper ?? item.tolerance_upper ?? null,
       toleranceLower: item.toleranceLower ?? item.tolerance_lower ?? null,
+      ...measurementState,
       actualValue: actualVal,
       result: result,
       remarks: item.remarks || item.remark || '',
@@ -630,144 +634,74 @@
     return Math.round(((item.qualifiedQuantity || 0) / total) * 100)
   }
 
-  // 加载详情
+  let detailVersion = 0
   const loadDetail = async () => {
+    const version = ++detailVersion
+    const id = String(route.params.id || '')
+    const isCurrent = () => version === detailVersion && id === String(route.params.id || '')
     loading.value = true
     errorMessage.value = ''
     inspection.value = null
     inspectItems.value = []
     photoList.value = []
-    let lastError = null
-
     try {
-      try {
-      const response = await qualityApi.getIncomingInspection(route.params.id)
+      const response = await qualityApi.getIncomingInspection(id)
+      if (!isCurrent()) return
       const data = extractApiData(response, null)
-      if (data && data.id) {
-        inspection.value = data
-
-        // 加载检验项目（从详情或独立项目接口）
-        let itemsList = data.items || []
-        if (itemsList.length === 0) {
-          try {
-            const itemsRes = await qualityApi.getInspectionItems(data.id)
-            itemsList = extractApiList(itemsRes)
-          } catch (error) {
-            console.warn('检验项目加载失败:', error)
-          }
-        }
-
-        // 若单据尚无检验项目，按物料自动匹配启用模板（与 PC 端逻辑完全对齐）
-        if (itemsList.length === 0) {
-          const materialId = data.materialId
-          if (materialId) {
-            try {
-              const res = await qualityApi.getInspectionTemplates({
-                material_type: materialId,
-                inspection_type: 'incoming',
-                status: 'active',
-                include_general: true,
-                pageSize: 10
-              })
-              const tmplList = extractApiList(res)
-              if (tmplList.length > 0) {
-                const targetTmpl = tmplList[0]
-                const detailRes = await qualityApi.getInspectionTemplate(targetTmpl.id)
-                const tmplData = extractApiData(detailRes, null) || detailRes.data || detailRes
-                itemsList = tmplData.items || tmplData.InspectionItems || []
-                data.templateId = targetTmpl.id
-              }
-            } catch (err) {
-              console.warn('自动匹配模板失败:', err)
-            }
-          }
-        }
-
-        if (itemsList.length > 0) {
-          inspectItems.value = itemsList.map(normalizeInspectionItem)
-        } else if (data.status === 'in_progress' || data.status === 'pending') {
-          inspectItems.value = []
-          showToast('当前检验单未配置检验项目')
-        }
-
-        // 初始化照片列表
-        if (Array.isArray(data.attachments)) {
-          photoList.value = data.attachments.map(normalizePhoto).filter((photo) => photo.url)
-        } else {
-          photoList.value = []
-        }
-
-        // 初始化表单（参考网页版：若无历史检验员姓名则自动获取当前登录用户的姓名）
-        inspectForm.qualifiedQuantity = String(data.qualifiedQuantity || data.quantity || '')
-        inspectForm.unqualifiedQuantity = String(data.unqualifiedQuantity || '0')
-        inspectForm.inspectorName = data.inspectorName || getCurrentUserDisplayName()
-        inspectForm.note = data.note || data.remark || ''
-        return
+      if (!data || String(data.id) !== id) throw Object.assign(new Error('检验记录不存在或与当前单据不一致'), { code: 'NOT_FOUND' })
+      let itemsList = Array.isArray(data.items) ? data.items : []
+      if (!itemsList.length) {
+        const itemsResponse = await qualityApi.getInspectionItems(id)
+        if (!isCurrent()) return
+        itemsList = extractApiList(itemsResponse)
       }
-      lastError = Object.assign(new Error('inspection not found'), { code: 'NOT_FOUND' })
-      } catch (e) {
-        lastError = e
-        console.error('API加载失败，尝试备用方式:', e)
-      }
-
-    // 备用：从路由 query 获取
-    if (route.query.data) {
-      try {
-        const data = JSON.parse(route.query.data)
-        if (!data || typeof data !== 'object') throw new Error('invalid inspection data')
-        inspection.value = data
-        inspectForm.qualifiedQuantity = String(inspection.value.quantity || '')
-        inspectForm.unqualifiedQuantity = '0'
-        inspectForm.inspectorName = inspection.value.inspectorName || getCurrentUserDisplayName()
-        inspectForm.note = inspection.value.note || inspection.value.remark || ''
-        return
-      } catch (error) {
-        lastError = error
-      }
-    } else {
-      // 通过列表 API 兜底
-      try {
-        const response = await qualityApi.getIncomingInspections({ id: route.params.id, limit: 1, include_supplier: true })
-        const data = response.data || response
-        const items = data.items || data.list || data.inspections || []
-        if (items.length > 0) {
-          inspection.value = items[0]
-          inspectItems.value = Array.isArray(items[0].items) ? items[0].items.map(normalizeInspectionItem) : []
-          photoList.value = Array.isArray(items[0].attachments)
-            ? items[0].attachments.map(normalizePhoto).filter((photo) => photo.url)
-            : []
-          inspectForm.qualifiedQuantity = String(items[0].quantity || '')
-          inspectForm.unqualifiedQuantity = '0'
-          inspectForm.inspectorName = items[0].inspectorName || getCurrentUserDisplayName()
-          inspectForm.note = items[0].note || items[0].remark || ''
-          return
-        } else {
-          lastError = Object.assign(new Error('inspection not found'), { code: 'NOT_FOUND' })
+      if (!itemsList.length && data.materialId) {
+        const templates = await qualityApi.getInspectionTemplates({
+          materialType: data.materialId, inspectionType: 'incoming', status: 'active',
+          includeGeneral: true, pageSize: 10
+        })
+        if (!isCurrent()) return
+        const template = extractApiList(templates)[0]
+        if (template) {
+          const templateResponse = await qualityApi.getInspectionTemplate(template.id)
+          if (!isCurrent()) return
+          const detail = extractApiData(templateResponse, null)
+          itemsList = detail?.items || detail?.inspectionItems || []
+          data.templateId = template.id
         }
-      } catch (error) {
-        lastError = error
       }
-    }
-
-      const status = lastError?.response?.status
-      errorMessage.value = status === 403
-        ? '没有权限查看此来料检验记录'
-        : status === 404 || lastError?.code === 'NOT_FOUND'
-          ? '来料检验记录不存在或已被删除'
+      if (!isCurrent()) return
+      inspection.value = data
+      inspectItems.value = itemsList.map(normalizeInspectionItem)
+      photoList.value = Array.isArray(data.attachments) ? data.attachments.map(normalizePhoto).filter(photo => photo.url) : []
+      inspectForm.qualifiedQuantity = String(data.qualifiedQuantity ?? data.quantity ?? '')
+      inspectForm.unqualifiedQuantity = String(data.unqualifiedQuantity ?? '0')
+      inspectForm.inspectorName = data.inspectorName || getCurrentUserDisplayName()
+      inspectForm.note = data.note || data.remark || ''
+    } catch (error) {
+      if (!isCurrent()) return
+      errorMessage.value = error?.response?.status === 403 ? '没有权限查看此来料检验记录'
+        : error?.response?.status === 404 || error?.code === 'NOT_FOUND' ? '来料检验记录不存在或已被删除'
           : '加载失败，请重试'
       showToast(errorMessage.value)
     } finally {
-      loading.value = false
+      if (isCurrent()) loading.value = false
     }
   }
+
+  const currentInspectionId = () => !loading.value && inspection.value &&
+    String(inspection.value.id) === String(route.params.id) ? inspection.value.id : null
 
   const goBack = () => router.back()
 
   // 开始检验
   const handleStart = async () => {
+    const id = currentInspectionId()
+    if (!id || actionLoading.value) return
     actionLoading.value = true
     try {
-      await qualityApi.startInspection(inspection.value.id)
+      await qualityApi.startInspection(id)
+      if (currentInspectionId() !== id) return
       showToast('检验已开始')
       inspection.value.status = 'in_progress'
       if (inspectItems.value.length === 0) {
@@ -790,6 +724,8 @@
 
   // 提交检验
   const handleSubmit = async () => {
+    const id = currentInspectionId()
+    if (!id || actionLoading.value) return
     if (inspectItems.value.length === 0) {
       showToast('当前检验单没有检验项目，不能提交')
       return
@@ -830,6 +766,7 @@
         message: `合格 ${qualifiedQty}，不合格 ${unqualifiedQty}\n照片留存：${photoList.value.length} 张\n检验结论：${status === 'passed' ? '合格' : '不合格'}\n\n确定提交吗？`
       })
 
+      if (currentInspectionId() !== id || actionLoading.value) return
       actionLoading.value = true
 
       const submitData = {
@@ -841,25 +778,11 @@
         actualDate: new Date().toISOString().split('T')[0],
         note: inspectForm.note,
         attachments: photoList.value.map((photo) => photo.url).filter(Boolean),
-        items: inspectItems.value.map(item => ({
-          id: item.id || undefined,
-          itemName: item.itemName,
-          standard: item.standard,
-          method: item.method || '',
-          type: item.type,
-          isCritical: item.isCritical ? 1 : 0,
-          result: item.result,
-          remarks: item.remarks || '',
-          actualValue: item.actualValue || '',
-          actual_value: item.actualValue || '',
-          measure1: item.actualValue || '',
-          dimensionValue: item.dimensionValue || null,
-          toleranceUpper: item.toleranceUpper || null,
-          toleranceLower: item.toleranceLower || null
-        }))
+        items: inspectItems.value.map(buildInspectionItemPayload)
       }
 
-      await qualityApi.updateIncomingInspection(inspection.value.id, submitData)
+      await qualityApi.updateIncomingInspection(id, submitData)
+      if (currentInspectionId() !== id) return
       showToast('检验提交成功')
 
       // 刷新详情
@@ -874,7 +797,8 @@
     }
   }
 
-  onMounted(loadDetail)
+  watch(() => route.params.id, loadDetail, { immediate: true })
+  onBeforeUnmount(() => { detailVersion++ })
 </script>
 
 <style lang="scss" scoped>

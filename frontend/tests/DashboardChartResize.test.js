@@ -113,6 +113,44 @@ describe('dashboard chart container resize', () => {
     expect(charts[1].resize).toHaveBeenCalledTimes(1)
   })
 
+  test('uses compact chart spacing only inside the classic dashboard', async () => {
+    const classic = makeContainer(320, 110)
+    const classicRoot = document.createElement('div')
+    classicRoot.className = 'dashboard--classic'
+    classicRoot.appendChild(classic.element)
+    dashboard.exchangeRateChartRef.value = classic.element
+    await dashboard.initExchangeRateChart()
+    expect(charts[0].setOption.mock.calls[0][0]).toMatchObject({
+      legend: { textStyle: { fontSize: 11 } }, grid: { top: 28, bottom: 2 }
+    })
+
+    const shared = makeContainer(480, 180)
+    dashboard.exchangeRateChartRef.value = shared.element
+    await dashboard.initExchangeRateChart()
+    expect(charts[0].dispose).toHaveBeenCalledTimes(1)
+    const option = charts[1].setOption.mock.calls[0][0]
+    expect(option.legend.textStyle.fontSize).toBe(12)
+    expect(option.grid.bottom).toBe('3%')
+    expect(option.grid.top).toBeUndefined()
+  })
+
+  test('releases the old layout chart even when the replacement tab starts hidden', async () => {
+    const old = makeContainer(480, 180)
+    dashboard.exchangeRateChartRef.value = old.element
+    await dashboard.initExchangeRateChart()
+    const next = makeContainer(0, 0)
+    dashboard.exchangeRateChartRef.value = next.element
+    await dashboard.initExchangeRateChart()
+    expect(charts[0].dispose).toHaveBeenCalledTimes(1)
+    expect(observers[0].unobserve).toHaveBeenCalledWith(old.element)
+    expect(charts).toHaveLength(1)
+    next.size.width = 320
+    next.size.height = 110
+    await dashboard.initExchangeRateChart()
+    expect(charts).toHaveLength(2)
+    expect(charts[1].getDom()).toBe(next.element)
+  })
+
   test('skips hidden tabs and resizes when the same dimensions become visible again', async () => {
     const mini = makeContainer()
     await dashboard.ensureEcharts()

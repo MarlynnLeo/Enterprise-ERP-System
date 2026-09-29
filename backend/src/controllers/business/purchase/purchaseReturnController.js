@@ -197,6 +197,10 @@ const getReturns = async (req, res) => {
     let dataQuery = `
       SELECT
         r.*,
+        (SELECT d.finance_status = 'rejected' FROM inventory_posting_documents d
+          WHERE d.source_type = 'purchase_return' AND d.source_no COLLATE utf8mb4_unicode_ci = r.return_no COLLATE utf8mb4_unicode_ci
+            AND d.posting_kind = 'movement'
+          ORDER BY d.posting_sequence DESC, d.id DESC LIMIT 1) AS can_resubmit_inventory,
         s.name as supplier_name,
         l.name as warehouse_name,
         (SELECT u.real_name FROM users u WHERE u.username = r.operator OR u.real_name = r.operator LIMIT 1) as real_name
@@ -711,7 +715,7 @@ const updateReturnStatus = async (req, res) => {
 
     // 检查退货单是否存在
     const checkQuery =
-      'SELECT status, warehouse_id FROM purchase_returns WHERE id = ? AND deleted_at IS NULL FOR UPDATE';
+      'SELECT status, warehouse_id, return_no FROM purchase_returns WHERE id = ? AND deleted_at IS NULL FOR UPDATE';
     const [checkResult] = await connection.query(checkQuery, [id]);
 
     if (checkResult.length === 0) {
@@ -720,6 +724,25 @@ const updateReturnStatus = async (req, res) => {
     }
 
     const currentStatus = checkResult[0].status;
+
+    if (currentStatus === 'completed' && newStatus === 'completed') {
+      const InventoryPostingResubmissionService = require('../../../services/business/InventoryPostingResubmissionService');
+      const InventoryPostingService = require('../../../services/InventoryPostingService');
+      const retry = await InventoryPostingResubmissionService.resubmit(connection, {
+        sourceType: 'purchase_return',
+        sourceId: id,
+        sourceNo: checkResult[0].return_no,
+        actor: InventoryPostingService.actorFromRequest(req),
+      });
+      if (retry) {
+        await connection.commit();
+        return ResponseHandler.success(
+          res,
+          { id: Number(id), status: currentStatus, ...retry },
+          '退货库存过账已重新提交，待财务审核'
+        );
+      }
+    }
 
     // 检查状态变更是否有效
     if (currentStatus === newStatus) {
@@ -862,9 +885,7 @@ const updateReturnStatus = async (req, res) => {
           );
 
           if (!orderItemRows || orderItemRows.length === 0) {
-            throw createValidationError(
-          '采购订单项目不存在，不能完成退货：请检查退货明细中的物料'
-            );
+            throw createValidationError('采购订单项目不存在，不能完成退货：请检查退货明细中的物料');
           }
 
           const currentReceived = parseFloat(orderItemRows[0].received_quantity) || 0;

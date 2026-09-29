@@ -532,7 +532,17 @@ class TaskRepository {
    * @returns {{ whereClause: string, queryParams: Array }}
    */
   static buildFilterConditions(params) {
-    const { status, statusList, code, product, keyword, keywordStatuses, manager, startDate, endDate } = params;
+    const {
+      status,
+      statusList,
+      code,
+      product,
+      keyword,
+      keywordStatuses,
+      manager,
+      startDate,
+      endDate,
+    } = params;
     let whereClause = '';
     const queryParams = [];
 
@@ -560,8 +570,8 @@ class TaskRepository {
     if (keyword) {
       // Localized status labels are resolved by the client dictionary; only known
       // status codes may join the keyword search, using the same count/list filter.
-      const statuses = [...new Set(String(keywordStatuses || '').split(','))].filter(
-        (value) => Object.values(PRODUCTION_STATUS_KEYS).includes(value)
+      const statuses = [...new Set(String(keywordStatuses || '').split(','))].filter((value) =>
+        Object.values(PRODUCTION_STATUS_KEYS).includes(value)
       );
       const statusMatch = statuses.length
         ? ` OR pt.status IN (${statuses.map(() => '?').join(',')})`

@@ -75,10 +75,12 @@ const DEFAULT_THEME_SETTINGS = Object.freeze({
 
 const getDefaultThemeSettings = () => ({ ...DEFAULT_THEME_SETTINGS });
 
-const isThemePreset = (presetId) => typeof presetId === 'string' && Object.hasOwn(THEME_PRESETS, presetId);
+const isThemePreset = (presetId) =>
+  typeof presetId === 'string' && Object.hasOwn(THEME_PRESETS, presetId);
 
 const normalizeFontSize = (value) => {
-  if (!['number', 'string'].includes(typeof value) || String(value).trim() === '') return DEFAULT_FONT_SIZE;
+  if (!['number', 'string'].includes(typeof value) || String(value).trim() === '')
+    return DEFAULT_FONT_SIZE;
   const fontSize = Number(value);
 
   if (!Number.isFinite(fontSize)) {
@@ -105,9 +107,10 @@ const normalizeThemeSettings = (settings) => {
   const preset = isThemePreset(source.preset)
     ? THEME_PRESETS[source.preset]
     : THEME_PRESETS[DEFAULT_THEME_PRESET_ID];
-  let primaryColor = typeof source.primaryColor === 'string' && HEX_COLOR_PATTERN.test(source.primaryColor)
-    ? source.primaryColor.toUpperCase()
-    : preset.primaryColor;
+  let primaryColor =
+    typeof source.primaryColor === 'string' && HEX_COLOR_PATTERN.test(source.primaryColor)
+      ? source.primaryColor.toUpperCase()
+      : preset.primaryColor;
   if (primaryColor.length === 4) {
     primaryColor = `#${[...primaryColor.slice(1)].map((channel) => channel.repeat(2)).join('')}`;
   }
@@ -150,7 +153,12 @@ const validateThemeSettings = (settings) => {
   }
 
   const fontSize = Number(source.fontSize);
-  if (!['number', 'string'].includes(typeof source.fontSize) || !Number.isFinite(fontSize) || fontSize < 12 || fontSize > 18) {
+  if (
+    !['number', 'string'].includes(typeof source.fontSize) ||
+    !Number.isFinite(fontSize) ||
+    fontSize < 12 ||
+    fontSize > 18
+  ) {
     errors.fontSize = '字体大小必须在 12 到 18 之间';
   }
 

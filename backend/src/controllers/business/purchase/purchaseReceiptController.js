@@ -539,7 +539,9 @@ const createReceipt = async (req, res) => {
       // 防重复的维度应该是：同一张检验单不能重复建单 / 手动建单防连击
       if (inspectionId) {
         inspectionContext = await PurchaseReceiptValidationService.readInspection(client, {
-          inspectionId, orderId, allowPending: true,
+          inspectionId,
+          orderId,
+          allowPending: true,
         });
 
         // 场景A：来自检验单的自动/手动建单 → 基于 inspection_id 精确去重
@@ -670,7 +672,8 @@ const createReceipt = async (req, res) => {
       operator,
       remarks || '', // 使用空字符串替代undefined
       inspectionContext && isTerminalInspectionStatus(inspectionContext.status)
-        ? RECEIPT_STATUS.INSPECTED : RECEIPT_STATUS.DRAFT,
+        ? RECEIPT_STATUS.INSPECTED
+        : RECEIPT_STATUS.DRAFT,
       isFromInspection ? 1 : 0, // 转换布尔值为0/1
       inspectionId, // 关联的检验单ID
       receiptIdempotencyKey,
@@ -1153,12 +1156,14 @@ const updateReceipt = async (req, res) => {
       'SELECT * FROM purchase_receipt_items WHERE receipt_id = ? ORDER BY id FOR UPDATE',
       [id]
     );
-    const inspectionId = req.body.inspectionId === undefined
-      ? receipt.inspection_id : req.body.inspectionId || null;
+    const inspectionId =
+      req.body.inspectionId === undefined ? receipt.inspection_id : req.body.inspectionId || null;
     if (receipt.inspection_id && Number(inspectionId) !== Number(receipt.inspection_id))
       throw purchaseValidationError('已关联检验单的收货单不能更换检验来源');
     const inspection = await PurchaseReceiptValidationService.readInspection(connection, {
-      inspectionId, orderId: receipt.order_id, allowPending: true,
+      inspectionId,
+      orderId: receipt.order_id,
+      allowPending: true,
     });
     if (inspectionId) {
       const [[existing]] = await connection.query(
@@ -1200,7 +1205,8 @@ const updateReceipt = async (req, res) => {
       if (Math.abs(Number(item.received_quantity) - Number(inspection.quantity)) > 0.0001)
         throw purchaseValidationError('收货数量必须与关联检验数量一致');
       item.qualified_quantity = isTerminalInspectionStatus(inspection.status)
-        ? Number(inspection.qualified_quantity) : 0;
+        ? Number(inspection.qualified_quantity)
+        : 0;
     }
     const items = await PurchaseReceiptValidationService.validateItems(connection, {
       orderId: receipt.order_id,
@@ -1239,21 +1245,42 @@ const updateReceipt = async (req, res) => {
       );
     }
     const remarks = req.body.remarks ?? receipt.remarks ?? '';
-    const status = inspection && isTerminalInspectionStatus(inspection.status)
-      ? RECEIPT_STATUS.INSPECTED : RECEIPT_STATUS.DRAFT;
+    const status =
+      inspection && isTerminalInspectionStatus(inspection.status)
+        ? RECEIPT_STATUS.INSPECTED
+        : RECEIPT_STATUS.DRAFT;
     await connection.query(
       `UPDATE purchase_receipts SET receipt_date = ?, warehouse_id = ?, warehouse_name = ?, remarks = ?,
         total_amount = ?, total_tax_amount = ?, inspection_id = ?, from_inspection = ?,
         active_inspection_key = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-      [receiptDate, warehouse.id, warehouse.name, remarks, totalAmount, totalTaxAmount,
-        inspectionId, inspectionId ? 1 : 0, inspectionId ? `INSPECTION:${inspectionId}` : null, status, id]
+      [
+        receiptDate,
+        warehouse.id,
+        warehouse.name,
+        remarks,
+        totalAmount,
+        totalTaxAmount,
+        inspectionId,
+        inspectionId ? 1 : 0,
+        inspectionId ? `INSPECTION:${inspectionId}` : null,
+        status,
+        id,
+      ]
     );
     if (inspectionId && !receipt.inspection_id) {
       const DocumentChainService = require('../../../services/business/DocumentChainService');
-      await DocumentChainService.afterPurchaseReceiptCreated({
-        orderId: receipt.order_id, orderNo: receipt.order_no, receiptId: id,
-        receiptNo: receipt.receipt_no, inspectionId, inspectionNo: inspection.inspection_no,
-      }, getAuthenticatedUserId(req), connection);
+      await DocumentChainService.afterPurchaseReceiptCreated(
+        {
+          orderId: receipt.order_id,
+          orderNo: receipt.order_no,
+          receiptId: id,
+          receiptNo: receipt.receipt_no,
+          inspectionId,
+          inspectionNo: inspection.inspection_no,
+        },
+        getAuthenticatedUserId(req),
+        connection
+      );
     }
     await connection.commit();
     return ResponseHandler.success(res, { id, status }, '采购入库单更新成功');
@@ -1366,8 +1393,10 @@ const updateReceiptStatus = async (req, res) => {
         [id]
       );
       const releaseContext = await PurchaseReceiptReleaseService.resolveConcession(client, {
-        receiptId: Number(id), inspectionId: header.inspection_id,
-        orderId: header.order_id, supplierId: header.supplier_id,
+        receiptId: Number(id),
+        inspectionId: header.inspection_id,
+        orderId: header.order_id,
+        supplierId: header.supplier_id,
       });
 
       if (!header?.inspection_id) {
@@ -1688,7 +1717,9 @@ const getReceiptStats = async (req, res) => {
   try {
     const ScopeGuard = require('../../../authorization/ScopeGuard');
     const scope = await ScopeGuard.applyListScope(req, 'purchase_receipt', {
-      tableAlias: 'pr', ownerAlias: 'purchase_receipt_stats_owner', accessMode: 'read',
+      tableAlias: 'pr',
+      ownerAlias: 'purchase_receipt_stats_owner',
+      accessMode: 'read',
     });
     const scopedReceipts = `FROM purchase_receipts pr ${scope.join || ''}
       WHERE pr.deleted_at IS NULL ${scope.where || ''}`;

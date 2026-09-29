@@ -325,18 +325,19 @@ export function useExchangeRate() {
     if (lifecycle !== chartLifecycle) return
 
     const container = exchangeRateChartRef.value
-    if (!container?.clientWidth || !container.clientHeight) return
     if (exchangeRateChart && (exchangeRateChart.isDisposed() || exchangeRateChart.getDom() !== container)) {
       unobserveChart(exchangeRateChart)
       if (!exchangeRateChart.isDisposed()) exchangeRateChart.dispose()
       exchangeRateChart = null
     }
+    if (!container?.clientWidth || !container.clientHeight) return
     if (exchangeRateChart) {
       exchangeRateChart.resize()
       updateExchangeRateChart()
       return exchangeRateChart
     }
 
+    const compact = Boolean(container.closest('.dashboard--classic'))
     exchangeRateChart = echarts.init(container)
     exchangeRateChart.setOption({
       tooltip: {
@@ -346,8 +347,12 @@ export function useExchangeRate() {
           ? `${params[0].name}<br/>${params.map(param => `${param.seriesName}: ${param.value}`).join('<br/>')}`
           : ''
       },
-      legend: { data: exchangeSeries.map(series => series.name), textStyle: { fontSize: 12 } },
-      grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+      legend: {
+        ...(compact ? { type: 'scroll', top: 0 } : {}),
+        data: exchangeSeries.map(series => series.name),
+        textStyle: { fontSize: compact ? 11 : 12 }
+      },
+      grid: { left: '3%', right: '4%', ...(compact ? { top: 28 } : {}), bottom: compact ? 2 : '3%', containLabel: true },
       xAxis: { type: 'category', boundaryGap: false, data: [], axisLabel: { fontSize: 10 } },
       yAxis: { type: 'value', scale: true, axisLabel: { fontSize: 10 } },
       series: exchangeSeries.map(series => ({

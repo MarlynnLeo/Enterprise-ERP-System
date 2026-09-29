@@ -308,5 +308,6 @@
   "20260927000013_set_inspection_print_template_white_bg.js": "bc3a879b2c954f6769d5d06c337b796884a1d8a12df1637c112af283e557d762",
   "20260927000014_separate_major_defect_row_in_qrzk_templates.js": "968c4da82c586722fb2b9f775963d992cdc2eb6f713fde23d0bc6af815d30bc7",
   "20260927000015_remove_inspection_basis_row_from_qrzk_templates.js": "133eb6c6ad6b87043612474be2baf6d92692cd7dbc932552f1815b6a01c93e85",
-  "20260928000001_consolidate_inspection_print_styles.js": "f802cdd1c7ea1628f89e3dd345ad1a2afe8f6bc2218b73bf974db97a81741727"
+  "20260928000001_consolidate_inspection_print_styles.js": "f802cdd1c7ea1628f89e3dd345ad1a2afe8f6bc2218b73bf974db97a81741727",
+  "20260929000001_preserve_outsourced_arrival_quantity.js": "703945bce631c6c096834fd7119c5df35f9470491f2d8cb3d0d9aea9c79f0d2e"
 }

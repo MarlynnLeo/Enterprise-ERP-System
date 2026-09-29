@@ -1705,7 +1705,7 @@ const getReceipt = async (req, res) => {
       `SELECT opri.id, opri.receipt_id, opri.product_id, opri.product_code, opri.product_name,
               COALESCE(NULLIF(opri.specification, ''), m.specs, '') AS specification,
               COALESCE(NULLIF(opri.unit, ''), u.name, '') AS unit,
-              opri.unit_id, opri.expected_quantity, opri.actual_quantity,
+              opri.unit_id, opri.expected_quantity, opri.actual_quantity, opri.arrived_quantity,
               opri.unit_price, opri.total_price, opri.created_at, opri.updated_at
          FROM outsourced_processing_receipt_items opri
          LEFT JOIN materials m ON m.id = opri.product_id
@@ -1855,7 +1855,7 @@ const receiveReceiptWithInspection = async (req, res) => {
 
     const [receiptItems] = await connection.execute(
       `SELECT id, receipt_id, product_id, product_code, product_name, specification,
-              unit, unit_id, expected_quantity, actual_quantity, unit_price, total_price
+              unit, unit_id, expected_quantity, actual_quantity, arrived_quantity, unit_price, total_price
          FROM outsourced_processing_receipt_items
         WHERE receipt_id = ?
         ORDER BY id
@@ -1890,7 +1890,7 @@ const receiveReceiptWithInspection = async (req, res) => {
         );
       }
       const expectedQuantity = Number(item.expected_quantity || 0);
-      const arrivedQuantity = Number(item.actual_quantity || 0);
+      const arrivedQuantity = Number(item.arrived_quantity ?? item.actual_quantity ?? 0);
       const remainingQuantity = Math.max(expectedQuantity - arrivedQuantity, 0);
       if (quantity > remainingQuantity + 0.000001) {
         await connection.rollback();
@@ -1919,7 +1919,9 @@ const receiveReceiptWithInspection = async (req, res) => {
 
     for (const [productId, quantity] of requestedByProductId.entries()) {
       const item = itemByProductId.get(productId);
-      const nextActualQuantity = Number((Number(item.actual_quantity || 0) + quantity).toFixed(6));
+      const nextActualQuantity = Number(
+        (Number(item.arrived_quantity ?? item.actual_quantity ?? 0) + quantity).toFixed(6)
+      );
       const unitPrice = Number(item.unit_price || 0);
       const batchSuffix = `${String(Date.now()).slice(-8)}${String(sequence + 1).padStart(2, '0')}`;
       const batchNo = `OSP-${receipt.receipt_no}-${item.id}-${batchSuffix}`.slice(0, 50);
@@ -1927,11 +1929,16 @@ const receiveReceiptWithInspection = async (req, res) => {
 
       await connection.execute(
         `UPDATE outsourced_processing_receipt_items
-            SET actual_quantity = ?,
+            SET arrived_quantity = ?, actual_quantity = ?,
                 total_price = ?,
                 updated_at = CURRENT_TIMESTAMP
           WHERE id = ?`,
-        [nextActualQuantity, Number((nextActualQuantity * unitPrice).toFixed(2)), item.id]
+        [
+          nextActualQuantity,
+          nextActualQuantity,
+          Number((nextActualQuantity * unitPrice).toFixed(2)),
+          item.id,
+        ]
       );
 
       const inspection = await QualityInspection.createInspection(
@@ -2107,7 +2114,7 @@ const resolveReceiptItemsForPosting = async (connection, receipt, receiptItems, 
   const itemsForPosting = [];
   for (const item of receiptItems) {
     const productId = Number(item.product_id);
-    const arrivedQuantity = Math.max(Number(item.actual_quantity || 0), 0);
+    const arrivedQuantity = Math.max(Number(item.arrived_quantity ?? item.actual_quantity ?? 0), 0);
     const inspectedQuantity = inspectedByProduct.get(productId) || 0;
     if (Math.abs(inspectedQuantity - arrivedQuantity) > 0.0001) {
       throw validationError(
@@ -2119,7 +2126,11 @@ const resolveReceiptItemsForPosting = async (connection, receipt, receiptItems, 
       arrivedQuantity
     );
     if (qualifiedQuantity > 0) {
-      itemsForPosting.push({ ...item, actual_quantity: qualifiedQuantity });
+      itemsForPosting.push({
+        ...item,
+        arrived_quantity: arrivedQuantity,
+        actual_quantity: qualifiedQuantity,
+      });
     }
   }
 
@@ -2508,26 +2519,30 @@ const updateReceiptStatus = async (req, res) => {
     }
 
     const currentStatus = existingReceipt[0].status;
-    let canRetryRejectedPosting = false;
-    if (status === 'confirmed' && currentStatus === status) {
-      const [latestPostingRows] = await connection.execute(
-        `SELECT finance_status
-           FROM inventory_posting_documents
-          WHERE source_type = 'outsourced_processing_receipt'
-            AND (source_id = ? OR source_no = ?)
-            AND posting_kind = 'movement'
-          ORDER BY posting_sequence DESC, id DESC
-          LIMIT 1`,
-        [Number(id), existingReceipt[0].receipt_no]
-      );
-      canRetryRejectedPosting = latestPostingRows[0]?.finance_status === 'rejected';
+    if (['confirmed', 'completed'].includes(currentStatus) && status === currentStatus) {
+      const InventoryPostingResubmissionService = require('../../services/business/InventoryPostingResubmissionService');
+      const InventoryPostingService = require('../../services/InventoryPostingService');
+      const retry = await InventoryPostingResubmissionService.resubmit(connection, {
+        sourceType: 'outsourced_processing_receipt',
+        sourceId: id,
+        sourceNo: existingReceipt[0].receipt_no,
+        actor: InventoryPostingService.actorFromRequest(req),
+      });
+      if (retry) {
+        await connection.commit();
+        return ResponseHandler.success(
+          res,
+          { id: Number(id), status, ...retry },
+          '委外库存过账已重新提交，待财务审核'
+        );
+      }
     }
-    if (currentStatus === status && !canRetryRejectedPosting) {
+    if (currentStatus === status) {
       await connection.rollback();
       return ResponseHandler.success(res, null, '委外入库单状态未变化');
     }
 
-    if (!RECEIPT_STATUS_TRANSITIONS[currentStatus]?.has(status) && !canRetryRejectedPosting) {
+    if (!RECEIPT_STATUS_TRANSITIONS[currentStatus]?.has(status)) {
       await connection.rollback();
       return ResponseHandler.error(
         res,
@@ -2558,7 +2573,7 @@ const updateReceiptStatus = async (req, res) => {
       }
 
       const [receiptItems] = await connection.execute(
-        'SELECT id, receipt_id, product_id, product_code, product_name, specification, unit, unit_id, expected_quantity, actual_quantity, unit_price, total_price, created_at, updated_at FROM outsourced_processing_receipt_items WHERE receipt_id = ?',
+        'SELECT id, receipt_id, product_id, product_code, product_name, specification, unit, unit_id, expected_quantity, actual_quantity, arrived_quantity, unit_price, total_price, created_at, updated_at FROM outsourced_processing_receipt_items WHERE receipt_id = ?',
         [id]
       );
       if (receiptItems.length === 0) {
@@ -2586,9 +2601,10 @@ const updateReceiptStatus = async (req, res) => {
       );
       for (const item of receiptItems) {
         const acceptedQuantity = qualifiedByItem.get(Number(item.id)) || 0;
-        if (acceptedQuantity === Number(item.actual_quantity)) continue;
+        if (acceptedQuantity === Number(item.actual_quantity) && item.arrived_quantity != null)
+          continue;
         await connection.execute(
-          'UPDATE outsourced_processing_receipt_items SET actual_quantity = ?, total_price = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+          'UPDATE outsourced_processing_receipt_items SET arrived_quantity = COALESCE(arrived_quantity, actual_quantity), actual_quantity = ?, total_price = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
           [acceptedQuantity, roundMoney(acceptedQuantity * Number(item.unit_price || 0)), item.id]
         );
       }
@@ -2633,7 +2649,9 @@ const updateReceiptStatus = async (req, res) => {
           const warehouseName = warehouseContext.warehouseById.get(Number(location_id))?.name;
           const actualQuantity = parseFloat(item.actual_quantity);
           if (!Number.isFinite(actualQuantity) || actualQuantity <= 0) {
-            throw new Error(`物料 ${item.product_code || item.product_name || '所选物料'} 入库数量必须大于0`);
+            throw new Error(
+              `物料 ${item.product_code || item.product_name || '所选物料'} 入库数量必须大于0`
+            );
           }
 
           // 入库必须可追溯批次 + 有效成本：按入库单明细生成稳定业务批次键

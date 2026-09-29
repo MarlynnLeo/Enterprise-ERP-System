@@ -477,6 +477,7 @@ const salesExchangeMap = {
     const api = {
       id: row.id,
       exchangeNo: row.exchange_no ?? null,
+      canResubmitInventory: Boolean(Number(row.can_resubmit_inventory || 0)),
       exchangeDate: formatDate(row.exchange_date),
       orderId: row.order_id ?? null,
       outboundId: row.outbound_id ?? null,

@@ -233,24 +233,45 @@ class QualityInspection {
             if (field === 'is_critical') return value === true || value === 1 || value === '1';
             if (field === 'type') return this._normalizeItemType(value);
             if (value === undefined || value === null || value === '') return null;
-            return numberFields.has(field) ? Number(value) : String(value);
+            return numberFields.has(field) && Number.isFinite(Number(value))
+              ? Number(value)
+              : String(value);
           })
         );
       })
       .sort();
   }
 
-  static async _assertNonconformanceEvidenceUnchanged(connection, inspection, data) {
+  static async _assertLinkedEvidenceUnchanged(connection, inspection, data) {
+    if (!['incoming', 'final'].includes(inspection.inspection_type)) return;
     if (
-      inspection.inspection_type !== 'incoming' ||
+      inspection.inspection_type === 'incoming' &&
       !TERMINAL_INSPECTION_STATUSES.has(inspection.status)
     )
       return;
+
     const [nonconformances] = await connection.query(
-      'SELECT id FROM nonconforming_products WHERE inspection_id = ? AND deleted_at IS NULL',
+      'SELECT id FROM nonconforming_products WHERE inspection_id = ? AND deleted_at IS NULL FOR UPDATE',
       [inspection.id]
     );
-    if (nonconformances.length === 0) return;
+    let linkedInbound = false;
+    if (inspection.inspection_type === 'final') {
+      // A locking read sees documents committed while this transaction waited
+      // for the inspection lock, instead of its earlier repeatable-read snapshot.
+      const [inbounds] = await connection.query(
+        `SELECT id FROM inventory_inbound
+          WHERE (inspection_id = ? OR inspection_no = ?)
+            AND COALESCE(is_deleted, 0) = 0 AND deleted_at IS NULL
+            AND status NOT IN ('cancelled', 'reversed')
+          ORDER BY id LIMIT 1 FOR UPDATE`,
+        [inspection.id, inspection.inspection_no || null]
+      );
+      linkedInbound = inbounds.length > 0;
+    }
+    if (!linkedInbound && nonconformances.length === 0) return;
+    const reason = linkedInbound
+      ? '检验已形成生产入库依据，请先取消或冲销关联入库单再更正检验事实'
+      : '检验已形成不合格品处置依据，不能修改检验数量或判定事实';
 
     const numericFields = new Set([
       'quantity',
@@ -265,6 +286,13 @@ class QualityInspection {
       'aql_level',
       'accept_limit',
       'reject_limit',
+      'reference_id',
+      'purchase_order_item_id',
+      'material_id',
+      'product_id',
+      'task_id',
+      'supplier_id',
+      'unit_id',
     ]);
     const protectedFields = [
       ...numericFields,
@@ -273,22 +301,29 @@ class QualityInspection {
       'standard_type',
       'standard_no',
       'template_id',
+      'reference_no',
+      'source_type',
+      'batch_no',
+      'inspection_type',
+      'unit',
     ];
     for (const field of protectedFields) {
       if (!Object.prototype.hasOwnProperty.call(data, field) || data[field] === undefined) continue;
       const normalize = (value) =>
         numericFields.has(field) ? Number(value ?? 0) : String(value ?? '');
       if (normalize(data[field]) !== normalize(inspection[field])) {
-        throw this._createValidationError('检验已形成不合格品处置依据，不能修改检验数量或判定事实');
+        throw this._createValidationError(reason);
       }
     }
-    if (Array.isArray(data.items) && data.items.length > 0) {
+    if (Array.isArray(data.items)) {
       const storedItems = await this._getStoredInspectionItems(connection, inspection.id);
       if (
         JSON.stringify(this._itemEvidence(data.items)) !==
         JSON.stringify(this._itemEvidence(storedItems))
       ) {
-        throw this._createValidationError('检验已形成不合格品处置依据，不能修改检验项目或测量事实');
+        throw this._createValidationError(
+          linkedInbound ? reason : '检验已形成不合格品处置依据，不能修改检验项目或测量事实'
+        );
       }
     }
   }
@@ -1303,7 +1338,7 @@ class QualityInspection {
             throw this._createValidationError('已完成的来料检验不能退回待检状态');
           }
         }
-        await this._assertNonconformanceEvidenceUnchanged(connection, inspection, data);
+        await this._assertLinkedEvidenceUnchanged(connection, inspection, data);
         if (InspectionSamplingService.shouldRefresh(inspection, data)) {
           Object.assign(
             data,

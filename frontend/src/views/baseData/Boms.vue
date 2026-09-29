@@ -103,7 +103,9 @@
     <BomViewDialog
       v-model="viewDialogVisible"
       :bomData="currentViewBom"
+      :can-locate-bom="canLocateBom"
       :detail-navigation="bomViewNavigation"
+      @locate="handleLocateMaterial"
     />
 
     <!-- BOM版本对比弹窗 -->
@@ -117,6 +119,8 @@
       v-model="locateDialogVisible"
       :keyword="locateKeyword"
       :results="locateResults"
+      :loading="locateLoading"
+      :error="locateError"
       :can-export="canExport"
     />
 
@@ -216,6 +220,7 @@ const canUpdate = computed(() => authStore.hasPermission('basedata:boms:update')
 const canDelete = computed(() => authStore.hasPermission('basedata:boms:delete'));
 const canApprove = computed(() => authStore.hasPermission('basedata:boms:approve'));
 const canExport = computed(() => authStore.hasPermission('basedata:boms:export'));
+const canLocateBom = computed(() => authStore.hasPermission('basedata:boms:view'));
 
 
 // 状态
@@ -244,6 +249,9 @@ const compareDialogVisible = ref(false);
 const locateDialogVisible = ref(false);
 const locateResults = ref([]);
 const locateKeyword = ref('');
+const locateLoading = ref(false);
+const locateError = ref('');
+let locateRequestId = 0;
 // 复制弹窗状态
 const copyDialogVisible = ref(false);
 const copySelectedBomId = ref(null);
@@ -543,6 +551,31 @@ const handleImportBom = () => {
 };
 
 // 定位零部件（结果在弹窗中展示）
+const locateMaterialCode = async (code) => {
+  const keyword = String(code ?? '').trim();
+  if (!canLocateBom.value || !keyword) return;
+
+  const requestId = ++locateRequestId;
+  locateKeyword.value = keyword;
+  locateResults.value = [];
+  locateError.value = '';
+  locateLoading.value = true;
+  locateDialogVisible.value = true;
+
+  try {
+    const response = await bomApi.locatePart(keyword);
+    if (requestId !== locateRequestId) return;
+    locateResults.value = parseListData(response);
+  } catch (error) {
+    if (requestId !== locateRequestId) return;
+    locateError.value = getApiErrorMessage(error, '定位零部件失败，请稍后重试');
+  } finally {
+    if (requestId === locateRequestId) locateLoading.value = false;
+  }
+};
+
+const handleLocateMaterial = (row) => locateMaterialCode(row?.materialCode);
+
 const handleLocatePart = async () => {
   try {
     const { value } = await ElMessageBox.prompt('请输入零部件编码', '零部件定位', {
@@ -552,14 +585,7 @@ const handleLocatePart = async () => {
       inputErrorMessage: '请输入有效的编码'
     });
 
-    const keyword = value.trim();
-    const response = await bomApi.locatePart(keyword);
-    const result = parseListData(response);
-    const bomList = Array.isArray(result) ? result : [result];
-
-    locateKeyword.value = keyword;
-    locateResults.value = bomList;
-    locateDialogVisible.value = true;
+    await locateMaterialCode(value);
   } catch (error) {
     if (error !== 'cancel') {
       console.error('定位零部件失败:', error);

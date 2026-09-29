@@ -71,10 +71,22 @@ const RESPONSE_ENGLISH_MESSAGES = Object.freeze([
   [/^Invalid outbound item quantity$/i, '出库明细数量无效，请检查后重试'],
   [/^以下产品ID在物料表中不存在.*$/i, '所选产品不存在或已停用，请重新选择有效产品'],
   [/^以下物料(?:ID)?在物料表中不存在.*$/i, '所选物料不存在或已停用，请重新选择有效物料'],
-  [/^(?:物料|material)(?:\s*(?:ID|id|_id)\s*[:：=#]?\s*[\w-]+|\s+[\w-]+)?\s*(?:不存在|无效|已删除|已停用|not found).*$/i, '所选物料不存在或已停用，请重新选择有效物料'],
-  [/^(?:产品|成品|product)(?:\s*(?:ID|id|_id)\s*[:：=#]?\s*[\w-]+|\s+[\w-]+)?\s*(?:不存在|无效|已删除|已停用|not found).*$/i, '所选产品不存在或已停用，请重新选择有效产品'],
-  [/^(?:库位|仓库|location|warehouse)(?:\s*(?:ID|id|_id)\s*[:：=#]?\s*[\w-]+|\s+[\w-]+)?\s*(?:不存在|无效|已删除|已停用|not found).*$/i, '所选库位不存在或已停用，请重新选择有效库位'],
-  [/^(?:发票|invoice)(?:\s*(?:ID|id|_id)\s*[:：=#]?\s*[\w-]+|\s+[\w-]+)?\s*(?:不存在|无效|已删除|已停用|not found).*$/i, '发票不存在或已被删除'],
+  [
+    /^(?:物料|material)(?:\s*(?:ID|id|_id)\s*[:：=#]?\s*[\w-]+|\s+[\w-]+)?\s*(?:不存在|无效|已删除|已停用|not found).*$/i,
+    '所选物料不存在或已停用，请重新选择有效物料',
+  ],
+  [
+    /^(?:产品|成品|product)(?:\s*(?:ID|id|_id)\s*[:：=#]?\s*[\w-]+|\s+[\w-]+)?\s*(?:不存在|无效|已删除|已停用|not found).*$/i,
+    '所选产品不存在或已停用，请重新选择有效产品',
+  ],
+  [
+    /^(?:库位|仓库|location|warehouse)(?:\s*(?:ID|id|_id)\s*[:：=#]?\s*[\w-]+|\s+[\w-]+)?\s*(?:不存在|无效|已删除|已停用|not found).*$/i,
+    '所选库位不存在或已停用，请重新选择有效库位',
+  ],
+  [
+    /^(?:发票|invoice)(?:\s*(?:ID|id|_id)\s*[:：=#]?\s*[\w-]+|\s+[\w-]+)?\s*(?:不存在|无效|已删除|已停用|not found).*$/i,
+    '发票不存在或已被删除',
+  ],
   [/^Invalid pagination parameters$/i, '分页参数无效'],
   [/^purchase requisition not found/i, '采购申请不存在或已被删除'],
   [/^purchase requisition .* cannot be linked/i, '当前采购申请状态不允许生成采购订单'],
@@ -98,7 +110,10 @@ const RESPONSE_ENGLISH_MESSAGES = Object.freeze([
   [/^Invalid request path$/i, '请求路径无效，请检查后重试'],
   [/^File type not allowed$/i, '文件类型不支持，请选择允许的文件'],
   [/^NCP has downstream documents and cannot be deleted$/i, '不合格品单已有下游单据，无法删除'],
-  [/^Asset impairment is missing required GL accounts/i, '资产减值缺少必要的会计科目配置，请联系管理员'],
+  [
+    /^Asset impairment is missing required GL accounts/i,
+    '资产减值缺少必要的会计科目配置，请联系管理员',
+  ],
   [/^Current exchange status cannot be deleted$/i, '当前换货单状态不允许删除'],
   [/^Missing required fields:/i, '提交内容不完整，请补充必填项'],
   [/^Location code .* already exists$/i, '库位编码已存在，请更换后重试'],
@@ -249,10 +264,22 @@ const replaceTechnicalErrorFragments = (message) => {
 
 const INTERNAL_ID_PATTERNS = [
   [/(?:material|product|location|warehouse|supplier)_id\s*[:=]?\s*[\w-]+/gi, '相关基础资料'],
-  [/(?:material|product|location|warehouse|supplier|customer|asset|order|receipt|outbound|return|invoice|inspection|task|plan|bom|bank_account|account)(?:Id|ID)\s*[:=]?\s*[\w-]+/g, '相关业务数据'],
-  [/(?:material|product|location|warehouse|supplier|customer|asset|order|receipt|outbound|return|invoice|inspection|task|plan)\s+(?:with\s+)?id\s*[:=]?\s*[\w-]+/gi, '相关业务数据'],
-  [/(?:material|product|location|warehouse|supplier|customer|asset|order|receipt|outbound|return|invoice|inspection|task|plan)\s*[:=]\s*[\w-]+/gi, '相关业务数据'],
-  [/(?:物料|产品|成品|库位|仓库|供应商|客户|资产|订单|采购申请|采购订单|采购入库单|收货单|入库单|生产入库单|出库单|销售出库单|退货单|换货单|发票|检验单|生产任务|任务|工序|BOM)\s*[：:]?\s*\d+(?=\s|[，。,:：；;]|$)/gi, '相关业务数据'],
+  [
+    /(?:material|product|location|warehouse|supplier|customer|asset|order|receipt|outbound|return|invoice|inspection|task|plan|bom|bank_account|account)(?:Id|ID)\s*[:=]?\s*[\w-]+/g,
+    '相关业务数据',
+  ],
+  [
+    /(?:material|product|location|warehouse|supplier|customer|asset|order|receipt|outbound|return|invoice|inspection|task|plan)\s+(?:with\s+)?id\s*[:=]?\s*[\w-]+/gi,
+    '相关业务数据',
+  ],
+  [
+    /(?:material|product|location|warehouse|supplier|customer|asset|order|receipt|outbound|return|invoice|inspection|task|plan)\s*[:=]\s*[\w-]+/gi,
+    '相关业务数据',
+  ],
+  [
+    /(?:物料|产品|成品|库位|仓库|供应商|客户|资产|订单|采购申请|采购订单|采购入库单|收货单|入库单|生产入库单|出库单|销售出库单|退货单|换货单|发票|检验单|生产任务|任务|工序|BOM)\s*[：:]?\s*\d+(?=\s|[，。,:：；;]|$)/gi,
+    '相关业务数据',
+  ],
   [/(?:物料|material)\s*(?:ID|id|_id)\s*[:：=#]?\s*[\w-]+/gi, '所选物料'],
   [/(?:物料|material)\s*(?:ID|id|_id)\b/gi, '物料'],
   [/(?:物料|material)\s*#\s*[\w-]+/gi, '所选物料'],
@@ -260,11 +287,17 @@ const INTERNAL_ID_PATTERNS = [
   [/(?:产品|成品|product)\s*#\s*[\w-]+/gi, '所选产品'],
   [/(?:库位|仓库|location|warehouse)\s*(?:ID|id|_id)\s*[:：=#]?\s*[\w-]+/gi, '所选库位'],
   [/(?:供应商|supplier)\s*(?:ID|id|_id)\s*[:：=#]?\s*[\w-]+/gi, '所选供应商'],
-  [/(?:资产|盘点单|工程|项目|客户|订单|采购申请|采购订单|收货单|入库单|出库单|退货单|换货单|发票|银行账户|科目|检验单|BOM|用户|菜单)\s*(?:ID|id|_id)\s*(?:为|是)?\s*[:：=#]?\s*[\w-]+/gi, '相关业务数据'],
+  [
+    /(?:资产|盘点单|工程|项目|客户|订单|采购申请|采购订单|收货单|入库单|出库单|退货单|换货单|发票|银行账户|科目|检验单|BOM|用户|菜单)\s*(?:ID|id|_id)\s*(?:为|是)?\s*[:：=#]?\s*[\w-]+/gi,
+    '相关业务数据',
+  ],
   [/\(\s*(?:ID|id|_id)\s*[:：=#]?\s*[\w-]+\s*\)/gi, ''],
   [/(?:ID|id|_id)\s*[:：=#]\s*[\w-]+/gi, '相关业务数据'],
   [/ID\s*为\s*[\w-]+\s*的(?:资产|盘点单|在建工程|项目|订单|发票|科目)/gi, '相关业务数据'],
-  [/(?:物料|产品|成品|库位|仓库|供应商|客户|资产|订单|采购申请|采购订单|收货单|入库单|出库单|退货单|换货单|发票|检验单|生产任务|任务|工序|BOM)\s*(?:ID|id|_id)\b/gi, '相关业务数据'],
+  [
+    /(?:物料|产品|成品|库位|仓库|供应商|客户|资产|订单|采购申请|采购订单|收货单|入库单|出库单|退货单|换货单|发票|检验单|生产任务|任务|工序|BOM)\s*(?:ID|id|_id)\b/gi,
+    '相关业务数据',
+  ],
   [/(?:ID|id|_id)\s*列表/gi, '标识列表'],
 ];
 
@@ -287,10 +320,15 @@ function normalizeResponseErrorMessage(message, errorCode, statusCode, options =
   const { preserveEnglish = false } = options;
   let normalized = extractResponseErrorMessage(message);
   if (!normalized || normalized === '[object Object]' || /^(?:undefined|null)$/.test(normalized)) {
-    return RESPONSE_ERROR_CODE_MESSAGES[errorCode] || (Number(statusCode) >= 500 ? '服务器暂时不可用，请稍后重试' : '操作失败，请稍后重试');
+    return (
+      RESPONSE_ERROR_CODE_MESSAGES[errorCode] ||
+      (Number(statusCode) >= 500 ? '服务器暂时不可用，请稍后重试' : '操作失败，请稍后重试')
+    );
   }
 
-  const directTechnicalMessage = RESPONSE_TECHNICAL_MESSAGE_REPLACEMENTS.find(([pattern]) => pattern.test(normalized));
+  const directTechnicalMessage = RESPONSE_TECHNICAL_MESSAGE_REPLACEMENTS.find(([pattern]) =>
+    pattern.test(normalized)
+  );
   if (directTechnicalMessage) return directTechnicalMessage[1];
   if (/^生产任务ID无效或超过批量上限/i.test(normalized)) {
     return '请选择有效的生产任务，且一次最多处理100条';
@@ -348,13 +386,18 @@ function normalizeResponseErrorMessage(message, errorCode, statusCode, options =
   const candidates = [normalized];
   const separatorIndex = Math.max(normalized.lastIndexOf('：'), normalized.lastIndexOf(':'));
   if (separatorIndex >= 0) candidates.push(normalized.slice(separatorIndex + 1).trim());
-  const known = RESPONSE_ENGLISH_MESSAGES.find(([pattern]) => candidates.some((candidate) => pattern.test(candidate)));
+  const known = RESPONSE_ENGLISH_MESSAGES.find(([pattern]) =>
+    candidates.some((candidate) => pattern.test(candidate))
+  );
   if (known) return known[1];
 
   // 历史服务曾把单据/任务的数据库 ID 拼进业务错误。保留单据类型和原因，
   // 去除不可供用户识别的内部标识；可识别的业务单号由调用方直接传入。
   normalized = normalized
-    .replace(/(采购入库单|生产入库单|销售出库单|采购订单|采购申请|销售订单|入库单|出库单|检验单|生产任务|库存台账|银行账户|资产|发票|BOM)\s*(?:ID\s*)?(不存在|已被删除|已删除|无效)\s*[：:]\s*[\w-]+/gi, '$1$2')
+    .replace(
+      /(采购入库单|生产入库单|销售出库单|采购订单|采购申请|销售订单|入库单|出库单|检验单|生产任务|库存台账|银行账户|资产|发票|BOM)\s*(?:ID\s*)?(不存在|已被删除|已删除|无效)\s*[：:]\s*[\w-]+/gi,
+      '$1$2'
+    )
     .replace(
       /(采购入库单|生产入库单|销售出库单|采购订单|采购申请|销售订单|入库单|出库单|检验单|生产任务|库存台账|银行账户|资产|发票|BOM)\s*(?:ID\s*)?[\w-]+(?=\s*(?:的|中|没有|无|缺少|已|状态|不存在|未|不能|无法))/gi,
       '$1'
@@ -366,10 +409,15 @@ function normalizeResponseErrorMessage(message, errorCode, statusCode, options =
 
   // 兼容“中文上下文 + 英文异常”的历史接口文案。已知英文业务错误在上面
   // 已映射；其余实现细节统一回退为中文，避免页面显示 SQL/Axios/Node 异常。
-  if (/\b(?:invalid|not found|failed|failure|error|exception|unauthorized|forbidden|missing|required|cannot|unable|must be|only|already exists)\b/i.test(normalized)) {
-    return RESPONSE_ERROR_CODE_MESSAGES[errorCode] || (Number(statusCode) >= 500
-      ? '服务器暂时不可用，请稍后重试'
-      : '操作失败，请稍后重试');
+  if (
+    /\b(?:invalid|not found|failed|failure|error|exception|unauthorized|forbidden|missing|required|cannot|unable|must be|only|already exists)\b/i.test(
+      normalized
+    )
+  ) {
+    return (
+      RESPONSE_ERROR_CODE_MESSAGES[errorCode] ||
+      (Number(statusCode) >= 500 ? '服务器暂时不可用，请稍后重试' : '操作失败，请稍后重试')
+    );
   }
 
   INTERNAL_ID_PATTERNS.forEach(([pattern, label]) => {
@@ -381,11 +429,17 @@ function normalizeResponseErrorMessage(message, errorCode, statusCode, options =
     .trim();
 
   // 错误码、Axios 技术异常和纯英文内部异常不适合直接展示给用户。
-  if (!preserveEnglish && (/^([A-Z][A-Z0-9_]+|ERR_[A-Z0-9_]+)$/.test(normalized) ||
+  if (
+    !preserveEnglish &&
+    (/^([A-Z][A-Z0-9_]+|ERR_[A-Z0-9_]+)$/.test(normalized) ||
       /^Request failed with status code \d+$/i.test(normalized) ||
       /^(?:Network Error|Unauthorized|Forbidden|Not Found)$/i.test(normalized) ||
-       (!/[\u3400-\u9fff]/.test(normalized) && /^\p{ASCII}+$/u.test(normalized)))) {
-    return RESPONSE_ERROR_CODE_MESSAGES[errorCode] || (Number(statusCode) >= 500 ? '服务器暂时不可用，请稍后重试' : '操作失败，请稍后重试');
+      (!/[\u3400-\u9fff]/.test(normalized) && /^\p{ASCII}+$/u.test(normalized)))
+  ) {
+    return (
+      RESPONSE_ERROR_CODE_MESSAGES[errorCode] ||
+      (Number(statusCode) >= 500 ? '服务器暂时不可用，请稍后重试' : '操作失败，请稍后重试')
+    );
   }
   return normalized;
 }
@@ -407,12 +461,7 @@ function normalizeResponseErrorDetails(details, errorCode, statusCode) {
   return details;
 }
 
-const RESPONSE_ERROR_CONTAINER_KEYS = new Set([
-  'failures',
-  'errors',
-  'errorList',
-  'error_list',
-]);
+const RESPONSE_ERROR_CONTAINER_KEYS = new Set(['failures', 'errors', 'errorList', 'error_list']);
 
 const RESPONSE_ERROR_FIELD_KEYS = new Set([
   'error',
@@ -494,14 +543,16 @@ class ResponseHandler {
     return res.status(200).json({
       success: true,
       message,
-      data: mapKeysToCamel(normalizeNestedResponseErrors({
-        list,
-        total,
-        page: parseInt(page),
-        pageSize: parseInt(pageSize),
-        totalPages: Math.ceil(total / pageSize),
-        ...(extra && typeof extra === 'object' ? extra : {}),
-      })),
+      data: mapKeysToCamel(
+        normalizeNestedResponseErrors({
+          list,
+          total,
+          page: parseInt(page),
+          pageSize: parseInt(pageSize),
+          totalPages: Math.ceil(total / pageSize),
+          ...(extra && typeof extra === 'object' ? extra : {}),
+        })
+      ),
       timestamp: new Date().toISOString(),
     });
   }
@@ -518,7 +569,8 @@ class ResponseHandler {
     const isProduction = process.env.NODE_ENV === 'production';
     const isServerError = Number(statusCode) >= 500;
     const normalizedMessage = normalizeResponseErrorMessage(message, errorCode, statusCode);
-    const safeMessage = isProduction && isServerError ? '服务器内部错误，请稍后重试' : normalizedMessage;
+    const safeMessage =
+      isProduction && isServerError ? '服务器内部错误，请稍后重试' : normalizedMessage;
 
     const response = {
       success: false,

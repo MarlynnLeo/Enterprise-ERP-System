@@ -12,6 +12,7 @@ const { DOCUMENT_TYPE_MAPPING } = require('../../constants/financeConstants');
 const DocumentLinkService = require('./DocumentLinkService');
 const { DOCUMENT_LINK_TYPES: DocType } = require('../../constants/documentLinkTypes');
 const { currentDateString } = require('../../utils/dateUtils');
+const { calculateDepreciationSnapshot } = require('../../utils/finance/assetDepreciation');
 
 function normalizePeriodMonth(value) {
   const periodMonth = String(value || '').trim();
@@ -31,20 +32,6 @@ function roundMoney(value) {
 
 function getUsefulLifeMonths(asset) {
   return Math.max(Number.parseInt(asset.useful_life_months || asset.useful_life || 60, 10), 1);
-}
-
-function toDate(value) {
-  const date = value instanceof Date ? value : new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function monthsBetween(startDate, endDate) {
-  if (!startDate || !endDate) return 0;
-  return Math.max(
-    0,
-    (endDate.getFullYear() - startDate.getFullYear()) * 12 +
-      (endDate.getMonth() - startDate.getMonth())
-  );
 }
 
 /**
@@ -221,48 +208,10 @@ class DepreciationService {
    * @param {string} periodMonth 折旧月份
    */
   static async calculateAssetDepreciation(asset, periodMonth) {
-    const depreciationMethod = this.mapDepreciationMethod(asset.depreciation_method);
-    const usefulLifeMonths = getUsefulLifeMonths(asset);
-    const acquisitionCost = Number(asset.acquisition_cost) || 0;
-    const accumulatedDepreciation = Number(asset.accumulated_depreciation) || 0;
-    const impairmentAmount = Number(asset.impairment_amount) || 0;
-    const salvageValue = Math.min(Math.max(Number(asset.salvage_value) || 0, 0), acquisitionCost);
-    const netValueBefore = roundMoney(
-      Math.max(0, acquisitionCost - accumulatedDepreciation - impairmentAmount)
-    );
-    const depreciableAmount = Math.max(0, acquisitionCost - salvageValue);
-    const periodDate = toDate(`${periodMonth}-01T00:00:00Z`);
-    const startDate = toDate(asset.depreciation_start_date || asset.acquisition_date);
-    const usedMonths = monthsBetween(startDate, periodDate);
-
-    if (
-      depreciableAmount <= 0 ||
-      netValueBefore <= salvageValue ||
-      usedMonths >= usefulLifeMonths
-    ) {
-      return 0;
-    }
-
-    let depreciationAmount;
-    switch (depreciationMethod) {
-      case 'straight_line':
-        depreciationAmount = depreciableAmount / usefulLifeMonths;
-        break;
-
-      case 'double_declining':
-        depreciationAmount = this.calculateDoubleDecliningDepreciation(asset, periodMonth);
-        break;
-
-      case 'sum_of_years':
-        depreciationAmount = this.calculateSumOfYearsDepreciation(asset, periodMonth);
-        break;
-
-      default:
-        depreciationAmount = depreciableAmount / usefulLifeMonths;
-        break;
-    }
-
-    return roundMoney(Math.min(Math.max(depreciationAmount, 0), netValueBefore - salvageValue));
+    return calculateDepreciationSnapshot(
+      { ...asset, useful_life: getUsefulLifeMonths(asset) },
+      `${normalizePeriodMonth(periodMonth)}-01`
+    ).depreciationAmount;
   }
 
   /**
@@ -276,49 +225,34 @@ class DepreciationService {
       工作量法: 'units_of_production',
       不计提: 'no_depreciation',
     };
-    return methodMap[chineseMethod] || 'straight_line';
+    return (
+      methodMap[chineseMethod] ||
+      (Object.values(methodMap).includes(chineseMethod) ? chineseMethod : 'straight_line')
+    );
   }
 
   /**
    * 双倍余额递减法计算
    */
-  static calculateDoubleDecliningDepreciation(asset, _periodMonth) {
-    const usefulLifeMonths = getUsefulLifeMonths(asset);
-    const acquisitionCost = Number(asset.acquisition_cost) || 0;
-    const accumulatedDepreciation = Number(asset.accumulated_depreciation) || 0;
-    const impairmentAmount = Number(asset.impairment_amount) || 0;
-    const salvageValue = Math.min(Math.max(Number(asset.salvage_value) || 0, 0), acquisitionCost);
-    const currentNetValue = Math.max(
-      0,
-      acquisitionCost - accumulatedDepreciation - impairmentAmount
-    );
-    const periodDate = toDate(`${_periodMonth}-01T00:00:00Z`);
-    const startDate = toDate(asset.depreciation_start_date || asset.acquisition_date);
-    const remainingMonths = Math.max(usefulLifeMonths - monthsBetween(startDate, periodDate), 1);
-
-    if (remainingMonths <= 24) {
-      return (currentNetValue - salvageValue) / remainingMonths;
-    }
-
-    return currentNetValue * (2 / usefulLifeMonths);
+  static calculateDoubleDecliningDepreciation(asset, periodMonth) {
+    return calculateDepreciationSnapshot(
+      {
+        ...asset,
+        useful_life: getUsefulLifeMonths(asset),
+        depreciation_method: 'double_declining',
+      },
+      `${normalizePeriodMonth(periodMonth)}-01`
+    ).depreciationAmount;
   }
 
   /**
-   * 年数总和法计算
+   * 年数总和法计算（与手工计提、试算和预测共用同一分币口径）
    */
   static calculateSumOfYearsDepreciation(asset, periodMonth) {
-    const usefulLifeMonths = getUsefulLifeMonths(asset);
-    const usefulLifeYears = Math.max(Math.ceil(usefulLifeMonths / 12), 1);
-    const acquisitionCost = Number(asset.acquisition_cost) || 0;
-    const salvageValue = Math.min(Math.max(Number(asset.salvage_value) || 0, 0), acquisitionCost);
-    const depreciableAmount = Math.max(0, acquisitionCost - salvageValue);
-    const startDate = toDate(asset.depreciation_start_date || asset.acquisition_date);
-    const currentDate = toDate(`${periodMonth}-01T00:00:00Z`);
-    const yearsUsed = Math.floor(monthsBetween(startDate, currentDate) / 12);
-    const sumOfYears = (usefulLifeYears * (usefulLifeYears + 1)) / 2;
-    const currentYearRate = Math.max(usefulLifeYears - yearsUsed, 0) / sumOfYears;
-
-    return (depreciableAmount * currentYearRate) / 12;
+    return calculateDepreciationSnapshot(
+      { ...asset, useful_life: getUsefulLifeMonths(asset), depreciation_method: 'sum_of_years' },
+      `${normalizePeriodMonth(periodMonth)}-01`
+    ).depreciationAmount;
   }
 
   /**

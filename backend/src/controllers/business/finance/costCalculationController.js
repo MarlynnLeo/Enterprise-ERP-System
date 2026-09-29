@@ -729,7 +729,8 @@ module.exports = {
                 `);
 
         for (const mat of materialList) {
-          const standardPrice = mat.costPrice || mat.price || 0;
+          const standardPrice =
+            Number(mat.cost_price) > 0 ? Number(mat.cost_price) : Number(mat.price) || 0;
           if (standardPrice <= 0) {
             skippedCount++;
             continue;

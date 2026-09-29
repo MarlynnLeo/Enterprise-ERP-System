@@ -77,9 +77,7 @@ const getTaskRequiredMaterials = async (connection, task) => {
   }
 
   if (!bomId) {
-    throw new Error(
-      `生产任务“${task.code || '当前任务'}”的产品未维护有效BOM，无法判断发料进度`
-    );
+    throw new Error(`生产任务“${task.code || '当前任务'}”的产品未维护有效BOM，无法判断发料进度`);
   }
 
   const [bomDetails] = await connection.execute(
@@ -88,9 +86,7 @@ const getTaskRequiredMaterials = async (connection, task) => {
   );
 
   if (bomDetails.length === 0) {
-    throw new Error(
-      `生产任务“${task.code || '当前任务'}”的BOM没有明细，无法判断发料进度`
-    );
+    throw new Error(`生产任务“${task.code || '当前任务'}”的BOM没有明细，无法判断发料进度`);
   }
 
   return bomDetails.map((item) => ({
@@ -323,9 +319,7 @@ const checkAndUpdateTaskStatus = async (connection, taskId) => {
     );
 
     if (bomDetails.length === 0) {
-      throw new Error(
-        `生产任务“${task.code || '当前任务'}”的BOM没有明细，无法判断发料进度`
-      );
+      throw new Error(`生产任务“${task.code || '当前任务'}”的BOM没有明细，无法判断发料进度`);
     }
 
     // 3. 计算发料情况
@@ -555,7 +549,9 @@ async function smartOutboundStock(
     );
 
     if (childMaterials.length === 0) {
-      throw new Error(`物料“${currentMaterial.code || '所选物料'}”库存不足，剩余 ${remainingQuantity}，且没有可替代子物料`);
+      throw new Error(
+        `物料“${currentMaterial.code || '所选物料'}”库存不足，剩余 ${remainingQuantity}，且没有可替代子物料`
+      );
     }
 
     // 4. 使用子物料进行剩余数量的替代出库

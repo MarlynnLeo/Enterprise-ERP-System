@@ -75,9 +75,7 @@ class PurchaseOrderService {
     }
     const currentStatus = requisitionRows[0].status;
     if (!['approved', 'completed'].includes(currentStatus)) {
-      throw createBusinessError(
-        '当前采购申请状态不允许生成采购订单'
-      );
+      throw createBusinessError('当前采购申请状态不允许生成采购订单');
     }
 
     const [requisitionItems] = await connection.query(
@@ -217,18 +215,92 @@ class PurchaseOrderService {
       const remaining = capacity.get(materialId);
       if (remaining === undefined) throw createBusinessError('采购订单包含不属于来源申请的物料');
       const quantity = purchaseQuantity(item.quantity);
-      if (quantity > remaining + 0.0001)
-        {
-          const materialCode = String(
-            item.material_code ?? item.materialCode ?? materialCodeById.get(materialId) ?? ''
-          ).trim();
+      if (quantity > remaining + 0.0001) {
+        const materialCode = String(
+          item.material_code ?? item.materialCode ?? materialCodeById.get(materialId) ?? ''
+        ).trim();
         throw createBusinessError(
           `采购数量超过申请剩余可采购量：物料“${materialCode || '所选物料'}”，可采购${Math.max(remaining, 0)}，本次${quantity}`
         );
-        }
+      }
       capacity.set(materialId, remaining - quantity);
     }
     return requisition;
+  }
+
+  // Only quantity edits on retained materials change the original demand.
+  // Adding/removing materials or changing the source keeps normal allocation rules.
+  // The caller holds the order lock and saves both documents in one transaction.
+  static async syncRequisitionQuantitiesForOrderEdit(connection, requisitionId, orderId, items) {
+    const [requisitions] = await connection.query(
+      'SELECT id, status FROM purchase_requisitions WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      [requisitionId]
+    );
+    if (!requisitions.length) throw createBusinessError('采购申请不存在', 404);
+    if (!['approved', 'completed'].includes(requisitions[0].status)) {
+      throw createBusinessError('只能修改已批准采购申请关联的订单数量');
+    }
+    const [requested] = await connection.query(
+      `SELECT id, material_id, quantity FROM purchase_requisition_items
+       WHERE requisition_id = ? ORDER BY id FOR UPDATE`,
+      [requisitionId]
+    );
+    const [previousItems] = await connection.query(
+      'SELECT material_id, quantity FROM purchase_order_items WHERE order_id = ? FOR UPDATE',
+      [orderId]
+    );
+    // Work in hundredths to avoid rounding errors when applying repeated edits.
+    const quantitiesByMaterial = (lines) => {
+      const quantities = new Map();
+      for (const line of lines) {
+        const materialId = Number(line.material_id ?? line.materialId);
+        const quantity = Math.round(purchaseQuantity(line.quantity) * 100);
+        quantities.set(materialId, (quantities.get(materialId) || 0) + quantity);
+      }
+      return quantities;
+    };
+    const previous = quantitiesByMaterial(previousItems);
+    const next = quantitiesByMaterial(items);
+    const updates = [];
+    for (const [materialId, quantity] of next) {
+      if (!previous.has(materialId)) continue;
+      let difference = quantity - previous.get(materialId);
+      if (!difference) continue;
+      const rows = requested.filter((row) => Number(row.material_id) === materialId);
+      if (!rows.length) throw createBusinessError('采购订单包含不属于来源申请的物料');
+      // Apply the delta once per material, even when either document has duplicate rows.
+      // Retain every source row and its positive quantity; other materials are untouched.
+      for (const row of [...rows].reverse()) {
+        const oldQuantity = Math.round(Number(row.quantity) * 100);
+        const adjustment =
+          difference > 0
+            ? Math.min(difference, 9999999999 - oldQuantity)
+            : Math.max(difference, 1 - oldQuantity);
+        if (adjustment) {
+          updates.push({ id: row.id, quantity: (oldQuantity + adjustment) / 100 });
+          difference -= adjustment;
+        }
+        if (!difference) break;
+      }
+      if (difference) {
+        throw createBusinessError(
+          '同步采购申请数量失败：申请明细数量须在0.01至99999999.99之间，请检查同物料的重复明细'
+        );
+      }
+    }
+    for (const update of updates) {
+      await connection.query(
+        `UPDATE purchase_requisition_items SET quantity = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ? AND requisition_id = ?`,
+        [update.quantity, update.id, requisitionId]
+      );
+    }
+    if (updates.length) {
+      await connection.query(
+        'UPDATE purchase_requisitions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [requisitionId]
+      );
+    }
   }
 
   static async assertOrderCanCancel(connection, orderId) {
@@ -297,9 +369,7 @@ class PurchaseOrderService {
       (unit_price !== null && unit_price !== undefined && unit_price !== '') ||
       (item.unitPrice !== null && item.unitPrice !== undefined && item.unitPrice !== '');
     if (!hasRaw) {
-      throw createBusinessError(
-        `物料 ${material_code || '所选物料'} 的单价缺失，请先维护采购价格`
-      );
+      throw createBusinessError(`物料 ${material_code || '所选物料'} 的单价缺失，请先维护采购价格`);
     }
     const itemPrice = resolveUnitPrice(item, { fallback: Number.NaN });
     const itemQuantity = purchaseQuantity(quantity, `物料 ${material_code || '所选物料'} 的数量`);
@@ -324,9 +394,7 @@ class PurchaseOrderService {
 
     // 检查必须字段
     if (!itemCode || !itemName) {
-      throw createBusinessError(
-        `物料信息不完整：${itemCode || '所选物料'}，请先完善物料基础资料`
-      );
+      throw createBusinessError(`物料信息不完整：${itemCode || '所选物料'}，请先完善物料基础资料`);
     }
 
     // 数据完整性校验：价格和数量必须为非负数

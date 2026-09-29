@@ -12,8 +12,8 @@
           <div class="amount">{{ money(transaction.amount) }}</div>
           <div class="desc">{{ transaction.relatedParty || pageTitle }}</div>
         </div>
-        <Tag :type="transaction.is_reconciled ? 'success' : 'warning'">
-          {{ transaction.is_reconciled ? '已对账' : '未对账' }}
+        <Tag v-if="!isCash" :type="transaction.isReconciled ? 'success' : 'warning'">
+          {{ transaction.isReconciled ? '已对账' : '未对账' }}
         </Tag>
       </div>
 

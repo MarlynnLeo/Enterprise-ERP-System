@@ -7,6 +7,10 @@ const SalaryService = require('../../../services/business/hr/salaryService');
 const DingtalkSyncService = require('../../../services/business/hr/dingtalkSyncService');
 const HrService = require('../../../services/business/HrService');
 const { mapKeysToSnake } = require('../../../utils/fieldMap');
+const {
+  buildAttendanceColumnMap,
+  createEmployeeResolver,
+} = require('../../../utils/hr/attendanceImport');
 
 const REQUEST_STATUS = {
   PENDING: 'pending',
@@ -558,7 +562,7 @@ const importAttendanceExcel = async (req, res) => {
     let headerRowIdx = -1;
     for (let i = 0; i < Math.min(20, allRows.length); i++) {
       const row = allRows[i];
-      if (row && row.some((cell) => String(cell).includes('姓名'))) {
+      if (row && row.some((cell) => /姓名|工号|员工编号|员工编码/.test(String(cell)))) {
         headerRowIdx = i;
         break;
       }
@@ -566,7 +570,7 @@ const importAttendanceExcel = async (req, res) => {
     if (headerRowIdx < 0)
       return ResponseHandler.error(
         res,
-        'Excel 中未找到包含"姓名"的表头行',
+        'Excel 中未找到包含工号或姓名的表头行',
         'VALIDATION_ERROR',
         400
       );
@@ -581,44 +585,18 @@ const importAttendanceExcel = async (req, res) => {
       `[HR] [Excel导入] 检测到表头在第 ${headerRowIdx + 1} 行，数据行 ${dataRows.length} 条，表头: ${headers.join(',')}`
     );
 
-    // 获取所有员工做姓名映射
-    const [employees] = await pool.query('SELECT id, name FROM hr_employees');
-    const empNameMap = {};
-    for (const e of employees) empNameMap[e.name.trim()] = e.id;
-
-    // 列名关键字映射（用 includes 模糊匹配）
-    const colKeywords = [
-      { key: 'name', words: ['姓名'] },
-      { key: 'dept', words: ['部门'] },
-      { key: 'full_work_days', words: ['全勤天数', '全勤天'] },
-      { key: 'actual_work_days', words: ['在职天数', '在勤天数', '在职天', '在勤天'] },
-      { key: 'absent_from_position', words: ['不在职天数', '不在职天', '不在职'] },
-      { key: 'personal_leave_days', words: ['事假天数', '事假天', '事假'] },
-      { key: 'sick_leave_days', words: ['病假天数', '病假天', '病假'] },
-      { key: 'total_leave_days', words: ['天数合计'] },
-      { key: 'public_holiday_days', words: ['公休天数', '公休'] },
-      { key: 'late_count', words: ['迟到次数', '迟到'] },
-      { key: 'missing_punch_count', words: ['缺卡次数', '缺卡'] },
-      { key: 'total_violation_count', words: ['次数合计'] },
-      { key: 'serious_late_overtime', words: ['严重迟到'] },
-      { key: 'normal_overtime', words: ['正常晚', '加班'] },
-      { key: 'saturday_overtime', words: ['周六'] },
-      { key: 'weekend_overtime', words: ['周末'] },
-      { key: 'remark', words: ['备注'] },
-    ];
-
-    // 建立列索引映射: headerIdx -> fieldKey
-    const colIndexMap = {};
-    for (let i = 0; i < headers.length; i++) {
-      const h = headers[i];
-      for (const col of colKeywords) {
-        if (col.words.some((w) => h.includes(w))) {
-          // 避免重复映射（如"次数合计"可能匹配"迟到次数"）
-          if (!colIndexMap[i]) colIndexMap[i] = col.key;
-          break;
-        }
+    const [employees] = await pool.query('SELECT id, employee_no, name FROM hr_employees');
+    const resolveEmployee = createEmployeeResolver(employees);
+    const colIndexMap = buildAttendanceColumnMap(headers);
+    // Resolve every row before starting writes, so ambiguous identities fail atomically.
+    const resolvedRows = dataRows.map((row, index) => {
+      const parsed = {};
+      for (const [column, key] of Object.entries(colIndexMap)) {
+        parsed[key] = row[Number(column)] ?? '';
       }
-    }
+      return { parsed, employee: resolveEmployee(parsed, headerRowIdx + index + 2) };
+    });
+
     logger.debug('[HR] Excel import column mapping resolved', {
       mappedColumnCount: Object.keys(colIndexMap).length,
       mappedFields: Object.values(colIndexMap),
@@ -630,19 +608,12 @@ const importAttendanceExcel = async (req, res) => {
     try {
       await connection.beginTransaction();
 
-      for (const row of dataRows) {
-        const parsed = {};
-        for (const [idx, key] of Object.entries(colIndexMap)) {
-          parsed[key] = row[parseInt(idx)] || '';
-        }
-
-        const name = String(parsed.name || '').trim();
-        if (!name || !empNameMap[name]) {
+      for (const { parsed, employee } of resolvedRows) {
+        if (!employee) {
           skipped++;
           continue;
         }
-
-        const employeeId = empNameMap[name];
+        const employeeId = employee.id;
         const fullWorkDays = parseFloat(parsed.full_work_days) || 0;
         const totalOT =
           (parseFloat(parsed.normal_overtime) || 0) +
@@ -728,7 +699,13 @@ const importAttendanceExcel = async (req, res) => {
     }
   } catch (error) {
     logger.error('[HR] 导入考勤Excel失败:', error);
-    return ResponseHandler.error(res, '导入失败: ' + error.message, 'OPERATION_ERROR', 500, error);
+    return ResponseHandler.error(
+      res,
+      '导入失败: ' + error.message,
+      error.statusCode === 400 ? 'VALIDATION_ERROR' : 'OPERATION_ERROR',
+      error.statusCode || 500,
+      error
+    );
   }
 };
 

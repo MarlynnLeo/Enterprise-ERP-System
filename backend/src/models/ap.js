@@ -643,6 +643,16 @@ const apModel = {
     const params = [];
 
     // 添加过滤条件
+    if (filters.payable_only) {
+      whereClause += ' AND a.status IN (?, ?, ?) AND a.balance_amount > 0';
+      params.push(INVOICE_STATUS.CONFIRMED, INVOICE_STATUS.PARTIAL_PAID, INVOICE_STATUS.OVERDUE);
+    }
+    if (filters.keyword) {
+      whereClause +=
+        ' AND (a.invoice_number LIKE ? OR s.name LIKE ? OR a.supplier_invoice_number LIKE ?)';
+      const keyword = `%${filters.keyword}%`;
+      params.push(keyword, keyword, keyword);
+    }
     if (filters.invoice_number) {
       whereClause += ' AND a.invoice_number LIKE ?';
       params.push(`%${filters.invoice_number}%`);

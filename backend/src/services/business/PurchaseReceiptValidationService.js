@@ -22,10 +22,12 @@ class PurchaseReceiptValidationService {
       [inspectionId]
     );
     if (
-      !inspection || inspection.inspection_type !== 'incoming' ||
+      !inspection ||
+      inspection.inspection_type !== 'incoming' ||
       !['', 'purchase_order'].includes(inspection.source_type || '') ||
       Number(inspection.reference_id) !== Number(orderId)
-    ) throw purchaseValidationError('来料检验单与采购订单不匹配');
+    )
+      throw purchaseValidationError('来料检验单与采购订单不匹配');
     if (isTerminalInspectionStatus(inspection.status)) {
       if (inspection.qualified_quantity == null || inspection.unqualified_quantity == null)
         throw purchaseValidationError('来料检验缺少明确的合格与不合格数量');
@@ -40,7 +42,15 @@ class PurchaseReceiptValidationService {
 
   static async validateItems(
     connection,
-    { orderId, supplierId, inspectionId = null, receiptId = null, items, allowPendingInspection = false, releaseContext = null }
+    {
+      orderId,
+      supplierId,
+      inspectionId = null,
+      receiptId = null,
+      items,
+      allowPendingInspection = false,
+      releaseContext = null,
+    }
   ) {
     if (!Array.isArray(items) || items.length === 0)
       throw purchaseValidationError('采购收货单必须包含至少一条明细');
@@ -79,7 +89,9 @@ class PurchaseReceiptValidationService {
       used.set(Number(lineId), (used.get(Number(lineId)) || 0) + Number(quantity || 0));
 
     const inspection = await this.readInspection(connection, {
-      inspectionId, orderId, allowPending: allowPendingInspection,
+      inspectionId,
+      orderId,
+      allowPending: allowPendingInspection,
     });
     const terminal = inspection && isTerminalInspectionStatus(inspection.status);
     if (inspection && Number(inspection.supplier_id) !== Number(order.supplier_id))
@@ -103,7 +115,9 @@ class PurchaseReceiptValidationService {
         `第${index + 1}行收货数量`
       );
       const qualified = purchaseQuantity(
-        item.qualified_quantity ?? item.qualifiedQuantity ?? (allowPendingInspection && !terminal ? 0 : received),
+        item.qualified_quantity ??
+          item.qualifiedQuantity ??
+          (allowPendingInspection && !terminal ? 0 : received),
         `第${index + 1}行合格数量`,
         { allowZero: true }
       );
@@ -128,20 +142,28 @@ class PurchaseReceiptValidationService {
           throw purchaseValidationError('收货明细不属于所选检验单');
         inspectionReceived += received;
         inspectionQualified += qualified;
-        if (releaseContext &&
+        if (
+          releaseContext &&
           (Number(line.id) !== Number(releaseContext.orderItemId) ||
-           Number(line.material_id) !== Number(releaseContext.materialId)))
+            Number(line.material_id) !== Number(releaseContext.materialId))
+        )
           throw purchaseValidationError('收货明细与批准特采来源不匹配');
         const releasedQuantity = releaseContext
-          ? releaseContext.qualifiedQuantityLimit : inspection.qualified_quantity;
+          ? releaseContext.qualifiedQuantityLimit
+          : inspection.qualified_quantity;
         if (terminal && inspectionQualified > Number(releasedQuantity) + 0.0001)
-          throw purchaseValidationError(releaseContext
-            ? '累计特采入库数量超过批准放行数量' : '累计合格入库数量超过检验合格数量');
+          throw purchaseValidationError(
+            releaseContext ? '累计特采入库数量超过批准放行数量' : '累计合格入库数量超过检验合格数量'
+          );
         if (inspectionReceived > Number(inspection.quantity) + 0.0001)
           throw purchaseValidationError('收货数量超过检验数量');
         if (!releaseContext && Math.abs(received - Number(inspection.quantity)) > 0.0001)
           throw purchaseValidationError('收货数量必须与关联检验数量一致');
-        if (terminal && !releaseContext && Math.abs(qualified - Number(inspection.qualified_quantity)) > 0.0001)
+        if (
+          terminal &&
+          !releaseContext &&
+          Math.abs(qualified - Number(inspection.qualified_quantity)) > 0.0001
+        )
           throw purchaseValidationError('收货合格数量必须与关联检验结果一致');
       }
       normalized.push({

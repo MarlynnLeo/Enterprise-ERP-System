@@ -152,7 +152,8 @@ export function auditThemeTokens() {
     stylesheet.walkDecls('--font-size-base', (declaration) => fontSizes.push(declaration.value))
     if (!fontSizes.length || fontSizes.some((value) => value !== '14px')) errors.push(`${preset.id}: --font-size-base 必须为 14px`)
     for (const token of ['--shell-sidebar-bg', '--shell-sidebar-text-muted', '--shell-sidebar-active-bg', '--shell-sidebar-active-text', '--shell-sidebar-accent']) {
-      let declared = presetTokens.has(token)
+      // Shared defaults are part of the effective palette; presets only own differences.
+      let declared = tokens.has(token)
       stylesheet.walkRules((rule) => {
         if (selectorsOf(rule).some((selector) => selector === `[data-theme="${preset.id}"] .app-shell`) && declarationValue(rule, token)) declared = true
       })

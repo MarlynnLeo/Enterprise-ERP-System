@@ -52,7 +52,18 @@
               :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
             >
               <el-table-column label="结构" prop="wbs" width="80"></el-table-column>
-              <el-table-column prop="materialCode" label="物料编码" min-width="140" show-overflow-tooltip></el-table-column>
+              <el-table-column prop="materialCode" label="物料编码" min-width="140" show-overflow-tooltip>
+                <template #default="scope">
+                  <el-button
+                    v-if="canLocateBom && scope.row.materialCode"
+                    type="primary"
+                    link
+                    title="查看零部件定位结果"
+                    @click="emit('locate', scope.row)"
+                  >{{ scope.row.materialCode }}</el-button>
+                  <span v-else>{{ scope.row.materialCode }}</span>
+                </template>
+              </el-table-column>
               <el-table-column label="关键件" width="85" align="center">
                 <template #default="scope">
                   <el-tag
@@ -139,10 +150,11 @@ const props = defineProps({
   modelValue: { type: Boolean, default: false },
   bomData: { type: Object, default: null },
   loading: { type: Boolean, default: false },
+  canLocateBom: { type: Boolean, default: false },
   detailNavigation: { type: Object, default: null }
 })
 
-const emit = defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue', 'locate'])
 const activeTab = ref('details')
 const showImageViewer = ref(false)
 const previewList = ref([])

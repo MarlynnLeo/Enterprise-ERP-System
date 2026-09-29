@@ -127,6 +127,11 @@
             
             <!-- 待处理状态：可以开始处理 -->
             <el-button
+              v-if="scope.row.status === 'completed' && scope.row.canResubmitInventory"
+              size="small" type="warning" v-permission="'sales:exchanges:update'"
+              @click="handleComplete(scope.row)"
+            >重新提交审批</el-button>
+            <el-button
               v-if="scope.row.status === 'pending'"
               size="small"
               type="primary"
@@ -839,6 +844,7 @@ const fetchData = async () => {
         exchangeDate: item.exchangeDate,
         reason: item.exchangeReason || item.reason,
         status: normalizeExchangeStatus(item.status),
+        canResubmitInventory: Boolean(item.canResubmitInventory),
         remark: item.remarks || item.remark,
         returnAmount: isBlankAmount(item.returnAmount) ? null : item.returnAmount,
         newAmount: isBlankAmount(item.newAmount) ? null : item.newAmount,
@@ -997,11 +1003,12 @@ const handleProcess = (row) => {
 }
 // 完成换货单
 const handleComplete = (row) => {
-  ElMessageBox.confirm('确认完成这个换货单吗？完成后将无法修改。', '确认完成', { confirmButtonText: '确认完成', cancelButtonText: '取消', type: 'success' })
+  const retry = row.status === 'completed' && row.canResubmitInventory
+  ElMessageBox.confirm(retry ? '重新提交已驳回的库存过账，等待财务审核？' : '确认完成这个换货单吗？完成后将无法修改。', retry ? '重新提交审批' : '确认完成', { confirmButtonText: '确认', cancelButtonText: '取消', type: 'success' })
     .then(async () => {
       try {
         await salesApi.updateExchangeStatus(row.id, 'completed')
-        ElMessage.success(`换货单 ${row.exchangeNo} 已完成`)
+        ElMessage.success(retry ? '库存过账已重新提交，待财务审核' : `换货单 ${row.exchangeNo} 已完成`)
         detailDialogVisible.value = false
         await fetchData()
       } catch (error) {

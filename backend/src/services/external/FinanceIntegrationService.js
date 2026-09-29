@@ -878,7 +878,9 @@ class FinanceIntegrationService {
               raw.product_name ||
               raw.material_name ||
               raw.material_code ||
-              (raw.material_name || raw.material_code || '手工调整行'),
+              raw.material_name ||
+              raw.material_code ||
+              '手工调整行',
             description: raw.description || `销售出库 ${outboundData.outbound_no || outboundId}`,
             quantity: qty,
             unit_price: unitPrice,
@@ -1163,9 +1165,7 @@ class FinanceIntegrationService {
 
       if (orderItems.length === 0) {
         await connection.rollback();
-        throw new Error(
-          `销售订单 ${salesOrder.order_no || '该订单'} 没有明细，不能生成应收发票`
-        );
+        throw new Error(`销售订单 ${salesOrder.order_no || '该订单'} 没有明细，不能生成应收发票`);
       }
 
       // ✅ 精度修复：使用整数运算避免浮点累加误差（与 GLService 对齐）
@@ -1684,8 +1684,7 @@ class FinanceIntegrationService {
           const qty = parseFloat(item.quantity || 0);
           return {
             material_id: item.material_id,
-            material_name:
-              item.material_name || item.material_code || '未命名物料',
+            material_name: item.material_name || item.material_code || '未命名物料',
             description: item.description || `采购物资 ${item.material_name || item.material_code}`,
             quantity: qty,
             price: unitPrice,
@@ -1963,8 +1962,7 @@ class FinanceIntegrationService {
           const qty = parseFloat(item.quantity || 0);
           return {
             material_id: item.material_id,
-            material_name:
-              item.material_name || item.material_code || '未命名物料',
+            material_name: item.material_name || item.material_code || '未命名物料',
             description: `采购物资 ${item.material_name || item.material_code}`,
             quantity: qty,
             price: unitPrice,
@@ -2149,8 +2147,7 @@ class FinanceIntegrationService {
           const qty = parseFloat(item.return_quantity || 0);
           return {
             material_id: item.material_id,
-            material_name:
-              item.material_name || item.material_code || '未命名物料',
+            material_name: item.material_name || item.material_code || '未命名物料',
             description: `退货冲减 ${item.material_name || item.material_code}`,
             quantity: -qty,
             price: unitPrice,
@@ -2227,7 +2224,7 @@ class FinanceIntegrationService {
         expectedTotalCost <= 0
       ) {
         throw new Error(
-            `销售出库单 ${salesOutbound.outbound_no || '该销售出库单'} 存在零成本库存流水，不能生成销售成本凭证`
+          `销售出库单 ${salesOutbound.outbound_no || '该销售出库单'} 存在零成本库存流水，不能生成销售成本凭证`
         );
       }
       if (expectedTotalCost <= 0) {
@@ -2440,7 +2437,7 @@ class FinanceIntegrationService {
       if (totalAmount <= 0) {
         await connection.rollback();
         throw new Error(
-            `销售出库单 ${salesOutbound.outbound_no || '该销售出库单'} 金额为0，不能生成销项税务发票`
+          `销售出库单 ${salesOutbound.outbound_no || '该销售出库单'} 金额为0，不能生成销项税务发票`
         );
       }
 

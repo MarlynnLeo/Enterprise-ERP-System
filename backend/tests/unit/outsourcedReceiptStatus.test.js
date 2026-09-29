@@ -43,6 +43,7 @@ const InventoryPostingReversalClosureService = require('../../src/services/busin
 const {
   createReceipt,
   updateReceiptStatus,
+  resolveReceiptItemsForPosting,
 } = require('../../src/controllers/outsourced/processingController');
 
 const createResponse = () => ({
@@ -77,6 +78,27 @@ describe('outsourced receipt status side effects', () => {
     VoucherReversalService.reverseBusinessVouchers.mockResolvedValue([]);
   });
 
+  test('partial IQC acceptance preserves original arrivals when a rejected receipt is submitted again', async () => {
+    const inspection = { material_id: 12147, status: 'partial', quantity: 10, qualified_quantity: 8 };
+    const connection = { execute: jest.fn(async () => [[inspection]]) };
+    const item = { id: 51, product_id: 12147, product_name: 'Test', expected_quantity: 10, actual_quantity: 10, arrived_quantity: 10 };
+    const first = await resolveReceiptItemsForPosting(connection, receipt('arrived'), [item], 'arrived');
+    expect(first[0]).toMatchObject({ actual_quantity: 8, arrived_quantity: 10 });
+    const retry = await resolveReceiptItemsForPosting(connection, receipt('confirmed'), first, 'confirmed');
+    expect(retry[0]).toMatchObject({ actual_quantity: 8, arrived_quantity: 10 });
+    expect(item.actual_quantity).toBe(10);
+  });
+
+  test('split arrivals are compared against their sum, and incorrect arrival evidence still fails', async () => {
+    const connection = { execute: jest.fn(async () => [[
+      { material_id: 12147, status: 'passed', quantity: 4, qualified_quantity: 4 },
+      { material_id: 12147, status: 'partial', quantity: 6, qualified_quantity: 4 },
+    ]]) };
+    const item = { id: 51, product_id: 12147, expected_quantity: 10, actual_quantity: 8, arrived_quantity: 10 };
+    expect((await resolveReceiptItemsForPosting(connection, receipt('confirmed'), [item], 'confirmed'))[0].actual_quantity).toBe(8);
+    await expect(resolveReceiptItemsForPosting(connection, receipt('confirmed'), [{ ...item, arrived_quantity: 9 }], 'confirmed')).rejects.toThrow('不一致');
+  });
+
   test('confirmation posts stock and finance but does not complete the processing order', async () => {
     mockConnection.execute
       .mockResolvedValueOnce([[receipt('pending')]])
@@ -88,6 +110,7 @@ describe('outsourced receipt status side effects', () => {
           product_name: '底座（钻孔）',
           unit_id: 2,
           actual_quantity: '1.00',
+          arrived_quantity: '1.00',
         },
       ]]);
     mockConnection.execute

@@ -922,7 +922,10 @@ const _createOutbound = async (outboundData) => {
             materialName: r.materialName || itemNameMap.get(Number(r.materialId)) || '',
           }));
           const excessDetails = enrichedExcess
-            .map((r) => r.message || `${r.materialName || r.materialCode || '所选物料'}超出 ${r.excessQty}`)
+            .map(
+              (r) =>
+                r.message || `${r.materialName || r.materialCode || '所选物料'}超出 ${r.excessQty}`
+            )
             .join('; ');
 
           logger.warn(`检测到超额领料: ${excessDetails}`);
@@ -1295,10 +1298,7 @@ const createOutbound = async (req, res) => {
     } else if (error.code === 'MISSING_ISSUE_REASON') {
       // 缺少超额原因 → 400 Bad Request
       statusCode = 400;
-    } else if (
-      error.message &&
-      error.message.includes('不存在或没有设置默认库位')
-    ) {
+    } else if (error.message && error.message.includes('不存在或没有设置默认库位')) {
       statusCode = 400;
     } else if (error.message && error.message.includes('库存不足')) {
       statusCode = 400;

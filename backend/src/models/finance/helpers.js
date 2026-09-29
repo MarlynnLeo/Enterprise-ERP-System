@@ -121,9 +121,7 @@ async function assertOpeningBalancesEditable(connection) {
     'SELECT COUNT(*) AS count FROM gl_entries WHERE COALESCE(is_posted, 0) = 1'
   );
   if (Number(postedEntries.count || 0) > 0) {
-    throw new Error(
-      '凭证过账后期初余额已锁定，请改用调整凭证'
-    );
+    throw new Error('凭证过账后期初余额已锁定，请改用调整凭证');
   }
 
   const [[closedPeriods]] = await connection.execute(
@@ -155,9 +153,7 @@ async function assertAccountsAvailableForOpeningBalances(connection, accountIds)
   );
   const missingIds = uniqueIds.filter((id) => !activeAccountIds.has(id));
   if (missingIds.length > 0) {
-    throw new Error(
-      '期初余额中存在不存在或已停用的科目，请刷新后重新选择'
-    );
+    throw new Error('期初余额中存在不存在或已停用的科目，请刷新后重新选择');
   }
 }
 

@@ -152,19 +152,7 @@ class CacheManager {
           return 0;
         }
 
-        const keys = [];
-        for await (const key of redisCacheService.client.scanIterator({
-          MATCH: `${prefix}*`,
-          COUNT: 100,
-        })) {
-          keys.push(key);
-        }
-
-        if (keys.length > 0) {
-          await redisCacheService.client.del(...keys);
-          logger.debug(`Delete Redis cache by prefix: ${prefix} (${keys.length} keys)`);
-        }
-        return keys.length;
+        return await redisCacheService.deleteMatchingKeys(`${prefix}*`);
       }
 
       const keys = this.memoryCache.keys().filter((key) => key.startsWith(prefix));

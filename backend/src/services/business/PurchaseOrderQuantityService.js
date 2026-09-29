@@ -81,7 +81,12 @@ class PurchaseOrderQuantityService {
     for (const receipt of receipts) {
       // 草稿尚未形成收货事实；到货额度由待检检验单占用，避免同一批货重复占用。
       if (receipt.status === 'draft') continue;
-      if (!Number(receipt.is_concession) && receipt.inspection_id && inspectionIds.has(Number(receipt.inspection_id))) continue;
+      if (
+        !Number(receipt.is_concession) &&
+        receipt.inspection_id &&
+        inspectionIds.has(Number(receipt.inspection_id))
+      )
+        continue;
       const line = resolve(receipt.material_id, receipt.order_item_id);
       const quantity = Number(receipt.qualified_quantity ?? receipt.received_quantity ?? 0);
       line.reserved += quantity;

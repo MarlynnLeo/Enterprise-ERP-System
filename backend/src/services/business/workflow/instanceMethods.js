@@ -74,7 +74,7 @@ module.exports = {
         [businessType, businessId]
       );
       if (existingInstance) {
-      throw new Error('该单据已有进行中的审批流程，请勿重复提交');
+        throw new Error('该单据已有进行中的审批流程，请勿重复提交');
       }
 
       // 3. 创建流程实例

@@ -59,7 +59,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, shallowRef, watch } from 'vue'
+import { computed, nextTick, shallowReactive, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getIconComponent } from '../../utils/menuIcons'
 import { isRouteMatch } from '../../utils/menuTree'
@@ -83,8 +83,7 @@ const mountedBranches = shallowRef(new Set())
 // Branch clicks belong to this component. Updating Layout's state here used
 // to invalidate its Element Plus slots and update the current business page.
 const localOpenChain = shallowRef([])
-
-const openSet = computed(() => new Set(localOpenChain.value))
+const renderedItems = shallowRef([])
 
 const branchIndexes = computed(() => {
   const indexes = new Set()
@@ -107,94 +106,132 @@ const branchIndexes = computed(() => {
   return indexes
 })
 
-const allBranchIndexes = computed(() => {
-  const indexes = new Set()
-  const walk = (nodes) => {
-    for (const menu of nodes || []) {
-      if (!menu.hasChildren) continue
-      indexes.add(menu.menuIndex)
-      walk(menu.children)
-    }
-  }
-  walk(props.menus)
-  return indexes
-})
-
-const syncMountedBranches = (chain = localOpenChain.value) => {
-  const validIndexes = allBranchIndexes.value
-  const next = new Set(
-    [...mountedBranches.value].filter((index) => validIndexes.has(index))
-  )
-  for (const index of chain || []) {
-    if (validIndexes.has(index)) next.add(index)
-  }
-  if (next.size !== mountedBranches.value.size || [...next].some((index) => !mountedBranches.value.has(index))) {
-    mountedBranches.value = next
-  }
-}
-
-watch(
-  () => [props.menus, props.openChain],
-  () => {
-    localOpenChain.value = props.openChain.filter((index) => allBranchIndexes.value.has(index))
-    syncMountedBranches()
-  },
-  { immediate: true }
-)
-
 // Translate labels and resolve icons only when menu data or locale changes,
-// not on every expand/collapse or sidebar-width change.
-const indexedItems = computed(() => {
+// not on every expand/collapse or sidebar-width change. Keep each row's state
+// stable so a retained branch toggle does not copy every menu row again.
+const menuIndex = computed(() => {
   const items = []
+  const branches = new Map()
   const walk = (nodes, depth, parentChain) => {
     for (const menu of nodes || []) {
-      items.push({
+      const item = shallowReactive({
         key: `${menu.menuIndex}:${menu.id ?? depth}`,
         menu,
         depth,
         parentChain,
         label: getMenuLabel(menu, t),
-        icon: menu.icon ? getIconComponent(menu.icon) : null
+        icon: menu.icon ? getIconComponent(menu.icon) : null,
+        position: items.length,
+        end: 0,
+        open: false,
+        active: false,
+        activePath: false,
+        visible: false
       })
+      items.push(item)
       if (menu.hasChildren) {
+        branches.set(menu.menuIndex, item)
         walk(menu.children, depth + 1, parentChain.concat(menu.menuIndex))
       }
+      item.end = items.length
     }
   }
   walk(props.menus, 0, [])
-  return items
+  return { items, branches }
 })
 
-const renderedItems = computed(() => {
-  const opened = openSet.value
-  const mounted = mountedBranches.value
+const isVisible = (item, opened) =>
+  (!props.mini || item.depth === 0) && item.parentChain.every((index) => opened.has(index))
+
+const refreshActiveRows = () => {
   const activeBranches = branchIndexes.value
-  return indexedItems.value
-    .filter((item) => item.parentChain.every((index) => mounted.has(index)))
-    .map((item) => ({
-      ...item,
-      open: item.menu.hasChildren && opened.has(item.menu.menuIndex),
-      active: Boolean(item.menu.path && item.menu.path === props.activePath),
-      activePath: item.menu.hasChildren && activeBranches.has(item.menu.menuIndex),
-      visible: (!props.mini || item.depth === 0) && item.parentChain.every((index) => opened.has(index))
-    }))
+  for (const item of menuIndex.value.items) {
+    item.active = Boolean(item.menu.path && item.menu.path === props.activePath)
+    item.activePath = item.menu.hasChildren && activeBranches.has(item.menu.menuIndex)
+  }
+}
+
+const refreshMountedRows = () => {
+  const mounted = mountedBranches.value
+  renderedItems.value = menuIndex.value.items.filter((item) =>
+    item.parentChain.every((index) => mounted.has(index)))
+}
+
+let previousMenus
+let previousOpenChain
+watch(
+  [menuIndex, () => props.openChain],
+  ([index]) => {
+    const chain = props.menus !== previousMenus || props.openChain !== previousOpenChain
+      ? props.openChain
+      : localOpenChain.value
+    previousMenus = props.menus
+    previousOpenChain = props.openChain
+    localOpenChain.value = chain.filter((key) => index.branches.has(key))
+    const opened = new Set(localOpenChain.value)
+    mountedBranches.value = new Set([
+      ...[...mountedBranches.value].filter((key) => index.branches.has(key)),
+      ...opened
+    ])
+    for (const item of index.items) {
+      item.open = item.menu.hasChildren && opened.has(item.menu.menuIndex)
+      item.visible = isVisible(item, opened)
+    }
+    refreshActiveRows()
+    refreshMountedRows()
+  },
+  { immediate: true }
+)
+watch(() => props.activePath, refreshActiveRows)
+watch(() => props.mini, () => {
+  const opened = new Set(localOpenChain.value)
+  for (const item of renderedItems.value) item.visible = isVisible(item, opened)
 })
+
+const setOpenChain = (chain) => {
+  const previous = new Set(localOpenChain.value)
+  const opened = new Set(chain)
+  localOpenChain.value = chain
+  const index = menuIndex.value
+  const changed = [...new Set([...previous, ...opened])]
+    .filter((key) => previous.has(key) !== opened.has(key))
+    .map((key) => index.branches.get(key))
+    .filter(Boolean)
+    .sort((left, right) => left.position - right.position)
+  let addedBranch = false
+  let end = 0
+  for (const item of changed) {
+    item.open = opened.has(item.menu.menuIndex)
+    if (item.open && !mountedBranches.value.has(item.menu.menuIndex)) {
+      mountedBranches.value.add(item.menu.menuIndex)
+      addedBranch = true
+    }
+    // Preorder ranges let us visit only changed subtrees. Overlapping ranges
+    // are skipped when an ancestor and its child both close in one click.
+    for (let position = Math.max(item.position + 1, end); position < item.end; position++) {
+      const descendant = index.items[position]
+      descendant.visible = isVisible(descendant, opened)
+    }
+    end = Math.max(end, item.end)
+  }
+  // A previously opened branch already owns its DOM nodes and list entry.
+  if (addedBranch) refreshMountedRows()
+}
 
 const toggleMenu = (item) => {
   const position = localOpenChain.value.indexOf(item.menu.menuIndex)
   if (props.multiple) {
-    const descendants = new Set(indexedItems.value
-      .filter((child) => child.parentChain.includes(item.menu.menuIndex))
+    const descendants = new Set(menuIndex.value.items
+      .slice(item.position + 1, item.end)
       .map((child) => child.menu.menuIndex))
-    localOpenChain.value = position >= 0 && !props.mini
+    setOpenChain(position >= 0 && !props.mini
       ? localOpenChain.value.filter((index) => index !== item.menu.menuIndex && !descendants.has(index))
-      : [...new Set([...localOpenChain.value, ...item.parentChain, item.menu.menuIndex])]
+      : [...new Set([...localOpenChain.value, ...item.parentChain, item.menu.menuIndex])])
   } else {
-    localOpenChain.value = position >= 0 && !props.mini
+    setOpenChain(position >= 0 && !props.mini
       ? localOpenChain.value.slice(0, position)
-      : [...item.parentChain, item.menu.menuIndex]
+      : [...item.parentChain, item.menu.menuIndex])
   }
-  syncMountedBranches()
   if (props.mini) emit('expand')
 }
 
@@ -222,7 +259,8 @@ const handleKeydown = async (event) => {
     event.preventDefault()
     if (!item.open || props.mini) toggleMenu(item)
     await nextTick()
-    destination = visibleButtons()[position + 1]
+    const updatedButtons = visibleButtons()
+    destination = updatedButtons[updatedButtons.indexOf(button) + 1]
   } else if (event.key === 'ArrowLeft' && item) {
     event.preventDefault()
     if (item.menu.hasChildren && item.open && !props.mini) toggleMenu(item)

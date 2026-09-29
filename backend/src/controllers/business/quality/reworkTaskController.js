@@ -464,47 +464,34 @@ const updateStatus = async (req, res) => {
       return ResponseHandler.error(res, '无效的状态值', 'VALIDATION_ERROR', 400);
     }
 
-    // 🔒 闭环保护：completed 状态必须走正规流程（复检单 + 质量成本）
+    // Serialize every transition on the same task, including attempts to reopen terminal tasks.
+    const [tasks] = await connection.query(
+      `SELECT rt.*, ncp.ncp_no, ncp.inspection_id
+         FROM rework_tasks rt
+         LEFT JOIN nonconforming_products ncp ON rt.ncp_id = ncp.id
+        WHERE rt.id = ? FOR UPDATE`,
+      [id]
+    );
+    if (!tasks.length) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '返工任务不存在', 'NOT_FOUND', 404);
+    }
+    const task = tasks[0];
+    if (task.status === status) {
+      await connection.commit();
+      return ResponseHandler.success(res, null, '返工任务状态未变化');
+    }
+    const transitions = {
+      pending: ['in_progress', 'cancelled'],
+      in_progress: ['completed', 'cancelled'],
+      completed: [],
+      cancelled: [],
+    };
+    if (!transitions[task.status]?.includes(status)) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '当前返工状态不允许此操作', 'VALIDATION_ERROR', 400);
+    }
     if (status === 'completed') {
-      // 获取完整任务信息（含 NCP 关联数据，用于创建复检单）
-      const [tasks] = await connection.query(
-        `
-        SELECT rt.*, ncp.ncp_no, ncp.inspection_id
-        FROM rework_tasks rt
-        LEFT JOIN nonconforming_products ncp ON rt.ncp_id = ncp.id
-        WHERE rt.id = ?
-        FOR UPDATE
-      `,
-        [id]
-      );
-
-      if (tasks.length === 0) {
-        await connection.rollback();
-        return ResponseHandler.error(res, '返工任务不存在', 'NOT_FOUND', 404);
-      }
-
-      const task = tasks[0];
-
-      if (task.status === STATUS.REWORK.COMPLETED) {
-        await connection.rollback();
-        return ResponseHandler.error(res, '该返工任务已完成', 'VALIDATION_ERROR', 400);
-      }
-
-      if (task.status === STATUS.REWORK.CANCELLED) {
-        await connection.rollback();
-        return ResponseHandler.error(res, '已取消的返工任务不能完成', 'VALIDATION_ERROR', 400);
-      }
-
-      if (task.status !== STATUS.REWORK.IN_PROGRESS) {
-        await connection.rollback();
-        return ResponseHandler.error(
-          res,
-          '返工任务必须先进入进行中后才能完成',
-          'VALIDATION_ERROR',
-          400
-        );
-      }
-
       // 更新状态为已完成
       await connection.query(
         `UPDATE rework_tasks SET status = ?, progress = 100, actual_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,

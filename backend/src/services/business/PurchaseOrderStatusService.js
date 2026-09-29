@@ -336,9 +336,7 @@ class PurchaseOrderStatusService {
         }
 
         if (inspectedQuantity <= 0) {
-          throw new Error(
-            '质检数量必须大于0，无法回写采购订单'
-          );
+          throw new Error('质检数量必须大于0，无法回写采购订单');
         }
 
         await this.syncOrderItemInspectionQuantityFromInspections(

@@ -3,6 +3,8 @@ const path = require('path');
 const crypto = require('crypto');
 const readline = require('readline');
 const mysql = require('mysql2');
+const { once } = require('events');
+const { finished } = require('stream/promises');
 const { pool } = require('../../config/db');
 const {
   getEncryptionMode,
@@ -56,9 +58,8 @@ async function ensureBackupTable() {
 }
 
 async function writeLine(stream, line = '') {
-  if (!stream.write(`${line}\n`)) {
-    await new Promise((resolve) => stream.once('drain', resolve));
-  }
+  if (stream.errored) throw stream.errored;
+  if (!stream.write(`${line}\n`)) await once(stream, 'drain');
 }
 
 async function sha256File(filePath) {
@@ -141,15 +142,22 @@ async function scanBackupSql(filePath) {
   return checks;
 }
 
-async function dumpTable(stream, tableName) {
+async function dumpTable(connection, stream, tableName) {
   const quotedTable = quoteIdentifier(tableName);
-  const [[createRow]] = await pool.query(`SHOW CREATE TABLE ${quotedTable}`);
+  const [[createRow]] = await connection.query(`SHOW CREATE TABLE ${quotedTable}`);
   const createSql = createRow['Create Table'];
-  const [columnDefinitions] = await pool.query(`SHOW FULL COLUMNS FROM ${quotedTable}`);
+  const [columnDefinitions] = await connection.query(`SHOW FULL COLUMNS FROM ${quotedTable}`);
   const columns = columnDefinitions
     .filter((column) => !/GENERATED/i.test(String(column.Extra || '')))
     .map((column) => column.Field);
   const quotedColumns = columns.map(quoteIdentifier).join(', ');
+  const [indexes] = await connection.query(
+    `SHOW INDEX FROM ${quotedTable} WHERE Key_name = 'PRIMARY'`
+  );
+  const primary = indexes
+    .sort((a, b) => a.Seq_in_index - b.Seq_in_index)
+    .map((index) => index.Column_name);
+  const orderBy = (primary.length ? primary : columns).map(quoteIdentifier).join(', ');
 
   await writeLine(stream, `DROP TABLE IF EXISTS ${quotedTable};`);
   await writeLine(stream, `${createSql};`);
@@ -162,8 +170,8 @@ async function dumpTable(stream, tableName) {
   let offset = 0;
 
   while (true) {
-    const [batch] = await pool.query(
-      `SELECT ${quotedColumns} FROM ${quotedTable} LIMIT ${FETCH_SIZE} OFFSET ${offset}`
+    const [batch] = await connection.query(
+      `SELECT ${quotedColumns} FROM ${quotedTable} ORDER BY ${orderBy} LIMIT ${FETCH_SIZE} OFFSET ${offset}`
     );
 
     if (batch.length === 0) {
@@ -249,6 +257,9 @@ class BackupService {
     const filePath = path.join(BACKUP_DIR, filename);
     const checksumPath = `${filePath}.sha256`;
     const stream = fs.createWriteStream(plainPath, { encoding: 'utf8', mode: 0o600 });
+    const streamFinished = finished(stream);
+    // Observe early write failures while the database snapshot is still being read.
+    streamFinished.catch(() => {});
 
     try {
       await writeLine(stream, '-- ERP database backup');
@@ -256,18 +267,36 @@ class BackupService {
       await writeLine(stream, 'SET FOREIGN_KEY_CHECKS=0;');
       await writeLine(stream);
 
-      const [tables] = await pool.query("SHOW FULL TABLES WHERE Table_type = 'BASE TABLE'");
-      const tableNameKey = Object.keys(tables[0] || {}).find((key) => key.startsWith('Tables_in_'));
-      const tableNames = tableNameKey ? tables.map((row) => row[tableNameKey]) : [];
-
-      for (const tableName of tableNames) {
-        await dumpTable(stream, tableName);
+      const connection = await pool.getConnection();
+      try {
+        await connection.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+        await connection.query('START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY');
+        const [tables] = await connection.query(
+          `SELECT TABLE_NAME AS table_name, ENGINE AS engine
+             FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'
+            ORDER BY TABLE_NAME`
+        );
+        if (tables.some((table) => String(table.engine).toUpperCase() !== 'INNODB')) {
+          throw new Error('在线一致性备份只支持 InnoDB 表，请先处理非事务表');
+        }
+        // Keep metadata locks until the entire snapshot is read, so concurrent
+        // DDL cannot change the schema of a table between its DDL and data dump.
+        for (const table of tables) {
+          await connection.query(`SELECT 1 FROM ${quoteIdentifier(table.table_name)} LIMIT 0`);
+        }
+        for (const table of tables) await dumpTable(connection, stream, table.table_name);
+        await connection.commit();
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally {
+        connection.release();
       }
 
       await writeLine(stream, 'SET FOREIGN_KEY_CHECKS=1;');
-      await new Promise((resolve, reject) =>
-        stream.end((error) => (error ? reject(error) : resolve()))
-      );
+      stream.end();
+      await streamFinished;
 
       if (encrypted) {
         await encryptFile(plainPath, filePath);
@@ -317,6 +346,7 @@ class BackupService {
       };
     } catch (error) {
       stream.destroy();
+      await streamFinished.catch(() => {});
       for (const target of [plainPath, filePath, checksumPath]) {
         try {
           await fs.promises.unlink(target);

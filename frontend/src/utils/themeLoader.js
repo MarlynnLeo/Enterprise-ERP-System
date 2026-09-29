@@ -7,7 +7,6 @@
 
 import {
   DEFAULT_THEME_PRESET_ID,
-  THEME_PRESET_LIST,
   isThemePreset
 } from '@/config/themePresets'
 
@@ -29,7 +28,6 @@ const THEME_CSS_LOADERS = {
 const loadedThemes = new Set(['kacon'])
 /** @type {Map<string, Promise<void>>} */
 const inflight = new Map()
-export const ALL_THEME_IDS = Object.freeze(THEME_PRESET_LIST.map((p) => p.id))
 
 /**
  * @param {string} presetId
@@ -87,12 +85,4 @@ export function prefetchThemeCss(presetId) {
   } else {
     setTimeout(run, 900)
   }
-}
-
-export function isThemeCssLoaded(presetId) {
-  return loadedThemes.has(presetId)
-}
-
-export function getLoadedThemeIds() {
-  return [...loadedThemes]
 }

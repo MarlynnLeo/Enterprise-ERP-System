@@ -292,7 +292,7 @@ const getOrder = async (req, res) => {
     }
 
     if (!(await canAccessPurchaseOrder(pool, req, orderId, { accessMode: 'read' }))) {
-        return ResponseHandler.forbidden(res, '您没有权限访问该采购订单');
+      return ResponseHandler.forbidden(res, '您没有权限访问该采购订单');
     }
 
     const order = await getOrderById(orderId);
@@ -470,6 +470,14 @@ const updateOrder = async (req, res) => {
       const previousRequisitionId = currentOrder.requisition_id;
       const supplierName = await PurchaseOrderService.validateSupplier(connection, supplierId);
       assertPurchaseItemPrices(items || []);
+      if (requisitionId && Number(requisitionId) === Number(previousRequisitionId)) {
+        await PurchaseOrderService.syncRequisitionQuantitiesForOrderEdit(
+          connection,
+          requisitionId,
+          Number(id),
+          items
+        );
+      }
       const requisition = await PurchaseOrderService.validateRequisitionAllocation(
         connection,
         requisitionId,
@@ -1297,7 +1305,7 @@ const getRequisition = async (req, res) => {
     const [rows] = await pool.query(query, [id, 'approved', 'completed']);
 
     if (rows.length === 0) {
-    return ResponseHandler.notFound(res, '采购申请不存在或已被删除');
+      return ResponseHandler.notFound(res, '采购申请不存在或已被删除');
     }
 
     if (
@@ -1467,7 +1475,13 @@ const getLatestPrice = async (req, res) => {
     return ResponseHandler.success(res, price, 'latest purchase price loaded');
   } catch (error) {
     logger.error('获取最新指导价失败:', error);
-    return ResponseHandler.error(res, '获取最新采购价格失败，请稍后重试', 'SERVER_ERROR', 500, error);
+    return ResponseHandler.error(
+      res,
+      '获取最新采购价格失败，请稍后重试',
+      'SERVER_ERROR',
+      500,
+      error
+    );
   }
 };
 
@@ -1486,12 +1500,7 @@ const getLatestPrices = async (req, res) => {
       return ResponseHandler.error(res, '缺少有效的物料列表', 'VALIDATION_ERROR', 400);
     }
     if (materialIds.length > 100) {
-      return ResponseHandler.error(
-        res,
-        '物料批量查询一次最多支持100条',
-        'VALIDATION_ERROR',
-        400
-      );
+      return ResponseHandler.error(res, '物料批量查询一次最多支持100条', 'VALIDATION_ERROR', 400);
     }
 
     const prices = await PurchasePriceService.resolvePurchasePrices(
@@ -1506,7 +1515,13 @@ const getLatestPrices = async (req, res) => {
     return ResponseHandler.success(res, resultMap, 'latest prices loaded');
   } catch (error) {
     logger.error('批量获取最新指导价失败:', error);
-    return ResponseHandler.error(res, '获取最新采购价格失败，请稍后重试', 'SERVER_ERROR', 500, error);
+    return ResponseHandler.error(
+      res,
+      '获取最新采购价格失败，请稍后重试',
+      'SERVER_ERROR',
+      500,
+      error
+    );
   }
 };
 

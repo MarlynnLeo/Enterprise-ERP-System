@@ -920,8 +920,7 @@ const updateTransferStatus = async (req, res) => {
           );
         }
 
-        const fromLocationName =
-          transfer.from_location_name || '来源库位';
+        const fromLocationName = transfer.from_location_name || '来源库位';
         const toLocationName = transfer.to_location_name || '目标库位';
 
         for (const item of items) {

@@ -66,6 +66,34 @@ describe('sidebar interaction isolation', () => {
     expect(wrapper.text()).toContain('en:menu.finance')
   })
 
+  test('retained toggles do not read unrelated menu metadata again', async () => {
+    let unrelatedReads = 0
+    const unrelated = {
+      id: 99, menuIndex: 'unrelated', name: 'Other', path: '/other',
+      get hasChildren() { unrelatedReads++; return false }
+    }
+    mountMenu({ menus: [menus[0], unrelated] })
+    await branch(0).trigger('click')
+    await branch(0).trigger('click')
+    unrelatedReads = 0
+    await branch(0).trigger('click')
+    await branch(0).trigger('click')
+    expect(unrelatedReads).toBe(0)
+  })
+
+  test('keeps the locally opened branch visible when the language changes', async () => {
+    mountMenu()
+    await branch(0).trigger('click')
+    await branch(1).trigger('click')
+    const link = wrapper.get('[data-menu-index="entries"]').element
+    useI18n().locale.value = 'en'
+    await nextTick()
+    expect(wrapper.get('[data-menu-index="entries"]').element).toBe(link)
+    expect(link.hidden).toBe(false)
+    expect(branch(0).attributes('aria-expanded')).toBe('true')
+    expect(branch(1).attributes('aria-expanded')).toBe('true')
+  })
+
   test('synchronizes ancestors on navigation and exposes the active page', async () => {
     mountMenu({ openChain: ['finance', 'gl'], activePath: '/finance/gl/entries' })
     expect(wrapper.get('[aria-current="page"]').attributes('tabindex')).toBe('0')
@@ -135,5 +163,18 @@ describe('sidebar interaction isolation', () => {
     expect(document.activeElement.closest('li').dataset.menuIndex).toBe('production')
     await wrapper.get('[data-menu-index="production"] button').trigger('keydown', { key: 'Home' })
     expect(document.activeElement).toBe(finance.element)
+  })
+
+  test('focuses the new child after an earlier accordion branch closes', async () => {
+    wrapper = mount(SidebarMenu, {
+      attachTo: document.body,
+      props: { menus, openChain: ['finance', 'gl'] },
+      global: { stubs: { 'el-icon': true } }
+    })
+    const production = wrapper.get('[data-menu-index="production"] button')
+    production.element.focus()
+    await production.trigger('keydown', { key: 'ArrowRight' })
+    expect(document.activeElement.closest('li').dataset.menuIndex).toBe('plan')
+    expect(wrapper.get('[data-menu-index="entries"]').element.hidden).toBe(true)
   })
 })

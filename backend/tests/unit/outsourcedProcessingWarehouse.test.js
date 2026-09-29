@@ -158,8 +158,8 @@ describe('outsourced inventory warehouse resolution', () => {
       }]])
       .mockResolvedValueOnce([[{ id: 8, status: 'in_progress' }]])
       .mockResolvedValueOnce([[
-        { id: 701, product_id: 701, product_name: '成品1', unit_id: 1, actual_quantity: '1.00' },
-        { id: 702, product_id: 702, product_name: '成品2', unit_id: 1, actual_quantity: '2.00' },
+        { id: 701, product_id: 701, product_name: '成品1', unit_id: 1, actual_quantity: '1.00', arrived_quantity: '1.00' },
+        { id: 702, product_id: 702, product_name: '成品2', unit_id: 1, actual_quantity: '2.00', arrived_quantity: '2.00' },
       ]])
       .mockResolvedValueOnce([[
         { id: 41, name: '成品仓A' },

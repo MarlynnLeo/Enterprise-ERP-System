@@ -65,6 +65,7 @@ function connectionFor(selectedRule = rule()) {
     rollback: jest.fn(),
     release: jest.fn(),
     query: jest.fn(async (sql) => {
+      if (sql.includes('FROM nonconforming_products') || sql.includes('FROM inventory_inbound')) return [[]];
       if (sql.includes('FROM quality_aql_standards')) return [selectedRule ? [selectedRule] : []];
       if (sql.includes('INSERT INTO quality_inspections')) return [{ insertId: 7 }];
       if (sql.includes('INSERT INTO quality_inspection_items')) return [{ insertId: 70 }];

@@ -26,9 +26,15 @@ const {
 class InboundTransactionService {
   /** 采购收货只能由采购收货领域检验放行，通用入库单不得承担采购收货。 */
   static assertGenericInboundSource(inbound = {}) {
-    const inboundType = String(inbound.inbound_type || '').trim().toLowerCase();
-    const referenceType = String(inbound.reference_type || '').trim().toLowerCase();
-    const inspectionType = String(inbound.inspection_type || '').trim().toLowerCase();
+    const inboundType = String(inbound.inbound_type || '')
+      .trim()
+      .toLowerCase();
+    const referenceType = String(inbound.reference_type || '')
+      .trim()
+      .toLowerCase();
+    const inspectionType = String(inbound.inspection_type || '')
+      .trim()
+      .toLowerCase();
     if (
       [INBOUND_TYPE_KEYS.PURCHASE, 'purchase_inbound', 'purchase_receipt'].includes(inboundType) ||
       [DOCUMENT_REFERENCE_TYPES.PURCHASE_ORDER, 'purchase_receipt', 'purchase_inbound'].includes(
@@ -408,14 +414,20 @@ class InboundTransactionService {
     const task = taskResult[0];
     const planQty = parseFloat(task.quantity) || 0;
 
-    // 累计已确认生产入库数量（含本单，本单此时可能仍是 confirmed 流转中）
+    // Business completion stages inventory for finance approval. Count completed
+    // documents plus this document only; unrelated confirmed drafts have no movement.
+    const currentInboundId = Number(inboundData.id);
+    if (!Number.isInteger(currentInboundId) || currentInboundId <= 0) {
+      throw new Error('生产入库单ID无效，无法同步任务完成数量');
+    }
     const [warehousedRows] = await connection.query(
       `SELECT COALESCE(SUM(ii.quantity), 0) AS total_qty
        FROM inventory_inbound_items ii
        JOIN inventory_inbound ib ON ib.id = ii.inbound_id
        WHERE ib.inbound_type = 'production'
          AND COALESCE(ib.is_deleted, 0) = 0
-         AND ib.status IN ('confirmed', 'completed')
+         AND ib.deleted_at IS NULL
+         AND (ib.status = 'completed' OR ib.id = ?)
          AND (
            ib.reference_id = ?
            OR ib.inspection_id IN (
@@ -423,8 +435,8 @@ class InboundTransactionService {
              WHERE reference_id = ? AND inspection_type = 'final' AND deleted_at IS NULL
            )
          )
-         AND (ii.material_id = ? OR ? IS NULL)`,
-      [taskId, taskId, task.product_id, task.product_id]
+         AND (ii.material_id = ? OR ? IS NULL) FOR UPDATE`,
+      [currentInboundId, taskId, taskId, task.product_id, task.product_id]
     );
     const totalWarehoused = parseFloat(warehousedRows[0]?.total_qty) || 0;
 

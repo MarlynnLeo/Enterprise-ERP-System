@@ -4,6 +4,8 @@
  */
 
 const { Server } = require('socket.io');
+const proxyaddr = require('proxy-addr');
+const { isIP } = require('node:net');
 const { logger } = require('../utils/logger');
 const { pool } = require('../config/db');
 const { createCorsOptions } = require('../config/cors');
@@ -24,15 +26,17 @@ const ALLOWED_CLIENT_MESSAGE_TYPES = new Set(['text']);
 const SOCKET_AUTH_REFRESH_INTERVAL_MS = 30 * 1000;
 const SOCKET_MAX_CONNECTIONS_PER_IP =
   Number.parseInt(process.env.SOCKET_MAX_CONNECTIONS_PER_IP, 10) || 25;
-const socketConnectionsByIp = new Map();
-
-// Do not trust a client supplied X-Forwarded-For value.  The HTTP server's
-// remoteAddress is the only safe default here; a trusted reverse proxy can
-// replace it at the network boundary, but arbitrary request headers must not
-// become a connection-limit key (otherwise an attacker can bypass the limit
-// by sending a different header on every handshake).
-function getSocketConnectionKey(request) {
-  return String(request?.socket?.remoteAddress || request?.connection?.remoteAddress || 'unknown');
+// Use the same trusted-proxy boundary as Express. Direct clients cannot change
+// their quota by supplying forwarding headers; trusted Nginx clients get their
+// own quota instead of sharing the reverse proxy's transport address.
+function getSocketConnectionKey(request, trustProxy = () => false) {
+  const remoteAddress = request?.socket?.remoteAddress || request?.connection?.remoteAddress;
+  if (!remoteAddress) return 'unknown';
+  const address = proxyaddr(
+    { socket: { remoteAddress }, headers: request.headers || {} },
+    trustProxy
+  );
+  return isIP(address) ? address : remoteAddress;
 }
 
 function hasAnyPermission(userPermissions, permissions) {
@@ -141,20 +145,38 @@ async function refreshSocketAuthorization(socket) {
  * 初始化 Socket.IO
  * @param {import('http').Server} httpServer
  */
-function initSocket(httpServer) {
+function initSocket(httpServer, { trustProxy = () => false } = {}) {
+  const socketConnectionsByIp = new Map();
   io = new Server(httpServer, {
     cors: createCorsOptions({ methods: ['GET', 'POST'] }),
     path: '/socket.io',
     transports: ['websocket', 'polling'],
     maxHttpBufferSize: 1e6,
     allowRequest: (request, callback) => {
-      const ip = getSocketConnectionKey(request);
+      const ip = getSocketConnectionKey(request, trustProxy);
       const count = socketConnectionsByIp.get(ip) || 0;
       if (count >= SOCKET_MAX_CONNECTIONS_PER_IP) {
         return callback('Too many socket connections', false);
       }
       socketConnectionsByIp.set(ip, count + 1);
-      request.__erpSocketIp = ip;
+      let released = false;
+      const release = () => {
+        if (released) return;
+        released = true;
+        const current = socketConnectionsByIp.get(ip) || 0;
+        if (current <= 1) socketConnectionsByIp.delete(ip);
+        else socketConnectionsByIp.set(ip, current - 1);
+        detachHandshakeListeners();
+      };
+      const detachHandshakeListeners = () => {
+        request.removeListener('aborted', release);
+        request.socket?.removeListener('close', release);
+      };
+      // Reserve before the asynchronous Engine.IO handshake so simultaneous
+      // requests cannot exceed the limit. Release pre-connection failures too.
+      request.once('aborted', release);
+      request.socket?.once('close', release);
+      request.socketQuota = { release, detachHandshakeListeners, isReleased: () => released };
       return callback(null, true);
     },
     connectTimeout: 10000,
@@ -162,15 +184,29 @@ function initSocket(httpServer) {
     pingInterval: 25000,
   });
 
+  io.engine.on('connection_error', ({ req }) => req?.socketQuota?.release());
+  io.engine.on('connection', (transportSocket) => {
+    const quota = transportSocket.request?.socketQuota;
+    if (!quota) return;
+    quota.detachHandshakeListeners();
+    if (quota.isReleased()) {
+      transportSocket.close(true);
+      return;
+    }
+    // Authentication failures and timeouts still close Engine.IO. A polling
+    // HTTP request ending is not the end of the underlying Engine.IO session.
+    transportSocket.once('close', quota.release);
+  });
+
   // JWT 鉴权中间件
   io.use(async (socket, next) => {
-    const token =
-      socket.handshake.auth?.token ||
-      getCookieValue(socket.handshake.headers?.cookie, 'accessToken');
-    if (!token) {
-      return next(new Error('未提供认证令牌'));
-    }
     try {
+      const token =
+        socket.handshake.auth?.token ||
+        getCookieValue(socket.handshake.headers?.cookie, 'accessToken');
+      if (!token) {
+        return next(new Error('未提供认证令牌'));
+      }
       const user = await verifySocketToken(token);
       const userPermissions = await PermissionService.getUserPermissions(user.id);
       socket.userId = user.id;
@@ -188,7 +224,6 @@ function initSocket(httpServer) {
 
   io.on('connection', (socket) => {
     const userId = socket.userId;
-    const socketIp = socket.request.__erpSocketIp || socket.handshake.address || 'unknown';
     logger.info(`[Socket] 用户 ${userId} 已连接 (${socket.id})`);
 
     // 记录在线状态
@@ -353,9 +388,6 @@ function initSocket(httpServer) {
 
     // 断开连接
     socket.on('disconnect', () => {
-      const currentIpCount = socketConnectionsByIp.get(socketIp) || 0;
-      if (currentIpCount <= 1) socketConnectionsByIp.delete(socketIp);
-      else socketConnectionsByIp.set(socketIp, currentIpCount - 1);
       logger.info(`[Socket] 用户 ${userId} 已断开 (${socket.id})`);
       const userSockets = onlineUsers.get(userId);
       if (userSockets) {

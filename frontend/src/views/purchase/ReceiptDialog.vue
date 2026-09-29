@@ -41,6 +41,7 @@
         <el-table-column prop="specification" label="规格" min-width="120" />
         <el-table-column prop="unit" label="单位" width="70" />
         <el-table-column prop="expectedQuantity" label="应收数量" width="100" />
+        <el-table-column prop="arrivedQuantity" label="到货数量" width="100" />
         <el-table-column prop="actualQuantity" label="实收数量" width="100" />
         <el-table-column prop="unitPrice" label="加工单价" width="100">
           <template #default="{ row }">{{ formatPrice(row.unitPrice) }}</template>
@@ -413,6 +414,7 @@ const normalizeReceiptItem = (item) => {
     unitId: ensureValidId(item.unitId),
     expectedQuantity: toFiniteNumber(item.expectedQuantity),
     actualQuantity,
+    arrivedQuantity: toFiniteNumber(item.arrivedQuantity, actualQuantity),
     unitPrice,
     totalPrice: toFiniteNumber(item.totalPrice, actualQuantity * unitPrice)
   };

@@ -207,12 +207,7 @@ function normalizeLineItem(raw = {}, source = {}) {
   const quantity = toNumber(raw.quantity, 0);
   const unitPrice = toNumber(firstDefined(raw.unit_price, raw.price), 0);
   const materialId = firstDefined(raw.material_id, raw.product_id, null);
-  const name = firstDefined(
-    raw.material_name,
-    raw.product_name,
-    raw.material_code,
-    '未命名物料'
-  );
+  const name = firstDefined(raw.material_name, raw.product_name, raw.material_code, '未命名物料');
 
   return {
     source_id: toPositiveInt(firstDefined(raw.source_id, raw.sourceId, source.id)) || null,

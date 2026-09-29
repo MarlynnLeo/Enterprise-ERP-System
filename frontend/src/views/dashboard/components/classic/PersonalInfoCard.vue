@@ -1,0 +1,325 @@
+<!--
+/**
+ * PersonalInfoCard.vue
+ * @description 仪表盘个人信息与天气整合卡片组件
+ */
+-->
+<template>
+  <div class="combined-info-card">
+    <div v-if="loading" class="loading-section">
+      <el-skeleton animated class="w-full">
+        <template #template>
+          <div class="flex-row gap-20">
+            <div class="flex-1">
+              <el-skeleton-item variant="text" class="skel-line skel-w-60" />
+              <el-skeleton-item variant="text" class="skel-line skel-w-80" />
+            </div>
+            <el-skeleton-item variant="circle" class="skel-avatar" />
+            <div class="flex-1">
+              <el-skeleton-item variant="text" class="skel-line skel-w-60" />
+              <el-skeleton-item variant="text" class="skel-line skel-w-80" />
+            </div>
+          </div>
+        </template>
+      </el-skeleton>
+    </div>
+    <div v-else class="combined-content">
+      <!-- 左侧：个人信息 -->
+      <div class="left-info">
+        <div class="name">{{ userProfile?.realName || $t('page.profile.realName') }}</div>
+        <div class="role-item">
+          <el-icon><Avatar /></el-icon>
+          <span>{{ userProfile?.roleName || userProfile?.role || $t('page.profile.role') }}</span>
+        </div>
+        <div class="role-item">
+          <el-icon><Location /></el-icon>
+          <span>{{ userProfile?.departmentName || '未设置' }}</span>
+        </div>
+      </div>
+      <!-- 中间：头像特效（与个人中心同源） -->
+      <div class="center-avatar">
+        <DecorativeAvatarFrame
+          :frame="avatarFrameConfig"
+          :avatar="userProfile?.avatar || ''"
+          :name="userProfile?.realName || userProfile?.username || ''"
+          :size="40"
+          class="dash-avatar-frame"
+        />
+      </div>
+      <!-- 右侧：天气信息 -->
+      <div class="right-weather">
+        <div class="weather-header-compact">
+          <el-icon><LocationFilled /></el-icon>
+          <span>{{ weather.city }}</span>
+          <span class="weather-desc-compact">{{ weather.description }}</span>
+          <span class="weather-time">{{ weatherUpdateTime }}</span>
+        </div>
+        <div class="weather-main-compact">
+          <div class="temp-large">{{ weather.temperature }}°C</div>
+          <div class="weather-icon-compact">
+            <el-icon v-if="weather.weatherCode === 'sunny'" class="weather-icon weather-icon-sunny">
+              <Sunny />
+            </el-icon>
+            <el-icon v-else-if="weather.weatherCode === 'partly-cloudy'" class="weather-icon weather-icon-partly-cloudy">
+              <PartlyCloudy />
+            </el-icon>
+            <el-icon v-else-if="weather.weatherCode === 'cloudy'" class="weather-icon weather-icon-cloudy">
+              <Cloudy />
+            </el-icon>
+            <el-icon v-else-if="weather.weatherCode === 'rainy'" class="weather-icon weather-icon-rainy">
+              <Cloudy />
+            </el-icon>
+            <el-icon v-else class="weather-icon weather-icon-cloudy">
+              <Cloudy />
+            </el-icon>
+          </div>
+        </div>
+        <div class="weather-details-compact">
+          <span><el-icon class="weather-detail-icon"><WindPower /></el-icon> {{ weather.windSpeed }}km/h</span>
+          <span><el-icon class="weather-detail-icon"><Drizzling /></el-icon> {{ weather.humidity }}%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import {
+  Avatar,
+  Drizzling,
+  Location,
+  LocationFilled,
+  Sunny,
+  Cloudy,
+  PartlyCloudy,
+  WindPower
+} from '@element-plus/icons-vue'
+import { computed } from 'vue'
+import DecorativeAvatarFrame from '@/views/auth/components/DecorativeAvatarFrame.vue'
+import { getAvatarFrameConfig } from '@/utils/avatarFrames'
+
+const props = defineProps({
+  userProfile: {
+    type: Object,
+    default: null
+  },
+  weather: {
+    type: Object,
+    required: true
+  },
+  loading: {
+    type: Boolean,
+    default: false
+  }
+})
+
+const avatarFrameConfig = computed(() =>
+  getAvatarFrameConfig(props.userProfile?.avatarFrame)
+)
+const weatherUpdateTime = computed(() => {
+  const value = props.weather.updateTime
+  if (!value) return ''
+  const date = new Date(value)
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+})
+</script>
+
+<style scoped>
+/* 整合的个人信息与天气卡片 - 统一卡片风格 */
+.combined-info-card {
+  container: personal-info / inline-size;
+  background: var(--theme-feature-card-bg);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  box-sizing: border-box;
+  margin-bottom: 0;
+  height: 72px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color var(--transition-base) ease, box-shadow var(--transition-base) ease, background-color var(--transition-base) ease;
+  border: 1px solid var(--theme-feature-card-border);
+}
+.combined-info-card::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -50%;
+  width: 200%;
+  height: 200%;
+  background: var(--theme-feature-card-decor);
+  animation: rotate 20s linear infinite;
+}
+@keyframes rotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+.combined-info-card:hover {
+  transform: none;
+  border-color: var(--theme-feature-card-border);
+}
+.loading-section {
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+.combined-content {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--theme-feature-card-color);
+}
+/* 左侧个人信息 */
+.left-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  justify-content: center;
+}
+.left-info .name {
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.left-info .role-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  opacity: 0.9;
+}
+.left-info .role-item .el-icon {
+  font-size: 12px;
+}
+.left-info .role-item span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 中间头像特效 */
+.center-avatar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  align-self: center;
+  z-index: 2;
+  overflow: visible;
+}
+.dash-avatar-frame {
+  flex-shrink: 0;
+}
+/* 右侧天气信息 */
+.right-weather {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  justify-content: center;
+  text-align: right;
+}
+.weather-header-compact {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  font-size: 12px;
+  opacity: 0.95;
+  white-space: nowrap;
+}
+.weather-time {
+  font-size: 10px;
+  opacity: 0.8;
+}
+.weather-main-compact {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.temp-large {
+  font-size: 18px;
+  font-weight: bold;
+  line-height: 1;
+}
+.weather-icon-compact {
+  display: flex;
+  align-items: center;
+}
+.weather-icon {
+  font-size: 22px;
+}
+.weather-icon-sunny {
+  color: var(--ds-yellow-strong);
+}
+.weather-icon-partly-cloudy {
+  color: var(--ds-yellow-bg);
+}
+.weather-icon-cloudy {
+  color: var(--color-border-lighter);
+}
+.weather-icon-rainy {
+  color: var(--ds-blue-strong);
+}
+.weather-desc-compact {
+  font-size: 12px;
+  opacity: 0.9;
+  font-weight: 500;
+}
+.weather-details-compact {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  font-size: 11px;
+  opacity: 0.85;
+  white-space: nowrap;
+}
+.weather-detail-icon {
+  font-size: 12px;
+}
+/* 窄卡片仍保持同一行，不改变统计卡片的统一高度。 */
+@container personal-info (max-width: 360px) {
+  .combined-content {
+    gap: 6px;
+  }
+  .right-weather {
+    flex: 0 0 124px;
+  }
+  .weather-details-compact {
+    gap: 4px;
+    font-size: 10px;
+  }
+}
+@container personal-info (max-width: 280px) {
+  .combined-content {
+    margin-inline: -7px;
+    gap: 4px;
+  }
+  .center-avatar {
+    width: 40px;
+  }
+  .dash-avatar-frame {
+    transform: scale(0.864);
+  }
+  .left-info .name {
+    font-size: 14px;
+  }
+}
+</style>

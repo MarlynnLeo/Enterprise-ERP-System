@@ -794,10 +794,9 @@ class InventoryService {
 
     const resolveMaterialLabel = async () => {
       if (materialCode) return String(materialCode);
-      const result = await connection.execute(
-        'SELECT code FROM materials WHERE id = ? LIMIT 1',
-        [materialId]
-      );
+      const result = await connection.execute('SELECT code FROM materials WHERE id = ? LIMIT 1', [
+        materialId,
+      ]);
       const material = Array.isArray(result) ? result[0]?.[0] : null;
       return material?.code || '所选物料';
     };
@@ -821,9 +820,7 @@ class InventoryService {
       ['adjustment', 'reconciliation', 'correction'].includes(String(transactionType));
     if (isInboundOperation && !normalizedBatchInput && !emptyBatchAllowed) {
       const materialLabel = await resolveMaterialLabel();
-      throw new Error(
-        `物料“${materialLabel}”入库必须提供可追溯批次号，请补充批次信息`
-      );
+      throw new Error(`物料“${materialLabel}”入库必须提供可追溯批次号，请补充批次信息`);
     }
 
     const startTime = Date.now();
@@ -989,9 +986,7 @@ class InventoryService {
         // 入库或出库明确指定批次（已归一化）
         if (!normalizedBatchInput && changeQuantity < 0) {
           const materialLabel = await resolveMaterialLabel();
-          throw new Error(
-            `物料“${materialLabel}”出库必须提供批次号，且当前无法自动分配批次`
-          );
+          throw new Error(`物料“${materialLabel}”出库必须提供批次号，且当前无法自动分配批次`);
         }
         finalBatchNumbers = [
           { batchNumber: normalizedBatchInput, quantity: Math.abs(changeQuantity) },
@@ -1029,9 +1024,7 @@ class InventoryService {
 
         if (!(Number(actualUnitCost) > 0)) {
           const materialLabel = await resolveMaterialLabel();
-          throw new Error(
-            `物料“${materialLabel}”库存变动缺少有效成本，请先维护物料成本资料`
-          );
+          throw new Error(`物料“${materialLabel}”库存变动缺少有效成本，请先维护物料成本资料`);
         }
 
         // 计算流水账总金额

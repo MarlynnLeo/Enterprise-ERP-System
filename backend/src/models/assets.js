@@ -16,6 +16,7 @@ const { DOCUMENT_LINK_TYPES: DocType } = require('../constants/documentLinkTypes
 const { accountingConfig } = require('../config/accountingConfig');
 const { toLocalDateString } = require('../utils/dateUtils');
 const { getAssetStatusText } = require('../constants/systemConstants');
+const { calculateDepreciationSnapshot } = require('../utils/finance/assetDepreciation');
 
 async function getOpenAccountingPeriodId(connection, accountingDate = null) {
   const params = [];
@@ -110,72 +111,6 @@ function ensureAssetReadyForFinanceAction(asset, actionName) {
 
 function hasPositiveAmount(item) {
   return roundMoney(item.debit_amount) > 0 || roundMoney(item.credit_amount) > 0;
-}
-
-const DEPRECIATION_METHOD_MAP = {
-  直线法: 'straight_line',
-  双倍余额递减法: 'double_declining',
-  年数总和法: 'sum_of_years',
-  工作量法: 'units_of_production',
-  不计提: 'no_depreciation',
-};
-
-function calculateDepreciationSnapshot(asset, depreciationMonthStart, alreadySubmitted = false) {
-  const originalValue = Number(asset.acquisition_cost) || 0;
-  const accumulatedDepreciation = Number(asset.accumulated_depreciation) || 0;
-  const impairmentAmount = Number(asset.impairment_amount) || 0;
-  const salvageValue = Number(asset.salvage_value) || 0;
-  const usefulLifeMonths = Math.max(Number(asset.useful_life) || 60, 1);
-  const residualValue = Math.min(Math.max(salvageValue, 0), originalValue);
-  const netValueBefore = roundMoney(
-    Math.max(0, originalValue - accumulatedDepreciation - impairmentAmount)
-  );
-  const acquisitionDate = asset.acquisition_date ? new Date(asset.acquisition_date) : null;
-  const targetDate = new Date(depreciationMonthStart);
-  const usedMonths =
-    acquisitionDate && !Number.isNaN(acquisitionDate.getTime())
-      ? Math.max(
-          0,
-          (targetDate.getFullYear() - acquisitionDate.getFullYear()) * 12 +
-            (targetDate.getMonth() - acquisitionDate.getMonth())
-        )
-      : 0;
-  const normalizedMethod =
-    DEPRECIATION_METHOD_MAP[asset.depreciation_method] || asset.depreciation_method;
-
-  let depreciationAmount = 0;
-  if (
-    !alreadySubmitted &&
-    normalizedMethod !== 'no_depreciation' &&
-    netValueBefore > residualValue &&
-    usedMonths < usefulLifeMonths
-  ) {
-    if (normalizedMethod === 'double_declining') {
-      const remainingMonths = Math.max(usefulLifeMonths - usedMonths, 1);
-      depreciationAmount =
-        remainingMonths <= 24
-          ? (netValueBefore - residualValue) / remainingMonths
-          : (netValueBefore * 2) / usefulLifeMonths;
-    } else {
-      depreciationAmount = (originalValue - residualValue) / usefulLifeMonths;
-    }
-
-    depreciationAmount = Math.min(Math.max(depreciationAmount, 0), netValueBefore - residualValue);
-  }
-
-  depreciationAmount = roundMoney(depreciationAmount);
-  const netValueAfter = roundMoney(Math.max(residualValue, netValueBefore - depreciationAmount));
-
-  return {
-    originalValue: roundMoney(originalValue),
-    netValueBefore,
-    depreciationAmount,
-    netValueAfter,
-    usedMonths,
-    usefulLifeMonths,
-    residualValue,
-    normalizedMethod,
-  };
 }
 
 /**
@@ -698,8 +633,10 @@ const assetsModel = {
 
         case '年数总和法':
         case 'sum_of_years':
-          // 这里简化为线性，实际实现会更复杂
-          depreciationAmount = depreciableValue / (asset.useful_life || 60);
+          depreciationAmount = calculateDepreciationSnapshot(
+            asset,
+            depreciationDate
+          ).depreciationAmount;
           break;
 
         case '工作量法':
@@ -869,7 +806,7 @@ const assetsModel = {
 
     const [assets] = await db.pool.query(
       `SELECT fa.id, fa.asset_code, fa.asset_name, fa.category_id,
-              ac.name as category_name, fa.acquisition_date, fa.acquisition_cost,
+              ac.name as category_name, fa.acquisition_date, fa.depreciation_start_date, fa.acquisition_cost,
               fa.current_value, fa.accumulated_depreciation, fa.impairment_amount, fa.salvage_value,
               fa.useful_life, fa.depreciation_method, fa.location_id,
               fa.department_id, d.name as department_name, fa.status,
@@ -2058,7 +1995,7 @@ const assetsModel = {
 
       // 3. 记录变更日志
       const changeNotes = `计提减值准备：金额 ${amount}。原因：${impairmentData.reason || '无'}`;
-      await this.addChangeLog(
+      await assetsModel.addChangeLog(
         assetId,
         '计提减值',
         impairmentData.handled_by || impairmentData.created_by,
@@ -2195,7 +2132,8 @@ const assetsModel = {
     try {
       const [assets] = await db.pool.query(
         `SELECT id, asset_name, acquisition_cost, current_value, accumulated_depreciation,
-                impairment_amount, useful_life, salvage_value, depreciation_method, status
+                impairment_amount, useful_life, salvage_value, depreciation_method, status,
+                acquisition_date, depreciation_start_date
          FROM fixed_assets
          WHERE status = '在用' AND audit_status = 'approved' AND current_value > 0`
       );
@@ -2211,32 +2149,11 @@ const assetsModel = {
         let monthTotal = 0;
 
         assets.forEach((asset) => {
-          let depAmount = 0;
-          const netValue = calculateAssetNetBookValue(asset);
-          const depreciableValue = netValue - (asset.salvage_value || 0);
-
-          if (
-            asset.depreciation_method === '直线法' ||
-            asset.depreciation_method === 'straight_line'
-          ) {
-            depAmount = depreciableValue / (asset.useful_life || 60);
-          } else if (
-            asset.depreciation_method === '双倍余额递减法' ||
-            asset.depreciation_method === 'double_declining'
-          ) {
-            const monthlyRate = 2 / (asset.useful_life || 60);
-            // Basic estimation (doesn't account for accumulated depletion perfectly in forecast without tracking each month per asset)
-            depAmount = netValue * monthlyRate;
-          } else if (
-            asset.depreciation_method === '年数总和法' ||
-            asset.depreciation_method === 'sum_of_years'
-          ) {
-            depAmount = depreciableValue / (asset.useful_life || 60);
-          }
-
-          if (depAmount > 0) {
-            monthTotal += depAmount;
-          }
+          const snapshot = calculateDepreciationSnapshot(asset, `${monthStr}-01`);
+          monthTotal += snapshot.depreciationAmount;
+          asset.accumulated_depreciation = roundMoney(
+            Number(asset.accumulated_depreciation || 0) + snapshot.depreciationAmount
+          );
         });
 
         forecast.push({
@@ -2406,7 +2323,7 @@ const assetsModel = {
       const changeNotes = `执行资产拆分：拆分出价值 ${splitCost}，新资产为 ${newAssetCode}。原因：${splitData.reason || '无'}`;
 
       // 原资产变更日志
-      await this.addChangeLog(
+      await assetsModel.addChangeLog(
         assetId,
         '资产拆分',
         userId,
@@ -2422,7 +2339,7 @@ const assetsModel = {
       );
 
       // 新资产创建日志
-      await this.addChangeLog(
+      await assetsModel.addChangeLog(
         newAssetId,
         '资产拆入',
         userId,

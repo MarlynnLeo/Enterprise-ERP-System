@@ -418,14 +418,10 @@ async function initialize({ balanceDate, manualBalances, setBy }) {
 
   for (const accountId of manualByAccountId.keys()) {
     if (systemAccountIds.has(accountId)) {
-      throw new Error(
-        '系统生成的期初余额不允许手工覆盖'
-      );
+      throw new Error('系统生成的期初余额不允许手工覆盖');
     }
     if (!manualAccountIds.has(accountId)) {
-      throw new Error(
-        '该科目不允许手工录入期初余额'
-      );
+      throw new Error('该科目不允许手工录入期初余额');
     }
   }
 

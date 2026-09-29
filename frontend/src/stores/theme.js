@@ -261,7 +261,10 @@ export const useThemeStore = defineStore('theme', () => {
 
   const initTheme = async () => {
     const revision = ++appearanceRevision
-    const isCurrent = () => revision === appearanceRevision
+    const appliedVersion = appliedRevision
+    // Router account loading can finish while the cached startup CSS is pending.
+    // Its committed appearance must take precedence over that startup snapshot.
+    const isCurrent = () => revision === appearanceRevision && appliedVersion === appliedRevision
     if (!await commitAppearance(appearance.value, isCurrent) && isCurrent()) {
       // The default palette is bundled at startup and remains available offline.
       appearance.value = { ...defaultAppearance }

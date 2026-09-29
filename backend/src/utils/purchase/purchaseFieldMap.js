@@ -485,6 +485,7 @@ const purchaseReturnMap = {
     const api = {
       id: row.id,
       returnNo: row.return_no ?? null,
+      canResubmitInventory: Boolean(Number(row.can_resubmit_inventory || 0)),
       receiptId: row.receipt_id ?? null,
       receiptNo: row.receipt_no ?? null,
       returnDate: formatDate(row.return_date),

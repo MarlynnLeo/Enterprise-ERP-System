@@ -453,7 +453,9 @@ const updateOutboundStatus = async (req, res) => {
             // 只有actual_quantity > 0时才扣减库存
             if (actualQuantity > 0) {
               if (!locationId) {
-                throw new Error(`物料 ${matInfo?.code || '所选物料'} 未配置默认仓库，请在物料管理中设置`);
+                throw new Error(
+                  `物料 ${matInfo?.code || '所选物料'} 未配置默认仓库，请在物料管理中设置`
+                );
               }
 
               // 完成时按现有库存折算：能发多少发多少，差额记缺料（生产发料/超额场景）

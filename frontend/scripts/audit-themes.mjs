@@ -5,26 +5,18 @@
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { THEME_PRESET_LIST, THEME_PRESETS } from '../src/config/themePresets.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const dir = path.resolve(__dirname, '../src/assets/themes/pc')
-const themes = [
-  'default',
-  'tech',
-  'business',
-  'vibrant',
-  'nature',
-  'dark',
-  'premium',
-  'professional',
-  'kacon',
-]
+const themes = THEME_PRESET_LIST.map(({ id }) => id)
 
 function extractTokens(css) {
   const tokens = new Map()
   const re = /--([a-zA-Z0-9-_]+)\s*:\s*([^;]+);/g
   let m
-  while ((m = re.exec(css))) {
+  const declarations = css.replace(/\/\*[\s\S]*?\*\//g, '')
+  while ((m = re.exec(declarations))) {
     tokens.set(`--${m[1]}`, m[2].trim())
   }
   return tokens
@@ -102,13 +94,23 @@ const CORE = [
   '--color-border', // alias used in some places
 ]
 
+const compat = fs.readFileSync(path.join(dir, 'theme-compat.css'), 'utf8')
+// Only unconditional root defaults are inherited by every preset. Component and
+// theme-specific compatibility declarations must not hide missing root tokens.
+const sharedRootCss = [...compat.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+  .filter(([, selectors]) => selectors.split(',').some((selector) =>
+    [':root', ':root[data-theme]'].includes(selector.trim())
+  ))
+  .map(([, , declarations]) => declarations)
+  .join('\n')
+const compatTokens = extractTokens(sharedRootCss)
 const perTheme = {}
 const all = new Map()
 
 for (const id of themes) {
-  const css = fs.readFileSync(path.join(dir, `${id}.css`), 'utf8')
+  const css = fs.readFileSync(path.join(dir, `${id}.css`), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
   const t = extractTokens(css)
-  perTheme[id] = { tokens: t, css, dataThemes: extractDataThemes(css), size: css.length }
+  perTheme[id] = { tokens: t, css, dataThemes: extractDataThemes(css) }
   for (const k of t.keys()) {
     if (!all.has(k)) all.set(k, new Set())
     all.get(k).add(id)
@@ -121,6 +123,8 @@ const report = {
   dataThemeAttrs: {},
   coreCoverage: {},
   coreMissingByTheme: {},
+  coreInheritedByTheme: {},
+  coverageNote: 'Static declarations including shared compatibility defaults; does not validate browser cascade or var() resolution.',
   uniqueTokenCounts: {},
   hexCounts: {},
   componentRuleCounts: {},
@@ -157,8 +161,14 @@ for (const [, set] of all) {
 }
 
 for (const tok of CORE) {
-  const have = themes.filter((id) => perTheme[id].tokens.has(tok))
-  const miss = themes.filter((id) => !perTheme[id].tokens.has(tok))
+  const have = themes.filter((id) => perTheme[id].tokens.has(tok) || compatTokens.has(tok))
+  const miss = themes.filter((id) => !perTheme[id].tokens.has(tok) && !compatTokens.has(tok))
+  for (const id of themes) {
+    if (!perTheme[id].tokens.has(tok) && compatTokens.has(tok)) {
+      if (!report.coreInheritedByTheme[id]) report.coreInheritedByTheme[id] = []
+      report.coreInheritedByTheme[id].push(tok)
+    }
+  }
   report.coreCoverage[tok] = { have: have.length, miss }
   for (const m of miss) {
     if (!report.coreMissingByTheme[m]) report.coreMissingByTheme[m] = []
@@ -166,50 +176,22 @@ for (const tok of CORE) {
   }
 }
 
-// font-size-base consistency (ERP dense UI expects 14px typically)
 for (const id of themes) {
-  const fsBase = perTheme[id].tokens.get('--font-size-base')
-  if (fsBase && !/14px/.test(fsBase) && id !== 'default') {
-    // note only
-  }
-  report[`fontSizeBase_${id}`] = fsBase || '(missing)'
+  report[`fontSizeBase_${id}`] = perTheme[id].tokens.get('--font-size-base') || compatTokens.get('--font-size-base') || '(missing)'
 }
 
-// primaryColor from presets vs theme --color-primary
-const presetsPath = path.resolve(__dirname, '../src/config/themePresets.js')
-const presetsSrc = fs.readFileSync(presetsPath, 'utf8')
-const presetPrimaries = {}
+// Compare registry metadata directly; parsing JS text can silently match another preset.
 for (const id of themes) {
-  const re = new RegExp(
-    `id:\\s*'${id}'[\\s\\S]*?primaryColor:\\s*'([^']+)'`,
-    'm'
-  )
-  const m = presetsSrc.match(re)
-  presetPrimaries[id] = m ? m[1].toUpperCase() : null
+  const presetPrimary = THEME_PRESETS[id].primaryColor.toUpperCase()
   const cssPrimary = (perTheme[id].tokens.get('--color-primary') || '').toUpperCase()
-  if (presetPrimaries[id] && cssPrimary && presetPrimaries[id] !== cssPrimary) {
-    // allow if CSS has color-mix etc
-    if (/^#[0-9A-F]{6}$/.test(cssPrimary)) {
-      report.issues.push({
-        severity: 'medium',
-        theme: id,
-        msg: `themePresets.primaryColor ${presetPrimaries[id]} ≠ CSS --color-primary ${cssPrimary}`,
-      })
-    }
-  }
-  const modeRe = new RegExp(`id:\\s*'${id}'[\\s\\S]*?mode:\\s*'([^']+)'`, 'm')
-  const modeM = presetsSrc.match(modeRe)
-  const mode = modeM ? modeM[1] : '?'
-  // dark themes should have dark-ish bg
-  const bg = perTheme[id].tokens.get('--color-bg-page') || perTheme[id].tokens.get('--color-bg-base')
-  if (mode === 'dark' && bg && /#(f|e|d|c|b|a|9|8)/i.test(bg.replace(/\s/g, ''))) {
-    // rough check - light hex on dark theme
+  if (presetPrimary !== cssPrimary && /^#[0-9A-F]{6}$/.test(cssPrimary)) {
+    report.issues.push({
+      severity: 'medium',
+      theme: id,
+      msg: `themePresets.primaryColor ${presetPrimary} ≠ CSS --color-primary ${cssPrimary}`,
+    })
   }
 }
-
-// Check theme-compat for aliases that themes might miss
-const compat = fs.readFileSync(path.join(dir, 'theme-compat.css'), 'utf8')
-const compatTokens = extractTokens(compat)
 
 // shell tokens: critical for Layout
 const SHELL = [
@@ -273,9 +255,8 @@ for (const f of walk(viewsDir)) {
 }
 report.viewHardcodedHex = { files: viewHexFiles, count: viewHexCount, samples: viewHexSamples }
 
-// Compare kacon size vs others - kacon has component overrides
-report.kaconExtra =
-  'kacon is the design SSOT with full component rules; others are token-heavy with fewer component overrides'
+report.architectureNote =
+  'themePresets.js registers presets; theme-compat.css provides shared tokens and theme-components.css shared component styling; individual themes provide palettes and scoped overrides.'
 
 // Summary severity counts
 report.issueSummary = {

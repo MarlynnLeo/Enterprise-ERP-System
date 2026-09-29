@@ -5,7 +5,7 @@
     <VanForm class="form-body" @submit="submitForm">
       <CellGroup inset title="关联发票">
         <Field
-          v-model="selectedInvoiceText"
+          :model-value="selectedInvoiceText"
           label="应付发票"
           placeholder="请选择待付款发票"
           readonly
@@ -18,7 +18,7 @@
       <CellGroup inset title="付款信息">
         <Field v-model="form.paymentDate" label="付款日期" type="date" :rules="[{ required: true, message: '请选择付款日期' }]" />
         <Field v-model="form.amount" label="付款金额" type="number" placeholder="请输入付款金额" :rules="[{ required: true, message: '请输入付款金额' }]" />
-        <Field v-model="paymentMethodText" label="支付方式" readonly is-link @click="showMethodSheet = true" />
+        <Field model-value="现金" label="支付方式" readonly />
         <Field v-model="form.referenceNumber" label="参考号" placeholder="选填" />
         <Field v-model="form.notes" label="备注" type="textarea" rows="3" autosize placeholder="选填" />
       </CellGroup>
@@ -28,45 +28,51 @@
       </div>
     </VanForm>
 
-    <ActionSheet v-model:show="showInvoiceSheet" :actions="invoiceActions" cancel-text="取消" close-on-click-action @select="selectInvoice" />
-    <ActionSheet v-model:show="showMethodSheet" :actions="paymentMethodActions" cancel-text="取消" close-on-click-action @select="selectMethod" />
+    <Popup v-model:show="showInvoiceSheet" position="bottom" round class="invoice-picker">
+      <NavBar title="选择待付款发票" right-text="关闭" @click-right="showInvoiceSheet = false" />
+      <Search v-model="invoiceKeyword" placeholder="搜索发票号、供应商" @search="searchInvoices" @clear="searchInvoices" />
+      <div class="invoice-options">
+        <Cell v-for="invoice in invoices" :key="invoice.id" :title="invoice.invoiceNumber"
+          :label="invoice.supplierName" :value="formatMoney(invoice.balanceAmount)" is-link @click="selectInvoice(invoice)" />
+        <Empty v-if="invoicesInitialized && !invoicesLoading && !invoices.length && !invoicesError" description="暂无匹配的待付款发票" />
+        <VanButton v-if="invoicesError" block plain @click="loadMoreInvoices()">加载失败，点击重试</VanButton>
+        <VanButton v-else-if="!invoicesFinished" block plain :loading="invoicesLoading" @click="loadMoreInvoices()">加载更多</VanButton>
+      </div>
+    </Popup>
   </div>
 </template>
 
 <script setup>
-  import { computed, onMounted, reactive, ref } from 'vue'
+  import { computed, reactive, ref } from 'vue'
   import { useRouter } from 'vue-router'
-  import { ActionSheet, Button as VanButton, CellGroup, Field, Form as VanForm, NavBar, showToast } from 'vant'
+  import { Button as VanButton, Cell, CellGroup, Empty, Field, Form as VanForm, NavBar, Popup, Search, showToast } from 'vant'
   import { financeApi } from '@/api'
-  import { extractApiList, extractApiData } from '@/utils/apiHelper'
+  import { extractApiData } from '@/utils/apiHelper'
   import { getApiErrorMessage } from '@/utils/errorHandler'
+  import { usePagination } from '@/composables/usePagination'
 
   const router = useRouter()
   const submitting = ref(false)
   const showInvoiceSheet = ref(false)
-  const showMethodSheet = ref(false)
-  const invoices = ref([])
+  const invoiceKeyword = ref('')
+  const selectedInvoice = ref(null)
+  const {
+    list: invoices, loading: invoicesLoading, finished: invoicesFinished,
+    error: invoicesError, initialized: invoicesInitialized,
+    onLoad: loadMoreInvoices, onRefresh: refreshInvoices
+  } = usePagination(params => financeApi.getAPInvoices(params), { immediate: false })
 
   const form = reactive({
     invoiceId: '',
     paymentDate: new Date().toISOString().slice(0, 10),
     amount: '',
-    paymentMethod: 'cash',
     referenceNumber: '',
     notes: ''
   })
 
-  const paymentMethodActions = [
-    { name: '现金', value: 'cash' },
-    { name: '电子支付', value: 'electronic' },
-    { name: '其他', value: 'other' }
-  ]
-
-  const paymentMethodText = computed(() => paymentMethodActions.find((item) => item.value === form.paymentMethod)?.name || '现金')
-
   const selectedInvoiceText = computed(() => {
-    const invoice = invoices.value.find((item) => String(item.id) === String(form.invoiceId))
-    if (!invoice) return '未选择发票'
+    const invoice = selectedInvoice.value
+    if (!invoice) return ''
     return `${invoice.invoiceNumber || invoice.code || '未命名发票'} · ${invoice.supplierName || '供应商'}`
   })
 
@@ -76,43 +82,28 @@
     return Number.isNaN(amount) ? '--' : `¥${amount.toFixed(2)}`
   }
 
-  const invoiceActions = computed(() =>
-    invoices.value.map((invoice) => ({
-      name: `${invoice.invoiceNumber || invoice.code || '未命名发票'} · ${invoice.supplierName || '供应商'} · ${formatMoney(invoice.balanceAmount ?? invoice.totalAmount)}`,
-      value: invoice.id,
-      invoice
-    }))
-  )
+  const searchInvoices = () => refreshInvoices({
+    payableOnly: true,
+    keyword: invoiceKeyword.value.trim() || undefined
+  })
 
   const openInvoiceSheet = () => {
-    if (!invoiceActions.value.length) {
-      showToast('暂无可选发票，请先创建或检查待付款发票')
-      return
-    }
     showInvoiceSheet.value = true
+    searchInvoices()
   }
 
-  const selectInvoice = (action) => {
-    form.invoiceId = action.value
-    form.amount = String(action.invoice.balanceAmount ?? action.invoice.totalAmount ?? form.amount ?? '')
-  }
-
-  const selectMethod = (action) => {
-    form.paymentMethod = action.value
-  }
-
-  const loadInvoices = async () => {
-    try {
-      const response = await financeApi.getAPInvoices({ page: 1, pageSize: 50 })
-      invoices.value = extractApiList(response)
-    } catch {
-      invoices.value = []
-    }
+  const selectInvoice = (invoice) => {
+    selectedInvoice.value = invoice
+    form.invoiceId = invoice.id
+    form.amount = String(invoice.balanceAmount)
+    showInvoiceSheet.value = false
   }
 
   const submitForm = async () => {
+    if (submitting.value) return
     if (!form.invoiceId) return showToast('请选择或填写应付发票')
-    if (Number(form.amount) <= 0) return showToast('付款金额必须大于0')
+    if (!Number.isFinite(Number(form.amount)) || Number(form.amount) <= 0) return showToast('付款金额必须大于0')
+    if (Number(form.amount) > Number(selectedInvoice.value?.balanceAmount)) return showToast('付款金额不能超过发票未付余额')
 
     submitting.value = true
     try {
@@ -120,7 +111,7 @@
         invoiceId: Number(form.invoiceId),
         paymentDate: form.paymentDate,
         amount: Number(form.amount),
-        paymentMethod: form.paymentMethod,
+        paymentMethod: 'cash',
         referenceNumber: form.referenceNumber || undefined,
         notes: form.notes || undefined
       })
@@ -134,7 +125,6 @@
     }
   }
 
-  onMounted(loadInvoices)
 </script>
 
 <style lang="scss" scoped>
@@ -147,6 +137,9 @@
   .form-body {
     padding: 12px 0;
   }
+
+  .invoice-picker { height: 70vh; display: flex; flex-direction: column; }
+  .invoice-options { overflow-y: auto; flex: 1; padding-bottom: var(--app-fixed-control-padding-bottom); }
 
   .submit-bar {
     position: fixed;

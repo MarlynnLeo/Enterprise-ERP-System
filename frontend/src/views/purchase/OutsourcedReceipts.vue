@@ -109,6 +109,11 @@
         <el-table-column label="操作" min-width="220" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button
+              v-if="['confirmed', 'completed'].includes(scope.row.status) && scope.row.approvalStatus === 'rejected'"
+              size="small" type="warning" v-permission="'purchase:processing-receipts:edit'"
+              @click.stop="updateReceiptStatus(scope.row, scope.row.status)"
+            >重新提交审批</el-button>
+            <el-button
               v-if="authStore.canViewInventoryApproval && scope.row.approvalStatus"
               size="small"
               type="warning"
@@ -500,7 +505,7 @@ const handleArrive = async (row) => {
     arrivalForm.supplierName = data.supplierName || row.supplierName || '';
     arrivalForm.items = (data.items || []).map((item) => {
       const expectedQuantity = Number(item.expectedQuantity || 0);
-      const arrivedQuantity = Number(item.actualQuantity || 0);
+      const arrivedQuantity = Number(item.arrivedQuantity ?? item.actualQuantity ?? 0);
       const pendingQuantity = Math.max(expectedQuantity - arrivedQuantity, 0);
       return {
         ...item,

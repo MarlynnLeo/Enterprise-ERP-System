@@ -280,6 +280,7 @@ import { useBusinessApproval } from '@/composables/useBusinessApproval'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { ecnApi, baseDataApi, bomApi } from '@/api'
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { searchBomOptions as fetchBomOptions } from '@/utils/optionLoaders'
 import { Promotion, VideoPlay, CircleCheck, RefreshLeft, Delete } from '@element-plus/icons-vue'
 import { getEcnStatusText, getEcnStatusColor, ECN_STATUS_OPTIONS } from '@/constants/systemConstants'
@@ -416,7 +417,7 @@ const openForm = () => {
 // 查看详情
 const viewDetail = async (row) => {
   try {
-    const res = await ecnApi.getDetail(row.id)
+    const res = await ecnApi.getById(row.id)
     const d = res.data || res
     formData.value = { ...d, items: d.items || [] }
     formVis.value = true
@@ -455,10 +456,15 @@ const handleUpdate = async () => {
 const submitForApproval = async (row) => {
   try {
     await ElMessageBox.confirm('确定提交该ECN进行审批？', '提示', { type: 'warning' })
-    await ecnApi.submitApproval(row.id)
+    // pending_approval starts the backend workflow; approval results are applied by its callback.
+    await ecnApi.updateStatus(row.id, 'pending_approval')
     ElMessage.success('已提交审批')
     fetchList()
-  } catch {}
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(getApiErrorMessage(error, '提交审批失败'))
+    }
+  }
 }
 
 // 状态变更
@@ -466,10 +472,14 @@ const handleStatusChange = async (row, status) => {
   const statusTexts = { implementing: '开始实施', completed: '标记完成', draft: '退回草稿' }
   try {
     await ElMessageBox.confirm(`确定将该ECN${statusTexts[status] || '变更状态'}？`, '提示', { type: 'warning' })
-    await ecnApi.changeStatus(row.id, status)
+    await ecnApi.updateStatus(row.id, status)
     ElMessage.success('操作成功')
     fetchList()
-  } catch {}
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(getApiErrorMessage(error, '状态更新失败'))
+    }
+  }
 }
 
 // 删除

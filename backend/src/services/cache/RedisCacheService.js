@@ -104,6 +104,16 @@ class RedisCacheService {
    * 批量删除缓存（支持通配符）
    * @param {string} pattern - 缓存键模式（如 'user:*'）
    */
+  async deleteMatchingKeys(pattern) {
+    if (!this.isConnected || !this.client) throw new Error('Redis 未连接，无法清除缓存');
+    let deleted = 0;
+    // node-redis 5 yields pages, including empty pages. DEL accepts one key array.
+    for await (const keys of this.client.scanIterator({ MATCH: pattern, COUNT: 100 })) {
+      if (keys.length) deleted += await this.client.del(keys);
+    }
+    return deleted;
+  }
+
   async delPattern(pattern) {
     if (!this.isConnected || !this.client) {
       logger.warn('Redis 未连接，跳过批量删除');
@@ -111,15 +121,8 @@ class RedisCacheService {
     }
 
     try {
-      const keys = [];
-      for await (const key of this.client.scanIterator({ MATCH: pattern, COUNT: 100 })) {
-        keys.push(key);
-      }
-
-      if (keys.length > 0) {
-        await this.client.del(keys);
-        logger.debug(`批量删除缓存: ${pattern} (${keys.length} 个键)`);
-      }
+      const deleted = await this.deleteMatchingKeys(pattern);
+      logger.debug(`批量删除缓存: ${pattern} (${deleted} 个键)`);
       return true;
     } catch (error) {
       logger.error(`批量删除缓存失败 [${pattern}]:`, error);

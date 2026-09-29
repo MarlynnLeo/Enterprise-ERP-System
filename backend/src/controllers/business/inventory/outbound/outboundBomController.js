@@ -274,7 +274,13 @@ const supplementOutbound = async (req, res) => {
       materialInfoMap = await InventoryService.getBatchMaterialInfo(materialIds, connection);
     } catch (err) {
       await connection.rollback();
-      return ResponseHandler.error(res, '补发物料校验失败，请检查物料和数量', 'VALIDATION_ERROR', 400, err);
+      return ResponseHandler.error(
+        res,
+        '补发物料校验失败，请检查物料和数量',
+        'VALIDATION_ERROR',
+        400,
+        err
+      );
     }
 
     // 4. 验证每个补发物料

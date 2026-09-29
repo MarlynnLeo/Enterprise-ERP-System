@@ -258,6 +258,10 @@ function fromInvoiceListQuery(query = {}, kind = 'ap') {
   if (query.endDate) filters.end_date = query.endDate;
 
   if (kind === 'ap') {
+    if ([true, 'true', 1, '1'].includes(query.payableOnly)) filters.payable_only = true;
+    if (typeof query.keyword === 'string' && query.keyword.trim()) {
+      filters.keyword = query.keyword.trim();
+    }
     if (query.supplierId) filters.supplier_id = query.supplierId;
     if (query.supplierName) filters.supplier_name = query.supplierName;
     if (query.supplierInvoiceNumber) {

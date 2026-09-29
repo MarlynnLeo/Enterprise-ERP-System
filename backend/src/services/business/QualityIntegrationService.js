@@ -152,9 +152,7 @@ class QualityIntegrationService {
     const operator = this.actorName(user, replacementOrder.created_by);
     const createdBy = firstValidUserId(user?.id, replacementOrder.created_by);
     if (!createdBy) {
-      throw new Error(
-        `换货单 ${replacementOrder.replacement_no} 缺少可追溯责任人`
-      );
+      throw new Error(`换货单 ${replacementOrder.replacement_no} 缺少可追溯责任人`);
     }
     const material = await this.getMaterialContext(replacementOrder.material_id, connection);
     const orderContext = await this.getPurchaseOrderContext(replacementOrder, connection);

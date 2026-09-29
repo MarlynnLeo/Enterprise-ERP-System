@@ -241,6 +241,10 @@ exports.getSalesExchanges = async (req, res) => {
       const query = appendPaginationSQL(
         `
         SELECT se.*,
+               (SELECT d.finance_status = 'rejected' FROM inventory_posting_documents d
+                 WHERE d.source_type = 'sales_exchange' AND d.source_no COLLATE utf8mb4_unicode_ci = se.exchange_no COLLATE utf8mb4_unicode_ci
+                   AND d.posting_kind = 'movement'
+                 ORDER BY d.posting_sequence DESC, d.id DESC LIMIT 1) AS can_resubmit_inventory,
                se.return_amount, se.new_amount, se.difference_amount
         FROM sales_exchanges se
         ${scopeClause.join}
@@ -491,6 +495,24 @@ exports.updateSalesExchange = async (req, res) => {
     const status = body.status ? normalizeStatus('salesExchange', body.status) : previousStatus;
     if (!Object.hasOwn(SALES_EXCHANGE_TRANSITIONS, status)) throw validationError('无效的换货状态');
     if (statusOnly && status === previousStatus) {
+      if (status === 'completed') {
+        const InventoryPostingResubmissionService = require('../../../services/business/InventoryPostingResubmissionService');
+        const InventoryPostingService = require('../../../services/InventoryPostingService');
+        const retry = await InventoryPostingResubmissionService.resubmit(connection, {
+          sourceType: 'sales_exchange',
+          sourceId: id,
+          sourceNo: current.exchange_no,
+          actor: InventoryPostingService.actorFromRequest(req),
+        });
+        if (retry) {
+          await connection.commit();
+          return ResponseHandler.success(
+            res,
+            { id: Number(id), status, ...retry },
+            '换货库存过账已重新提交，待财务审核'
+          );
+        }
+      }
       await connection.commit();
       return ResponseHandler.success(res, { id: Number(id), status }, '换货单状态未变化');
     }
@@ -645,7 +667,7 @@ exports.updateExchangeStatus = (req, res) =>
 
 async function processExchangeInventory(connection, exchangeId, operator) {
   const [[exchange]] = await connection.query(
-    'SELECT exchange_no, exchange_date FROM sales_exchanges WHERE id=? AND deleted_at IS NULL',
+    'SELECT exchange_no, exchange_date, order_id, outbound_id FROM sales_exchanges WHERE id=? AND deleted_at IS NULL',
     [exchangeId]
   );
   if (!exchange) throw validationError('换货单不存在');
@@ -658,10 +680,21 @@ async function processExchangeInventory(connection, exchangeId, operator) {
   );
   if (!items.length) throw validationError('换货明细不能为空');
   const InventoryService = require('../../../services/InventoryService');
+  const SalesExchangeCostService = require('../../../services/business/SalesExchangeCostService');
+  const returnCosts = await SalesExchangeCostService.getReturnCosts(connection, {
+    orderId: exchange.order_id,
+    outboundId: exchange.outbound_id,
+    materialIds: items
+      .filter((item) => item.item_type === 'return')
+      .map((item) => item.material_id),
+  });
   for (const item of items) {
     if (!item.material_id || !item.location_id)
       throw validationError(`商品 ${item.product_code} 不存在或未配置默认仓库`);
     const isReturn = item.item_type === 'return';
+    const returnUnitCost = returnCosts.get(Number(item.material_id));
+    if (isReturn && !(returnUnitCost > 0))
+      throw validationError(`商品 ${item.product_code} 缺少原销售出库成本，不能退回`);
     await InventoryService.updateStock(
       {
         materialId: item.material_id,
@@ -677,6 +710,7 @@ async function processExchangeInventory(connection, exchangeId, operator) {
         unitId: item.unit_id,
         transactionDate: exchange.exchange_date,
         batchNumber: isReturn ? `EX-${exchange.exchange_no}-${item.material_id}` : null,
+        ...(isReturn ? { unitCost: returnUnitCost } : {}),
         idempotencyKey: `sales_exchange:${exchangeId}:${item.id}`,
       },
       connection

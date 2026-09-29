@@ -503,12 +503,7 @@ const apController = {
       const invoice = await apModel.getInvoiceById(paymentData.invoiceId);
 
       if (!invoice) {
-        return ResponseHandler.error(
-          res,
-          '发票不存在或已被删除',
-          'NOT_FOUND',
-          404
-        );
+        return ResponseHandler.error(res, '发票不存在或已被删除', 'NOT_FOUND', 404);
       }
 
       if (

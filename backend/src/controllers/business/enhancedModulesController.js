@@ -962,7 +962,7 @@ const ecn = {
         vals
       );
       await conn.commit();
-       ResponseHandler.success(res, null, '状态更新成功');
+      ResponseHandler.success(res, null, '状态更新成功');
     } catch (e) {
       await conn.rollback();
       logger.error('ECN状态变更失败:', e);
@@ -1037,7 +1037,7 @@ const ecn = {
       }
       await syncEcnDocumentLinks(conn, req.params.id, current.code, items, req.user?.id);
       await conn.commit();
-       ResponseHandler.success(res, null, 'ECN更新成功');
+      ResponseHandler.success(res, null, 'ECN更新成功');
     } catch (err) {
       await conn.rollback();
       ResponseHandler.error(res, err.message);
@@ -1066,7 +1066,7 @@ const ecn = {
         await conn.rollback();
         return ResponseHandler.error(
           res,
-           `当前ECN状态“${current.status}”不允许删除`,
+          `当前ECN状态“${current.status}”不允许删除`,
           'VALIDATION_ERROR',
           400
         );
@@ -1076,7 +1076,7 @@ const ecn = {
       ]);
       await softDelete(conn, 'ecn_orders', 'id', req.params.id);
       await conn.commit();
-       ResponseHandler.success(res, null, 'ECN删除成功');
+      ResponseHandler.success(res, null, 'ECN删除成功');
     } catch (e) {
       await conn.rollback();
       logger.error('删除ECN失败:', e);

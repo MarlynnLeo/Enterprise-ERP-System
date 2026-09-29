@@ -1,24 +1,15 @@
 /**
- * One-shot audit: themes + UI SSOT snapshot
+ * Static audit: themes + UI SSOT snapshot
  */
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { DEFAULT_FONT_SIZE, DEFAULT_THEME_PRESET_ID, THEME_PRESET_LIST, THEME_PRESETS } from '../src/config/themePresets.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(__dirname, '..')
 const themesDir = path.join(root, 'src/assets/themes/pc')
-const themes = [
-  'default',
-  'tech',
-  'business',
-  'vibrant',
-  'nature',
-  'dark',
-  'premium',
-  'professional',
-  'kacon',
-]
+const themes = THEME_PRESET_LIST.map(({ id }) => id)
 
 function walk(d, a = []) {
   for (const e of fs.readdirSync(d, { withFileTypes: true })) {
@@ -31,17 +22,15 @@ function walk(d, a = []) {
 
 function extractToken(css, name) {
   const re = new RegExp(`${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*:\\s*([^;]+);`)
-  const m = css.match(re)
+  const m = css.replace(/\/\*[\s\S]*?\*\//g, '').match(re)
   return m ? m[1].trim() : null
 }
 
-const presets = fs.readFileSync(path.join(root, 'src/config/themePresets.js'), 'utf8')
 const main = fs.readFileSync(path.join(root, 'src/main.js'), 'utf8')
 const compat = fs.readFileSync(path.join(themesDir, 'theme-compat.css'), 'utf8')
 const components = fs.readFileSync(path.join(themesDir, 'theme-components.css'), 'utf8')
 
 const report = {
-  ci: {},
   architecture: {},
   themes: {},
   uiSsot: {},
@@ -49,16 +38,18 @@ const report = {
 }
 
 // architecture
-const i1 = main.indexOf('theme-compat')
-const i2 = main.indexOf('theme-components')
-const i3 = main.indexOf('kacon.css')
+// Match actual side-effect imports, not explanatory comments mentioning their order.
+const cssImports = [...main.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/^import\s+['"]([^'"]+\.css)['"]/gm)].map((match) => match[1])
+const i1 = cssImports.findIndex((source) => source.endsWith('/theme-compat.css'))
+const i2 = cssImports.findIndex((source) => source.endsWith('/theme-components.css'))
+const i3 = cssImports.findIndex((source) => source.endsWith(`/${DEFAULT_THEME_PRESET_ID}.css`))
 report.architecture = {
-  importOrderOk: i1 > 0 && i2 > i1 && i3 > i2,
-  indices: { themeCompat: i1, themeComponents: i2, kacon: i3 },
-  compatBytes: compat.length,
-  componentsBytes: components.length,
+  importOrderOk: i1 >= 0 && i2 > i1 && i3 > i2,
+  indices: { themeCompat: i1, themeComponents: i2, defaultTheme: i3 },
+  compatBytes: Buffer.byteLength(compat, 'utf8'),
+  componentsBytes: Buffer.byteLength(components, 'utf8'),
   hasBorderAlias: /--color-border\s*:\s*var\(--color-border-base\)/.test(compat),
-  hasFont14: /--font-size-base\s*:\s*14px/.test(compat),
+  hasDefaultFont: extractToken(compat, '--font-size-base') === `${DEFAULT_FONT_SIZE}px`,
   hasElPrimary: /--el-color-primary\s*:\s*var\(--color-primary\)/.test(compat),
   hasShellSidebarBg: compat.includes('--shell-sidebar-bg'),
   componentsHasTable: components.includes('[data-theme] .el-table'),
@@ -70,17 +61,17 @@ if (!report.architecture.importOrderOk) {
   report.findings.push({ severity: 'high', msg: 'main.js 主题 CSS 引入顺序异常' })
 }
 
+const optionalShell = { activeShadow: [], railWidth: [] }
 // themes
 for (const id of themes) {
-  const css = fs.readFileSync(path.join(themesDir, `${id}.css`), 'utf8')
-  const re = new RegExp(`id:\\s*'${id}'[\\s\\S]*?primaryColor:\\s*'([^']+)'`)
-  const pm = presets.match(re)
-  const presetPrimary = pm ? pm[1].toUpperCase() : null
+  const source = fs.readFileSync(path.join(themesDir, `${id}.css`), 'utf8')
+  const css = source.replace(/\/\*[\s\S]*?\*\//g, '')
+  const presetPrimary = THEME_PRESETS[id].primaryColor.toUpperCase()
   const cssPrimary = (extractToken(css, '--color-primary') || '').toUpperCase()
-  const font = extractToken(css, '--font-size-base')
+  const font = extractToken(css, '--font-size-base') || extractToken(compat, '--font-size-base')
   const onP = extractToken(css, '--color-on-primary')
   report.themes[id] = {
-    bytes: css.length,
+    bytes: Buffer.byteLength(source, 'utf8'),
     fontSizeBase: font,
     primaryCss: cssPrimary,
     primaryPreset: presetPrimary,
@@ -88,7 +79,7 @@ for (const id of themes) {
     onPrimary: onP,
     shellSidebarBg: css.includes('--shell-sidebar-bg'),
     shellActiveBg: css.includes('--shell-sidebar-active-bg'),
-    shellAccent: css.includes('--shell-sidebar-accent'),
+    shellAccent: css.includes('--shell-accent'),
     tableHits: (css.match(/el-table/g) || []).length,
     inputHits: (css.match(/el-input/g) || []).length,
     menuIsActive: (css.match(/el-menu-item\.is-active/g) || []).length,
@@ -100,12 +91,11 @@ for (const id of themes) {
       msg: `${id}: preset primary ${presetPrimary} ≠ css ${cssPrimary}`,
     })
   }
-  if (font !== '14px') {
+  if (font !== `${DEFAULT_FONT_SIZE}px`) {
     report.findings.push({ severity: 'high', msg: `${id}: font-size-base=${font}` })
   }
-  if (id === 'premium' && cssPrimary === '#FFFFFF') {
-    report.findings.push({ severity: 'high', msg: 'premium 仍使用纯白 primary' })
-  }
+  if (css.includes('--shell-sidebar-active-shadow')) optionalShell.activeShadow.push(id)
+  if (css.includes('--shell-sidebar-rail-width')) optionalShell.railWidth.push(id)
 }
 
 // UI SSOT in views
@@ -171,29 +161,9 @@ if (bareDialogComponents.length) {
 }
 
 // optional shadows not required on all themes
-const optionalShell = {
-  activeShadow: themes.filter((id) =>
-    fs.readFileSync(path.join(themesDir, `${id}.css`), 'utf8').includes('--shell-sidebar-active-shadow')
-  ),
-  railWidth: themes.filter((id) =>
-    fs.readFileSync(path.join(themesDir, `${id}.css`), 'utf8').includes('--shell-sidebar-rail-width')
-  ),
-}
 report.optionalShell = optionalShell
 
-// medium findings
-if (report.themes.kacon.important > 250) {
-  report.findings.push({
-    severity: 'medium',
-    msg: `kacon !important 仍高 (${report.themes.kacon.important})，体积 ${report.themes.kacon.bytes}`,
-  })
-}
-if (report.themes.premium.important > 80) {
-  report.findings.push({
-    severity: 'medium',
-    msg: `premium !important 偏高 (${report.themes.premium.important})，杂志风覆盖仍多`,
-  })
-}
+// Usage counts are descriptive; theme-specific thresholds are not quality gates.
 if (report.uiSsot.elEmptyInViews > 0) {
   report.findings.push({
     severity: 'low',
@@ -207,19 +177,11 @@ if (report.uiSsot.viewStyleHexCount > 0) {
   })
 }
 
-// health score rough
-const high = report.findings.filter((f) => f.severity === 'high').length
-const medium = report.findings.filter((f) => f.severity === 'medium').length
-const low = report.findings.filter((f) => f.severity === 'low').length
-report.score = {
-  high,
-  medium,
-  low,
-  overall: high === 0 ? (medium <= 2 ? 'B+' : 'B') : 'C',
-  note:
-    high === 0
-      ? 'P0 门禁已绿；剩余为体量/皮肤覆盖与可选收敛'
-      : '存在高优先级一致性缺口',
-}
+report.issueSummary = Object.fromEntries(
+  ['high', 'medium', 'low'].map((severity) => [
+    severity, report.findings.filter((finding) => finding.severity === severity).length,
+  ])
+)
+report.coverageNote = '静态源码扫描；不代表 CI、浏览器效果或可访问性验证通过'
 
 console.log(JSON.stringify(report, null, 2))

@@ -86,7 +86,7 @@ async function startServer() {
     const http = require('http');
     const { initSocket } = require('./socket/index');
     const server = http.createServer(app);
-    initSocket(server);
+    initSocket(server, { trustProxy: app.get('trust proxy fn') });
 
     server.listen(serverConfig.port, () => {
       logger.info(`Server started on port ${serverConfig.port}`);

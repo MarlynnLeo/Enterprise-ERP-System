@@ -106,6 +106,15 @@
       >
           <template #default="scope">
             <div class="table-actions">
+              <el-popconfirm
+                v-if="scope.row.status === 'completed' && scope.row.canResubmitInventory"
+                title="重新提交已驳回的库存过账，等待财务审核？"
+                @confirm="handleCommand('complete', scope.row)"
+              >
+                <template #reference>
+                  <el-button size="small" type="warning" v-permission="'purchase:returns:update'">重新提交审批</el-button>
+                </template>
+              </el-popconfirm>
               
               <el-button
                 v-if="scope.row.status === 'draft'"

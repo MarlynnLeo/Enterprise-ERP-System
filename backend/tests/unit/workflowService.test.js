@@ -23,6 +23,28 @@ describe('WorkflowService approval gates', () => {
     jest.clearAllMocks();
   });
 
+  test('routes a self-only candidate to another administrator without enabling self approval', async () => {
+    const query = jest.fn(async (sql) => {
+      if (sql.includes('r.code IN')) return [[{ id: 42 }]];
+      if (sql.includes('WHERE r.is_super_admin')) return [[{ id: 1 }]];
+      return [{ affectedRows: 1 }];
+    });
+    await workflowService._assignApprover({ query }, 99, {
+      node_name: '审批', approver_type: 'role', approver_ids: '["purchase_manager"]', allow_self_approval: 0,
+    }, 42);
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO workflow_node_approvers'), [99, 1, 1, 'pending']);
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('UPDATE workflow_instance_nodes'), [1, 'role', '[1]', 'any', 0, 99]);
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('u.id <> ?'), [0, 42]);
+  });
+
+  test('rejects a self-only candidate when no independent fallback exists', async () => {
+    const query = jest.fn(async sql => sql.includes('r.code IN') ? [[{ id: 42 }]] : [[]]);
+    await expect(workflowService._assignApprover({ query }, 99, {
+      node_name: '审批', approver_type: 'role', approver_ids: '["purchase_manager"]', allow_self_approval: 0,
+    }, 42)).rejects.toThrow('无可用审批人');
+    expect(query.mock.calls.some(([sql]) => sql.includes('INSERT'))).toBe(false);
+  });
+
   test('startWorkflow rejects when no active template is configured', async () => {
     pool.query.mockResolvedValueOnce([[]]);
 

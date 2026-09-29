@@ -80,6 +80,24 @@ describe('theme runtime', () => {
     expect(userApi.updateTheme.mock.calls.map(([settings]) => settings.preset)).toEqual(['workspace', 'dark'])
   })
 
+  test.each(['resolve', 'reject'])('preserves the account theme when startup CSS finishes late (%s)', async (outcome) => {
+    localStorage.setItem('theme_settings', JSON.stringify({ preset: 'workspace' }))
+    setActivePinia(createPinia())
+    store = useThemeStore()
+    const startupCss = deferred()
+    ensureThemeCss.mockReturnValueOnce(startupCss.promise)
+    const startup = store.initTheme()
+    userApi.getTheme.mockResolvedValueOnce({ data: { preset: 'dark' } })
+    expect(await store.loadThemeForUser(7)).toBe(true)
+    if (outcome === 'resolve') startupCss.resolve('workspace')
+    else startupCss.reject(new Error('offline'))
+    await startup
+    expect(store.appearance.preset).toBe('dark')
+    expect(document.documentElement.dataset.theme).toBe('dark')
+    expect(JSON.parse(localStorage.getItem('theme_settings')).preset).toBe('dark')
+    expect(store.loadedForUser).toBe(7)
+  })
+
   test('ignores a server read which started before the user selected a theme', async () => {
     const response = deferred()
     userApi.getTheme.mockReturnValueOnce(response.promise)

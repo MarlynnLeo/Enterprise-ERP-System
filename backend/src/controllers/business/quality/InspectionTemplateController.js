@@ -339,7 +339,12 @@ class InspectionTemplateController {
 
       const materialId = this.parseMaterialId(material_type);
       if (Number.isNaN(materialId)) {
-        return ResponseHandler.error(res, '所选物料格式不正确，请重新选择', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(
+          res,
+          '所选物料格式不正确，请重新选择',
+          'VALIDATION_ERROR',
+          400
+        );
       }
 
       // 物料匹配逻辑：支持查询指定物料的专属模板 + 通用模板

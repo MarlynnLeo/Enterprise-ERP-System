@@ -124,7 +124,13 @@ const completeHandling = async (req, res) => {
     return ResponseHandler.success(res, null, '不合格品处理完成');
   } catch (error) {
     logger.error('Failed to complete handling:', error);
-    return ResponseHandler.error(res, error.message || '完成不合格品处理失败', 'OPERATION_ERROR', 500, error);
+    return ResponseHandler.error(
+      res,
+      error.message || '完成不合格品处理失败',
+      'OPERATION_ERROR',
+      500,
+      error
+    );
   }
 };
 
@@ -170,7 +176,13 @@ const getByInspectionId = async (req, res) => {
     return ResponseHandler.success(res, result);
   } catch (error) {
     logger.error('Failed to get NCPs by inspection:', error);
-    return ResponseHandler.error(res, '获取检验单关联的不合格品失败', 'OPERATION_ERROR', 500, error);
+    return ResponseHandler.error(
+      res,
+      '获取检验单关联的不合格品失败',
+      'OPERATION_ERROR',
+      500,
+      error
+    );
   }
 };
 

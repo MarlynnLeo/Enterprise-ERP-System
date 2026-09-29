@@ -904,50 +904,6 @@
 }
 
 /* ======================================================
-   el-card - 暗色主题兜底（tech/premium 不走 html.dark）
-   ====================================================== */
-[data-theme] .el-card {
-  background-color: var(--color-bg-section);
-  border-color: var(--color-border-base);
-  color: var(--color-text-primary);
-}
-
-[data-theme] .el-card__header {
-  border-bottom-color: var(--color-border-lighter);
-  color: var(--color-text-primary);
-}
-
-/* ======================================================
-   el-input - 暗色主题兜底
-   ====================================================== */
-[data-theme] .el-input__wrapper {
-  background-color: var(--color-bg-base);
-  box-shadow: 0 0 0 1px var(--color-border-base) inset;
-}
-
-[data-theme] .el-input__wrapper:hover {
-  box-shadow: 0 0 0 1px var(--color-border-hover) inset;
-}
-
-[data-theme] .el-input__wrapper.is-focus {
-  box-shadow: 0 0 0 1px var(--color-primary) inset;
-}
-
-[data-theme] .el-input__inner {
-  color: var(--color-text-primary);
-}
-
-[data-theme] .el-input__inner::placeholder {
-  color: var(--color-text-placeholder);
-}
-
-[data-theme] .el-textarea__inner {
-  background-color: var(--color-bg-base);
-  border-color: var(--color-border-base);
-  color: var(--color-text-primary);
-}
-
-/* ======================================================
    el-select dropdown - 暗色主题兜底
    ====================================================== */
 [data-theme] .el-select-dropdown {
@@ -1057,19 +1013,6 @@
 [data-theme] .el-switch.is-checked .el-switch__core {
   background-color: var(--color-primary);
   border-color: var(--color-primary);
-}
-
-/* ======================================================
-   el-card — 暗色主题兜底
-   ====================================================== */
-[data-theme] .el-card {
-  background-color: var(--color-bg-section);
-  border-color: var(--color-border-base);
-  color: var(--color-text-primary);
-}
-
-[data-theme] .el-card__header {
-  border-bottom-color: var(--color-border-base);
 }
 
 /* ======================================================

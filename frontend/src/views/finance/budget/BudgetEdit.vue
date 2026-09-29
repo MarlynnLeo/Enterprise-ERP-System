@@ -8,6 +8,7 @@
           type="primary"
           @click="handleSave"
           :loading="saving"
+          :disabled="!formReady"
         >保存</el-button>
       </template>
     </PageHeader>
@@ -19,7 +20,9 @@
         </div>
       </template>
 
-      <el-form :model="formData" :rules="rules" ref="formRef" label-width="120px">
+      <el-alert v-if="loadError" :title="loadError" type="error" :closable="false" />
+      <el-button v-if="loadError" @click="initializeForm">重新加载</el-button>
+      <el-form :disabled="!formReady" :model="formData" :rules="rules" ref="formRef" label-width="120px">
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="预算名称" prop="budgetName">
@@ -171,7 +174,7 @@
 
 <script setup>
 import { useDictionaryStore } from '@/stores/dictionary'
-import { ref, reactive, computed, onMounted, onActivated, nextTick } from 'vue';
+import { ref, reactive, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import { ElMessage } from 'element-plus/es/components/message/index';
 import { useRouter, useRoute } from 'vue-router';
 import { financeApi } from '@/api/finance';
@@ -187,6 +190,12 @@ const route = useRoute();
 const isEdit = computed(() => !!route.params.id);
 const formRef = ref(null);
 const saving = ref(false);
+const loadedIdentity = ref(null);
+const loadError = ref('');
+const budgetIdentity = computed(() => ['budget-create', 'budget-edit'].includes(route.name)
+  ? (route.params.id ? String(route.params.id) : 'new') : null);
+const formReady = computed(() => budgetIdentity.value !== null && loadedIdentity.value === budgetIdentity.value);
+let loadVersion = 0;
 
 // 表单数据
 const formData = reactive({
@@ -241,29 +250,6 @@ const fetchAccounts = async () => {
   }
 };
 
-// 获取预算详情
-const fetchBudgetDetail = async () => {
-  try {
-    const response = await financeApi.budgets.getDetail(route.params.id);
-    const budget = response.data;
-    Object.assign(formData, {
-      budgetName: budget.budgetName,
-      budgetYear: budget.budgetYear?.toString(),
-      budgetType: budget.budgetType,
-      departmentId: budget.departmentId,
-      startDate: budget.startDate,
-      endDate: budget.endDate,
-      totalAmount: budget.totalAmount,
-      status: budget.status,
-      description: budget.description,
-      details: budget.details || []
-    });
-  } catch (error) {
-    console.error('获取预算详情失败:', error);
-    ElMessage.error('获取预算详情失败');
-  }
-};
-
 // 添加明细
 const handleAddDetail = () => {
   formData.details.push({
@@ -282,10 +268,13 @@ const handleDeleteDetail = (index) => {
 
 // 保存
 const handleSave = async () => {
-  if (saving.value) return;
-
+  if (saving.value || !formReady.value) return;
+  const identity = loadedIdentity.value;
+  const version = loadVersion;
+  saving.value = true;
   try {
     if (!(await formRef.value.validate().catch(() => false))) return;
+    if (!formReady.value || version !== loadVersion || identity !== budgetIdentity.value) return;
 
     if (formData.details.length === 0) {
       ElMessage.warning('请至少添加一条预算明细');
@@ -305,8 +294,6 @@ const handleSave = async () => {
       }
     }
 
-    saving.value = true;
-
     // 更新总金额
     formData.totalAmount = totalAmount.value;
 
@@ -321,22 +308,22 @@ const handleSave = async () => {
         totalAmount: formData.totalAmount,
         description: formData.description
       },
-      details: formData.details
+      details: formData.details.map(detail => ({ ...detail }))
     };
 
     let response;
-    if (isEdit.value) {
-      response = await financeApi.budgets.update(route.params.id, requestData);
+    if (identity !== 'new') {
+      response = await financeApi.budgets.update(identity, requestData);
     } else {
       response = await financeApi.budgets.create(requestData);
     }
 
-    if (response) {
-      ElMessage.success(isEdit.value ? '更新成功' : '创建成功');
+    if (response && version === loadVersion && identity === budgetIdentity.value) {
+      ElMessage.success(identity !== 'new' ? '更新成功' : '创建成功');
       router.push('/finance/budget/list');
     }
   } catch (error) {
-    if (error.name !== 'ValidationError') {
+    if (version === loadVersion && error.name !== 'ValidationError') {
       console.error('保存失败:', error);
       ElMessage.error(getApiErrorMessage(error, '保存失败'));
     }
@@ -352,31 +339,42 @@ const handleCancel = () => {
 
 // 格式化金额 - 已统一使用 @/utils/format 导入
 
-let initializingForm = false;
 const initializeForm = async () => {
-  if (initializingForm) return;
-  initializingForm = true;
+  const identity = budgetIdentity.value;
+  const version = ++loadVersion;
+  loadedIdentity.value = null;
+  loadError.value = '';
+  if (identity === null) return;
+  Object.assign(formData, {
+    budgetName: '', budgetYear: String(new Date().getFullYear()), budgetType: '年度预算',
+    departmentId: null, startDate: '', endDate: '', totalAmount: 0,
+    status: '草稿', description: '', details: [],
+  });
   try {
-    if (isEdit.value) {
-      await fetchBudgetDetail();
-    } else {
+    if (identity !== 'new') {
+      const response = await financeApi.budgets.getDetail(identity);
+      if (version !== loadVersion || identity !== budgetIdentity.value) return;
+      const budget = response.data;
+      if (!budget || String(budget.id) !== identity) throw new Error('预算详情与当前单据不一致');
       Object.assign(formData, {
-        budgetName: '', budgetYear: String(new Date().getFullYear()), budgetType: '年度预算',
-        departmentId: null, startDate: '', endDate: '', totalAmount: 0,
-        status: '草稿', description: '', details: [],
+        budgetName: budget.budgetName, budgetYear: budget.budgetYear?.toString(),
+        budgetType: budget.budgetType, departmentId: budget.departmentId,
+        startDate: budget.startDate, endDate: budget.endDate,
+        totalAmount: budget.totalAmount, status: budget.status,
+        description: budget.description, details: budget.details || [],
       });
     }
+    if (version !== loadVersion || identity !== budgetIdentity.value) return;
+    loadedIdentity.value = identity;
     await nextTick();
-    formRef.value?.clearValidate();
-  } finally {
-    initializingForm = false;
+    if (version === loadVersion) formRef.value?.clearValidate();
+  } catch (error) {
+    if (version === loadVersion) loadError.value = getApiErrorMessage(error, '获取预算详情失败，请重新加载');
   }
 };
-onMounted(() => {
-  Promise.all([fetchDepartments(), fetchAccounts()]);
-  initializeForm();
-});
-onActivated(initializeForm);
+watch(budgetIdentity, initializeForm, { immediate: true, flush: 'sync' });
+onMounted(() => { Promise.all([fetchDepartments(), fetchAccounts()]); });
+onBeforeUnmount(() => { loadVersion++; });
 </script>
 
 <style scoped>

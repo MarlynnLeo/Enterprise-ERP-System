@@ -24,6 +24,8 @@
   const pageConfig = computed(() => ({
     title: '银行交易',
     searchPlaceholder: '搜索交易描述',
+    filterField: 'transactionType',
+    filterParam: 'transactionType',
     filterTabs: [
       { label: '全部', value: 'all' },
       { label: '转入', value: '转入' },
@@ -40,7 +42,7 @@
         { label: '交易类型', field: 'transactionType' }
       ],
       status: {
-        field: 'is_reconciled',
+        field: 'isReconciled',
         map: {
           1: { text: '已对账', class: 'status-success' },
           0: { text: '未对账', class: 'status-warning' },

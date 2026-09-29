@@ -228,10 +228,14 @@
     }))
   })
 
+  // A business-type filter can differ from the status badge (for example bank reconciliation).
+  const filterField = computed(() => props.config.filterField ||
+    props.config.fields.status?.field || props.config.fields.status)
+
   const getTabCount = (value) => {
     if (value === 'all') return totalCount.value > 0 ? totalCount.value : items.value.length
-    if (props.config.fields.status) {
-      const field = props.config.fields.status.field || props.config.fields.status
+    if (filterField.value) {
+      const field = filterField.value
       const values = props.config.filterAliases?.[value] || [value]
       return items.value.filter((i) => values.includes(i[field])).length
     }
@@ -243,11 +247,8 @@
     let filtered = items.value
     if (activeTag.value !== 'all') {
       filtered = filtered.filter((item) => {
-        if (props.config.fields.status) {
-          const field =
-            typeof props.config.fields.status === 'string'
-              ? props.config.fields.status
-              : props.config.fields.status.field
+        if (filterField.value) {
+          const field = filterField.value
           const values = props.config.filterAliases?.[activeTag.value] || [activeTag.value]
           return values.includes(item[field])
         }
@@ -438,7 +439,7 @@
     const hasFilterAlias = !!props.config.filterAliases?.[activeTag.value]
     return {
       search: debouncedSearch.value || undefined,
-      status: activeTag.value !== 'all' && !hasFilterAlias ? activeTag.value : undefined,
+      [props.config.filterParam || 'status']: activeTag.value !== 'all' && !hasFilterAlias ? activeTag.value : undefined,
     }
   }
   const loadData = (refresh = false) => refresh

@@ -30,12 +30,7 @@ async function requireDocumentLinkView(req, res, next) {
     const businessId = req.query.business_id;
 
     if (!businessType || businessId === undefined || businessId === null || businessId === '') {
-      return ResponseHandler.error(
-        res,
-        '请同时提供业务类型和业务单据',
-        'VALIDATION_ERROR',
-        400
-      );
+      return ResponseHandler.error(res, '请同时提供业务类型和业务单据', 'VALIDATION_ERROR', 400);
     }
     const normalizedBusinessId = Number(businessId);
     if (!Number.isInteger(normalizedBusinessId) || normalizedBusinessId <= 0) {
@@ -54,15 +49,12 @@ async function requireDocumentLinkView(req, res, next) {
 
     const userId = req.user?.id || req.user?.userId;
     if (!userId) {
-       return ResponseHandler.unauthorized(res, '登录已过期，请重新登录');
+      return ResponseHandler.unauthorized(res, '登录已过期，请重新登录');
     }
 
     const userPermissions = await PermissionService.getUserPermissions(userId);
     if (!DocumentLinkService.canViewBusinessType(businessType, userPermissions)) {
-      return ResponseHandler.forbidden(
-        res,
-        '您没有权限查看该业务单据关联信息'
-      );
+      return ResponseHandler.forbidden(res, '您没有权限查看该业务单据关联信息');
     }
 
     req.userPermissions = userPermissions;
@@ -70,13 +62,7 @@ async function requireDocumentLinkView(req, res, next) {
     req.documentLinkUserPermissions = userPermissions;
     return next();
   } catch (error) {
-    return ResponseHandler.error(
-      res,
-      '单据关联权限校验失败',
-      'SERVER_ERROR',
-      500,
-      error
-    );
+    return ResponseHandler.error(res, '单据关联权限校验失败', 'SERVER_ERROR', 500, error);
   }
 }
 
