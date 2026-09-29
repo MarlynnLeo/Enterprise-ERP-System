@@ -218,7 +218,10 @@ async function prepareUatMasterData(prefix) {
       [`${prefix} Functional Check`]
     );
     const qualityTemplateIds = {};
-    for (const inspectionType of ['first_article', 'process', 'final']) {
+    for (const inspectionType of ['incoming', 'first_article', 'process', 'final']) {
+      const inspectionMaterialId = inspectionType === 'incoming'
+        ? rawMaterialResult.insertId
+        : productResult.insertId;
       const [qualityTemplateResult] = await connection.query(
         `INSERT INTO inspection_templates
          (template_code, template_name, inspection_type, material_type, material_types,
@@ -228,8 +231,8 @@ async function prepareUatMasterData(prefix) {
           `${prefix}-${inspectionType}`,
           `${prefix} ${inspectionType} template`,
           inspectionType,
-          productResult.insertId,
-          JSON.stringify([productResult.insertId]),
+          inspectionMaterialId,
+          JSON.stringify([inspectionMaterialId]),
           `${prefix} ${inspectionType} quality template`,
         ]
       );
@@ -277,6 +280,7 @@ async function prepareUatMasterData(prefix) {
       productId: productResult.insertId,
       bomId: bomResult.insertId,
       processTemplateId: templateResult.insertId,
+      incomingTemplateId: qualityTemplateIds.incoming,
       purchaseQty: 40,
       productionQty: 10,
       rawUsageQty: 20,
@@ -295,23 +299,23 @@ async function passInspection(inspection) {
   const itemsRes = await api.get(`/api/quality/inspections/${inspection.id}/items`);
   expectHttp(itemsRes, 200, `get inspection ${inspection.id} items`);
   const items = dataOf(itemsRes);
-  const judgedItems = (Array.isArray(items) ? items : []).map((item) => ({
+  expect(Array.isArray(items)).toBe(true);
+  expect(items.length).toBeGreaterThan(0);
+  const judgedItems = items.map((item) => ({
     ...item,
     result: 'passed',
-    is_qualified: 1,
-    actual_value: item.actualValue || item.standard || 'UAT pass',
-    remark: item.remark || 'UAT item passed',
+    isQualified: true,
+    actualValue: item.actualValue || item.standard || 'UAT pass',
+    remarks: item.remarks || item.remark || 'UAT item passed',
   }));
 
   const res = await api
     .put(`/api/quality/inspections/${inspection.id}`)
     .send({
       status: 'passed',
-      qualified_quantity: quantity,
-      unqualified_quantity: 0,
-      actual_date: today(),
-      first_article_result: 'passed',
-      production_can_continue: true,
+      qualifiedQuantity: quantity,
+      unqualifiedQuantity: 0,
+      actualDate: today(),
       note: 'UAT passed',
       items: judgedItems,
     });
@@ -378,6 +382,24 @@ describeLiveUat('UAT full business flow', () => {
     expect((await scalar('SELECT status FROM purchase_orders WHERE id = ?', [context.purchaseOrderId])).status)
       .toBe('approved');
 
+    const arrivalRes = await api
+      .post(`/api/purchase/orders/${context.purchaseOrderId}/receive-with-inspection`)
+      .send({
+        items: [{
+          materialId: context.rawMaterialId,
+          receiveQuantity: context.purchaseQty,
+          unitId: context.unitId,
+          templateId: context.incomingTemplateId,
+          batchNo: `${prefix}-RM-BATCH`,
+        }],
+      });
+    expectHttp(arrivalRes, 200, 'register purchase arrival and create incoming inspection');
+    const incomingInspections = dataOf(arrivalRes).inspections;
+    expect(incomingInspections).toHaveLength(1);
+    const incomingInspection = incomingInspections[0];
+    expect(incomingInspection.isExempt).toBe(false);
+    expect(Number(incomingInspection.quantity)).toBe(context.purchaseQty);
+
     const purchaseReceiptRes = await api
       .post('/api/purchase/receipts')
       .set('Idempotency-Key', `${prefix}-purchase-receipt`)
@@ -386,6 +408,8 @@ describeLiveUat('UAT full business flow', () => {
         supplierId: context.supplierId,
         warehouseId: context.rawLocationId,
         receiptDate: today(),
+        fromInspection: true,
+        inspectionId: incomingInspection.id,
         receiver: 'codex-uat',
         remarks: `${prefix} purchase receipt`,
         items: [
@@ -394,7 +418,7 @@ describeLiveUat('UAT full business flow', () => {
             unitId: context.unitId,
             orderedQuantity: context.purchaseQty,
             receivedQuantity: context.purchaseQty,
-            qualifiedQuantity: context.purchaseQty,
+            qualifiedQuantity: 0,
             batchNumber: `${prefix}-RM-BATCH`,
             price: 5,
           },
@@ -406,8 +430,10 @@ describeLiveUat('UAT full business flow', () => {
     context.purchaseReceiptNo = purchaseReceipt.receiptNo;
 
     const purchaseReceiptLink = await scalar(
-      `SELECT pri.order_item_id, poi.order_id, poi.material_id
+      `SELECT pri.order_item_id, poi.order_id, poi.material_id,
+              pr.status, pr.inspection_id, pri.received_quantity, pri.qualified_quantity
        FROM purchase_receipt_items pri
+       JOIN purchase_receipts pr ON pr.id = pri.receipt_id
        LEFT JOIN purchase_order_items poi ON poi.id = pri.order_item_id
        WHERE pri.receipt_id = ?
        LIMIT 1`,
@@ -416,6 +442,27 @@ describeLiveUat('UAT full business flow', () => {
     expect(Number(purchaseReceiptLink.order_item_id)).toBeGreaterThan(0);
     expect(Number(purchaseReceiptLink.order_id)).toBe(context.purchaseOrderId);
     expect(Number(purchaseReceiptLink.material_id)).toBe(context.rawMaterialId);
+    expect(purchaseReceiptLink.status).toBe('draft');
+    expect(Number(purchaseReceiptLink.inspection_id)).toBe(incomingInspection.id);
+    expect(Number(purchaseReceiptLink.received_quantity)).toBe(context.purchaseQty);
+    expect(Number(purchaseReceiptLink.qualified_quantity)).toBe(0);
+
+    await passInspection(incomingInspection);
+    const inspectedReceipt = await scalar(
+      `SELECT pr.status, pr.inspection_id, pri.received_quantity, pri.qualified_quantity,
+              pri.batch_number, qi.status AS inspection_status
+       FROM purchase_receipts pr
+       JOIN purchase_receipt_items pri ON pri.receipt_id = pr.id
+       JOIN quality_inspections qi ON qi.id = pr.inspection_id
+       WHERE pr.id = ?`,
+      [context.purchaseReceiptId]
+    );
+    expect(inspectedReceipt.status).toBe('inspected');
+    expect(inspectedReceipt.inspection_status).toBe('passed');
+    expect(Number(inspectedReceipt.inspection_id)).toBe(incomingInspection.id);
+    expect(Number(inspectedReceipt.received_quantity)).toBe(context.purchaseQty);
+    expect(Number(inspectedReceipt.qualified_quantity)).toBe(context.purchaseQty);
+    expect(inspectedReceipt.batch_number).toBe(`${prefix}-RM-BATCH`);
 
     const completePurchaseReceiptRes = await api
       .put(`/api/purchase/receipts/${context.purchaseReceiptId}/status`)
