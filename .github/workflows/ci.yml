@@ -16,8 +16,13 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
       - run: npm ci
+      - name: Install frontend dependencies for theme validation
+        working-directory: frontend
+        run: npm ci
       - name: Check repository conventions
         run: npm run check:repository && npm run check:dual-case && npm run check:app-dialog && npm run check:theme-tokens
       - run: npm run test:release
@@ -63,7 +68,12 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: backend/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+
+      - name: Install shared lint dependencies
+        run: npm ci
 
       - name: Install backend dependencies
         working-directory: backend
@@ -123,10 +133,16 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: |
+            frontend/package-lock.json
+            backend/package-lock.json
 
       - name: Install frontend dependencies
         working-directory: frontend
+        run: npm ci
+
+      - name: Install backend dependencies for shared contract tests
+        working-directory: backend
         run: npm ci
 
       - name: Lint frontend
