@@ -16,30 +16,38 @@
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
+      :model="searchForm"
       :loading="loading"
       @search="handleSearch"
       @reset="handleResetSearch"
     >
       <template #basic>
         <el-form-item label="物料名称">
-          <el-input v-model="searchKeyword" placeholder="物料名称" clearable @keyup.enter="handleSearch" />
+          <el-input v-model="searchForm.materialName" placeholder="物料名称" clearable @keyup.enter="handleSearch" />
         </el-form-item>
       </template>
       <template #advanced>
-        <el-form-item label="生产组">
-          <el-select v-model="productionGroupFilter" placeholder="生产组" clearable>
-            <el-option v-for="group in productionGroupList" :key="group.id" :label="group.name" :value="group.id" />
+        <el-form-item label="出库单号">
+          <el-input v-model="searchForm.outboundNo" placeholder="出库单号" clearable />
+        </el-form-item>
+        <el-form-item label="仓库">
+          <el-select v-model="searchForm.locationId" placeholder="仓库" clearable>
+            <el-option v-for="location in locations" :key="location.id" :label="location.name" :value="location.id" />
           </el-select>
         </el-form-item>
-
+        <el-form-item label="日期范围">
+          <el-date-picker v-model="searchForm.dateRange" type="daterange" range-separator="至" start-placeholder="开始日期"
+            end-placeholder="结束日期" value-format="YYYY-MM-DD" />
+        </el-form-item>
         <el-form-item label="状态">
-          <el-select v-model="statusFilter" placeholder="状态" clearable>
+          <el-select v-model="searchForm.status" placeholder="状态" clearable>
             <el-option v-for="item in statusOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
-        <el-form-item label="时间范围">
-          <el-date-picker v-model="dateRange" type="daterange" range-separator="至" start-placeholder="开始日期"
-            end-placeholder="结束日期" format="YYYY-MM-DD" value-format="YYYY-MM-DD" clearable />
+        <el-form-item label="生产组">
+          <el-select v-model="searchForm.productionGroupId" placeholder="生产组" clearable>
+            <el-option v-for="group in productionGroupList" :key="group.id" :label="group.name" :value="group.id" />
+          </el-select>
         </el-form-item>
       </template>
     </FinanceQueryCard>
@@ -59,16 +67,8 @@
         <div class="stat-label">已确认</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value">{{ outboundStats.partialCompletedCount || 0 }}</div>
-        <div class="stat-label">部分</div>
-      </el-card>
-      <el-card class="stat-card" shadow="hover">
         <div class="stat-value">{{ outboundStats.completedCount || 0 }}</div>
         <div class="stat-label">已完成</div>
-      </el-card>
-      <el-card class="stat-card" shadow="hover">
-        <div class="stat-value">{{ outboundStats.reversedCount || 0 }}</div>
-        <div class="stat-label">已冲销</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
         <div class="stat-value">{{ outboundStats.cancelledCount || 0 }}</div>
@@ -78,129 +78,90 @@
 
     <!-- 数据表格 -->
     <el-card class="data-card">
-      <el-table ref="outboundTableRef" :data="outboundList" border class="table-row-click w-full" v-loading="loading"
-        @selection-change="handleSelectionChange"
+      <div v-if="outboundStats.partialCompletedCount || outboundStats.reversedCount" class="outbound-extra-stats">
+        <el-tag v-if="outboundStats.partialCompletedCount" type="warning">部分完成：{{ outboundStats.partialCompletedCount }}</el-tag>
+        <el-tag v-if="outboundStats.reversedCount" type="info">已冲销：{{ outboundStats.reversedCount }}</el-tag>
+      </div>
+      <el-table :data="outboundList" border class="table-row-click w-full" v-loading="loading"
       @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
         <template #empty>
           <EmptyState description="暂无出库单数据" />
         </template>
-        <el-table-column type="selection" width="55" fixed="left"></el-table-column>
-        <el-table-column prop="outboundNo" label="出库单号" min-width="145" show-overflow-tooltip></el-table-column>
-        <el-table-column prop="productCode" label="物料编码" min-width="110" show-overflow-tooltip>
-          <template #default="scope">
-            {{ scope.row.productCode || '-' }}
+        <el-table-column prop="outboundNo" label="出库单号" width="135" />
+        <el-table-column prop="outboundType" label="出库类型" width="110">
+          <template #default="{ row }">
+            <el-tag :type="getOutboundTypeTag(row)" size="small">{{ getOutboundTypeText(row) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="productSpecs" label="型号规格" min-width="150" show-overflow-tooltip>
-          <template #default="scope">
-            {{ scope.row.productSpecs || '-' }}
+        <el-table-column prop="materialCode" label="物料编码" width="120">
+          <template #default="{ row }">
+            <span v-if="row.materialCode">{{ row.materialCode }}</span>
+            <span v-else-if="row.itemsCount > 1" class="text-muted">多个物料</span>
+            <span v-else class="text-disabled">-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="outboundDate" label="出库日期" min-width="110" show-overflow-tooltip>
-          <template #default="scope">
-            {{ formatDate(scope.row.outboundDate) }}
+        <el-table-column prop="materialName" label="物料名称" width="157" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span v-if="row.materialName">{{ row.materialName }}</span>
+            <span v-else-if="row.itemsCount > 1" class="text-muted">多个物料</span>
+            <span v-else class="text-disabled">-</span>
           </template>
         </el-table-column>
-
-        <el-table-column prop="status" label="状态" column-key="status" :width="outboundColumnWidths.status"
-          align="center" header-align="center" class-name="content-fit-column" header-class-name="content-fit-column">
-          <template #default="scope">
-            <el-tag :type="getOutboundStatusDisplay(scope.row).type">
-              {{ getOutboundStatusDisplay(scope.row).text }}
-            </el-tag>
+        <el-table-column prop="materialSpecs" label="型号规格" width="180" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span v-if="row.materialSpecs">{{ row.materialSpecs }}</span>
+            <span v-else class="text-disabled">-</span>
           </template>
         </el-table-column>
-        <el-table-column label="类型" column-key="type" :width="outboundColumnWidths.type"
-          align="center" header-align="center" class-name="content-fit-column" header-class-name="content-fit-column">
-          <template #default="scope">
-            <el-tag size="small" :type="getOutboundTypeTag(scope.row)">
-              {{ getOutboundTypeText(scope.row) }}
-            </el-tag>
+        <el-table-column prop="firstItemQuantity" label="数量" width="80">
+          <template #default="{ row }">
+            {{ formatQuantityNumber(row.firstItemQuantity ?? row.totalQuantity) }}
           </template>
         </el-table-column>
-        <el-table-column label="数量" width="70" show-overflow-tooltip>
-          <template #default="scope">
-            {{ formatOutboundQuantity(scope.row) }}
+        <el-table-column prop="outboundDate" label="出库日期" width="100">
+          <template #default="{ row }">{{ formatDate(row.outboundDate) }}</template>
+        </el-table-column>
+        <el-table-column prop="locationName" label="仓库" width="100" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.locationName || row.locationNames || '-' }}</template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="getStatusType(row.status)">{{ getStatusText(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="生产组" min-width="90" show-overflow-tooltip>
-          <template #default="scope">
-            {{ scope.row.productionGroupName || scope.row.productionGroupNames || '-' }}
-          </template>
+        <el-table-column prop="operatorName" label="操作人" width="80">
+          <template #default="{ row }">{{ row.operatorName || row.operator || '未知' }}</template>
         </el-table-column>
-        <el-table-column label="操作人" min-width="80" show-overflow-tooltip>
-          <template #default="scope">
-            {{ scope.row.operatorName || scope.row.operator }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="createdAtFormatted" label="创建时间" min-width="110" show-overflow-tooltip>
-          <template #default="scope">
-            {{ formatDate(scope.row.createdAt) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="倒计时" min-width="100" show-overflow-tooltip>
-          <template #default="scope">
-            <el-tag :type="getCountdownType(scope.row.outboundDate, scope.row.status)" size="small">
-              {{ getCountdownText(scope.row.outboundDate, scope.row.status) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="remark" label="备注" min-width="200" show-overflow-tooltip></el-table-column>
-        <el-table-column label="操作" column-key="operations" :width="outboundColumnWidths.operations" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+        <el-table-column prop="remarks" label="备注" width="180" show-overflow-tooltip />
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
       >
           <template #default="scope">
             <TableRowActions>
             
-            <!-- 草稿和已确认状态显示编辑按钮 -->
-            <el-button v-if="scope.row.status === 'draft' || scope.row.status === 'confirmed'" size="small"
-              @click="handleEdit(scope.row)"
-              v-permission="'inventory:outbound:update'">
-              <el-icon><Edit /></el-icon> 编辑
-            </el-button>
-            <!-- 部分完成状态显示补发按钮 -->
-            <el-button v-if="scope.row.status === 'partial_completed'" size="small" type="warning"
-              v-permission="'inventory:outbound:update'"
-              @click="handleSupplementIssue(scope.row)">
-              <el-icon><RefreshRight /></el-icon> 补发
-            </el-button>
-            <el-popconfirm v-if="scope.row.status === 'draft'" title="确定要删除该出库单吗？此操作无法恢复。"
-              @confirm="handleDelete(scope.row)" confirm-button-type="danger">
+            <el-popconfirm v-if="scope.row.status === 'draft'" title="确定要确认该出库单吗？"
+              @confirm="handleUpdateStatus(scope.row, 'confirmed')">
               <template #reference>
-                <el-button v-permission="'inventory:outbound:delete'" size="small" type="danger">
-                  <el-icon><Delete /></el-icon> 删除
+                <el-button v-permission="'inventory:outbound:update'" size="small" type="success">
+                  <el-icon><Check /></el-icon> 确认
                 </el-button>
               </template>
             </el-popconfirm>
-            <el-button v-if="scope.row.status === 'draft'" size="small" type="success"
-              v-permission="'inventory:outbound:update'"
-              @click="handleUpdateStatus(scope.row, 'confirmed')">
-              <el-icon><Check /></el-icon> 确认
-            </el-button>
-            <el-button v-if="scope.row.status === 'confirmed'" size="small" type="primary"
-              v-permission="'inventory:outbound:update'"
-              @click="handleUpdateStatus(scope.row, 'completed')">
-              <el-icon><Finished /></el-icon> 完成
-            </el-button>
-            <el-button v-if="['draft', 'confirmed'].includes(scope.row.status)" size="small" type="warning"
-              v-permission="'inventory:outbound:cancel'"
-              @click="handleUpdateStatus(scope.row, 'cancelled')">
-              <el-icon><Close /></el-icon> 取消
-            </el-button>
-
-            <!-- 已完成/部分完成状态显示撤销按钮 -->
-            <el-button v-if="scope.row.status === 'completed' || scope.row.status === 'partial_completed'" size="small" type="danger"
-              v-permission="'inventory:outbound:cancel'"
-              :disabled="cancellingOutboundId === scope.row.id"
-              :loading="cancellingOutboundId === scope.row.id"
-              :title="scope.row.financeStatus === 'approved' ? '已完成财务审核，提交撤销申请需经财务审批' : '未完成财务审核，直接撤销出库并冲回库存'"
-              @click="handleCancelOutbound(scope.row)">
-              <el-icon><RefreshLeft /></el-icon> 撤销
-            </el-button>
-
-            <!-- 非草稿状态显示打印按钮 -->
-            <el-button v-if="scope.row.status !== 'draft'" size="small" type="success" v-permission="'inventory:outbound:view'" @click="handlePrint(scope.row)">
-              <el-icon><Printer /></el-icon> 打印
-            </el-button>
+            <el-popconfirm v-if="scope.row.status === 'confirmed'" title="确定要完成该出库单吗？"
+              @confirm="handleUpdateStatus(scope.row, 'completed')">
+              <template #reference>
+                <el-button v-permission="'inventory:outbound:update'" size="small" type="primary">
+                  <el-icon><Finished /></el-icon> 完成
+                </el-button>
+              </template>
+            </el-popconfirm>
+            <el-popconfirm v-if="['draft', 'confirmed'].includes(scope.row.status)" title="确定要取消该出库单吗？"
+              @confirm="handleUpdateStatus(scope.row, 'cancelled')" confirm-button-type="danger">
+              <template #reference>
+                <el-button v-permission="'inventory:outbound:cancel'" size="small" type="danger">
+                  <el-icon><Close /></el-icon> 取消
+                </el-button>
+              </template>
+            </el-popconfirm>
             </TableRowActions>
           </template>
         </el-table-column>
@@ -217,16 +178,61 @@
     <!-- 新增/编辑/补发出库单对话框 -->
     <AppDialog
       v-model="dialogVisible"
-      :title="dialogType === 'add' ? '新增出库单' : dialogType === 'supplement' ? '补发出库单' : '编辑出库单'"
+      :title="dialogType === 'add' ? '新建出库单' : dialogType === 'supplement' ? '补发出库单' : '编辑出库单'"
       mode="form"
-      width="1020px"
+      wide
     >
       <div v-loading="editLoading" class="min-h-form">
-      <el-form ref="outboundFormRef" :model="outboundForm" :rules="outboundRules" label-width="120px">
+      <el-form ref="outboundFormRef" :model="outboundForm" :rules="outboundRules" label-width="100px">
         <el-row :gutter="20">
           <el-col :span="8">
-            <el-form-item label="生产任务" prop="productionTaskId">
-              <el-select v-model="outboundForm.productionTaskId" placeholder="选择生产任务" class="w-full"
+            <el-form-item label="出库类型">
+              <el-input
+                :model-value="getOutboundTypeText({ ...outboundForm, outboundType: outboundForm.productionTaskId ? 'production' : 'manual' })"
+                readonly
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="出库日期" prop="outboundDate">
+              <el-date-picker
+                v-model="outboundForm.outboundDate"
+                type="date"
+                placeholder="选择日期"
+                value-format="YYYY-MM-DD"
+                class="w-full"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="仓库">
+              <el-tooltip content="出库仓库随物料默认仓库自动确定，可在明细中查看。" placement="top">
+                <el-input
+                  :model-value="outboundForm.items.map(item => item.locationName).filter(Boolean).filter((name, index, names) => names.indexOf(name) === index).join('、')"
+                  placeholder="按物料默认仓库自动确定"
+                  readonly
+                />
+              </el-tooltip>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="操作人" prop="operator">
+              <el-input v-model="outboundForm.operator" placeholder="系统自动填充当前用户姓名" readonly />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="备注" prop="remarks">
+              <el-input v-model="outboundForm.remarks" type="textarea" placeholder="请输入备注" :rows="1" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="16">
+            <el-form-item label="关联任务" prop="productionTaskId">
+              <el-select v-model="outboundForm.productionTaskId" placeholder="可选，选择生产任务后自动带入 BOM 物料" class="w-full"
+                :disabled="dialogType === 'supplement'"
                 @change="handleProductionPlanChange" clearable filterable>
                 <el-option v-for="item in productionPlanOptions" :key="item.id"
                   :label="`${item.code} - ${item.name} (${item.quantity}${item.unitName || ''})`" :value="item.id">
@@ -237,51 +243,24 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="出库单号">
-              <el-input v-model="outboundForm.outboundNo" placeholder="系统自动生成" disabled />
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="出库日期" prop="outboundDate">
-              <el-date-picker v-model="outboundForm.outboundDate" type="date" placeholder="选择日期" class="w-full" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="20">
-          <el-col :span="8">
-            <el-form-item label="操作人" prop="operator">
-              <el-input v-model="outboundForm.operator" placeholder="系统自动填充当前用户姓名" readonly />
+            <el-form-item v-if="selectedPlan" label="任务产品">
+              <span>{{ selectedPlan.name }}</span>
             </el-form-item>
           </el-col>
         </el-row>
 
-        <el-form-item label="备注" prop="remarks">
-          <el-input v-model="outboundForm.remarks" type="textarea" placeholder="请输入备注" :rows="2" />
-        </el-form-item>
-
-        <el-divider content-position="center">出库明细</el-divider>
+        <el-divider>出库明细</el-divider>
 
         <el-table :data="expandedTableData" border class="w-full"
           :header-cell-style="{ background: 'var(--color-bg-hover)', color: 'var(--color-text-regular)' }" empty-text="请添加出库物料">
-          <el-table-column label="序号" width="55">
+          <el-table-column label="物料编码" width="160">
             <template #default="scope">
-              <span v-if="!scope.row.isSubstitute">{{ scope.row.originalIndex + 1 }}</span>
-              <span v-else class="tree-indent">└</span>
-            </template>
-          </el-table-column>
-
-          <el-table-column label="物料编码" min-width="120" show-overflow-tooltip>
-            <template #default="scope">
-              <!-- 真实出库明细 -->
-              <span v-if="scope.row.isSubstitute" class="text-success">
-                {{ scope.row.materialCode }}
-              </span>
               <!-- 来自生产计划的物料(只读) -->
-              <span v-else-if="scope.row.isFromPlan">
+              <span v-if="scope.row.isFromPlan">
                 {{ scope.row.materialCode }}
               </span>
               <!-- 手动添加的物料(可编辑) -->
-              <el-autocomplete v-else-if="dialogType !== 'view'"
+              <el-autocomplete v-else
                 :ref="(el) => setMaterialSelectRef(el, scope.row.originalIndex)" v-model="scope.row.materialCode"
                 placeholder="输入编码/名称/规格" clearable
                 :fetch-suggestions="(query, callback) => fetchMaterialSuggestions(query, callback, scope.row.originalIndex)"
@@ -306,75 +285,52 @@
                   </div>
                 </template>
               </el-autocomplete>
-              <!-- 查看模式 -->
-              <span v-else>
-                {{ scope.row.materialCode }}
-              </span>
             </template>
           </el-table-column>
 
-          <el-table-column label="物料名称" min-width="120" show-overflow-tooltip>
+          <el-table-column label="物料名称" prop="materialName" width="140" show-overflow-tooltip />
+          <el-table-column label="规格" prop="specification" width="140" show-overflow-tooltip />
+          <el-table-column label="数量" width="120">
             <template #default="scope">
-              <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
-                {{ scope.row.materialName }}
-                <el-tag v-if="scope.row.isSubstitute" type="success" size="small" class="ml-sm">替代</el-tag>
-              </span>
-            </template>
-          </el-table-column>
-
-          <el-table-column label="规格" min-width="160" show-overflow-tooltip>
-            <template #default="scope">
-              <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
-                {{ scope.row.specification || '无规格' }}
-              </span>
-            </template>
-          </el-table-column>
-
-          <el-table-column label="单位" min-width="70" show-overflow-tooltip>
-            <template #default="scope">
-              <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
-                {{ formatUnit(scope.row) }}
-              </span>
-            </template>
-          </el-table-column>
-
-          <el-table-column label="出库库位" min-width="100" show-overflow-tooltip>
-            <template #default="scope">
-              <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
-                {{ scope.row.locationName || '' }}
-              </span>
-            </template>
-          </el-table-column>
-
-          <el-table-column label="库存" min-width="80" show-overflow-tooltip>
-            <template #default="scope">
-              <span
-                :class="scope.row.isSubstitute ? 'is-substitute-sm' : ((dialogType === 'supplement' && (scope.row.stockQuantity || 0) <= 0) ? 'text-stock-low' : '')">
-                {{ scope.row.stockQuantity || 0 }}
-              </span>
-            </template>
-          </el-table-column>
-
-          <el-table-column label="出库数量" min-width="70">
-            <template #default="scope">
-              <div v-if="scope.row.isSubstitute" class="is-substitute-sm">
-                {{ scope.row.quantity }}
-              </div>
-              <el-input v-else-if="dialogType !== 'view'"
+              <el-input
                 :ref="(el) => setQuantityInputRef(el, scope.row.originalIndex)"
                 v-model="outboundForm.items[scope.row.originalIndex].quantity"
                 type="text"
                 size="small"
                 @blur="validateOutboundQuantity(outboundForm.items[scope.row.originalIndex])"
                 @keydown.enter="handleQuantityEnter(scope.row.originalIndex)"
-                placeholder="数量" />
-              <span v-else>{{ scope.row.quantity }}</span>
+                placeholder="数量"
+              />
+            </template>
+          </el-table-column>
+          <el-table-column label="单位" width="70" show-overflow-tooltip>
+            <template #default="scope">
+              {{ formatUnit(scope.row) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="仓库" prop="locationName" width="120" show-overflow-tooltip />
+          <el-table-column label="库存" width="90" show-overflow-tooltip>
+            <template #default="scope">
+              <span :class="(dialogType === 'supplement' && (scope.row.stockQuantity || 0) <= 0) ? 'text-stock-low' : ''">
+                {{ scope.row.stockQuantity || 0 }}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column label="备注" width="150">
+            <template #default="scope">
+              <el-input
+                v-model="outboundForm.items[scope.row.originalIndex].remarks"
+                placeholder="请输入备注"
+                size="small"
+                maxlength="200"
+                clearable
+              />
             </template>
           </el-table-column>
 
-          <el-table-column label="操作" min-width="80" fixed="right" v-if="dialogType !== 'view'" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+          <el-table-column label="操作" min-width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
-              <el-button v-if="!scope.row.isSubstitute" type="danger" size="small"
+              <el-button type="danger" size="small"
                 @click="handleRemoveItem(scope.row.originalIndex)"
                 v-permission="dialogType === 'add' ? 'inventory:outbound:create' : 'inventory:outbound:update'">
                 删除
@@ -383,7 +339,7 @@
           </el-table-column>
         </el-table>
 
-        <div class="add-material mt-10" v-if="dialogType !== 'view'">
+        <div v-if="dialogType !== 'supplement'" class="add-material mt-10">
           <el-button type="primary" v-permission="dialogType === 'add' ? 'inventory:outbound:create' : 'inventory:outbound:update'" @click="handleAddItem">
             <el-icon>
               <Plus />
@@ -396,8 +352,8 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button v-if="dialogType !== 'view'" type="primary" v-permission="dialogType === 'add' ? 'inventory:outbound:create' : 'inventory:outbound:update'" @click="() => handleSubmit()" :loading="submitting">
-            保存
+          <el-button type="primary" v-permission="dialogType === 'add' ? 'inventory:outbound:create' : 'inventory:outbound:update'" @click="() => handleSubmit()" :loading="submitting" :disabled="editLoading">
+            确定
           </el-button>
         </span>
       </template>
@@ -408,50 +364,41 @@
       v-model="viewDialogVisible"
       title="出库单详情"
       mode="view"
-      width="1020px"
+      content-width="wide"
       :detail-navigation="outboundViewNavigation"
     >
-      <div v-loading="viewLoading" class="min-h-form">
+      <div v-loading="viewLoading">
       <el-descriptions :column="2" border>
         <el-descriptions-item label="出库单号">{{ currentOutbound.outboundNo }}</el-descriptions-item>
-        <el-descriptions-item label="出库类型">
-          <el-tag size="small" :type="getOutboundTypeTag(currentOutbound)">
-            {{ getOutboundTypeText(currentOutbound) }}
-          </el-tag>
-        </el-descriptions-item>
         <el-descriptions-item label="出库日期">{{ formatDate(currentOutbound.outboundDate) }}</el-descriptions-item>
+        <el-descriptions-item label="仓库">{{ currentOutbound.locationName || currentOutbound.locationNames || [...new Set((currentOutbound.items || []).map(item => item.locationName).filter(Boolean))].join('、') || '-' }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="getStatusType(currentOutbound.status)">
             {{ getStatusText(currentOutbound.status) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="操作人">{{ currentOutbound.operatorName || currentOutbound.operator
+        <el-descriptions-item label="操作人">{{ currentOutbound.operatorName || currentOutbound.operator || '未知'
           }}</el-descriptions-item>
-        <el-descriptions-item label="生产计划" v-if="currentOutbound.productionTaskCode || currentOutbound.productionPlanCode">
-          {{ currentOutbound.productionTaskCode || currentOutbound.productionPlanCode }} - {{ currentOutbound.productionTaskProductName || currentOutbound.productionPlanName || '' }}
+        <el-descriptions-item label="备注">{{ currentOutbound.remarks || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="出库类型">
+          <el-tag size="small" :type="getOutboundTypeTag(currentOutbound)">{{ getOutboundTypeText(currentOutbound) }}</el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="备注" :span="(currentOutbound.productionTaskCode || currentOutbound.productionPlanCode) ? 1 : 2">
-          {{ currentOutbound.remarks || '无' }}
+        <el-descriptions-item label="关联任务" v-if="currentOutbound.productionTaskCode || currentOutbound.productionPlanCode">
+          {{ currentOutbound.productionTaskCode || currentOutbound.productionPlanCode }} - {{ currentOutbound.productionTaskProductName || currentOutbound.productionPlanName || '' }}
         </el-descriptions-item>
       </el-descriptions>
 
       <el-divider>出库明细</el-divider>
 
       <el-table :data="viewExpandedTableData" border class="w-full detail-table">
-        <el-table-column label="序号" width="55">
-          <template #default="scope">
-            <span v-if="!scope.row.isSubstitute">{{ scope.row.originalIndex + 1 }}</span>
-            <span v-else class="tree-indent">└</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="物料编码" width="110" show-overflow-tooltip>
+        <el-table-column label="物料编码" width="120" show-overflow-tooltip>
           <template #default="scope">
             <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
               {{ scope.row.materialCode }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="物料名称" min-width="120" show-overflow-tooltip>
+        <el-table-column label="物料名称" min-width="150" show-overflow-tooltip>
           <template #default="scope">
             <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
               {{ scope.row.materialName }}
@@ -480,7 +427,10 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="出库库位" width="100" fixed="right">
+        <el-table-column v-if="currentOutbound.status === 'partial_completed'" prop="shortageQuantity" label="缺料数量" width="100" />
+        <el-table-column prop="batchNo" label="批次号" width="150" />
+        <el-table-column prop="remarks" label="备注" min-width="150" />
+        <el-table-column label="仓库" width="100">
           <template #default="scope">
             <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
               {{ scope.row.locationName || '' }}
@@ -499,6 +449,28 @@
         @changed="handleApprovalChanged"
       />
       </div>
+      <template #footer>
+        <el-button v-if="!authStore.canViewInventoryApproval && canResubmitOutbound"
+          v-permission="'inventory:outbound:update'" type="primary"
+          :disabled="viewLoading" :loading="resubmittingOutbound"
+          @click="handleResubmitOutbound('completed')">重新提交审核</el-button>
+        <el-button v-if="['draft', 'confirmed'].includes(currentOutbound.status)" v-permission="'inventory:outbound:update'"
+          :disabled="viewLoading" @click="handleEdit(currentOutbound)">编辑</el-button>
+        <el-popconfirm v-if="currentOutbound.status === 'draft'" title="确定要删除该出库单吗？此操作无法恢复。"
+          confirm-button-type="danger" @confirm="handleDelete(currentOutbound)">
+          <template #reference>
+            <el-button v-permission="'inventory:outbound:delete'" type="danger" :disabled="viewLoading">删除</el-button>
+          </template>
+        </el-popconfirm>
+        <el-button v-if="currentOutbound.status === 'partial_completed'" v-permission="'inventory:outbound:update'"
+          type="warning" :disabled="viewLoading" @click="handleSupplementIssue(currentOutbound)">补发</el-button>
+        <el-button v-if="['completed', 'partial_completed'].includes(currentOutbound.status) && currentOutbound.financeStatus === 'approved'"
+          v-permission="'inventory:outbound:cancel'" type="danger" :disabled="viewLoading"
+          :loading="cancellingOutboundId === currentOutbound.id" @click="handleCancelOutbound(currentOutbound)">申请撤销</el-button>
+        <el-button @click="viewDialogVisible = false">关闭</el-button>
+        <el-button v-permission="'inventory:outbound:view'" type="primary" :disabled="viewLoading || !currentOutbound.id"
+          :loading="printLoading" @click="handlePrint(currentOutbound)">打印</el-button>
+      </template>
     </AppDialog>
 
     <!-- 选择物料对话框 -->
@@ -535,101 +507,6 @@
       </el-table>
         </AppDialog>
 
-    <!-- 打印预览对话框 -->
-    <AppDialog
-      v-model="printDialogVisible"
-      title="打印预览"
-      mode="view"
-      content-width="wide"
-    >
-      <div class="print-preview">
-        <div ref="printContent" class="print-content">
-          <div class="print-header">
-            <h2>出库单</h2>
-            <div class="print-info">
-              <div>单号: {{ printData.outboundNo }}</div>
-              <div>日期: {{ formatDate(printData.outboundDate) }}</div>
-            </div>
-          </div>
-
-          <div class="print-warehouse">
-            <span>出库仓库: {{ printData.locationName || '' }}</span>
-          </div>
-
-          <table class="print-table">
-            <thead>
-              <tr>
-                <th>序号</th>
-                <th>物料编码</th>
-                <th>物料名称</th>
-                <th>规格</th>
-                <th>单位</th>
-                <th>数量</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(item, index) in printExpandedTableData" :key="index"
-                :class="item.isSubstitute ? 'is-substitute' : ''">
-                <td>
-                  <span v-if="!item.isSubstitute">{{ item.originalIndex + 1 }}</span>
-                  <span v-else class="tree-indent">└</span>
-                </td>
-                <td>{{ item.materialCode }}</td>
-                <td>
-                  {{ item.materialName }}
-                  <span v-if="item.isSubstitute" class="is-substitute-sm">[替代]</span>
-                </td>
-                <td>{{ item.specification || '-' }}</td>
-                <td>{{ item.unitName || item.unit || '' }}</td>
-                <td>{{ formatQuantityNumber(item.quantity) }}</td>
-              </tr>
-            </tbody>
-          </table>
-
-          <div class="print-footer">
-            <div>
-              <span>备注: {{ printData.remarks || '无' }}</span>
-            </div>
-            <div class="print-signatures">
-              <div>
-                <span>操作人: {{ printData.operatorName || printData.operator || '' }}</span>
-              </div>
-              <div>
-                <span>签收人: ________________</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="printDialogVisible = false">取消</el-button>
-          <el-button v-permission="'inventory:outbound:view'" type="primary" @click="printOutbound">确认打印</el-button>
-        </span>
-      </template>
-        </AppDialog>
-
-    <!-- 浮动批量操作栏 -->
-    <Transition name="slide-up">
-      <div v-if="selectedOutbounds.length > 0" class="floating-batch-bar">
-        <div class="batch-info">
-          <el-icon><SelectIcon /></el-icon>
-          <span>已选中 <strong>{{ selectedOutbounds.length }}</strong> 个出库单</span>
-        </div>
-        <div class="batch-buttons">
-          <el-button type="primary" v-permission="'inventory:outbound:view'" @click="handleBatchPrint">
-            <el-icon>
-              <Printer />
-            </el-icon> 批量打印
-          </el-button>
-          <el-button @click="clearSelection">
-            <el-icon>
-              <Close />
-            </el-icon> 清空选择
-          </el-button>
-        </div>
-      </div>
-    </Transition>
   </div>
 </template>
 
@@ -638,7 +515,6 @@ import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { ref, reactive, onMounted, computed, nextTick, h } from 'vue'
 import { formatQuantityNumber } from '@/utils/helpers/quantity'
-import { formatOutboundQuantity } from '@/utils/inventory/outboundQuantity'
 const formatUnit = (row) => row?.unitName || row?.unit || ''
 const getTooltipContent = (row, selectedPlan) => {
   const planQty = formatQuantityNumber(selectedPlan?.quantity)
@@ -651,19 +527,12 @@ import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
-import { useTableColumnWidths } from '@/composables/useTableColumnWidths'
 import {
   Search as SearchIcon,
   Plus,
-  Printer,
-  Select as SelectIcon,
   Close,
-  Edit,
-  Delete,
-  RefreshRight,
   Check,
   Finished,
-  RefreshLeft,
 } from '@element-plus/icons-vue'
 import { productionApi, inventoryApi, baseDataApi, systemApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
@@ -680,22 +549,16 @@ import {
 import TableRowActions from '@/components/common/TableRowActions.vue'
 import { useDictionaryStore } from '@/stores/dictionary'
 import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue'
-import { getOutboundDisplayStatus as resolveOutboundDisplayStatus } from '@/utils/inventory/outboundDisplayStatus'
+import { loadLocationOptions } from '@/utils/optionLoaders'
 import { getApiErrorMessage } from '@/utils/errorHandler'
 export default {
   name: 'InventoryOutbound',
   components: {
     SearchIcon,
     Plus,
-    Printer,
-    SelectIcon,
     Close,
-    Edit,
-    Delete,
-    RefreshRight,
     Check,
     Finished,
-    RefreshLeft,
     TableRowActions,
     InventoryApprovalPanel
   },
@@ -725,17 +588,17 @@ export default {
     const currentPage = ref(1)
     const pageSize = ref(getThemeDefaultPageSize(10))
     const total = ref(0) // 确保是数字类型
-    const searchKeyword = ref('')
-
-    const statusFilter = ref('')
-    const productionGroupFilter = ref('')
-    const dateRange = ref([])  // 时间范围
+    const searchForm = reactive({
+      materialName: '', outboundNo: '', locationId: '', dateRange: [], status: '', productionGroupId: ''
+    })
+    const locations = ref([])
     const productionGroupList = ref([])
     const tableHeight = ref('500px')
     const cancellingOutboundId = ref(null)
 
     const statusOptions = computed(() => {
-      const configured = dictionaryStore.getOptions('inbound_outbound_status')
+      const businessStatuses = new Set(['draft', 'confirmed', 'partial_completed', 'completed', 'reversed', 'cancelled'])
+      const configured = dictionaryStore.getOptions('inbound_outbound_status').filter(item => businessStatuses.has(item.value))
       if (configured.length > 0) {
         const values = new Set(configured.map((item) => item.value))
         return [
@@ -752,13 +615,6 @@ export default {
         { value: 'cancelled', label: '已取消' },
       ]
     })
-
-    // 批量选择相关
-    const outboundTableRef = ref(null)
-    const outboundColumnWidths = useTableColumnWidths(outboundTableRef, {
-      status: undefined, type: undefined, operations: 420,
-    })
-    const selectedOutbounds = ref([])
 
     // 对话框控制
     const dialogVisible = ref(false)
@@ -791,8 +647,7 @@ export default {
     const loadingMaterials = ref(false)
 
     // 打印相关
-    const printDialogVisible = ref(false)
-    const printContent = ref(null)
+    const printLoading = ref(false)
     const printData = ref({})
 
     // 下拉选项
@@ -827,11 +682,6 @@ export default {
       if (status === 'reversed') return '已冲销'
       return getInboundOutboundStatusText(status)
     }
-
-    const getOutboundStatusDisplay = (row) => resolveOutboundDisplayStatus(row, (status) => ({
-      text: getStatusText(status),
-      type: getStatusType(status),
-    }))
 
     const outboundTypeAliases = {
       supplement: 'supplement',
@@ -878,43 +728,6 @@ export default {
     const getOutboundTypeTag = (rowOrType) =>
       getInventoryTransactionTypeColor(resolveOutboundTransactionType(rowOrType)) || 'info'
 
-    // 倒计时核心计算（单一职责，消除重复日期计算）
-    const _calcCountdown = (outboundDate, status) => {
-      if (status === 'completed') return { diffDays: null, terminal: 'completed' }
-      if (status === 'reversed') return { diffDays: null, terminal: 'reversed' }
-      if (status === 'cancelled') return { diffDays: null, terminal: 'cancelled' }
-      if (!outboundDate) return { diffDays: null, terminal: 'unset' }
-
-      const today = new Date()
-      const outbound = new Date(outboundDate)
-      today.setHours(0, 0, 0, 0)
-      outbound.setHours(0, 0, 0, 0)
-      return { diffDays: Math.ceil((outbound - today) / (1000 * 60 * 60 * 24)), terminal: null }
-    }
-
-    // 倒计时文本
-    const getCountdownText = (outboundDate, status) => {
-      const { diffDays, terminal } = _calcCountdown(outboundDate, status)
-      if (terminal === 'completed') return '已完成'
-      if (terminal === 'reversed') return '已冲销'
-      if (terminal === 'cancelled') return '已取消'
-      if (terminal === 'unset') return '未设置'
-      if (diffDays < 0) return `逾${Math.abs(diffDays)}天`
-      if (diffDays === 0) return '今天'
-      if (diffDays === 1) return '明天'
-      return `剩${diffDays}天`
-    }
-
-    // 倒计时标签颜色
-    const getCountdownType = (outboundDate, status) => {
-      const { diffDays, terminal } = _calcCountdown(outboundDate, status)
-      if (terminal === 'completed') return 'success'
-      if (terminal === 'reversed' || terminal === 'cancelled' || terminal === 'unset') return 'info'
-      if (diffDays < 0) return 'danger'
-      if (diffDays <= 3) return 'warning'
-      return 'success'
-    }
-
     // 加载生产任务列表
     const loadProductionPlans = async () => {
       try {
@@ -949,7 +762,7 @@ export default {
     const outboundForm = reactive({
       id: null,
       outboundNo: '',
-      outboundDate: new Date(),
+      outboundDate: formatDate(new Date()),
       status: 'draft',
       operator: authStore.realName || '系统用户',  // 使用真实姓名
       remarks: '',
@@ -1069,10 +882,9 @@ export default {
 
     // 重置搜索
     const handleResetSearch = () => {
-      searchKeyword.value = ''
-      statusFilter.value = ''
-      productionGroupFilter.value = ''
-      dateRange.value = []
+      Object.assign(searchForm, {
+        materialName: '', outboundNo: '', locationId: '', dateRange: [], status: '', productionGroupId: ''
+      })
       currentPage.value = 1
       fetchOutboundList()
     }
@@ -1080,6 +892,7 @@ export default {
     // 处理分页大小变化
     const handleSizeChange = (val) => {
       pageSize.value = val
+      currentPage.value = 1
       fetchOutboundList()
     }
 
@@ -1096,15 +909,18 @@ export default {
         const params = {
           page: currentPage.value,
           limit: pageSize.value,
-          search: searchKeyword.value,
-          status: statusFilter.value,
-          productionGroupId: productionGroupFilter.value
+          materialName: searchForm.materialName,
+          outboundNo: searchForm.outboundNo,
+          locationId: searchForm.locationId,
+          status: searchForm.status,
+          statusMode: 'business',
+          productionGroupId: searchForm.productionGroupId
         }
 
         // 添加时间范围参数
-        if (dateRange.value && dateRange.value.length === 2) {
-          params.startDate = dateRange.value[0]
-          params.endDate = dateRange.value[1]
+        if (searchForm.dateRange && searchForm.dateRange.length === 2) {
+          params.startDate = searchForm.dateRange[0]
+          params.endDate = searchForm.dateRange[1]
         }
 
         const res = await inventoryApi.getOutboundList(params)
@@ -1123,6 +939,7 @@ export default {
         // 确保出错时也有默认值
         outboundList.value = []
         total.value = 0
+        updateStats()
       } finally {
         loading.value = false
       }
@@ -1131,10 +948,10 @@ export default {
     // 处理添加
     // 在打开对话框时加载生产计划
     const handleAdd = async () => {
-      await loadProductionPlans() // 加载生产计划列表
       resetForm()                 // 重置表单数据
       dialogType.value = 'add'    // 设置对话框类型为新增
       dialogVisible.value = true  // 显示对话框
+      await loadProductionPlans()
     }
 
     // 查看和打印只展示已落表的真实出库明细
@@ -1144,10 +961,15 @@ export default {
 
     // 处理查看
     const handleView = async (row) => {
+      const id = row.id
       viewDialogVisible.value = true
       viewLoading.value = true
+      if (currentOutbound.id !== id) {
+        Object.keys(currentOutbound).forEach(key => delete currentOutbound[key])
+        currentOutbound.items = []
+      }
       try {
-        const res = await inventoryApi.getOutbound(row.id)
+        const res = await inventoryApi.getOutbound(id)
 
         // 后端使用 ResponseHandler.success 返回，统一由 parser 解包
         const outboundData = parseResponseData(res)
@@ -1187,6 +1009,7 @@ export default {
 
     // 处理编辑
     const handleEdit = (row) => {
+      viewDialogVisible.value = false
       fetchOutboundDetail(row.id, 'edit')
     }
 
@@ -1213,6 +1036,8 @@ export default {
 
     // 处理补发（部分完成的出库单继续发货）
     const handleSupplementIssue = async (row) => {
+      viewDialogVisible.value = false
+      resetForm()
       dialogType.value = 'supplement'
       dialogVisible.value = true
       editLoading.value = true
@@ -1227,6 +1052,7 @@ export default {
         // 检查是否有缺料记录
         if (!outboundData.items || outboundData.items.length === 0) {
           ElMessage.warning('该出库单没有物料信息')
+          dialogVisible.value = false
           return
         }
 
@@ -1238,6 +1064,7 @@ export default {
 
         if (shortageItems.length === 0) {
           ElMessage.warning('该出库单没有缺料，无需补发')
+          dialogVisible.value = false
           return
         }
 
@@ -1245,8 +1072,9 @@ export default {
         Object.assign(outboundForm, {
           id: outboundData.id,
           outboundNo: (outboundData.outboundNo || '') + '-补发',
-          outboundDate: outboundData.outboundDate,
-          productionTaskId: outboundData.productionTaskId,
+          outboundDate: formatDate(outboundData.outboundDate),
+          productionTaskId: outboundData.productionTaskId ?? null,
+          status: outboundData.status,
           remarks: ((outboundData.remarks || '') + ' [补发]').trim(),
           items: shortageItems.map(item => {
             const shortage = parseFloat(item.shortageQuantity)
@@ -1276,6 +1104,7 @@ export default {
       } catch (error) {
         console.error('获取补发信息失败:', error)
         ElMessage.error('获取补发信息失败: ' + (getApiErrorMessage(error, '未知错误')))
+        dialogVisible.value = false
       } finally {
         editLoading.value = false
       }
@@ -1283,6 +1112,7 @@ export default {
 
     // 获取出库单详情（用于编辑）
     const fetchOutboundDetail = async (id, type) => {
+      resetForm()
       dialogType.value = type
       dialogVisible.value = true
       editLoading.value = true
@@ -1295,7 +1125,7 @@ export default {
         Object.assign(outboundForm, {
           id: outboundData.id,
           outboundNo: outboundData.outboundNo ?? '',
-          outboundDate: outboundData.outboundDate ?? new Date(),
+          outboundDate: formatDate(outboundData.outboundDate || new Date()),
           status: outboundData.status || 'draft',
           operator: outboundData.operatorName || outboundData.operator || authStore.realName || '系统用户',
           remarks: outboundData.remarks ?? '',
@@ -1307,6 +1137,7 @@ export default {
             materialName: item.materialName,
             specification: item.specification,
             quantity: item.quantity,
+            plannedQuantity: item.plannedQuantity,
             unitId: item.unitId,
             unitName: item.unitName,
             batchNo: item.batchNo,
@@ -1320,9 +1151,13 @@ export default {
 
         _ensureTaskInOptions(outboundData, 'pending')
 
+        await loadProductionPlans()
+        _ensureTaskInOptions(outboundData, 'pending')
+
       } catch (error) {
         console.error('获取出库单详情失败:', error)
         ElMessage.error('获取出库单详情失败')
+        dialogVisible.value = false
       } finally {
         editLoading.value = false
       }
@@ -1333,7 +1168,8 @@ export default {
       try {
         await inventoryApi.deleteOutbound(row.id)
         ElMessage.success('删除成功')
-        fetchOutboundList()
+        viewDialogVisible.value = false
+        await fetchOutboundList()
       } catch (error) {
         console.error('删除出库单失败:', error)
         ElMessage.error('删除出库单失败')
@@ -1374,33 +1210,34 @@ export default {
             )
           }
         } catch (checkError) {
-          if (checkError === 'cancel') return
+          if (checkError === 'cancel' || checkError === 'close') return
           // 预检失败不阻止流程，继续走后端校验
         }
       }
 
-      ElMessageBox.confirm(`确定要${statusText[newStatus]}此出库单吗?`, '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }).then(async () => {
-        try {
-          await inventoryApi.updateOutboundStatus(row.id, newStatus)
-          ElMessage.success(`${statusText[newStatus]}成功`)
-          fetchOutboundList()
-        } catch (error) {
-          console.error('更新出库单状态失败:', error)
-          // 提取后端返回的详细错误信息
-          const errorMsg = getApiErrorMessage(error, '更新出库单状态失败')
-          ElMessage.error(errorMsg)
-        }
-      }).catch(() => { })
+      try {
+        await inventoryApi.updateOutboundStatus(row.id, newStatus)
+        ElMessage.success(`${statusText[newStatus]}成功`)
+        await handleApprovalChanged()
+      } catch (error) {
+        console.error('更新出库单状态失败:', error)
+        ElMessage.error(getApiErrorMessage(error, '更新出库单状态失败'))
+      }
     }
 
     const inventoryApprovalPanelRef = ref(null)
+    const resubmittingOutbound = ref(false)
+    const canResubmitOutbound = computed(() =>
+      authStore.hasPermission('inventory:outbound:update') &&
+      ['completed', 'partial_completed'].includes(currentOutbound.status) &&
+      currentOutbound.financeStatus === 'rejected'
+    )
 
     const handleResubmitOutbound = async (status) => {
-      if (!currentOutbound.id || !status) return
+      if (!currentOutbound.id || status !== 'completed' || resubmittingOutbound.value ||
+        !authStore.hasPermission('inventory:outbound:update') ||
+        !['completed', 'partial_completed'].includes(currentOutbound.status)) return
+      resubmittingOutbound.value = true
       try {
         await inventoryApi.updateOutboundStatus(currentOutbound.id, status)
         ElMessage.success('已重新提交财务审核')
@@ -1409,6 +1246,8 @@ export default {
         await inventoryApprovalPanelRef.value?.refresh()
       } catch (error) {
         ElMessage.error(getApiErrorMessage(error, '重新提交审核失败'))
+      } finally {
+        resubmittingOutbound.value = false
       }
     }
 
@@ -1419,15 +1258,14 @@ export default {
       }
     }
 
-    // 撤销出库单：若未完成财务审核直接冲回库存并作废；若已完成财务审核提交反审核申请
+    // 已审核出库单通过反审核申请冲销库存。
     const executeCancelOutbound = async (row, force = false) => {
       if (cancellingOutboundId.value !== null) return
       cancellingOutboundId.value = row.id
       try {
-        const res = await inventoryApi.cancelOutbound(row.id, { force })
-        const direct = res?.data?.directCancelled
-        ElMessage.success(direct ? '出库单已成功撤销，实物库存已直接冲回' : '撤销申请已提交，待财务审核通过后冲销库存')
-        await fetchOutboundList()
+        await inventoryApi.cancelOutbound(row.id, { force })
+        ElMessage.success('撤销申请已提交，待财务审核通过后冲销库存')
+        await handleApprovalChanged()
       } catch (error) {
         console.error('撤销失败:', error)
         const errorData = error.response?.data
@@ -1455,18 +1293,15 @@ export default {
     }
 
     const handleCancelOutbound = async (row, force = false) => {
-      const isApproved = row.financeStatus === 'approved'
       const confirmMsg = force
-        ? `出库单 ${row.outboundNo} 关联的生产任务正在进行中，部分物料可能已被消耗。确定要提交强制撤销申请吗？`
-        : isApproved
-          ? `出库单 ${row.outboundNo} 已完成财务审核入账。撤销将提交反审核申请，待财务审核通过后冲回库存并将原单标记为已冲销。确定继续吗？`
-          : `出库单 ${row.outboundNo} 尚未完成财务审核。撤销将直接冲回实物库存并将单据标记为已冲销。确定要撤销吗？`
+          ? `出库单 ${row.outboundNo} 关联的生产任务正在进行中，部分物料可能已被消耗。强制撤销将包含原单及全部补发。确定提交申请吗？`
+          : `出库单 ${row.outboundNo} 将连同全部补发一起撤销。财务审核通过后，已入账库存统一冲回，待审核的补发同时取消，原单标记为已冲销。确定继续吗？`
 
       ElMessageBox.confirm(
         confirmMsg,
         force ? '强制撤销确认' : '撤销出库确认',
         {
-          confirmButtonText: force ? '申请强制撤销' : isApproved ? '提交反审核申请' : '确认撤销出库',
+          confirmButtonText: force ? '申请强制撤销' : '提交反审核申请',
           cancelButtonText: '取消',
           type: force ? 'error' : 'warning',
           dangerouslyUseHTMLString: false
@@ -1726,7 +1561,7 @@ export default {
       Object.assign(outboundForm, {
         id: null,
         outboundNo: '',
-        outboundDate: new Date(),
+        outboundDate: formatDate(new Date()),
         status: 'draft',
         operator: authStore.realName || '系统用户',
         remarks: '',
@@ -1744,6 +1579,8 @@ export default {
     const handleSubmit = async (retryPayload = null) => {
       const isRetry = retryPayload && typeof retryPayload === 'object' && !('target' in retryPayload) && !('isTrusted' in retryPayload);
       const retryData = isRetry ? retryPayload : null;
+
+      if (editLoading.value || (submitting.value && !isRetry)) return
 
       if (!outboundFormRef.value && !retryData) return
 
@@ -1816,7 +1653,7 @@ export default {
         }
 
         dialogVisible.value = false
-        fetchOutboundList()
+        await fetchOutboundList()
         submitting.value = false
       } catch (error) {
         if (error.name === 'ValidationError') {
@@ -1937,12 +1774,21 @@ export default {
     }
 
     // 在页面加载时初始化数据
+    const loadLocations = async () => {
+      try {
+        locations.value = await loadLocationOptions()
+      } catch (error) {
+        locations.value = []
+        ElMessage.error(getApiErrorMessage(error, '加载仓库数据失败'))
+      }
+    }
+
     onMounted(async () => {
       await dictionaryStore.fetchDictionary()
       try {
         await Promise.all([
           fetchOutboundList(),  // 获取出库单列表
-          loadProductionPlans(), // 获取生产计划列表
+          loadLocations(), // 获取仓库列表
           loadProductionGroups() // 获取生产组列表
         ])
       } catch (error) {
@@ -1953,6 +1799,7 @@ export default {
 
     // 处理打印
     const handlePrint = async (row) => {
+      printLoading.value = true
       try {
         const res = await inventoryApi.getOutbound(row.id)
 
@@ -1964,21 +1811,27 @@ export default {
           printData.value.items = await _normalizePersistedOutboundItems(printData.value.items)
         }
 
-        printDialogVisible.value = true
+        await printOutbound()
       } catch (error) {
         console.error('获取出库单详情失败:', error)
         ElMessage.error('获取出库单详情失败')
+      } finally {
+        printLoading.value = false
       }
     }
 
     // 业务侧只传 camel；printService.normalizePrintData 会展开 snake 模板占位
-    const buildProductionOutboundPrintData = (outbound) => ({
+    const buildOutboundPrintData = (outbound) => ({
+      documentNo: outbound.outboundNo || '',
+      date: formatDate(outbound.outboundDate),
       outboundNo: outbound.outboundNo || '',
       outboundDate: formatDate(outbound.outboundDate),
-      outboundTypeText: '生产出库',
+      outboundTypeText: getOutboundTypeText(outbound),
       operator: outbound.operatorName || outbound.operator || '',
+      operatorName: outbound.operatorName || outbound.operator || '',
+      locationName: outbound.locationName || outbound.locationNames || [...new Set((outbound.items || []).map(item => item.locationName).filter(Boolean))].join('、'),
       productionPlanCode: outbound.productionTaskCode || outbound.productionPlanCode || '',
-      status: outbound.status === 'completed' ? '已完成' : (outbound.status || ''),
+      status: getStatusText(outbound.status),
       remarks: outbound.remarks || '无',
       remark: outbound.remarks || '无',
       printTime: new Date().toLocaleString(),
@@ -1992,22 +1845,27 @@ export default {
         actualQuantity: formatQuantityNumber(item.actualQuantity ?? item.quantity),
         shortageQuantity: formatQuantityNumber(item.shortageQuantity),
         quantity: formatQuantityNumber(item.actualQuantity ?? item.quantity),
-        locationName: item.locationName || ''
+        locationName: item.locationName || '',
+        batchNo: item.batchNo || '',
+        remarks: item.remarks || ''
       }))
     })
 
     // 打印出库单
     const printOutbound = async () => {
       try {
+        const transactionType = resolveOutboundTransactionType(printData.value)
+        const templateType = ['production_outbound', 'bom_issue', 'batch_issue', 'supplement'].includes(transactionType)
+          ? 'production_outbound' : 'outbound'
         const htmlContent = await printService.generateByDefaultTemplate(
           'inventory',
-          'production_outbound',
-          buildProductionOutboundPrintData(printData.value)
+          templateType,
+          buildOutboundPrintData(printData.value)
         )
         printService.previewDocument(htmlContent)
       } catch (error) {
-        console.error('打印生产出库单失败:', error)
-        ElMessage.error(getApiErrorMessage(error, '打印生产出库单失败'))
+        console.error('打印出库单失败:', error)
+        ElMessage.error(getApiErrorMessage(error, '打印出库单失败'))
       }
     }
 
@@ -2246,138 +2104,27 @@ export default {
       _buildExpandedItems(currentOutbound.items)
     )
 
-    // 计算属性：打印预览的展开表格数据
-    const printExpandedTableData = computed(() =>
-      _buildExpandedItems(printData.value?.items)
-    )
-
-    // 计算属性：是否有需要替代的物料
-    const hasSubstitutionItems = computed(() => {
-      return false
-    })
-
-    // 计算属性：需要替代的物料列表
-    const substitutionItems = computed(() => {
-      return []
-    })
-
-    // ========== 批量选择相关 ==========
-    const handleSelectionChange = (selection) => {
-      selectedOutbounds.value = selection
-    }
-
-    // 清空选择
-    const clearSelection = () => {
-      if (outboundTableRef.value) {
-        outboundTableRef.value.clearSelection()
-      }
-      selectedOutbounds.value = []
-    }
-
-    // 批量打印
-    const handleBatchPrint = async () => {
-      if (selectedOutbounds.value.length === 0) {
-        ElMessage.warning('请先选择要打印的出库单')
-        return
-      }
-
-      try {
-        ElMessage.info('正在准备打印...')
-
-        // 收集所有出库单的详情
-        const outboundDetails = []
-        for (const outbound of selectedOutbounds.value) {
-          const res = await inventoryApi.getOutbound(outbound.id)
-          outboundDetails.push(res.data)
-        }
-
-        // 合并物料
-        const materialMap = new Map()
-        const outboundNos = []
-
-        for (const detail of outboundDetails) {
-          outboundNos.push(detail.outboundNo)
-
-          if (detail.items && detail.items.length > 0) {
-            for (const item of detail.items) {
-              const key = `${item.materialCode}_${item.materialName}_${item.specification}_${item.unitName}`
-
-              if (materialMap.has(key)) {
-                // 物料已存在，累加数量
-                const existing = materialMap.get(key)
-                existing.quantity = parseFloat(existing.quantity) + parseFloat(item.quantity || 0)
-              } else {
-                // 新物料（纯 camel，供 buildProductionOutboundPrintData 读取）
-                materialMap.set(key, {
-                  materialCode: item.materialCode,
-                  materialName: item.materialName,
-                  specification: item.specification,
-                  unitName: item.unitName,
-                  quantity: parseFloat(item.quantity || 0)
-                })
-              }
-            }
-          }
-        }
-
-        // 转换为数组
-        const mergedItems = Array.from(materialMap.values())
-
-        // 创建合并后的出库单数据（纯 camel）
-        const mergedOutbound = {
-          outboundNo: outboundNos.join(', '),
-          outboundDate: outboundDetails[0].outboundDate,
-          operatorName: outboundDetails[0].operatorName || outboundDetails[0].operator,
-          remarks: `批量打印 (${selectedOutbounds.value.length}个出库单)`,
-          items: mergedItems
-        }
-
-        const htmlContent = await printService.generateByDefaultTemplate(
-          'inventory',
-          'production_outbound',
-          buildProductionOutboundPrintData(mergedOutbound)
-        )
-
-        // 打开打印窗口
-        printService.previewDocument(htmlContent)
-
-        ElMessage.success('打印准备完成')
-      } catch (error) {
-        console.error('批量打印失败:', error)
-        ElMessage.error('批量打印失败')
-      }
-    }
-
     return {
       PAGE_SIZE_OPTIONS,
       formatUnit,
       formatQuantityNumber,
-      formatOutboundQuantity,
       getTooltipContent,
       handleTableRowView,
       // 图标组件
       SearchIcon,
       Plus,
-      Printer,
-      SelectIcon,
       Close,
-      Edit,
-      Delete,
-      RefreshRight,
       Check,
       Finished,
-      RefreshLeft,
       // 数据
       outboundList,
       loading,
       currentPage,
       pageSize,
       total,
-      searchKeyword,
-      statusFilter,
+      searchForm,
+      locations,
       statusOptions,
-      productionGroupFilter,
-      dateRange,
       productionGroupList,
       dialogVisible,
       dialogType,
@@ -2395,8 +2142,7 @@ export default {
       materialSearchKeyword,
       materialList,
       loadingMaterials,
-      printDialogVisible,
-      printContent,
+      printLoading,
       printData,
       handleSearch,
       handleResetSearch,
@@ -2420,11 +2166,8 @@ export default {
       formatDate,
       getStatusType,
       getStatusText,
-      getOutboundStatusDisplay,
       getOutboundTypeText,
       getOutboundTypeTag,
-      getCountdownText,
-      getCountdownType,
       tableHeight,
       handleProductionPlanChange,
       outboundStats,
@@ -2438,21 +2181,13 @@ export default {
       handleQuantityEnter,
       validateOutboundQuantity,
       updateStats,
-      hasSubstitutionItems,
-      substitutionItems,
       expandedTableData,
       viewExpandedTableData,
-      printExpandedTableData,
-      // 批量选择相关
-      outboundTableRef,
-      outboundColumnWidths,
-      selectedOutbounds,
-      handleSelectionChange,
-      clearSelection,
-      handleBatchPrint,
       cancellingOutboundId,
       authStore,
       inventoryApprovalPanelRef,
+      canResubmitOutbound,
+      resubmittingOutbound,
       handleResubmitOutbound,
       handleApprovalChanged
     }
@@ -2461,75 +2196,14 @@ export default {
 </script>
 
 <style scoped>
-.header-card {
-  margin-bottom: 20px;
-}
-
-.title-section h2 {
-  margin: 0 0 5px 0;
-  font-size: 20px;
-  color: var(--color-text-primary);
-}
-
-.subtitle {
-  margin: 0;
-  font-size: 14px;
-  color: var(--color-text-secondary);
-}
-
-.search-form {
+.outbound-extra-stats {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
 }
 
 .material-search {
-  margin-bottom: 15px;
-}
-
-.print-preview {
-  padding: 20px;
-}
-
-.print-content {
-  max-height: 400px;
-  overflow-y: auto;
-}
-
-.print-header {
-  margin-bottom: var(--spacing-lg);
-  text-align: center;
-}
-
-.print-info {
-  display: flex;
-  justify-content: space-between;
-}
-
-.print-warehouse {
-  margin-bottom: var(--spacing-lg);
-  text-align: center;
-}
-
-.print-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.print-table th,
-.print-table td {
-  padding: 8px;
-  text-align: left;
-}
-
-.print-footer {
-  margin-top: var(--spacing-lg);
-  text-align: right;
-}
-
-.print-signatures {
-  display: flex;
-  justify-content: space-between;
+  margin-bottom: var(--spacing-md);
 }
 
 .form-tip {

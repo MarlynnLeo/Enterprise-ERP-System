@@ -65,7 +65,7 @@ module.exports = {
     }
 
     const [outboundRows] = await connection.execute(
-      `SELECT DISTINCT io.outbound_no
+      `SELECT DISTINCT io.id, io.outbound_no
          FROM inventory_outbound io
         WHERE io.deleted_at IS NULL
           AND io.status IN ('completed', 'partial_completed')
@@ -79,7 +79,7 @@ module.exports = {
               AND JSON_CONTAINS(io.source_task_ids, CAST(? AS JSON))
             )
           )
-        ORDER BY io.outbound_no`,
+        ORDER BY io.outbound_no FOR UPDATE`,
       [productionOrderId, productionOrderId, planId, planId, String(productionOrderId)]
     );
 
@@ -90,9 +90,48 @@ module.exports = {
       });
     }
 
+    // Supplements advance the parent item's actual_quantity, which is already
+    // included by collectTaskMaterialMovements. Each supplement has its own
+    // frozen posting and must be approved before that cumulative cost enters GL.
+    // Keep the parent rows locked while checking so a concurrent supplement
+    // cannot change the cost quantity after this approval gate has passed.
+    const supplementRows = outboundRows.length
+      ? (
+          await connection.execute(
+            `SELECT pd.id, pd.source_no
+             FROM inventory_posting_documents pd
+             JOIN inventory_outbound io ON (
+               pd.source_id = io.id OR
+               (pd.source_id IS NULL AND pd.source_no = CONCAT(io.outbound_no, '-补发') COLLATE utf8mb4_unicode_ci)
+             )
+            WHERE pd.source_type = 'outbound_supplement'
+              AND pd.posting_kind = 'movement'
+              AND io.id IN (${outboundRows.map(() => '?').join(',')})
+              AND NOT EXISTS (
+                SELECT 1 FROM inventory_posting_documents newer
+                 WHERE newer.source_type = pd.source_type
+                   AND newer.source_no = pd.source_no
+                   AND newer.posting_kind = pd.posting_kind
+                   AND (newer.posting_sequence > pd.posting_sequence
+                     OR (newer.posting_sequence = pd.posting_sequence AND newer.id > pd.id))
+              )
+            ORDER BY pd.id FOR UPDATE`,
+            outboundRows.map((row) => row.id)
+          )
+        )[0]
+      : [];
+    for (const row of supplementRows) {
+      await InventoryPostingService.requireApprovedForTransaction(connection, {
+        posting_document_id: row.id,
+        reference_type: 'outbound_supplement',
+        reference_no: row.source_no,
+      });
+    }
+
     return {
       inboundNos: rows.map((row) => row.inbound_no),
       outboundNos: outboundRows.map((row) => row.outbound_no),
+      supplementNos: supplementRows.map((row) => row.source_no),
     };
   },
 

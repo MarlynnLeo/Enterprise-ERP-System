@@ -64,6 +64,9 @@ const inventoryInboundMap = {
       referenceType: row.reference_type ?? null,
       referenceId: row.reference_id ?? null,
       referenceNo: row.reference_no ?? null,
+      inspectionId: row.inspection_id ?? null,
+      inspectionNo: row.inspection_no ?? null,
+      financeStatus: row.finance_status ?? null,
       createdBy: row.created_by ?? null,
       createdAt: formatDate(row.created_at),
       updatedAt: formatDate(row.updated_at),
@@ -77,7 +80,7 @@ const inventoryInboundMap = {
     const inboundDateRaw = body.inboundDate ?? body.inbound_date;
     const locationRaw = body.locationId ?? body.location_id;
     const warehouseRaw = body.warehouseId ?? body.warehouse_id;
-    const referenceIdRaw = body.referenceId ?? body.reference_id;
+    const referenceIdRaw = body.referenceId !== undefined ? body.referenceId : body.reference_id;
     const row = {
       id: body.id,
       inbound_no: body.inboundNo ?? body.inbound_no,
@@ -88,9 +91,14 @@ const inventoryInboundMap = {
       warehouse_id: warehouseRaw != null ? toNumber(warehouseRaw, warehouseRaw) : undefined,
       operator: body.operator,
       remark: body.remarks ?? body.remark,
-      reference_type: body.referenceType ?? body.reference_type,
-      reference_id: referenceIdRaw != null ? toNumber(referenceIdRaw, referenceIdRaw) : undefined,
-      reference_no: body.referenceNo ?? body.reference_no,
+      reference_type: body.referenceType !== undefined ? body.referenceType : body.reference_type,
+      reference_id:
+        referenceIdRaw === null
+          ? null
+          : referenceIdRaw != null
+            ? toNumber(referenceIdRaw, referenceIdRaw)
+            : undefined,
+      reference_no: body.referenceNo !== undefined ? body.referenceNo : body.reference_no,
       created_by: body.createdBy ?? body.created_by,
     };
     if (Array.isArray(body.items)) {

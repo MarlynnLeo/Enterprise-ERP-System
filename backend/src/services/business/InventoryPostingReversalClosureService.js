@@ -247,11 +247,16 @@ class InventoryPostingReversalClosureService {
     // 撤销操作仅冲销库存与回滚状态，不自动生成重发草稿
     const reissueOutbound = null;
 
-    const financeReversal = await this.reverseOutboundGLEntries(
-      connection,
-      outbound.outbound_no,
-      actor.label || 'system'
-    );
+    const sourceNos = context.outboundPostingGroup?.sourceNos || [outbound.outbound_no];
+    const financeReversal = { reversedCount: 0, errors: [] };
+    for (const sourceNo of [...new Set(sourceNos)]) {
+      const result = await this.reverseOutboundGLEntries(
+        connection,
+        sourceNo,
+        actor.label || 'system'
+      );
+      financeReversal.reversedCount += result.reversedCount;
+    }
     return {
       sourceType: context.sourceType,
       sourceId: outbound.id,
@@ -276,6 +281,7 @@ class InventoryPostingReversalClosureService {
 
     // 当前业务单据是来源关系的依据，不能用旧申请中的来源覆盖当前记录。
     const taskIds = this.resolveTaskIds(outbound, {});
+    const returnTaskIds = new Set(taskIds);
     if (outbound.reference_type === 'batch_production_tasks' && !taskIds.length) {
       fail('批量发料单缺少来源生产任务，无法安全撤销');
     }
@@ -303,7 +309,11 @@ class InventoryPostingReversalClosureService {
         [outbound.reference_id]
       );
       sources.push(...planTasks);
+      for (const task of planTasks) returnTaskIds.add(Number(task.id));
     }
+    await require('./ProductionReturnReversalGuard').assertReversalAllowed(connection, [
+      ...returnTaskIds,
+    ]);
     const prohibitedStatuses = [
       'inspection',
       'quality_passed',
@@ -349,7 +359,12 @@ class InventoryPostingReversalClosureService {
     const [entries] = await connection.execute(
       `SELECT id
          FROM gl_entries
-        WHERE document_number = ?
+        WHERE (document_number = ? OR document_number IN (
+          SELECT LEFT(CONCAT(pd.source_no, '-M', pl.material_id, '-L', pl.id), 50)
+            FROM inventory_posting_documents pd
+            JOIN inventory_posting_lines pl ON pl.posting_document_id = pd.id
+           WHERE pd.source_no = ? AND pd.posting_kind = 'movement'
+        ))
           AND COALESCE(is_posted, 0) = 1
           AND COALESCE(is_reversed, 0) = 0
           AND NOT EXISTS (
@@ -358,7 +373,7 @@ class InventoryPostingReversalClosureService {
           )
         ORDER BY id ASC
         FOR UPDATE`,
-      [outboundNo]
+      [outboundNo, outboundNo]
     );
     if (!entries.length) {
       throw new Error(`出库单 ${outboundNo} 没有可冲销的有效财务凭证，已阻止反审核`);

@@ -272,6 +272,15 @@
             >
               指导书
             </el-button>
+            <el-button
+              size="small"
+              type="danger"
+              plain
+              @click="router.push({ path: '/production/anomaly', query: { taskId: scope.row.id } })"
+              v-permission="'production:anomaly:create'"
+            >
+              上报异常
+            </el-button>
           </template>
         </el-table-column>
       </el-table>

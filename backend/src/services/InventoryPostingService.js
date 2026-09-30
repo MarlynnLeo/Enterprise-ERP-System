@@ -130,6 +130,9 @@ class InventoryPostingService {
   static async stageMovement(connection, input, lines) {
     if (!connection) throw new Error('stageMovement必须在数据库事务中调用');
     if (!Array.isArray(lines) || !lines.length) throw serviceError('库存过账没有可冻结的明细');
+    if (!input.postingKind || input.postingKind === POSTING_KIND.MOVEMENT) {
+      await require('./business/OutboundPostingGroupService').assertWritable(connection, input);
+    }
 
     const document = await this._getOrCreateDocument(connection, input);
     if (
@@ -345,13 +348,20 @@ class InventoryPostingService {
                   AND legacy_purchase_line.transaction_type = 'purchase_inbound'
              )
            ))`
-        : 'd.source_type = ?';
+        : normalizedType === 'outbound'
+          ? "d.source_type IN (?, 'outbound_supplement')"
+          : 'd.source_type = ?';
     const conditions = [sourceTypeCondition];
     const params = [normalizedType];
     if (Number.isInteger(normalizedId) && normalizedId > 0) {
       if (normalizedNo) {
-        conditions.push('(d.source_id = ? OR (d.source_id IS NULL AND d.source_no = ?))');
+        conditions.push(
+          normalizedType === 'outbound'
+            ? "(d.source_id = ? OR (d.source_id IS NULL AND (d.source_no = ? OR (d.source_type = 'outbound_supplement' AND d.source_no = CONCAT(?, '-补发')))))"
+            : '(d.source_id = ? OR (d.source_id IS NULL AND d.source_no = ?))'
+        );
         params.push(normalizedId, normalizedNo);
+        if (normalizedType === 'outbound') params.push(normalizedNo);
       } else {
         conditions.push('d.source_id = ?');
         params.push(normalizedId);
@@ -392,7 +402,9 @@ class InventoryPostingService {
     );
 
     const movement =
-      documents.find((document) => document.posting_kind === POSTING_KIND.MOVEMENT) || null;
+      normalizedType === 'outbound'
+        ? require('./business/OutboundPostingGroupService').selectCurrent(documents)
+        : documents.find((document) => document.posting_kind === POSTING_KIND.MOVEMENT) || null;
     const reversal =
       documents.find((document) => document.posting_kind === POSTING_KIND.REVERSAL) || null;
     const current =
@@ -638,17 +650,38 @@ class InventoryPostingService {
     return results;
   }
 
+  static async _lockDocumentForAction(connection, id) {
+    // Source identifiers are immutable after insertion. Read them without a row
+    // lock first so outbound actions consistently acquire parent -> posting,
+    // matching supplement/status transactions that already hold the parent.
+    const [[source]] = await connection.execute(
+      'SELECT source_type, source_id, source_no FROM inventory_posting_documents WHERE id = ?',
+      [id]
+    );
+    if (!source) throw serviceError('库存过账单不存在', 404, 'NOT_FOUND');
+    await require('./business/OutboundPostingGroupService').lockSource(connection, source);
+    const [[document]] = await connection.execute(
+      'SELECT * FROM inventory_posting_documents WHERE id = ? FOR UPDATE',
+      [id]
+    );
+    if (!document) throw serviceError('库存过账单不存在', 404, 'NOT_FOUND');
+    if (
+      ['source_type', 'source_id', 'source_no'].some(
+        (key) => String(source[key] ?? '') !== String(document[key] ?? '')
+      )
+    ) {
+      throw serviceError('库存过账来源已变化，请刷新后重试', 409, 'POSTING_SOURCE_CHANGED');
+    }
+    return document;
+  }
+
   static async approve(id, actor, connection) {
     const ownsConnection = !connection;
     const conn = connection || (await db.getConnection());
     const normalizedActor = actorFrom(actor);
     try {
       if (ownsConnection) await conn.beginTransaction();
-      const [[document]] = await conn.execute(
-        'SELECT * FROM inventory_posting_documents WHERE id = ? FOR UPDATE',
-        [id]
-      );
-      if (!document) throw serviceError('库存过账单不存在', 404, 'NOT_FOUND');
+      const document = await this._lockDocumentForAction(conn, id);
       if (document.finance_status !== STATUS.PENDING) {
         throw serviceError(
           `当前状态 ${document.finance_status} 不允许财务审核`,
@@ -697,7 +730,17 @@ class InventoryPostingService {
           }
         }
       } else {
+        await require('./business/OutboundPostingGroupService').assertWritable(conn, document);
         this._assertActorCanApprove(document, normalizedActor);
+      }
+      if (reversalContext.outboundPostingGroup) {
+        await require('./business/OutboundPostingGroupService').validateReversal(
+          conn,
+          reversalContext.outboundPostingGroup,
+          document,
+          normalizedActor,
+          this
+        );
       }
       const [lines] = await conn.execute(
         'SELECT * FROM inventory_posting_lines WHERE posting_document_id = ? ORDER BY line_no FOR UPDATE',
@@ -731,6 +774,15 @@ class InventoryPostingService {
         );
         if (!originalUpdate.affectedRows) {
           throw serviceError('原始库存过账单已被处理，无法完成反审核', 409, 'CONCURRENT_UPDATE');
+        }
+        if (reversalContext.outboundPostingGroup) {
+          await require('./business/OutboundPostingGroupService').finishReversal(
+            conn,
+            reversalContext.outboundPostingGroup,
+            original.id,
+            normalizedActor,
+            id
+          );
         }
 
         const InventoryPostingReversalClosureService = require('./business/InventoryPostingReversalClosureService');
@@ -841,13 +893,12 @@ class InventoryPostingService {
     const normalizedActor = actorFrom(actor);
     try {
       if (ownsConnection) await conn.beginTransaction();
-      const [[document]] = await conn.execute(
-        'SELECT * FROM inventory_posting_documents WHERE id = ? FOR UPDATE',
-        [id]
-      );
-      if (!document) throw serviceError('库存过账单不存在', 404, 'NOT_FOUND');
+      const document = await this._lockDocumentForAction(conn, id);
       if (document.finance_status !== STATUS.PENDING)
         throw serviceError('当前状态不能驳回', 409, 'INVALID_STATUS');
+      if (document.posting_kind === POSTING_KIND.MOVEMENT) {
+        await require('./business/OutboundPostingGroupService').assertWritable(conn, document);
+      }
       this._assertActorCanApprove(document, normalizedActor);
       await conn.execute(
         `UPDATE inventory_posting_documents
@@ -908,11 +959,7 @@ class InventoryPostingService {
     const requestContext = context && typeof context === 'object' ? context : {};
     try {
       if (ownsConnection) await conn.beginTransaction();
-      const [[original]] = await conn.execute(
-        'SELECT * FROM inventory_posting_documents WHERE id = ? FOR UPDATE',
-        [id]
-      );
-      if (!original) throw serviceError('库存过账单不存在', 404, 'NOT_FOUND');
+      const original = await this._lockDocumentForAction(conn, id);
       if (original.posting_kind !== POSTING_KIND.MOVEMENT) {
         throw serviceError('只能对正式库存过账单发起反审核申请', 409, 'INVALID_POSTING_KIND');
       }
@@ -923,6 +970,14 @@ class InventoryPostingService {
         throw serviceError('只有已财务审核并正式过账的单据才能申请反审核', 409, 'INVALID_STATUS');
       }
       this._assertActorCanApprove(original, normalizedActor);
+      const outboundPostingGroup =
+        await require('./business/OutboundPostingGroupService').prepareReversal(
+          conn,
+          original,
+          normalizedActor,
+          requestContext,
+          this
+        );
 
       const [[existing]] = await conn.execute(
         `SELECT id, posting_no, finance_status
@@ -943,23 +998,33 @@ class InventoryPostingService {
         );
       }
 
+      const sourcePostingIds = outboundPostingGroup?.approvedIds || [Number(id)];
       const [sourceLines] = await conn.execute(
         `SELECT pl.*, il.id AS ledger_id
            FROM inventory_posting_lines pl
            JOIN inventory_ledger il ON il.posting_line_id = pl.id
-          WHERE pl.posting_document_id = ?
+          WHERE pl.posting_document_id IN (${sourcePostingIds.map(() => '?').join(',')})
           ORDER BY pl.line_no
           FOR UPDATE`,
-        [id]
+        sourcePostingIds
       );
       if (!sourceLines.length) {
         throw serviceError('找不到原过账台账，无法申请反审核', 409, 'LEDGER_NOT_FOUND');
       }
+      if (
+        outboundPostingGroup &&
+        sourcePostingIds.some(
+          (postingId) => !sourceLines.some((line) => Number(line.posting_document_id) === postingId)
+        )
+      ) {
+        throw serviceError('部分补发缺少原过账台账，无法整单撤销', 409, 'LEDGER_NOT_FOUND');
+      }
 
       const reversalSourceNo = this._buildReversalSourceNo(original.source_no, id);
       const reversal = await this._getOrCreateDocument(conn, {
-        sourceType: original.source_type,
-        sourceId: original.source_id || requestContext.sourceId || null,
+        sourceType: outboundPostingGroup ? 'outbound' : original.source_type,
+        sourceId:
+          outboundPostingGroup?.sourceId || original.source_id || requestContext.sourceId || null,
         sourceNo: reversalSourceNo,
         postingKind: POSTING_KIND.REVERSAL,
         originalPostingDocumentId: id,
@@ -976,7 +1041,7 @@ class InventoryPostingService {
         locationId: line.location_id,
         transactionType: `${line.transaction_type}_cancel`.slice(0, 50),
         referenceType: `${line.reference_type}_reversal`.slice(0, 64),
-        referenceNo: original.source_no,
+        referenceNo: line.reference_no || original.source_no,
         signedQuantity: -Number(line.signed_quantity),
         unitId: line.unit_id,
         batchNumber: line.batch_number,
@@ -1024,6 +1089,14 @@ class InventoryPostingService {
             sourceType: original.source_type,
             sourceId: requestContext.sourceId || original.source_id || null,
             sourceNo: original.source_no,
+            ...(outboundPostingGroup
+              ? {
+                  sourceType: 'outbound',
+                  sourceId: outboundPostingGroup.sourceId,
+                  sourceNo: outboundPostingGroup.sourceNo,
+                  outboundPostingGroup,
+                }
+              : {}),
             requestedById: normalizedActor.id,
             requestedBy: normalizedActor.label,
           }),
@@ -1048,7 +1121,9 @@ class InventoryPostingService {
 
   // Keep the public legacy method, but make it an approval-gated request.
   static async reverse(id, actor, remark = '', connection) {
-    return this.requestReversal(id, actor, remark, {}, connection);
+    // Public reversal of a supplement always means reversing the complete parent
+    // outbound group; the request builder derives membership from persisted data.
+    return this.requestReversal(id, actor, remark, { outboundGroupRequest: true }, connection);
   }
 
   static actorFromRequest(req) {

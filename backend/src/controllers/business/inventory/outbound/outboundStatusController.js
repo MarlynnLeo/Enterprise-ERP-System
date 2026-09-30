@@ -132,17 +132,14 @@ const updateOutboundStatus = async (req, res) => {
       newStatus === STATUS.OUTBOUND.COMPLETED &&
       ['completed', 'partial_completed'].includes(currentStatus)
     ) {
-      const [latestPostingRows] = await connection.execute(
-        `SELECT finance_status
-           FROM inventory_posting_documents
-          WHERE source_type = 'outbound'
-            AND (source_id = ? OR (source_id IS NULL AND source_no = ?))
-            AND posting_kind = 'movement'
-          ORDER BY posting_sequence DESC, id DESC
-          LIMIT 1`,
-        [Number(id), checkResult[0].outbound_no || '']
-      );
-      canRetryRejectedPosting = latestPostingRows[0]?.finance_status === 'rejected';
+      const groups = require('../../../../services/business/OutboundPostingGroupService');
+      const documents = await groups.load(connection, {
+        id: Number(id),
+        outbound_no: checkResult[0].outbound_no,
+      });
+      canRetryRejectedPosting = groups
+        .latestMovements(documents)
+        .some((document) => document.finance_status === 'rejected');
     }
     let referenceId = checkResult[0].reference_id;
     let referenceType = checkResult[0].reference_type;
@@ -181,6 +178,20 @@ const updateOutboundStatus = async (req, res) => {
     if (!sourceAuthorized) {
       await connection.rollback();
       return ResponseHandler.forbidden(res, '无权变更该出库单关联的来源单据');
+    }
+
+    if (canRetryRejectedPosting) {
+      const InventoryPostingService = require('../../../../services/InventoryPostingService');
+      const resubmissions =
+        await require('../../../../services/business/OutboundPostingGroupService').resubmit(
+          connection,
+          {
+            outbound: { id: Number(id), outbound_no: checkResult[0].outbound_no },
+            actor: InventoryPostingService.actorFromRequest(req),
+          }
+        );
+      await connection.commit();
+      return ResponseHandler.success(res, { resubmissions }, '已重新提交出库及补发财务审核');
     }
 
     // 验证状态转换的合法性（引用统一状态注册表）
@@ -1242,30 +1253,29 @@ const cancelOutbound = async (req, res) => {
     );
 
     const InventoryPostingService = require('../../../../services/InventoryPostingService');
-    const posting = await InventoryPostingService.requireApprovedForTransaction(connection, {
-      reference_no: outbound_no,
-      reference_type: 'outbound',
-    });
     const requestActor = InventoryPostingService.actorFromRequest(req);
-    const reversal = await InventoryPostingService.requestReversal(
-      posting.id,
-      requestActor,
-      `撤销出库单 ${outbound_no}`,
-      {
-        force: force === true,
-        createReissue: false,
-        sourceType: 'outbound',
-        sourceId: numericId,
-        sourceNo: outbound_no,
-        referenceType: reference_type,
-        referenceId: reference_id,
-        productionTaskId: outbound.production_task_id,
-        sourceTaskIds: batchTaskIds,
-        isBatchOutbound: outbound.is_batch_outbound,
-        outboundType: outbound.outbound_type,
-      },
-      connection
-    );
+    const reversal =
+      await require('../../../../services/business/OutboundPostingGroupService').requestReversal(
+        connection,
+        {
+          outbound: { ...outbound, id: numericId, outbound_no },
+          actor: requestActor,
+          remark: `撤销出库单 ${outbound_no} 及全部补发`,
+          context: {
+            force: force === true,
+            createReissue: false,
+            sourceType: 'outbound',
+            sourceId: numericId,
+            sourceNo: outbound_no,
+            referenceType: reference_type,
+            referenceId: reference_id,
+            productionTaskId: outbound.production_task_id,
+            sourceTaskIds: batchTaskIds,
+            isBatchOutbound: outbound.is_batch_outbound,
+            outboundType: outbound.outbound_type,
+          },
+        }
+      );
     if (reversal?.reversalDocumentId) {
       await connection.commit();
       return ResponseHandler.success(
@@ -1286,8 +1296,8 @@ const cancelOutbound = async (req, res) => {
     return ResponseHandler.error(
       res,
       error.message || '撤销出库失败',
-      error.code || 'SERVER_ERROR',
-      error.statusCode || 500,
+      error.errorCode || error.code || 'SERVER_ERROR',
+      error.httpStatus || error.statusCode || 500,
       error
     );
   } finally {

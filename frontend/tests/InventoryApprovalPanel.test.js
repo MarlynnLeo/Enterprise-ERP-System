@@ -7,7 +7,11 @@ const mocks = vi.hoisted(() => ({
   getBySource: vi.fn(), approve: vi.fn(), reject: vi.fn(), reverse: vi.fn(),
   confirm: vi.fn(), prompt: vi.fn(), warning: vi.fn(), success: vi.fn(), error: vi.fn(),
 }))
-const auth = reactive({ user: null, canViewInventoryApproval: true, canApproveInventoryApproval: true, canReverseInventoryApproval: false })
+const auth = reactive({
+  user: null, canViewInventoryApproval: true, canApproveInventoryApproval: true, canReverseInventoryApproval: false,
+  permissions: [],
+  hasPermission: (permission) => auth.permissions.includes(permission),
+})
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => auth }))
 vi.mock('@/api/finance', () => ({ financeApi: { inventoryPostings: mocks } }))
 vi.mock('element-plus/es/components/message/index', () => ({ ElMessage: mocks }))
@@ -26,6 +30,7 @@ beforeEach(() => {
   Object.assign(auth, {
     user: { id: 7, realName: '财务审核员', username: 'finance-reviewer' },
     canViewInventoryApproval: true, canApproveInventoryApproval: true, canReverseInventoryApproval: false,
+    permissions: ['inventory:outbound:update'],
   })
   payload = {
     movement: { id: 101, financeStatus: 'pending', businessApprovedById: 2, businessApprovedBy: '业务审核员', postingNo: 'POST-101' },
@@ -150,7 +155,27 @@ describe('inventory finance approval panel visibility', () => {
     expect(reviewButtons()).toHaveLength(0)
   })
 
+  test('can reverse the approved parent together with its pending supplement', async () => {
+    auth.canApproveInventoryApproval = false
+    auth.canReverseInventoryApproval = true
+    payload.movement = { id: 102, sourceType: 'outbound_supplement', sourceNo: 'OUT-101-S1', financeStatus: 'pending' }
+    payload.postings = [
+      { id: 101, sourceType: 'outbound', sourceNo: 'OUT-101', postingKind: 'movement', postingSequence: 1, financeStatus: 'approved' },
+      { ...payload.movement, postingKind: 'movement', postingSequence: 1 },
+    ]
+    mocks.reverse.mockResolvedValue({})
+    await openPanel()
+    expect(wrapper.text()).toContain('补发单号：OUT-101-S1')
+    const button = wrapper.findAll('button').find(button => button.text() === '申请反审核')
+    expect(button).toBeDefined()
+    await button.trigger('click')
+    await flushPromises()
+    expect(mocks.prompt).toHaveBeenCalledWith(expect.stringContaining('原出库单及全部补发'), '申请反审核', expect.any(Object))
+    expect(mocks.reverse).toHaveBeenCalledWith(101, { remark: '退回核实' })
+  })
+
   test('keeps resubmission available when the document permits it', async () => {
+    auth.canApproveInventoryApproval = false
     payload.movement.financeStatus = 'rejected'
     await openPanel({ resubmitStatus: 'completed' })
     expect(wrapper.get('.approval-panel__title').text()).toBe('财务审核')
@@ -158,6 +183,25 @@ describe('inventory finance approval panel visibility', () => {
     const resubmit = wrapper.findAll('button').find(button => button.text() === '重新提交审核')
     await resubmit.trigger('click')
     expect(wrapper.emitted('resubmit')).toEqual([['completed']])
+  })
+
+  test.each(['inbound', 'outbound'])('requires the %s business update permission for resubmission', async (sourceType) => {
+    payload.movement.financeStatus = 'rejected'
+    auth.permissions = ['finance:inventory:approve']
+    await openPanel({ sourceType, resubmitStatus: 'completed' })
+    expectApprovalHidden()
+
+    auth.permissions = [`inventory:${sourceType}:update`]
+    auth.canApproveInventoryApproval = false
+    await nextTick()
+    const button = wrapper.findAll('button').find(button => button.text() === '重新提交审核')
+    expect(button).toBeDefined()
+    await button.trigger('click')
+    expect(wrapper.emitted('resubmit')).toEqual([['completed']])
+
+    auth.permissions = []
+    await nextTick()
+    expectApprovalHidden()
   })
 
   test('keeps the eligible panel in place while refreshing its status', async () => {

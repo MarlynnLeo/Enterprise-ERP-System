@@ -100,7 +100,10 @@
         <el-descriptions-item label="附件" :span="2">
           <template v-if="viewData.attachments && viewData.attachments.length">
             <div v-for="(file, index) in viewData.attachments" :key="index" class="mb-xs">
-              <el-link type="primary" :href="file.url || file.filePath" target="_blank" :underline="false">
+              <el-link v-if="isImageAttachment(file)" type="primary" :underline="false" @click="previewImage(file)">
+                <el-icon class="mr-sm"><Document /></el-icon>{{ file.fileName || file.name || '附件' + (index + 1) }}
+              </el-link>
+              <el-link v-else type="primary" :href="file.url || file.filePath" target="_blank" :underline="false">
                 <el-icon class="mr-sm"><Document /></el-icon>{{ file.fileName || file.name || '附件' + (index + 1) }}
               </el-link>
             </div>
@@ -113,15 +116,23 @@
       <el-button @click="emit('update:modelValue', false)">关闭</el-button>
     </template>
   </AppDialog>
+  <AppDialog v-model="imagePreviewVisible" mode="preview" :title="imagePreviewTitle" width="min(900px, 90vw)">
+    <div class="material-image-preview">
+      <el-image :src="imagePreviewUrl" fit="contain">
+        <template #error><span class="text-muted">图片加载失败，请关闭后重试</span></template>
+      </el-image>
+    </div>
+  </AppDialog>
 </template>
 
 <script setup>
+import { ref, watch } from 'vue'
 import { formatCurrency, formatDate } from '@/utils/format'
 import { formatMaskedPrice } from '@/utils/priceVisibility'
 import { Document } from '@element-plus/icons-vue'
 import { getMaterialTypeLabel } from '@/utils/materialTypes'
 
-defineProps({
+const props = defineProps({
   modelValue: Boolean,
   viewData: Object,
   canViewCost: { type: Boolean, default: false },
@@ -130,6 +141,20 @@ defineProps({
   detailNavigation: { type: Object, default: null }
 })
 const emit = defineEmits(['update:modelValue', 'locate'])
+const imagePreviewVisible = ref(false)
+const imagePreviewUrl = ref('')
+const imagePreviewTitle = ref('图片预览')
+const isImageAttachment = file => {
+  const type = file.fileType || file.type || ''
+  const name = file.fileName || file.name || file.url || file.filePath || ''
+  return type.startsWith('image/') || /\.(jpe?g|png|gif|webp|bmp|svg|avif)(?:[?#].*)?$/i.test(name)
+}
+const previewImage = file => {
+  imagePreviewUrl.value = file.url || file.filePath || ''
+  imagePreviewTitle.value = file.fileName || file.name || '图片预览'
+  imagePreviewVisible.value = true
+}
+watch(() => [props.modelValue, props.viewData], () => { imagePreviewVisible.value = false })
 
 const formatTaxRate = (value) => {
   if (value === null || value === undefined || value === '') return '-'
@@ -140,6 +165,9 @@ const formatTaxRate = (value) => {
 </script>
 
 <style scoped>
+.material-image-preview { display: flex; justify-content: center; align-items: center; min-height: 160px; }
+.material-image-preview .el-image { width: 100%; height: 65vh; }
+
 .material-view-content {
   width: 100%;
 }

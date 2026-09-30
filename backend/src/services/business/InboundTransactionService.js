@@ -12,6 +12,7 @@ const { validateTaskTransition } = require('./TaskLifecycleService');
 const CostAccountingService = require('./CostAccountingService');
 const ProductionLaborService = require('./ProductionLaborService');
 const ProductionBatchTraceabilityService = require('./ProductionBatchTraceabilityService');
+const ProductionReturnService = require('./ProductionReturnService');
 
 const DLQService = require('./DLQService');
 const AsyncTaskService = require('./AsyncTaskService');
@@ -24,6 +25,51 @@ const {
 } = require('../../constants/documentReferences');
 
 class InboundTransactionService {
+  static async validateProductionSource(connection, inbound, items, req = null) {
+    if (!['production', 'production_return'].includes(inbound.inbound_type)) return null;
+    let taskId;
+    if (inbound.inbound_type === 'production_return') {
+      taskId = await ProductionReturnService.resolveTaskId(connection, inbound);
+    } else {
+      taskId = inbound.reference_type === 'production_task' ? Number(inbound.reference_id) : null;
+      if (inbound.inspection_id) {
+        const [inspections] = await connection.execute(
+          `SELECT COALESCE(task_id, reference_id) AS task_id FROM quality_inspections
+            WHERE id = ? AND inspection_type = 'final' AND deleted_at IS NULL`,
+          [inbound.inspection_id]
+        );
+        const inspectionTaskId = Number(inspections[0]?.task_id);
+        if (!inspectionTaskId || (taskId && taskId !== inspectionTaskId)) {
+          throw new BusinessError('生产入库关联任务与终检单不一致', null, 'VALIDATION_ERROR', 400);
+        }
+        taskId = inspectionTaskId;
+      }
+    }
+    if (!Number.isInteger(taskId) || taskId <= 0) {
+      throw new BusinessError('生产入库必须关联有效生产任务', null, 'VALIDATION_ERROR', 400);
+    }
+    if (req) {
+      const ScopeGuard = require('../../authorization/ScopeGuard');
+      if (!(await ScopeGuard.assertAccess(connection, req, 'production_task', taskId))) {
+        throw new BusinessError('无权操作该生产任务', null, 'FORBIDDEN', 403);
+      }
+    }
+    const [tasks] = await connection.execute(
+      'SELECT id, code, product_id, quantity FROM production_tasks WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      [taskId]
+    );
+    const task = tasks[0];
+    if (!task)
+      throw new BusinessError('关联的生产任务不存在或已删除', null, 'VALIDATION_ERROR', 400);
+    if (
+      inbound.inbound_type === 'production' &&
+      items.some((item) => Number(item.material_id) !== Number(task.product_id))
+    ) {
+      throw new BusinessError('生产入库明细必须为关联任务的产品', null, 'VALIDATION_ERROR', 400);
+    }
+    return task;
+  }
+
   /** 采购收货只能由采购收货领域检验放行，通用入库单不得承担采购收货。 */
   static assertGenericInboundSource(inbound = {}) {
     const inboundType = String(inbound.inbound_type || '')
@@ -79,6 +125,8 @@ class InboundTransactionService {
       throw new BusinessError('入库单不存在', null, 'NOT_FOUND', 404);
     }
     this.assertGenericInboundSource(inboundInfo[0]);
+    // Use the locked business document as the source of truth, including on retries.
+    inboundData = inboundInfo[0];
 
     // 获取入库单明细
     const [inboundItems] = await connection.execute(
@@ -96,6 +144,17 @@ class InboundTransactionService {
       throw new Error('入库单没有物料项');
     }
 
+    const productionTask = await this.validateProductionSource(
+      connection,
+      inboundData,
+      inboundItems
+    );
+    const returnAvailability = await ProductionReturnService.validate(
+      connection,
+      inboundData,
+      inboundItems
+    );
+
     // 根据入库类型确定库存交易类型
     const inboundType = inboundData.inbound_type || 'other';
     const transactionTypeMap = {
@@ -110,21 +169,7 @@ class InboundTransactionService {
 
     let productionUnitCost = null;
     if (inboundType === 'production') {
-      let taskId =
-        inboundData.reference_type === 'production_task' ? Number(inboundData.reference_id) : null;
-      if (!taskId && inspection_id) {
-        const [taskRefs] = await connection.execute(
-          `SELECT COALESCE(task_id, reference_id) AS task_id
-             FROM quality_inspections
-            WHERE id = ? AND deleted_at IS NULL
-            LIMIT 1`,
-          [inspection_id]
-        );
-        taskId = Number(taskRefs[0]?.task_id) || null;
-      }
-      if (!taskId) {
-        throw new Error(`生产入库单 ${inboundData.inbound_no} 未关联生产任务，不能核算成品成本`);
-      }
+      const taskId = productionTask.id;
 
       // Repair legacy auto-reports that were created with zero hours before
       // calculating cost. This remains idempotent when a valid report exists.
@@ -174,10 +219,7 @@ class InboundTransactionService {
       // 处理批次溯源：判断是否产线退料或不良退回，追溯原始批次
       let finalBatchNumber = item.batch_number;
       if (!finalBatchNumber) {
-        if (
-          ['defective_return', 'production_return'].includes(inboundType) &&
-          inboundData.reference_id
-        ) {
+        if (inboundType === 'defective_return' && inboundData.reference_id) {
           try {
             // reference_id 可能是出库单ID或生产任务ID
             // 策略1: 按出库单ID查出单号，再从台账匹配批次
@@ -280,7 +322,15 @@ class InboundTransactionService {
 
       let resolvedUnitCost =
         inboundType === 'production' ? productionUnitCost : Number(matInfo.costPrice) || 0;
-      if (['sales_return', 'production_return', 'defective_return'].includes(inboundType)) {
+      if (inboundType === 'production_return') {
+        const source = returnAvailability.records.find(
+          (record) =>
+            Number(record.material_id) === Number(item.material_id) &&
+            Number(record.location_id) === Number(itemLocationId) &&
+            record.batch_number === finalBatchNumber
+        );
+        resolvedUnitCost = Number(source?.unit_cost) || 0;
+      } else if (['sales_return', 'defective_return'].includes(inboundType)) {
         const [sourceCosts] = await connection.execute(
           `SELECT unit_cost
              FROM inventory_ledger

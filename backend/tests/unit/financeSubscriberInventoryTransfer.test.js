@@ -87,6 +87,16 @@ describe('FinanceSubscriber transfer posting', () => {
     expect(mockExecute).not.toHaveBeenCalled();
   });
 
+  test('production supplements do not create a second generic issue cost voucher', async () => {
+    await subscriber.replayInventoryPostingCosts({
+      id: 92,
+      source_type: 'outbound_supplement',
+      lines: [{ transaction_type: 'production_outbound', signed_quantity: -5 }],
+    });
+    expect(mockGenerateOutboundCostEntry).not.toHaveBeenCalled();
+    expect(mockGenerateInboundCostEntry).not.toHaveBeenCalled();
+  });
+
   test('routes a manual posting directly to generic cost replay', async () => {
     Object.assign(mockPosting, {
       source_type: 'manual_transaction',
@@ -124,7 +134,9 @@ describe('FinanceSubscriber transfer posting', () => {
     });
     mockExecute
       .mockResolvedValueOnce([[{ id: 12, processing_no: 'OSP260909001' }]])
-      .mockResolvedValueOnce([[{ id: 22, material_id: 7, material_name: 'Material', quantity: 1, unit_price: 10 }]]);
+      .mockResolvedValueOnce([
+        [{ id: 22, material_id: 7, material_name: 'Material', quantity: 1, unit_price: 10 }],
+      ]);
 
     const handler = mockRegisteredHandlers.get('Finance:InventoryPostingApproved');
     await handler({ postingDocumentId: mockPosting.id, sourceNo: 'OSP260909001' });

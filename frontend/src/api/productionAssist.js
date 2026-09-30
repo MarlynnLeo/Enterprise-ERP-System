@@ -1,4 +1,5 @@
 import { api } from '../services/axiosInstance';
+import { API_CONFIG } from '@/config/app';
 
 export const anomalyReportApi = {
   getList: (params) => api.get('/production/anomaly-reports', { params }),
@@ -9,6 +10,11 @@ export const anomalyReportApi = {
   close: (id) => api.patch(`/production/anomaly-reports/${id}/close`),
   delete: (id) => api.delete(`/production/anomaly-reports/${id}`),
   getStats: () => api.get('/production/anomaly-reports/stats'),
+  getTaskOptions: (params) => api.get('/production/anomaly-reports/task-options', { params }),
+  uploadImage: (formData) => api.post('/production/anomaly-reports/images', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: API_CONFIG.uploadTimeoutMs,
+  }),
 };
 
 export const productionAssistApi = {

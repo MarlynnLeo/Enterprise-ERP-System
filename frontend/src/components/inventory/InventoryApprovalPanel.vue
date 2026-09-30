@@ -27,6 +27,8 @@
     <div v-if="approval.movement" class="approval-panel__meta">
       <el-tag :type="statusType(displayStatus)" size="small">{{ statusLabel(displayStatus) }}</el-tag>
       <span>过账号：{{ approval.movement.postingNo || '-' }}</span>
+      <span v-if="approval.movement.sourceType === 'outbound_supplement'">补发单号：{{ approval.movement.sourceNo }}</span>
+      <span v-if="outboundPendingCount > 1">待审核：{{ outboundPendingCount }} 笔（含补发）</span>
       <span v-if="approval.movement.financeApprovedLabel">财务审核人：{{ approval.movement.financeApprovedLabel }}</span>
       <span v-if="approval.movement.rejectedLabel">驳回人：{{ approval.movement.rejectedLabel }}</span>
       <span v-if="approval.movement.remark">意见：{{ approval.movement.remark }}</span>
@@ -78,7 +80,7 @@
       </el-button>
       <el-button
         v-if="canResubmit"
-        v-permission="'finance:inventory:approve'"
+        v-permission="resubmitPermission"
         type="primary"
         :loading="actionLoading"
         @click="resubmit"
@@ -199,13 +201,36 @@ const canReviewPosting = computed(() =>
   !approvalSeparationBlocked.value
 )
 const canApprove = computed(() => canReviewPosting.value && !loading.value)
+const outboundLatestMovements = computed(() => {
+  if (props.sourceType !== 'outbound') return []
+  const latest = new Map()
+  for (const posting of approval.postings) {
+    if (posting.postingKind !== 'movement') continue
+    const key = `${posting.sourceType}:${posting.sourceNo}`
+    const previous = latest.get(key)
+    if (!previous || Number(posting.postingSequence || 1) > Number(previous.postingSequence || 1) ||
+      (Number(posting.postingSequence || 1) === Number(previous.postingSequence || 1) && Number(posting.id) > Number(previous.id))) {
+      latest.set(key, posting)
+    }
+  }
+  return [...latest.values()]
+})
+const outboundPendingCount = computed(() => outboundLatestMovements.value.filter(posting => posting.financeStatus === 'pending').length)
+const reversalTarget = computed(() =>
+  outboundLatestMovements.value.find(posting => posting.financeStatus === 'approved') ||
+  (approval.movement?.financeStatus === 'approved' ? approval.movement : null)
+)
 const canReverse = computed(() =>
   authStore.canReverseInventoryApproval &&
-  approval.movement?.financeStatus === 'approved' &&
+  Boolean(reversalTarget.value) &&
   !isActiveStatus(approval.reversal?.financeStatus)
 )
+const resubmitPermission = computed(() => ({
+  inbound: 'inventory:inbound:update',
+  outbound: 'inventory:outbound:update',
+}[props.sourceType] || 'finance:inventory:approve'))
 const canResubmit = computed(() =>
-  authStore.canApproveInventoryApproval &&
+  authStore.hasPermission(resubmitPermission.value) &&
   approval.movement?.financeStatus === 'rejected' &&
   Boolean(props.resubmitStatus)
 )
@@ -336,12 +361,17 @@ async function reject() {
 }
 
 async function reverse() {
-  const { value } = await ElMessageBox.prompt('请输入反审核原因', '申请反审核', {
+  if (!canReverse.value || actionLoading.value) return
+  const postingId = reversalTarget.value.id
+  const { value } = await ElMessageBox.prompt(
+    props.sourceType === 'outbound' ? '将撤销原出库单及全部补发，请输入反审核原因' : '请输入反审核原因',
+    '申请反审核', {
     inputValidator: (value) => Boolean(String(value || '').trim()) || '反审核原因不能为空',
   })
+  if (!canReverse.value || actionLoading.value || reversalTarget.value?.id !== postingId) return
   await runAction(
     financeApi.inventoryPostings.reverse,
-    approval.movement.id,
+    postingId,
     '提交反审核失败',
     '反审核申请已提交',
     { remark: value }
@@ -349,6 +379,7 @@ async function reverse() {
 }
 
 async function resubmit() {
+  if (!canResubmit.value || loading.value || actionLoading.value) return
   emit('resubmit', props.resubmitStatus)
 }
 
