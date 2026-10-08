@@ -149,7 +149,7 @@
     border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
     box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1),
     color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
-    transform 0.15s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 [data-theme] .el-button:hover {
@@ -404,7 +404,7 @@
   transition:
     background-color var(--transition-fast, 0.15s) ease,
     color var(--transition-fast, 0.15s) ease,
-    border-color var(--transition-fast, 0.15s) ease !important;
+    border-color var(--transition-fast, 0.15s) ease;
 }
 
 [data-theme] .sidebar .app-menu-link span,
@@ -533,7 +533,7 @@
   border: 1px solid
     color-mix(in srgb, var(--shell-border, var(--color-border-base)) 70%, transparent) !important;
   border-radius: var(--shell-radius-lg, var(--radius-lg, 16px)) !important;
-  box-shadow: var(--shell-shadow, 0 8px 28px color-mix(in srgb, var(--ds-black, #000) 8%, transparent)) !important;
+  box-shadow: var(--shell-shadow, 0 8px 28px color-mix(in srgb, var(--ds-black, #000) 8%, transparent));
 }
 
 [data-theme] .icon-button,
@@ -548,7 +548,7 @@
     border-color var(--transition-fast, 0.15s) var(--transition-timing, ease),
     box-shadow var(--transition-fast, 0.15s) var(--transition-timing, ease),
     color var(--transition-fast, 0.15s) var(--transition-timing, ease),
-    transform var(--transition-fast, 0.15s) var(--transition-timing, ease) !important;
+    transform var(--transition-fast, 0.15s) var(--transition-timing, ease);
 }
 
 [data-theme] .icon-button:hover,
@@ -575,7 +575,7 @@
     background-color var(--transition-fast, 0.15s) var(--transition-timing, ease),
     border-color var(--transition-fast, 0.15s) var(--transition-timing, ease),
     box-shadow var(--transition-fast, 0.15s) var(--transition-timing, ease),
-    transform var(--transition-fast, 0.15s) var(--transition-timing, ease) !important;
+    transform var(--transition-fast, 0.15s) var(--transition-timing, ease);
 }
 
 [data-theme] .user-info:hover {
@@ -621,7 +621,7 @@
   font-size: 13px !important;
   transition:
     background-color var(--transition-fast, 0.15s) var(--transition-timing, ease),
-    color var(--transition-fast, 0.15s) var(--transition-timing, ease) !important;
+    color var(--transition-fast, 0.15s) var(--transition-timing, ease);
 }
 
 [data-theme] .el-dropdown-menu__item:not(.is-disabled):hover {
@@ -818,7 +818,7 @@
 [data-theme] .stat-card .stat-card-auto-icon,
 [data-theme] .stat-card .icon-container,
 [data-theme] .stat-card .stat-card__icon {
-  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 [data-theme] .stat-card:hover .stat-icon,

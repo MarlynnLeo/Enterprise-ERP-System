@@ -934,8 +934,8 @@ onBeforeUnmount(() => {
 /* ===== 统计卡片 ===== */
 .summary-row { margin-bottom: 16px; }
 .summary-row :deep(.el-col) { display: flex; }
-.stat-card { text-align: center; padding: 16px; border-radius: 8px !important; transition: border-color .2s ease, background-color .2s ease; width: 100%; box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-black) 5%, transparent) !important; display: flex; flex-direction: column; justify-content: center; min-height: 110px; }
-.stat-card:hover { box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-black) 5%, transparent) !important; transform: none; background: var(--color-bg-section); }
+.stat-card { text-align: center; padding: 16px; border-radius: 8px !important; transition: border-color .2s ease, background-color .2s ease; width: 100%; box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-black) 5%, transparent); display: flex; flex-direction: column; justify-content: center; min-height: 110px; }
+.stat-card:hover { box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-black) 5%, transparent); transform: none; background: var(--color-bg-section); }
 .stat-label { font-size: 13px; color: var(--color-text-secondary); margin-bottom: 8px; }
 .stat-value { font-size: 24px; font-weight: 700; color: var(--color-text-primary); }
 .stat-value small { font-size: 14px; font-weight: 400; color: var(--color-text-secondary); margin-left: 2px; }

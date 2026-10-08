@@ -65,7 +65,7 @@ html.dark .app-shell {
 .app-sidebar {
   background: var(--shell-surface) !important;
   border: 1px solid var(--shell-border) !important;
-  box-shadow: var(--shell-shadow) !important;
+  box-shadow: var(--shell-shadow);
 }
 .logo-container {
   flex: 0 0 60px;
@@ -179,7 +179,7 @@ html.dark .app-shell {
     color 150ms ease,
     background-color 150ms ease,
     border-color 150ms ease,
-    box-shadow 150ms ease !important;
+    box-shadow 150ms ease;
 }
 .app-menu-item:hover {
   background-color: var(--shell-control-hover-bg) !important;
@@ -268,7 +268,7 @@ html.dark .app-shell {
 .app-header {
   background: var(--shell-surface) !important;
   border: 1px solid var(--shell-border) !important;
-  box-shadow: var(--shell-shadow) !important;
+  box-shadow: var(--shell-shadow);
 }
 .header-left {
   display: flex;
@@ -448,10 +448,6 @@ html.dark .app-shell {
   width: var(--shell-sidebar-collapsed-width) !important;
 }
 /* 主线程繁忙或用户要求减少动画时，避免侧栏宽度动画继续触发整页重排。 */
-html.perf-low-end .sidebar,
-html.perf-reduced-motion .sidebar {
-  transition: none !important;
-}
 .sidebar.is-mini .sidebar-menu {
   width: 100%;
   padding-left: 0;

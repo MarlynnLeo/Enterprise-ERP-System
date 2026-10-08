@@ -126,15 +126,26 @@ export const useThemeStore = defineStore('theme', () => {
     if (html.getAttribute('data-theme') !== appearance.value.preset) {
       html.setAttribute('data-theme', appearance.value.preset)
     }
-    const setStyleProperty = (key, value) => {
+    // A declared custom property may have an empty serialized value. Track
+    // declarations, not truthy values, when returning an override to its palette.
+    const inlineProperties = new Set(Array.from(html.style))
+    const syncStyleProperty = (key, value) => {
+      if (value === null) {
+        if (inlineProperties.has(key)) {
+          html.style.removeProperty(key)
+          inlineProperties.delete(key)
+        }
+        return
+      }
       if (html.style.getPropertyValue(key) !== value || html.style.getPropertyPriority(key)) {
         html.style.setProperty(key, value)
+        inlineProperties.add(key)
       }
     }
 
     const primaryColor = appearance.value.primaryColor
-    setStyleProperty('--font-size-base', `${appearance.value.fontSize}px`)
-    setStyleProperty('--el-font-size-base', `${appearance.value.fontSize}px`)
+    syncStyleProperty('--font-size-base', `${appearance.value.fontSize}px`)
+    syncStyleProperty('--el-font-size-base', `${appearance.value.fontSize}px`)
 
     const primaryOverrides = {
       '--color-primary': primaryColor,
@@ -145,8 +156,7 @@ export const useThemeStore = defineStore('theme', () => {
     const isCustomColor = primaryColor.toUpperCase() !== getThemePreset(appearance.value.preset).primaryColor.toUpperCase()
     Object.entries(primaryOverrides).forEach(([key, value]) => {
       // Preset palettes own their color ramps, especially the dark theme surfaces.
-      if (isCustomColor) setStyleProperty(key, value)
-      else if (html.style.getPropertyValue(key)) html.style.removeProperty(key)
+      syncStyleProperty(key, isCustomColor ? value : null)
     })
 
     const computedStyle = window.getComputedStyle(html)
@@ -163,7 +173,7 @@ export const useThemeStore = defineStore('theme', () => {
       const background = computedStyle.getPropertyValue(backgroundToken).trim()
       return [textToken, getAccessibleTextColor(background)]
     })
-    semanticTextColors.forEach(([key, value]) => setStyleProperty(key, value))
+    semanticTextColors.forEach(([key, value]) => syncStyleProperty(key, value))
   }
 
   const persistLocalTheme = (settings) => {

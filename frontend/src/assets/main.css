@@ -121,45 +121,11 @@ body {
   box-sizing: border-box;
 }
 
-/* Legacy browsers ignore cascade layers. Keep this fallback in sync with
-   the higher-priority accessibility layer in theme-utilities.css. */
-.perf-low-end,
-.perf-low-end::before,
-.perf-low-end::after,
-.perf-low-end *,
-.perf-low-end *::before,
-.perf-low-end *::after,
-.perf-reduced-motion,
-.perf-reduced-motion::before,
-.perf-reduced-motion::after,
-.perf-reduced-motion *,
-.perf-reduced-motion *::before,
-.perf-reduced-motion *::after {
-  animation-duration: 0.01ms !important;
-  animation-delay: 0s !important;
-  animation-iteration-count: 1 !important;
-  transition-duration: 0.01ms !important;
-  transition-delay: 0s !important;
-  scroll-behavior: auto !important;
-}
-
-.perf-low-end .el-card,
-.perf-low-end .el-dialog,
-.perf-low-end .el-table,
-.perf-low-end [class*="stat-card"],
-.perf-low-end [class*="dashboard-card"] {
-  box-shadow: none !important;
-}
-
-.perf-low-end .el-table .cell {
-  will-change: auto;
-}
-
 /* ==================== 对话框基础结构 ==================== */
 /* 仅保留结构默认值；主题视觉由 theme-compat.css 覆盖 */
 
-/* 重置弹出层 / 遮罩层的全局 transition，防止与 Element Plus 内置
-   dialog-fade / el-fade-in 动画冲突导致关闭时闪烁 */
+/* Base surfaces have no inherited theme transition. Element Plus state
+   classes and theme selectors own their normal opening/closing transitions. */
 .el-overlay,
 .el-overlay-dialog,
 .el-dialog__wrapper,
@@ -170,7 +136,7 @@ body {
 .el-notification,
 .el-popper,
 .v-modal {
-  transition: none !important;
+  transition: none;
 }
 
 /* 对话框布局见 dialog-system.css；此处只保留视觉默认（主题可覆盖） */

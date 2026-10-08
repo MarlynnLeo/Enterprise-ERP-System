@@ -1077,7 +1077,7 @@ const handleUnlink = async (row) => {
 .stat-card:hover {
   border-color: var(--color-border-light);
   background: var(--color-bg-section);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 5%, transparent) !important;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 5%, transparent);
   transform: none !important;
 }
 

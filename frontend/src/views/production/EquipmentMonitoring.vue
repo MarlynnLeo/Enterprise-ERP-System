@@ -430,7 +430,7 @@ onUnmounted(() => {
 .stat-card:hover {
   border-color: var(--color-border-light);
   background: var(--color-bg-section);
-  box-shadow: var(--shadow-sm) !important;
+  box-shadow: var(--shadow-sm);
   transform: none !important;
 }
 

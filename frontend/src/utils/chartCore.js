@@ -18,6 +18,22 @@ import {
 import { getAppFontFamily } from './typography'
 import { getCssTokenValue } from './designTokens'
 import { observeChartTheme } from './chartThemeObserver'
+import { getInitialChartPixelRatio } from './chartPerformance'
+
+// Use Chart.js lifecycle hooks rather than replacing update/destroy methods.
+// Data and tooltip interactions stay live; decorative transitions never run.
+const staticDataRenderingPlugin = {
+  id: 'erpStaticDataRendering',
+  beforeInit(chart) {
+    chart.options.animation = false
+    const ratio = getInitialChartPixelRatio(chart.config.options.devicePixelRatio)
+    if (ratio !== undefined) chart.options.devicePixelRatio = ratio
+  },
+  beforeUpdate(chart) {
+    chart.stop()
+    chart.options.animation = false
+  }
+}
 
 const themeSubscriptions = new WeakMap()
 const appliedThemePlugin = {
@@ -51,9 +67,11 @@ Chart.register(
   PointElement,
   Title,
   Tooltip,
+  staticDataRenderingPlugin,
   appliedThemePlugin
 )
 
+Chart.defaults.animation = false
 Chart.defaults.font.family = getAppFontFamily()
 Chart.defaults.color = () => getCssTokenValue('textSecondary')
 Chart.defaults.borderColor = () => getCssTokenValue('borderLight')

@@ -186,8 +186,8 @@ const {
   background: var(--color-bg-base) !important;
   border: 1px solid var(--color-border-lighter) !important;
   border-radius: 10px !important;
-  box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-black) 5%, transparent) !important;
-  transition: border-color var(--transition-base) ease, background-color var(--transition-base) ease !important;
+  box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-black) 5%, transparent);
+  transition: border-color var(--transition-base) ease, background-color var(--transition-base) ease;
 }
 .stat-card:hover {
   border-color: var(--color-border-light) !important;

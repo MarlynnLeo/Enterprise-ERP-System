@@ -137,6 +137,32 @@ describe('theme runtime', () => {
     expect(html.style.getPropertyValue('--color-primary-light-9')).toBe('')
   })
 
+  test('restores preset ownership of empty inline color declarations', async () => {
+    const html = document.documentElement
+    const emptyProperties = [
+      '--color-primary', '--el-color-primary', '--color-on-primary',
+      '--color-primary-light-9', '--el-color-primary-light-9'
+    ]
+    for (const key of emptyProperties) html.style.setProperty(key, 'empty-declaration')
+    html.style.setProperty('--unrelated-theme-test', 'retained')
+    // jsdom drops whitespace-only declarations; browsers retain them but expose
+    // an empty value. Preserve real declaration membership and emulate that read.
+    const getPropertyValue = html.style.getPropertyValue.bind(html.style)
+    vi.spyOn(html.style, 'getPropertyValue').mockImplementation((key) =>
+      emptyProperties.includes(key) ? '' : getPropertyValue(key)
+    )
+    for (const key of emptyProperties) expect(Array.from(html.style)).toContain(key)
+
+    userApi.getTheme.mockResolvedValueOnce({ data: DEFAULT_THEME_SETTINGS })
+    expect(await store.loadThemeFromServer()).toBe(true)
+    for (const key of emptyProperties) {
+      expect(Array.from(html.style)).not.toContain(key)
+      expect(html.style.getPropertyPriority(key)).toBe('')
+    }
+    expect(html.style.getPropertyValue('--unrelated-theme-test')).toBe('retained')
+    expect(html.dataset.theme).toBe(DEFAULT_THEME_SETTINGS.preset)
+  })
+
   test('reads all semantic backgrounds before writing their contrast colors', async () => {
     const html = document.documentElement
     const textTokens = ['--color-on-success', '--color-on-warning', '--color-on-danger', '--color-on-info']

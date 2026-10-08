@@ -198,7 +198,7 @@
 [data-theme="tech"] .app-sidebar {
   background: var(--shell-sidebar-bg) !important;
   border-right: 2px solid var(--shell-border) !important;
-  box-shadow: 0 0 16px color-mix(in srgb, var(--color-bg-overlay) 16%, transparent) !important;
+  box-shadow: 0 0 16px color-mix(in srgb, var(--color-bg-overlay) 16%, transparent);
   position: relative;
 }
 
@@ -242,7 +242,7 @@
   background: linear-gradient(90deg, var(--color-bg-light) 0%, var(--color-bg-hover) 50%, var(--color-bg-light) 100%) !important;
   border: 1px solid color-mix(in srgb, var(--color-primary) 30%, transparent) !important;
   border-radius: var(--radius-md, 4px) !important;
-  box-shadow: var(--shadow-sm) !important;
+  box-shadow: var(--shadow-sm);
 }
 
 /* 表格/输入：密度 → theme-components；保留表头主色与输入内阴影 */

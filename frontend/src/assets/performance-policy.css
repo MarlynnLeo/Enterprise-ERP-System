@@ -1,0 +1,114 @@
+/*
+ * Global performance policy. Theme and component styles own the normal
+ * appearance; this file alone owns motion timing and costly decoration when
+ * the runtime selects a reduced mode. Keep selectors compatible with browsers
+ * without cascade layers and keep normal motion declarations non-important.
+ */
+html.perf-low-end,
+html.perf-low-end::before,
+html.perf-low-end::after,
+html.perf-low-end *,
+html.perf-low-end *::before,
+html.perf-low-end *::after,
+html.perf-reduced-motion,
+html.perf-reduced-motion::before,
+html.perf-reduced-motion::after,
+html.perf-reduced-motion *,
+html.perf-reduced-motion *::before,
+html.perf-reduced-motion *::after {
+  /* Nonzero durations retain the end events used by dialogs and popovers. */
+  animation-duration: 0.01ms !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  transition-delay: 0s !important;
+  scroll-behavior: auto !important;
+}
+
+/* Also honor the preference before the application initializes its classes. */
+@media (prefers-reduced-motion: reduce) {
+  html,
+  html::before,
+  html::after,
+  html *,
+  html *::before,
+  html *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Shell tokens may be declared locally, so resolve the same policy at both
+ * owners. Important tokens remain effective when a palette is loaded later. */
+html.perf-low-end,
+html.perf-low-end .app-shell {
+  --kacon-glass-filter: none !important;
+  --shadow-sm: none !important;
+  --shadow-base: none !important;
+  --shadow-md: none !important;
+  --shadow-lg: none !important;
+  --shadow-xl: none !important;
+  --shadow-card: none !important;
+  --shadow-card-hover: none !important;
+  --shadow-glow: none !important;
+  --shadow-glow-strong: none !important;
+  --shadow-glow-primary: none !important;
+  --shadow-glow-success: none !important;
+  --shadow-glow-warning: none !important;
+  --shadow-glow-danger: none !important;
+  --theme-dialog-shadow: none !important;
+  --theme-feature-card-shadow: none !important;
+  --theme-feature-card-hover-shadow: none !important;
+  --shell-shadow: none !important;
+  --shell-shadow-hover: none !important;
+  --shell-control-hover-shadow: none !important;
+  --shell-sidebar-hover-shadow: none !important;
+  --shell-sidebar-active-shadow: none !important;
+}
+
+html.perf-low-end,
+html.perf-low-end::before,
+html.perf-low-end::after,
+html.perf-low-end *,
+html.perf-low-end *::before,
+html.perf-low-end *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Remove elevation on shared surfaces, including page-owned card shadows.
+ * Do not reset every box-shadow: inputs use inset shadows for focus/borders. */
+html.perf-low-end .el-card,
+html.perf-low-end .el-dialog,
+html.perf-low-end .el-table,
+html.perf-low-end .sidebar,
+html.perf-low-end .app-header,
+html.perf-low-end .chart-container,
+html.perf-low-end .calendar-wrapper,
+html.perf-low-end [class*="stat-card"],
+html.perf-low-end [class*="dashboard-card"] {
+  box-shadow: none !important;
+}
+
+html.perf-low-end .avatar-frame-image {
+  filter: none !important;
+}
+
+html.perf-low-end .el-table .cell {
+  will-change: auto;
+}
+
+/* Style containment does not change the containing block of fixed dialogs. */
+html:not(.perf-low-end) .main-content,
+html:not(.perf-low-end) .app-main,
+html:not(.perf-low-end) .layout-content,
+html:not(.perf-low-end) .sidebar,
+html:not(.perf-low-end) .app-sidebar,
+html:not(.perf-low-end) .header,
+html:not(.perf-low-end) .app-header {
+  contain: style;
+}

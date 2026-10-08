@@ -109,11 +109,6 @@ describe('theme system', () => {
     expect(readTheme('professional')).not.toMatch(/\[data-theme="professional"\]\s+\*/)
   })
 
-  test('shared compatibility layer honors reduced motion preferences', () => {
-    const compatibility = readFileSync(resolve(themesDirectory, 'theme-compat.css'), 'utf8')
-    expect(compatibility).toContain('@media (prefers-reduced-motion: reduce)')
-  })
-
   test('theme-components owns shared layout shell density for all themes', () => {
     const components = readFileSync(resolve(themesDirectory, 'theme-components.css'), 'utf8')
     // 布局/密度必须在 [data-theme] 共享壳，禁止只写在 kacon

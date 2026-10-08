@@ -1215,17 +1215,3 @@
 [data-theme] .el-alert__description {
   color: var(--color-text-regular);
 }
-
-/* Layered important declarations outrank unlayered component overrides. */
-@layer accessibility {
-  @media (prefers-reduced-motion: reduce) {
-    [data-theme] *,
-    [data-theme] *::before,
-    [data-theme] *::after {
-      scroll-behavior: auto !important;
-      animation-duration: 0.01ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
-    }
-  }
-}

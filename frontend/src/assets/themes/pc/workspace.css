@@ -755,7 +755,7 @@
 :root[data-theme="workspace"] .module-page:not(.dashboard-page) .module-tabs.el-tabs--border-card,
 :root[data-theme="workspace"] .module-page:not(.dashboard-page) .module-tabs .inner-card.el-card {
   border-radius: var(--radius-md) !important;
-  box-shadow: var(--shadow-card) !important;
+  box-shadow: var(--shadow-card);
 }
 
 :root[data-theme="workspace"] .module-page:not(.dashboard-page) .module-tabs.el-tabs--border-card > .el-tabs__header {

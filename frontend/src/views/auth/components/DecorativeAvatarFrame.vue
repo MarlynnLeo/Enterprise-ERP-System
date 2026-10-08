@@ -249,7 +249,4 @@ function onFrameImageError() {
   filter: drop-shadow(0 1px 3px color-mix(in srgb, var(--color-text-primary) 10%, transparent));
 }
 
-:global(html.perf-low-end .avatar-frame-image) {
-  filter: none !important;
-}
 </style>

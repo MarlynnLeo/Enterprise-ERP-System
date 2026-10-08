@@ -180,7 +180,7 @@
 [data-theme="business"] .app-sidebar {
   background: var(--shell-sidebar-bg) !important;
   border-right: 1px solid var(--shell-border) !important;
-  box-shadow: 2px 0 8px color-mix(in srgb, var(--ds-black, #000) 14%, transparent) !important;
+  box-shadow: 2px 0 8px color-mix(in srgb, var(--ds-black, #000) 14%, transparent);
 }
 
 [data-theme="business"] .logo-container {
@@ -203,7 +203,7 @@
   background: var(--color-bg-base) !important;
   border: 1px solid var(--color-border-light) !important;
   border-radius: var(--radius-md, 4px) !important;
-  box-shadow: var(--shadow-sm) !important;
+  box-shadow: var(--shadow-sm);
 }
 
 /* 表格：密度 → theme-components；仅金色 hover */
