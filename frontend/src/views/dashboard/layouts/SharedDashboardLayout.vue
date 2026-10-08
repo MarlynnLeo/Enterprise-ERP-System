@@ -146,17 +146,6 @@ const {
   padding: 20px;
   background-color: transparent;
   min-height: 100vh;
-  animation: fadeIn 0.5s ease-in-out;
-}
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 .main-layout {
   max-width: 1600px;
@@ -212,27 +201,16 @@ const {
 .stat-card-loading::before {
   content: '';
   position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
+  inset: 0;
+  pointer-events: none;
   background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ds-white) 30%, transparent), transparent);
-  animation: shimmer 1.5s infinite;
-}
-@keyframes shimmer {
-  0% {
-    left: -100%;
-  }
-  100% {
-    left: 100%;
-  }
 }
 /* 数字动画效果 */
 .animated-number {
   display: inline-block;
   transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, transform 0.3s ease;
 }
-/* 更新指示器 */
+/* 数据就绪标记：静态显示，避免首页空闲时持续绘制。 */
 .update-indicator {
   position: absolute;
   top: 8px;
@@ -241,18 +219,7 @@ const {
   height: 6px;
   border-radius: 50%;
   background-color: var(--color-success);
-  opacity: 0;
-  animation: pulse 2s ease-in-out infinite;
-}
-@keyframes pulse {
-  0%, 100% {
-    opacity: 0;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.2);
-  }
+  opacity: 0.65;
 }
 .stat-content {
   display: flex;
@@ -444,15 +411,6 @@ const {
   color: var(--theme-feature-card-color);
   font-weight: bold;
   box-shadow: var(--theme-feature-card-shadow);
-  animation: currentDayPulse 2s ease-in-out infinite;
-}
-@keyframes currentDayPulse {
-  0%, 100% {
-    box-shadow: var(--theme-feature-card-shadow);
-  }
-  50% {
-    box-shadow: var(--theme-feature-card-hover-shadow);
-  }
 }
 .day-number.has-events {
   background: linear-gradient(135deg, var(--module-red) 0%, var(--ds-orange-strong) 100%);

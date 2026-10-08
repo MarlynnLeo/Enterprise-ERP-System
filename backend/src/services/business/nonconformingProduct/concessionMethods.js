@@ -68,7 +68,12 @@ module.exports = {
   /**
    * 审批特采
    */
-  async approveConcession(ncpId, { status, approverId, approverName }) {
+  async approveConcession(ncpId, approval) {
+    const retryDeadlockedTransaction = require('../../../utils/retryDeadlockedTransaction');
+    return retryDeadlockedTransaction(() => this._approveConcessionTransaction(ncpId, approval));
+  },
+
+  async _approveConcessionTransaction(ncpId, { status, approverId, approverName }) {
     const db = require('../../../config/db');
     let connection;
     try {

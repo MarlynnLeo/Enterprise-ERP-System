@@ -141,15 +141,8 @@ const avatarFrameConfig = computed(() =>
   width: 200%;
   height: 200%;
   background: var(--theme-feature-card-decor);
-  animation: rotate 20s linear infinite;
-}
-@keyframes rotate {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
+  /* Keep the theme decoration without continuously repainting the dashboard. */
+  pointer-events: none;
 }
 .combined-info-card:hover {
   transform: none;

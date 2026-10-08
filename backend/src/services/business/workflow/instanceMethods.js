@@ -191,6 +191,9 @@ module.exports = {
         [instance_id]
       );
       if (!instLock) throw new Error('Workflow instance is not pending or in progress');
+      if (instLock.business_type === 'purchase_requisition') {
+        this._assertSupportedBusinessType(instLock.business_type);
+      }
 
       const [[assignment]] = await conn.query(
         `SELECT id, instance_node_id, approver_id, sequence, status
@@ -411,6 +414,9 @@ module.exports = {
         [instance_id, userId]
       );
       if (!inst) throw new Error('流程不存在或无法撤回');
+      if (inst.business_type === 'purchase_requisition') {
+        this._assertSupportedBusinessType(inst.business_type);
+      }
 
       await conn.query(
         "UPDATE workflow_instances SET status = 'withdrawn', completed_at = NOW() WHERE id = ?",
@@ -558,6 +564,7 @@ module.exports = {
     const where = `WHERE win.status = 'in_progress'
          AND wi.status IN ('pending','in_progress')
          AND wi.deleted_at IS NULL
+         AND wi.business_type <> 'purchase_requisition'
          AND (
            wna.id IS NOT NULL
            OR (

@@ -19,16 +19,20 @@ test.each([
   '%s supplement contributes to the task return capacity',
   async (status, original, supplement, sourceId, sourceNo) => {
     const database = new DatabaseSync(':memory:');
+    database.function('JSON_CONTAINS', (haystack, needle) => JSON.parse(haystack).includes(needle) ? 1 : 0);
+    database.function('JSON_QUOTE', value => JSON.stringify(value));
     try {
       database.exec(`
-      CREATE TABLE inventory_outbound (id, outbound_no, reference_type, reference_id, production_task_id, status, deleted_at);
+      CREATE TABLE production_tasks (id, plan_id);
+      INSERT INTO production_tasks VALUES (7, 1), (8, 1);
+      CREATE TABLE inventory_outbound (id, outbound_no, reference_type, reference_id, production_task_id, status, deleted_at, source_task_ids);
       CREATE TABLE inventory_ledger (material_id, location_id, batch_number, quantity, unit_cost, reference_type, reference_no, posting_document_id);
       CREATE TABLE inventory_posting_documents (id, source_type, source_id, source_no, posting_kind, finance_status);
       CREATE TABLE inventory_posting_lines (posting_document_id, material_id, location_id, batch_number, signed_quantity, unit_cost);
       CREATE TABLE materials (id, code, name, specs, unit_id);
       CREATE TABLE units (id, name);
       CREATE TABLE locations (id, name);
-      INSERT INTO inventory_outbound VALUES (1, 'OUT-1', 'production_task', 7, 7, 'completed', NULL), (2, 'OUT-2', 'production_task', 8, 8, 'completed', NULL);
+      INSERT INTO inventory_outbound VALUES (1, 'OUT-1', 'production_task', 7, 7, 'completed', NULL, '[]'), (2, 'OUT-2', 'production_task', 8, 8, 'completed', NULL, '[]');
       INSERT INTO materials VALUES (3, 'M3', '物料', '', 1);
       INSERT INTO units VALUES (1, '个');
       INSERT INTO locations VALUES (2, '原领料仓库');

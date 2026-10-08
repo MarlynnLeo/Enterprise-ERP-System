@@ -1159,7 +1159,12 @@ const getRequisitions = async (req, res) => {
     const { page = 1, pageSize = 10, requisitionNo, status } = req.query;
     const pagination = parsePagination(page, pageSize, { defaultPageSize: 10, maxPageSize: 100 });
 
-    const defaultStatus = status || 'approved';
+    // Historical approved requisitions remain available alongside submitted ones.
+    const requisitionStatuses = !status
+      ? ['submitted', 'approved', 'completed']
+      : ['submitted', 'approved'].includes(status)
+        ? ['submitted', 'approved']
+        : [status];
     const scopeClause = await ScopeGuard.applyListScope(req, 'purchase_requisition', {
       tableAlias: 'r',
       ownerAlias: 'purchase_requisition_order_picker_scope',
@@ -1171,12 +1176,12 @@ const getRequisitions = async (req, res) => {
       FROM purchase_requisitions r
       LEFT JOIN users u ON r.requester = u.username
       ${scopeClause.join || ''}
-      WHERE r.status = ?
+      WHERE r.status IN (?)
         AND r.deleted_at IS NULL
         ${scopeClause.where || ''}
     `;
 
-    const queryParams = [defaultStatus, ...(scopeClause.params || [])];
+    const queryParams = [requisitionStatuses, ...(scopeClause.params || [])];
 
     if (requisitionNo) {
       query += ' AND r.requisition_number LIKE ?';
@@ -1301,8 +1306,8 @@ const getRequisition = async (req, res) => {
     const { id } = req.params;
 
     const query =
-      'SELECT r.*, u.real_name as user_real_name FROM purchase_requisitions r LEFT JOIN users u ON r.requester = u.username WHERE r.id = ? AND r.status IN (?, ?) AND r.deleted_at IS NULL';
-    const [rows] = await pool.query(query, [id, 'approved', 'completed']);
+      'SELECT r.*, u.real_name as user_real_name FROM purchase_requisitions r LEFT JOIN users u ON r.requester = u.username WHERE r.id = ? AND r.status IN (?, ?, ?) AND r.deleted_at IS NULL';
+    const [rows] = await pool.query(query, [id, 'submitted', 'approved', 'completed']);
 
     if (rows.length === 0) {
       return ResponseHandler.notFound(res, '采购申请不存在或已被删除');

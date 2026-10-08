@@ -31,6 +31,7 @@ class InventoryPostingReversalClosureService {
       sourceType,
       sourceNo,
       sourceId: positiveId(context.sourceId) || positiveId(original.source_id),
+      originalPostingDocumentId: original.id,
     };
 
     if (sourceType === 'sales_outbound') {
@@ -81,9 +82,10 @@ class InventoryPostingReversalClosureService {
     );
 
     const warnings = [];
+    let productionTask;
     if (inbound.inbound_type === 'production') {
       try {
-        await this.rollbackProductionInbound(connection, inbound, context);
+        productionTask = await this.rollbackProductionInbound(connection, inbound, context);
       } catch (error) {
         // Inventory and business status are already in the same transaction;
         // a task rollback failure must abort approval rather than silently drift.
@@ -92,13 +94,20 @@ class InventoryPostingReversalClosureService {
       }
     }
 
-    const financeReversal = await this.reverseRelatedVouchers(connection, {
-      sourceType: context.sourceType,
-      sourceId: inbound.id,
-      sourceNo: inbound.inbound_no,
-      operator: actor.label || 'system',
-      reason: `入库反审核 ${inbound.inbound_no}`,
-    });
+    const financeReversal = productionTask
+      ? await require('./ProductionCompletionAllocationService').reverseInbound(connection, {
+          taskId: productionTask.id,
+          originalPostingDocumentId: context.originalPostingDocumentId,
+          inbound,
+          operator: actor.id || actor.label || 'system',
+        })
+      : await this.reverseRelatedVouchers(connection, {
+          sourceType: context.sourceType,
+          sourceId: inbound.id,
+          sourceNo: inbound.inbound_no,
+          operator: actor.label || 'system',
+          reason: `入库反审核 ${inbound.inbound_no}`,
+        });
 
     return {
       sourceType: context.sourceType,
@@ -165,6 +174,7 @@ class InventoryPostingReversalClosureService {
       );
       if (task.plan_id) await syncPlanStatus(task.plan_id, connection);
     }
+    return task;
   }
 
   static async closeOutbound(connection, context, actor) {

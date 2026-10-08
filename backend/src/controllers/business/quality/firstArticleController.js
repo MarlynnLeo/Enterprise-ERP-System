@@ -13,12 +13,15 @@ const { BUSINESS_RULES } = require('../../../constants/systemConstants');
 const businessConfig = require('../../../config/businessConfig');
 const QualityInspection = require('../../../models/qualityInspection');
 const InspectionClosureService = require('../../../services/quality/InspectionClosureService');
+const InspectionSamplingService = require('../../../services/quality/InspectionSamplingService');
 const {
   generateBatchNo,
   normalizeTaskBatchNo,
 } = require('../../../services/business/TaskLifecycleService');
 const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 const { mapKeysToSnake } = require('../../../utils/fieldMap');
+const { qualityInspectionItemMap } = require('../../../utils/quality/qualityFieldMap');
+const { fixedMeasurements, decimalOrNull } = require('../../../utils/quality/inspectionEvidence');
 const ScopeGuard = require('../../../authorization/ScopeGuard');
 
 // 首检配置常量
@@ -338,6 +341,7 @@ const firstArticleController = {
     let connection;
     try {
       const { id } = req.params;
+      const requestData = mapKeysToSnake(req.body || {});
       const {
         first_article_result,
         qualified_quantity,
@@ -346,8 +350,11 @@ const firstArticleController = {
         inspector_id,
         inspector_name,
         note,
-        items,
-      } = mapKeysToSnake(req.body || {});
+        items: rawItems,
+      } = requestData;
+      let items = Array.isArray(rawItems)
+        ? rawItems.map(qualityInspectionItemMap.fromApi)
+        : rawItems;
 
       if (!first_article_result) {
         return ResponseHandler.error(res, '首检结果不能为空', 'VALIDATION_ERROR', 400);
@@ -377,7 +384,7 @@ const firstArticleController = {
       await connection.beginTransaction();
 
       const [existingRows] = await connection.query(
-        "SELECT id, inspection_no, inspection_type, reference_id, reference_no, material_id, supplier_id, product_id, product_name, product_code, process_id, process_name, batch_no, quantity, qualified_quantity, unqualified_quantity, unit, unit_id, status, planned_date, actual_date, inspector_id, inspector_name, punch_time, standard_type, standard_no, template_id, note, created_at, updated_at, traceability_id, traceability_batch, chain_id, chain_step_id, is_first_article, first_article_qty, is_full_inspection, first_article_result, production_can_continue, task_id, is_aql, aql_standard_id, aql_level, accept_limit, reject_limit, deleted_at FROM quality_inspections WHERE id = ? AND inspection_type = 'first_article' AND deleted_at IS NULL FOR UPDATE",
+        "SELECT sample_quantity, sampling_plan, id, inspection_no, inspection_type, reference_id, reference_no, material_id, supplier_id, product_id, product_name, product_code, process_id, process_name, batch_no, quantity, qualified_quantity, unqualified_quantity, unit, unit_id, status, planned_date, actual_date, inspector_id, inspector_name, punch_time, standard_type, standard_no, template_id, note, created_at, updated_at, traceability_id, traceability_batch, chain_id, chain_step_id, is_first_article, first_article_qty, is_full_inspection, first_article_result, production_can_continue, task_id, is_aql, aql_standard_id, aql_level, accept_limit, reject_limit, deleted_at FROM quality_inspections WHERE id = ? AND inspection_type = 'first_article' AND deleted_at IS NULL FOR UPDATE",
         [id]
       );
 
@@ -401,6 +408,12 @@ const firstArticleController = {
       }
 
       const inspection = existingRows[0];
+      if (items !== undefined) {
+        items = require('../../../utils/quality/inspectionSnapshot').bindInspectionItems(
+          await QualityInspection._getStoredInspectionItems(connection, id),
+          items
+        );
+      }
       const itemsForValidation =
         Array.isArray(items) && items.length > 0
           ? items
@@ -409,16 +422,37 @@ const firstArticleController = {
         first_article_result === STATUS.FIRST_ARTICLE.CONDITIONAL
           ? 'partial'
           : first_article_result;
+      const samplingInput = Object.fromEntries(
+        ['is_aql', 'is_full_inspection', 'aql_standard_id', 'aql_level']
+          .filter((field) => requestData[field] !== undefined)
+          .map((field) => [field, requestData[field]])
+      );
+      const samplingUpdate = InspectionSamplingService.shouldRefresh(inspection, samplingInput)
+        ? await InspectionSamplingService.resolve(connection, { ...inspection, ...samplingInput })
+        : {};
+      const effectiveInspection = {
+        ...inspection,
+        ...samplingUpdate,
+        status: validationStatus,
+        qualified_quantity: qualifiedQty,
+        unqualified_quantity: unqualifiedQty,
+      };
+      InspectionSamplingService.assertReadyForCompletion(effectiveInspection, inspection);
       QualityInspection._validateTerminalStatusAgainstItems(
         {
-          ...inspection,
-          status: validationStatus,
-          qualified_quantity: qualifiedQty,
-          unqualified_quantity: unqualifiedQty,
+          ...effectiveInspection,
         },
         validationStatus,
         itemsForValidation
       );
+
+      if (Object.keys(samplingUpdate).length) {
+        const fields = Object.keys(samplingUpdate);
+        await connection.query(
+          `UPDATE quality_inspections SET ${fields.map((field) => `${field} = ?`).join(', ')} WHERE id = ?`,
+          [...fields.map((field) => samplingUpdate[field]), id]
+        );
+      }
 
       const canContinue =
         first_article_result === STATUS.FIRST_ARTICLE.PASSED ||
@@ -454,19 +488,22 @@ const firstArticleController = {
 
       // 如果有检验项目明细，更新或插入
       if (items && items.length > 0) {
-        await connection.query('DELETE FROM quality_inspection_items WHERE inspection_id = ?', [
-          id,
-        ]);
+        await connection.query(
+          `DELETE qim FROM quality_inspection_measurements qim
+          INNER JOIN quality_inspection_items qii ON qii.id = qim.item_id WHERE qii.inspection_id = ?`,
+          [id]
+        );
 
         for (const item of items) {
           await connection.query(
             `
-            INSERT INTO quality_inspection_items
-            (inspection_id, item_name, standard, method, type, actual_value, result, remark)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            UPDATE quality_inspection_items SET
+              item_name = ?, standard = ?, method = ?, type = ?, actual_value = ?, result = ?, remark = ?,
+              is_critical = ?, dimension_value = ?, tolerance_upper = ?, tolerance_lower = ?,
+              measure_1 = ?, measure_2 = ?, measure_3 = ?, measure_4 = ?, measure_5 = ?, measure_6 = ?
+            WHERE id = ? AND inspection_id = ?
           `,
             [
-              id,
               item.item_name,
               item.standardValue || item.standard || '',
               item.method || item.inspection_method || null,
@@ -474,14 +511,31 @@ const firstArticleController = {
               item.actual_value,
               item.result,
               item.note || item.remark || '',
+              item.is_critical ? 1 : 0,
+              decimalOrNull(item.dimension_value),
+              decimalOrNull(item.tolerance_upper),
+              decimalOrNull(item.tolerance_lower),
+              ...fixedMeasurements(item),
+              item.id,
+              id,
             ]
           );
+          for (const measurement of item.measurements || []) {
+            const value = decimalOrNull(measurement.measured_value);
+            if (value == null) continue;
+            await connection.query(
+              `INSERT INTO quality_inspection_measurements
+              (item_id, sample_no, measured_value, measured_by) VALUES (?, ?, ?, ?)`,
+              [item.id, measurement.sample_no, value, measurement.measured_by || null]
+            );
+          }
         }
       }
 
       const closureResult = await InspectionClosureService.closeIfTerminal(
         {
           ...inspection,
+          ...samplingUpdate,
           items: itemsForValidation,
         },
         {

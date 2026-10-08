@@ -641,7 +641,11 @@
           </el-table-column>
         </el-table>
       </template>
-      <el-alert v-if="taskSelection && form.inboundType === 'production'" :title="`将入库任务产品：${taskSelection.productName || taskProduct?.name || ''}，请填写本次实际入库数量和批次号。`" type="info" :closable="false" />
+      <el-select v-if="taskSelection && form.inboundType === 'production'" v-model="selectedInspectionId" placeholder="选择终检放行依据">
+        <el-option v-for="inspection in taskInspections" :key="inspection.id" :value="inspection.id"
+          :label="`${inspection.inspectionNo} / ${inspection.batchNo} / 可用 ${inspection.availableQuantity}`" />
+      </el-select>
+      <el-alert v-if="taskSelection && form.inboundType === 'production'" :title="`将入库任务产品：${taskSelection.productName || taskProduct?.name || ''}，必须选择终检放行依据；已有自动草稿请直接办理，不能重复占用额度。`" type="info" :closable="false" />
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="productionTaskDialogVisible = false">取消</el-button>
@@ -774,6 +778,8 @@ const getDefaultInboundType = () =>
 // 生产退料相关
 const productionTaskDialogVisible = ref(false)
 const productionTasks = ref([])
+const taskInspections = ref([])
+const selectedInspectionId = ref(null)
 const taskSearchKeyword = ref('')
 const taskLoading = ref(false)
 const selectedTask = ref(null)
@@ -1241,6 +1247,8 @@ const openTaskSelectDialog = async () => {
   taskSearchKeyword.value = ''
   taskSelection.value = null
   taskProduct.value = null
+  taskInspections.value = []
+  selectedInspectionId.value = null
   taskMaterialRecords.value = []
   selectedReturnMaterials.value = []
   await searchProductionTasks()
@@ -1282,6 +1290,10 @@ const selectTask = async (task) => {
       const product = parseResponseData(await baseDataApi.getMaterial(detail.productId))
       if (request !== taskSelectionRequest) return
       if (!product?.id || !product.unitId) throw new Error('任务产品缺少物料或单位信息，请先维护产品资料')
+      const inspections = parseListData(await inventoryApi.getTaskReleaseSources(task.id))
+      if (request !== taskSelectionRequest) return
+      taskInspections.value = inspections.filter(row => Number(row.taskId || row.referenceId) === Number(task.id) &&
+        ['passed', 'partial', 'completed', 'failed'].includes(row.status) && Number(row.availableQuantity) > 0)
       taskProduct.value = product
     } else {
       await loadTaskMaterialRecords(task.id, request)
@@ -1333,7 +1345,11 @@ const confirmTaskSelection = () => {
   }
   if (form.inboundType === 'production') {
     const product = taskProduct.value
+    const inspection = taskInspections.value.find(row => row.id === selectedInspectionId.value)
     if (!product) return
+    if (!inspection) { ElMessage.warning('请选择已放行的成品终检单；如已有自动草稿，请直接办理该草稿'); return }
+    form.inspectionId = inspection.id
+    form.inspectionNo = inspection.inspectionNo
     selectedTask.value = taskSelection.value
     form.referenceType = 'production_task'
     form.referenceId = taskSelection.value.id
@@ -1341,9 +1357,9 @@ const confirmTaskSelection = () => {
     form.locationId = form.locationId || product.defaultLocationId || product.locationId || locations.value[0]?.id || ''
     form.items = [{
       materialId: product.id, materialCode: product.code, materialName: product.name,
-      specification: product.specification || product.specs || '', quantity: '',
+      specification: product.specification || product.specs || '', quantity: inspection.availableQuantity,
       unitId: product.unitId, unitName: product.unitName || units.value.find(unit => unit.id === product.unitId)?.name || '',
-      batchNo: '', locationId: form.locationId, remarks: ''
+      batchNo: inspection.batchNo, locationId: form.locationId, remarks: ''
     }]
     productionTaskDialogVisible.value = false
     return
@@ -1404,8 +1420,12 @@ const handleSubmit = async () => {
       return
     }
 
-    if (requiresProductionTask.value && !form.inspectionId && (form.referenceType !== 'production_task' || !form.referenceId)) {
+    if (requiresProductionTask.value && (!form.inspectionId || form.referenceType === 'production_task') && (form.referenceType !== 'production_task' || !form.referenceId)) {
       ElMessage.warning('请选择关联生产任务')
+      return
+    }
+    if (form.inboundType === 'production' && !form.inspectionId) {
+      ElMessage.warning('生产入库必须选择成品终检放行依据')
       return
     }
     if (form.items.some(item => !Number.isInteger(Number(item.materialId)) || Number(item.materialId) <= 0 || !Number.isFinite(Number(item.quantity)) || Number(item.quantity) <= 0)) {
@@ -1457,6 +1477,7 @@ const handleSubmit = async () => {
       referenceType: form.referenceType,
       referenceId: form.referenceId,
       referenceNo: form.referenceNo,
+      inspectionId: form.inspectionId,
       items: form.items.map(item => ({
         materialId: item.materialId,
         quantity: Number(item.quantity),

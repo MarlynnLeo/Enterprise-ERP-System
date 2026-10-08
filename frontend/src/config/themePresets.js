@@ -79,7 +79,7 @@ export const THEME_PRESET_LIST = Object.freeze([
     id: 'workspace',
     name: '经典主题',
     description: '清晰紧凑的表格布局，适合日常业务操作',
-    primaryColor: '#4263EB',
+    primaryColor: '#2563EB',
     mode: 'light',
     icon: 'Briefcase',
     defaultPageSize: 25

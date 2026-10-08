@@ -9,7 +9,7 @@ import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { ElLoading } from 'element-plus/es/components/loading/index'
 import { purchaseApi, supplierApi, baseDataApi } from '@/api'
-import { parseListData, parseResponseData } from '@/utils/responseParser'
+import { parseListData, parseResponseData, parsePaginatedData } from '@/utils/responseParser'
 import { getApiErrorMessage } from '@/utils/errorHandler'
 import { searchMaterials } from '@/utils/searchConfig'
 import { useFinanceStore } from '@/stores/finance'
@@ -609,17 +609,18 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
   const loadRequisitions = async () => {
     try {
       requisitionDialogLoading.value = true
-      const response = await purchaseApi.getOrderRequisitions({ page: requisitionPagination.current, pageSize: requisitionPagination.size, requisitionNo: requisitionSearchKeyword.value, status: 'approved' })
-      const requisitionItems = parseListData(response, { enableLog: false })
-      const approvedRequisitions = requisitionItems.filter(item => item.status === 'approved' && !item.isFullyOrdered)
-      requisitionList.value = approvedRequisitions
-      requisitionPagination.total = approvedRequisitions.length
+      const response = await purchaseApi.getOrderRequisitions({ page: requisitionPagination.current, pageSize: requisitionPagination.size, requisitionNo: requisitionSearchKeyword.value })
+      const { list: requisitionItems, total } = parsePaginatedData(response, { enableLog: false })
+      const availableRequisitions = requisitionItems.filter(item => ['submitted', 'approved', 'completed'].includes(item.status) && !item.isFullyOrdered)
+      requisitionList.value = availableRequisitions
+      requisitionPagination.total = total
       const allUnorderedMaterials = []
-      approvedRequisitions.forEach(req => {
+      availableRequisitions.forEach(req => {
         if (req.materials && req.materials.length > 0) {
           req.materials.forEach((material, idx) => {
-            if (!material.orderedQuantity || parseFloat(material.orderedQuantity) === 0) {
-              allUnorderedMaterials.push({ ...material, requisitionId: req.id, requisitionNumber: req.requisitionNumber, uniqueKey: `${req.id}_${material.materialCode}_${idx}` })
+            const remainingQuantity = Number(material.quantity) - Number(material.orderedQuantity || 0)
+            if (remainingQuantity > 0) {
+              allUnorderedMaterials.push({ ...material, quantity: remainingQuantity, requisitionId: req.id, requisitionNumber: req.requisitionNumber, uniqueKey: `${req.id}_${material.materialCode}_${idx}` })
             }
           })
         }

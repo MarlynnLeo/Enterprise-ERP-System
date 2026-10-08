@@ -13,7 +13,8 @@ export const QUALITATIVE_MEASUREMENT_OPTIONS = [
 ]
 
 const NUMBER_SOURCE = '[+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)'
-const UNIT_RE = /^(?:mm|毫米|cm|厘米|m|米|μm|um|微米|in|英寸|n(?:\s*[·.]\s*m)?|kgf?(?:\s*[·.]\s*cm)?|kg|g|克|mg|mpa|pa|kn|mhz|khz|hz|v|伏|a|安|w|瓦|%|百分比|℃|°c|度|hrc|邵氏|只|件|个|pcs|台|套|样本|项)\b/i
+// 单位后面可能紧跟中文比较词，例如 N.m以上；这里不能依赖 ASCII \\b。
+const UNIT_RE = /^(?:mm|毫米|cm|厘米|m|米|μm|um|微米|in|英寸|n(?:\s*[·.]\s*m)?|kgf?(?:\s*[·.]\s*cm)?|kg|g|克|mg|mpa|pa|kn|mhz|khz|hz|v|伏|a|安|w|瓦|%|百分比|℃|°c|度|hrc|邵氏|只|件|个|pcs|台|套|样本|项|扣|圈)(?=$|[\s,;，；。()（）+\-~～至到之间以上以下以内])/i
 
 const STANDARD_CODE_PREFIX_RE = /(?:gb\s*\/\s*t|iso|iec|en|jis|din|ansi|astm|qc|jb)\s*$/i
 const SAMPLING_BEFORE_RE = /(?:每批|每组|每次|抽样数量|取样数量|抽样|取样|抽取|抽检|检验数量|检查数量|检验|检查|样本数量|样本数|抽)\s*(?::\s*)?$/i
@@ -114,8 +115,54 @@ function isStandardCodeToken(token) {
   return STANDARD_CODE_PREFIX_RE.test(before)
 }
 
+function pushSpan(spans, start, end) {
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return
+  spans.push({ start, end })
+}
+
+// 日期、版本、AQL、抽样数量和标准编号中的数字不属于实测约束。
+function getMetadataSpans(text) {
+  const spans = []
+  const patterns = [
+    /\b\d{4}\s*[-/.]\s*\d{1,2}\s*[-/.]\s*\d{1,2}\b/g,
+    /\b\d{1,2}\s*[-/.]\s*\d{1,2}\s*[-/.]\s*\d{2,4}\b/g,
+    /\b\d{4}\s*[-/.]\s*\d{1,2}\b/g,
+    /\d{4}\s*年\s*\d{1,2}\s*月(?:\s*\d{1,2}\s*日)?/g,
+    /(?:日期|生产日期|检验日期|出厂日期|批次日期)\s*[:：]?\s*\d{6,8}/g,
+    /(?:版本(?:号|本)?|版次|修订版|rev(?:ision)?|ver(?:sion)?)\s*[:：#-]?\s*[vV]?\d+(?:\.\d+)+(?:\.\d+)*/gi,
+    /\bv\d+\.\d+(?:\.\d+)*\b/gi,
+    new RegExp(`\\bAQL\\s*(?:等级|level)?\\s*[:：=]?\\s*${NUMBER_SOURCE}`, 'gi'),
+    new RegExp(`\\b(?:Ac|Re)\\s*[:：=]?\\s*${NUMBER_SOURCE}`, 'gi'),
+    new RegExp(`(?:接收数|拒收数|接收限|拒收限|合格数|不合格数)\\s*[:：=]?\\s*${NUMBER_SOURCE}`, 'g'),
+    new RegExp(`(?:每批|每组|每次|抽样数量|取样数量|抽样|取样|抽取|抽检|检验数量|检查数量|样本数量|样本数|抽)\\s*[:：]?\\s*${NUMBER_SOURCE}\\s*(?:只|件|个|pcs|台|套|样本|件次|组)?`, 'gi'),
+    new RegExp(`(?:gb\\s*\\/\\s*t|iso|iec|en|jis|din|ansi|astm|qc|jb)\\s*[/\\-]?\\s*${NUMBER_SOURCE}`, 'gi'),
+  ]
+  for (const pattern of patterns) {
+    pattern.lastIndex = 0
+    let match
+    while ((match = pattern.exec(text)) !== null) {
+      pushSpan(spans, match.index, match.index + match[0].length)
+      if (match[0].length === 0) pattern.lastIndex += 1
+    }
+  }
+  return spans
+}
+
+function tokenOverlapsMetadata(text, token) {
+  return getMetadataSpans(text).some((span) => token.start < span.end && token.end > span.start)
+}
+
+function maskMetadataText(text) {
+  const chars = String(text || '').split('')
+  for (const span of getMetadataSpans(text)) {
+    for (let index = span.start; index < span.end && index < chars.length; index += 1) chars[index] = ' '
+  }
+  return chars.join('')
+}
+
 function getCandidateTokens(text) {
   return findNumberTokens(text).filter((token) => {
+    if (tokenOverlapsMetadata(text, token)) return false
     if (isSamplingToken(token) || isStandardCodeToken(token)) return false
 
     // 日期、版本号和类似 “1/2” 的标准编号不是测量约束。
@@ -177,6 +224,7 @@ function parseComparisonRule(text) {
     const value = Number(comparison[2])
     const tokenStart = comparison.index + comparison[0].lastIndexOf(comparison[2])
     const token = { start: tokenStart, end: tokenStart + comparison[2].length }
+    if (tokenOverlapsMetadata(text, token)) return null
     const unit = unitForToken(text, token)
     if (operatorText === '≥' || operatorText === '>=' || operatorText === '>') {
       return makeRule({ operator: operatorText === '>' ? 'gt' : 'gte', nominal: value, lowerBound: value, upperBound: null, unit })
@@ -197,6 +245,7 @@ function parseComparisonRule(text) {
     const value = Number(match[2])
     if (!Number.isFinite(value)) continue
     const start = match.index + match[0].lastIndexOf(match[2])
+    if (tokenOverlapsMetadata(text, { start, end: start + match[2].length })) continue
     const unit = unitForToken(text, { start, end: start + match[2].length })
     return candidate.operator === 'gte'
       ? makeRule({ operator: 'gte', nominal: value, lowerBound: value, upperBound: null, unit })
@@ -204,12 +253,16 @@ function parseComparisonRule(text) {
   }
 
   // “1.5N.m以上/以下”这类后置比较。
-  const postComparison = text.match(new RegExp(`(${NUMBER_SOURCE})\\s*(以上|及以上|或以上|以下|及以下|或以下|以内)`))
+  const postComparison = text.match(new RegExp(
+    `(${NUMBER_SOURCE})\\s*([^\\d\\s,;，；。()（）+\\-~～至到之间以上以下以内]{1,12})?\\s*(以上|及以上|或以上|以下|及以下|或以下|以内)`
+  ))
   if (postComparison) {
     const value = Number(postComparison[1])
-    const start = postComparison.index
-    const unit = unitForToken(text, { start, end: start + postComparison[1].length })
-    const isLower = /以上/.test(postComparison[2])
+    const start = postComparison.index + postComparison[0].indexOf(postComparison[1])
+    const end = start + postComparison[1].length
+    if (tokenOverlapsMetadata(text, { start, end })) return null
+    const unit = postComparison[2] || unitForToken(text, { start, end })
+    const isLower = /以上/.test(postComparison[3])
     return isLower
       ? makeRule({ operator: 'gte', nominal: value, lowerBound: value, upperBound: null, unit })
       : makeRule({ operator: 'lte', nominal: value, lowerBound: null, upperBound: value, unit })
@@ -219,18 +272,22 @@ function parseComparisonRule(text) {
 }
 
 function parseRangeRule(text) {
-  const rangePatterns = [
-    new RegExp(`(${NUMBER_SOURCE})\\s*(?:~|～|至|到|—|–)\\s*(${NUMBER_SOURCE})`),
-    /([0-9]+(?:\.[0-9]+)?)\s*-\s*([0-9]+(?:\.[0-9]+)?)/
-  ]
-  for (const pattern of rangePatterns) {
+ const rangePatterns = [
+   new RegExp(`(${NUMBER_SOURCE})\\s*(?:~|～|至|到|—|–)\\s*(${NUMBER_SOURCE})`),
+    new RegExp(`(${NUMBER_SOURCE})\\s*-\\s*(${NUMBER_SOURCE})`)
+ ]
+ for (const pattern of rangePatterns) {
     const match = text.match(pattern)
     if (!match) continue
     const left = Number(match[1])
     const right = Number(match[2])
-    if (!Number.isFinite(left) || !Number.isFinite(right)) continue
-    const start = match.index + match[0].lastIndexOf(match[2])
-    const unit = unitForToken(text, { start, end: start + match[2].length })
+   if (!Number.isFinite(left) || !Number.isFinite(right)) continue
+    const leftStart = match.index + match[0].indexOf(match[1])
+    const rightStart = match.index + match[0].lastIndexOf(match[2])
+    if (tokenOverlapsMetadata(text, { start: leftStart, end: leftStart + match[1].length }) ||
+        tokenOverlapsMetadata(text, { start: rightStart, end: rightStart + match[2].length })) continue
+    const start = rightStart
+   const unit = unitForToken(text, { start, end: start + match[2].length })
     return makeRule({
       operator: 'range',
       nominal: (left + right) / 2,
@@ -246,9 +303,11 @@ function parsePlusMinusRule(text) {
   const match = text.match(new RegExp(`(${NUMBER_SOURCE})\\s*(?:±|\\+/-|\\+\\s*[/／]\\s*-|\\+\\s*、\\s*-)\\s*(${NUMBER_SOURCE})`))
   if (!match) return null
   const nominal = Number(match[1])
-  const tolerance = Math.abs(Number(match[2]))
-  if (!Number.isFinite(nominal) || !Number.isFinite(tolerance)) return null
-  const start = match.index + match[0].lastIndexOf(match[2])
+ const tolerance = Math.abs(Number(match[2]))
+ if (!Number.isFinite(nominal) || !Number.isFinite(tolerance)) return null
+  const nominalStart = match.index + match[0].indexOf(match[1])
+  if (tokenOverlapsMetadata(text, { start: nominalStart, end: nominalStart + match[1].length })) return null
+ const start = match.index + match[0].lastIndexOf(match[2])
   return makeRule({
     operator: 'tolerance',
     nominal,
@@ -297,28 +356,27 @@ function parseSingleNumberRule(text) {
  */
 export function parseInspectionStandard(itemOrStandard = {}) {
   const item = itemOrStandard && typeof itemOrStandard === 'object' ? itemOrStandard : null
-  const explicitRule = parseExplicitDimensionRule(item)
-  if (explicitRule) return explicitRule
-
   const text = getStandardText(itemOrStandard)
   if (text) {
+    // 比较符（例如“≥0.9N.m”）优先于标准尺寸字段。性能项目可以同时
+    // 展示标准尺寸 0.9，但其业务含义是单边下限而不是“必须等于 0.9”。
     const comparisonRule = parseComparisonRule(text)
     if (comparisonRule) return comparisonRule
 
-    const rangeRule = parseRangeRule(text)
+    const sanitizedText = maskMetadataText(text)
+
+    const rangeRule = parseRangeRule(sanitizedText)
     if (rangeRule) return rangeRule
 
-    const plusMinusRule = parsePlusMinusRule(text)
+    const plusMinusRule = parsePlusMinusRule(sanitizedText)
     if (plusMinusRule) return plusMinusRule
 
-    const singleRule = parseSingleNumberRule(text)
+    const singleRule = parseSingleNumberRule(sanitizedText)
     if (singleRule) return singleRule
   }
 
-  // 旧模板中 type=dimension 即使标准文本为空也要求数值录入；保留这一兼容行为。
-  if (item && isDimensionInspectionItem(item)) {
-    return makeRule({ operator: 'none', source: 'dimension' })
-  }
+  const explicitRule = parseExplicitDimensionRule(item)
+  if (explicitRule) return explicitRule
 
   return {
     mode: 'qualitative',

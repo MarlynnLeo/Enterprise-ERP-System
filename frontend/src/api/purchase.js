@@ -76,7 +76,7 @@ export const purchaseApi = {
     createRequisition: (data) => api.post('/purchase/requisitions', data),
     updateRequisition: (id, data) => api.put(`/purchase/requisitions/${id}`, data),
     deleteRequisition: (id) => api.delete(`/purchase/requisitions/${id}`),
-    updateRequisitionStatus: (id, data) => api.put(`/purchase/requisitions/${id}/status`, data),
+    submitRequisition: (id) => api.put(`/purchase/requisitions/${id}/status`, { newStatus: 'submitted' }),
 
     // 采购订单
     getOrders: async (params) => {

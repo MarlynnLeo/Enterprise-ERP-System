@@ -564,7 +564,8 @@ async function generateProductionAndPurchasePlans(
             `SELECT pri.material_id, SUM(pri.quantity) as total_qty
              FROM purchase_requisition_items pri
              INNER JOIN purchase_requisitions pr ON pri.requisition_id = pr.id
-             WHERE pr.status IN ('draft','pending','approved')
+             WHERE pr.status IN ('draft','pending','submitted','approved','completed')
+               AND pr.deleted_at IS NULL
                AND pr.remarks LIKE ?
                AND pri.material_id IN (${matIds.map(() => '?').join(',')})
              GROUP BY pri.material_id`,

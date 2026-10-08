@@ -104,6 +104,23 @@ describe('operation column measurement and isolation', () => {
     expect(columnWidth()).toBe('162')
   })
 
+  test('includes status tags beside disposition and print, and resizes when the tag changes', async () => {
+    document.body.innerHTML = table(row(
+      '<span class="el-tag" data-size="82" style="border:0">返工待分配</span>' + action('不良处置', 72) + action('打印', 48)
+    ))
+    startOperationColumnAutoWidth()
+    await flush()
+    expect(columnWidth()).toBe('242')
+    const tag = document.querySelector('.el-tag')
+    tag.dataset.size = '56'
+    tag.textContent = '待处理'
+    await flush()
+    expect(columnWidth()).toBe('216')
+    tag.style.display = 'none'
+    await flush()
+    expect(columnWidth()).toBe('154')
+  })
+
   test('ignores navigation, ordinary data cells and no-op width writes', async () => {
     document.body.innerHTML = '<nav></nav>' + table()
     startOperationColumnAutoWidth()

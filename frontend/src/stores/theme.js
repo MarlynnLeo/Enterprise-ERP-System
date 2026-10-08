@@ -116,13 +116,25 @@ export const useThemeStore = defineStore('theme', () => {
     appearance.value = normalizeThemeAppearance(appearance.value)
     const html = document.documentElement
 
-    html.classList.remove('light', 'dark')
-    html.classList.add(currentTheme.value)
-    html.setAttribute('data-theme', appearance.value.preset)
+    // The account response often repeats the cached startup theme. Compare
+    // against the real DOM so replaying it does not invalidate every table and
+    // chart, while a missing or externally changed attribute is still repaired.
+    for (const mode of ['light', 'dark']) {
+      const enabled = mode === currentTheme.value
+      if (html.classList.contains(mode) !== enabled) html.classList.toggle(mode, enabled)
+    }
+    if (html.getAttribute('data-theme') !== appearance.value.preset) {
+      html.setAttribute('data-theme', appearance.value.preset)
+    }
+    const setStyleProperty = (key, value) => {
+      if (html.style.getPropertyValue(key) !== value || html.style.getPropertyPriority(key)) {
+        html.style.setProperty(key, value)
+      }
+    }
 
     const primaryColor = appearance.value.primaryColor
-    html.style.setProperty('--font-size-base', `${appearance.value.fontSize}px`)
-    html.style.setProperty('--el-font-size-base', `${appearance.value.fontSize}px`)
+    setStyleProperty('--font-size-base', `${appearance.value.fontSize}px`)
+    setStyleProperty('--el-font-size-base', `${appearance.value.fontSize}px`)
 
     const primaryOverrides = {
       '--color-primary': primaryColor,
@@ -133,8 +145,8 @@ export const useThemeStore = defineStore('theme', () => {
     const isCustomColor = primaryColor.toUpperCase() !== getThemePreset(appearance.value.preset).primaryColor.toUpperCase()
     Object.entries(primaryOverrides).forEach(([key, value]) => {
       // Preset palettes own their color ramps, especially the dark theme surfaces.
-      if (isCustomColor) html.style.setProperty(key, value)
-      else html.style.removeProperty(key)
+      if (isCustomColor) setStyleProperty(key, value)
+      else if (html.style.getPropertyValue(key)) html.style.removeProperty(key)
     })
 
     const computedStyle = window.getComputedStyle(html)
@@ -145,10 +157,13 @@ export const useThemeStore = defineStore('theme', () => {
       '--color-on-info': '--color-info'
     }
 
-    Object.entries(semanticColors).forEach(([textToken, backgroundToken]) => {
+    // Finish all computed-style reads before writing any derived tokens.
+    // Interleaving the two forces a fresh style calculation for each color.
+    const semanticTextColors = Object.entries(semanticColors).map(([textToken, backgroundToken]) => {
       const background = computedStyle.getPropertyValue(backgroundToken).trim()
-      html.style.setProperty(textToken, getAccessibleTextColor(background))
+      return [textToken, getAccessibleTextColor(background)]
     })
+    semanticTextColors.forEach(([key, value]) => setStyleProperty(key, value))
   }
 
   const persistLocalTheme = (settings) => {

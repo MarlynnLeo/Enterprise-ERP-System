@@ -6,7 +6,6 @@ const { findMenuHierarchyRepairs } = require('../src/bootstrap/menus');
 
 const REQUIRED_APPROVAL_TYPES = [
   'purchase_order',
-  'purchase_requisition',
   'contract',
   'ecn',
   'hr_leave',

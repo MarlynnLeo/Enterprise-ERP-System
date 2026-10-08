@@ -1,4 +1,5 @@
 const BusinessError = require('../../utils/BusinessError');
+const Allocation = require('./ProductionIssueAllocationService');
 const Precision = require('../../utils/precision');
 const ProductionReturnReversalGuard = require('./ProductionReturnReversalGuard');
 
@@ -52,16 +53,16 @@ class ProductionReturnService {
     // the authority for the actual warehouse, batch and quantity issued.
     const sourcePredicate = `o.deleted_at IS NULL
       AND o.status IN ('completed', 'partial_completed')
-      AND ((o.reference_type = 'production_task' AND o.reference_id = ?)
-        OR o.production_task_id = ?)`;
+      AND ${Allocation.taskSourceSql('o', '?')}`;
     const [issued] = await connection.execute(
       `SELECT movement.material_id, movement.location_id, movement.batch_number,
+              movement.outbound_id, movement.reference_type, movement.production_task_id, movement.issue_kind,
               SUM(movement.issued_quantity) AS issued_quantity,
               SUM(movement.issued_value) / NULLIF(SUM(movement.issued_quantity), 0) AS unit_cost,
               m.code AS material_code, m.name AS material_name, m.specs AS material_specs,
               m.unit_id, u.name AS unit_name, l.name AS default_location_name
          FROM (
-           SELECT il.material_id, il.location_id, TRIM(COALESCE(il.batch_number, '')) AS batch_number,
+           SELECT o.id AS outbound_id, o.reference_type, o.production_task_id, il.reference_type AS issue_kind, il.material_id, il.location_id, TRIM(COALESCE(il.batch_number, '')) AS batch_number,
                   -il.quantity AS issued_quantity, -il.quantity * COALESCE(il.unit_cost, 0) AS issued_value
              FROM inventory_ledger il
              LEFT JOIN inventory_posting_documents posted_source ON posted_source.id = il.posting_document_id
@@ -74,7 +75,7 @@ class ProductionReturnService {
              )
             WHERE ${sourcePredicate} AND il.quantity < 0
            UNION ALL
-           SELECT pl.material_id, pl.location_id, TRIM(COALESCE(pl.batch_number, '')) AS batch_number,
+           SELECT o.id AS outbound_id, o.reference_type, o.production_task_id, pd.source_type AS issue_kind, pl.material_id, pl.location_id, TRIM(COALESCE(pl.batch_number, '')) AS batch_number,
                   -pl.signed_quantity AS issued_quantity,
                   -pl.signed_quantity * COALESCE(pl.unit_cost, 0) AS issued_value
              FROM inventory_posting_lines pl
@@ -90,10 +91,10 @@ class ProductionReturnService {
          JOIN materials m ON m.id = movement.material_id
          LEFT JOIN units u ON u.id = m.unit_id
          LEFT JOIN locations l ON l.id = movement.location_id
-        GROUP BY movement.material_id, movement.location_id, movement.batch_number,
+        GROUP BY movement.outbound_id, movement.reference_type, movement.production_task_id, movement.issue_kind, movement.material_id, movement.location_id, movement.batch_number,
                  m.code, m.name, m.specs, m.unit_id, u.name, l.name
         ORDER BY movement.material_id, movement.location_id, movement.batch_number`,
-      [taskId, taskId, taskId, taskId]
+      [taskId, taskId]
     );
 
     // Confirmed documents reserve capacity; completed includes pending/rejected
@@ -115,7 +116,13 @@ class ProductionReturnService {
         ORDER BY ii.id${lock ? ' FOR UPDATE' : ''}`,
       [Number(excludeInboundId) || 0, taskId, taskId, taskId]
     );
-    return { task: tasks[0], records: this.subtractReturns(issued, returned) };
+    return {
+      task: tasks[0],
+      records: this.subtractReturns(
+        await Allocation.allocate(connection, issued, taskId),
+        returned
+      ),
+    };
   }
 
   static subtractReturns(issued, returned) {

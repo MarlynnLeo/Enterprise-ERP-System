@@ -27,7 +27,7 @@ const createReinspectionTask = async (task, connection) => {
   try {
     // 获取原质检单详情
     const [originalRows] = await connection.query(
-      'SELECT id, inspection_no, inspection_type, reference_id, reference_no, material_id, supplier_id, product_id, product_name, product_code, process_id, process_name, batch_no, quantity, qualified_quantity, unqualified_quantity, unit, unit_id, status, planned_date, actual_date, inspector_id, inspector_name, punch_time, standard_type, standard_no, template_id, note, created_at, updated_at, traceability_id, traceability_batch, chain_id, chain_step_id, is_first_article, first_article_qty, is_full_inspection, first_article_result, production_can_continue, task_id, is_aql, aql_standard_id, aql_level, accept_limit, reject_limit, deleted_at FROM quality_inspections WHERE id = ? AND deleted_at IS NULL',
+      'SELECT source_type, purchase_order_item_id, id, inspection_no, inspection_type, reference_id, reference_no, material_id, supplier_id, product_id, product_name, product_code, process_id, process_name, batch_no, quantity, qualified_quantity, unqualified_quantity, unit, unit_id, status, planned_date, actual_date, inspector_id, inspector_name, punch_time, standard_type, standard_no, template_id, note, created_at, updated_at, traceability_id, traceability_batch, chain_id, chain_step_id, is_first_article, first_article_qty, is_full_inspection, first_article_result, production_can_continue, task_id, is_aql, aql_standard_id, aql_level, accept_limit, reject_limit, deleted_at FROM quality_inspections WHERE id = ? AND deleted_at IS NULL',
       [task.inspection_id]
     );
 
@@ -67,6 +67,25 @@ const createReinspectionTask = async (task, connection) => {
     );
 
     const newInspectionId = insertResult.insertId;
+    // Preserve source identity and accountable inspector without copying old results.
+    await connection.query(
+      `UPDATE quality_inspections SET
+      inspector_id = ?, inspector_name = ?, source_type = ?, purchase_order_item_id = ?,
+      task_id = ?, supplier_id = ?, process_id = ?, process_name = ?,
+      is_full_inspection = 1, is_aql = 0, sample_quantity = ? WHERE id = ?`,
+      [
+        origin.inspector_id || null,
+        origin.inspector_name || null,
+        origin.source_type || null,
+        origin.purchase_order_item_id || null,
+        origin.task_id || null,
+        origin.supplier_id || null,
+        origin.process_id || null,
+        origin.process_name || null,
+        task.quantity,
+        newInspectionId,
+      ]
+    );
 
     // 继承检验项目标准
     const [items] = await connection.query(
@@ -128,6 +147,7 @@ const getReworkTasks = async (req, res) => {
       pageSize = 10,
       reworkNo,
       ncpNo,
+      ncpId,
       materialCode,
       status,
       assignedTo,
@@ -146,6 +166,15 @@ const getReworkTasks = async (req, res) => {
     if (reworkNo) {
       whereConditions.push('rt.rework_no LIKE ?');
       queryParams.push(`%${reworkNo}%`);
+    }
+
+    if (ncpId) {
+      const sourceId = Number(ncpId);
+      if (!Number.isSafeInteger(sourceId) || sourceId <= 0) {
+        return ResponseHandler.error(res, '不合格品单 ID 无效', 'VALIDATION_ERROR', 400);
+      }
+      whereConditions.push('rt.ncp_id = ?');
+      queryParams.push(sourceId);
     }
 
     if (ncpNo) {
@@ -195,9 +224,12 @@ const getReworkTasks = async (req, res) => {
       SELECT
         rt.*,
         ncp.inspection_no,
+        ncp.inspection_id,
+        qi.inspection_type,
         ncp.defect_description
       FROM rework_tasks rt
       LEFT JOIN nonconforming_products ncp ON rt.ncp_id = ncp.id
+      LEFT JOIN quality_inspections qi ON qi.id = ncp.inspection_id
       ${whereClause}
       ORDER BY rt.created_at DESC
     `,
@@ -206,6 +238,10 @@ const getReworkTasks = async (req, res) => {
     );
     // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
     const [rows] = await pool.query(dataQuery, queryParams);
+    const reinspections = await getReinspections(rows.map((row) => ({ rework_id: row.id })));
+    rows.forEach((row) => {
+      row.reinspection_id = reinspections.get(Number(row.id))?.id || null;
+    });
 
     return ResponseHandler.success(res, {
       data: rows,
@@ -233,10 +269,12 @@ const getReworkTaskById = async (req, res) => {
         rt.*,
         ncp.inspection_no,
         ncp.inspection_id,
+        qi.inspection_type,
         ncp.defect_description,
         ncp.quantity as defect_quantity
       FROM rework_tasks rt
       LEFT JOIN nonconforming_products ncp ON rt.ncp_id = ncp.id
+      LEFT JOIN quality_inspections qi ON qi.id = ncp.inspection_id
       WHERE rt.id = ?
     `;
 
@@ -246,6 +284,8 @@ const getReworkTaskById = async (req, res) => {
       return ResponseHandler.error(res, '返工任务不存在', 'NOT_FOUND', 404);
     }
 
+    const reinspections = await getReinspections([{ rework_id: rows[0].id }]);
+    rows[0].reinspection_id = reinspections.get(Number(rows[0].id))?.id || null;
     return ResponseHandler.success(res, rows[0], '获取返工任务详情成功');
   } catch (error) {
     logger.error('获取返工任务详情失败:', error);
@@ -342,6 +382,11 @@ const assignTask = async (req, res) => {
       );
     }
 
+    if (!String(assigned_to || '').trim()) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '请选择返工负责人', 'VALIDATION_ERROR', 400);
+    }
+
     // 分配任务
     await connection.query(
       `UPDATE rework_tasks
@@ -411,12 +456,14 @@ const completeTask = async (req, res) => {
       );
     }
 
+    const effectiveCost = rework_cost ?? task.rework_cost ?? 0;
+
     // 完成返工任务
     await connection.query(
       `UPDATE rework_tasks
        SET actual_date = ?, rework_cost = ?, status = 'completed', progress = 100, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
-      [actual_date || new Date().toISOString().slice(0, 10), rework_cost, id]
+      [actual_date || new Date().toISOString().slice(0, 10), effectiveCost, id]
     );
 
     await QualityIntegrationService.recordQualityCost(
@@ -425,7 +472,7 @@ const completeTask = async (req, res) => {
         referenceNo: task.rework_no,
         materialCode: task.material_code,
         quantity: task.quantity,
-        cost: rework_cost,
+        cost: effectiveCost,
         operator: task.created_by,
       },
       connection
@@ -490,6 +537,19 @@ const updateStatus = async (req, res) => {
     if (!transitions[task.status]?.includes(status)) {
       await connection.rollback();
       return ResponseHandler.error(res, '当前返工状态不允许此操作', 'VALIDATION_ERROR', 400);
+    }
+    if (status === 'in_progress' && !task.assigned_to) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '请先分配返工负责人', 'VALIDATION_ERROR', 400);
+    }
+    if (status === 'cancelled' && task.ncp_id) {
+      await connection.query(
+        `UPDATE nonconforming_products
+        SET handled_quantity = GREATEST(0, COALESCE(handled_quantity, 0) - ?),
+            status = 'processing', updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND deleted_at IS NULL`,
+        [task.quantity, task.ncp_id]
+      );
     }
     if (status === 'completed') {
       // 更新状态为已完成
@@ -586,8 +646,8 @@ const updateProgress = async (req, res) => {
       return ResponseHandler.error(res, '缺少必填字段: progress', 'VALIDATION_ERROR', 400);
     }
 
-    const numProgress = parseFloat(progress);
-    if (isNaN(numProgress) || numProgress < 0 || numProgress > 100) {
+    const numProgress = Number(progress);
+    if (!Number.isFinite(numProgress) || numProgress < 0 || numProgress > 100) {
       await connection.rollback();
       return ResponseHandler.error(res, '进度值必须在0-100之间', 'VALIDATION_ERROR', 400);
     }
@@ -595,7 +655,7 @@ const updateProgress = async (req, res) => {
     // 检查返工任务是否存在 (获取 ncp 信息以便自动完成时创建复检单)
     const [checkResult] = await connection.query(
       `
-      SELECT rt.status, rt.quantity, rt.rework_no, rt.created_by, rt.assigned_to, rt.material_code,
+      SELECT rt.id, rt.status, rt.quantity, rt.rework_no, rt.created_by, rt.assigned_to, rt.material_code, rt.rework_cost,
              ncp.ncp_no, ncp.inspection_id
       FROM rework_tasks rt
       LEFT JOIN nonconforming_products ncp ON rt.ncp_id = ncp.id
@@ -618,6 +678,16 @@ const updateProgress = async (req, res) => {
     if (checkResult[0].status === STATUS.REWORK.CANCELLED) {
       await connection.rollback();
       return ResponseHandler.error(res, '已取消的返工任务不能修改进度', 'VALIDATION_ERROR', 400);
+    }
+
+    if (checkResult[0].status !== STATUS.REWORK.IN_PROGRESS || !checkResult[0].assigned_to) {
+      await connection.rollback();
+      return ResponseHandler.error(
+        res,
+        '返工任务必须先分配后才能更新进度',
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     // 更新进度
@@ -647,7 +717,7 @@ const updateProgress = async (req, res) => {
           referenceNo: taskObj.rework_no,
           materialCode: taskObj.material_code,
           quantity: taskObj.quantity,
-          cost: 0,
+          cost: taskObj.rework_cost || 0,
           operator: taskObj.created_by,
         },
         connection
@@ -672,6 +742,27 @@ const updateProgress = async (req, res) => {
  * 关系链: quality_inspections → nonconforming_products (inspection_id) → rework_tasks (ncp_id)
  * 用于前端判断 FQC/IQC 复检按钮是否可以点击（必须等返工完成才能复检）
  */
+// Resolve the new inspection created by the rework transaction; never reopen the source.
+const getReinspections = async (rows) => {
+  const ids = [...new Set(rows.map((row) => Number(row.rework_id)).filter(Boolean))];
+  if (!ids.length) return new Map();
+  const [inspections] = await pool.query(
+    `SELECT dl.source_id AS rework_id, qi.id, qi.status
+       FROM document_links dl
+       JOIN quality_inspections qi ON qi.id = dl.target_id AND qi.deleted_at IS NULL
+      WHERE dl.source_type = 'rework_task' AND dl.source_id IN (?)
+        AND dl.target_type = 'quality_inspection'
+      ORDER BY qi.id DESC`,
+    [ids]
+  );
+  const result = new Map();
+  for (const inspection of inspections) {
+    if (!result.has(Number(inspection.rework_id)))
+      result.set(Number(inspection.rework_id), inspection);
+  }
+  return result;
+};
+
 const getReworkStatusByInspectionId = async (req, res) => {
   try {
     const { inspectionId } = req.params;
@@ -691,7 +782,7 @@ const getReworkStatusByInspectionId = async (req, res) => {
       FROM nonconforming_products ncp
       LEFT JOIN rework_tasks rt ON rt.ncp_id = ncp.id
       WHERE ncp.inspection_id = ?
-      ORDER BY ncp.created_at DESC
+      ORDER BY ncp.created_at DESC, rt.id DESC
     `;
     const [rows] = await pool.query(query, [inspectionId]);
 
@@ -712,6 +803,8 @@ const getReworkStatusByInspectionId = async (req, res) => {
 
     // 取最新的一条 NCP 记录
     const latest = rows[0];
+    const reinspections = await getReinspections([latest]);
+    const reinspection = reinspections.get(Number(latest.rework_id));
     const hasRework = !!latest.rework_id;
     const reworkCompleted = hasRework && latest.rework_status === 'completed';
     // 只有当处置方式是返工(rework)且返工已完成时，才允许复检
@@ -729,6 +822,8 @@ const getReworkStatusByInspectionId = async (req, res) => {
         rework_status: latest.rework_status,
         rework_completed: reworkCompleted,
         allow_reinspection: allowReinspection,
+        reinspection_id: reinspection?.id || null,
+        reinspection_status: reinspection?.status || null,
       },
       '查询成功'
     );
@@ -779,7 +874,7 @@ const getReworkStatusByInspectionIds = async (req, res) => {
           ncp.ncp_no,
           ncp.disposition,
           ncp.status AS ncp_status,
-          ROW_NUMBER() OVER (PARTITION BY ncp.inspection_id ORDER BY ncp.created_at DESC) as row_num
+          ROW_NUMBER() OVER (PARTITION BY ncp.inspection_id ORDER BY ncp.created_at DESC, rt.id DESC) as row_num
         FROM nonconforming_products ncp
         LEFT JOIN rework_tasks rt ON rt.ncp_id = ncp.id
         WHERE ncp.inspection_id IN (?)
@@ -800,7 +895,9 @@ const getReworkStatusByInspectionIds = async (req, res) => {
       };
     });
 
+    const reinspections = await getReinspections(rows);
     rows.forEach((row) => {
+      const reinspection = reinspections.get(Number(row.rework_id));
       const hasRework = !!row.rework_id;
       const reworkCompleted = hasRework && row.rework_status === 'completed';
       statusMap[row.inspection_id] = {
@@ -813,6 +910,8 @@ const getReworkStatusByInspectionIds = async (req, res) => {
         rework_status: row.rework_status,
         rework_completed: reworkCompleted,
         allow_reinspection: row.disposition === 'rework' && reworkCompleted,
+        reinspection_id: reinspection?.id || null,
+        reinspection_status: reinspection?.status || null,
       };
     });
 

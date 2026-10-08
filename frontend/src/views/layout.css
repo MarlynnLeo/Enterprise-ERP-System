@@ -511,6 +511,12 @@ html.perf-reduced-motion .sidebar {
     gap: 8px;
   }
 
+  /* The drawer overlaps page content. An opaque theme surface keeps text
+     legible without restoring expensive backdrop filtering. */
+  :root[data-theme] .app-sidebar {
+    background: var(--color-bg-base) !important;
+  }
+
   .sidebar {
     position: fixed;
     z-index: 1000;

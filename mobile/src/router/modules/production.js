@@ -51,6 +51,12 @@ export const productionRoutes = [
     meta: { title: '生产任务详情', permission: 'production' }
   },
   {
+    path: '/production/process',
+    name: 'ProductionProcess',
+    component: () => import('@/views/production/Processes.vue'),
+    meta: { title: '生产过程', permission: 'production:process' }
+  },
+  {
     path: '/production/report',
     name: 'ProductionReport',
     component: () => import('@/views/production/Report.vue'),

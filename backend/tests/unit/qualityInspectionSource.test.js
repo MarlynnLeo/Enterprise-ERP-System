@@ -124,6 +124,8 @@ const createInsertConnection = () => ({
       return [{ insertId: 2401 }];
     }
     if (String(sql).includes('UPDATE quality_inspections')) return [{ affectedRows: 1 }];
+    if (String(sql).includes('FROM production_tasks')) return [[{ id: 13, product_id: 3, completed_quantity: 100, status: 'inspection' }]];
+    if (String(sql).includes('FROM production_processes') || String(sql).includes("inspection_type IN ('first_article'")) return [[]];
     throw new Error(`Unexpected query: ${String(sql)}`);
   }),
 });
@@ -284,6 +286,7 @@ describe('quality inspection source routing', () => {
           return [[currentInspection]];
         }
         if (String(sql).includes('UPDATE quality_inspections')) return [{ affectedRows: 1 }];
+        if (String(sql).includes('FROM quality_inspection_items')) return [buildInspectionPayload().items.map((item, i) => ({ ...item, id: 2402 + i }))];
         throw new Error(`Unexpected query: ${String(sql)}`);
       }),
       execute: jest.fn(async (sql) => {

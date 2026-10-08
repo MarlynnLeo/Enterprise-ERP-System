@@ -3,7 +3,7 @@
  */
 
 :root[data-theme="workspace"] {
-  --bg-primary: #f8fafc;
+  --bg-primary: #f4f7fb;
   --bg-secondary: #ffffff;
   --bg-tertiary: #f1f5f9;
   --bg-header: #ffffff;
@@ -25,8 +25,8 @@
   --text-on-dark: #ffffff;
   --text-on-dark-secondary: rgba(255, 255, 255, 0.85);
 
-  --color-primary: #4263eb;
-  --color-primary-bg: #eef1ff;
+  --color-primary: #2563eb;
+  --color-primary-bg: #e9effd;
   --color-success: #059669;
   --color-success-bg: #ecfdf5;
   --color-warning: #d97706;
@@ -35,9 +35,9 @@
   --color-error-bg: #fef2f2;
   --color-info: #475569;
   --color-info-bg: #f1f5f9;
-  --color-accent: #4263eb;
+  --color-accent: #2563eb;
 
-  --module-blue: #4263eb;
+  --module-blue: #2563eb;
   --module-green: #059669;
   --module-red: #dc2626;
   --module-orange: #d97706;

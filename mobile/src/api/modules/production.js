@@ -130,6 +130,10 @@ export const productionApi = {
     return api.get('/production/processes', { params })
   },
 
+  updateProcess(id, data) {
+    return api.put(`/production/processes/${id}`, data)
+  },
+
   // 物料需求计算
   calculateMaterials(data) {
     return api.post('/production/calculate-materials', data)

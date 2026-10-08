@@ -1,43 +1,46 @@
 <!--
-  DashboardTodoList — 仪表盘待办列表
-
-  仪表盘只展示少量只读数据，不需要 Element Plus Table 的排序、固定列和
-  虚拟滚动能力。使用原生表格可以避免列宽测量和 ResizeObserver 链，保证
-  首屏及菜单交互保持可响应；完整待办仍由“查看全部”进入个人中心处理。
+  DashboardTodoList — 经典主题仪表盘待办列表
+  采用现代企业级表格排版，保留原生表格极速响应特性
 -->
 <template>
   <section class="dashboard-todo-list" aria-label="待办事项">
     <header class="todo-list-header">
-      <div class="todo-tabs" role="tablist" aria-label="待办状态">
+      <div class="todo-segmented-control" role="tablist" aria-label="待办状态">
         <button
           type="button"
-          class="todo-tab"
+          class="segmented-btn"
           :class="{ active: isPending }"
           role="tab"
           :aria-selected="isPending"
           @click="emit('switch-tab', 'pending')"
         >
-          {{ labels.pending }}
+          <span class="btn-text">{{ labels.pending }}</span>
+          <span v-if="isPending && count > 0" class="segmented-count">{{ count }}</span>
         </button>
         <button
           type="button"
-          class="todo-tab"
+          class="segmented-btn"
           :class="{ active: !isPending }"
           role="tab"
           :aria-selected="!isPending"
           @click="emit('switch-tab', 'completed')"
         >
-          {{ labels.completed }}
+          <span class="btn-text">{{ labels.completed }}</span>
+          <span v-if="!isPending && count > 0" class="segmented-count">{{ count }}</span>
         </button>
       </div>
-      <button type="button" class="todo-more-button" @click="emit('go-to-all')">
-        {{ labels.viewAll }} <span class="todo-count">{{ count }}</span>
+
+      <button type="button" class="todo-all-action" @click="emit('go-to-all')">
+        <span>{{ labels.viewAll }}</span>
+        <el-icon class="all-arrow"><ArrowRight /></el-icon>
       </button>
     </header>
 
     <div class="todo-list-content">
       <div v-if="tasks.length === 0" class="todo-empty-state">
-        <DocumentRemove class="todo-empty-icon" aria-hidden="true" />
+        <div class="empty-icon-wrap">
+          <DocumentRemove class="todo-empty-icon" aria-hidden="true" />
+        </div>
         <p class="todo-empty-title">{{ emptyTitle }}</p>
         <p class="todo-empty-desc">{{ emptyDescription }}</p>
       </div>
@@ -61,17 +64,18 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="(task, index) in tasks" :key="task.id ?? index">
+            <tr v-for="(task, index) in tasks" :key="task.id ?? index" class="todo-row">
               <td>
-                <span class="event-type" :class="getEventTypeClass(task.type)">
+                <span class="event-badge" :class="getEventTypeClass(task.type)">
                   {{ task.type }}
                 </span>
               </td>
-              <td class="todo-task-title">{{ task.title }}</td>
+              <td class="todo-task-title" :title="task.title">{{ task.title }}</td>
               <td class="todo-column-date">{{ task.date }}</td>
               <td class="todo-column-status">
-                <span :class="isPending ? getStatusClass(task.status) : 'status-completed'">
-                  {{ task.status }}
+                <span class="status-pill" :class="isPending ? getStatusClass(task.status) : 'status-completed'">
+                  <span class="status-dot"></span>
+                  <span class="status-text">{{ task.status }}</span>
                 </span>
               </td>
               <td class="todo-column-action">
@@ -95,7 +99,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { DocumentRemove } from '@element-plus/icons-vue'
+import { DocumentRemove, ArrowRight } from '@element-plus/icons-vue'
 
 const props = defineProps({
   tasks: {
@@ -122,7 +126,7 @@ const labels = computed(() => ({
   completed: translate('common.completed', '已完成'),
   viewAll: '查看全部',
   type: translate('common.type', '类型'),
-  title: translate('common.title', '标题'),
+  title: translate('common.title', '任务标题'),
   status: translate('common.status', '状态'),
   action: translate('common.action', '操作')
 }))
@@ -140,34 +144,34 @@ const emptyTitle = computed(() =>
   isPending.value ? '暂无待办事项' : '暂无已完成事项'
 )
 const emptyDescription = computed(() =>
-  isPending.value ? '太棒了！所有任务已完成' : '还没有完成任何任务'
+  isPending.value ? '太棒了！所有任务已处理完毕' : '还没有完成任何任务'
 )
 
 const EVENT_TYPE_MAP = {
-  '高优先级': 'event-high',
-  '中优先级': 'event-medium',
-  '低优先级': 'event-low',
-  '英语变更': 'event-english',
-  '新生指导': 'event-guide',
-  '报到注册': 'event-register',
-  '护照变更': 'event-passport',
-  '活动报名': 'event-activity',
-  '活动': 'event-activity'
+  '高优先级': 'badge-danger',
+  '中优先级': 'badge-warning',
+  '低优先级': 'badge-info',
+  '英语变更': 'badge-danger',
+  '新生指导': 'badge-primary',
+  '报到注册': 'badge-success',
+  '护照变更': 'badge-warning',
+  '活动报名': 'badge-danger',
+  '活动': 'badge-danger'
 }
 
 const TODO_STATUS_MAP = {
-  '待确认': 'status-pending',
-  '未读': 'status-unread',
-  '已读': 'status-read',
-  '进行中': 'status-processing',
-  '关闭': 'status-closed',
-  '待处理': 'status-pending',
-  '即将到期': 'status-processing',
-  '已逾期': 'status-unread'
+  '待确认': 'is-warning',
+  '未读': 'is-danger',
+  '已读': 'is-info',
+  '进行中': 'is-primary',
+  '关闭': 'is-info',
+  '待处理': 'is-warning',
+  '即将到期': 'is-warning',
+  '已逾期': 'is-danger'
 }
 
-const getEventTypeClass = (type) => EVENT_TYPE_MAP[type] || ''
-const getStatusClass = (status) => TODO_STATUS_MAP[status] || ''
+const getEventTypeClass = (type) => EVENT_TYPE_MAP[type] || 'badge-default'
+const getStatusClass = (status) => TODO_STATUS_MAP[status] || 'is-info'
 
 const handleAction = (task) => {
   if (isPending.value) {
@@ -180,123 +184,129 @@ const handleAction = (task) => {
 
 <style scoped>
 .dashboard-todo-list {
-  --todo-row-height: 32px;
+  --todo-row-height: 38px;
   container-type: inline-size;
   display: flex;
   flex-direction: column;
   width: 100%;
   height: 100%;
   min-height: 0;
-  overflow: hidden;
   box-sizing: border-box;
   background: var(--color-bg-base);
   border: 1px solid var(--color-border-base);
-  border-radius: var(--radius-sm);
-  transition: background-color var(--transition-base) ease,
-    border-color var(--transition-base) ease,
-    box-shadow var(--transition-base) ease;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+  transition: all var(--transition-base) ease;
 }
 
 .dashboard-todo-list:hover {
-  border-color: var(--color-border-light);
+  border-color: color-mix(in srgb, var(--color-primary) 25%, var(--color-border-base));
 }
 
+/* 顶部操作区与分段切换器 */
 .todo-list-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  flex: 0 0 36px;
+  flex: 0 0 46px;
   min-width: 0;
-  gap: 8px;
-  padding: 0 10px;
+  padding: 0 14px;
   box-sizing: border-box;
   border-bottom: 1px solid var(--color-border-lighter);
 }
 
-.todo-tabs {
-  display: flex;
-  gap: 4px;
-  padding: 0;
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-section);
+.todo-segmented-control {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 6px;
+  background: var(--color-bg-hover);
+  border: 1px solid var(--color-border-lighter);
 }
 
-.todo-tab,
-.todo-more-button,
-.todo-action-button {
-  border: 0;
-  font: inherit;
-  cursor: pointer;
-}
-
-.todo-tab {
-  position: relative;
-  min-width: 68px;
+.segmented-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   min-height: 28px;
-  padding: 0 8px;
-  border-radius: var(--radius-sm);
-  color: var(--color-text-regular);
+  padding: 0 12px;
+  border: 0;
+  border-radius: 4px;
   background: transparent;
+  color: var(--color-text-secondary);
   font-size: 13px;
-  user-select: none;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast) ease;
 }
 
-.todo-tab:hover,
-.todo-tab:focus-visible {
+.segmented-btn:hover {
+  color: var(--color-text-primary);
+}
+
+.segmented-btn.active {
+  background: var(--color-bg-base);
+  color: var(--color-primary);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+.segmented-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  color: var(--color-primary);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.todo-all-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all var(--transition-fast) ease;
+}
+
+.todo-all-action:hover {
   color: var(--color-primary);
   background: color-mix(in srgb, var(--color-primary) 6%, transparent);
 }
 
-.todo-tab.active {
-  color: var(--color-primary);
-  background: var(--color-primary-light-9);
-  box-shadow: none;
-  font-weight: 700;
-}
-
-.todo-more-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex: 0 0 auto;
-  padding: 4px 0;
-  color: var(--color-text-secondary);
-  background: transparent;
+.all-arrow {
   font-size: 12px;
+  transition: transform var(--transition-fast) ease;
 }
 
-.todo-count {
-  min-width: 20px;
-  padding: 2px 5px;
-  border-radius: 6px;
-  background: var(--color-bg-section);
-  font-variant-numeric: tabular-nums;
-  text-align: center;
+.todo-all-action:hover .all-arrow {
+  transform: translateX(2px);
 }
 
-.todo-more-button:hover,
-.todo-more-button:focus-visible {
-  color: var(--color-primary);
-}
-
-.todo-tab:focus-visible,
-.todo-more-button:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 3px;
-}
-
+/* 内容区域与表格 */
 .todo-list-content {
   display: flex;
   flex: 1 1 auto;
   min-height: 0;
-  overflow: visible;
-  padding: 0 8px 8px;
+  overflow: hidden;
+  padding: 6px 10px 10px;
 }
 
 .todo-table-content {
   flex: 1 1 auto;
   min-width: 0;
-  overflow: auto;
+  overflow-y: auto;
 }
 
 .dashboard-native-table {
@@ -310,7 +320,7 @@ const handleAction = (task) => {
 .dashboard-native-table th,
 .dashboard-native-table td {
   height: var(--todo-row-height);
-  padding: 3px 6px;
+  padding: 6px 10px;
   border-bottom: 1px solid var(--color-border-lighter);
   text-align: left;
   vertical-align: middle;
@@ -318,151 +328,146 @@ const handleAction = (task) => {
 }
 
 .dashboard-native-table th {
-  height: 28px;
+  height: 32px;
   color: var(--color-text-secondary);
-  background: transparent;
+  background: color-mix(in srgb, var(--color-bg-page) 60%, var(--color-bg-base));
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
+  border-radius: 4px;
 }
 
-.dashboard-native-table tbody tr:last-child td {
-  border-bottom: 0;
-}
-
-.dashboard-native-table tbody tr {
+.todo-row {
   transition: background-color var(--transition-fast) ease;
 }
 
-.dashboard-native-table tbody tr:hover {
-  background: color-mix(in srgb, var(--color-bg-hover) 50%, transparent);
+.todo-row:hover {
+  background: color-mix(in srgb, var(--color-primary) 4%, transparent);
 }
 
-.todo-column-type {
-  width: 78px;
-}
-
-.todo-column-title {
-  width: auto;
-}
-
-.todo-column-date {
-  width: 108px;
-}
-
-.todo-column-status {
-  width: 76px;
-}
-
-.todo-column-action {
-  width: 62px;
-  text-align: center !important;
-}
+.todo-column-type { width: 88px; }
+.todo-column-title { width: auto; }
+.todo-column-date { width: 110px; font-variant-numeric: tabular-nums; font-size: 12px; color: var(--color-text-secondary); }
+.todo-column-status { width: 92px; }
+.todo-column-action { width: 70px; text-align: center !important; }
 
 .todo-task-title {
   color: var(--color-text-primary);
   font-weight: 500;
-  line-height: 1.6;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.todo-action-button {
-  min-width: 40px;
-  min-height: 24px;
-  padding: 2px 6px;
-  border-radius: var(--radius-sm);
-  color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary) 9%, var(--color-bg-base));
+/* 类型徽章 */
+.event-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge-primary { background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE; }
+.badge-success { background: #ECFDF5; color: #047857; border: 1px solid #A7F3D0; }
+.badge-warning { background: #FFFBEB; color: #B45309; border: 1px solid #FDE68A; }
+.badge-danger { background: #FEF2F2; color: #DC2626; border: 1px solid #FECACA; }
+.badge-info { background: #F1F5F9; color: #475569; border: 1px solid #E2E8F0; }
+.badge-default { background: #F8FAFC; color: #64748B; border: 1px solid #E2E8F0; }
+
+/* 状态药丸 */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 12px;
-  line-height: 18px;
+  font-weight: 500;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status-pill.is-primary { color: var(--color-primary); }
+.status-pill.is-warning { color: #D97706; }
+.status-pill.is-danger { color: var(--color-danger); }
+.status-pill.is-info { color: var(--color-text-secondary); }
+.status-pill.status-completed { color: var(--color-success); }
+
+/* 操作按钮 */
+.todo-action-button {
+  min-width: 48px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 25%, transparent);
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 8%, var(--color-bg-base));
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast) ease;
+}
+
+.todo-action-button:hover {
+  background: var(--color-primary);
+  color: #FFFFFF;
+  border-color: var(--color-primary);
 }
 
 .todo-action-button.completed {
-  color: var(--color-text-regular);
+  border-color: var(--color-border-base);
+  color: var(--color-text-secondary);
   background: var(--color-bg-hover);
 }
 
-.todo-action-button:hover,
-.todo-action-button:focus-visible {
-  filter: brightness(1.06);
-  outline: 2px solid color-mix(in srgb, var(--color-primary) 35%, transparent);
-  outline-offset: 1px;
+.todo-action-button.completed:hover {
+  border-color: var(--color-text-regular);
+  color: var(--color-text-primary);
 }
 
+/* 空状态 */
 .todo-empty-state {
   display: flex;
   flex: 1;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 20px 12px;
-  min-height: 130px;
-  color: var(--color-text-secondary);
+  padding: 30px 16px;
   text-align: center;
 }
 
-.todo-empty-icon {
-  width: 48px;
-  height: 48px;
-  margin-bottom: 10px;
-  padding: 10px;
-  border-radius: var(--radius-md);
-  color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary) 7%, var(--color-bg-base));
+.empty-icon-wrap {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-primary) 8%, var(--color-bg-base));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
 }
 
-.todo-empty-title,
-.todo-empty-desc {
-  margin: 0;
+.todo-empty-icon {
+  width: 28px;
+  height: 28px;
+  color: var(--color-primary);
 }
 
 .todo-empty-title {
-  color: var(--color-text-regular);
-  font-size: 16px;
-  font-weight: 500;
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .todo-empty-desc {
-  margin-top: 8px;
+  margin: 4px 0 0;
   color: var(--color-text-secondary);
   font-size: 13px;
-  line-height: 1.6;
 }
-
-.event-type {
-  display: inline-block;
-  padding: 3px 6px;
-  border-radius: 5px;
-  background: var(--color-bg-section);
-  font-size: 11px;
-  white-space: nowrap;
-}
-
-.event-high { color: var(--color-danger); background: color-mix(in srgb, var(--color-danger) 8%, var(--color-bg-base)); }
-.event-medium { color: var(--color-warning); background: color-mix(in srgb, var(--color-warning) 8%, var(--color-bg-base)); }
-.event-low { color: var(--color-text-secondary); }
-.event-english { color: var(--color-danger); }
-.event-guide { color: var(--color-primary); }
-.event-register { color: var(--color-success); }
-.event-passport { color: var(--color-warning); }
-.event-activity { color: var(--color-danger); }
-
-.status-pending { color: var(--color-warning); }
-.status-unread { color: var(--color-danger); }
-.status-read { color: var(--color-text-secondary); }
-.status-processing { color: var(--color-success); }
-.status-closed { color: var(--color-text-secondary); }
-.status-completed { color: var(--color-success); }
-
-@container (max-width: 469px) {
-  .todo-column-date {
-    display: none;
-  }
-}
-
-@container (max-width: 379px) {
-  .todo-column-status {
-    display: none;
-  }
-}
-
 </style>

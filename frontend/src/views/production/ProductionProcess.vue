@@ -68,11 +68,11 @@
         <div class="stat-label">配料中</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value">{{ taskStats.material_issued || 0 }}</div>
+        <div class="stat-value">{{ taskStats.materialIssued || 0 }}</div>
         <div class="stat-label">已发料</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value">{{ taskStats.in_progress || 0 }}</div>
+        <div class="stat-value">{{ taskStats.inProgress || 0 }}</div>
         <div class="stat-label">生产中</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
@@ -924,8 +924,8 @@ const taskStats = ref({
   total: 0,
   pending: 0,
   preparing: 0,
-  material_issued: 0,
-  in_progress: 0,
+  materialIssued: 0,
+  inProgress: 0,
   completed: 0,
   cancelled: 0
 })
@@ -1391,13 +1391,13 @@ const fetchTaskList = async () => {
 
     total.value = response.data?.total || tasks.length
 
-    // 使用后端返回的统计数据（统一使用下划线命名）
+    // 统计字段遵循 API 的 camelCase，任务状态值仍使用下划线枚举
     taskStats.value = response.data.statistics || {
       total: 0,
       pending: 0,
       preparing: 0,
-      material_issued: 0,
-      in_progress: 0,
+      materialIssued: 0,
+      inProgress: 0,
       completed: 0,
       cancelled: 0
     }

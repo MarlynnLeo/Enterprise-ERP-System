@@ -73,6 +73,7 @@ beforeEach(() => {
     if (url === '/inventory/inbound') return { data: { list: [structuredClone(inbound)], total: 1 } }
     if (url === '/inventory/inbound/statistics') return { data: { total: 1 } }
     if (url === '/inventory/inbound/11') return { data: structuredClone(inbound) }
+    if (url === '/inventory/task/7/release-sources') return { data: [{ id: 31, inspectionNo: 'FQC-31', referenceId: 7, batchNo: 'PROD-BATCH', status: 'passed', qualifiedQuantity: 4, availableQuantity: 4 }] }
     if (url === '/inventory/task/7/material-issues') return { data: { records: structuredClone(records) } }
     throw new Error(`Unexpected GET ${url}`)
   })
@@ -113,6 +114,7 @@ const beginCreate = async (type) => {
 const chooseTask = async () => {
   await wrapper.vm.openTaskSelectDialog()
   await wrapper.vm.selectTask({ id: 7 })
+  wrapper.vm.selectedInspectionId = 31
   await flushPromises()
 }
 
@@ -177,13 +179,13 @@ describe('inbound workflows', () => {
     await chooseTask()
     wrapper.vm.confirmTaskSelection()
     await flushPromises()
-    expect(wrapper.vm.form.items).toMatchObject([{ materialId: 2, quantity: '', unitId: 1 }])
+    expect(wrapper.vm.form.items).toMatchObject([{ materialId: 2, quantity: 4, unitId: 1 }])
     expect(mocks.get.mock.calls.some(([url]) => url.includes('material-issues'))).toBe(false)
     wrapper.vm.form.items[0].quantity = 4
     wrapper.vm.form.items[0].batchNo = 'PROD-BATCH'
     await wrapper.vm.handleSubmit()
     expect(mocks.post).toHaveBeenCalledWith('/inventory/inbound', expect.objectContaining({
-      inboundType: 'production', referenceType: 'production_task', referenceId: 7, referenceNo: 'TASK-7',
+      inboundType: 'production', inspectionId: 31, referenceType: 'production_task', referenceId: 7, referenceNo: 'TASK-7',
       items: [expect.objectContaining({ materialId: 2, quantity: 4, batchNo: 'PROD-BATCH' })],
     }))
   })

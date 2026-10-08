@@ -115,7 +115,7 @@
               巡检
             </el-button>
             <el-button
-              v-if="scope.row.status === 'pending' && (scope.row.punchCount || 0) >= 1 && canInspect"
+              v-if="['pending', 'in_progress'].includes(scope.row.status) && (scope.row.punchCount || 0) >= 1 && canInspect"
               size="small"
               type="success"
               @click="handleJudge(scope.row)"
@@ -123,7 +123,7 @@
               判定
             </el-button>
             <el-button
-              v-if="scope.row.status === 'failed'"
+              v-if="['failed', 'partial'].includes(scope.row.status)"
               size="small"
               type="primary"
               @click="handleDropdownCommand('rework', scope.row)"
@@ -297,10 +297,38 @@
     <!-- 过程检验规则配置弹窗 -->
     <RulesDialog v-model:visible="showRulesDialog" />
 
+    <AppDialog v-model="judgeDialogVisible" title="过程检验逐项判定" width="1000px">
+      <el-alert title="逐项记录实测值和判定；合格、不合格数量决定本批次流转。" type="info" :closable="false" />
+      <InspectionSamplingFields v-model="inspectionSampling" :quantity="judgeForm.quantity" />
+      <el-table :data="judgeForm.items" border>
+        <el-table-column prop="itemName" label="检验项目" min-width="130" />
+        <el-table-column prop="standard" label="标准" min-width="140" />
+        <el-table-column prop="method" label="测量方法" min-width="100" />
+        <el-table-column label="实测值" min-width="150"><template #default="{ row }">
+          <el-input v-model="row.actualValue" placeholder="请输入实际测量/观察值" @change="judgeMeasurement(row)" />
+        </template></el-table-column>
+        <el-table-column label="判定" min-width="120"><template #default="{ row }">
+          <el-select v-model="row.result" placeholder="请选择"><el-option label="合格" value="passed" /><el-option label="不合格" value="failed" /></el-select>
+        </template></el-table-column>
+      </el-table>
+      <el-form label-width="100px" class="mt-md">
+        <el-form-item label="检验数量">{{ judgeForm.quantity }}</el-form-item>
+        <el-form-item label="合格数量"><el-input-number v-model="judgeForm.qualifiedQuantity" :min="0" :max="Number(judgeForm.quantity)" /></el-form-item>
+        <el-form-item label="不合格数量">{{ Number(judgeForm.quantity) - Number(judgeForm.qualifiedQuantity) }}</el-form-item>
+        <el-form-item label="备注"><el-input v-model="judgeForm.note" type="textarea" /></el-form-item>
+      </el-form>
+      <template #footer><el-button @click="judgeDialogVisible = false">取消</el-button><el-button type="primary" :loading="judgeSubmitting" @click="submitJudge">提交检验结果</el-button></template>
+    </AppDialog>
   </div>
 </template>
 
 <script setup>
+import InspectionSamplingFields from './components/InspectionSamplingFields.vue'
+import { inspectionSamplingFields, inspectionSamplingPayload, validateInspectionSampling } from '@/utils/inspectionSampling'
+const inspectionSampling = ref(inspectionSamplingFields())
+import { useInspectionDeepLink } from '@/composables/useInspectionDeepLink'
+import { useRouter } from 'vue-router'
+const router = useRouter()
 import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { handleTableRowView } from '@/utils/tableRowView'
@@ -726,83 +754,69 @@ const handlePunchIn = async (row) => {
   }
 }
 
-// 判定过程检验结果
+// 独立录入各项实测和判断，提交时保留测量快照。
+const judgeDialogVisible = ref(false)
+const judgeSubmitting = ref(false)
+const judgeForm = reactive({ id: null, quantity: 0, qualifiedQuantity: 0, unqualifiedQuantity: 0, items: [] })
 const handleJudge = async (row) => {
   try {
-    const { ElMessageBox } = await import('element-plus/es/components/message-box/index')
-    const { value: result } = await ElMessageBox.confirm(
-      `检验单 ${row.inspectionNo} 已巡检 ${row.punchCount || 0} 次，请判定结果：\n（将同步把所有检验项目判定为相同结果）`,
-      '过程检验判定',
-      {
-        distinguishCancelAndClose: true,
-        confirmButtonText: '合格',
-        cancelButtonText: '不合格',
-        confirmButtonClass: 'el-button--success',
-        cancelButtonClass: 'el-button--danger',
-        type: 'info'
-      }
-    ).then(() => ({ value: 'passed' }))
-     .catch((action) => {
-       if (action === 'cancel') return { value: 'failed' }
-       throw action // close 直接退出
-     })
-
-    // 后端关闭检验单要求每个检验项目都有 result；快捷判定时一并提交项目结果
-    let items = Array.isArray(row.items) ? row.items : []
-    if (!items.length) {
-      try {
-        const detailRes = await qualityApi.getProcessInspection(row.id)
-        const detail = detailRes?.data || detailRes || {}
-        items = detail.items || []
-      } catch (detailErr) {
-        console.warn('获取检验项目失败，将仅提交状态:', detailErr)
-      }
-    }
-
-    if (!items.length) {
+    const response = await qualityApi.getProcessInspection(row.id)
+    const detail = response?.data || response
+    if (!detail?.items?.length) {
       ElMessage.warning('该检验单没有检验项目，请先配置检验模板/项目后再判定')
       return
     }
-
-    const itemResult = result === 'passed' ? 'passed' : 'failed'
-    const payloadItems = items.map((item) => ({
-      id: item.id,
-      itemName: item.itemName || item.name || '检验项',
-      standard: item.standard || item.specification || '',
-      type: item.type || 'other',
-      isCritical: item.isCritical === true || item.isCritical === 1 ? true : false,
-      result: itemResult,
-      actualValue: item.actualValue ?? item.measuredValue ?? null,
-      dimensionValue: item.dimensionValue ?? null,
-      toleranceUpper: item.toleranceUpper ?? null,
-      toleranceLower: item.toleranceLower ?? null,
-      measure1: item.measure1 ?? null,
-      measure2: item.measure2 ?? null,
-      measure3: item.measure3 ?? null,
-      measure4: item.measure4 ?? null,
-      measure5: item.measure5 ?? null,
-      measure6: item.measure6 ?? null,
-      remarks: item.remarks || item.remark || (result === 'passed' ? '快捷判定合格' : '快捷判定不合格'),
-    }))
-
-    await qualityApi.updateProcessInspection(row.id, {
-      status: result,
+    inspectionSampling.value = inspectionSamplingFields(detail)
+    Object.assign(judgeForm, detail, {
+      id: row.id,
+      qualifiedQuantity: Number(detail.qualifiedQuantity ?? detail.quantity ?? 0),
+      unqualifiedQuantity: Number(detail.unqualifiedQuantity ?? 0),
+      items: detail.items.map(item => ({ ...item, actualValue: item.actualValue ?? '', result: item.result || '' }))
+    })
+    judgeDialogVisible.value = true
+  } catch (error) { ElMessage.error(getApiErrorMessage(error, '读取过程检验详情失败')) }
+}
+const judgeMeasurement = (item) => {
+  if (item.type !== 'dimension' || item.dimensionValue == null || item.actualValue == null || String(item.actualValue).trim() === '') return
+  const actual = Number(item.actualValue)
+  if (!Number.isFinite(actual)) { item.result = ''; return }
+  const nominal = Number(item.dimensionValue)
+  item.result = actual >= nominal + Number(item.toleranceLower || 0) && actual <= nominal + Number(item.toleranceUpper || 0) ? 'passed' : 'failed'
+}
+const submitJudge = async () => {
+  if (judgeSubmitting.value) return
+  if (!judgeForm.items.length || judgeForm.items.some(item => !item.result || item.actualValue == null || String(item.actualValue).trim() === '')) {
+    ElMessage.warning('请填写每个项目的实测值和判定结果')
+    return
+  }
+  judgeForm.items.forEach(item => { if (item.result !== 'failed') judgeMeasurement(item) })
+  const quantity = Number(judgeForm.quantity)
+  const good = Number(judgeForm.qualifiedQuantity)
+  const bad = quantity - good
+  if (!(quantity > 0) || good < 0 || bad < 0) { ElMessage.warning('请填写有效的检验数量'); return }
+  if (bad === 0 && judgeForm.items.some(item => item.result === 'failed')) {
+    ElMessage.warning('存在不合格项目，请核实合格和不合格数量')
+    return
+  }
+  const samplingError = validateInspectionSampling(inspectionSampling.value, quantity)
+  if (samplingError) { ElMessage.warning(samplingError); return }
+  judgeSubmitting.value = true
+  try {
+    await qualityApi.updateProcessInspection(judgeForm.id, {
+      ...inspectionSamplingPayload(inspectionSampling.value, quantity),
+      status: bad === 0 ? 'passed' : good > 0 ? 'partial' : 'failed',
       inspectorId: authStore.userId,
       inspectorName: authStore.realName || authStore.username,
       actualDate: dayjs().format('YYYY-MM-DD'),
-      items: payloadItems,
+      quantity, qualifiedQuantity: good, unqualifiedQuantity: bad,
+      items: judgeForm.items.map(item => ({ ...item })),
+      note: judgeForm.note || ''
     })
-
-    ElMessage.success(result === 'passed' ? '已判定合格' : '已判定不合格')
+    ElMessage.success('过程检验结果已保存')
+    judgeDialogVisible.value = false
     fetchData()
-  } catch (err) {
-    if (err === 'close') return // 关闭弹窗忽略
-    console.error('判定失败:', err)
-    const msg = err?.response?.status === 404
-      ? '接口不存在或后端未启动，请检查服务后刷新重试'
-      : getApiErrorMessage(err, '判定操作失败')
-    ElMessage.error(msg)
-  }
+  } catch (error) { ElMessage.error(getApiErrorMessage(error, '保存过程检验失败')) }
+  finally { judgeSubmitting.value = false }
 }
 
 // 处理下拉菜单命令
@@ -816,7 +830,7 @@ const handleDropdownCommand = (command, row) => {
 
 // 返工
 const handleRework = (row) => {
-  ElMessage.info(`对检验单进行返工: ${row.inspectionNo}`)
+  router.push({ path: '/quality/nonconforming', query: { inspection_id: row.id } })
 }
 
 // 打印报告
@@ -870,6 +884,7 @@ const handlePrint = async (row) => {
     ElMessage.error('打印失败')
   }
 }
+useInspectionDeepLink(router, '/quality/process', handleJudge)
 </script>
 
 <style scoped>

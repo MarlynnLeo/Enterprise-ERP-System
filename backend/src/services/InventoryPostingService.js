@@ -748,6 +748,12 @@ class InventoryPostingService {
       );
       if (!lines.length) throw serviceError('库存过账单没有冻结明细');
 
+      await require('./business/FinalInspectionReleaseService').validatePosting(
+        conn,
+        document,
+        lines
+      );
+
       // Mark approved before writing ledger so the database insert guard can enforce the same contract.
       await conn.execute(
         `UPDATE inventory_posting_documents

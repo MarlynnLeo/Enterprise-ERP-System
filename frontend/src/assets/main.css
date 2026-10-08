@@ -121,12 +121,26 @@ body {
   box-sizing: border-box;
 }
 
+/* Legacy browsers ignore cascade layers. Keep this fallback in sync with
+   the higher-priority accessibility layer in theme-utilities.css. */
+.perf-low-end,
+.perf-low-end::before,
+.perf-low-end::after,
 .perf-low-end *,
-.perf-reduced-motion * {
-  animation-duration: 0.001ms !important;
+.perf-low-end *::before,
+.perf-low-end *::after,
+.perf-reduced-motion,
+.perf-reduced-motion::before,
+.perf-reduced-motion::after,
+.perf-reduced-motion *,
+.perf-reduced-motion *::before,
+.perf-reduced-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-delay: 0s !important;
   animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  transition-delay: 0s !important;
   scroll-behavior: auto !important;
-  transition-duration: 0.001ms !important;
 }
 
 .perf-low-end .el-card,

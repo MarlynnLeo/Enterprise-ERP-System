@@ -9,6 +9,11 @@ const STATUS = {
   NCP: businessConfig.status.ncp,
 };
 
+// Matches the persisted ENUM; do not invent department names as responsibility values.
+const VALID_RESPONSIBLE_PARTIES = ['supplier', 'internal', 'unknown'];
+const validationError = (message) =>
+  Object.assign(new Error(message), { statusCode: 400, code: 'VALIDATION_ERROR' });
+
 const VALID_DISPOSITIONS = ['return', 'replacement', 'rework', 'scrap', 'use_as_is'];
 const SUPPLIER_REQUIRED_DISPOSITIONS = ['return', 'replacement'];
 
@@ -20,22 +25,27 @@ function normalizeNumber(value, fallback = 0) {
 function validateDispositionPayload(dispositionData = {}) {
   const disposition = dispositionData.disposition;
   if (!VALID_DISPOSITIONS.includes(disposition)) {
-    throw new Error('不合格品处置方式无效');
+    throw validationError('不合格品处置方式无效');
   }
 
   if (!dispositionData.disposition_reason || !String(dispositionData.disposition_reason).trim()) {
-    throw new Error('请填写不合格品处置原因');
+    throw validationError('请填写不合格品处置原因');
   }
 
   if (!dispositionData.responsible_party) {
-    throw new Error('Responsible party is required');
+    throw validationError('请选择责任方：供应商、内部或待确认');
+  }
+
+  if (!VALID_RESPONSIBLE_PARTIES.includes(dispositionData.responsible_party)) {
+    throw validationError('责任方无效，只能选择供应商、内部或待确认');
   }
 
   const requiresSupplier =
     dispositionData.responsible_party === 'supplier' ||
     SUPPLIER_REQUIRED_DISPOSITIONS.includes(disposition);
-  if (requiresSupplier && !dispositionData.supplier_id) {
-    throw new Error('退货或换货处置必须选择供应商');
+  const supplierId = Number(dispositionData.supplier_id);
+  if (requiresSupplier && (!Number.isSafeInteger(supplierId) || supplierId <= 0)) {
+    throw validationError('供应商责任、退货或换货处置必须选择供应商');
   }
 }
 
@@ -89,6 +99,7 @@ const AUTO_DISPOSITION_CONFIG = {
 module.exports = {
   STATUS,
   VALID_DISPOSITIONS,
+  VALID_RESPONSIBLE_PARTIES,
   SUPPLIER_REQUIRED_DISPOSITIONS,
   normalizeNumber,
   validateDispositionPayload,

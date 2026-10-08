@@ -149,6 +149,11 @@ class InboundTransactionService {
       inboundData,
       inboundItems
     );
+    await require('./FinalInspectionReleaseService').validate(
+      connection,
+      inboundData,
+      inboundItems
+    );
     const returnAvailability = await ProductionReturnService.validate(
       connection,
       inboundData,
@@ -490,28 +495,41 @@ class InboundTransactionService {
     );
     const totalWarehoused = parseFloat(warehousedRows[0]?.total_qty) || 0;
 
-    // 终检合格合计（若有）作为上限参考
+    // 放行上限包括终检合格品及单独批准的让步数量，原检验结论保持不变。
     const [qualifiedRows] = await connection.query(
-      `SELECT COALESCE(SUM(COALESCE(qualified_quantity, 0)), 0) AS q
+      `SELECT COALESCE(SUM(COALESCE(qualified_quantity, 0)), 0) AS q,
+              (SELECT COALESCE(SUM(LEAST(ncp.quantity, COALESCE(ncp.handled_quantity, 0))), 0)
+                 FROM nonconforming_products ncp
+                 JOIN quality_inspections source ON source.id = ncp.inspection_id
+                WHERE source.reference_id = ? AND source.inspection_type = 'final'
+                  AND source.deleted_at IS NULL AND ncp.deleted_at IS NULL
+                  AND source.status IN ('partial', 'failed', 'completed')
+                  AND ncp.disposition = 'use_as_is' AND ncp.concession_status = 'approved'
+                  AND ncp.status IN ('processing', 'completed', 'closed')) AS concession_quantity
        FROM quality_inspections
        WHERE reference_id = ?
          AND inspection_type = 'final'
          AND deleted_at IS NULL
          AND status IN ('passed', 'partial', 'completed')`,
-      [taskId]
+      [taskId, taskId]
     );
     const totalQualified = parseFloat(qualifiedRows[0]?.q) || 0;
-    const qtyCap =
-      totalQualified > 0
-        ? Math.min(planQty || totalQualified, totalQualified)
-        : planQty || totalWarehoused;
+    const totalConcession = parseFloat(qualifiedRows[0]?.concession_quantity) || 0;
+    const totalReleased = totalQualified + totalConcession;
+    if (totalReleased <= 0) throw new Error('生产任务没有有效终检放行数量，禁止过账');
+    const qtyCap = Math.min(planQty || totalReleased, totalReleased);
 
     // 本单数量不得把累计推过 cap（ε=0.0001）
     if (qtyCap > 0 && totalWarehoused > qtyCap + 0.0001) {
       throw new Error(`生产入库累计数量 ${totalWarehoused} 超过任务/终检上限 ${qtyCap}，禁止过账`);
     }
 
-    const isFullComplete = qtyCap <= 0 ? totalWarehoused > 0 : totalWarehoused + 0.0001 >= qtyCap;
+    // 入库 90/100 仅完成合格部分；剩余 10 件待返工复检或批准让步后继续入库。
+    const completionQuantity = planQty || qtyCap;
+    const isFullComplete =
+      completionQuantity <= 0
+        ? totalWarehoused > 0
+        : totalWarehoused + 0.0001 >= completionQuantity;
 
     let targetStatus = isFullComplete ? 'completed' : 'warehousing';
     // 若仍处于 inspection，至少推进到 warehousing
@@ -576,7 +594,7 @@ class InboundTransactionService {
     }
 
     logger.info(
-      `生产入库 ${inboundData.inbound_no} 同步任务 ${task.code || taskId}: warehoused=${totalWarehoused}/${qtyCap}, full=${isFullComplete}`
+      `生产入库 ${inboundData.inbound_no} 同步任务 ${task.code || taskId}: warehoused=${totalWarehoused}/${completionQuantity}, released=${qtyCap}, full=${isFullComplete}`
     );
 
     // 仅在完全完工时：同事务入队 DomainEvent（对齐销售/采购，可 DLQ 重放）

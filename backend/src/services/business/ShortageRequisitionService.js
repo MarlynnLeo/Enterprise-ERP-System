@@ -1,7 +1,7 @@
 /**
  * ShortageRequisitionService
  * 出库缺料 → 自动生成采购申请（草稿）
- * 可选：生成后自动提交工作流审批
+ * 可选：生成后自动提交并生成采购订单
  *
  * 开关（businessRules.purchase）：
  * - autoCreatePROnIssueShortage（默认 true）
@@ -82,7 +82,7 @@ async function createRequisitionFromOutboundShortage(connection, opts = {}) {
     let submitInfo = { submitted: false, status: existing[0].status };
     if (autoSubmit && String(existing[0].status) === 'draft') {
       try {
-        submitInfo = await submitRequisitionForApproval(connection, {
+        submitInfo = await submitRequisition(connection, {
           requisitionId: existing[0].id,
           requisitionNo: existing[0].requisition_number,
           initiatorId: operatorUserId || null,
@@ -101,7 +101,7 @@ async function createRequisitionFromOutboundShortage(connection, opts = {}) {
       requisitionNo: existing[0].requisition_number,
       status: submitInfo.status || existing[0].status,
       submitted: Boolean(submitInfo.submitted),
-      workflowInstanceId: submitInfo.workflowInstanceId || null,
+      generatedOrders: submitInfo.generatedOrders || [],
     };
   }
 
@@ -184,7 +184,7 @@ async function createRequisitionFromOutboundShortage(connection, opts = {}) {
   }
 
   if (byMaterial.size === 0) {
-    // 物料已被在途请购覆盖：若覆盖的是 draft，尝试自动提交审批，避免卡在草稿
+    // 物料已被在途请购覆盖：若覆盖的是 draft，尝试自动提交转单，避免卡在草稿
     let submittedDrafts = [];
     if (autoSubmit && covered.length) {
       submittedDrafts = await submitDraftRequisitionsForMaterials(
@@ -354,23 +354,23 @@ async function createRequisitionFromOutboundShortage(connection, opts = {}) {
   );
 
   let submitted = false;
-  let workflowInstanceId = null;
+  let generatedOrders = [];
   let finalStatus = 'draft';
 
   if (autoSubmit) {
     try {
-      const submitResult = await submitRequisitionForApproval(connection, {
+      const submitResult = await submitRequisition(connection, {
         requisitionId,
         requisitionNo,
         initiatorId: createdBy || operatorUserId || null,
       });
       submitted = Boolean(submitResult.submitted);
-      workflowInstanceId = submitResult.workflowInstanceId || null;
-      finalStatus = submitResult.status || 'submitted';
+      generatedOrders = submitResult.generatedOrders || [];
+      finalStatus = submitResult.status;
     } catch (submitErr) {
       // 提交失败不回滚请购创建，保留 draft 供人工处理
       logger.error(
-        `[ShortageRequisition] 请购 ${requisitionNo} 自动提交审批失败，保留 draft:`,
+        `[ShortageRequisition] 请购 ${requisitionNo} 自动提交转单失败，保留 draft:`,
         submitErr
       );
     }
@@ -383,7 +383,7 @@ async function createRequisitionFromOutboundShortage(connection, opts = {}) {
     itemCount: lines.length,
     status: finalStatus,
     submitted,
-    workflowInstanceId,
+    generatedOrders,
     coveredSkipped: covered.length,
   };
 }
@@ -411,7 +411,7 @@ async function submitDraftRequisitionsForMaterials(connection, materialIds, init
   const results = [];
   for (const row of rows) {
     try {
-      const r = await submitRequisitionForApproval(connection, {
+      const r = await submitRequisition(connection, {
         requisitionId: row.id,
         requisitionNo: row.requisition_number,
         initiatorId,
@@ -435,14 +435,11 @@ async function submitDraftRequisitionsForMaterials(connection, materialIds, init
 }
 
 /**
- * 将草稿请购提交工作流（与控制器 updateStatus→submitted 语义一致）
+ * 将草稿请购直接提交转单。调用方持有出库事务，转单失败只回滚本次提交。
  */
-async function submitRequisitionForApproval(
-  connection,
-  { requisitionId, requisitionNo, initiatorId }
-) {
+async function submitRequisition(connection, { requisitionId, requisitionNo, initiatorId }) {
   if (!initiatorId) {
-    // 无发起人时尝试取超级管理员
+    // 系统生成的申请缺少操作人时，使用活跃管理员作为订单责任人兜底。
     const [admins] = await connection.execute(
       `SELECT u.id
        FROM users u
@@ -454,65 +451,44 @@ async function submitRequisitionForApproval(
     );
     initiatorId = admins[0]?.id || null;
   }
-  if (!initiatorId) {
-    throw new Error('无法自动提交请购：缺少工作流发起人');
-  }
-
-  await connection.execute(
-    `UPDATE purchase_requisitions
-     SET status = 'submitted', updated_at = CURRENT_TIMESTAMP
-     WHERE id = ? AND status = 'draft' AND deleted_at IS NULL`,
-    [requisitionId]
-  );
-
-  const WorkflowService = require('./WorkflowService');
-  const wfResult = await WorkflowService.tryStartWorkflow(
-    'purchase_requisition',
-    requisitionId,
-    requisitionNo,
-    `采购申请 ${requisitionNo} 审批`,
-    initiatorId,
-    connection
-  );
-
-  let status = 'submitted';
-  if (wfResult?.auto_approved) {
-    status = 'approved';
-    await connection.execute(
-      `UPDATE purchase_requisitions
-       SET status = 'approved', workflow_status = 'approved', updated_at = CURRENT_TIMESTAMP
-       WHERE id = ? AND deleted_at IS NULL`,
+  await connection.query('SAVEPOINT shortage_requisition_submit');
+  try {
+    const [[requisition]] = await connection.execute(
+      `SELECT status FROM purchase_requisitions
+       WHERE id = ? AND deleted_at IS NULL FOR UPDATE`,
       [requisitionId]
     );
-    try {
-      const { generateOrdersFromRequisition } = require('./RequisitionAutoOrderService');
-      await generateOrdersFromRequisition(requisitionId, connection);
-    } catch (e) {
-      logger.error(`[ShortageRequisition] 自动批准后生成 PO 失败:`, e);
-      throw e;
+    if (!requisition) throw new Error('采购申请不存在或已被删除');
+    if (requisition.status !== 'draft') {
+      await connection.query('RELEASE SAVEPOINT shortage_requisition_submit');
+      return { submitted: false, status: requisition.status, generatedOrders: [] };
     }
-  } else if (wfResult?.instance_id) {
+
     await connection.execute(
       `UPDATE purchase_requisitions
-       SET workflow_instance_id = ?, workflow_status = 'in_progress', updated_at = CURRENT_TIMESTAMP
-       WHERE id = ? AND deleted_at IS NULL`,
-      [wfResult.instance_id, requisitionId]
+       SET status = 'submitted', updated_at = CURRENT_TIMESTAMP
+       WHERE id = ? AND status = 'draft' AND deleted_at IS NULL`,
+      [requisitionId]
     );
+    const { generateOrdersFromRequisition } = require('./RequisitionAutoOrderService');
+    const generatedOrders = await generateOrdersFromRequisition(
+      requisitionId,
+      connection,
+      initiatorId
+    );
+    await connection.query('RELEASE SAVEPOINT shortage_requisition_submit');
+
+    logger.info(`[ShortageRequisition] 请购 ${requisitionNo} 已提交并生成采购订单`);
+
+    return { submitted: true, status: 'completed', generatedOrders };
+  } catch (error) {
+    await connection.query('ROLLBACK TO SAVEPOINT shortage_requisition_submit');
+    await connection.query('RELEASE SAVEPOINT shortage_requisition_submit');
+    throw error;
   }
-
-  logger.info(
-    `[ShortageRequisition] 请购 ${requisitionNo} 已提交审批 status=${status} instance=${wfResult?.instance_id || '-'}`
-  );
-
-  return {
-    submitted: true,
-    status,
-    workflowInstanceId: wfResult?.instance_id || null,
-    autoApproved: Boolean(wfResult?.auto_approved),
-  };
 }
 
 module.exports = {
   createRequisitionFromOutboundShortage,
-  submitRequisitionForApproval,
+  submitRequisition,
 };

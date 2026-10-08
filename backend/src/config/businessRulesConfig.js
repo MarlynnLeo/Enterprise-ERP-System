@@ -56,21 +56,12 @@ const DEFAULT_BUSINESS_RULES = {
     autoCreatePR: false, // 低库存预警是否自动创建采购申请
     // 生产发料/出库缺料完成时，自动按缺料记录生成草稿请购（默认开启，可关）
     autoCreatePROnIssueShortage: true,
-    // 缺料请购生成后是否自动提交工作流审批（默认开启；失败则保留 draft 不阻断出库）
+    // 缺料请购生成后是否自动提交并生成采购订单（默认开启；失败保留 draft 不阻断出库）
     autoSubmitPROnIssueShortage: true,
     leadTimeDays: 15, // 默认采购提前期（天）
   },
 
-  // 质量管理规则
-  quality: {
-    enableFirstArticleInspection: true, // 是否启用首检
-    firstArticleQuantity: 5, // 首检数量
-    enableInProcessInspection: true, // 是否启用过程检验
-    enableFinalInspection: true, // 是否启用终检
-    defectRateThreshold: 0.05, // 不良率阈值（5%）
-    autoQuarantine: true, // 是否自动隔离不合格品
-    requireReworkApproval: true, // 返工是否需要审批
-  },
+  // 质量规则由首检规则、检验模板和处置流程分别管理；不再提供未实现的全局开关。
 
   // 财务管理规则
   finance: {
@@ -195,6 +186,8 @@ async function getBusinessRules() {
     config = deepMerge(config, dbConfig);
   }
 
+  // Historical stored knobs must not appear as supported runtime policies.
+  delete config.quality;
   // 更新缓存
   configCache = config;
   cacheTimestamp = now;
@@ -226,6 +219,14 @@ function clearCache() {
  */
 async function updateBusinessRules(newConfig) {
   try {
+    if (Object.prototype.hasOwnProperty.call(newConfig, 'quality')) {
+      const error = new Error(
+        '不支持全局 quality 配置；请使用首检规则、检验模板及不合格品处置流程。自动隔离和返工审批开关尚未实现'
+      );
+      error.statusCode = 400;
+      error.code = 'VALIDATION_ERROR';
+      throw error;
+    }
     await pool.execute(
       `INSERT INTO system_settings (\`key\`, \`value\`, description)
        VALUES (?, ?, ?)

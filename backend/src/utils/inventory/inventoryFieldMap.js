@@ -84,6 +84,8 @@ const inventoryInboundMap = {
     const row = {
       id: body.id,
       inbound_no: body.inboundNo ?? body.inbound_no,
+      inspection_id: body.inspectionId ?? body.inspection_id,
+      inspection_no: body.inspectionNo ?? body.inspection_no,
       inbound_date: inboundDateRaw != null ? formatDate(inboundDateRaw) : undefined,
       inbound_type: body.inboundType ?? body.inbound_type,
       status: body.status,

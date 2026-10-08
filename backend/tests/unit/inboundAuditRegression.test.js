@@ -83,6 +83,7 @@ const connect = (handler) => {
     rollback: jest.fn(),
     release: jest.fn(),
     execute: jest.fn(handler),
+    query: jest.fn(handler),
   };
   db.pool.getConnection.mockResolvedValue(conn);
   return conn;
@@ -127,7 +128,7 @@ test('manual production inbound must reference an accessible task and its produc
 test('shop-floor return draft can await warehouse batch selection without reserving capacity', async () => {
   const conn = connect(async (sql) => {
     if (/FROM inventory_posting_documents reversal/.test(sql)) return [[]];
-    if (/FROM production_tasks/.test(sql)) return [[{ id: 7, product_id: 9 }]];
+    if (/FROM production_tasks(?! guard_task)/.test(sql)) return [[{ id: 7, product_id: 9 }]];
     if (/INSERT INTO inventory_inbound\b/.test(sql)) return [{ insertId: 10 }];
     if (/INSERT INTO inventory_inbound_items/.test(sql)) return [{ affectedRows: 1 }];
     throw new Error(`Unexpected SQL ${sql}`);
@@ -151,7 +152,7 @@ test('shop-floor return draft can await warehouse batch selection without reserv
 test('new confirmed return cannot exclude a prior return by supplying a body id', async () => {
   const conn = connect(async (sql, params) => {
     if (/FROM inventory_posting_documents reversal/.test(sql)) return [[]];
-    if (/FROM production_tasks/.test(sql)) return [[{ id: 7, product_id: 9 }]];
+    if (/FROM production_tasks(?! guard_task)/.test(sql)) return [[{ id: 7, product_id: 9 }]];
     if (/FROM \(/.test(sql))
       return [[{ material_id: 3, location_id: 2, batch_number: 'B1', issued_quantity: 10 }]];
     if (/FROM inventory_inbound i JOIN/.test(sql)) {
@@ -179,6 +180,9 @@ test('new confirmed return cannot exclude a prior return by supplying a body id'
 
 test('changing a draft production task persists source and details together', async () => {
   const conn = connect(async (sql) => {
+    if (sql.includes('SELECT ii.quantity')) return [[]];
+    if (sql.includes('FROM nonconforming_products') || sql.includes('FROM production_processes') || sql.includes("inspection_type IN ('first_article'")) return [[]];
+    if (sql.includes('FROM quality_inspections')) return [[{ id: 9, inspection_no: 'FQC-9', inspection_type: 'final', status: 'passed', task_id: 7, quantity: 10, qualified_quantity: 10, unqualified_quantity: 0, product_id: 3, batch_no: 'B1' }]];
     if (/FROM inventory_inbound\b/.test(sql))
       return [
         [
@@ -190,12 +194,12 @@ test('changing a draft production task persists source and details together', as
         ],
       ];
     if (/FROM inventory_posting_documents reversal/.test(sql)) return [[]];
-    if (/FROM production_tasks/.test(sql)) return [[{ id: 7, product_id: 3, quantity: 10 }]];
+    if (/FROM production_tasks(?! guard_task)/.test(sql)) return [[{ id: 7, product_id: 3, quantity: 10, status: 'inspection', completed_quantity: 10 }]];
     return [{ affectedRows: 1 }];
   });
   const response = res();
   await updateInbound(
-    req(body({ inboundType: 'production', referenceType: 'production_task', referenceId: 7 })),
+    req(body({ inboundType: 'production', inspectionId: 9, referenceType: 'production_task', referenceId: 7 })),
     response
   );
   expect(response.status).toHaveBeenCalledWith(200);
@@ -210,6 +214,7 @@ test('changing a draft production task persists source and details together', as
     'draft',
     '仓管',
     '保持备注',
+    9, 'FQC-9',
     10,
   ]);
   expect(conn.commit).toHaveBeenCalled();
@@ -252,7 +257,7 @@ test.each(['confirmed', 'completed'])(
         return [[{ material_id: 3, location_id: 2, batch_number: 'B1', returned_quantity: 15 }]];
       if (/FROM inventory_inbound\b/.test(sql)) return [[current]];
       if (/FROM inventory_posting_documents reversal/.test(sql)) return [[]];
-      if (/FROM production_tasks/.test(sql)) return [[{ id: 7, product_id: 9 }]];
+      if (/FROM production_tasks(?! guard_task)/.test(sql)) return [[{ id: 7, product_id: 9 }]];
       if (/FROM \(/.test(sql))
         return [
           [
@@ -293,7 +298,7 @@ test('production completion checks authoritative product even for direct service
         ],
       ];
     if (/FROM inventory_posting_documents reversal/.test(sql)) return [[]];
-    if (/FROM production_tasks/.test(sql)) return [[{ id: 7, product_id: 9 }]];
+    if (/FROM production_tasks(?! guard_task)/.test(sql)) return [[{ id: 7, product_id: 9 }]];
     throw new Error(`Unexpected SQL ${sql}`);
   });
   await expect(
@@ -318,7 +323,7 @@ test('valid return stages its source batch, warehouse and proven issue cost', as
       return [[{ material_id: 3, location_id: 2, batch_number: 'B1', returned_quantity: 15 }]];
     if (/FROM inventory_inbound\b/.test(sql)) return [[current]];
     if (/FROM inventory_posting_documents reversal/.test(sql)) return [[]];
-    if (/FROM production_tasks/.test(sql)) return [[{ id: 7, product_id: 9 }]];
+    if (/FROM production_tasks(?! guard_task)/.test(sql)) return [[{ id: 7, product_id: 9 }]];
     if (/FROM \(/.test(sql))
       return [
         [{ material_id: 3, location_id: 2, batch_number: 'B1', issued_quantity: 20, unit_cost: 8 }],
