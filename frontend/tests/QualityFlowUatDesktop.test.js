@@ -8,6 +8,7 @@ import ProcessInspection from '@/views/quality/ProcessInspection.vue'
 vi.mock('@/views/quality/components/FirstArticleRulesDialog.vue', () => ({ default: { name: 'FirstArticleRulesDialog', template: '<div />' } }))
 vi.mock('@/views/quality/components/FirstArticleCreateDialog.vue', () => ({ default: { name: 'FirstArticleCreateDialog', template: '<div />' } }))
 vi.mock('@/views/quality/components/FirstArticleViewDialog.vue', () => ({ default: { name: 'FirstArticleViewDialog', template: '<div />' } }))
+vi.mock('@/views/quality/components/ProcessInspectionRulesDialog.vue', () => ({ default: { name: 'ProcessInspectionRulesDialog', template: '<div />' } }))
 
 // UAT contracts intentionally assert the required business behavior. Failed
 // contracts are retained as defects, not converted into tests of the bug.
