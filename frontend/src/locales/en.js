@@ -194,6 +194,7 @@ export default {
     finance: 'Finance',
     accounts: 'Chart of Accounts',
     entries: 'Journal Entries',
+    inventoryPostings: 'Inventory Postings Approval',
     periods: 'Accounting Periods',
     openingBalances: 'Opening Balances',
     trialBalance: 'Trial Balance',

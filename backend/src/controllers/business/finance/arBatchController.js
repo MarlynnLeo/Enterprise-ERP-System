@@ -9,6 +9,7 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const CodeGeneratorService = require('../../../services/business/CodeGeneratorService');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
+const ScopeGuard = require('../../../authorization/ScopeGuard');
 const {
   SETTLEMENT_ELIGIBLE_STATUSES,
   parseSettlementLine,
@@ -31,6 +32,18 @@ const batchReceipts = async (req, res) => {
     if (!receipts || !Array.isArray(receipts) || receipts.length === 0) {
       return ResponseHandler.error(res, '请提供收款明细', 'VALIDATION_ERROR', 400);
     }
+
+    if (
+      !(await ScopeGuard.denyUnlessAllAccess(
+        res,
+        connection,
+        req,
+        'ar_invoice',
+        receipts.map((item) => item?.invoiceId),
+        '批量收款包含无权访问或不存在的发票'
+      ))
+    )
+      return;
 
     const batchNumber = await CodeGeneratorService.nextCode('ar_receipt_batch');
     const results = [];

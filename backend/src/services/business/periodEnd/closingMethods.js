@@ -240,6 +240,8 @@ module.exports = {
   async closePeriod(periodData) {
     const connection = await db.pool.getConnection();
     try {
+      // 等待期间排他锁期间可能有记账事务提交；检查必须读取锁取得后的最新已提交数据。
+      await connection.execute('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
       await connection.beginTransaction();
 
       const period_id = periodData.period_id;
@@ -316,7 +318,7 @@ module.exports = {
 
       await this.assertCoreClosingControls(connection, period);
 
-      const trialBalance = await financeModel.getTrialBalance(period_id);
+      const trialBalance = await financeModel.getTrialBalance(period_id, connection);
       if (!trialBalance.isBalanced) {
         throw new Error('试算平衡表借贷不平衡，请先检查凭证或期初余额');
       }

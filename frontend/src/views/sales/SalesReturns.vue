@@ -239,7 +239,7 @@
           <el-table-column prop="reason" label="明细原因" min-width="160" />
         </el-table>
 
-        <InventoryApprovalPanel
+        <InventoryPostingStatusPanel
           v-if="currentReturn?.id || currentReturn?.returnNo"
           source-type="sales_return"
           :source-id="currentReturn.id"
@@ -370,6 +370,7 @@
 </template>
 
 <script setup>
+import { useInventoryPostingSourceLink } from '@/composables/useInventoryPostingSourceLink'
 import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { handleTableRowView } from '@/utils/tableRowView'
@@ -383,7 +384,7 @@ import { salesApi } from '@/api'
 import { financeApi } from '@/api/finance'
 import { Plus } from '@element-plus/icons-vue'
 import printService from '@/services/printService'
-import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue'
+import InventoryPostingStatusPanel from '@/components/inventory/InventoryPostingStatusPanel.vue'
 // 退货单详情相关
 const detailsVisible = ref(false)
 const currentReturn = ref(null)
@@ -866,6 +867,13 @@ const handlePrintReturn = async () => {
     printLoading.value = false
   }
 }
+
+useInventoryPostingSourceLink({
+  path: '/sales/returns',
+  sourceTypes: ["sales_return"],
+  open: ({ id }) => handleView({ id }),
+  setSearch: (sourceNo) => { searchQuery.value = sourceNo },
+})
 </script>
 
 <style scoped>

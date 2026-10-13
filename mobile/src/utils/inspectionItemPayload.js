@@ -14,18 +14,20 @@ export function getMeasurementState(item) {
 
 export function buildInspectionItemPayload(item) {
   const state = getMeasurementState(item)
-  const first = item.actualValue ?? ''
-  const values = Array.from({ length: 6 }, (_, index) => index === 0 ? first : state[`measure${index + 1}`])
+  const first = item.actualValue ?? state.measure1 ?? ''
+  const decimal = value => value === null || value === undefined || String(value).trim() === '' || !Number.isFinite(Number(value)) ? null : value
+  const values = Array.from({ length: 6 }, (_, index) => decimal(index === 0 ? first : state[`measure${index + 1}`]))
   return {
     id: item.id || undefined, itemName: item.itemName, standard: item.standard,
     method: item.method || '', type: item.type, isCritical: item.isCritical ? 1 : 0,
     result: item.result, remarks: item.remarks || '', actualValue: first,
     ...Object.fromEntries(values.map((value, index) => [`measure${index + 1}`, value])),
-    measurements: values.flatMap((value, index) => {
+    measurements: [...values.flatMap((value, index) => {
       if (value === null || value === undefined || value === '') return []
       const prior = state.measurements.find(m => Number(m.sampleNo) === index + 1)
       return [{ sampleNo: index + 1, measuredValue: value, measuredBy: prior?.measuredBy ?? null }]
-    }),
+    }), ...state.measurements.filter(m => Number(m.sampleNo) > 6).map(m => ({ ...m, measuredValue: decimal(m.measuredValue) })).filter(m => m.measuredValue !== null)],
+    dimensions: item.dimensions ?? null, tolerances: item.tolerances ?? null,
     dimensionValue: item.dimensionValue ?? null,
     toleranceUpper: item.toleranceUpper ?? null, toleranceLower: item.toleranceLower ?? null,
   }

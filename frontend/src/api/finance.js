@@ -70,6 +70,7 @@ export const financeApi = {
     getBySource: (params) => api.get('/finance/inventory-postings/by-source', { params }),
     get: (id) => api.get(`/finance/inventory-postings/${id}`),
     approve: (id) => api.post(`/finance/inventory-postings/${id}/approve`),
+    batchApprove: (data) => api.post('/finance/inventory-postings/batch-approve', data),
     reject: (id, data) => api.post(`/finance/inventory-postings/${id}/reject`, data),
     reverse: (id, data) => api.post(`/finance/inventory-postings/${id}/reverse`, data),
   },

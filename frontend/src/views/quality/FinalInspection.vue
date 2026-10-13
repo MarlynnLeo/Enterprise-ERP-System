@@ -35,6 +35,10 @@
         <div class="stat-label">合格</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
+        <div class="stat-value">{{ inspectionStats.partial }}</div>
+        <div class="stat-label">部分合格</div>
+      </el-card>
+      <el-card class="stat-card" shadow="hover">
         <div class="stat-value">{{ inspectionStats.failed }}</div>
         <div class="stat-label">不合格</div>
       </el-card>
@@ -59,6 +63,7 @@
             <el-option label="待检验" value="pending" />
             <el-option label="检验中" value="in_progress" />
             <el-option label="合格" value="passed" />
+            <el-option label="部分合格" value="partial" />
             <el-option label="不合格" value="failed" />
             <el-option label="复检" value="review" />
           </el-select>
@@ -133,7 +138,7 @@
           <template #default="scope">
 
             <el-button
-              v-if="scope.row.status === 'pending'"
+              v-if="['pending', 'in_progress'].includes(scope.row.status)"
               v-permission="'quality:inspections:update'"
               size="small"
               type="primary"
@@ -142,7 +147,7 @@
               检验
             </el-button>
             <el-button
-              v-if="scope.row.status === 'failed' && reworkStatusMap[scope.row.id]?.allowReinspection"
+              v-if="['failed', 'partial'].includes(scope.row.status) && reworkStatusMap[scope.row.id]?.allowReinspection"
               v-permission="'quality:inspections:update'"
               size="small"
               type="primary"
@@ -151,13 +156,20 @@
               复检
             </el-button>
             <el-tag
-              v-else-if="scope.row.status === 'failed' && !reworkStatusMap[scope.row.id]?.allowReinspection"
+              v-else-if="['failed', 'partial'].includes(scope.row.status) && !reworkStatusMap[scope.row.id]?.allowReinspection"
               type="info"
               size="small"
               effect="plain"
             >
               {{ getReworkHintText(scope.row.id) }}
             </el-tag>
+            <el-button
+              v-if="scope.row.unqualifiedQuantity > 0"
+              v-permission="'quality:nonconforming'"
+              size="small"
+              type="warning"
+              @click="handleDefectDisposition(scope.row)"
+            >不良处置</el-button>
             <el-button
               v-if="scope.row.status === 'passed'"
               size="small"
@@ -335,6 +347,7 @@
       mode="form"
       wide
     >
+      <InspectionSamplingFields v-model="inspectionSampling" :quantity="inspectForm.quantity" />
       <el-form ref="inspectFormRef" :model="inspectForm" :rules="inspectRules" label-width="100px">
         <!-- 产品信息头部面板 -->
         <el-descriptions :column="4" border size="small" class="mb-md">
@@ -404,6 +417,15 @@
           </div>
         </el-form-item>
 
+        <el-alert
+          v-if="inspectForm.unqualifiedQuantity > 0"
+          type="warning"
+          :closable="false"
+          show-icon
+          class="mb-md"
+          :title="`合格 ${inspectForm.qualifiedQuantity} ${inspectForm.unit || '件'}可先入库，不合格 ${inspectForm.unqualifiedQuantity} ${inspectForm.unit || '件'}将保留不良记录。`"
+          description="提交后可从“不良处置”安排返修，复检合格后补入库；如需连同不良品一起入库，可申请让步接收，审批后放行。"
+        />
         <el-row :gutter="20">
           <el-col :span="8">
             <el-form-item label="合格数量" prop="qualifiedQuantity">
@@ -745,6 +767,10 @@
   </div>
 </template>
 <script setup>
+import InspectionSamplingFields from './components/InspectionSamplingFields.vue'
+import { inspectionSamplingFields, inspectionSamplingPayload, validateInspectionSampling } from '@/utils/inspectionSampling'
+const inspectionSampling = ref(inspectionSamplingFields())
+import { useInspectionDeepLink } from '@/composables/useInspectionDeepLink'
 import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { getApiErrorMessage } from '@/utils/errorHandler'
@@ -752,8 +778,8 @@ import { handleTableRowView } from '@/utils/tableRowView'
 import { parseListData, parseResponseData } from '@/utils/responseParser';
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { resolveFinalInspectionResult } from '@/utils/finalInspectionResult'
 import { ElMessage } from 'element-plus/es/components/message/index'
-import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Select, StarFilled } from '@element-plus/icons-vue'
 import 'dayjs'
 import { qualityApi, productionApi, purchaseApi } from '@/api'
@@ -874,6 +900,7 @@ const inspectionStats = ref({
   total: 0,
   pending: 0,
   passed: 0,
+  partial: 0,
   failed: 0,
   review: 0
 })
@@ -893,6 +920,9 @@ const currentInspection = ref({})
 const reportDialogVisible = ref(false)
 const certificateDialogVisible = ref(false)
 const _router = useRouter()
+const handleDefectDisposition = (row) => {
+  _router.push({ path: '/quality/nonconforming', query: { inspection_id: row.id } })
+}
 // 获取工单选项
 const fetchProductionOrders = async () => {
   try {
@@ -977,20 +1007,23 @@ const calculateInspectionStats = async () => {
     const passed = Number(data.passed) || 0
     const failed = Number(data.failed) || 0
     const review = Number(data.review) || 0
+    const partial = Number(data.partial) || 0
     inspectionStats.value = {
-      total: Number(data.total) || pending + passed + failed + review,
+      total: Number(data.total) || pending + passed + partial + failed + review,
       pending,
       passed,
+      partial,
       failed,
       review
     }
   } catch (err) {
     console.error('获取统计数据失败:', err)
     // 降级使用当前页数据
-    const stats = { total: total.value, pending: 0, passed: 0, failed: 0, review: 0 }
+    const stats = { total: total.value, pending: 0, passed: 0, partial: 0, failed: 0, review: 0 }
     inspectionList.value.forEach(item => {
       if (item.status === 'pending') stats.pending++
       else if (item.status === 'passed') stats.passed++
+      else if (item.status === 'partial') stats.partial++
       else if (item.status === 'failed') stats.failed++
       else if (item.status === 'review') stats.review++
     })
@@ -1141,17 +1174,17 @@ const fetchData = async () => {
  * 闭环逻辑: 只有当返工任务完成后，复检按钮才可点击
  */
 const fetchReworkStatusForFailedInspections = async () => {
-  const failedInspections = inspectionList.value.filter(row => row.status === 'failed');
+  const failedInspections = inspectionList.value.filter(row => ['failed', 'partial'].includes(row.status));
   if (failedInspections.length === 0) return;
   try {
     const res = await qualityApi.getReworkStatusByInspectionIds(failedInspections.map(row => row.id));
     const data = parseResponseData(res, {});
     failedInspections.forEach(row => {
-      reworkStatusMap.value[row.id] = data[row.id] || { allow_reinspection: false };
+      reworkStatusMap.value[row.id] = data[row.id] || { allowReinspection: false };
     });
-  } catch {
+  } catch (error) {
     failedInspections.forEach(row => {
-      reworkStatusMap.value[row.id] = { allow_reinspection: false };
+      reworkStatusMap.value[row.id] = { allowReinspection: false, error: getApiErrorMessage(error, '无法查询返工状态') };
     });
   }
 }
@@ -1161,7 +1194,9 @@ const fetchReworkStatusForFailedInspections = async () => {
 const getReworkHintText = (inspectionId) => {
   const status = reworkStatusMap.value[inspectionId];
   if (!status) return '查询中...';
+  if (status.error) return `查询失败：${status.error}`;
   if (!status.hasNcp) return '待处置';
+  if (status.disposition === 'use_as_is' && ['completed', 'closed'].includes(status.ncpStatus)) return '已让步接收';
   if (!status.hasRework && status.disposition === 'rework') return '待返工';
   if (!status.hasRework) return status.disposition === 'scrap' ? '已报废' : '待处理';
   if (status.reworkStatus === 'pending') return '返工待分配';
@@ -1355,18 +1390,13 @@ const onQualifiedQuantityChange = (val) => {
 }
 // “全部合格”快捷按钮——一键将所有检验项标记为合格
 const handleAllPassed = () => {
-  if (!inspectForm.items || inspectForm.items.length === 0) return
+  if (!inspectForm.items?.length) return
   inspectForm.items.forEach(item => {
-    item.result = 'passed'
-    if (!item.actualValue) {
-      // 非尺寸类项填 OK，尺寸类填标准值
-      item.actualValue = item.type === 'dimension' && item.dimensionValue ? String(item.dimensionValue) : 'OK'
-    }
+    if (item.actualValue == null || String(item.actualValue).trim() === '' || item.result === 'failed') return
+    if (item.type === 'dimension') checkFqcTolerance(item)
+    else item.result = 'passed'
   })
-  // 同时将合格数量设为总数
-  inspectForm.qualifiedQuantity = inspectForm.quantity
-  inspectForm.unqualifiedQuantity = 0
-  ElMessage.success('已将所有检验项标记为合格')
+  ElMessage.info('已判定有实测记录的项目；未测项目、不良判定及数量保持原记录')
 }
 // 格式化FQC检验项的标准±公差展示
 const formatFqcStandard = (item) => {
@@ -1381,9 +1411,9 @@ const formatFqcStandard = (item) => {
 }
 // 尺寸类检验项输入后自动检查公差
 const checkFqcTolerance = (item) => {
-  if (item.type !== 'dimension' || !item.dimensionValue || !item.actualValue) return
-  const actual = parseFloat(item.actualValue)
-  if (isNaN(actual)) return
+  if (item.type !== 'dimension' || item.dimensionValue == null || item.dimensionValue === '' || item.actualValue == null || item.actualValue === '') return
+  const actual = Number(item.actualValue)
+  if (!Number.isFinite(actual)) { item.result = ''; return }
   const std = parseFloat(item.dimensionValue)
   const upper = parseFloat(item.toleranceUpper) || 0
   const lower = parseFloat(item.toleranceLower) || 0
@@ -1415,6 +1445,7 @@ const handleInspect = async (row) => {
     }
     // 初始化表单数据 - 优先使用传入的row.id，确保ID正确
     inspectForm.id = row.id || inspection.id;
+    inspectionSampling.value = inspectionSamplingFields(inspection)
     inspectForm.inspectionNo = inspection.inspectionNo;
     // 设置产品相关信息
     inspectForm.productId = inspection.productId;
@@ -1439,7 +1470,7 @@ const handleInspect = async (row) => {
         ...item,
         itemName: item.itemName || item.name || '',
         type: item.type || '',
-        actualValue: item.actualValue || '',
+        actualValue: item.actualValue ?? '',
         result: item.result || '',
         remarks: item.remarks || '',
         isCritical: item.isCritical,
@@ -1506,26 +1537,29 @@ const submitInspection = async () => {
     await inspectFormRef.value.validate()
 
     // 手动验证 items (避免 vue/element-plus 数组深度监控引发警告)
-    if (inspectForm.items.some(item => !item.actualValue)) {
+    if (inspectForm.items.some(item => item.actualValue == null || String(item.actualValue).trim() === '')) {
       ElMessage.warning('请填写所有检验项的实际值');
       submitLoading.value = false;
       return;
     }
+    inspectForm.items.forEach(item => { if (item.result !== 'failed') checkFqcTolerance(item) })
     if (inspectForm.items.some(item => !item.result)) {
       ElMessage.warning('请选择所有检验项的结果');
       submitLoading.value = false;
       return;
     }
 
-    // 计算检验结果状态
-    const allPassed = inspectForm.items.every(item => item.result === 'passed')
-    const status = allPassed ? 'passed' : 'failed'
+    const samplingError = validateInspectionSampling(inspectionSampling.value, inspectForm.quantity)
+    if (samplingError) { ElMessage.warning(samplingError); return }
+    const status = resolveFinalInspectionResult(inspectForm)
 
     // 准备提交的数据（纯 camel）
     const submitData = {
+      ...inspectionSamplingPayload(inspectionSampling.value, inspectForm.quantity),
       id: inspectForm.id,
       inspectionNo: inspectForm.inspectionNo,
       items: inspectForm.items.map((item) => ({
+        ...item,
         id: item.id,
         itemName: item.itemName,
         standard: item.standard,
@@ -1539,6 +1573,7 @@ const submitInspection = async () => {
         remarks: item.remarks
       })),
       inspectorName: inspectForm.inspectorName,
+      inspectorId: authStore.userId,
       templateId: currentInspectionTemplateId.value || null,
       actualDate: formatDate(inspectForm.inspectionDate),
       note: inspectForm.note,
@@ -1566,6 +1601,8 @@ const submitInspection = async () => {
     // 避免前后端重复创建入库单的问题
     if (status === 'passed') {
       ElMessage.success('检验合格，系统将自动创建入库单')
+    } else if (status === 'partial') {
+      ElMessage.success(`已生成 ${inspectForm.qualifiedQuantity} ${inspectForm.unit || '件'}合格品入库草稿；${inspectForm.unqualifiedQuantity} ${inspectForm.unit || '件'}不良品已记录，请从“不良处置”安排返修或让步接收`)
     } else {
       ElMessage.success('检验结果提交成功')
     }
@@ -1600,37 +1637,18 @@ const handleReport = (row) => {
   });
 }
 // 复检
-const handleReview = (row) => {
-  ElMessageBox.confirm('确定要对该检验单进行复检吗?', '复检确认', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    type: 'warning'
-  }).then(() => {
-    // 先获取检验单详情
-    handleGetInspectionDetail(row.id).then(() => {
-      // 复制当前检验单信息作为新的检验，状态改为review
-      inspectForm.id = currentInspection.value.id;
-      inspectForm.inspectionNo = currentInspection.value.inspectionNo;
-      inspectForm.items = currentInspection.value.items.map(item => ({
-        ...item,
-        actualValue: item.actualValue || '',
-        result: '',
-        remarks: ''
-      }));
-
-      // 自动填入当前登录用户的真实姓名作为检验员
-      inspectForm.inspectorName = getCurrentUserDisplayName();
-
-      inspectForm.inspectionDate = new Date();
-      inspectForm.note = (currentInspection.value.note || '') + ' (复检)';
-
-      inspectDialogVisible.value = true;
-    }).catch(error => {
-      ElMessage.error(`准备复检失败：${getApiErrorMessage(error, '请稍后重试')}`);
-    });
-  }).catch(() => {
-    // 用户取消操作
-  });
+const handleReview = async (row) => {
+  await fetchReworkStatusForFailedInspections()
+  const rework = reworkStatusMap.value[row.id]
+  if (!rework?.reinspectionId) {
+    ElMessage.warning('未找到返修复检单，请在不良处置中确认返工任务已完成')
+    return
+  }
+  if (['pending', 'in_progress'].includes(rework.reinspectionStatus)) {
+    await handleInspect({ id: rework.reinspectionId })
+  } else {
+    await handleView({ id: rework.reinspectionId })
+  }
 }
 // 获取检验单详情的通用方法
 const handleGetInspectionDetail = async (id) => {
@@ -1773,6 +1791,7 @@ const handlePrintCertificate = async () => {
     ElMessage.error('打印合格证失败')
   }
 }
+useInspectionDeepLink(_router, '/quality/final', handleInspect)
 </script>
 <style scoped>
 .search-container {
@@ -1837,7 +1856,8 @@ const handlePrintCertificate = async () => {
 /* 确保所有按钮图标垂直对齐 */
 :deep(.el-button .el-icon) {
   vertical-align: middle !important;
-  }
+  }
+
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;

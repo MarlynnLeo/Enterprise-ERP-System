@@ -23,7 +23,10 @@ const {
 } = require('../../../constants/financeConstants');
 const ScopeGuard = require('../../../authorization/ScopeGuard');
 const db = require('../../../config/db');
-const { parseSettlementLine } = require('../../../utils/finance/settlementMath');
+const {
+  parseSettlementLine,
+  normalizeSettlementPaymentMethod,
+} = require('../../../utils/finance/settlementMath');
 const {
   fromInvoiceApi,
   toInvoiceApi,
@@ -557,21 +560,9 @@ const arController = {
         );
       }
 
-      // 支付方式映射：前端英文值 -> 数据库中文ENUM值
-      const paymentMethodMap = {
-        cash: '现金',
-        bank_transfer: '银行转账',
-        check: '支票',
-        credit_card: '电子支付',
-        electronic: '电子支付',
-        other: '其他',
-      };
-
-      // 转换支付方式，如果已经是中文则直接使用
-      let paymentMethod = receiptData.paymentMethod || '银行转账';
-      if (paymentMethodMap[paymentMethod]) {
-        paymentMethod = paymentMethodMap[paymentMethod];
-      }
+      const paymentMethod = normalizeSettlementPaymentMethod(
+        receiptData.paymentMethod || '银行转账'
+      );
 
       if (BANK_BACKED_PAYMENT_METHODS.has(paymentMethod) && !receiptData.bankAccountId) {
         return ResponseHandler.error(

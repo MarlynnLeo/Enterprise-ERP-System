@@ -277,10 +277,12 @@ const cipModel = {
    * 删除在建工程
    */
   deleteCipProject: async (id) => {
+    const connection = await db.pool.getConnection();
     try {
+      await connection.beginTransaction();
       // 检查状态，只有建设中且无发生成本的才允许删除
-      const [project] = await db.pool.query(
-        'SELECT id, project_code, project_name, budget, accumulated_amount, start_date, estimated_end_date, status, responsible, department, notes, created_at, updated_at FROM cip_projects WHERE id = ?',
+      const [project] = await connection.query(
+        'SELECT id, status, accumulated_amount FROM cip_projects WHERE id = ? FOR UPDATE',
         [id]
       );
       if (project.length === 0) throw new Error('在建工程不存在');
@@ -289,11 +291,19 @@ const cipModel = {
         throw new Error('该工程已有发生成本或已转固，不允许删除');
       }
 
-      const [result] = await db.pool.query('DELETE FROM cip_projects WHERE id = ?', [id]);
+      const [result] = await connection.query(
+        "DELETE FROM cip_projects WHERE id = ? AND status = '建设中' AND COALESCE(accumulated_amount, 0) = 0",
+        [id]
+      );
+      if (!result.affectedRows) throw new Error('工程状态或归集成本已变更，不能删除');
+      await connection.commit();
       return result.affectedRows > 0;
     } catch (error) {
+      await connection.rollback();
       logger.error('删除在建工程失败:', error);
       throw error;
+    } finally {
+      connection.release();
     }
   },
 

@@ -1,58 +1,38 @@
-/**
- * CostAccountingService — inventoryRecalc methods (mixin)
- * Attached via Object.assign so `this` resolves to CostAccountingService.
- * @module services/business/costAccounting/inventoryRecalcMethods
- */
-
-const { logger, db, InventoryService } = require('./runtime');
-const InventoryValuationAdjustmentService = require('../../InventoryValuationAdjustmentService');
+/** Refresh derived inventory costs from the immutable, posted valuation. */
+const { logger, db, InventoryService, BusinessError, Precision } = require('./runtime');
 
 module.exports = {
-  /**
-   * 库存成本重新计算（月结/全量校准用途）
-   *
-   * ⚠️ 职责边界说明：
-   *   - 本方法用于 **月结** 或 **手动校准** 场景，遍历所有历史台账全量重算 cost_price
-   *   - 实时增量场景（采购入库、调整入库等）由 InventoryCostService.generateInboundCostEntry() 的 MAC 算法负责
-   *   - 两者是互补关系：InventoryCostService 提供实时准确性，本方法提供事后校验能力
-   *   - 若两者计算结果不一致，以本方法的全量重算为准（因为它基于完整历史数据）
-   *
-   * @param {number} materialId 物料ID（可选，不传则计算所有物料）
-   * @param {string} method 成本计算方法
-   * @returns {Object} 重新计算结果
-   */
+  assertInventoryRecalculationMethod(method) {
+    const normalized = this.normalizeInventoryCostingMethod(method);
+    if (normalized !== this.COSTING_METHOD.WEIGHTED_AVERAGE) {
+      throw new BusinessError(
+        '库存成本校准仅支持按已入账金额恢复加权成本；切换先进先出需要成本层及财务调整凭证，不能直接重算历史台账',
+        null,
+        'INVENTORY_REVALUATION_REQUIRED',
+        409
+      );
+    }
+    return normalized;
+  },
+
+  /** Rebuild cached balances without repricing approved historical movements. */
   async recalculateInventoryCost(materialId = null, method = this.COSTING_METHOD.WEIGHTED_AVERAGE) {
-    const normalizedMethod = this.normalizeInventoryCostingMethod(method);
+    const normalizedMethod = this.assertInventoryRecalculationMethod(method);
     const connection = await db.pool.getConnection();
     try {
+      // The ledger range lock must also protect against newly inserted rows
+      // while the balances are rebuilt. Scope this setting to this transaction.
+      await connection.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
       await connection.beginTransaction();
-
-      let materials = [];
-      if (materialId) {
-        const [materialInfo] = await connection.execute(
-          'SELECT id, code, name FROM materials WHERE id = ? AND deleted_at IS NULL',
-          [materialId]
-        );
-        materials = materialInfo;
-      } else {
-        // 尝试查询所有活跃物料，如果is_active字段不存在则查询所有物料
-        try {
-          const [allMaterials] = await connection.execute(
-            'SELECT id, code, name FROM materials WHERE is_active = true'
-          );
-          materials = allMaterials;
-        } catch (error) {
-          if (error.message.includes('Unknown column')) {
-            const [allMaterials] = await connection.execute('SELECT id, code, name FROM materials');
-            materials = allMaterials;
-          } else {
-            throw error;
-          }
-        }
+      const [materials] = await connection.execute(
+        `SELECT id, code, name FROM materials WHERE deleted_at IS NULL
+          ${materialId ? 'AND id = ?' : ''} ORDER BY id`,
+        materialId ? [materialId] : []
+      );
+      if (materialId && !materials.length) {
+        throw new BusinessError('物料不存在', null, 'MATERIAL_NOT_FOUND', 404);
       }
-
       const results = [];
-
       for (const material of materials) {
         const result = await this.recalculateMaterialCost(
           connection,
@@ -66,14 +46,8 @@ module.exports = {
           ...result,
         });
       }
-
       await connection.commit();
-
-      return {
-        method: normalizedMethod,
-        processedCount: results.length,
-        results,
-      };
+      return { method: normalizedMethod, processedCount: results.length, results };
     } catch (error) {
       await connection.rollback();
       logger.error('重新计算库存成本失败:', error);
@@ -83,110 +57,81 @@ module.exports = {
     }
   },
 
-  /**
-   * 重新计算单个物料成本
-   * @param {Object} connection 数据库连接
-   * @param {number} materialId 物料ID
-   * @param {string} method 成本计算方法
-   * @returns {Object} 计算结果
-   */
   async recalculateMaterialCost(connection, materialId, method) {
-    const normalizedMethod = this.normalizeInventoryCostingMethod(method);
-    // 获取库存交易记录（按时间排序，处理字段名兼容性）
-    let transactions;
-    try {
-      const [result] = await connection.execute(
-        `SELECT id, material_id, location_id, transaction_type, transaction_no, reference_no, reference_type, quantity, before_quantity, after_quantity, unit_id, batch_number, operator, remark, created_at, updated_at, unit_cost, total_value, supplier_id, supplier_name, production_date, expiry_date, warehouse_name, issue_reason, is_excess, bom_required_qty, total_issued_qty, purchase_order_id, purchase_order_no, receipt_id, receipt_no, transaction_date FROM inventory_ledger
-           WHERE material_id = ?
-           ORDER BY transaction_date, created_at`,
-        [materialId]
-      );
-      transactions = result;
-    } catch (error) {
-      if (error.message.includes('Unknown column')) {
-        // 尝试使用created_at字段排序
-        const [result] = await connection.execute(
-          `SELECT id, material_id, location_id, transaction_type, transaction_no, reference_no, reference_type, quantity, before_quantity, after_quantity, unit_id, batch_number, operator, remark, created_at, updated_at, unit_cost, total_value, supplier_id, supplier_name, production_date, expiry_date, warehouse_name, issue_reason, is_excess, bom_required_qty, total_issued_qty, purchase_order_id, purchase_order_no, receipt_id, receipt_no, transaction_date FROM inventory_ledger
-             WHERE material_id = ?
-             ORDER BY created_at`,
-          [materialId]
-        );
-        transactions = result;
-      } else {
-        throw error;
-      }
-    }
-
+    this.assertInventoryRecalculationMethod(method);
+    // Match rebuildStockBalancesForMaterial's valuation exactly, including
+    // frozen amount rounding and existing append-only valuation adjustments.
+    // Lock ledger rows first, matching the valuation-adjustment writer.
+    const [transactions] = await connection.execute(
+      `SELECT il.id, il.quantity, il.total_value
+         FROM inventory_ledger il
+        WHERE il.material_id = ? AND il.location_id IS NOT NULL
+        ORDER BY il.id FOR UPDATE`,
+      [materialId]
+    );
     let currentQuantity = 0;
     let currentValue = 0;
-    let currentUnitCost = 0;
-
-    for (const transaction of transactions) {
-      const signedQuantity = this.toNumber(transaction.quantity, 0);
-      if (signedQuantity > 0) {
-        // 入库处理
-        const inboundQuantity = Math.abs(signedQuantity);
-        // 尝试从不同字段获取单位成本
-        const inboundUnitCost =
-          transaction.unit_cost ||
-          (transaction.amount && transaction.quantity
-            ? transaction.amount / transaction.quantity
-            : 0) ||
-          0;
-        const inboundValue = inboundQuantity * inboundUnitCost;
-
-        if (normalizedMethod === this.COSTING_METHOD.WEIGHTED_AVERAGE) {
-          // 加权平均法
-          const totalValue = currentValue + inboundValue;
-          const totalQuantity = currentQuantity + inboundQuantity;
-
-          if (totalQuantity > 0) {
-            currentUnitCost = totalValue / totalQuantity;
-          }
-
-          currentQuantity = totalQuantity;
-          currentValue = totalValue;
-        } else if (normalizedMethod === this.COSTING_METHOD.FIFO) {
-          // 先进先出法（简化处理）
-          currentQuantity += inboundQuantity;
-          currentValue += inboundValue;
-          if (currentQuantity > 0) {
-            currentUnitCost = currentValue / currentQuantity;
-          }
-        }
-      } else if (signedQuantity < 0) {
-        // 出库处理
-        const outboundQuantity = Math.abs(signedQuantity);
-        const outboundValue = outboundQuantity * currentUnitCost;
-
-        currentQuantity -= outboundQuantity;
-        currentValue -= outboundValue;
-
-        // 确保不出现负值
-        if (currentQuantity < 0) currentQuantity = 0;
-        if (currentValue < 0) currentValue = 0;
+    for (const row of transactions) {
+      const quantity = Number(row.quantity);
+      const amount = Number(row.total_value);
+      if (row.total_value == null || ![quantity, amount].every(Number.isFinite)) {
+        throw new BusinessError(
+          '库存台账缺少有效入账金额，请先核对原始凭据',
+          null,
+          'INVALID_POSTED_VALUATION',
+          409
+        );
       }
-
-      await InventoryValuationAdjustmentService.record(connection, {
-        ledgerId: transaction.id,
-        postingDocumentId: transaction.posting_document_id,
-        adjustmentType: 'inventory_recalculation',
-        newUnitCost: currentUnitCost,
-        ledgerSnapshot: transaction,
-        reason: `库存成本重算（${normalizedMethod}）`,
-        actorLabel: 'system',
-      });
+      currentQuantity = Precision.add(currentQuantity, quantity);
+      currentValue = Precision.add(currentValue, (quantity < 0 ? -1 : 1) * Math.abs(amount));
     }
-
-    // 更新物料的当前成本（写入 cost_price 成本价字段，严禁污染 price 销售价字段）
+    // An outer FOR UPDATE does not make a nested SUM a current read. The
+    // material-list query may already have established an older RR snapshot,
+    // so read adjustments explicitly under lock as well.
+    const [adjustments] = await connection.execute(
+      `SELECT va.ledger_id, va.value_delta
+         FROM inventory_valuation_adjustments va
+         JOIN inventory_ledger il ON il.id = va.ledger_id
+        WHERE il.material_id = ? AND il.location_id IS NOT NULL
+        ORDER BY va.id FOR UPDATE`,
+      [materialId]
+    );
+    for (const adjustment of adjustments) {
+      if (adjustment.value_delta == null || !Number.isFinite(Number(adjustment.value_delta))) {
+        throw new BusinessError(
+          '库存估值调整金额无效，请先核对原始凭据',
+          null,
+          'INVALID_POSTED_VALUATION',
+          409
+        );
+      }
+      currentValue = Precision.add(currentValue, Number(adjustment.value_delta));
+    }
+    if (
+      currentQuantity < -0.000001 ||
+      currentValue < -0.000001 ||
+      (Math.abs(currentQuantity) <= 0.000001 && Math.abs(currentValue) > 0.000001)
+    ) {
+      throw new BusinessError(
+        '库存数量与入账金额不一致，请先核对原始凭据及估值调整',
+        null,
+        'INCONSISTENT_POSTED_VALUATION',
+        409
+      );
+    }
+    const currentUnitCost =
+      currentQuantity > 0.000001
+        ? Precision.round(Precision.div(currentValue, currentQuantity), 6)
+        : 0;
     await connection.execute(
       'UPDATE materials SET cost_price = ? WHERE id = ? AND deleted_at IS NULL',
       [currentUnitCost, materialId]
     );
     await InventoryService.rebuildStockBalancesForMaterial(materialId, connection);
-
     return {
       finalQuantity: currentQuantity,
+      finalValue: currentValue,
+      unitCost: currentUnitCost,
       transactionCount: transactions.length,
     };
   },

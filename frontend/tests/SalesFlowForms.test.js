@@ -23,7 +23,7 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('@/api', () => ({ salesApi: mocks.sales, inventoryApi: mocks.inventory, baseDataApi: mocks.baseData }))
 vi.mock('@/api/finance', () => ({ financeApi: { integration: { generateARCreditNoteFromSalesReturn: mocks.creditNote } } }))
-vi.mock('vue-router', () => ({ useRouter: () => ({ push: mocks.push }), useRoute: () => ({ query: {} }) }))
+vi.mock('vue-router', async (importOriginal) => ({ ...(await importOriginal()), useRouter: () => ({ push: mocks.push }), useRoute: () => ({ query: {} }) }))
 vi.mock('@/stores/dictionary', () => ({ useDictionaryStore: () => ({ groups: {}, isLoaded: false, getOptions: () => [] }) }))
 vi.mock('@/utils/requestOptimizer', () => ({ clearAllRequestCaches: mocks.clearCache }))
 vi.mock('@/utils/optionLoaders', () => ({
@@ -33,7 +33,7 @@ vi.mock('@/utils/optionLoaders', () => ({
 vi.mock('element-plus/es/components/message/index', () => ({ ElMessage: mocks.message }))
 vi.mock('element-plus/es/components/message/style/css', () => ({}))
 vi.mock('element-plus/es/components/message-box/index', () => ({ ElMessageBox: { confirm: mocks.confirm, prompt: mocks.confirm } }))
-vi.mock('@/components/inventory/InventoryApprovalPanel.vue', () => ({ default: { template: '<div/>' } }))
+vi.mock('@/components/inventory/InventoryPostingStatusPanel.vue', () => ({ default: { template: '<div/>' } }))
 vi.mock('@/services/printService', () => ({ default: {} }))
 
 const Slot = { template: '<div><slot name="header"/><slot name="actions"/><slot/><slot name="footer"/></div>' }
@@ -92,7 +92,7 @@ const stubs = {
   ElDescriptions: Slot, ElDescriptionsItem: FormItem, ElTag: Slot, ElDivider: Slot,
   ElIcon: true, ElPagination: true, ElTooltip: Slot, ElAlert: Slot, ElEmpty: true,
   ElPopconfirm: { emits: ['confirm'], template: '<span @click="$emit(\'confirm\')"><slot name="reference"/></span>' },
-  EmptyState: true, InventoryApprovalPanel: true,
+  EmptyState: true, InventoryPostingStatusPanel: true,
 }
 
 const outbound = {

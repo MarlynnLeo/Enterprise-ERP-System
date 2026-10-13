@@ -196,7 +196,7 @@ beforeEach(() => {
   mocks.getMaterialAttachments.mockReset().mockResolvedValue({ data: [] })
   mocks.locatePart.mockReset().mockResolvedValue({ data: [firstResult] })
   mocks.exportToExcel.mockReset()
-  delete window.__material_options_cache_v2__
+  delete window.__material_options_cache_v3__
 })
 afterEach(() => wrappers.splice(0).forEach(wrapper => wrapper.unmount()))
 

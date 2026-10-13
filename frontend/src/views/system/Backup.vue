@@ -34,53 +34,55 @@
       </div>
     </el-alert>
 
-    <el-table :data="backups" v-loading="loading" border stripe>
-      <el-table-column type="expand">
-        <template #default="{ row }">
-          <div class="backup-detail">
-            <div>文件名：{{ row.filename }}</div>
-            <div>校验和：{{ row.checksum || '-' }}</div>
-            <div>消息：{{ row.message || '-' }}</div>
-          </div>
-        </template>
-      </el-table-column>
-      <el-table-column prop="filename" label="文件名" min-width="220" />
-      <el-table-column label="大小" width="120">
-        <template #default="{ row }">{{ formatSize(row.fileSize) }}</template>
-      </el-table-column>
-      <el-table-column prop="status" label="状态" width="100">
-        <template #default="{ row }">
-          <el-tag :type="row.status === 'success' ? 'success' : 'danger'">
-            {{ row.status === 'success' ? '成功' : '失败' }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="createdAt" label="创建时间" width="180">
-        <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
-      </el-table-column>
-      <el-table-column label="操作" min-width="220" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
-        <template #default="{ row }">
-          <div class="table-actions">
-            <el-button
-              size="small"
-              type="primary"
-              v-permission="'system:backup:view'"
-              @click="verifyBackup(row)"
-            >
-              <el-icon><CircleCheck /></el-icon> 校验
-            </el-button>
-            <el-button
-              size="small"
-              type="success"
-              v-permission="'system:backup:download'"
-              @click="downloadBackup(row)"
-            >
-              <el-icon><Download /></el-icon> 下载
-            </el-button>
-          </div>
-        </template>
-      </el-table-column>
-    </el-table>
+    <el-card class="data-card">
+      <el-table :data="backups" v-loading="loading" border stripe>
+        <el-table-column type="expand">
+          <template #default="{ row }">
+            <div class="backup-detail">
+              <div>文件名：{{ row.filename }}</div>
+              <div>校验和：{{ row.checksum || '-' }}</div>
+              <div>消息：{{ row.message || '-' }}</div>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="filename" label="文件名" min-width="220" />
+        <el-table-column label="大小" width="120">
+          <template #default="{ row }">{{ formatSize(row.fileSize) }}</template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row.status === 'success' ? 'success' : 'danger'">
+              {{ row.status === 'success' ? '成功' : '失败' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="createdAt" label="创建时间" width="180">
+          <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
+        </el-table-column>
+        <el-table-column label="操作" min-width="220" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+          <template #default="{ row }">
+            <div class="table-actions">
+              <el-button
+                size="small"
+                type="primary"
+                v-permission="'system:backup:view'"
+                @click="verifyBackup(row)"
+              >
+                <el-icon><CircleCheck /></el-icon> 校验
+              </el-button>
+              <el-button
+                size="small"
+                type="success"
+                v-permission="'system:backup:download'"
+                @click="downloadBackup(row)"
+              >
+                <el-icon><Download /></el-icon> 下载
+              </el-button>
+            </div>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
   </div>
 </template>
 

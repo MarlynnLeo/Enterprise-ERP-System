@@ -189,7 +189,7 @@
     <template #footer>
       <span class="dialog-footer">
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button v-permission="'quality:inspections:update'" type="primary" @click="submitInspection" :loading="submitting" :disabled="inspectionLoading || samplingLoading || (inspectForm.is_aql && !inspectForm.aql_standard_id)">提交检验</el-button>
+        <el-button v-permission="['quality:incoming:update', 'quality:inspections:update']" type="primary" @click="submitInspection" :loading="submitting" :disabled="inspectionLoading || samplingLoading || (inspectForm.is_aql && !inspectForm.aql_standard_id)">提交检验</el-button>
       </span>
     </template>
     </AppDialog>
@@ -865,7 +865,18 @@ const submitInspection = async () => {
       return
     }
 
-    const status = calculateInspectionStatus(inspectForm.items)
+    const good = Number(inspectForm.qualifiedQuantity)
+    const bad = Number(inspectForm.unqualifiedQuantity)
+    const quantity = Number(inspectForm.quantity)
+    if (!(quantity > 0) || good < 0 || bad < 0 || Math.abs(good + bad - quantity) > 0.000001) {
+      ElMessage.warning('合格与不合格数量必须等于检验数量')
+      return
+    }
+    if (bad === 0 && calculateInspectionStatus(inspectForm.items) !== 'passed') {
+      ElMessage.warning('存在不合格项目，请核实不合格数量')
+      return
+    }
+    const status = bad === 0 ? 'passed' : good > 0 ? 'partial' : 'failed'
 
     const submitData = {
       id: inspectForm.id,
@@ -891,6 +902,7 @@ const submitInspection = async () => {
       qualifiedQuantity: parseFloat(inspectForm.qualifiedQuantity) || 0,
       unqualifiedQuantity: parseFloat(inspectForm.unqualifiedQuantity) || 0,
       inspectorName: inspectForm.inspectorName,
+      inspectorId: authStore.userId,
       template_id: inspectionTemplateId.value || currentInspectionData.value?.templateId || null,
       actual_date: dayjs(inspectForm.inspectionDate).format('YYYY-MM-DD'),
       note: inspectForm.note,
@@ -900,6 +912,7 @@ const submitInspection = async () => {
       isFullInspection: inspectForm.isFullInspection,
       aql_standard_id: inspectForm.aql_standard_id,
       aqlLevel: inspectForm.aqlLevel,
+      sampleQuantity: inspectForm.sampleQuantity,
       accept_limit: inspectForm.acceptLimit,
       reject_limit: inspectForm.rejectLimit
     }

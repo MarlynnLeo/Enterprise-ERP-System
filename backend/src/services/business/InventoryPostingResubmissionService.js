@@ -2,37 +2,7 @@
 
 const InventoryPostingService = require('../InventoryPostingService');
 const PeriodValidationService = require('./PeriodValidationService');
-const crypto = require('crypto');
-
-// InventoryPostingService.stageMovement's persisted snapshot field order.
-// MySQL JSON may reorder keys, so restore that order before checking its original hash.
-const SNAPSHOT_KEYS = [
-  'materialId',
-  'locationId',
-  'transactionType',
-  'referenceType',
-  'referenceNo',
-  'signedQuantity',
-  'unitId',
-  'batchNumber',
-  'unitCost',
-  'totalValue',
-  'transactionDate',
-  'operator',
-  'supplierId',
-  'supplierName',
-  'productionDate',
-  'expiryDate',
-  'warehouseName',
-  'purchaseOrderId',
-  'purchaseOrderNo',
-  'receiptId',
-  'receiptNo',
-  'remark',
-  'allowEmptyBatch',
-  'sourceLineKey',
-  'reversalOfLedgerId',
-];
+const { readPostingSnapshot } = require('../../utils/inventoryPostingSnapshot');
 
 /** Re-submit the rejected inventory snapshot, without replaying business quantities/events. */
 class InventoryPostingResubmissionService {
@@ -59,29 +29,8 @@ class InventoryPostingResubmissionService {
     if (!rows.length)
       throw Object.assign(new Error('驳回过账缺少原冻结明细，不能重新提交'), { statusCode: 409 });
     const lines = rows.map((row) => {
-      const payload =
-        typeof row.payload_json === 'string' ? JSON.parse(row.payload_json) : row.payload_json;
-      const hash =
-        payload &&
-        crypto
-          .createHash('sha256')
-          .update(
-            JSON.stringify(Object.fromEntries(SNAPSHOT_KEYS.map((key) => [key, payload[key]])))
-          )
-          .digest('hex');
-      if (
-        !payload ||
-        payload.referenceType !== sourceType ||
-        payload.referenceNo !== sourceNo ||
-        hash !== row.snapshot_hash ||
-        Number(payload.materialId) !== Number(row.material_id) ||
-        Number(payload.locationId) !== Number(row.location_id) ||
-        Number(payload.signedQuantity) !== Number(row.signed_quantity) ||
-        Number(payload.unitCost) !== Number(row.unit_cost) ||
-        Number(payload.totalValue) !== Number(row.total_value) ||
-        (payload.batchNumber || null) !== (row.batch_number || null) ||
-        !(Number(payload.unitCost) > 0)
-      ) {
+      const payload = readPostingSnapshot(row);
+      if (payload.referenceType !== sourceType || payload.referenceNo !== sourceNo) {
         throw Object.assign(new Error('驳回过账明细与来源不一致，不能重新提交'), {
           statusCode: 409,
         });

@@ -6,6 +6,7 @@
  */
 
 const EventBus = require('../EventBus');
+const { AsyncLocalStorage } = require('async_hooks');
 const FinanceIntegrationService = require('../../services/external/FinanceIntegrationService');
 const InventoryPostingService = require('../../services/InventoryPostingService');
 const { logger } = require('../../utils/logger');
@@ -17,6 +18,7 @@ const {
 
 class FinanceSubscriber {
   constructor() {
+    this.retryContext = new AsyncLocalStorage();
     this.registerDLQHandlers();
     this.registerListeners();
     logger.info('🎧 [FinanceSubscriber] 已挂载财务集成事件监听器');
@@ -56,6 +58,20 @@ class FinanceSubscriber {
             payload.currentUserId || payload.userId || null
           );
         }
+      },
+      'Finance:GenerateARInvoiceFromSalesOutbound': async (payload) => {
+        const outbound = await this.fetchSalesOutbound(payload.outboundId);
+        if (['reversed', 'cancelled'].includes(String(outbound.status || '').toLowerCase())) {
+          return;
+        }
+        const exists = await this.existsBySource('ar_invoices', 'sales_outbound', outbound.id);
+        if (exists) return;
+        const salesOrders = await this.fetchSalesOrdersForOutbound(outbound.id, outbound.order_id);
+        await FinanceIntegrationService.generateARInvoiceFromSalesOutbound(
+          outbound,
+          salesOrders,
+          payload.currentUserId || payload.userId || null
+        );
       },
       'Finance:GenerateCostEntryFromSalesOutbound': async (payload) => {
         const outbound =
@@ -170,7 +186,9 @@ class FinanceSubscriber {
     };
 
     Object.entries(handlers).forEach(([taskName, handler]) => {
-      DLQService.registerHandler(taskName, handler);
+      DLQService.registerHandler(taskName, (payload) =>
+        this.retryContext.run({ isRetry: true }, () => handler(payload))
+      );
     });
   }
 
@@ -390,15 +408,20 @@ class FinanceSubscriber {
         reference_type: line.reference_type,
         quantity: line.signed_quantity,
         unit_cost: line.unit_cost,
+        total_value: line.posted_value ?? line.total_value,
         transaction_date: line.transaction_date,
         posting_document_id: posting.id,
         posting_line_id: line.id,
       };
 
       if (Number(line.signed_quantity) > 0) {
-        await InventoryCostService.generateInboundCostEntry(transaction);
+        await InventoryCostService.generateInboundCostEntry(transaction, {
+          userId: posting.finance_approved_by,
+        });
       } else {
-        await InventoryCostService.generateOutboundCostEntry(transaction);
+        await InventoryCostService.generateOutboundCostEntry(transaction, {
+          userId: posting.finance_approved_by,
+        });
       }
     }
   }
@@ -577,18 +600,7 @@ class FinanceSubscriber {
       return;
     }
 
-    // Sales/general outbound and outsourced issue reversals are compensated by
-    // their business reversal services; do not create a second generic cost GL.
-    if (
-      posting?.posting_kind === 'reversal' &&
-      ['outbound', 'sales_outbound', 'outsourced_processing_material'].includes(
-        String(posting.source_type || '')
-      )
-    ) {
-      return;
-    }
-
-    if (posting) await this.replayInventoryPostingCosts(posting);
+    await this.replayInventoryPostingCosts(posting);
   }
 
   assertAllowedIdentifier(value, allowedValues, label) {
@@ -651,8 +663,13 @@ class FinanceSubscriber {
   }
 
   async recordFailure(taskName, payload, error, logMessage) {
-    logger.warn(`${logMessage}: ${error.message}`);
-    await DLQService.recordSideEffectFailure(taskName, payload, error);
+    // A replay must fail its existing job, preserving attempts and backoff.
+    // Enqueuing another job here would reset the retry budget indefinitely.
+    if (this.retryContext.getStore()?.isRetry) throw error;
+    if (logMessage) logger.warn(`${logMessage}: ${error.message}`);
+    await DLQService.recordSideEffectFailure(taskName, payload, error, {
+      throwOnPersistenceFailure: true,
+    });
   }
 
   /**
@@ -737,7 +754,7 @@ class FinanceSubscriber {
         `[FinanceSubscriber] Purchase receipt finance processing failed: receiptId=${receiptId}`,
         criticalError
       );
-      await DLQService.recordSideEffectFailure(
+      await this.recordFailure(
         'Finance:PurchaseReceiptCompleted',
         { receiptId, currentUserId },
         criticalError
@@ -767,7 +784,7 @@ class FinanceSubscriber {
           `[FinanceSubscriber] 无法确认销售出库状态，停止财务事件: outboundId=${outboundId}`,
           error
         );
-        await DLQService.recordSideEffectFailure(
+        await this.recordFailure(
           'Finance:SalesOutboundCompleted',
           { outboundId, outboundData, salesOrderId: salesOrder?.id, currentUserId },
           error
@@ -907,7 +924,7 @@ class FinanceSubscriber {
         `[FinanceSubscriber] Sales outbound finance processing failed: outboundNo=${outboundNo}`,
         criticalError
       );
-      await DLQService.recordSideEffectFailure(
+      await this.recordFailure(
         'Finance:SalesOutboundCompleted',
         { outboundNo, outboundData, salesOrderId: salesOrder?.id, currentUserId },
         criticalError

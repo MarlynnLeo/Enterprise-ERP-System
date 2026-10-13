@@ -46,6 +46,17 @@ export const baseDataApi = {
     return api.get(`/base-data/materials/${id}`)
   },
 
+  getMaterialAttachments(id) {
+    return api.get(`/base-data/materials/${id}/attachments`)
+  },
+
+  uploadMaterialAttachment(id, data) {
+    return api.post(`/base-data/materials/${id}/attachments`, data, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000
+    })
+  },
+
   createMaterial(data) {
     return api.post('/base-data/materials', data)
   },

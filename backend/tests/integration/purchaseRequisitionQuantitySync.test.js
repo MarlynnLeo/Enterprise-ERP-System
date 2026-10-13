@@ -93,7 +93,7 @@ test('saves an increase beyond 3663 and a subsequent reduction without quantity 
 
 test('keeps other orders and unpurchased demand when editing one split order', async () => {
   await connection.query('UPDATE purchase_requisition_items SET quantity = 5000 WHERE id = 1');
-  await connection.query("UPDATE purchase_requisitions SET status = 'approved' WHERE id = 1");
+  await connection.query("UPDATE purchase_requisitions SET status = 'submitted' WHERE id = 1");
   await connection.query(
     "INSERT INTO purchase_orders (id, requisition_id, status) VALUES (8, 1, 'approved')"
   );
@@ -101,7 +101,7 @@ test('keeps other orders and unpurchased demand when editing one split order', a
     "INSERT INTO purchase_order_items (id, order_id, material_id, material_code, quantity) VALUES (81, 8, 10, '4003003015', 1000)"
   );
   const result = await saveQuantity(100000);
-  expect(result).toMatchObject({ status: 'approved', totalRequired: 101337, totalOrdered: 101000 });
+  expect(result).toMatchObject({ status: 'submitted', totalRequired: 101337, totalOrdered: 101000 });
   const [[other]] = await connection.query(
     'SELECT quantity FROM purchase_order_items WHERE id = 81'
   );

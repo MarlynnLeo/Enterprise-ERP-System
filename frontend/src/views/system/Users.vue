@@ -252,15 +252,15 @@
               placeholder="请输入签名代号（例如：O 对应王晓敏，A 对应陈挺，C 对应陈贤萍）"
               clearable
               maxlength="1"
-            >
-              <template #append>
-                <el-button
-                  v-for="opt in PRESET_SIGNATURE_OPTIONS"
-                  :key="opt.code"
-                  @click="userForm.signatureCode = opt.code"
-                >填入 {{ opt.code }} ({{ opt.name }})</el-button>
-              </template>
-            </el-input>
+            />
+            <div class="signature-preset-actions" role="group" aria-label="电子签名预设">
+              <el-button
+                v-for="opt in PRESET_SIGNATURE_OPTIONS"
+                :key="opt.code"
+                size="small"
+                @click="userForm.signatureCode = opt.code"
+              >填入 {{ opt.code }} ({{ opt.name }})</el-button>
+            </div>
 
             <!-- 输入时实时预览 -->
             <div class="form-signature-preview-box">
@@ -860,7 +860,7 @@ onMounted(async () => {
   font-family: 'SPPLMFONT', sans-serif !important;
   font-size: 24px;
   line-height: 1;
-  color: #1f2937;
+  color: var(--color-text-primary);
   display: inline-block;
   vertical-align: middle;
   text-transform: uppercase;
@@ -940,8 +940,8 @@ onMounted(async () => {
 .signature-empty-container {
   padding: 24px 16px;
   text-align: center;
-  background: #ffffff;
-  border: 1px dashed var(--color-border-base, #cbd5e1);
+  background: var(--color-bg-section);
+  border: 1px dashed var(--color-border-base);
   border-radius: 6px;
 }
 
@@ -967,7 +967,7 @@ onMounted(async () => {
 }
 
 .match-tip.match-success {
-  color: #10b981;
+  color: color-mix(in srgb, var(--color-success-dark) 40%, var(--color-text-primary));
   display: flex;
   align-items: center;
   gap: 4px;
@@ -977,6 +977,17 @@ onMounted(async () => {
 /* 编辑模式：输入与实时预览 */
 .signature-edit-box {
   width: 100%;
+}
+
+.signature-preset-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.signature-preset-actions :deep(.el-button) {
+  margin: 0;
 }
 
 .form-signature-preview-box {
@@ -1009,7 +1020,8 @@ onMounted(async () => {
 
 .preview-empty-text {
   font-size: 12px;
-  color: var(--color-text-placeholder, #9ca3af);
+  /* 白纸预览使用固定墨色，避免暗色主题的浅色提示在白底上失去对比。 */
+  color: #6B7280;
 }
 
 .preview-match-row {

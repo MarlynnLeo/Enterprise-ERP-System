@@ -7,7 +7,6 @@
 
 const { logger } = require('../../utils/logger');
 const { currentDateString } = require('../../utils/dateUtils');
-const { resolveActorLabel } = require('../../utils/userUtils');
 const {
   INVOICE_STATUS,
   TAX_INVOICE_STATUS,
@@ -44,12 +43,11 @@ class SalesOutboundReversalService {
    * @param {string} options.outboundNo
    * @param {number} options.outboundId
    * @param {number|null} options.orderId
-   * @param {string} options.operator
+   * @param {number|string} options.operator - Stable user ID when available.
    * @returns {Promise<object>} 补偿摘要
    */
   static async compensateFinance(connection, options = {}) {
-    const { outboundNo, outboundId, orderId = null, operator: operatorInput = null } = options;
-    const operator = await resolveActorLabel(connection, operatorInput);
+    const { outboundNo, outboundId, orderId = null, operator = null } = options;
 
     const summary = {
       costGlReversed: 0,
@@ -186,6 +184,7 @@ class SalesOutboundReversalService {
         `SELECT id
          FROM gl_entries
          WHERE document_number = ?
+           AND (document_type IS NULL OR document_type = '')
            AND COALESCE(is_posted, 0) = 1
            AND COALESCE(is_reversed, 0) = 0
            AND NOT EXISTS (
@@ -214,7 +213,7 @@ class SalesOutboundReversalService {
           entry_date: today,
           posting_date: today,
           description: `销售出库冲销 ${outboundNo}`,
-          created_by: await resolveActorLabel(null, operator),
+          created_by: operator,
         },
         connection
       );
@@ -268,7 +267,7 @@ class SalesOutboundReversalService {
               entry_date: today,
               posting_date: today,
               description: `销售出库冲销回冲销项税 ${tax.invoice_number || '该税票'}`,
-              created_by: await resolveActorLabel(null, operator),
+              created_by: operator,
             },
             connection
           );
@@ -375,7 +374,7 @@ class SalesOutboundReversalService {
               entry_date: today,
               posting_date: today,
               description: `销售出库冲销取消应收 ${inv.invoice_number}`,
-              created_by: await resolveActorLabel(null, operator),
+              created_by: operator,
             },
             connection
           );

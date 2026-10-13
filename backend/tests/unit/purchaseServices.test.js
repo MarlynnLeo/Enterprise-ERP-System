@@ -5,7 +5,7 @@ describe('purchase service invariants', () => {
   test('does not complete a requisition when duplicate material rows are only partially ordered', async () => {
     const connection = {
       query: jest.fn()
-        .mockResolvedValueOnce([[{ id: 1, status: 'approved' }]])
+        .mockResolvedValueOnce([[{ id: 1, status: 'submitted' }]])
         .mockResolvedValueOnce([[
           { material_id: 10, material_code: 'M-10', quantity: 5 },
           { material_id: 10, material_code: 'M-10', quantity: 5 },
@@ -17,7 +17,7 @@ describe('purchase service invariants', () => {
 
     expect(result).toMatchObject({
       requisitionId: 1,
-      status: 'approved',
+      status: 'submitted',
       totalRequired: 10,
       totalOrdered: 6,
       completed: false,
@@ -28,7 +28,7 @@ describe('purchase service invariants', () => {
   test('completes a requisition only after active order quantities cover every material', async () => {
     const connection = {
       query: jest.fn()
-        .mockResolvedValueOnce([[{ id: 1, status: 'approved' }]])
+        .mockResolvedValueOnce([[{ id: 1, status: 'submitted' }]])
         .mockResolvedValueOnce([[
           { material_id: 10, material_code: 'M-10', quantity: 5 },
           { material_id: 11, material_code: 'M-11', quantity: 3 },

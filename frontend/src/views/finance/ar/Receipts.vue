@@ -205,7 +205,6 @@
             <el-option label="银行转账" value="bank_transfer"></el-option>
             <el-option label="支票" value="check"></el-option>
             <el-option label="信用卡" value="credit_card"></el-option>
-            <el-option label="其他" value="other"></el-option>
           </el-select>
         </el-form-item>
         <el-form-item label="收款账户" prop="bankAccountId" v-if="showBankAccountField">

@@ -52,4 +52,59 @@ describe('InventoryCostService moving average', () => {
     expect(second).toBe('GR-100-M7-L12');
     expect(first).not.toBe(second);
   });
+
+  test('long source numbers retain distinct identities for every posting line', () => {
+    const source = 'IN-'.padEnd(50, 'X');
+    const first = InventoryCostService.buildCostDocumentNumber(
+      { reference_no: source, material_id: 7, posting_line_id: 11 },
+      'IN'
+    );
+    const second = InventoryCostService.buildCostDocumentNumber(
+      { reference_no: source, material_id: 7, posting_line_id: 12 },
+      'IN'
+    );
+    expect(first).toHaveLength(49);
+    expect(first).not.toBe(second);
+    expect(first).toBe(
+      InventoryCostService.buildCostDocumentNumber(
+        { reference_no: source, material_id: 7, posting_line_id: 11 },
+        'IN'
+      )
+    );
+  });
+
+  test('an existing truncated historical key blocks creation under the new key', async () => {
+    const source = 'IN-'.padEnd(50, 'X');
+    const connection = { execute: jest.fn(async () => [[{ id: 25 }]]) };
+    await expect(
+      InventoryCostService.assertNoAmbiguousLegacyCostEntry(
+        connection,
+        { reference_no: source, material_id: 7, posting_line_id: 11 },
+        'IN',
+        'adjustment'
+      )
+    ).rejects.toThrow('编号被截断');
+    expect(connection.execute.mock.calls[0][1]).toEqual(['adjustment', source]);
+  });
+
+  test('uses actual posted value before rounding the GL amount to cents', () => {
+    expect(
+      InventoryCostService.calculateTotalCost({ total_value: '33333.333333' }, 100000, 0.333333)
+    ).toBe(33333.33);
+    expect(
+      InventoryCostService.calculateTotalCost({ total_value: '-33333.333333' }, 100000, 0.333333)
+    ).toBe(33333.33);
+    expect(InventoryCostService.calculateTotalCost({}, 100000, 0.333333)).toBe(33333.3);
+  });
+
+  test('retains the recorded finance reviewer regardless of current account activation', () => {
+    expect(
+      InventoryCostService.resolvePostingActorId({ finance_approved_by: '60', is_active: false })
+    ).toBe(60);
+    expect(() => InventoryCostService.resolvePostingActorId({})).toThrow('财务审核人');
+    expect(() => InventoryCostService.resolvePostingActorId({ finance_approved_by: 0 })).toThrow(
+      '财务审核人'
+    );
+  });
 });
+/* global describe, expect, jest, test */

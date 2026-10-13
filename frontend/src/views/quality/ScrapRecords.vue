@@ -279,7 +279,7 @@
         <el-descriptions-item label="更新时间">{{ detailData.updatedAt }}</el-descriptions-item>
       </el-descriptions>
 
-      <InventoryApprovalPanel
+      <InventoryPostingStatusPanel
         v-if="detailData?.id || detailData?.scrapNo"
         source-type="scrap_record"
         :source-id="detailData.id"
@@ -293,6 +293,7 @@
 </template>
 
 <script setup>
+import { useInventoryPostingSourceLink } from '@/composables/useInventoryPostingSourceLink'
 import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { getApiErrorMessage } from '@/utils/errorHandler'
@@ -304,7 +305,7 @@ import { Check, Finished, Edit } from '@element-plus/icons-vue'
 import { qualityApi } from '@/api/quality'
 import { normalizePaginationData } from '@/utils/helpers/typeUtils'
 import { parseResponseData } from '@/utils/responseParser'
-import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue'
+import InventoryPostingStatusPanel from '@/components/inventory/InventoryPostingStatusPanel.vue'
 
 const dictStore = useDictionaryStore()
 const searchForm = reactive({
@@ -495,6 +496,13 @@ const getStatusLabel = (status) => {
 
 onMounted(() => {
   fetchData()
+})
+
+useInventoryPostingSourceLink({
+  path: '/quality/scrap-records',
+  sourceTypes: ["scrap_record","scrap"],
+  open: ({ id }) => viewDetail({ id }),
+  setSearch: (sourceNo) => { searchForm.scrapNo = sourceNo },
 })
 </script>
 

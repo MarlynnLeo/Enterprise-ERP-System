@@ -14,21 +14,24 @@ module.exports = {
    * @param {number} periodId - 会计期间ID（可选，不传则查询所有期间）
    * @returns {Object} 试算平衡表数据
    */
-  getTrialBalance: async (periodId = null) => {
+  getTrialBalance: async (periodId = null, connection = null) => {
     try {
+      const executor = connection || db.pool;
       let periodStartDate = null;
       let periodEndDate = null;
       const params = [];
 
       // 1. 获取期间日期范围
       if (periodId) {
-        const [periods] = await db.pool.execute(
+        const [periods] = await executor.execute(
           'SELECT start_date, end_date FROM gl_periods WHERE id = ?',
           [periodId]
         );
         if (periods.length > 0) {
           periodStartDate = periods[0].start_date;
           periodEndDate = periods[0].end_date;
+        } else {
+          throw new Error('会计期间不存在');
         }
       }
 
@@ -76,7 +79,7 @@ module.exports = {
         params.push(periodStartDate, periodEndDate); // period_credit 条件
       }
 
-      const [rows] = await db.pool.query(query, params);
+      const [rows] = await executor.query(query, params);
 
       // 辅助函数：保留两位小数
       const round2 = (num) => Math.round((parseFloat(num) || 0) * 100) / 100;

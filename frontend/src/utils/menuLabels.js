@@ -110,6 +110,7 @@ const pathToI18nKey = {
   '/finance/gl/entries/payment': 'menu.entries',
   '/finance/gl/entries/transfer': 'menu.entries',
   '/finance/gl/entries/general': 'menu.entries',
+  '/finance/inventory-postings': 'menu.inventoryPostings',
   '/finance/ar/invoices': 'menu.arInvoices',
   '/finance/ar/receipts': 'menu.receiptsManagement',
   '/finance/ar/settlement': 'menu.arSettlement',

@@ -38,9 +38,15 @@ module.exports = {
 
       try {
         const [income, cost, expenses] = await Promise.all([
-          this.calculatePeriodAmount('收入', yearStart, reportDate, null, null),
-          this.calculatePeriodAmount('成本', yearStart, reportDate, null, null),
-          this.calculatePeriodAmount('费用', yearStart, reportDate, null, null),
+          this.calculatePeriodAmount('收入', yearStart, reportDate, null, null, {
+            includeClosingEntries: true,
+          }),
+          this.calculatePeriodAmount('成本', yearStart, reportDate, null, null, {
+            includeClosingEntries: true,
+          }),
+          this.calculatePeriodAmount('费用', yearStart, reportDate, null, null, {
+            includeClosingEntries: true,
+          }),
         ]);
         currentYearProfit = income.totalAmount - cost.totalAmount - expenses.totalAmount;
 
@@ -48,15 +54,21 @@ module.exports = {
         if (compareDate) {
           const compareYearStart = `${compareDate.substring(0, 4)}-01-01`;
           const [compareIncome, compareCost, compareExpenses] = await Promise.all([
-            this.calculatePeriodAmount('收入', compareYearStart, compareDate, null, null),
-            this.calculatePeriodAmount('成本', compareYearStart, compareDate, null, null),
-            this.calculatePeriodAmount('费用', compareYearStart, compareDate, null, null),
+            this.calculatePeriodAmount('收入', compareYearStart, compareDate, null, null, {
+              includeClosingEntries: true,
+            }),
+            this.calculatePeriodAmount('成本', compareYearStart, compareDate, null, null, {
+              includeClosingEntries: true,
+            }),
+            this.calculatePeriodAmount('费用', compareYearStart, compareDate, null, null, {
+              includeClosingEntries: true,
+            }),
           ]);
           compareYearProfit =
             compareIncome.totalAmount - compareCost.totalAmount - compareExpenses.totalAmount;
         }
       } catch (err) {
-        logger.warn('计算本年利润时出错，使用0代替:', err.message);
+        throw new Error(`计算未结转利润失败: ${err.message}`, { cause: err });
       }
 
       // 计算总额（所有者权益需要加上本年利润）
@@ -84,7 +96,7 @@ module.exports = {
       equityAccountsWithProfit.push({
         id: 'current-year-profit',
         code: 'CYP',
-        name: '本年利润',
+        name: '本年未结转利润',
         type: '所有者权益',
         currentBalance: currentYearProfit,
         compareBalance: compareYearProfit,

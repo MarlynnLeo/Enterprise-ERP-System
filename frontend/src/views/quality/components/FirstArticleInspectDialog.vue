@@ -25,6 +25,7 @@
       </el-descriptions-item>
     </el-descriptions>
 
+    <InspectionSamplingFields v-model="inspectionSampling" :quantity="inspection?.quantity" />
     <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
       <el-row :gutter="16">
         <el-col :span="12">
@@ -72,7 +73,7 @@
         </el-table-column>
         <el-table-column prop="actualValue" label="实测值" min-width="100">
           <template #default="{ row }">
-            <el-input v-model="row.actualValue" size="small" placeholder="实测值" />
+            <el-input v-model="row.actualValue" size="small" placeholder="实测值" @change="checkMeasurement(row)" />
           </template>
         </el-table-column>
         <el-table-column prop="result" label="结果" width="100">
@@ -106,6 +107,9 @@
 </template>
 
 <script setup>
+import InspectionSamplingFields from './InspectionSamplingFields.vue'
+import { inspectionSamplingFields, inspectionSamplingPayload, validateInspectionSampling } from '@/utils/inspectionSampling'
+const inspectionSampling = ref(inspectionSamplingFields())
 import { getApiErrorMessage } from '@/utils/errorHandler'
 import { ref, computed, watch } from 'vue'
 import { Plus, Delete, InfoFilled } from '@element-plus/icons-vue'
@@ -128,28 +132,32 @@ const formRef = ref(null)
 const submitting = ref(false)
 
 const form = ref({
-  qualified_quantity: 0,
-  unqualified_quantity: 0,
-  first_article_result: '',
-  production_can_continue: false,
-  inspector_name: '',
+  qualifiedQuantity: 0,
+  unqualifiedQuantity: 0,
+  firstArticleResult: '',
+  productionCanContinue: false,
+  inspectorName: '',
   note: '',
   items: []
 })
 
 const rules = {
-  first_article_result: [{ required: true, message: '请选择首检结果', trigger: 'change' }],
-  inspector_name: [{ required: true, message: '请输入检验员姓名', trigger: 'blur' }]
+  firstArticleResult: [{ required: true, message: '请选择首检结果', trigger: 'change' }],
+  inspectorName: [{ required: true, message: '请输入检验员姓名', trigger: 'blur' }]
 }
 
 watch(() => props.inspection, (val) => {
   if (val) {
+    inspectionSampling.value = inspectionSamplingFields(val)
     form.value.qualifiedQuantity = val.qualifiedQuantity || 0
     form.value.unqualifiedQuantity = val.unqualifiedQuantity || 0
     form.value.firstArticleResult = val.firstArticleResult || ''
+    form.value.productionCanContinue = Boolean(val.productionCanContinue)
+    form.value.note = val.note || ''
     form.value.items = Array.isArray(val.items) ? val.items.map(item => ({
       ...item,
-      actual_value: item.actualValue || '',
+      standardValue: item.standardValue ?? item.standard ?? '',
+      actualValue: item.actualValue ?? '',
       result: item.result || ''
     })) : []
     if (form.value.items.length === 0) {
@@ -165,7 +173,7 @@ const calcUnqualified = () => {
   form.value.unqualifiedQuantity = Math.max(0, total - form.value.qualifiedQuantity)
 }
 
-const addItem = () => form.value.items.push({ item_name: '', standard_value: '', actual_value: '', result: '' })
+const addItem = () => form.value.items.push({ itemName: '', standardValue: '', actualValue: '', result: '' })
 const removeItem = (index) => { form.value.items.splice(index, 1); autoCalcResult() }
 
 // 根据检验项目结果自动计算首检总结果
@@ -191,7 +199,15 @@ const autoCalcResult = () => {
   }
 }
 
+const checkMeasurement = (item) => {
+  if (item.type !== 'dimension' || item.dimensionValue == null || item.actualValue == null || String(item.actualValue).trim() === '') return
+  const actual = Number(item.actualValue)
+  const nominal = Number(item.dimensionValue)
+  item.result = Number.isFinite(actual) && actual >= nominal + Number(item.toleranceLower || 0) && actual <= nominal + Number(item.toleranceUpper || 0) ? 'passed' : 'failed'
+}
+
 const handleSubmit = async () => {
+  if (submitting.value) return
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
   if (!form.value.items.length) {
@@ -202,9 +218,27 @@ const handleSubmit = async () => {
     ElMessage.warning('请完整填写检验项目和判定结果')
     return
   }
+  if (form.value.items.some(item => item.actualValue == null || String(item.actualValue).trim() === '')) {
+    ElMessage.warning('请填写所有检验项的实测值')
+    return
+  }
+  form.value.items.forEach(item => { if (item.result !== 'failed') checkMeasurement(item) })
+  if (form.value.firstArticleResult === 'passed' && form.value.items.some(item => item.result === 'failed')) {
+    ElMessage.warning('存在不合格项目，不能判为首检合格')
+    return
+  }
+  const good = Number(form.value.qualifiedQuantity)
+  const bad = Number(form.value.unqualifiedQuantity)
+  const quantity = Number(props.inspection.quantity)
+  if (!(quantity > 0) || good < 0 || bad < 0 || Math.abs(good + bad - quantity) > 0.000001) {
+    ElMessage.warning('合格与不合格数量必须等于检验数量')
+    return
+  }
+  const samplingError = validateInspectionSampling(inspectionSampling.value, props.inspection.quantity)
+  if (samplingError) { ElMessage.warning(samplingError); return }
   submitting.value = true
   try {
-    await qualityApi.updateFirstArticleResult(props.inspection.id, form.value)
+    await qualityApi.updateFirstArticleResult(props.inspection.id, { ...form.value, ...inspectionSamplingPayload(inspectionSampling.value, props.inspection.quantity), inspectorId: authStore.userId, items: form.value.items.map(item => ({ ...item, standard: item.standardValue })) })
     ElMessage.success('检验结果提交成功')
     emit('success')
   } catch (error) {

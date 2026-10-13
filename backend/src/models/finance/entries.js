@@ -558,6 +558,31 @@ module.exports = {
 
       const originalEntry = entries[0];
 
+      // HTTP 总账红冲仅处理手工凭证。业务凭证须由原业务撤销流程同步子账和库存。
+      // 在行锁内检查，避免读到旧来源后绕过业务闭环。
+      if (reversalData.requireManualSource) {
+        const manualTypes = [null, undefined, '', 'manual', 'manual_entry', '手工凭证', '记账凭证'];
+        if (
+          !manualTypes.includes(originalEntry.document_type) ||
+          originalEntry.transaction_id ||
+          !manualTypes.includes(originalEntry.transaction_type)
+        ) {
+          throw new BusinessError(
+            '业务或结转凭证不能从总账直接冲销，请通过原业务撤销或期间反结账流程处理'
+          );
+        }
+        const [businessLinks] = await conn.execute(
+          `SELECT id FROM document_links
+           WHERE (target_type = 'finance_voucher' AND target_id = ?)
+              OR (source_type = 'finance_voucher' AND source_id = ?)
+           LIMIT 1 FOR UPDATE`,
+          [id, id]
+        );
+        if (businessLinks.length > 0) {
+          throw new BusinessError('该凭证已关联业务单据，请通过原业务撤销流程处理');
+        }
+      }
+
       if (!originalEntry.is_posted) {
         throw new Error('未过账的凭证不能冲销，请直接删除或修改草稿凭证');
       }

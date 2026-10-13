@@ -15,6 +15,8 @@ beforeEach(() => {
   connection = { beginTransaction: jest.fn(), commit: jest.fn(), rollback: jest.fn(), release: jest.fn(),
     execute: jest.fn(async () => [{ affectedRows: 1 }]),
     query: jest.fn(async sql => {
+      if (sql.includes('FROM production_tasks')) return [[{ id: 41, status: 'warehousing', product_id: 9, completed_quantity: 100 }]];
+      if (sql.includes('FROM production_processes') || sql.includes("inspection_type IN ('first_article'")) return [[]];
       if (sql.includes('FROM nonconforming_products')) return [nonconformances];
       if (sql.includes('FROM inventory_inbound')) return [inbounds];
       if (sql.includes('FROM quality_inspection_items')) return [items];
@@ -55,4 +57,38 @@ test('allows correction after all inbounds were cancelled/reversed and there is 
 test('keeps final evidence immutable after nonconformance disposition even without inbound', async () => {
   inbounds = []; nonconformances = [{ id: 9 }];
   await expect(QualityInspection.updateInspection(7, { status: 'passed', qualified_quantity: 99 })).rejects.toThrow('不合格品处置依据');
+});
+
+test.each([
+  { dimension_value: 20, actual_value: 20 },
+  { dimension_value: null, actual_value: 20 },
+  { tolerance_upper: 100, actual_value: 20 },
+  { is_critical: false },
+  { actual_value: '' },
+  { actual_value: 'invalid' },
+  { actual_value: 20 },
+])('model rejects invalid unlinked result and rolls back: %j', async evidence => {
+  inbounds = [];
+  items = [{ id: 3, item_name: '尺寸', type: 'dimension', dimension_value: 10, tolerance_upper: 0.1, tolerance_lower: -0.1, is_critical: 1, result: 'passed' }];
+  await expect(QualityInspection.updateInspection(7, { items: [{ id: 3, result: 'passed', ...evidence }] })).rejects.toMatchObject({ statusCode: 400 });
+  expect(connection.execute).not.toHaveBeenCalled();
+  expect(connection.rollback).toHaveBeenCalledTimes(1);
+});
+
+test('model saves evidence under the original item ID without deleting its approved snapshot', async () => {
+  inbounds = [];
+  items = [{ id: 3, item_name: '尺寸', type: 'dimension', dimension_value: 10, tolerance_upper: 0.1, tolerance_lower: -0.1, is_critical: 1, result: 'passed' }];
+  await QualityInspection.updateInspection(7, { items: [{ id: 3, result: 'passed', actual_value: 10 }] });
+  const update = connection.execute.mock.calls.find(([sql]) => sql.includes('UPDATE quality_inspection_items'));
+  expect(update[1].slice(-2)).toEqual([3, 7]);
+  expect(connection.execute.mock.calls.some(([sql]) => sql.includes('DELETE FROM quality_inspection_items'))).toBe(false);
+  expect(connection.commit).toHaveBeenCalledTimes(1);
+});
+
+test('stored dynamic-only measurements remain valid on result resubmission', async () => {
+  inbounds = [];
+  items = [{ id: 3, item_name: '尺寸', type: 'dimension', dimension_value: 10, tolerance_upper: 0.1, tolerance_lower: -0.1, result: 'passed',
+    measurements: JSON.stringify([{ sample_no: 1, measured_value: 10 }]) }];
+  await expect(QualityInspection.updateInspection(7, { items: [{ id: 3, result: 'passed' }] })).resolves.toBeDefined();
+  expect(connection.commit).toHaveBeenCalledTimes(1);
 });

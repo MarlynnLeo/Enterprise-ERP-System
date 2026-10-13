@@ -19,6 +19,7 @@ const AccountMappingService = require('../services/finance/AccountMappingService
 const DocumentLinkService = require('../services/business/DocumentLinkService');
 const { DOCUMENT_LINK_TYPES: DocType } = require('../constants/documentLinkTypes');
 const VoucherReversalService = require('../services/finance/VoucherReversalService');
+const SettlementCashService = require('../services/finance/SettlementCashService');
 const { financeConfig } = require('../config/financeConfig');
 const { accountingConfig } = require('../config/accountingConfig');
 const { parsePagination } = require('../utils/safePagination');
@@ -33,6 +34,7 @@ const {
   invoiceStatusAfterSettlement,
   isTruthyFlag,
   assertInvoiceSettlementsEligible,
+  normalizeSettlementPaymentMethod,
 } = require('../utils/finance/settlementMath');
 const { applyNormalizedInvoiceAmounts } = require('../utils/finance/invoiceAmounts');
 const { toInvoiceApi } = require('../utils/finance/invoiceFieldMap');
@@ -1049,6 +1051,10 @@ const apModel = {
    * @param {Object|null} externalConnection 可选外层事务连接（批量付款时复用）
    */
   createPayment: async (paymentData, paymentItems, externalConnection = null) => {
+    paymentData = {
+      ...paymentData,
+      payment_method: normalizeSettlementPaymentMethod(paymentData.payment_method),
+    };
     const isExternalTransaction = !!externalConnection;
     const connection = externalConnection || (await db.pool.getConnection());
     try {
@@ -1162,6 +1168,9 @@ const apModel = {
         }
 
         const invoice = invoices[0];
+        if (Number(invoice.supplier_id) !== Number(paymentData.supplier_id)) {
+          throw new Error('付款供应商与发票供应商不一致');
+        }
         if (
           String(invoice.currency_code || 'CNY').toUpperCase() !== 'CNY' ||
           Math.abs(Number(invoice.exchange_rate || 1) - 1) > 0.000001
@@ -1287,6 +1296,7 @@ const apModel = {
         const entryItems = [
           {
             account_id: glEntry.payable_account_id,
+            supplier_id: paymentData.supplier_id,
             debit_amount: totalSettlement,
             credit_amount: 0,
             description: `应付账款减少 - 付款单号: ${paymentData.payment_number}`,
@@ -1336,6 +1346,20 @@ const apModel = {
             bankTransactionId,
           ]);
         }
+      }
+
+      if (paymentData.payment_method === '现金') {
+        await SettlementCashService.create(connection, {
+          kind: 'ap',
+          settlementId: paymentId,
+          number: paymentData.payment_number,
+          date: paymentData.payment_date,
+          amount: totalPaid,
+          counterparty: paymentData.supplier_name,
+          userId: paymentData.created_by,
+          entryId: glEntryId,
+          entryNumber: glEntryNumber,
+        });
       }
 
       for (const invoice of linkedInvoices) {
@@ -1657,6 +1681,7 @@ const apModel = {
 
       const payment = payments[0];
       let originalBankTransactionId = null;
+      const reversalDate = currentDateString();
       let originalBankTransactionNumber = null;
       let reversalBankTransactionId = null;
       let reversalBankTransactionNumber = null;
@@ -1719,7 +1744,11 @@ const apModel = {
       }
 
       // 5. 如果有银行交易记录，创建冲销交易
-      if (payment.bank_account_id && BANK_BACKED_PAYMENT_METHODS.has(payment.payment_method)) {
+      if (
+        toCents(payment.total_amount) !== 0 &&
+        payment.bank_account_id &&
+        BANK_BACKED_PAYMENT_METHODS.has(payment.payment_method)
+      ) {
         try {
           // 获取原银行交易记录
           const [bankTxs] = await connection.execute(
@@ -1741,7 +1770,6 @@ const apModel = {
             throw new Error('关联银行流水已对账，请先取消对账后再作废付款');
           }
 
-          const reversalDate = currentDateString();
           originalBankTransactionId = originalTx.id;
           originalBankTransactionNumber = originalTx.transaction_number;
           reversalBankTransactionNumber = `${payment.payment_number}-VOID`;
@@ -1799,13 +1827,27 @@ const apModel = {
           documentType: DOCUMENT_TYPES.PAYMENT,
           voidedBy,
           reason: `冲销付款凭证 - 原因: ${voidData.void_reason}`,
+          entryDate: reversalDate,
         });
         for (const item of reversed) {
-          reversalEntries.push({ entryId: item.entryId, entryNumber: item.entryNumber });
+          reversalEntries.push(item);
         }
       } catch (err) {
         logger.error(`[作废付款] 冲销GL凭证失败: ${err.message}`);
         throw new Error(`冲销GL凭证失败: ${err.message}`, { cause: err });
+      }
+
+      if (payment.payment_method === '现金') {
+        await SettlementCashService.reverse(connection, {
+          kind: 'ap',
+          settlementId: paymentId,
+          number: payment.payment_number,
+          date: reversalDate,
+          amount: payment.total_amount,
+          userId: voidedBy,
+          reason: voidData.void_reason,
+          reversalEntries,
+        });
       }
 
       for (const reversalEntry of reversalEntries) {

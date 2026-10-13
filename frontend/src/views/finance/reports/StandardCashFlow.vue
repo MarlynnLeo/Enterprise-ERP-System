@@ -1,14 +1,14 @@
-﻿<!--
+<!--
 /**
  * StandardCashFlow.vue
- * @description 标准现金流量表(直接法)（间接法）
+ * @description 标准现金流量表（间接法）
  * @date 2026-01-31
  * @version 1.0.0
  */
 -->
 <template>
   <div class="module-page report-container">
-    <PageHeader title="现金流量表(直接法)" subtitle="间接法 · 符合企业会计准则">
+    <PageHeader title="现金流量表（间接法）" subtitle="经营活动间接法 · 期末现金与总账勾稽">
       <template #actions>
 <el-button type="primary" @click="generateReport" v-permission="'finance:reports:standard-cash-flow:view'">生成报表</el-button>
           <el-button v-permission="'finance:reports:standard-cash-flow:view'" @click="printReport" :disabled="!reportData.items?.length">打印报表</el-button>
@@ -58,6 +58,8 @@
       </template>
     </FinanceQueryCard>
 
+    <CashFlowReconciliationNotice :summary="reportData.summary" :unit-text="unitText" />
+
     <!-- 报表统计摘要 -->
     <div class="statistics-row" v-if="reportData.summary">
       <el-card class="stat-card" shadow="hover">
@@ -95,7 +97,7 @@
       <!-- 报表标题 -->
       <div class="report-header" v-if="reportData.items?.length">
         <div class="company-name">{{ companyName }}</div>
-        <div class="report-title">现金流量表(直接法)</div>
+        <div class="report-title">现金流量表（间接法）</div>
         <div class="report-period">{{ formatReportPeriod() }}</div>
         <div class="report-unit">单位：{{ unitText }}</div>
       </div>
@@ -142,6 +144,7 @@
 
 <script setup>
 import { ReportHelper } from '@/utils/commonHelpers';
+import CashFlowReconciliationNotice from './CashFlowReconciliationNotice.vue';
 import { formatCurrency, formatAmount, formatLocalDate } from '@/utils/format'
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus/es/components/message/index';
@@ -191,7 +194,7 @@ const generateReport = async () => {
     const data = response.data;
     if (data && data.items && data.items.length > 0) {
       reportData.value = data;
-      ElMessage.success('现金流量表(直接法)生成成功');
+      ElMessage.success('现金流量表（间接法）生成成功');
     } else {
       reportData.value = data || {};
       ElMessage.warning('未查询到数据，请检查日期范围');
@@ -245,8 +248,8 @@ const printReport = async () => {
     printService.previewDocument(html);
     ElMessage.success('打印预览已打开');
   } catch (error) {
-    console.error('打印现金流量表(直接法)失败:', error);
-    ElMessage.error('打印现金流量表(直接法)失败');
+    console.error('打印现金流量表（间接法）失败:', error);
+    ElMessage.error('打印现金流量表（间接法）失败');
   }
 };
 
@@ -260,7 +263,7 @@ const exportExcel = async () => {
   try {
     const ExcelJS = await loadExcelJS();
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('现金流量表(直接法)');
+    const worksheet = workbook.addWorksheet('现金流量表（间接法）');
 
     // 设置列宽
     worksheet.columns = [
@@ -271,7 +274,7 @@ const exportExcel = async () => {
 
     // 添加标题
     worksheet.insertRow(1, [companyName.value || '']);
-    worksheet.insertRow(2, ['现金流量表(直接法)']);
+    worksheet.insertRow(2, ['现金流量表（间接法）']);
     worksheet.insertRow(3, [`报表期间：${formatReportPeriod()}`]);
     worksheet.insertRow(4, [`单位：${unitText.value}`]);
     worksheet.insertRow(5, []);
@@ -311,7 +314,7 @@ const exportExcel = async () => {
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `现金流量表(直接法)_${queryParams.startDate}_${queryParams.endDate}.xlsx`;
+    link.download = `现金流量表（间接法）_${queryParams.startDate}_${queryParams.endDate}.xlsx`;
     link.click();
 
     ElMessage.success('导出成功');

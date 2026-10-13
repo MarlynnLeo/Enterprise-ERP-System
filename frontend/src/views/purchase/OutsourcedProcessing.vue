@@ -244,18 +244,19 @@
           <span class="total-label">加工总金额：</span>
           <span class="total-value">{{ formatPrice(viewData.totalAmount) }}</span>
         </div>
-        <InventoryApprovalPanel
+        <InventoryPostingStatusPanel
           v-if="authStore.canViewInventoryApproval"
           source-type="outsourced_processing_material"
           :source-id="viewData.id"
           :source-no="viewData.processingNo"
-          :resubmit-status="['confirmed', 'in_progress'].includes(viewData.status) ? viewData.status : ''"
-          @resubmit="handleResubmitProcessing"
-          @changed="fetchProcessingList"
+          ref="postingStatusPanel"
+          @loaded="postingStatus = $event"
         />
       </div>
       <template #footer>
         <span class="dialog-footer">
+          <el-button v-if="canResubmitProcessing" type="warning" :loading="resubmitting" :disabled="viewDialogLoading"
+            @click="handleResubmitProcessing(viewData.status)">重新提交审核</el-button>
           <el-button @click="viewDialogVisible = false">关闭</el-button>
         </span>
       </template>
@@ -593,6 +594,7 @@
 </template>
 
 <script setup>
+import { useInventoryPostingSourceLink } from '@/composables/useInventoryPostingSourceLink'
 import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { getApiErrorMessage } from '@/utils/errorHandler'
@@ -616,9 +618,15 @@ import {
   getOutsourcedStatusText,
   getOutsourcedStatusColor
 } from '@/constants/systemConstants';
-import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue';
+import InventoryPostingStatusPanel from '@/components/inventory/InventoryPostingStatusPanel.vue';
 
 const authStore = useAuthStore();
+const postingStatusPanel = ref(null);
+const postingStatus = ref(null);
+const resubmitting = ref(false);
+const canResubmitProcessing = computed(() => authStore.hasPermission('purchase:processing:update') &&
+  ['confirmed', 'in_progress'].includes(viewData.status) &&
+  (viewData.financeStatus || postingStatus.value) === 'rejected');
 
 // 状态选项
 const statusOptions = OUTSOURCED_STATUS_OPTIONS;
@@ -853,6 +861,7 @@ const handleViewProcessing = async (row) => {
       totalAmount: data.totalAmount || 0,
       remarks: data.remarks || '',
       status: data.status || '',
+      financeStatus: data.financeStatus || null,
       materials: data.materials || [],
       products: data.products || []
     });
@@ -865,14 +874,18 @@ const handleViewProcessing = async (row) => {
 };
 
 const handleResubmitProcessing = async (status) => {
-  if (!viewData.id || !status) return;
+  if (!canResubmitProcessing.value || resubmitting.value || status !== viewData.status) return;
+  resubmitting.value = true;
   try {
     await purchaseApi.outsourcedProcessing.updateStatus(viewData.id, status);
     ElMessage.success('已重新提交财务审核');
     await fetchProcessingList();
     await handleViewProcessing({ id: viewData.id });
+    await postingStatusPanel.value?.refresh();
   } catch (error) {
     ElMessage.error(getApiErrorMessage(error, '重新提交审核失败'));
+  } finally {
+    resubmitting.value = false;
   }
 };
 
@@ -1212,6 +1225,13 @@ onUnmounted(() => {
   if (materialSearchTimer) clearTimeout(materialSearchTimer);
   if (productSearchTimer) clearTimeout(productSearchTimer);
 });
+
+useInventoryPostingSourceLink({
+  path: '/purchase/processing',
+  sourceTypes: ["outsourced_processing_material","outsourced"],
+  open: ({ id }) => handleViewProcessing({ id }),
+  setSearch: (sourceNo) => { searchForm.keyword = sourceNo },
+})
 </script>
 
 <style scoped>

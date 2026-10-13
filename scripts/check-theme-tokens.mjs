@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /** Validate preset palettes and shared CSS contracts without binding to duplicated selectors. */
 import fs from 'node:fs'
 import path from 'node:path'

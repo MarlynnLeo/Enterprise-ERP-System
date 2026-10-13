@@ -87,6 +87,16 @@ describe('FinanceSubscriber transfer posting', () => {
     expect(mockExecute).not.toHaveBeenCalled();
   });
 
+  test('production supplements do not create a second generic issue cost voucher', async () => {
+    await subscriber.replayInventoryPostingCosts({
+      id: 92,
+      source_type: 'outbound_supplement',
+      lines: [{ transaction_type: 'production_outbound', signed_quantity: -5 }],
+    });
+    expect(mockGenerateOutboundCostEntry).not.toHaveBeenCalled();
+    expect(mockGenerateInboundCostEntry).not.toHaveBeenCalled();
+  });
+
   test('routes a manual posting directly to generic cost replay', async () => {
     Object.assign(mockPosting, {
       source_type: 'manual_transaction',
@@ -100,6 +110,8 @@ describe('FinanceSubscriber transfer posting', () => {
           reference_no: 'MT260909001',
           signed_quantity: 1,
           unit_cost: 10,
+          total_value: 10,
+          posted_value: '10.123456',
           transaction_date: '2026-09-09',
         },
       ],
@@ -113,7 +125,9 @@ describe('FinanceSubscriber transfer posting', () => {
       expect.objectContaining({
         reference_no: 'MT260909001',
         posting_line_id: 101,
-      })
+        total_value: '10.123456',
+      }),
+      { userId: 60 }
     );
   });
 
@@ -124,7 +138,9 @@ describe('FinanceSubscriber transfer posting', () => {
     });
     mockExecute
       .mockResolvedValueOnce([[{ id: 12, processing_no: 'OSP260909001' }]])
-      .mockResolvedValueOnce([[{ id: 22, material_id: 7, material_name: 'Material', quantity: 1, unit_price: 10 }]]);
+      .mockResolvedValueOnce([
+        [{ id: 22, material_id: 7, material_name: 'Material', quantity: 1, unit_price: 10 }],
+      ]);
 
     const handler = mockRegisteredHandlers.get('Finance:InventoryPostingApproved');
     await handler({ postingDocumentId: mockPosting.id, sourceNo: 'OSP260909001' });

@@ -2,6 +2,8 @@
  * 质量管理路由
  */
 export const qualityRoutes = [
+  { path: '/quality/rework', name: 'QualityRework', component: () => import('@/views/quality/Rework.vue'), meta: { title: '返工任务', permission: 'quality:rework:view' } },
+  { path: '/quality/rework/:id', name: 'QualityReworkDetail', component: () => import('@/views/quality/ReworkDetail.vue'), meta: { title: '返工任务详情', permission: 'quality:rework:view' } },
   {
     path: '/quality',
     name: 'Quality',

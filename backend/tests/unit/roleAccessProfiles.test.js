@@ -83,6 +83,9 @@ describe('roleAccessProfiles', () => {
   test('会计助理做凭证和应收应付，不能结账或改财务设置', () => {
     const assistant = getProfile('accountant');
     expect(permissionAllowed('finance:entries:create', assistant)).toBe(true);
+    expect(menuAllowed({ path: '/finance/inventory-postings', permission: 'finance:inventory:view' }, assistant)).toBe(true);
+    expect(permissionAllowed('finance:inventory:approve', assistant)).toBe(false);
+    expect(permissionAllowed('finance:inventory:reverse', assistant)).toBe(false);
     expect(permissionAllowed('finance:ar:view', assistant)).toBe(true);
     expect(permissionAllowed('finance:ap:view', assistant)).toBe(true);
     expect(permissionAllowed('finance:accounts:view', assistant)).toBe(true);

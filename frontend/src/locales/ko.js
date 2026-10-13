@@ -194,6 +194,7 @@ export default {
     finance: '재무 관리',
     accounts: '계정과목',
     entries: '회계 전표',
+    inventoryPostings: '재고 전기 승인',
     periods: '회계 기간',
     openingBalances: '기초 잔액',
     trialBalance: '시산표',

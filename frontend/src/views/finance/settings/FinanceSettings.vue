@@ -7,7 +7,7 @@
       </template>
     </PageHeader>
 
-    <el-tabs v-model="activeTab" class="settings-tabs" type="border-card" v-loading="loading">
+    <el-tabs v-model="activeTab" class="settings-tabs module-tabs" type="border-card" v-loading="loading">
 
       <!-- 基础发票设置 -->
       <el-tab-pane label="基础设置" name="base">
@@ -468,59 +468,14 @@ onMounted(() => {
   font-size: 14px;
 }
 
-.settings-tabs {
-  background: var(--color-bg-base);
-  border-radius: 16px;
-  box-shadow: 0 2px 12px color-mix(in srgb, var(--ds-black) 8%, transparent);
-  border: none;
-  overflow: hidden;
-}
-
-.settings-tabs :deep(.el-tabs__header) {
-  background: var(--color-bg-section);
-  margin: 0;
-  padding: 16px 20px 0;
-  border-bottom: 1px solid var(--color-border-light);
-}
-
 .settings-tabs :deep(.el-tabs__item) {
-  border-radius: 8px 8px 0 0;
-  padding: 12px 24px;
-  font-weight: 500;
   transition: background-color 0.3s, border-color 0.3s, color 0.3s, box-shadow 0.3s, opacity 0.3s, transform 0.3s;
-}
-
-.settings-tabs :deep(.el-tabs__item:hover) {
-  background: color-mix(in srgb, var(--color-primary) 5%, transparent);
-}
-
-.settings-tabs :deep(.el-tabs__item.is-active) {
-  background: var(--color-bg-base);
-  color: var(--color-primary);
-}
-
-.settings-tabs :deep(.el-tabs__content) {
-  padding: 24px;
 }
 
 .inner-card {
   height: 100%;
-  border-radius: 12px;
-  border: 1px solid var(--color-border-light);
   overflow: hidden;
   transition: background-color 0.3s, border-color 0.3s, color 0.3s, box-shadow 0.3s, opacity 0.3s, transform 0.3s;
-}
-
-.inner-card:hover {
-  box-shadow: 0 4px 16px color-mix(in srgb, var(--ds-black) 8%, transparent);
-}
-
-.inner-card :deep(.el-card__header) {
-  background: linear-gradient(135deg, var(--color-bg-hover) 0%, var(--color-border-lighter) 100%);
-  color: var(--color-text-primary);
-  font-weight: 600;
-  padding: 14px 20px;
-  border-bottom: 1px solid var(--color-border-light);
 }
 
 .section-header {
@@ -547,35 +502,15 @@ onMounted(() => {
 
 .settings-tabs :deep(.el-input__wrapper),
 .settings-tabs :deep(.el-input-number__wrapper) {
-  border-radius: 8px;
   transition: background-color 0.3s, border-color 0.3s, color 0.3s, box-shadow 0.3s, opacity 0.3s, transform 0.3s;
 }
 
-.settings-tabs :deep(.el-input__wrapper:hover),
-.settings-tabs :deep(.el-input-number__wrapper:hover) {
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-primary) 15%, transparent);
-}
-
-.settings-tabs :deep(.el-select__wrapper) {
-  border-radius: 8px;
-}
-
-.settings-tabs :deep(.el-button) {
-  border-radius: 8px;
-}
-
 .settings-tabs :deep(.el-table) {
-  border-radius: 8px;
   overflow: hidden;
 }
 
 .settings-tabs :deep(.el-divider__text) {
-  background-color: var(--color-on-primary);
   font-weight: 500;
   color: var(--color-text-regular);
-}
-
-.settings-tabs :deep(.el-alert) {
-  border-radius: 8px;
 }
 </style>

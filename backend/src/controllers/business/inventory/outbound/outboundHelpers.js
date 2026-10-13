@@ -18,6 +18,8 @@ const db = require('../../../../config/db');
 const InventoryService = require('../../../../services/InventoryService');
 const businessConfig = require('../../../../config/businessConfig');
 const ScopeGuard = require('../../../../authorization/ScopeGuard');
+const ProductionReturnService = require('../../../../services/business/ProductionReturnService');
+const BusinessError = require('../../../../utils/BusinessError');
 
 // 导入生产发料状态同步能力
 const { _syncProductionStatus } = require('../inventoryConsistencyController');
@@ -564,100 +566,31 @@ const getTaskMaterialIssueRecords = async (req, res) => {
       return ResponseHandler.forbidden(res, '无权访问该生产任务');
     }
 
-    // 查询该任务关联的所有已完成出库单及其明细
-    const query = `
-      SELECT
-        o.id as outbound_id,
-        o.outbound_no,
-        DATE_FORMAT(o.outbound_date, '%Y-%m-%d') as outbound_date,
-        o.status as outbound_status,
-        oi.id as item_id,
-        oi.material_id,
-        m.code as material_code,
-        m.name as material_name,
-        m.specs as material_specs,
-        oi.quantity as issued_quantity,
-        oi.actual_quantity,
-        COALESCE(oi.actual_quantity, oi.quantity) as returnable_quantity,
-        u.name as unit_name,
-        u.id as unit_id,
-        m.location_id as default_location_id,
-        l.name as default_location_name
-      FROM inventory_outbound o
-      INNER JOIN inventory_outbound_items oi ON o.id = oi.outbound_id
-      LEFT JOIN materials m ON oi.material_id = m.id
-      LEFT JOIN units u ON m.unit_id = u.id
-      LEFT JOIN locations l ON m.location_id = l.id
-      WHERE o.reference_type = 'production_task'
-        AND o.reference_id = ?
-        AND o.status IN ('completed', 'partial_completed')
-      ORDER BY o.outbound_date DESC, oi.id ASC
-    `;
-
-    const [records] = await db.pool.execute(query, [normalizedTaskId]);
-
-    // 查询任务基本信息
-    const [taskInfo] = await db.pool.execute(
-      `
-      SELECT
-        t.id,
-        t.code as task_code,
-        m.code as product_code,
-        m.name as product_name,
-        t.quantity,
-        t.status
-      FROM production_tasks t
-      LEFT JOIN materials m ON t.product_id = m.id
-      WHERE t.id = ?
-    `,
-      [normalizedTaskId]
+    const excludeInboundId = Number(req.query?.excludeInboundId) || 0;
+    if (excludeInboundId) {
+      if (!(await ScopeGuard.assertAccess(db.pool, req, 'inventory_inbound', excludeInboundId))) {
+        return ResponseHandler.forbidden(res, '无权访问该入库单');
+      }
+      // The editor may be changing tasks/types. An accessible document from a
+      // different task contributes nothing to this task's return reservations.
+    }
+    const { task, records } = await ProductionReturnService.getAvailableRecords(
+      db.pool,
+      normalizedTaskId,
+      { excludeInboundId }
     );
-
-    // 计算已退料数量（查询已有的退料入库单）
-    const [returnedRecords] = await db.pool.execute(
-      `
-      SELECT
-        ii.material_id,
-        SUM(ii.quantity) as returned_quantity
-      FROM inventory_inbound i
-      INNER JOIN inventory_inbound_items ii ON i.id = ii.inbound_id
-      WHERE i.inbound_type = 'production_return'
-        AND i.reference_type = 'production_task'
-        AND i.reference_id = ?
-        AND i.status IN ('confirmed', 'completed')
-      GROUP BY ii.material_id
-    `,
-      [normalizedTaskId]
-    );
-
-    // 构建已退料数量映射
-    const returnedMap = {};
-    returnedRecords.forEach((r) => {
-      returnedMap[r.material_id] = parseFloat(r.returned_quantity) || 0;
-    });
-
-    // 计算每个物料的可退数量
-    const enhancedRecords = records.map((record) => {
-      const returnedQty = returnedMap[record.material_id] || 0;
-      const maxReturnable = Math.max(0, parseFloat(record.returnable_quantity) - returnedQty);
-      return {
-        ...record,
-        returned_quantity: returnedQty,
-        max_returnable_quantity: maxReturnable,
-      };
-    });
 
     ResponseHandler.success(
       res,
       {
-        task: taskInfo[0] || null,
-        records: enhancedRecords,
+        task,
+        records,
       },
       '获取领料记录成功'
     );
   } catch (error) {
     logger.error('获取任务领料记录失败:', error);
-    ResponseHandler.error(res, '获取任务领料记录失败', 'SERVER_ERROR', 500, error);
+    return BusinessError.handleError(res, error, '获取任务领料记录失败', ResponseHandler);
   }
 };
 

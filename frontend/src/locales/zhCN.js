@@ -194,6 +194,7 @@ export default {
     finance: '财务管理',
     accounts: '会计科目',
     entries: '会计凭证',
+    inventoryPostings: '存货过账审核',
     periods: '会计期间',
     openingBalances: '期初余额',
     trialBalance: '试算平衡表',

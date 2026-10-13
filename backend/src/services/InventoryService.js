@@ -761,6 +761,7 @@ class InventoryService {
     }
 
     const isFormalPosting = internalPostingToken === INTERNAL_POSTING_TOKEN;
+    let frozenPostingValue;
     if (internalPostingToken && !isFormalPosting) {
       throw new Error('非法库存正式过账上下文');
     }
@@ -781,11 +782,19 @@ class InventoryService {
         throw new Error('库存过账单尚未完成财务审核或未锁定');
       }
       const [[postingLine]] = await connection.execute(
-        `SELECT id FROM inventory_posting_lines
+        `SELECT id, signed_quantity, total_value FROM inventory_posting_lines
           WHERE id = ? AND posting_document_id = ? FOR UPDATE`,
         [postingLineId, postingDocumentId]
       );
       if (!postingLine) throw new Error('库存冻结明细与过账单不匹配');
+      frozenPostingValue = Math.abs(Number(postingLine.total_value));
+      if (
+        postingLine.total_value == null ||
+        !Number.isFinite(frozenPostingValue) ||
+        Number(postingLine.signed_quantity) !== Number(quantity)
+      ) {
+        throw new Error('正式过账数量或金额与冻结明细不一致');
+      }
     }
 
     if (!materialId || !locationId) {
@@ -993,6 +1002,10 @@ class InventoryService {
         ];
       }
 
+      if (isFormalPosting && finalBatchNumbers.length !== 1) {
+        throw new Error('正式过账必须使用已冻结的单一批次明细，不能重新分配批次');
+      }
+
       // 7. 插入库存台账记录（如果按FIFO拆分，会有多条记录，累积计算 before/after）
       let currentBefore = beforeQuantity;
       let lastLedgerId = null;
@@ -1010,16 +1023,21 @@ class InventoryService {
           idempotencyKey && finalBatchNumbers.length > 1
             ? `${idempotencyKey}:${ledgerBatchNumber || 'EMPTY'}`
             : idempotencyKey;
-        const actualUnitCost = await this._resolveUnitCost(
-          {
-            materialId,
-            locationId,
-            batchNumber: ledgerBatchNumber,
-            referenceNo,
-            referenceType,
-            unitCost,
-          },
-          connection
+        // Freeze the same six decimal places stored in posting lines and ledger.
+        // Otherwise a weighted cost changes value when it is read back for approval.
+        const actualUnitCost = Precision.round(
+          await this._resolveUnitCost(
+            {
+              materialId,
+              locationId,
+              batchNumber: ledgerBatchNumber,
+              referenceNo,
+              referenceType,
+              unitCost,
+            },
+            connection
+          ),
+          6
         );
 
         if (!(Number(actualUnitCost) > 0)) {
@@ -1028,10 +1046,11 @@ class InventoryService {
         }
 
         // 计算流水账总金额
-        const currentTotalValue = Precision.round(
-          Precision.mul(actualUnitCost || 0, Math.abs(batchChangeQty)),
-          6
-        );
+        // Preserve the reviewed amount, including historical rounding residuals
+        // and exact reversal values, instead of recomputing from a rounded cost.
+        const currentTotalValue = isFormalPosting
+          ? frozenPostingValue
+          : Precision.round(Precision.mul(actualUnitCost, Math.abs(batchChangeQty)), 6);
         totalValue = Precision.add(totalValue, currentTotalValue);
 
         if (!isFormalPosting) {

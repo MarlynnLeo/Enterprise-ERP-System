@@ -8,7 +8,7 @@ import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 
 vi.mock('@/api', () => ({ salesApi: { getExchanges: vi.fn(), updateExchangeStatus: vi.fn(async () => ({})) }, baseDataApi: {} }))
 vi.mock('@/stores/dictionary', () => ({ useDictionaryStore: () => ({ getOptions: () => [], getLabel: () => '', getColor: () => '' }) }))
-vi.mock('@/components/inventory/InventoryApprovalPanel.vue', () => ({ default: { template: '<div />' } }))
+vi.mock('@/components/inventory/InventoryPostingStatusPanel.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('element-plus/es/components/message/index', () => ({ ElMessage: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }))
 vi.mock('element-plus/es/components/message-box/index', () => ({ ElMessageBox: { confirm: vi.fn(async () => true) } }))
 let wrapper

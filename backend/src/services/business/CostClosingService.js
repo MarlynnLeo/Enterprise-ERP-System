@@ -1,5 +1,6 @@
 const db = require('../../config/db');
 const CostAccountingService = require('./CostAccountingService');
+const { toLocalDateString } = require('../../utils/dateUtils');
 const {
   INCOMING_INSPECTION_COUNTED_STATUSES,
   PURCHASE_RECEIPT_COUNTED_STATUSES,
@@ -41,13 +42,13 @@ const CHECK_DEFINITIONS = [
     key: 'wip',
     title: '在制品快照',
     severity: 'warning',
-    description: '期间存在未完工生产任务时，应先生成 WIP 快照。',
+    description: '期末仍有在制生产任务时，应先生成期末 WIP 快照。',
   },
   {
     key: 'voucher',
     title: '成本凭证',
     severity: 'warning',
-    description: '有 WIP 金额时，应生成或复用 WIP 月末结转凭证。',
+    description: '期末 WIP 金额应与有效月末结转凭证一致；在制成本归零后应释放旧凭证。',
   },
 ];
 
@@ -317,40 +318,52 @@ class CostClosingService {
     const varianceParams = [...periodParams, ...periodParams];
 
     const openTaskSql = `
-      SELECT id, code, status, progress
-        FROM production_tasks
-       WHERE deleted_at IS NULL
-         AND status NOT IN ('completed', 'cancelled')
-         AND COALESCE(actual_start_time, start_date, created_at) <= ?`;
+      SELECT pt.id, pt.code, pt.status, pt.progress
+        FROM production_tasks pt
+       WHERE DATE(pt.created_at) <= ?
+         AND pt.deleted_at IS NULL
+         AND pt.status <> 'cancelled'
+         AND (pt.status NOT IN ('completed', 'warehoused')
+              OR COALESCE(pt.completed_at, pt.actual_end_date) > ?)`;
+    const periodEnd = toLocalDateString(period.end_date);
+    const openTaskParams = [periodEnd, `${periodEnd} 23:59:59`];
 
     const [[wipSummary]] = await connection.execute(
-      `SELECT COUNT(*) AS snapshot_count, COALESCE(SUM(wip_total_cost), 0) AS total_wip
+      `SELECT COUNT(*) AS snapshot_count, COALESCE(SUM(wip_total_cost), 0) AS total_wip,
+              SUM(CASE WHEN wip_total_cost IS NULL OR wip_total_cost < 0 THEN 1 ELSE 0 END) AS invalid_snapshot_count
          FROM wip_snapshots
-        WHERE period_id = ?`,
-      [period.id]
+        WHERE period_id = ? AND snapshot_date = ?`,
+      [period.id, periodEnd]
     );
-    const openTaskCount = await this.countRows(connection, openTaskSql, [period.end_date]);
+    const openTaskCount = await this.countRows(connection, openTaskSql, openTaskParams);
     const wipIssueCount =
-      openTaskCount > 0 && toNumber(wipSummary.snapshot_count) === 0 ? openTaskCount : 0;
+      openTaskCount > 0 && toNumber(wipSummary.snapshot_count) === 0
+        ? openTaskCount
+        : toNumber(wipSummary.invalid_snapshot_count);
+
+    const activeWIPVoucher = `ge.period_id = gp.id
+      AND ge.status = 'posted' AND COALESCE(ge.is_posted, 0) = 1
+      AND COALESCE(ge.is_reversed, 0) = 0
+      AND (ge.document_number = CONCAT('WIP-', gp.id)
+           OR ge.document_type = '期末WIP结转' OR ge.transaction_type = '期末WIP结转')`;
 
     const voucherIssueSql = `
-      SELECT ws.period_id, SUM(ws.wip_total_cost) AS total_wip
-        FROM wip_snapshots ws
-       WHERE ws.period_id = ?
-       GROUP BY ws.period_id
-      HAVING SUM(ws.wip_total_cost) > 0
-         AND NOT EXISTS (
-           SELECT 1
-             FROM gl_entries ge
-            WHERE ge.period_id = ws.period_id
-              AND ge.status IN ('posted', 'reversed')
-              AND (
-                ge.document_number = CONCAT('WIP-', ws.period_id)
-                OR ge.transaction_id = ws.period_id
-                OR ge.document_type LIKE '%WIP%'
-                OR ge.transaction_type LIKE '%WIP%'
-              )
-         )`;
+      SELECT gp.id AS period_id, COALESCE(SUM(ws.wip_total_cost), 0) AS total_wip
+        FROM gl_periods gp
+        LEFT JOIN wip_snapshots ws ON ws.period_id = gp.id AND ws.snapshot_date = gp.end_date
+       WHERE gp.id = ?
+       GROUP BY gp.id
+      HAVING (COALESCE(SUM(ws.wip_total_cost), 0) > 0 AND (
+        (SELECT COUNT(*) FROM gl_entries ge WHERE ${activeWIPVoucher}) <> 1
+        OR ABS((SELECT COALESCE(SUM(gi.debit_amount), 0)
+                  FROM gl_entries ge JOIN gl_entry_items gi ON gi.entry_id = ge.id
+                 WHERE ${activeWIPVoucher}) - SUM(ws.wip_total_cost)) >= 0.005
+        OR ABS((SELECT COALESCE(SUM(gi.credit_amount), 0)
+                  FROM gl_entries ge JOIN gl_entry_items gi ON gi.entry_id = ge.id
+                 WHERE ${activeWIPVoucher}) - SUM(ws.wip_total_cost)) >= 0.005
+      )) OR (COALESCE(SUM(ws.wip_total_cost), 0) = 0 AND EXISTS (
+        SELECT 1 FROM gl_entries ge WHERE ${activeWIPVoucher}
+      ))`;
 
     const checks = [];
     const definitions = Object.fromEntries(
@@ -396,14 +409,16 @@ class CostClosingService {
       this.buildCheck(
         definitions.wip,
         wipIssueCount,
-        wipIssueCount > 0 ? await this.sampleRows(connection, openTaskSql, [period.end_date]) : []
+        wipIssueCount > 0 ? await this.sampleRows(connection, openTaskSql, openTaskParams) : []
       )
     );
     checks.push(
       this.buildCheck(
         definitions.voucher,
-        await this.countRows(connection, voucherIssueSql, [period.id]),
-        await this.sampleRows(connection, voucherIssueSql, [period.id])
+        // Missing/invalid snapshots need calculation first; do not treat their
+        // unknown amount as zero and recommend releasing a valid old voucher.
+        wipIssueCount > 0 ? 0 : await this.countRows(connection, voucherIssueSql, [period.id]),
+        wipIssueCount > 0 ? [] : await this.sampleRows(connection, voucherIssueSql, [period.id])
       )
     );
 

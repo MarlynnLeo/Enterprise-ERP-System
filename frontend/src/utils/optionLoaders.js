@@ -78,8 +78,8 @@ if (typeof window !== 'undefined' && typeof window.addEventListener === 'functio
 export const loadUserOptions = (params = {}) =>
   loadCachedList('users', systemApi.getUsers, params, { defaults: { status: 1 } })
 
-export const loadUserListOptions = () =>
-  loadCachedList('users-list', systemApi.getUsersList, {}, { rawParams: true })
+export const loadUserListOptions = (params = {}) =>
+  loadCachedList('users-list', systemApi.getUsersList, params, { rawParams: true })
 
 export const searchUserOptions = (keyword = '', params = {}) =>
   loadUserOptions({ ...params, keyword: String(keyword || '').trim() || undefined })

@@ -1,7 +1,9 @@
-import { defineComponent } from 'vue';
+import { defineComponent, h, reactive, ref } from 'vue';
+import { routeLocationKey } from 'vue-router';
 import { flushPromises, mount } from '@vue/test-utils';
-import { describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import ReceiptDialog from '@/views/purchase/ReceiptDialog.vue';
+import { useInventoryPostingSourceLink } from '@/composables/useInventoryPostingSourceLink';
 
 const getReceiptProcessingDetail = vi.fn();
 const getReceiptDetail = vi.fn();
@@ -87,6 +89,88 @@ const inventoryApprovalTestDirectives = {
   loading: () => {},
   permission: () => {},
 };
+
+describe('ReceiptDialog inventory posting source navigation', () => {
+  let wrapper;
+  const detail = (id) => ({ data: {
+    id, receiptNo: `RECEIPT-${id}`, processingNo: `PROCESSING-${id}`,
+    items: [{ productId: id, productName: `Product ${id}`, actualQuantity: 1 }],
+  } });
+  const global = {
+    stubs: {
+      AppDialog: AppDialogStub,
+      'el-descriptions': PassthroughStub, 'el-descriptions-item': PassthroughStub,
+      'el-divider': PassthroughStub, 'el-tag': PassthroughStub,
+      'el-table': ElTableStub, 'el-table-column': true, 'el-button': true,
+      'el-form': PassthroughStub, 'el-card': PassthroughStub,
+      'el-row': PassthroughStub, 'el-col': PassthroughStub, 'el-form-item': PassthroughStub,
+      'el-select': PassthroughStub, 'el-option': true, 'el-input': true,
+      'el-date-picker': true, 'el-input-number': true,
+      InventoryPostingStatusPanel: true,
+    },
+    directives: inventoryApprovalTestDirectives,
+  };
+
+  beforeEach(() => {
+    getReceiptDetail.mockReset().mockImplementation(async (id) => detail(id));
+  });
+  afterEach(() => wrapper?.unmount());
+
+  test('loads an initially visible receipt opened synchronously by the source link', async () => {
+    const route = reactive({ path: '/purchase/processing-receipts', query: {
+      sourceType: 'outsourced_processing_receipt', sourceId: '9', sourceNo: 'RECEIPT-9',
+    } });
+    wrapper = mount(defineComponent({
+      setup() {
+        const visible = ref(false);
+        const receiptId = ref(null);
+        useInventoryPostingSourceLink({
+          path: '/purchase/processing-receipts', sourceTypes: ['outsourced_processing_receipt'],
+          open: ({ id }) => { receiptId.value = id; visible.value = true; },
+        });
+        return () => h(ReceiptDialog, { visible: visible.value, receiptId: receiptId.value, mode: 'view' });
+      },
+    }), { global: { ...global, provide: { [routeLocationKey]: route } } });
+    await flushPromises();
+    expect(getReceiptDetail).toHaveBeenCalledExactlyOnceWith(9);
+    expect(wrapper.text()).toContain('RECEIPT-9');
+
+    route.query = { sourceType: 'outsourced_processing_receipt', sourceId: '10', sourceNo: 'RECEIPT-10' };
+    await flushPromises();
+    expect(getReceiptDetail).toHaveBeenLastCalledWith(10);
+    expect(wrapper.text()).toContain('RECEIPT-10');
+    expect(wrapper.text()).not.toContain('RECEIPT-9');
+  });
+
+  test('keeps the newest receipt when the previous request finishes later', async () => {
+    let finishFirst;
+    getReceiptDetail.mockReturnValueOnce(new Promise(resolve => { finishFirst = resolve; }));
+    wrapper = mount(ReceiptDialog, { props: { visible: true, mode: 'view', receiptId: 9 }, global });
+    await flushPromises();
+    await wrapper.setProps({ receiptId: 10 });
+    await flushPromises();
+    finishFirst(detail(9));
+    await flushPromises();
+    expect(wrapper.text()).toContain('RECEIPT-10');
+    expect(wrapper.text()).not.toContain('RECEIPT-9');
+    expect(wrapper.findComponent({ name: 'InventoryPostingStatusPanel' }).props('sourceId')).toBe(10);
+  });
+
+  test('invalidates a closed dialog request before reopening the same receipt', async () => {
+    let finishFirst;
+    getReceiptDetail.mockReturnValueOnce(new Promise(resolve => { finishFirst = resolve; }));
+    wrapper = mount(ReceiptDialog, { props: { visible: true, mode: 'view', receiptId: 9 }, global });
+    await flushPromises();
+    await wrapper.setProps({ visible: false });
+    await wrapper.setProps({ visible: true });
+    await flushPromises();
+    finishFirst({ data: { ...detail(9).data, receiptNo: 'STALE-RECEIPT' } });
+    await flushPromises();
+    expect(getReceiptDetail).toHaveBeenCalledTimes(2);
+    expect(wrapper.text()).toContain('RECEIPT-9');
+    expect(wrapper.text()).not.toContain('STALE-RECEIPT');
+  });
+});
 
 describe('ReceiptDialog processing product mapping', () => {
   test('shows product fields and expected/actual quantities when creating a receipt', async () => {

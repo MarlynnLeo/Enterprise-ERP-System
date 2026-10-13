@@ -43,6 +43,43 @@ describe('print typography', () => {
     expect(printDocument.querySelector('text').getAttribute('font-family')).toContain('Microsoft YaHei')
   })
 
+  test('preserves opted-in template fonts through sanitization and nested rules while removing shadows', () => {
+    const printDocument = renderPrint(`<html><head>
+      <style id="template-fonts" data-print-preserve-fonts="true">
+        .kacon-order { font-family: 'SimSun', 'Times New Roman', serif !important; text-shadow: 0 1px 2px black !important; }
+        @media print { .kacon-order .brand { font-family: Arial; text-shadow: 0 1px 2px black; } }
+      </style>
+      <style id="legacy-fonts">.legacy { font-family: Arial; }</style>
+    </head><body>
+      <div class="kacon-order"><span class="brand">KACON</span></div>
+      <p class="legacy" style="font-family: Arial">旧模板</p>
+    </body></html>`)
+    applyPrintTypography(printDocument)
+
+    const templateStyle = printDocument.getElementById('template-fonts')
+    const rules = templateStyle.sheet.cssRules
+    expect(templateStyle.getAttribute('data-print-preserve-fonts')).toBe('true')
+    expect(rules[0].style.getPropertyValue('font-family')).toBe("'SimSun', 'Times New Roman', serif")
+    expect(rules[0].style.getPropertyPriority('font-family')).toBe('important')
+    expect(rules[0].style.getPropertyValue('text-shadow')).toBe('none')
+    expect(rules[0].style.getPropertyPriority('text-shadow')).toBe('important')
+    expect(rules[1].cssRules[0].style.getPropertyValue('font-family')).toBe('Arial')
+    expect(rules[1].cssRules[0].style.getPropertyValue('text-shadow')).toBe('none')
+    expect(printDocument.getElementById('legacy-fonts').sheet.cssRules[0].style.getPropertyValue('font-family')).toContain('Microsoft YaHei')
+    expect(printDocument.querySelector('p').style.fontFamily).toContain('Microsoft YaHei')
+    expect(printDocument.querySelectorAll('#erp-print-typography')).toHaveLength(1)
+  })
+
+  test.each(['false', '', 'TRUE', '1'])('keeps standard typography for a non-true preserve-fonts marker: %j', (marker) => {
+    const printDocument = renderPrint(`<html><head>
+      <style data-print-preserve-fonts="${marker}">
+        .legacy { font-family: 'SimSun'; }
+      </style>
+    </head><body><p class="legacy">订购单</p></body></html>`)
+
+    expect(printDocument.querySelector('style').sheet.cssRules[0].style.getPropertyValue('font-family')).toContain('Microsoft YaHei')
+  })
+
   test('preserves icon and barcode glyph fonts, sanitization and repeated preview rendering', () => {
     const printDocument = renderPrint(`<!doctype html><html><head><style>
       @font-face { font-family: 'ERP Icons'; src: local('ERP Icons'); }

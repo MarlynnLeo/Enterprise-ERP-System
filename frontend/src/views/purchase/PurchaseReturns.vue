@@ -233,7 +233,7 @@
           <el-table-column label="退货原因" prop="returnReason" min-width="150" show-overflow-tooltip></el-table-column>
         </el-table>
 
-        <InventoryApprovalPanel
+        <InventoryPostingStatusPanel
           v-if="viewDialog.return?.id || viewDialog.return?.returnNumber || viewDialog.return?.returnNo"
           source-type="purchase_return"
           :source-id="viewDialog.return.id"
@@ -399,6 +399,7 @@
   </div>
 </template>
 <script setup>
+import { useInventoryPostingSourceLink } from '@/composables/useInventoryPostingSourceLink'
 import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
@@ -414,7 +415,7 @@ import { purchaseApi } from '@/api';
 import { baseDataApi } from '@/api';
 import { formatCurrency } from '@/utils/helpers/formatters';
 import printService from '@/services/printService';
-import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue';
+import InventoryPostingStatusPanel from '@/components/inventory/InventoryPostingStatusPanel.vue';
 import { getApiErrorMessage } from '@/utils/errorHandler'
 import {
   getPurchaseReturnStatusText,
@@ -1015,6 +1016,13 @@ async function printReturn() {
     ElMessage.error('打印采购退货单失败');
   }
 }
+
+useInventoryPostingSourceLink({
+  path: '/purchase/returns',
+  sourceTypes: ["purchase_return"],
+  open: ({ id }) => viewReturn({ id }),
+  setSearch: (sourceNo) => { searchForm.returnNo = sourceNo },
+})
 </script>
 <style scoped>
 .header-card {

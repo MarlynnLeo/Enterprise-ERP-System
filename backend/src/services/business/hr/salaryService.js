@@ -4,6 +4,61 @@ const { logger } = require('../../../utils/logger');
 const { resolveActorUserId } = require('../../../utils/userUtils');
 
 class SalaryService {
+  static async assertReusableSalaryVoucher(connection, salary, entry, gross) {
+    const hasSalaryIdentity =
+      entry.transaction_type === 'salary' && Number(entry.transaction_id) === Number(salary.id);
+    // 历史计提未写来源ID/员工维度，只允许工资记录已经明确绑定的旧凭证。
+    const isLinkedLegacyVoucher =
+      Number(salary.gl_entry_id) === Number(entry.id) &&
+      !entry.transaction_id &&
+      (!entry.transaction_type || entry.transaction_type === 'adjustment');
+    if (
+      entry.document_type !== 'adjustment' ||
+      entry.document_number !== `SAL-${salary.id}` ||
+      (!hasSalaryIdentity && !isLinkedLegacyVoucher)
+    ) {
+      throw new Error('工资凭证来源不匹配，不能按单据号复用其他业务凭证');
+    }
+    if (
+      Number(entry.is_posted) !== 1 ||
+      Number(entry.is_reversed) === 1 ||
+      entry.status === 'reversed'
+    ) {
+      throw new Error('工资关联凭证必须已过账且未冲销');
+    }
+    const [items] = await connection.execute(
+      'SELECT account_id, debit_amount, credit_amount, employee_id FROM gl_entry_items WHERE entry_id = ? FOR UPDATE',
+      [entry.id]
+    );
+    let debit = 0;
+    let credit = 0;
+    if (items.length < 2) throw new Error('工资凭证明细不完整');
+    for (const item of items) {
+      const debitAmount = Number(item.debit_amount || 0);
+      const creditAmount = Number(item.credit_amount || 0);
+      if (
+        !Number.isFinite(debitAmount) ||
+        !Number.isFinite(creditAmount) ||
+        debitAmount < 0 ||
+        creditAmount < 0 ||
+        (debitAmount > 0 && creditAmount > 0)
+      ) {
+        throw new Error('工资凭证明细金额无效');
+      }
+      if (
+        (item.employee_id != null && Number(item.employee_id) !== Number(salary.employee_id)) ||
+        (hasSalaryIdentity && Number(item.employee_id) !== Number(salary.employee_id))
+      ) {
+        throw new Error('工资凭证员工与工资单不一致');
+      }
+      debit += Math.round(debitAmount * 100);
+      credit += Math.round(creditAmount * 100);
+    }
+    if (debit !== Math.round(gross * 100) || credit !== Math.round(gross * 100)) {
+      throw new Error('工资凭证金额与应发工资不一致');
+    }
+  }
+
   /**
    * 薪酬核算引擎 (Salary Calculation Engine)
    * 基于 hr_attendance_rules 表动态加载规则，不硬编码业务参数。
@@ -275,13 +330,8 @@ class SalaryService {
       if (salary.calculated_by && Number(salary.calculated_by) === Number(approverId)) {
         throw new Error('工资核算人与财务确认人必须分离');
       }
-      if (salary.status === 'approved' && salary.gl_entry_id) {
-        await connection.commit();
-        return { skipped: true, message: '已确认且已有凭证', entryId: salary.gl_entry_id };
-      }
-
-      const gross = parseFloat(salary.gross_salary) || 0;
-      if (gross <= 0) {
+      const gross = Number(salary.gross_salary);
+      if (!Number.isFinite(gross) || gross <= 0) {
         throw new Error('应发工资为0，不能生成计提凭证');
       }
 
@@ -289,22 +339,21 @@ class SalaryService {
       const financeModel = require('../../../models/finance');
       const { currentDateString } = require('../../../utils/dateUtils');
 
-      const accountIds = await FinanceIntegrationService.resolveAccountIds([
-        'ADMIN_EXPENSE',
-        'EMPLOYEE_PAYABLE',
-      ]);
-
       const docNumber = `SAL-${salary.id}`;
       const [existing] = await connection.execute(
-        `SELECT id, entry_number FROM gl_entries
-         WHERE document_number = ? AND COALESCE(is_reversed, 0) = 0
-         LIMIT 1`,
-        [docNumber]
+        `SELECT id, entry_number, document_type, document_number, transaction_type, transaction_id,
+                is_posted, is_reversed, status FROM gl_entries
+         WHERE ${salary.gl_entry_id ? 'id = ?' : 'document_number = ? AND COALESCE(is_reversed, 0) = 0'}
+         FOR UPDATE`,
+        [salary.gl_entry_id || docNumber]
       );
+      if (existing.length > 1) throw new Error('同一工资单存在多个凭证，请先核对');
       if (existing.length > 0) {
+        await this.assertReusableSalaryVoucher(connection, salary, existing[0], gross);
         await connection.execute(
-          `UPDATE hr_salary_records SET status = 'approved', gl_entry_id = COALESCE(gl_entry_id, ?) WHERE id = ?`,
-          [existing[0].id, salaryId]
+          `UPDATE hr_salary_records SET status = 'approved', gl_entry_id = ?,
+             approved_by = COALESCE(approved_by, ?), approved_at = COALESCE(approved_at, NOW()) WHERE id = ?`,
+          [existing[0].id, approverId, salaryId]
         );
         await connection.commit();
         return {
@@ -314,6 +363,13 @@ class SalaryService {
           message: '凭证已存在',
         };
       }
+      if (salary.gl_entry_id || salary.status === 'approved') {
+        throw new Error('已确认工资缺少有效关联凭证，请先核对修复');
+      }
+      const accountIds = await FinanceIntegrationService.resolveAccountIds([
+        'ADMIN_EXPENSE',
+        'EMPLOYEE_PAYABLE',
+      ]);
 
       const entryDate =
         salary.period && /^\d{4}-\d{2}$/.test(salary.period)
@@ -334,6 +390,8 @@ class SalaryService {
         posting_date: entryDate,
         document_type: 'adjustment',
         document_number: docNumber,
+        transaction_type: 'salary',
+        transaction_id: salary.id,
         description: `工资计提 ${salary.period || ''} ${salary.employee_name || salary.employee_id}`,
         created_by: approverId,
         is_posted: 1,
@@ -344,12 +402,14 @@ class SalaryService {
           account_id: accountIds.ADMIN_EXPENSE,
           debit_amount: gross,
           credit_amount: 0,
+          employee_id: salary.employee_id,
           description: `工资费用-${salary.employee_name || salary.employee_id}`,
         },
         {
           account_id: accountIds.EMPLOYEE_PAYABLE,
           debit_amount: 0,
           credit_amount: gross,
+          employee_id: salary.employee_id,
           description: `应付职工薪酬-${salary.employee_name || salary.employee_id}`,
         },
       ];

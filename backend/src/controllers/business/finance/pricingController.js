@@ -7,6 +7,19 @@ const { parsePagination } = require('../../../utils/safePagination');
 const { safeParseId } = require('../../../utils/safeParseId');
 const Precision = require('../../../utils/precision');
 const { mapKeysToSnake } = require('../../../utils/fieldMap');
+const { currentDateString } = require('../../../utils/dateUtils');
+const { validateBusinessDate } = require('../../../utils/finance/businessDate');
+
+// One valuation source for list, calculation and BOM preview. A material's
+// selling price is only a fallback when neither standard nor purchase cost exists.
+const MATERIAL_UNIT_COST_SQL = `COALESCE(
+  (SELECT sc.standard_price FROM standard_costs sc
+   WHERE sc.material_id = m.id AND sc.is_active = 1
+     AND sc.effective_date <= CURDATE()
+     AND (sc.expiry_date IS NULL OR sc.expiry_date > CURDATE())
+   ORDER BY sc.effective_date DESC LIMIT 1),
+  m.cost_price, m.price, 0
+)`;
 
 function parseRequiredAmount(value, fieldName) {
   const parsed = Number(value);
@@ -291,10 +304,10 @@ async function calculateBomCostsInBatch(connection, productIds) {
             SELECT product_id, MAX(CASE WHEN approved_by IS NOT NULL THEN 1 ELSE 0 END) as has_approved,
                    MAX(version) as max_version
             FROM bom_masters
-            WHERE product_id IN (${placeholders}) AND status IN (0, 1)
+            WHERE product_id IN (${placeholders}) AND status IN (0, 1) AND deleted_at IS NULL
             GROUP BY product_id
         ) latest ON bm.product_id = latest.product_id
-        WHERE bm.product_id IN (${placeholders}) AND bm.status IN (0, 1)
+        WHERE bm.product_id IN (${placeholders}) AND bm.status IN (0, 1) AND bm.deleted_at IS NULL
         ORDER BY bm.product_id, CASE WHEN bm.approved_by IS NOT NULL THEN 0 ELSE 1 END, bm.version DESC
     `,
     [...productIds, ...productIds]
@@ -319,16 +332,7 @@ async function calculateBomCostsInBatch(connection, productIds) {
     `
         SELECT
             bd.bom_id,
-            SUM(COALESCE(bd.quantity, 0) * COALESCE(
-                (SELECT sc.standard_price FROM standard_costs sc
-                 WHERE sc.material_id = m.id AND sc.is_active = 1
-                 AND sc.effective_date <= CURDATE()
-                 AND (sc.expiry_date IS NULL OR sc.expiry_date > CURDATE())
-                 ORDER BY sc.effective_date DESC LIMIT 1),
-                m.cost_price,
-                m.price,
-                0
-            )) as total_cost
+            SUM(COALESCE(bd.quantity, 0) * ${MATERIAL_UNIT_COST_SQL}) as total_cost
         FROM bom_details bd
         JOIN materials m ON bd.material_id = m.id
         WHERE bd.bom_id IN (${bomPlaceholders})
@@ -371,15 +375,7 @@ async function calculateBomCostInternal(connection, productId, bomId = null) {
     `
         SELECT
             bd.quantity,
-            COALESCE(
-                (SELECT sc.standard_price FROM standard_costs sc
-                 WHERE sc.material_id = m.id AND sc.is_active = 1
-                 AND sc.effective_date <= CURDATE()
-                 AND (sc.expiry_date IS NULL OR sc.expiry_date > CURDATE())
-                 ORDER BY sc.effective_date DESC LIMIT 1),
-                m.cost_price,
-                m.price
-            ) as unit_price
+            ${MATERIAL_UNIT_COST_SQL} as unit_price
         FROM bom_details bd
         JOIN materials m ON bd.material_id = m.id
         WHERE bd.bom_id = ?
@@ -439,15 +435,7 @@ async function calculateProductCost(connection, productId) {
   const [materials] = await connection.query(
     `
         SELECT
-            COALESCE(
-                (SELECT sc.standard_price FROM standard_costs sc
-                 WHERE sc.material_id = m.id AND sc.is_active = 1
-                 AND sc.effective_date <= CURDATE()
-                 AND (sc.expiry_date IS NULL OR sc.expiry_date > CURDATE())
-                 ORDER BY sc.effective_date DESC LIMIT 1),
-                m.cost_price,
-                m.price
-            ) as final_cost
+            ${MATERIAL_UNIT_COST_SQL} as final_cost
         FROM materials m
         WHERE m.id = ?
     `,
@@ -563,7 +551,12 @@ exports.createPricing = async (req, res) => {
     let costPrice;
     let suggestedPrice;
     let profitMargin;
+    let effectiveDate;
     try {
+      effectiveDate = validateBusinessDate(effective_date || currentDateString(), '生效日期');
+      if (effectiveDate > currentDateString()) {
+        throw new Error('暂不支持预约调价，请在生效当天保存价格');
+      }
       costPrice = parseRequiredAmount(cost_price, 'cost_price');
       suggestedPrice = parseRequiredAmount(suggested_price, 'suggested_price');
       profitMargin = Number(profit_margin);
@@ -590,7 +583,7 @@ exports.createPricing = async (req, res) => {
     await connection.beginTransaction();
 
     const [products] = await connection.query(
-      'SELECT id FROM materials WHERE id = ? AND deleted_at IS NULL',
+      'SELECT id FROM materials WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
       [product_id]
     );
     if (products.length === 0) {
@@ -623,7 +616,7 @@ exports.createPricing = async (req, res) => {
         profitMargin,
         newVersion,
         1,
-        effective_date || new Date(),
+        effectiveDate,
         remarks,
         getAuthenticatedUserId(req),
       ]
@@ -660,7 +653,7 @@ exports.createPricing = async (req, res) => {
         cost_price: costPrice,
         suggested_price: suggestedPrice,
         profit_margin: profitMargin,
-        effective_date,
+        effective_date: effectiveDate,
         strategies_count: strategies ? strategies.length : 0,
       }
     );
@@ -747,7 +740,7 @@ exports.getBomDetails = async (req, res) => {
 
     // 1. 查找产品的有效BOM（优先使用已审核的）
     const [boms] = await connection.query(
-      'SELECT id, version, status, approved_by FROM bom_masters WHERE product_id = ? AND status IN (0, 1) AND deleted_at IS NULL ORDER BY CASE WHEN approved_by IS NOT NULL THEN 0 ELSE 1 END ASC, status DESC, version DESC LIMIT 1',
+      'SELECT id, version, status, approved_by FROM bom_masters WHERE product_id = ? AND status IN (0, 1) AND deleted_at IS NULL ORDER BY CASE WHEN approved_by IS NOT NULL THEN 0 ELSE 1 END ASC, version DESC LIMIT 1',
       [productId]
     );
 
@@ -772,7 +765,8 @@ exports.getBomDetails = async (req, res) => {
                 m.code as material_code,
                 m.name as material_name,
                 m.specs as material_specs,
-                m.price as current_price,
+                ${MATERIAL_UNIT_COST_SQL} as current_price,
+                m.price as sale_price,
                 m.cost_price as purchase_price
             FROM bom_details bd
             JOIN materials m ON bd.material_id = m.id

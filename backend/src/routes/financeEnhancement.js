@@ -38,6 +38,11 @@ router.get(
   requireInventoryApprovalAccess('view'),
   FinanceEnhancementController.getInventoryPostingApprovalBySource
 );
+router.post(
+  '/inventory-postings/batch-approve',
+  requireInventoryApprovalAccess('approve'),
+  FinanceEnhancementController.batchApproveInventoryPostings
+);
 router.get(
   '/inventory-postings/:id',
   requireInventoryApprovalAccess('view'),

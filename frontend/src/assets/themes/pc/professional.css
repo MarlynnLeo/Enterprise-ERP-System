@@ -185,6 +185,8 @@
   --z-index-tooltip: 1070;
   --theme-button-primary-image: linear-gradient(180deg, color-mix(in srgb, var(--color-primary) 90%, white), var(--color-primary));
   --theme-button-primary-hover-image: linear-gradient(180deg, var(--color-primary-light-3), var(--color-primary));
+  --theme-input-border-color: var(--color-border-dark);
+  --theme-input-hover-border-color: var(--color-primary-light-3);
 }
 
 /* ==================== 专业主题企业级特有视觉规则 ==================== */
@@ -204,7 +206,7 @@
   background: var(--shell-sidebar-bg) !important;
   border-right: 1px solid var(--shell-border) !important;
   border-radius: var(--radius-md, 4px) !important;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12) !important;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
 }
 
 [data-theme="professional"] .logo-container {
@@ -225,7 +227,7 @@
   background: var(--color-bg-base) !important;
   border: 1px solid var(--color-border-base) !important;
   border-radius: var(--radius-md, 4px) !important;
-  box-shadow: var(--shadow-sm) !important;
+  box-shadow: var(--shadow-sm);
   color: var(--color-text-primary) !important;
 }
 
@@ -234,7 +236,7 @@
   border-radius: var(--radius-md, 4px) !important;
   border: 1px solid var(--color-border-base) !important;
   background: var(--color-bg-base) !important;
-  box-shadow: var(--shadow-card) !important;
+  box-shadow: var(--shadow-card);
   position: relative;
   overflow: hidden;
 }
@@ -258,29 +260,11 @@
   color: var(--color-text-primary) !important;
 }
 
-/* 6. 表单输入保留细边框聚焦高亮 */
-[data-theme="professional"] .el-input__wrapper {
-  border-radius: var(--radius-md, 4px) !important;
-  border: 1px solid var(--color-border-dark) !important;
-  box-shadow: none !important;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
-}
-
-[data-theme="professional"] .el-input__wrapper:hover {
-  border-color: var(--color-primary-light-3) !important;
-}
-
-[data-theme="professional"] .el-input__wrapper.is-focus,
-[data-theme="professional"] .el-range-editor.is-active {
-  border-color: var(--color-primary) !important;
-  box-shadow: none !important;
-}
-
 /* 7. 对话框企业级微圆角与底衬 */
 [data-theme="professional"] .el-dialog:not(.is-fullscreen) {
   border-radius: var(--radius-md, 4px) !important;
   border: 1px solid var(--color-border-base) !important;
-  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.15), 0 8px 10px -6px rgba(15, 23, 42, 0.1) !important;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.15), 0 8px 10px -6px rgba(15, 23, 42, 0.1);
   overflow: hidden;
 }
 

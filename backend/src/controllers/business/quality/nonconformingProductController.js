@@ -105,8 +105,8 @@ const updateDisposition = async (req, res) => {
     return ResponseHandler.error(
       res,
       error.message || '更新不合格品处置结果失败',
-      'OPERATION_ERROR',
-      500,
+      error.code || 'OPERATION_ERROR',
+      error.statusCode || 500,
       error
     );
   }

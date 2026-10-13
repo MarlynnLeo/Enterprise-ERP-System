@@ -22,6 +22,8 @@ const makeConnection = (task) => ({
       task.status = args[0];
       return [{ affectedRows: 1 }];
     }
+    if (sql.includes('UPDATE quality_inspections')) return [{ affectedRows: 1 }];
+    if (sql.includes('UPDATE nonconforming_products')) return [{ affectedRows: 1 }];
     if (sql.includes('FROM quality_inspections'))
       return [[{ id: 50, inspection_no: 'QI-OLD', quantity: 2 }]];
     if (sql.includes('INSERT INTO quality_inspections')) return [{ insertId: 51 }];
@@ -71,4 +73,104 @@ test('pending tasks cannot skip assignment and complete', async () => {
   await controller.updateStatus({ params: { id: 1 }, body: { status: 'completed' } }, res);
   expect(res.status).toHaveBeenCalledWith(400);
   expect(quality.recordQualityCost).not.toHaveBeenCalled();
+});
+
+test('cancelled rework releases reserved disposition quantity exactly once', async () => {
+  const connection = makeConnection({ id: 1, status: 'in_progress', ncp_id: 7, quantity: 10 });
+  db.pool.getConnection.mockResolvedValue(connection);
+  const req = { params: { id: 1 }, body: { status: 'cancelled' } };
+  await controller.updateStatus(req, response());
+  await controller.updateStatus(req, response());
+  const restores = connection.query.mock.calls.filter(([sql]) =>
+    sql.includes('UPDATE nonconforming_products')
+  );
+  expect(restores).toHaveLength(1);
+  expect(restores[0][1]).toEqual([10, 7]);
+});
+
+test('progress cannot complete an unassigned pending task', async () => {
+  const connection = makeConnection({ status: 'pending' });
+  connection.query.mockResolvedValue([[{ status: 'pending', assigned_to: null }]]);
+  db.pool.getConnection.mockResolvedValue(connection);
+  const res = response();
+  await controller.updateProgress({ params: { id: 1 }, body: { progress: 100 } }, res);
+  expect(res.status).toHaveBeenCalledWith(400);
+  expect(quality.linkDocumentToDocument).not.toHaveBeenCalled();
+  expect(connection.rollback).toHaveBeenCalled();
+});
+
+test('progress completion creates a linked reinspection with source and inspector', async () => {
+  const task = {
+    id: 9,
+    status: 'in_progress',
+    assigned_to: 'Operator',
+    inspection_id: 50,
+    quantity: 10,
+  };
+  const connection = makeConnection(task);
+  const original = connection.query.getMockImplementation();
+  connection.query.mockImplementation(async (sql, args) => {
+    if (sql.includes('SELECT rt.id')) return [[task]];
+    if (sql.includes('FROM quality_inspections'))
+      return [
+        [
+          {
+            id: 50,
+            inspector_id: 8,
+            inspector_name: 'Inspector',
+            source_type: 'production_task',
+            task_id: 15,
+            reference_id: 15,
+            quantity: 100,
+          },
+        ],
+      ];
+    return original(sql, args);
+  });
+  db.pool.getConnection.mockResolvedValue(connection);
+  await controller.updateProgress({ params: { id: 9 }, body: { progress: 100 } }, response());
+  expect(connection.rollback).not.toHaveBeenCalled();
+  expect(quality.linkDocumentToDocument).toHaveBeenCalledWith(
+    expect.objectContaining({ id: 9 }),
+    expect.objectContaining({ id: 51 }),
+    connection
+  );
+  const source = connection.query.mock.calls.find(([sql]) =>
+    sql.includes('UPDATE quality_inspections')
+  );
+  expect(source[1]).toEqual([
+    8,
+    'Inspector',
+    'production_task',
+    null,
+    15,
+    null,
+    null,
+    null,
+    10,
+    51,
+  ]);
+});
+
+test('completion without a price edit preserves the existing rework cost', async () => {
+  const task = {
+    id: 5,
+    status: 'in_progress',
+    assigned_to: 'Operator',
+    rework_cost: 37,
+    quantity: 10,
+  };
+  const connection = makeConnection(task);
+  db.pool.getConnection.mockResolvedValue(connection);
+  await controller.completeTask(
+    { params: { id: 5 }, body: { actualDate: '2026-10-07' } },
+    response()
+  );
+  expect(connection.rollback).not.toHaveBeenCalled();
+  const update = connection.query.mock.calls.find(([sql]) => sql.includes('UPDATE rework_tasks'));
+  expect(update[1]).toEqual(['2026-10-07', 37, 5]);
+  expect(quality.recordQualityCost).toHaveBeenCalledWith(
+    expect.objectContaining({ cost: 37 }),
+    connection
+  );
 });

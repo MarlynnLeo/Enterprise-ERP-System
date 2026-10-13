@@ -277,7 +277,7 @@ const buildProductCategoryTree = (flatData, parentId = 0) => {
 };
 
 // 基础选项数据缓存（分类/单位/来源等变更频率极低，缓存5分钟避免重复请求）
-const OPTIONS_CACHE_KEY = '__material_options_cache_v2__';
+const OPTIONS_CACHE_KEY = '__material_options_cache_v3__';
 const OPTIONS_CACHE_TTL = 5 * 60 * 1000; // 5分钟
 
 // 加载基础数据（带内存缓存）
@@ -302,7 +302,10 @@ const loadOptions = async () => {
       loadLocationOptions(),
       baseDataApi.getProductCategoryOptions(),
       commonApi.getEnums('production_group'),
-      loadUserListOptions(),
+      loadUserListOptions({
+        status: 1,
+        roleCodes: 'inventory_manager,inventory_operator,finished_goods_operator,component_warehouse_operator'
+      }),
       baseDataApi.getInspectionMethods()
     ]);
 

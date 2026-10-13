@@ -80,6 +80,45 @@ function fixture({ requested, previous, other = [], status = 'completed', exists
 }
 
 describe('purchase order quantity edits synchronize requisition quantities', () => {
+  test.each(['submitted', 'approved'])(
+    'allocates a %s requisition without an approval step and keeps outstanding demand submitted',
+    async (status) => {
+      const model = fixture({
+        requested: [material(10)],
+        previous: [material(4)],
+        status,
+      });
+
+      const result = await model.save([material(6)]);
+
+      expect(model.required()).toBe(12);
+      expect(result).toMatchObject({
+        status: 'submitted',
+        previousStatus: status,
+        totalRequired: 12,
+        totalOrdered: 6,
+        completed: false,
+      });
+      expect(model.state.requisition.status).toBe('submitted');
+    }
+  );
+
+  test('returns a completed requisition to submitted after its last active order is cancelled', async () => {
+    const model = fixture({ requested: [material(10)], previous: [] });
+
+    const result = await PurchaseOrderService.syncRequisitionStatusFromOrders(model.connection, 1);
+
+    expect(result).toMatchObject({
+      status: 'submitted',
+      previousStatus: 'completed',
+      totalOrdered: 0,
+      completed: false,
+    });
+    await expect(
+      PurchaseOrderService.validateRequisitionAllocation(model.connection, 1, [material(10)])
+    ).resolves.toMatchObject({ status: 'submitted' });
+  });
+
   test('allows the reported 3663 to 100000 edit and keeps the requisition completed', async () => {
     const model = fixture({ requested: [material(3663)], previous: [material(3663)] });
 
@@ -109,7 +148,7 @@ describe('purchase order quantity edits synchronize requisition quantities', () 
         requested: [material(1000)],
         previous: [material(300)],
         other: [material(200)],
-        status: 'approved',
+        status: 'submitted',
       });
 
       const result = await model.save([material(nextQuantity)]);
@@ -117,7 +156,7 @@ describe('purchase order quantity edits synchronize requisition quantities', () 
       expect(model.required()).toBe(1000 + nextQuantity - 300);
       expect(model.state.other).toEqual([material(200)]);
       expect(result.totalRequired - result.totalOrdered).toBe(500);
-      expect(result.status).toBe('approved');
+      expect(result.status).toBe('submitted');
     }
   );
 
@@ -173,14 +212,14 @@ describe('purchase order quantity edits synchronize requisition quantities', () 
     const model = fixture({
       requested: [material(10), material(8, 20)],
       previous: [material(10)],
-      status: 'approved',
+      status: 'submitted',
     });
 
     const result = await model.save([material(10), material(3, 20)]);
 
     expect(model.required(20)).toBe(8);
     expect(model.state.writes).toEqual([]);
-    expect(result.status).toBe('approved');
+    expect(result.status).toBe('submitted');
     expect(result.totalRequired - result.totalOrdered).toBe(5);
   });
 
@@ -204,7 +243,7 @@ describe('purchase order quantity edits synchronize requisition quantities', () 
     const result = await model.save([material(10)]);
 
     expect(model.required(20)).toBe(8);
-    expect(result).toMatchObject({ status: 'approved', totalRequired: 18, totalOrdered: 10 });
+    expect(result).toMatchObject({ status: 'submitted', totalRequired: 18, totalOrdered: 10 });
     expect(model.state.writes.filter((write) => write.table === 'items')).toEqual([]);
   });
 
@@ -228,7 +267,7 @@ describe('purchase order quantity edits synchronize requisition quantities', () 
     const model = fixture({
       requested: [material('0.30')],
       previous: [material('0.10')],
-      status: 'approved',
+      status: 'submitted',
     });
 
     for (const next of ['0.20', '0.10', '0.29', '0.01']) {
@@ -239,7 +278,7 @@ describe('purchase order quantity edits synchronize requisition quantities', () 
     expect(model.state.requested[0].quantity).toBe(0.21);
   });
 
-  test.each(['draft', 'submitted', 'rejected'])(
+  test.each(['draft', 'pending', 'rejected', 'cancelled'])(
     'rejects a source requisition in status %s before writing',
     async (status) => {
       const model = fixture({ requested: [material(10)], previous: [material(10)], status });
@@ -248,6 +287,12 @@ describe('purchase order quantity edits synchronize requisition quantities', () 
         statusCode: 400,
         code: 'VALIDATION_ERROR',
       });
+      await expect(
+        PurchaseOrderService.validateRequisitionAllocation(model.connection, 1, [material(10)])
+      ).rejects.toThrow('只能从已提交的采购申请生成订单');
+      await expect(
+        PurchaseOrderService.syncRequisitionStatusFromOrders(model.connection, 1)
+      ).rejects.toThrow('当前采购申请状态不允许生成采购订单');
 
       expect(model.state.writes).toEqual([]);
     }
@@ -300,7 +345,7 @@ describe('purchase order quantity edits synchronize requisition quantities', () 
     const model = fixture({
       requested: [material(99999998.99), material(99999999.99)],
       previous: [material(1)],
-      status: 'approved',
+      status: 'submitted',
     });
 
     await model.save([material(2)]);

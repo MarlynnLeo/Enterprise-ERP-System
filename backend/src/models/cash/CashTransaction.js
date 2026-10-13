@@ -15,6 +15,7 @@ const DocumentLinkService = require('../../services/business/DocumentLinkService
 const { DOCUMENT_LINK_TYPES: DocType } = require('../../constants/documentLinkTypes');
 const { parsePagination } = require('../../utils/safePagination');
 const { toLocalDateString } = require('../../utils/dateUtils');
+const SettlementCashService = require('../../services/finance/SettlementCashService');
 
 const EDITABLE_CASH_STATUSES = new Set(['draft', 'rejected']);
 const AUDITABLE_CASH_STATUSES = new Set(['pending', 'reviewed']);
@@ -898,7 +899,7 @@ class CashTransactionModel {
     try {
       await connection.beginTransaction();
       const [rows] = await connection.execute(
-        `SELECT id, transaction_number, transaction_type, transaction_date, amount,
+        `SELECT id, transaction_number, transaction_type, transaction_date, amount, category,
                 status, gl_entry_id, created_by
          FROM cash_transactions WHERE id = ? FOR UPDATE`,
         [id]
@@ -907,6 +908,9 @@ class CashTransactionModel {
       const tx = rows[0];
       if (String(tx.status) !== 'approved') {
         throw new Error('仅已审核的现金交易可以作废冲销');
+      }
+      if (SettlementCashService.isSettlementJournal(tx)) {
+        throw new Error('收付款生成的现金流水请从原收付款单作废，以同步恢复发票余额');
       }
 
       let reversalInfo = null;

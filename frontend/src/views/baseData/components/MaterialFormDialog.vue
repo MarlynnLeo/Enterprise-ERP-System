@@ -88,7 +88,7 @@
         </el-col>
       </el-row>
 
-      <!-- 检验方式、物料来源、物料号（A3图号） -->
+      <!-- 检验方式、物料来源、库位 -->
       <el-row :gutter="16">
         <el-col :span="8">
           <el-form-item label="检验方式" prop="inspectionMethodId">
@@ -119,10 +119,10 @@
           </el-form-item>
         </el-col>
         <el-col :span="8">
-          <el-form-item label="物料号">
+          <el-form-item label="库位">
             <el-input
-              v-model="form.drawingNo"
-              placeholder="来自A3物料图号"
+              v-model="form.locationDetail"
+              placeholder="请输入库位"
               clearable />
           </el-form-item>
         </el-col>
@@ -217,7 +217,7 @@
           <el-form-item label="物料负责人">
             <el-select
               v-model="form.managerId"
-              placeholder="请选择负责人"
+              placeholder="请选择仓库人员"
               clearable
               filterable
               class="w-full"
@@ -372,7 +372,7 @@ const COPYABLE_FIELDS = [
   'materialType',
   'material',
   'specs',
-  'drawingNo',
+  'locationDetail',
   'colorCode',
   'unitId',
   'inspectionMethodId',
@@ -440,7 +440,7 @@ const createEmptyForm = () => ({
   materialType: '',
   material: '',
   specs: '',
-  drawingNo: '',
+  locationDetail: '',
   colorCode: '',
   price: '',
   costPrice: '',

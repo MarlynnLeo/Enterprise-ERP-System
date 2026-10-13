@@ -239,7 +239,8 @@
       v-model="detailsVisible"
       title="出库单详情"
       mode="view"
-      width="1200px"
+      width="850px"
+      content-width="wide"
       :detail-navigation="salesOutboundViewNavigation"
     >
       <div v-loading="detailsLoading" class="min-h-form">
@@ -256,7 +257,7 @@
           <el-descriptions-item label="创建时间" :span="2">{{ formatDate(currentOutbound.createdAt) }}</el-descriptions-item>
         </el-descriptions>
 
-        <InventoryApprovalPanel
+        <InventoryPostingStatusPanel
           v-if="currentOutbound?.id || currentOutbound?.outboundNo"
           source-type="sales_outbound"
           :source-id="currentOutbound.id"
@@ -640,6 +641,7 @@
   </div>
 </template>
 <script setup>
+import { useInventoryPostingSourceLink } from '@/composables/useInventoryPostingSourceLink'
 import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { handleTableRowView } from '@/utils/tableRowView'
@@ -654,7 +656,7 @@ import { usePaginatedFetching, useFormSubmit } from '@/composables/useDataFetchi
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 import printService from '@/services/printService'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
-import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue'
+import InventoryPostingStatusPanel from '@/components/inventory/InventoryPostingStatusPanel.vue'
 import { getCommonStatusText } from '@/constants/systemConstants'
 import { getApiErrorMessage } from '@/utils/errorHandler'
 // 状态变量
@@ -1547,6 +1549,13 @@ const printOutbound = async (row) => {
     console.error('打印出库单失败:', error)
   }
 }
+
+useInventoryPostingSourceLink({
+  path: '/sales/outbound',
+  sourceTypes: ["sales_outbound"],
+  open: ({ id }) => showDetails({ id }),
+  setSearch: (sourceNo) => { searchQuery.value = sourceNo },
+})
 </script>
 <style scoped>
 .header-card {

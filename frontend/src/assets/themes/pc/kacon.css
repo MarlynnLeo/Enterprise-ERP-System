@@ -9,6 +9,7 @@
  */
 
 :root[data-theme="kacon"] {
+  --module-panel-padding: 24px;
   /* ==================== 颜色系统 ==================== */
 
   /* 主色系 - Deep Emerald（KACON可访问品牌色） */
@@ -222,10 +223,10 @@
 [data-theme="kacon"] .sidebar,
 [data-theme="kacon"] .app-sidebar {
   background: var(--shell-sidebar-bg, var(--kacon-glass-bg)) !important;
-  backdrop-filter: var(--kacon-glass-filter) !important;
-  -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
+  backdrop-filter: var(--kacon-glass-filter);
+  -webkit-backdrop-filter: var(--kacon-glass-filter);
   border: 1px solid var(--kacon-glass-border) !important;
-  box-shadow: var(--shell-shadow, 0 8px 28px color-mix(in srgb, var(--ds-black, #000) 8%, transparent)) !important;
+  box-shadow: var(--shell-shadow, 0 8px 28px color-mix(in srgb, var(--ds-black, #000) 8%, transparent));
   border-radius: var(--shell-radius-lg, var(--radius-lg, 16px)) !important;
 }
 
@@ -247,11 +248,11 @@
 [data-theme="kacon"] .el-header,
 [data-theme="kacon"] .app-header {
   background: var(--kacon-glass-bg) !important;
-  backdrop-filter: var(--kacon-glass-filter) !important;
-  -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
+  backdrop-filter: var(--kacon-glass-filter);
+  -webkit-backdrop-filter: var(--kacon-glass-filter);
   border: 1px solid color-mix(in srgb, var(--color-border-base) 70%, transparent) !important;
   border-radius: var(--radius-md, 8px) !important;
-  box-shadow: var(--shadow-sm) !important;
+  box-shadow: var(--shadow-sm);
 }
 
 /* ========== 5. 主内容区（品牌微调） ========== */
@@ -272,8 +273,8 @@
 [data-theme="kacon"] .user-dropdown,
 [data-theme="kacon"] .language-dropdown {
   background: var(--kacon-glass-bg-strong) !important;
-  backdrop-filter: var(--kacon-glass-filter) !important;
-  -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
+  backdrop-filter: var(--kacon-glass-filter);
+  -webkit-backdrop-filter: var(--kacon-glass-filter);
   border: 1px solid color-mix(in srgb, var(--color-border-base) 80%, transparent) !important;
   box-shadow: var(--shadow-lg) !important;
   border-radius: var(--radius-md) !important;
@@ -286,8 +287,8 @@
 
 /* 消息条玻璃 */
 [data-theme="kacon"] .el-message {
-  backdrop-filter: var(--kacon-glass-filter) !important;
-  -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
+  backdrop-filter: var(--kacon-glass-filter);
+  -webkit-backdrop-filter: var(--kacon-glass-filter);
 }
 
 /* 过渡微调（共享壳不强制动画时长） */
@@ -297,13 +298,13 @@
 }
 
 [data-theme="kacon"] .el-overlay {
-  transition: opacity 0.2s var(--transition-timing) !important;
+  transition: opacity 0.2s var(--transition-timing);
 }
 
 [data-theme="kacon"] .dialog-fade-enter-active,
 [data-theme="kacon"] .dialog-fade-leave-active,
 [data-theme="kacon"] .el-dialog__wrapper {
-  transition: opacity 0.25s var(--transition-timing) !important;
+  transition: opacity 0.25s var(--transition-timing);
 }
 
 [data-theme="kacon"] .dialog-fade-enter-active .el-dialog,
@@ -312,12 +313,12 @@
 [data-theme="kacon"] .dialog-fade-leave-active .el-overlay-dialog {
   transition:
     transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
-    opacity 0.2s var(--transition-timing) !important;
+    opacity 0.2s var(--transition-timing);
 }
 
 [data-theme="kacon"] .el-drawer__open .el-drawer.rtl,
 [data-theme="kacon"] .el-drawer__open .el-drawer.ltr {
-  transition: transform 0.3s var(--transition-timing) !important;
+  transition: transform 0.3s var(--transition-timing);
 }
 
 
@@ -382,17 +383,17 @@
 
 [data-theme="kacon"] .el-card {
   background: var(--kacon-glass-bg) !important;
-  backdrop-filter: var(--kacon-glass-filter) !important;
-  -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
+  backdrop-filter: var(--kacon-glass-filter);
+  -webkit-backdrop-filter: var(--kacon-glass-filter);
   border-radius: var(--radius-lg) !important;
   border: 1px solid color-mix(in srgb, var(--color-border-base) 70%, transparent) !important;
-  box-shadow: var(--shadow-sm) !important;
-  transition: box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
 }
 
 [data-theme="kacon"] .el-card:hover {
-  box-shadow: var(--shadow-md) !important;
+  box-shadow: var(--shadow-md);
 }
 
 [data-theme="kacon"] .el-card__header {
@@ -413,37 +414,37 @@
 
 [data-theme="kacon"] .stat-card:not(.el-card) {
   background: var(--kacon-glass-bg) !important;
-  backdrop-filter: var(--kacon-glass-filter) !important;
-  -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
+  backdrop-filter: var(--kacon-glass-filter);
+  -webkit-backdrop-filter: var(--kacon-glass-filter);
   border: 1px solid color-mix(in srgb, var(--color-border-base) 70%, transparent) !important;
   border-radius: var(--radius-lg) !important;
-  box-shadow: var(--shadow-sm) !important;
+  box-shadow: var(--shadow-sm);
   transition:
     background-color 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
     border-color 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
     box-shadow 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
-    transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+    transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 [data-theme="kacon"] .stat-card:not(.el-card):hover {
-  box-shadow: var(--shadow-md) !important;
+  box-shadow: var(--shadow-md);
   transform: translateY(-1px) !important;
 }
 
 [data-theme="kacon"] .el-card.stat-card {
   background: var(--kacon-glass-bg) !important;
-  backdrop-filter: var(--kacon-glass-filter) !important;
-  -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
+  backdrop-filter: var(--kacon-glass-filter);
+  -webkit-backdrop-filter: var(--kacon-glass-filter);
   border: 1px solid color-mix(in srgb, var(--color-border-base) 70%, transparent) !important;
   transition:
     background-color 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
     border-color 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
     box-shadow 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
-    transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+    transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 [data-theme="kacon"] .el-card.stat-card:hover {
-  box-shadow: var(--shadow-md) !important;
+  box-shadow: var(--shadow-md);
   transform: translateY(-1px) !important;
 }
 
@@ -452,7 +453,7 @@
 [data-theme="kacon"] .stat-card .stat-card-auto-icon,
 [data-theme="kacon"] .stat-card .icon-container,
 [data-theme="kacon"] .stat-card .stat-card__icon {
-  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 [data-theme="kacon"] .stat-card:hover .stat-icon,
@@ -498,8 +499,8 @@
 /* Popover — 毛玻璃 */
 [data-theme="kacon"] .el-popover {
   background: var(--kacon-glass-bg-strong) !important;
-  backdrop-filter: var(--kacon-glass-filter) !important;
-  -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
+  backdrop-filter: var(--kacon-glass-filter);
+  -webkit-backdrop-filter: var(--kacon-glass-filter);
   border: 1px solid color-mix(in srgb, var(--color-border-base) 80%, transparent) !important;
   border-radius: var(--radius-md) !important;
   box-shadow: var(--shadow-lg) !important;
@@ -508,8 +509,8 @@
 /* MessageBox — 低模糊玻璃层 + 克制圆角 */
 [data-theme="kacon"] .el-message-box {
   background: var(--kacon-glass-bg-strong) !important;
-  backdrop-filter: var(--kacon-glass-filter) !important;
-  -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
+  backdrop-filter: var(--kacon-glass-filter);
+  -webkit-backdrop-filter: var(--kacon-glass-filter);
   border: 1px solid color-mix(in srgb, var(--color-border-base) 80%, transparent) !important;
   border-radius: var(--radius-lg) !important;
   box-shadow: var(--shadow-xl) !important;
@@ -541,8 +542,8 @@
 /* Tooltip — 品牌色暗底 */
 [data-theme="kacon"] .el-tooltip__popper.is-dark {
   background: rgba(15, 23, 42, 0.9) !important;
-  backdrop-filter: blur(8px) !important;
-  -webkit-backdrop-filter: blur(8px) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border-radius: var(--radius-sm) !important;
 }
 
@@ -565,8 +566,8 @@
 /* 日期选择器面板 — 毛玻璃 */
 [data-theme="kacon"] .el-picker-panel {
   background: var(--kacon-glass-bg-strong) !important;
-  backdrop-filter: var(--kacon-glass-filter) !important;
-  -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
+  backdrop-filter: var(--kacon-glass-filter);
+  -webkit-backdrop-filter: var(--kacon-glass-filter);
   border: 1px solid color-mix(in srgb, var(--color-border-base) 80%, transparent) !important;
   border-radius: var(--radius-md) !important;
   box-shadow: var(--shadow-lg) !important;
@@ -719,40 +720,6 @@
   border-color: rgba(71, 85, 105, 0.2) !important;
 }
 
-
-/* ==================================================================
-   52. Textarea focus 外发光
-   ================================================================== */
-
-[data-theme="kacon"] .el-textarea__inner:hover {
-  border-color: var(--color-primary) !important;
-}
-
-
-/* ==================================================================
-   53. 输入框内部 (el-input__inner) — 字号/颜色
-   ================================================================== */
-
-[data-theme="kacon"] .el-input__inner {
-  color: var(--color-text-primary) !important;
-}
-
-[data-theme="kacon"] .el-input__inner::placeholder {
-  color: var(--color-text-placeholder) !important;
-}
-
-
-/* ==================================================================
-   54. 选择器 (el-select__wrapper) / 日期 (el-date-editor)
-   ================================================================== */
-
-[data-theme="kacon"] .el-select__wrapper {
-  border-radius: var(--radius-sm) !important;
-}
-
-[data-theme="kacon"] .el-date-editor.el-input__wrapper {
-  border-radius: var(--radius-sm) !important;
-}
 
 
 /* ==================================================================

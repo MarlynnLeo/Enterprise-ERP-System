@@ -2,6 +2,7 @@
  * 生产管理 API 模块
  */
 import api from '../client'
+import { buildResourceUrl } from '@/config/app'
 
 export const productionApi = {
   // 仪表盘数据
@@ -129,6 +130,10 @@ export const productionApi = {
     return api.get('/production/processes', { params })
   },
 
+  updateProcess(id, data) {
+    return api.put(`/production/processes/${id}`, data)
+  },
+
   // 物料需求计算
   calculateMaterials(data) {
     return api.post('/production/calculate-materials', data)
@@ -160,6 +165,19 @@ export const productionApi = {
   },
 
   // 异常上报
+  getAnomalyTaskOptions(params) {
+    return api.get('/production/anomaly-reports/task-options', { params })
+  },
+  uploadAnomalyImage(data) {
+    return api.post('/production/anomaly-reports/images', data, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+  downloadAnomalyImage(path) {
+    const url = buildResourceUrl(path)
+    if (!url) return Promise.reject(new Error('图片地址不可用'))
+    return api.get(url, { baseURL: '', responseType: 'blob' })
+  },
   createAnomaly(data) {
     return api.post('/production/anomaly-reports', data)
   },

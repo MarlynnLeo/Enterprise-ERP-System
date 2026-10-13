@@ -397,7 +397,7 @@
           <el-table-column prop="remarks" label="备注" min-width="150"></el-table-column>
         </el-table>
 
-        <InventoryApprovalPanel
+        <InventoryPostingStatusPanel
           v-if="checkDetail.id || checkDetail.checkNo"
           source-type="check"
           :source-id="checkDetail.id"
@@ -434,6 +434,7 @@
   </div>
 </template>
 <script setup>
+import { useInventoryPostingSourceLink } from '@/composables/useInventoryPostingSourceLink'
 import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { handleTableRowView } from '@/utils/tableRowView'
@@ -454,7 +455,7 @@ import {
   getInventoryCheckStatusColor
 } from '@/constants/systemConstants';
 import TableRowActions from '@/components/common/TableRowActions.vue';
-import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue';
+import InventoryPostingStatusPanel from '@/components/inventory/InventoryPostingStatusPanel.vue';
 // 权限store
 const authStore = useAuthStore();
 // 权限计算属性
@@ -1177,6 +1178,13 @@ onMounted(async () => {
     loading.value = false;
   }
 });
+
+useInventoryPostingSourceLink({
+  path: '/inventory/check',
+  sourceTypes: ["check"],
+  open: ({ id }) => viewCheck(id),
+  setSearch: (sourceNo) => { searchForm.checkNo = sourceNo },
+})
 </script>
 <style scoped>
 .header-card {

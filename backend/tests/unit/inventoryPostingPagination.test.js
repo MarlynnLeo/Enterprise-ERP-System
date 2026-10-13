@@ -7,7 +7,9 @@ describe('InventoryPostingService.list pagination', () => {
     const connection = {
       execute: jest
         .fn()
-        .mockResolvedValueOnce([[{ total: 1 }]])
+        .mockResolvedValueOnce([
+          [{ total: 1, pending: 1, approved: 0, rejected: 0, reversed: 0 }],
+        ])
         .mockResolvedValueOnce([[{ id: 8243, source_no: 'IN202609030001' }]]),
     };
 
@@ -21,6 +23,13 @@ describe('InventoryPostingService.list pagination', () => {
       total: 1,
       page: 2,
       pageSize: 25,
+      statistics: {
+        total: 1,
+        pending: 1,
+        approved: 0,
+        rejected: 0,
+        reversed: 0,
+      },
     });
     expect(connection.execute).toHaveBeenCalledTimes(2);
     expect(connection.execute.mock.calls[1][0]).toContain('LIMIT 25 OFFSET 25');
@@ -32,9 +41,14 @@ describe('InventoryPostingService.list pagination', () => {
     ]);
   });
 
-  test('clamps invalid pagination values', async () => {
+  test('clamps invalid pagination values and returns default statistics', async () => {
     const connection = {
-      execute: jest.fn().mockResolvedValueOnce([[{ total: 0 }]]).mockResolvedValueOnce([[]]),
+      execute: jest
+        .fn()
+        .mockResolvedValueOnce([
+          [{ total: 0, pending: 0, approved: 0, rejected: 0, reversed: 0 }],
+        ])
+        .mockResolvedValueOnce([[]]),
     };
 
     const result = await InventoryPostingService.list(
@@ -44,6 +58,13 @@ describe('InventoryPostingService.list pagination', () => {
 
     expect(result.page).toBe(1);
     expect(result.pageSize).toBe(100);
+    expect(result.statistics).toEqual({
+      total: 0,
+      pending: 0,
+      approved: 0,
+      rejected: 0,
+      reversed: 0,
+    });
     expect(connection.execute.mock.calls[1][0]).toContain('LIMIT 100 OFFSET 0');
     expect(connection.execute.mock.calls[1][1]).toEqual([]);
   });

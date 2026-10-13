@@ -25,7 +25,7 @@
         </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="searchForm.status" placeholder="请选择状态" clearable>
-            <el-option v-for="item in dictStore.getOptions('rework_status')" :key="item.value" :label="item.label" :value="item.value" />
+            <el-option v-for="item in dictStore.getOptions('rework_status')" :key="item.value" :label="getStatusLabel(item.value)" :value="item.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="创建日期">
@@ -112,6 +112,7 @@
           <template #default="{ row }">
             <div class="table-actions">
               
+              <el-button v-if="row.status === 'completed'" v-permission="'quality:inspections:update'" size="small" type="primary" @click="openReinspection(row)">进入复检</el-button>
               <el-button
                 type="success"
                 size="small"
@@ -299,6 +300,8 @@
 </template>
 
 <script setup>
+import { useRouter } from 'vue-router'
+const router = useRouter()
 import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { getApiErrorMessage } from '@/utils/errorHandler'
@@ -463,6 +466,23 @@ const completeTask = (row) => {
   completeDialogVisible.value = true
 }
 
+const openReinspection = async (row) => {
+  try {
+    const response = await qualityApi.reworkTasks.getDetail(row.id)
+    const task = parseResponseData(response, {})
+    let inspectionId = task.reinspectionId
+    if (!inspectionId && task.inspectionId) {
+      const status = parseResponseData(await qualityApi.getReworkStatusByInspectionIds([task.inspectionId]), {})
+      inspectionId = status[task.inspectionId]?.reinspectionId
+    }
+    if (!inspectionId) { ElMessage.warning('尚未生成独立复检单，请刷新后确认'); return }
+    const detail = parseResponseData(await qualityApi.getIncomingInspection(inspectionId), {})
+    const page = ({ incoming: 'incoming', final: 'final', process: 'process', first_article: 'first-article' })[detail.inspectionType]
+    if (!page) { ElMessage.warning('无法识别复检类型，请从检验列表打开'); return }
+    router.push({ path: `/quality/${page}`, query: { inspectionId } })
+  } catch (error) { ElMessage.error(getApiErrorMessage(error, '无法打开复检')) }
+}
+
 const submitComplete = async () => {
   try {
     await qualityApi.reworkTasks.complete(currentRow.value.id, completeForm)
@@ -504,7 +524,7 @@ const getStatusType = (status) => {
 
 // 状态标签文本（统一调用配置中心）
 const getStatusLabel = (status) => {
-  return getReworkStatusText(status)
+  return ({ pending: '待分配', in_progress: '返工中', completed: '已完成', cancelled: '已取消' })[status] || getReworkStatusText(status)
 }
 
 onMounted(() => {

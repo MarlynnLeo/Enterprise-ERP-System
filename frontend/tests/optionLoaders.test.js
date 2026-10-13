@@ -50,6 +50,7 @@ vi.mock('@/api/purchase', () => ({
 
 import {
   clearOptionLoaderCache,
+  loadUserListOptions,
   loadCustomerOptions,
   loadCustomerPageOptions,
   loadMaterialPageOptions,
@@ -62,6 +63,7 @@ import {
   searchOutsourcedSupplierOptions,
 } from '@/utils/optionLoaders'
 import { baseDataApi } from '@/api/baseData'
+import { systemApi } from '@/api/system'
 
 const paginatedResponse = (list) => ({
   data: {
@@ -70,6 +72,40 @@ const paginatedResponse = (list) => ({
     page: 1,
     pageSize: 100,
   },
+})
+
+describe('user list option filters', () => {
+  beforeEach(() => {
+    clearOptionLoaderCache()
+    vi.clearAllMocks()
+  })
+
+  test('keeps filtered warehouse options separate from the full user list cache', async () => {
+    const allUsers = [{ id: 1, realName: '仓管' }, { id: 2, realName: '销售' }]
+    const warehouseUsers = [allUsers[0]]
+    const params = { status: 1, roleCodes: 'inventory_manager,component_warehouse_operator' }
+    systemApi.getUsersList
+      .mockResolvedValueOnce({ data: allUsers })
+      .mockResolvedValueOnce({ data: warehouseUsers })
+
+    expect(await loadUserListOptions()).toEqual(allUsers)
+    expect(await loadUserListOptions(params)).toEqual(warehouseUsers)
+    expect(await loadUserListOptions({ ...params })).toEqual(warehouseUsers)
+    expect(await loadUserListOptions()).toEqual(allUsers)
+    expect(systemApi.getUsersList.mock.calls).toEqual([[{}], [params]])
+  })
+
+  test('invalidates filtered personnel options after a data change', async () => {
+    const params = { status: 1, roleCodes: 'inventory_manager' }
+    systemApi.getUsersList
+      .mockResolvedValueOnce({ data: [{ id: 1 }] })
+      .mockResolvedValueOnce({ data: [] })
+
+    expect(await loadUserListOptions(params)).toEqual([{ id: 1 }])
+    window.dispatchEvent(new Event('erp:api-mutated'))
+    expect(await loadUserListOptions(params)).toEqual([])
+    expect(systemApi.getUsersList).toHaveBeenCalledTimes(2)
+  })
 })
 
 describe('quotation material options', () => {

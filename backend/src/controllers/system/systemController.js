@@ -797,6 +797,27 @@ const systemController = {
     try {
       // 获取部门ID查询参数
       const departmentId = req.query.departmentId ? parseInt(req.query.departmentId, 10) : null;
+      const status =
+        req.query.status !== undefined && req.query.status !== ''
+          ? normalizeBinaryStatus(req.query.status)
+          : null;
+      let roleCodes = [];
+      if (req.query.roleCodes !== undefined) {
+        if (typeof req.query.roleCodes !== 'string') {
+          throw new Error('角色编码必须是逗号分隔的字符串');
+        }
+        roleCodes = [
+          ...new Set(
+            req.query.roleCodes
+              .split(',')
+              .map((code) => code.trim())
+              .filter(Boolean)
+          ),
+        ];
+        if (!roleCodes.length || roleCodes.some((code) => !/^[a-zA-Z0-9_]{1,50}$/.test(code))) {
+          throw new Error('无效的角色编码');
+        }
+      }
 
       // 构建简化的SQL查询
       let query = `
@@ -815,6 +836,21 @@ const systemController = {
         params.push(departmentId);
       }
 
+      if (status !== null) {
+        query += ' AND u.status = ?';
+        params.push(status);
+      }
+
+      if (roleCodes.length) {
+        const placeholders = roleCodes.map(() => '?').join(',');
+        query += ` AND EXISTS (
+          SELECT 1 FROM user_roles ur
+          JOIN roles r ON r.id = ur.role_id
+          WHERE ur.user_id = u.id AND r.status = 1 AND r.code IN (${placeholders})
+        )`;
+        params.push(...roleCodes);
+      }
+
       // 添加排序和安全 LIMIT（防止大数据量下内存溢出）
       query += ' ORDER BY u.created_at DESC LIMIT 1000';
 
@@ -825,7 +861,7 @@ const systemController = {
       return ResponseHandler.success(res, users, '获取用户列表成功');
     } catch (error) {
       logger.error('获取用户列表失败:', error);
-      return ResponseHandler.error(res, '获取用户列表失败', 'SERVER_ERROR', 500, error);
+      return sendBusinessError(res, error, '获取用户列表失败');
     }
   },
 

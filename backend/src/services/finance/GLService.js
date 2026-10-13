@@ -242,14 +242,14 @@ class GLService {
 
       const accountIds = [...new Set(normalizedItems.map((item) => item.account_id))];
 
-      // 3. 期间状态校验（只读，禁止 FOR UPDATE：长事务+FOR UPDATE 易造成锁等待 50s+）
+      // 3. 共享锁允许同期间并行记账，并阻止关账在本事务完成前更新期间状态。
       let resolvedPeriodId = entryData.period_id || null;
       if (resolvedPeriodId) {
         const [periods] = await conn.execute(
           `SELECT id, is_closed, is_locked, period_name, start_date, end_date, status
            FROM gl_periods
            WHERE id = ?
-           LIMIT 1`,
+           LIMIT 1 LOCK IN SHARE MODE`,
           [resolvedPeriodId]
         );
         if (periods.length === 0) {
@@ -274,7 +274,7 @@ class GLService {
         }
       }
 
-      // 4. 按日期解析开放期间（只读）
+      // 4. 按日期解析并锁定期间，保持与关账的互斥。
       if (!resolvedPeriodId && shouldPostEntry(entryData)) {
         const [periods] = await conn.execute(
           `SELECT id, is_closed, is_locked, period_name, start_date, end_date, status
@@ -282,7 +282,7 @@ class GLService {
            WHERE ? BETWEEN start_date AND end_date
              AND ? BETWEEN start_date AND end_date
            ORDER BY start_date DESC
-           LIMIT 1`,
+           LIMIT 1 LOCK IN SHARE MODE`,
           [entryDate, postingDate]
         );
 

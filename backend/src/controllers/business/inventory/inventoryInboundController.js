@@ -21,6 +21,7 @@ const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity)
 
 // 引入重构后的入库处理服务
 const InboundTransactionService = require('../../../services/business/InboundTransactionService');
+const ProductionReturnService = require('../../../services/business/ProductionReturnService');
 const { getRequestActorLabel } = require('../../../utils/userUtils');
 const { inventoryInboundMap } = require('../../../utils/inventory/inventoryFieldMap');
 const BusinessError = require('../../../utils/BusinessError');
@@ -84,6 +85,7 @@ const getInboundList = async (req, res) => {
       locationId,
       inboundType,
       materialName,
+      status,
     } = req.query;
 
     // 开始查询入库单列表
@@ -120,6 +122,11 @@ const getInboundList = async (req, res) => {
     if (inboundType) {
       whereClause += ' AND i.inbound_type = ?';
       params.push(inboundType);
+    }
+
+    if (status) {
+      whereClause += ' AND i.status = ?';
+      params.push(status);
     }
 
     if (materialName) {
@@ -251,7 +258,8 @@ const getInboundList = async (req, res) => {
 const getInboundStatistics = async (req, res) => {
   const connection = await db.pool.getConnection();
   try {
-    const { inboundNo, startDate, endDate, locationId, inboundType, materialName } = req.query;
+    const { inboundNo, startDate, endDate, locationId, inboundType, materialName, status } =
+      req.query;
     const ScopeGuard = require('../../../authorization/ScopeGuard');
     const scopeClause = await ScopeGuard.applyListScope(req, 'inventory_inbound', {
       tableAlias: 'i',
@@ -279,6 +287,10 @@ const getInboundStatistics = async (req, res) => {
     if (inboundType) {
       whereClause += ' AND i.inbound_type = ?';
       params.push(inboundType);
+    }
+    if (status) {
+      whereClause += ' AND i.status = ?';
+      params.push(status);
     }
 
     if (materialName) {
@@ -349,6 +361,10 @@ const getInboundDetail = async (req, res) => {
     const [inboundResult] = await connection.execute(
       `SELECT
         i.*,
+        (SELECT posting.finance_status FROM inventory_posting_documents posting
+          WHERE posting.source_type = 'inbound' AND posting.posting_kind = 'movement'
+            AND (posting.source_id = i.id OR (posting.source_id IS NULL AND posting.source_no = i.inbound_no COLLATE utf8mb4_unicode_ci))
+          ORDER BY posting.posting_sequence DESC, posting.id DESC LIMIT 1) AS finance_status,
         l.name as location_name,
         DATE_FORMAT(i.inbound_date, '%Y-%m-%d') as inbound_date,
         DATE_FORMAT(i.created_at, '%Y-%m-%d %H:%i:%s') as created_at,
@@ -441,11 +457,22 @@ const createInbound = async (req, res) => {
     }
     // ===== 年度结存校验结束 =====
 
-    // 生产退料必须关联生产任务或出库单
-    if (inbound_type === 'production_return' && !reference_id && !reference_no) {
-      throw new Error('生产退料必须关联生产任务或原出库单');
+    await InboundTransactionService.validateProductionSource(connection, mapped, items, req);
+    // Shop-floor applications may leave batch selection to the warehouse.
+    // Drafts reserve nothing; a confirmed document must prove its exact source.
+    if (status === STATUS.INBOUND.CONFIRMED) {
+      await ProductionReturnService.validate(
+        connection,
+        { ...mapped, id: null, location_id: warehouseId },
+        items
+      );
     }
 
+    await require('../../../services/business/FinalInspectionReleaseService').validate(
+      connection,
+      mapped,
+      items
+    );
     // ✅ 使用统一编码规则引擎生成入库单号
     const inbound_no = await CodeGenerators.generateInboundCode(connection);
 
@@ -454,8 +481,8 @@ const createInbound = async (req, res) => {
     const ownerStamp = ScopeGuard.tryStampOwner(req, 'inventory_inbound');
     const [inboundResult] = await connection.execute(
       `INSERT INTO inventory_inbound
-       (inbound_no, inbound_date, inbound_type, reference_type, reference_id, reference_no, location_id, status, operator, remark, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (inbound_no, inbound_date, inbound_type, reference_type, reference_id, reference_no, location_id, status, operator, remark, created_by, inspection_id, inspection_no)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         inbound_no,
         inbound_date,
@@ -468,6 +495,8 @@ const createInbound = async (req, res) => {
         operator,
         remark,
         ownerStamp.created_by,
+        mapped.inspection_id || null,
+        mapped.inspection_no || null,
       ]
     );
 
@@ -599,7 +628,7 @@ const updateInbound = async (req, res) => {
       location_id,
       status = currentInbound.status,
       operator = currentInbound.operator,
-      remark = null,
+      remark = currentInbound.remark,
       items,
       inbound_type = currentInbound.inbound_type || 'other',
       reference_type = currentInbound.reference_type,
@@ -608,6 +637,20 @@ const updateInbound = async (req, res) => {
     } = body;
 
     InboundTransactionService.assertGenericInboundSource({ inbound_type, reference_type });
+
+    if (
+      currentInbound.inspection_id &&
+      (inbound_type !== currentInbound.inbound_type ||
+        reference_type !== currentInbound.reference_type ||
+        Number(reference_id) !== Number(currentInbound.reference_id))
+    ) {
+      throw new BusinessError(
+        '质检生成的入库单不能更改入库类型或关联任务',
+        null,
+        'VALIDATION_ERROR',
+        400
+      );
+    }
 
     const locationId = toRequiredInteger(location_id || currentInbound.location_id);
     const requestedStatus = status || currentInbound.status;
@@ -640,14 +683,23 @@ const updateInbound = async (req, res) => {
       return ResponseHandler.error(res, inventoryCheck.message, 'VALIDATION_ERROR', 400);
     }
 
-    if (inbound_type === 'production_return' && !reference_id && !reference_no) {
-      await connection.rollback();
-      return ResponseHandler.error(
-        res,
-        '生产退料必须关联生产任务或原出库单',
-        'VALIDATION_ERROR',
-        400
-      );
+    const nextInbound = {
+      ...currentInbound,
+      inspection_id: currentInbound.inspection_id || body.inspection_id || null,
+      inbound_type,
+      reference_type,
+      reference_id,
+      reference_no,
+      location_id: locationId,
+    };
+    await InboundTransactionService.validateProductionSource(connection, nextInbound, items, req);
+    await require('../../../services/business/FinalInspectionReleaseService').validate(
+      connection,
+      nextInbound,
+      items
+    );
+    if (nextStatus === STATUS.INBOUND.CONFIRMED) {
+      await ProductionReturnService.validate(connection, nextInbound, items);
     }
 
     const materialIds = [];
@@ -674,6 +726,7 @@ const updateInbound = async (req, res) => {
            status = ?,
            operator = ?,
            remark = ?,
+           inspection_id = ?, inspection_no = ?,
            updated_at = NOW()
        WHERE id = ? AND is_deleted = 0 AND deleted_at IS NULL`,
       [
@@ -686,6 +739,8 @@ const updateInbound = async (req, res) => {
         nextStatus,
         operator,
         remark || null,
+        nextInbound.inspection_id || null,
+        nextInbound.inspection_no || null,
         id,
       ]
     );
@@ -817,7 +872,7 @@ const createInboundFromQuality = async (req, res) => {
       }
 
       const [existingInbounds] = await connection.execute(
-        "SELECT id, inbound_no FROM inventory_inbound WHERE inspection_id = ? AND status != 'cancelled' LIMIT 1",
+        "SELECT id, inbound_no FROM inventory_inbound WHERE inspection_id = ? AND status NOT IN ('cancelled', 'reversed') AND COALESCE(is_deleted, 0) = 0 AND deleted_at IS NULL LIMIT 1",
         [inspection_id]
       );
       if (existingInbounds.length > 0) {
@@ -856,6 +911,19 @@ const createInboundFromQuality = async (req, res) => {
     // ✅ 使用统一编码规则引擎生成入库单号
     const inbound_no = await CodeGenerators.generateInboundCode(connection);
 
+    await require('../../../services/business/FinalInspectionReleaseService').validate(
+      connection,
+      {
+        inbound_type: inboundType,
+        inspection_id,
+        reference_id: referenceId,
+      },
+      items.map((item) => ({
+        ...item,
+        material_id: item.material_id || inspectionContext?.product_id,
+        batch_number: item.batch_number || item.batch_no || inspectionContext?.batch_no,
+      }))
+    );
     // 创建入库单（写入审计创建人 + 业务类型/来源，保证生产闭环）
     const ScopeGuard = require('../../../authorization/ScopeGuard');
     const ownerStamp = ScopeGuard.tryStampOwner(req, 'inventory_inbound');
@@ -887,7 +955,7 @@ const createInboundFromQuality = async (req, res) => {
     if (inboundType === INBOUND_TYPE_KEYS.PRODUCTION && referenceId) {
       const { promoteTaskToward } = require('../../../services/business/TaskLifecycleService');
       const promoteResult = await promoteTaskToward(connection, referenceId, 'warehousing', {
-        requireOpenInspectionClear: false,
+        requireOpenInspectionClear: true,
         strict: false,
       });
       if (!promoteResult.promoted && promoteResult.reason !== 'already') {
@@ -960,12 +1028,31 @@ const createInboundFromQuality = async (req, res) => {
               // 创建一个入库明细，使用质检单的数量
               await connection.execute(
                 'INSERT INTO inventory_inbound_items (inbound_id, material_id, unit_id, quantity, batch_number, remark, location_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                [inbound_id, productId, unitId, inspectionQuantity, null, null, useLocationId]
+                [
+                  inbound_id,
+                  productId,
+                  unitId,
+                  inspectionQuantity,
+                  inspectionContext.batch_no,
+                  null,
+                  useLocationId,
+                ]
               );
             } else {
               // 使用items中的信息创建入库明细
               for (const item of items) {
-                const { unit_id, quantity, batch_no, remark: itemRemark } = item;
+                const { unit_id, quantity, batch_no, batch_number, remark: itemRemark } = item;
+                const sourceBatch = inspectionContext.batch_no;
+                const requestedBatch = batch_no || batch_number || sourceBatch;
+                if (!sourceBatch || String(requestedBatch).trim() !== String(sourceBatch).trim()) {
+                  await connection.rollback();
+                  return ResponseHandler.error(
+                    res,
+                    '生产入库批次必须与成品终检一致',
+                    'VALIDATION_ERROR',
+                    400
+                  );
+                }
 
                 // 确保必填字段都存在
                 if (!unit_id || !quantity || quantity <= 0) {
@@ -985,7 +1072,7 @@ const createInboundFromQuality = async (req, res) => {
                     productId,
                     unit_id,
                     quantity,
-                    batch_no || null,
+                    sourceBatch,
                     itemRemark || null,
                     useLocationId,
                   ]
@@ -1179,6 +1266,26 @@ const updateInboundStatus = async (req, res) => {
       const currentStatus = inboundData[0].status;
       if ([STATUS.INBOUND.CONFIRMED, STATUS.INBOUND.COMPLETED].includes(newStatus)) {
         InboundTransactionService.assertGenericInboundSource(inboundData[0]);
+        if (['production', 'production_return'].includes(inboundData[0].inbound_type)) {
+          const [items] = await connection.execute(
+            'SELECT * FROM inventory_inbound_items WHERE inbound_id = ?',
+            [id]
+          );
+          await InboundTransactionService.validateProductionSource(
+            connection,
+            inboundData[0],
+            items,
+            req
+          );
+          await require('../../../services/business/FinalInspectionReleaseService').validate(
+            connection,
+            inboundData[0],
+            items
+          );
+          if (newStatus === STATUS.INBOUND.CONFIRMED) {
+            await ProductionReturnService.validate(connection, inboundData[0], items);
+          }
+        }
       }
       const validTransitions = INVENTORY_INBOUND_TRANSITIONS;
       let canRetryRejectedPosting = false;

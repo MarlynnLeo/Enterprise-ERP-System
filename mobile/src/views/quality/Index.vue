@@ -151,6 +151,7 @@
     }
   ])
   const traceabilityModules = ref([
+    { title: '返工任务', desc: '返工分配、完成与独立复检', path: '/quality/rework', icon: 'clipboard-check', permission: 'quality:rework:view' },
     {
       title: '质量追溯',
       desc: '产品质量追溯查询',

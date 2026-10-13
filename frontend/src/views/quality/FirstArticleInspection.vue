@@ -120,6 +120,10 @@
   </div>
 </template>
 <script setup>
+import { useInspectionDeepLink } from '@/composables/useInspectionDeepLink'
+import { useRouter } from 'vue-router'
+const router = useRouter()
+import { getApiErrorMessage } from '@/utils/errorHandler'
 import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { handleTableRowView } from '@/utils/tableRowView'
@@ -212,22 +216,25 @@ const handleReset = () => {
 const handleSizeChange = (val) => { pageSize.value = val; fetchList() }
 const handleCurrentChange = (val) => { currentPage.value = val; fetchList() }
 // 查看
-const handleView = (row) => {
-  currentInspection.value = row
-  showViewDialog.value = true
+const loadInspection = async (row) => {
+  const response = await qualityApi.getFirstArticleInspection(row.id)
+  const detail = response?.data || response
+  if (!detail?.id) throw new Error('检验单详情为空')
+  currentInspection.value = { ...detail, isReinspect: Boolean(row.isReinspect) }
 }
-// 检验
-const handleInspect = (row) => {
-  currentInspection.value = row
-  showInspectDialog.value = true
+const handleView = async (row) => {
+  try {
+    await loadInspection(row)
+    showViewDialog.value = true
+  } catch (error) { ElMessage.error(getApiErrorMessage(error, '读取首检详情失败')) }
 }
-// 重检（对不合格的首检单重新检验）
-const handleReinspect = (row) => {
-  // 重检使用相同的检验弹窗，但标记为重检
-  currentInspection.value = { ...row, isReinspect: true }
-  showInspectDialog.value = true
-  ElMessage.info('请对不合格项目进行重新检验')
+const handleInspect = async (row) => {
+  try {
+    await loadInspection(row)
+    showInspectDialog.value = true
+  } catch (error) { ElMessage.error(getApiErrorMessage(error, '读取首检详情失败')) }
 }
+const handleReinspect = (row) => handleInspect({ ...row, isReinspect: true })
 // 打印
 const handlePrint = async (row) => {
   try {
@@ -332,6 +339,7 @@ onMounted(() => {
   fetchList()
   fetchStats()
 })
+useInspectionDeepLink(router, '/quality/first-article', handleInspect)
 </script>
 <style scoped>
 .inspection-container {

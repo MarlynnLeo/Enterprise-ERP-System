@@ -33,6 +33,8 @@ const payload = {
 const line = {
   material_id: 2,
   location_id: 1,
+  reference_type: 'purchase_return',
+  reference_no: 'PR-7',
   signed_quantity: -3,
   unit_cost: 12,
   total_value: 36,

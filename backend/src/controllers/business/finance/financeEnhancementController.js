@@ -75,7 +75,8 @@ class FinanceEnhancementController {
         result.total,
         result.page,
         result.pageSize,
-        '库存过账列表获取成功'
+        '库存过账列表获取成功',
+        { statistics: result.statistics }
       );
     } catch (error) {
       return respondServiceError(res, error, '获取库存过账列表失败');
@@ -104,6 +105,17 @@ class FinanceEnhancementController {
       return ResponseHandler.success(res, result, '业务单据审批状态获取成功');
     } catch (error) {
       return respondServiceError(res, error, '获取业务单据审批状态失败');
+    }
+  }
+
+  static async batchApproveInventoryPostings(req, res) {
+    try {
+      const actor = InventoryPostingService.actorFromRequest(req);
+      const ids = req.body?.ids;
+      const result = await InventoryPostingService.batchApprove(ids, actor);
+      return ResponseHandler.success(res, result, '批量审核完成');
+    } catch (error) {
+      return respondServiceError(res, error, '批量审核库存过账失败');
     }
   }
 
@@ -686,13 +698,7 @@ class FinanceEnhancementController {
       ResponseHandler.success(res, result, '库存成本重新计算完成');
     } catch (error) {
       logger.error('重新计算库存成本失败:', error);
-      ResponseHandler.error(
-        res,
-        error.message || '重新计算库存成本失败',
-        'SERVER_ERROR',
-        500,
-        error
-      );
+      return respondServiceError(res, error, '重新计算库存成本失败');
     }
   }
 

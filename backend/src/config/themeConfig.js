@@ -61,7 +61,7 @@ const THEME_PRESETS = Object.freeze({
   workspace: Object.freeze({
     id: 'workspace',
     name: '经典主题',
-    primaryColor: '#4263EB',
+    primaryColor: '#2563EB',
     mode: 'light',
   }),
 });

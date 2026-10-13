@@ -142,6 +142,7 @@
   --erp-table-fixed-striped-bg: var(--color-bg-section);
   --erp-table-fixed-border-color: rgba(255, 255, 255, 0.08);
   --erp-table-fixed-hover-bg: color-mix(in srgb, white 4.5%, var(--color-bg-base));
+  --theme-input-bg: rgba(255, 255, 255, 0.045);
 }
 
 [data-theme="premium"] body,
@@ -184,7 +185,7 @@
 [data-theme="premium"] .app-sidebar {
   background: var(--shell-sidebar-bg) !important;
   border-right: 1px solid var(--shell-border) !important;
-  box-shadow: 8px 0 24px rgba(0, 0, 0, 0.3) !important;
+  box-shadow: 8px 0 24px rgba(0, 0, 0, 0.3);
 }
 
 [data-theme="premium"] .logo-container {
@@ -222,7 +223,7 @@
   background: rgba(5, 5, 5, 0.96) !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
   border-radius: var(--radius-md, 8px) !important;
-  box-shadow: var(--shadow-sm) !important;
+  box-shadow: var(--shadow-sm);
 }
 
 [data-theme="premium"] .breadcrumb,
@@ -292,20 +293,6 @@
 [data-theme="premium"] .el-table td.el-table__cell {
   border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
   color: var(--color-text-regular) !important;
-}
-
-/* 输入表面：半透明深色（共享壳默认 bg-base，此处覆盖） */
-[data-theme="premium"] .el-input__wrapper,
-[data-theme="premium"] .el-select__wrapper,
-[data-theme="premium"] .el-textarea__inner {
-  color: var(--color-text-primary) !important;
-  background: rgba(255, 255, 255, 0.045) !important;
-  box-shadow: none !important;
-}
-
-[data-theme="premium"] .el-input__inner::placeholder,
-[data-theme="premium"] .el-textarea__inner::placeholder {
-  color: var(--color-text-disabled) !important;
 }
 
 [data-theme="premium"] .el-tag {

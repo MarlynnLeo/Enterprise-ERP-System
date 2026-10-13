@@ -7,7 +7,8 @@
  */
 
 const CELL_SELECTOR = '.el-table__cell.operation-column, .el-table__cell.operation-column-header, .el-table__cell.content-fit-column'
-const ACTION_SELECTOR = '.el-button, .el-link, .el-dropdown'
+// Status tags occupy the same action row as buttons and must contribute width.
+const ACTION_SELECTOR = '.el-button, .el-link, .el-dropdown, .el-tag'
 const CONTAINER_SELECTOR = '.table-actions, .operation-buttons, .operation-btns, .operation-column-actions, .flex-wrap, .row-actions'
 const COLUMN_ID_PATTERN = /el-table_\d+_column_\d+/g
 const MIN_WIDTH = 72

@@ -20,8 +20,8 @@
 .statistics-row,
 .stats-cards,
 .stats-row {
-  gap: 16px !important;
-  margin-bottom: 16px !important;
+  gap: var(--module-section-gap, 16px) !important;
+  margin-bottom: var(--module-section-gap, 16px) !important;
   align-items: stretch;
 }
 
@@ -147,7 +147,7 @@
 .stat-card:not(.el-card) {
   background: var(--stat-card-bg) !important;
   border: 1px solid var(--stat-card-border) !important;
-  box-shadow: var(--shadow-sm) !important;
+  box-shadow: var(--shadow-sm);
   padding: 16px !important;
   display: flex !important;
   flex-wrap: wrap;
@@ -155,7 +155,7 @@
   gap: 12px;
   text-align: left !important;
   overflow: hidden;
-  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease !important;
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .stat-card:not(.el-card).stat-card--auto-icon {
@@ -171,7 +171,7 @@
 .stat-card:not(.el-card):hover {
   border-color: var(--color-border-light) !important;
   background: var(--stat-card-hover-bg) !important;
-  box-shadow: var(--shadow-sm) !important;
+  box-shadow: var(--shadow-sm);
   transform: none !important;
 }
 
@@ -205,15 +205,15 @@
 .el-card.stat-card {
   background: var(--stat-card-bg) !important;
   border: 1px solid var(--stat-card-border) !important;
-  box-shadow: var(--shadow-sm) !important;
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
-  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease !important;
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .el-card.stat-card:hover {
   border-color: var(--color-border-light) !important;
   background: var(--stat-card-hover-bg) !important;
-  box-shadow: var(--shadow-sm) !important;
+  box-shadow: var(--shadow-sm);
   transform: none !important;
 }
 

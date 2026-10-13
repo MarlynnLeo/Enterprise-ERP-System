@@ -466,7 +466,15 @@ const getProcessing = async (req, res) => {
 
     // 获取加工单主信息
     const [processing] = await db.pool.execute(
-      'SELECT id, processing_no, processing_date, supplier_id, supplier_name, expected_delivery_date, contact_person, contact_phone, total_amount, remarks, status, created_at, updated_at, confirmed_at, location_id, warehouse_name FROM outsourced_processings WHERE id = ?',
+      `SELECT op.id, op.processing_no, op.processing_date, op.supplier_id, op.supplier_name,
+              op.expected_delivery_date, op.contact_person, op.contact_phone, op.total_amount,
+              op.remarks, op.status, op.created_at, op.updated_at, op.confirmed_at,
+              op.location_id, op.warehouse_name,
+              (SELECT d.finance_status FROM inventory_posting_documents d
+                WHERE d.source_type = 'outsourced_processing_material' AND d.source_id = op.id
+                  AND d.posting_kind = 'movement'
+                ORDER BY d.posting_sequence DESC, d.id DESC LIMIT 1) AS finance_status
+         FROM outsourced_processings op WHERE op.id = ?`,
       [id]
     );
 

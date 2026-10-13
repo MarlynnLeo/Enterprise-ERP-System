@@ -1,11 +1,18 @@
 'use strict';
 
-const crypto = require('crypto');
 const db = require('../config/db');
 const Precision = require('../utils/precision');
 const { INTERNAL_POSTING_TOKEN } = require('./inventoryPostingContext');
 const { getRequestActorLabel } = require('../utils/userUtils');
 const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
+const { hashSnapshot, readPostingSnapshot } = require('../utils/inventoryPostingSnapshot');
+const { postingCapabilities } = require('../utils/inventoryPostingCapabilities');
+const { currentDateString } = require('../utils/dateUtils');
+const OutboundPostingGroupService = require('./business/OutboundPostingGroupService');
+const SalesOutboundPostingLockService = require('./business/SalesOutboundPostingLockService');
+
+const dayjs = require('dayjs');
+const codeGeneratorService = require('./business/CodeGeneratorService');
 
 const STATUS = Object.freeze({
   PENDING: 'pending',
@@ -15,10 +22,6 @@ const STATUS = Object.freeze({
 });
 
 const POSTING_KIND = Object.freeze({ MOVEMENT: 'movement', REVERSAL: 'reversal' });
-
-function hashSnapshot(value) {
-  return crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
-}
 
 function actorFrom(input = {}) {
   const actorId = input.id ?? input.userId ?? input.user_id ?? null;
@@ -33,19 +36,134 @@ function serviceError(message, statusCode = 400, code = 'VALIDATION_ERROR') {
   return error;
 }
 
+const DOCUMENT_SELECT_COLUMNS = [
+  'id',
+  'posting_no',
+  'source_type',
+  'source_id',
+  'source_no',
+  'posting_sequence',
+  'posting_kind',
+  'original_posting_document_id',
+  'movement_direction',
+  'transaction_date',
+  'finance_status',
+  'business_approved_by_id',
+  'business_approved_by',
+  'business_approved_at',
+  'finance_approved_by',
+  'finance_approved_label',
+  'finance_approved_at',
+  'rejected_by',
+  'rejected_label',
+  'rejected_at',
+  'reversed_by',
+  'reversed_label',
+  'reversed_at',
+  'snapshot_hash',
+  'snapshot_version',
+  'locked',
+  'is_legacy',
+  'total_quantity',
+  'total_value',
+  'remark',
+  'created_at',
+  'updated_at',
+].join(', ');
+
+const DOCUMENT_TABLE_COLUMNS = DOCUMENT_SELECT_COLUMNS.split(', ')
+  .map((col) => `d.${col}`)
+  .join(', ');
+
+const LINE_SELECT_COLUMNS = [
+  'id',
+  'posting_document_id',
+  'line_no',
+  'source_line_key',
+  'material_id',
+  'location_id',
+  'transaction_type',
+  'reference_type',
+  'reference_no',
+  'signed_quantity',
+  'unit_id',
+  'batch_number',
+  'unit_cost',
+  'total_value',
+  'transaction_date',
+  'operator',
+  'payload_json',
+  'snapshot_hash',
+  'posted_quantity',
+  'posted_value',
+  'created_at',
+  'updated_at',
+].join(', ');
+
+const LINE_TABLE_COLUMNS = LINE_SELECT_COLUMNS.split(', ')
+  .map((col) => `l.${col}`)
+  .join(', ');
+
 class InventoryPostingService {
   static STATUS = STATUS;
   static POSTING_KIND = POSTING_KIND;
 
+  static async _lockDocumentForAction(connection, id) {
+    // Business actions lock the source before the posting. Use the same order
+    // here, then re-read the posting under lock before trusting its state.
+    const [[identity]] = await connection.execute(
+      `SELECT id, source_type, source_id, source_no, posting_kind, original_posting_document_id
+         FROM inventory_posting_documents WHERE id = ?`,
+      [id]
+    );
+    if (!identity) return null;
+    await SalesOutboundPostingLockService.lockSource(connection, identity);
+    if (['outbound', 'outbound_supplement'].includes(identity.source_type)) {
+      let source = identity;
+      if (identity.posting_kind === POSTING_KIND.REVERSAL) {
+        const [[original]] = await connection.execute(
+          `SELECT source_type, source_id, source_no, posting_kind
+             FROM inventory_posting_documents WHERE id = ?`,
+          [identity.original_posting_document_id]
+        );
+        if (!original || original.posting_kind !== POSTING_KIND.MOVEMENT) {
+          throw serviceError('冲销过账缺少有效原始来源', 409, 'POSTING_SOURCE_CHANGED');
+        }
+        source = original;
+      }
+      await OutboundPostingGroupService.lockSource(connection, source);
+    }
+    const [[locked]] = await connection.execute(
+      `SELECT ${DOCUMENT_SELECT_COLUMNS} FROM inventory_posting_documents WHERE id = ? FOR UPDATE`,
+      [id]
+    );
+    if (!locked) return null;
+    for (const key of [
+      'source_type',
+      'source_id',
+      'source_no',
+      'posting_kind',
+      'original_posting_document_id',
+    ]) {
+      if (String(locked[key] ?? '') !== String(identity[key] ?? '')) {
+        throw serviceError('库存过账来源已改变，请刷新后重试', 409, 'POSTING_SOURCE_CHANGED');
+      }
+    }
+    return locked;
+  }
+
   static async _nextPostingNo(connection, sourceNo, kind = POSTING_KIND.MOVEMENT) {
-    const prefix = kind === POSTING_KIND.REVERSAL ? 'IRV' : 'INV';
-    const digest = crypto
-      .createHash('sha256')
-      .update(`${sourceNo}|${kind}|${Date.now()}|${Math.random()}`)
-      .digest('hex')
-      .slice(0, 24)
-      .toUpperCase();
-    return `${prefix}-${digest}`;
+    const businessType =
+      kind === POSTING_KIND.REVERSAL ? 'inventory_posting_reversal' : 'inventory_posting';
+    try {
+      return await codeGeneratorService.nextCode(businessType, connection);
+    } catch {
+      // 容错兜底：若编码规则尚未配置或查询异常，按 ERP 规范生成标准短编码，杜绝 24 位 hash 乱码
+      const prefix = kind === POSTING_KIND.REVERSAL ? 'RPST' : 'PST';
+      const dateStr = dayjs().format('YYYYMMDD');
+      const randomSuffix = String(Math.floor(1000 + Math.random() * 9000));
+      return `${prefix}-${dateStr}-${randomSuffix}`;
+    }
   }
 
   static async _getOrCreateDocument(connection, input) {
@@ -59,7 +177,7 @@ class InventoryPostingService {
 
     let postingSequence = Number(input.postingSequence || 1);
     const [existing] = await connection.execute(
-      `SELECT * FROM inventory_posting_documents
+      `SELECT ${DOCUMENT_SELECT_COLUMNS} FROM inventory_posting_documents
         WHERE source_type = ? AND source_no = ? AND posting_kind = ?
         ORDER BY posting_sequence DESC, id DESC LIMIT 1 FOR UPDATE`,
       [sourceType, sourceNo, kind]
@@ -94,7 +212,7 @@ class InventoryPostingService {
       ]
     );
     const documentResult = await connection.execute(
-      'SELECT * FROM inventory_posting_documents WHERE id = ? FOR UPDATE',
+      `SELECT ${DOCUMENT_SELECT_COLUMNS} FROM inventory_posting_documents WHERE id = ? FOR UPDATE`,
       [result.insertId]
     );
     const document = Array.isArray(documentResult?.[0])
@@ -131,6 +249,10 @@ class InventoryPostingService {
     if (!connection) throw new Error('stageMovement必须在数据库事务中调用');
     if (!Array.isArray(lines) || !lines.length) throw serviceError('库存过账没有可冻结的明细');
 
+    if ((input.postingKind || POSTING_KIND.MOVEMENT) === POSTING_KIND.MOVEMENT) {
+      await OutboundPostingGroupService.assertWritable(connection, input);
+    }
+
     const document = await this._getOrCreateDocument(connection, input);
     if (
       document.finance_status === STATUS.APPROVED ||
@@ -157,6 +279,7 @@ class InventoryPostingService {
     const sequenceRow = Array.isArray(sequenceResult?.[0]) ? sequenceResult[0][0] : null;
     let lineNo = Number(sequenceRow?.max_line_no || 0);
     const lineIds = [];
+    const insertedLineIds = [];
     let totalQuantity = 0;
     let totalValue = 0;
 
@@ -245,19 +368,28 @@ class InventoryPostingService {
         ]
       );
       lineIds.push(result.insertId);
+      insertedLineIds.push(result.insertId);
       totalQuantity = Precision.add(totalQuantity, Math.abs(payload.signedQuantity));
       totalValue = Precision.add(totalValue, Math.abs(payload.totalValue || 0));
     }
 
-    await connection.execute(
-      `UPDATE inventory_posting_documents
+    if (insertedLineIds.length)
+      await connection.execute(
+        `UPDATE inventory_posting_documents
           SET total_quantity = total_quantity + ?,
               total_value = COALESCE(total_value, 0) + ?,
               snapshot_hash = SHA2(CONCAT(COALESCE(snapshot_hash, ''), ?, ?), 256),
               updated_at = NOW()
         WHERE id = ? AND finance_status = ?`,
-      [totalQuantity, totalValue, document.id, lineIds.join(','), document.id, STATUS.PENDING]
-    );
+        [
+          totalQuantity,
+          totalValue,
+          document.id,
+          insertedLineIds.join(','),
+          document.id,
+          STATUS.PENDING,
+        ]
+      );
 
     return { documentId: document.id, postingNo: document.posting_no, lineIds, staged: true };
   }
@@ -267,27 +399,53 @@ class InventoryPostingService {
       defaultPageSize: 20,
       maxPageSize: 100,
     });
+    const baseWhere = [];
+    const baseParams = [];
+    if (query.sourceType) {
+      baseWhere.push('d.source_type = ?');
+      baseParams.push(query.sourceType);
+    }
+    if (query.keyword) {
+      baseWhere.push('(d.posting_no LIKE ? OR d.source_no LIKE ?)');
+      baseParams.push(`%${query.keyword}%`, `%${query.keyword}%`);
+    }
+    const baseWhereSql = baseWhere.length ? `WHERE ${baseWhere.join(' AND ')}` : '';
+
+    const [[statsRow]] = await connection.execute(
+      `SELECT COUNT(*) AS total,
+              COALESCE(SUM(d.finance_status = 'pending'), 0) AS pending,
+              COALESCE(SUM(d.finance_status = 'approved'), 0) AS approved,
+              COALESCE(SUM(d.finance_status = 'rejected'), 0) AS rejected,
+              COALESCE(SUM(d.finance_status = 'reversed'), 0) AS reversed
+         FROM inventory_posting_documents d
+         ${baseWhereSql}`,
+      baseParams
+    );
+
+    const statistics = {
+      total: Number(statsRow?.total || 0),
+      pending: Number(statsRow?.pending || 0),
+      approved: Number(statsRow?.approved || 0),
+      rejected: Number(statsRow?.rejected || 0),
+      reversed: Number(statsRow?.reversed || 0),
+    };
+
     const where = [];
     const params = [];
     if (query.financeStatus) {
       where.push('d.finance_status = ?');
       params.push(query.financeStatus);
     }
-    if (query.sourceType) {
-      where.push('d.source_type = ?');
-      params.push(query.sourceType);
-    }
-    if (query.keyword) {
-      where.push('(d.posting_no LIKE ? OR d.source_no LIKE ?)');
-      params.push(`%${query.keyword}%`, `%${query.keyword}%`);
-    }
+    where.push(...baseWhere);
+    params.push(...baseParams);
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
-    const [[count]] = await connection.execute(
-      `SELECT COUNT(*) AS total FROM inventory_posting_documents d ${whereSql}`,
-      params
-    );
+
+    const total = query.financeStatus
+      ? Number(statistics[query.financeStatus] ?? 0)
+      : statistics.total;
+
     const listSql = appendPaginationSQL(
-      `SELECT d.*,
+      `SELECT ${DOCUMENT_TABLE_COLUMNS},
               (SELECT COUNT(*) FROM inventory_posting_lines l WHERE l.posting_document_id = d.id) AS line_count
          FROM inventory_posting_documents d
         ${whereSql}
@@ -298,24 +456,42 @@ class InventoryPostingService {
     const [rows] = await connection.execute(listSql, params);
     return {
       list: rows,
-      total: Number(count?.total || 0),
+      total,
       page: pagination.page,
       pageSize: pagination.pageSize,
+      statistics,
     };
   }
 
   static async get(id, connection = db.pool) {
     const [[document]] = await connection.execute(
-      'SELECT * FROM inventory_posting_documents WHERE id = ?',
+      `SELECT ${DOCUMENT_SELECT_COLUMNS}
+         FROM inventory_posting_documents
+        WHERE id = ?`,
       [id]
     );
     if (!document) throw serviceError('库存过账单不存在', 404, 'NOT_FOUND');
     const [lines] = await connection.execute(
-      'SELECT * FROM inventory_posting_lines WHERE posting_document_id = ? ORDER BY line_no',
+      `SELECT ${LINE_TABLE_COLUMNS},
+              m.code AS material_code,
+              m.name AS material_name,
+              m.specs AS material_specs,
+              u.name AS unit_name,
+              loc.name AS location_name
+         FROM inventory_posting_lines l
+         LEFT JOIN materials m ON l.material_id = m.id
+         LEFT JOIN units u ON COALESCE(l.unit_id, m.unit_id) = u.id
+         LEFT JOIN locations loc ON l.location_id = loc.id
+        WHERE l.posting_document_id = ?
+        ORDER BY l.line_no ASC`,
       [id]
     );
     const [events] = await connection.execute(
-      'SELECT * FROM inventory_posting_events WHERE posting_document_id = ? ORDER BY id',
+      `SELECT id, posting_document_id, event_type, from_status, to_status,
+              actor_id, actor_label, remark, event_data, created_at
+         FROM inventory_posting_events
+        WHERE posting_document_id = ?
+        ORDER BY id ASC`,
       [id]
     );
     return { ...document, lines, events };
@@ -361,6 +537,18 @@ class InventoryPostingService {
       params.push(normalizedNo);
     }
 
+    if (normalizedType === 'outbound') {
+      conditions.splice(0, conditions.length, OutboundPostingGroupService.scopeSql());
+      params.splice(
+        0,
+        params.length,
+        ...OutboundPostingGroupService.scopeParams({
+          id: normalizedId > 0 ? normalizedId : 0,
+          outbound_no: normalizedNo,
+        })
+      );
+    }
+
     const [documents] = await connection.execute(
       `SELECT id, posting_no, source_type, source_id, source_no,
               posting_sequence, posting_kind, finance_status,
@@ -392,7 +580,9 @@ class InventoryPostingService {
     );
 
     const movement =
-      documents.find((document) => document.posting_kind === POSTING_KIND.MOVEMENT) || null;
+      normalizedType === 'outbound'
+        ? OutboundPostingGroupService.selectCurrent(documents)
+        : documents.find((document) => document.posting_kind === POSTING_KIND.MOVEMENT) || null;
     const reversal =
       documents.find((document) => document.posting_kind === POSTING_KIND.REVERSAL) || null;
     const current =
@@ -414,7 +604,7 @@ class InventoryPostingService {
     const postingDocumentId = transaction.posting_document_id || transaction.postingDocumentId;
     if (postingDocumentId) {
       const [[document]] = await connection.execute(
-        `SELECT * FROM inventory_posting_documents
+        `SELECT ${DOCUMENT_SELECT_COLUMNS} FROM inventory_posting_documents
           WHERE id = ? AND finance_status = ? AND locked = 1`,
         [postingDocumentId, STATUS.APPROVED]
       );
@@ -430,7 +620,7 @@ class InventoryPostingService {
       transaction.transaction_type || transaction.transactionType || ''
     ).trim();
     const [rows] = await connection.execute(
-      `SELECT DISTINCT d.*
+      `SELECT DISTINCT ${DOCUMENT_TABLE_COLUMNS}
          FROM inventory_posting_documents d
          JOIN inventory_posting_lines l ON l.posting_document_id = d.id
         WHERE l.reference_no = ?
@@ -447,7 +637,7 @@ class InventoryPostingService {
     if (rows[0]) return rows[0];
 
     const [fallbackRows] = await connection.execute(
-      `SELECT DISTINCT d.*
+      `SELECT DISTINCT ${DOCUMENT_TABLE_COLUMNS}
          FROM inventory_posting_documents d
          JOIN inventory_posting_lines l ON l.posting_document_id = d.id
         WHERE l.reference_no = ?
@@ -463,7 +653,15 @@ class InventoryPostingService {
 
   static async requireApprovedForTransaction(connection, transaction = {}) {
     const approved = await this.findApprovedForTransaction(connection, transaction);
-    if (approved) return approved;
+    if (approved) {
+      const locked = await this._lockDocumentForAction(connection, approved.id);
+      if (
+        locked?.finance_status === STATUS.APPROVED &&
+        Number(locked.locked) === 1 &&
+        locked.posting_kind === POSTING_KIND.MOVEMENT
+      )
+        return locked;
+    }
 
     const referenceNo = String(transaction.reference_no || transaction.referenceNo || '').trim();
     const [pendingRows] = referenceNo
@@ -573,25 +771,43 @@ class InventoryPostingService {
   static async _postLines(connection, document, lines, actor) {
     const InventoryService = require('./InventoryService');
     const results = [];
-    for (const line of lines) {
-      // 若该明细在业务完成时已被正式写入实物台账（posted_quantity 不为 NULL），财务审核时无需重复扣减/入库库存
+    const snapshots = lines.map((line) => readPostingSnapshot(line));
+    for (const [index, line] of lines.entries()) {
+      const payload = snapshots[index];
       if (line.posted_quantity != null) {
+        const [ledger] = await connection.execute(
+          `SELECT material_id, location_id, quantity, total_value, batch_number
+             FROM inventory_ledger WHERE posting_document_id = ? AND posting_line_id = ?
+             ORDER BY id FOR UPDATE`,
+          [document.id, line.id]
+        );
+        const quantity = ledger.reduce((sum, row) => Precision.add(sum, Number(row.quantity)), 0);
+        const value = ledger.reduce((sum, row) => Precision.add(sum, Number(row.total_value)), 0);
+        if (
+          !ledger.length ||
+          ledger.some(
+            (row) =>
+              Number(row.material_id) !== Number(line.material_id) ||
+              Number(row.location_id) !== Number(line.location_id) ||
+              String(row.batch_number ?? '') !== String(line.batch_number ?? '')
+          ) ||
+          quantity !== Number(line.posted_quantity) ||
+          quantity !== Number(line.signed_quantity) ||
+          Math.abs(value) !== Math.abs(Number(line.posted_value))
+        ) {
+          throw serviceError(
+            `过账明细 ${line.id} 的已入账标记与台账不一致`,
+            409,
+            'LEDGER_MISMATCH'
+          );
+        }
         results.push({
           lineId: line.id,
           alreadyPosted: true,
           quantity: Number(line.posted_quantity),
-          totalValue: Number(line.posted_value || line.total_value || 0),
+          totalValue: Number(line.posted_value),
         });
         continue;
-      }
-      let payload;
-      try {
-        payload =
-          typeof line.payload_json === 'string'
-            ? JSON.parse(line.payload_json)
-            : line.payload_json || {};
-      } catch {
-        throw serviceError(`过账明细 ${line.id} 的快照格式无效`, 409, 'SNAPSHOT_INVALID');
       }
       const quantity = Number(line.signed_quantity);
       const result = await InventoryService.updateStock(
@@ -631,11 +847,51 @@ class InventoryPostingService {
         `UPDATE inventory_posting_lines
             SET posted_quantity = ?, posted_value = ?, updated_at = NOW()
           WHERE id = ? AND posted_quantity IS NULL`,
-        [quantity, result.totalValue || line.total_value || 0, line.id]
+        [quantity, result.totalValue ?? line.total_value ?? 0, line.id]
       );
       results.push(result);
     }
     return results;
+  }
+
+  static async batchApprove(ids, actor) {
+    if (!Array.isArray(ids) || ids.length === 0 || ids.length > 100) {
+      throw serviceError('批量审核ID列表无效或超过上限', 400, 'INVALID_INPUT');
+    }
+    const isValidId = (id) => {
+      if (typeof id === 'number') return Number.isSafeInteger(id) && id > 0;
+      if (typeof id === 'string')
+        return /^\d+$/.test(id.trim()) && Number.isSafeInteger(Number(id)) && Number(id) > 0;
+      return false;
+    };
+    if (!ids.every(isValidId)) {
+      throw serviceError('批量审核ID列表中包含无效ID', 400, 'INVALID_INPUT');
+    }
+    const uniqueIds = [...new Set(ids.map((id) => Number(id)))];
+    const results = [];
+    let successCount = 0;
+    let failureCount = 0;
+    for (const id of uniqueIds) {
+      try {
+        const res = await this.approve(id, actor);
+        successCount += 1;
+        results.push({ id, success: true, result: res });
+      } catch (err) {
+        failureCount += 1;
+        results.push({
+          id,
+          success: false,
+          error: err.message || '审核失败',
+          code: err.code || 'APPROVE_FAILED',
+        });
+      }
+    }
+    return {
+      totalCount: uniqueIds.length,
+      successCount,
+      failureCount,
+      results,
+    };
   }
 
   static async approve(id, actor, connection) {
@@ -644,10 +900,7 @@ class InventoryPostingService {
     const normalizedActor = actorFrom(actor);
     try {
       if (ownsConnection) await conn.beginTransaction();
-      const [[document]] = await conn.execute(
-        'SELECT * FROM inventory_posting_documents WHERE id = ? FOR UPDATE',
-        [id]
-      );
+      const document = await this._lockDocumentForAction(conn, id);
       if (!document) throw serviceError('库存过账单不存在', 404, 'NOT_FOUND');
       if (document.finance_status !== STATUS.PENDING) {
         throw serviceError(
@@ -663,7 +916,7 @@ class InventoryPostingService {
           throw serviceError('冲销过账单缺少原始过账单', 409, 'ORIGINAL_POSTING_REQUIRED');
         }
         const [[originalDocument]] = await conn.execute(
-          'SELECT * FROM inventory_posting_documents WHERE id = ? FOR UPDATE',
+          `SELECT ${DOCUMENT_SELECT_COLUMNS} FROM inventory_posting_documents WHERE id = ? FOR UPDATE`,
           [document.original_posting_document_id]
         );
         if (!originalDocument) {
@@ -696,11 +949,21 @@ class InventoryPostingService {
             reversalContext = {};
           }
         }
+        if (reversalContext.outboundPostingGroup) {
+          await OutboundPostingGroupService.validateReversal(
+            conn,
+            reversalContext.outboundPostingGroup,
+            document,
+            normalizedActor,
+            this
+          );
+        }
       } else {
+        await OutboundPostingGroupService.assertWritable(conn, document);
         this._assertActorCanApprove(document, normalizedActor);
       }
       const [lines] = await conn.execute(
-        'SELECT * FROM inventory_posting_lines WHERE posting_document_id = ? ORDER BY line_no FOR UPDATE',
+        `SELECT ${LINE_SELECT_COLUMNS} FROM inventory_posting_lines WHERE posting_document_id = ? ORDER BY line_no ASC FOR UPDATE`,
         [id]
       );
       if (!lines.length) throw serviceError('库存过账单没有冻结明细');
@@ -740,6 +1003,15 @@ class InventoryPostingService {
           context: reversalContext,
           actor: normalizedActor,
         });
+        if (reversalContext.outboundPostingGroup) {
+          await OutboundPostingGroupService.finishReversal(
+            conn,
+            reversalContext.outboundPostingGroup,
+            original.id,
+            normalizedActor,
+            id
+          );
+        }
 
         await conn.execute(
           `INSERT INTO inventory_posting_events
@@ -815,9 +1087,17 @@ class InventoryPostingService {
             dedupKey: `INVENTORY_POSTING_APPROVED:${id}`,
           }
         );
+        if (!approvalEventId) {
+          throw serviceError(
+            '财务集成事件未能持久化，库存审核已回滚',
+            503,
+            'FINANCE_EVENT_REQUIRED'
+          );
+        }
       }
       if (ownsConnection) await conn.commit();
-      if (approvalEventId && DomainEventService) DomainEventService.dispatchSoon(approvalEventId);
+      if (ownsConnection && approvalEventId && DomainEventService)
+        DomainEventService.dispatchSoon(approvalEventId);
       return {
         documentId: id,
         financeStatus: STATUS.APPROVED,
@@ -836,15 +1116,16 @@ class InventoryPostingService {
   }
 
   static async reject(id, actor, remark = '', connection) {
+    if (typeof remark !== 'string' || !remark.trim() || remark.trim().length > 1000) {
+      throw serviceError('请填写 1 至 1000 字的驳回原因', 400, 'INVALID_REMARK');
+    }
+    remark = remark.trim();
     const ownsConnection = !connection;
     const conn = connection || (await db.getConnection());
     const normalizedActor = actorFrom(actor);
     try {
       if (ownsConnection) await conn.beginTransaction();
-      const [[document]] = await conn.execute(
-        'SELECT * FROM inventory_posting_documents WHERE id = ? FOR UPDATE',
-        [id]
-      );
+      const document = await this._lockDocumentForAction(conn, id);
       if (!document) throw serviceError('库存过账单不存在', 404, 'NOT_FOUND');
       if (document.finance_status !== STATUS.PENDING)
         throw serviceError('当前状态不能驳回', 409, 'INVALID_STATUS');
@@ -908,10 +1189,7 @@ class InventoryPostingService {
     const requestContext = context && typeof context === 'object' ? context : {};
     try {
       if (ownsConnection) await conn.beginTransaction();
-      const [[original]] = await conn.execute(
-        'SELECT * FROM inventory_posting_documents WHERE id = ? FOR UPDATE',
-        [id]
-      );
+      const original = await this._lockDocumentForAction(conn, id);
       if (!original) throw serviceError('库存过账单不存在', 404, 'NOT_FOUND');
       if (original.posting_kind !== POSTING_KIND.MOVEMENT) {
         throw serviceError('只能对正式库存过账单发起反审核申请', 409, 'INVALID_POSTING_KIND');
@@ -922,7 +1200,29 @@ class InventoryPostingService {
       if (original.finance_status !== STATUS.APPROVED || !Number(original.locked)) {
         throw serviceError('只有已财务审核并正式过账的单据才能申请反审核', 409, 'INVALID_STATUS');
       }
+      if (!postingCapabilities(original).reversalSupported) {
+        throw serviceError('该来源尚不支持业务与财务联动冲销', 409, 'REVERSAL_NOT_SUPPORTED');
+      }
+      if (original.source_type === 'outbound_supplement' && !requestContext.outboundGroupRequest) {
+        const outbound = await OutboundPostingGroupService.lockSource(conn, original);
+        const result = await OutboundPostingGroupService.requestReversal(conn, {
+          outbound,
+          actor: normalizedActor,
+          remark,
+          context: requestContext,
+        });
+        if (ownsConnection) await conn.commit();
+        return result;
+      }
       this._assertActorCanApprove(original, normalizedActor);
+      const outboundPostingGroup = await OutboundPostingGroupService.prepareReversal(
+        conn,
+        original,
+        normalizedActor,
+        requestContext,
+        this
+      );
+      const sourceDocumentIds = outboundPostingGroup?.approvedIds || [Number(id)];
 
       const [[existing]] = await conn.execute(
         `SELECT id, posting_no, finance_status
@@ -944,27 +1244,42 @@ class InventoryPostingService {
       }
 
       const [sourceLines] = await conn.execute(
-        `SELECT pl.*, il.id AS ledger_id
+        `SELECT ${LINE_SELECT_COLUMNS.split(', ')
+          .map((column) => `pl.${column}`)
+          .join(', ')},
+                il.id AS ledger_id, il.quantity AS ledger_quantity,
+                il.unit_cost AS ledger_unit_cost, il.total_value AS ledger_value
            FROM inventory_posting_lines pl
-           JOIN inventory_ledger il ON il.posting_line_id = pl.id
-          WHERE pl.posting_document_id = ?
-          ORDER BY pl.line_no
+           LEFT JOIN inventory_ledger il ON il.posting_line_id = pl.id
+          WHERE pl.posting_document_id IN (${sourceDocumentIds.map(() => '?').join(', ')})
+          ORDER BY pl.posting_document_id, pl.line_no ASC
           FOR UPDATE`,
-        [id]
+        sourceDocumentIds
       );
-      if (!sourceLines.length) {
+      if (
+        !sourceLines.length ||
+        sourceLines.some(
+          (line) =>
+            !line.ledger_id ||
+            !Number.isFinite(Number(line.ledger_quantity)) ||
+            !Number(line.ledger_quantity) ||
+            !(Number(line.ledger_unit_cost) > 0) ||
+            !Number.isFinite(Number(line.ledger_value))
+        )
+      ) {
         throw serviceError('找不到原过账台账，无法申请反审核', 409, 'LEDGER_NOT_FOUND');
       }
 
       const reversalSourceNo = this._buildReversalSourceNo(original.source_no, id);
       const reversal = await this._getOrCreateDocument(conn, {
-        sourceType: original.source_type,
-        sourceId: original.source_id || requestContext.sourceId || null,
+        sourceType: outboundPostingGroup ? 'outbound' : original.source_type,
+        sourceId:
+          outboundPostingGroup?.sourceId || original.source_id || requestContext.sourceId || null,
         sourceNo: reversalSourceNo,
         postingKind: POSTING_KIND.REVERSAL,
         originalPostingDocumentId: id,
         movementDirection: 'reversal',
-        transactionDate: new Date().toISOString().slice(0, 10),
+        transactionDate: currentDateString(),
         financeStatus: STATUS.PENDING,
         businessApprovedById: normalizedActor.id,
         businessApprovedBy: normalizedActor.label,
@@ -976,16 +1291,16 @@ class InventoryPostingService {
         locationId: line.location_id,
         transactionType: `${line.transaction_type}_cancel`.slice(0, 50),
         referenceType: `${line.reference_type}_reversal`.slice(0, 64),
-        referenceNo: original.source_no,
-        signedQuantity: -Number(line.signed_quantity),
+        referenceNo: line.reference_no || original.source_no,
+        signedQuantity: -Number(line.ledger_quantity),
         unitId: line.unit_id,
         batchNumber: line.batch_number,
-        unitCost: line.unit_cost,
-        totalValue: line.total_value == null ? null : -Number(line.total_value),
-        transactionDate: new Date().toISOString().slice(0, 10),
+        unitCost: line.ledger_unit_cost,
+        totalValue: -Math.sign(Number(line.ledger_quantity)) * Math.abs(Number(line.ledger_value)),
+        transactionDate: currentDateString(),
         operator: normalizedActor.label,
         reversalOfLedgerId: line.ledger_id,
-        sourceLineKey: `reversal-of:${line.id}`,
+        sourceLineKey: `reversal-of-ledger:${line.ledger_id}`,
       }));
       await this.stageMovement(
         conn,
@@ -1021,9 +1336,14 @@ class InventoryPostingService {
             ...requestContext,
             postingKind: POSTING_KIND.REVERSAL,
             originalPostingDocumentId: id,
-            sourceType: original.source_type,
-            sourceId: requestContext.sourceId || original.source_id || null,
-            sourceNo: original.source_no,
+            sourceType: outboundPostingGroup ? 'outbound' : original.source_type,
+            sourceId:
+              outboundPostingGroup?.sourceId ||
+              original.source_id ||
+              requestContext.sourceId ||
+              null,
+            sourceNo: outboundPostingGroup?.sourceNo || original.source_no,
+            ...(outboundPostingGroup ? { outboundPostingGroup } : {}),
             requestedById: normalizedActor.id,
             requestedBy: normalizedActor.label,
           }),

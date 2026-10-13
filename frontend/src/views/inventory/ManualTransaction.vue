@@ -450,7 +450,7 @@
         </el-table-column>
       </el-table>
 
-      <InventoryApprovalPanel
+      <InventoryPostingStatusPanel
         v-if="currentRecord.id || currentRecord.transactionNo"
         source-type="manual_transaction"
         :source-id="currentRecord.id"
@@ -676,6 +676,7 @@
 </template>
 
 <script setup>
+import { useInventoryPostingSourceLink } from '@/composables/useInventoryPostingSourceLink'
 import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { getApiErrorMessage } from '@/utils/errorHandler'
@@ -696,7 +697,7 @@ import { searchMaterials } from '@/utils/searchConfig'
 import { parseListData } from '@/utils/responseParser'
 import { loadLocationOptions } from '@/utils/optionLoaders'
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
-import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue'
+import InventoryPostingStatusPanel from '@/components/inventory/InventoryPostingStatusPanel.vue'
 const authStore = useAuthStore()
 
 // 权限控制
@@ -1608,6 +1609,14 @@ onMounted(() => {
   loadBusinessTypes()
   loadLocations()
   loadTableData()
+})
+
+useInventoryPostingSourceLink({
+  path: '/inventory/manual-transaction',
+  sourceTypes: ["manual_transaction"],
+  open: ({ sourceNo }) => handleView({ transactionNo: sourceNo }),
+  setSearch: (sourceNo) => { searchForm.transactionNo = sourceNo },
+  byNumber: true,
 })
 </script>
 

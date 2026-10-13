@@ -181,7 +181,7 @@
           <el-descriptions-item label="备注" :span="2">{{ viewDialog.receipt.remarks }}</el-descriptions-item>
         </el-descriptions>
 
-        <InventoryApprovalPanel
+        <InventoryPostingStatusPanel
           v-if="viewDialog.receipt?.id || viewDialog.receipt?.receiptNo"
           source-type="inbound"
           :source-id="viewDialog.receipt.id"
@@ -483,6 +483,7 @@
   </div>
 </template>
 <script setup>
+import { useInventoryPostingSourceLink } from '@/composables/useInventoryPostingSourceLink'
 import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
@@ -507,7 +508,7 @@ import {
   getQualityStatusText,
   getQualityStatusColor
 } from '@/constants/systemConstants';
-import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue';
+import InventoryPostingStatusPanel from '@/components/inventory/InventoryPostingStatusPanel.vue';
 import { getApiErrorMessage } from '@/utils/errorHandler'
 
 // 初始化认证存储
@@ -1451,6 +1452,13 @@ function handleReceivedQuantityChange(item) {
     }
   }
 }
+
+useInventoryPostingSourceLink({
+  path: '/purchase/receipts',
+  sourceTypes: ["purchase_receipt"],
+  open: ({ id }) => viewReceipt({ id }),
+  setSearch: (sourceNo) => { searchForm.receiptNo = sourceNo },
+})
 </script>
 <style scoped>
 .header-card {

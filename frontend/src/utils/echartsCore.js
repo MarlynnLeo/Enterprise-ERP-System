@@ -1,4 +1,4 @@
-import * as echarts from 'echarts/core'
+import * as echartsCore from 'echarts/core'
 import {
   BarChart,
   CustomChart,
@@ -23,8 +23,9 @@ import {
 import { CanvasRenderer } from 'echarts/renderers'
 import { LegacyGridContainLabel } from 'echarts/features'
 import { getAppFontFamily } from './typography'
+import { disableEchartsMotion, getInitialChartPixelRatio } from './chartPerformance'
 
-echarts.use([
+echartsCore.use([
   BarChart,
   CustomChart,
   GaugeChart,
@@ -47,8 +48,21 @@ echarts.use([
 ])
 
 // Canvas 文本不继承页面 CSS，所有图表通过全局 textStyle 继承统一正文字体。
-echarts.registerPreprocessor((option) => {
+echartsCore.registerPreprocessor((option) => {
   option.textStyle = { ...option.textStyle, fontFamily: getAppFontFamily() }
+  disableEchartsMotion(option)
+})
+
+// ECharts exposes DPR on init, not resize. Keep the real instance and its
+// public API intact; a later preference change applies to the next canvas.
+const echarts = Object.freeze({
+  ...echartsCore,
+  init(container, theme, options) {
+    const ratio = getInitialChartPixelRatio(options?.devicePixelRatio)
+    return echartsCore.init(container, theme, ratio === undefined
+      ? options
+      : { ...options, devicePixelRatio: ratio })
+  }
 })
 
 export { echarts }

@@ -133,6 +133,22 @@ export default {
         voucherType: '记账凭证',
       },
     },
+    {
+      path: 'inventory-posting',
+      redirect: to => ({ name: 'finance-inventory-postings', query: to.query }),
+    },
+    // 存货过账审核
+    {
+      path: 'inventory-postings',
+      name: 'finance-inventory-postings',
+      component: () => import('../../views/finance/InventoryPostings.vue'),
+      meta: {
+        requiresAuth: true,
+        permission: 'finance:inventory:view',
+        title: '存货过账审核',
+        titleKey: 'menu.inventoryPostings',
+      },
+    },
     // 应收账款模块路由
     {
       path: 'ar/invoices',

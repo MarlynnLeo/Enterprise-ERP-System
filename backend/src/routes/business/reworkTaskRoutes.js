@@ -4,6 +4,8 @@
 
 const express = require('express');
 const router = express.Router();
+const ScopeGuard = require('../../authorization/ScopeGuard');
+const { pool } = require('../../config/db');
 const reworkTaskController = require('../../controllers/business/quality/reworkTaskController');
 const { authenticateToken } = require('../../middleware/authEnhanced');
 const { requirePermission } = require('../../middleware/requirePermission');
@@ -30,12 +32,33 @@ router.get(
 // 根据检验单ID查询关联的返工任务状态（静态路径必须在 :id 之前）
 router.post(
   '/by-inspections',
-  requirePermission('quality:rework:view'),
+  requirePermission([
+    'quality:rework:view',
+    'quality:inspections:view',
+    'quality:incoming:view',
+    'quality:final:view',
+    'quality:process:view',
+  ]),
+  async (req, res, next) => {
+    try {
+      const ids = req.body.inspectionIds || req.body.inspection_ids || [];
+      if (await ScopeGuard.denyUnlessAllAccess(res, pool, req, 'quality_inspection', ids)) next();
+    } catch (error) {
+      next(error);
+    }
+  },
   reworkTaskController.getReworkStatusByInspectionIds
 );
 router.get(
   '/by-inspection/:inspectionId',
-  requirePermission('quality:rework:view'),
+  requirePermission([
+    'quality:rework:view',
+    'quality:inspections:view',
+    'quality:incoming:view',
+    'quality:final:view',
+    'quality:process:view',
+  ]),
+  ScopeGuard.requireRecordAccess('quality_inspection', { param: 'inspectionId' }),
   reworkTaskController.getReworkStatusByInspectionId
 );
 

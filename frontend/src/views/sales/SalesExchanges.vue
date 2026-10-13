@@ -518,7 +518,7 @@
         </el-table>
       </div>
 
-      <InventoryApprovalPanel
+      <InventoryPostingStatusPanel
         v-if="currentExchange?.id || currentExchange?.exchangeNo"
         source-type="sales_exchange"
         :source-id="currentExchange.id"
@@ -639,6 +639,7 @@
   </div>
 </template>
 <script setup>
+import { useInventoryPostingSourceLink } from '@/composables/useInventoryPostingSourceLink'
 import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { getApiErrorMessage } from '@/utils/errorHandler'
@@ -653,7 +654,7 @@ import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { salesApi, baseDataApi } from '@/api'
 import { Plus, Check, ArrowDown, ArrowUp } from '@element-plus/icons-vue'
-import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue'
+import InventoryPostingStatusPanel from '@/components/inventory/InventoryPostingStatusPanel.vue'
 const loading = ref(false)
 const exchangeRecords = ref([])
 const {
@@ -1330,6 +1331,13 @@ const getReturnItems = (items) => {
 const getExchangeItems = (items) => {
   return items.filter(item => item.itemType === 'new')
 }
+
+useInventoryPostingSourceLink({
+  path: '/sales/exchanges',
+  sourceTypes: ["sales_exchange"],
+  open: ({ id }) => handleView({ id }),
+  setSearch: (sourceNo) => { searchQuery.value = sourceNo },
+})
 </script>
 <style scoped>
 .header-card {

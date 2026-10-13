@@ -183,6 +183,10 @@ const getTransferList = async (req, res) => {
         fl.name as from_location,
         tl.name as to_location,
         t.status,
+        (SELECT d.finance_status FROM inventory_posting_documents d
+          WHERE d.source_type = 'transfer' AND d.source_id = t.id
+            AND d.posting_kind = 'movement'
+          ORDER BY d.posting_sequence DESC, d.id DESC LIMIT 1) AS finance_status,
         t.remark,
         t.creator,
         (SELECT COALESCE(u.real_name, t.creator)
@@ -248,6 +252,10 @@ const getTransferDetail = async (req, res) => {
         fl.name as from_location,
         tl.name as to_location,
         t.status,
+        (SELECT d.finance_status FROM inventory_posting_documents d
+          WHERE d.source_type = 'transfer' AND d.source_id = t.id
+            AND d.posting_kind = 'movement'
+          ORDER BY d.posting_sequence DESC, d.id DESC LIMIT 1) AS finance_status,
         t.remark,
         t.creator,
         t.created_at,
@@ -339,6 +347,10 @@ const getTransferDetails = async (req, res) => {
         fl.name as from_location,
         tl.name as to_location,
         t.status,
+        (SELECT d.finance_status FROM inventory_posting_documents d
+          WHERE d.source_type = 'transfer' AND d.source_id = t.id
+            AND d.posting_kind = 'movement'
+          ORDER BY d.posting_sequence DESC, d.id DESC LIMIT 1) AS finance_status,
         t.remark,
         t.creator,
         t.created_at,
@@ -1110,6 +1122,10 @@ const exportTransfers = async (req, res) => {
         t.from_location_id,
         t.to_location_id,
         t.status,
+        (SELECT d.finance_status FROM inventory_posting_documents d
+          WHERE d.source_type = 'transfer' AND d.source_id = t.id
+            AND d.posting_kind = 'movement'
+          ORDER BY d.posting_sequence DESC, d.id DESC LIMIT 1) AS finance_status,
         t.transfer_date,
         t.remark AS remarks,
         t.created_at,

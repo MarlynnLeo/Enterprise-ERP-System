@@ -13,8 +13,8 @@
     <div class="content-container" v-if="detail">
       <!-- 状态卡片 -->
       <div class="status-card">
-        <div class="status-badge" :class="detail.status">
-          {{ statusMap[detail.status] || detail.status }}
+        <div class="status-badge" :class="detail.isFullyOrdered ? 'completed' : detail.status">
+          {{ detail.isFullyOrdered ? '已生成订单' : detail.isPartiallyOrdered ? '部分生成订单' : statusMap[detail.status] || detail.status }}
         </div>
         <div class="detail-code">
           {{ detail.requisitionNumber || detail.requisitionCode || detail.code || '未生成申请单号' }}
@@ -44,32 +44,15 @@
         </div>
       </CellGroup>
 
-      <!-- 操作按钮 — 对齐后端工作流状态流转 -->
+      <!-- 提交后直接生成采购订单 -->
       <div class="action-section">
-        <!-- draft(草稿): 提交审批、删除 -->
-        <template v-if="detail.status === 'draft'">
-          <Button round block type="primary" @click="handleSubmit" :loading="actionLoading" v-permission="'purchase:requisitions:update'"
-            style="margin-bottom: 10px">
-            提交审批
-          </Button>
-          <Button round block type="danger" plain @click="handleDelete" :loading="actionLoading" v-permission="'purchase:requisitions:delete'">
-            删除申请
-          </Button>
-        </template>
-
-        <!-- submitted(已提交): 审批由工作流处理，移动端只提示状态 -->
-        <template v-else-if="detail.status === 'submitted'">
-          <div class="workflow-tip">
-            已提交审批，请在审批流程中处理。
-          </div>
-        </template>
-
-        <!-- rejected(已拒绝): 允许退回草稿后重新编辑/提交 -->
-        <template v-else-if="detail.status === 'rejected'">
-          <Button round block type="warning" plain @click="handleReturnToDraft" :loading="actionLoading" v-permission="'purchase:requisitions:update'">
-            退回草稿
-          </Button>
-        </template>
+        <Button v-if="canSubmit" round block type="primary" @click="handleSubmit" :loading="actionLoading" v-permission="'purchase:requisitions:update'"
+          style="margin-bottom: 10px">
+          {{ detail.isPartiallyOrdered ? '生成剩余订单' : '提交并生成采购订单' }}
+        </Button>
+        <Button v-if="detail.status === 'draft'" round block type="danger" plain @click="handleDelete" :loading="actionLoading" v-permission="'purchase:requisitions:delete'">
+          删除申请
+        </Button>
       </div>
     </div>
 
@@ -88,7 +71,7 @@
 </template>
 
 <script setup>
-  import { ref, onMounted } from 'vue'
+  import { ref, computed, onMounted } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { NavBar, CellGroup, Cell, Button, Loading, Empty, showToast, showConfirmDialog } from 'vant'
   import { purchaseApi } from '@/api'
@@ -104,13 +87,16 @@
 
   const statusMap = {
     draft: '草稿',
-    submitted: '已提交',
-    pending: '待审批',
-    approved: '已审批',
-    rejected: '已拒绝',
-    completed: '已完成',
+    submitted: '待提交',
+    pending: '待提交',
+    approved: '待提交',
+    rejected: '待提交',
+    completed: '已生成订单',
     cancelled: '已取消'
   }
+
+  const canSubmit = computed(() => detail.value && !detail.value.isFullyOrdered &&
+    ['draft', 'submitted', 'pending', 'approved', 'rejected', 'completed'].includes(detail.value.status))
 
   const formatDate = (dateStr) => {
     if (!dateStr) return '--'
@@ -123,6 +109,7 @@
     try {
       const response = await purchaseApi.getRequisition(route.params.id)
       detail.value = extractApiData(response, null)
+      if (detail.value) detail.value.items = detail.value.items || detail.value.materials || []
       if (!detail.value) {
         errorMessage.value = '采购申请不存在或已被删除'
       }
@@ -145,28 +132,13 @@
 
   const goBack = () => router.back()
 
-  // 草稿 → 提交审批 (draft → submitted)
+  // 提交并自动生成订单
   const handleSubmit = async () => {
+    if (actionLoading.value || !canSubmit.value) return
+    actionLoading.value = true
     try {
-      await showConfirmDialog({ title: '提交审批', message: '确定提交该采购申请进行审批？' })
-      actionLoading.value = true
       await purchaseApi.updateRequisitionStatus(route.params.id, 'submitted')
-      showToast('已提交审批')
-      await loadDetail()
-    } catch (e) {
-      if (e !== 'cancel') showToast(getApiErrorMessage(e, '操作失败'))
-    } finally {
-      actionLoading.value = false
-    }
-  }
-
-  // 已拒绝 → 草稿 (rejected → draft)
-  const handleReturnToDraft = async () => {
-    try {
-      await showConfirmDialog({ title: '退回草稿', message: '确定将该采购申请退回草稿？' })
-      actionLoading.value = true
-      await purchaseApi.updateRequisitionStatus(route.params.id, 'draft')
-      showToast('已退回草稿')
+      showToast('已提交并生成采购订单')
       await loadDetail()
     } catch (e) {
       if (e !== 'cancel') showToast(getApiErrorMessage(e, '操作失败'))
@@ -223,17 +195,11 @@
     &.draft {
       background: var(--text-tertiary);
     }
-    &.pending {
-      background: var(--color-warning);
-    }
-    &.submitted {
-      background: var(--color-warning);
-    }
-    &.approved {
-      background: var(--color-success);
-    }
+    &.pending,
+    &.submitted,
+    &.approved,
     &.rejected {
-      background: var(--color-danger);
+      background: var(--color-warning);
     }
     &.completed {
       background: var(--color-primary);
@@ -255,15 +221,6 @@
   }
   .action-section {
     padding: 24px 16px;
-  }
-  .workflow-tip {
-    padding: 12px;
-    border-radius: 8px;
-    background: var(--van-background);
-    border: 1px solid var(--van-border-color);
-    color: var(--van-text-color-2);
-    text-align: center;
-    font-size: 0.875rem;
   }
   .loading-container {
     display: flex;

@@ -235,11 +235,6 @@
   padding-right: 8px;
 }
 
-/* 分页外间距 */
-:root[data-theme="default"] .el-pagination {
-  padding: var(--spacing-md) 0;
-}
-
 /* 加载遮罩 */
 :root[data-theme="default"] .el-loading-mask {
   background-color: color-mix(in srgb, var(--ds-white, #fff) 90%, transparent);

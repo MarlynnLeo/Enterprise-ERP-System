@@ -172,6 +172,11 @@ const financeController = {
         is_active,
         currency_code,
         description,
+        has_customer: mapped.has_customer,
+        has_supplier: mapped.has_supplier,
+        has_employee: mapped.has_employee,
+        has_department: mapped.has_department,
+        has_project: mapped.has_project,
       });
 
       ResponseHandler.success(
@@ -244,6 +249,11 @@ const financeController = {
         is_active,
         currency_code,
         description,
+        has_customer: mapped.has_customer ?? account.has_customer,
+        has_supplier: mapped.has_supplier ?? account.has_supplier,
+        has_employee: mapped.has_employee ?? account.has_employee,
+        has_department: mapped.has_department ?? account.has_department,
+        has_project: mapped.has_project ?? account.has_project,
       });
 
       if (success) {
@@ -746,6 +756,7 @@ const financeController = {
         period_id,
         description,
         created_by: ownerStamp.created_by,
+        requireManualSource: true,
       });
 
       ResponseHandler.success(

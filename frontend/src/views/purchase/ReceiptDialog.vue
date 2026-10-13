@@ -55,13 +55,10 @@
         <span class="total-label">入库总金额：</span>
         <span class="total-value">{{ formatPrice(calculateTotal()) }}</span>
       </div>
-      <InventoryApprovalPanel
+      <InventoryPostingStatusPanel
         source-type="outsourced_processing_receipt"
         :source-id="receiptForm.id || props.receiptId"
         :source-no="receiptForm.receiptNo"
-        :resubmit-status="receiptForm.status === 'confirmed' ? 'confirmed' : ''"
-        @resubmit="handleResubmitReceipt"
-        @changed="handleApprovalChanged"
       />
     </div>
 
@@ -226,7 +223,7 @@
 <script setup>
 import { formatLocalDate } from '@/utils/format';
 
-import { ref, computed, reactive, watch } from 'vue';
+import { ref, computed, reactive, watch, onBeforeUnmount } from 'vue';
 import { ElMessage } from 'element-plus/es/components/message/index';
 import { purchaseApi } from '@/api/purchase';
 import { ensureValidId } from '@/utils/helpers/dataUtils'
@@ -239,7 +236,7 @@ import {
   getOutsourcedStatusText,
   getOutsourcedStatusColor
 } from '@/constants/systemConstants';
-import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue';
+import InventoryPostingStatusPanel from '@/components/inventory/InventoryPostingStatusPanel.vue';
 import { getApiErrorMessage } from '@/utils/errorHandler'
 
 
@@ -323,6 +320,8 @@ const rules = {
 const receiptFormRef = ref(null);
 // 处理中状态
 const processing = ref(false);
+let detailRequestSequence = 0;
+const isCurrentDetailRequest = (request) => request === detailRequestSequence && props.visible;
 
 // 加工单选择相关状态
 const processingOrderOptions = ref([]);
@@ -357,9 +356,11 @@ const handleSelectProcessingOrder = (processingId) => {
 
 // 通过加工单ID加载成品明细与供应商信息
 const loadProcessingDetailById = async (processingId) => {
+  const request = ++detailRequestSequence;
   if (!processingId) return;
   try {
     const response = await purchaseApi.outsourcedReceipts.getProcessingDetail(processingId);
+    if (!isCurrentDetailRequest(request)) return;
     const data = response.data;
 
     receiptForm.processingId = ensureValidId(data.id);
@@ -372,6 +373,7 @@ const loadProcessingDetailById = async (processingId) => {
       .map(normalizeProcessingProduct)
       .filter(item => item.expectedQuantity > 0);
   } catch (error) {
+    if (!isCurrentDetailRequest(request)) return;
     console.error('获取加工单详情失败:', error);
     ElMessage.error('获取加工单详情失败');
   }
@@ -435,43 +437,21 @@ const formatPrice = (price) => {
   return `¥ ${parseFloat(price || 0).toFixed(2)}`;
 };
 
-// 加载加工单详情
-const loadProcessingDetail = async () => {
-  if (!props.processingId) return;
-
-  try {
-    const response = await purchaseApi.outsourcedReceipts.getProcessingDetail(props.processingId);
-    // 拦截器已解包，response.data 就是业务数据
-    const data = response.data;
-
-    // 填充表单数据
-    receiptForm.processingId = ensureValidId(data.id);
-    receiptForm.processingNo = data.processingNo || '';
-    receiptForm.supplierId = data.supplierId;
-    receiptForm.supplierName = data.supplierName;
-
-    // 转换成品为入库单明细项
-    receiptForm.items = (data.products || [])
-      .map(normalizeProcessingProduct)
-      .filter(item => item.expectedQuantity > 0);
-  } catch (error) {
-    console.error('获取加工单详情失败:', error);
-    ElMessage.error('获取加工单详情失败');
-  }
-};
-
 // 加载入库单详情
 const loadReceiptDetail = async () => {
-  if (!props.receiptId) return;
+  const request = ++detailRequestSequence;
+  const receiptId = props.receiptId;
+  if (!receiptId) return;
 
   try {
-    const response = await purchaseApi.outsourcedReceipts.getDetail(props.receiptId);
+    const response = await purchaseApi.outsourcedReceipts.getDetail(receiptId);
+    if (!isCurrentDetailRequest(request)) return;
     // 拦截器已解包，response.data 就是业务数据
     const data = response.data;
 
     // 填充表单数据，使用工具函数确保数据格式正确
     receiptForm.processingId = ensureValidId(data.processingId);
-    receiptForm.id = data.id || props.receiptId;
+    receiptForm.id = data.id || receiptId;
     receiptForm.receiptNo = data.receiptNo || '';
     receiptForm.processingNo = data.processingNo || '';
     receiptForm.supplierId = ensureValidId(data.supplierId);
@@ -483,23 +463,9 @@ const loadReceiptDetail = async () => {
     receiptForm.status = data.status || '';
     receiptForm.items = (data.items || []).map(normalizeReceiptItem);
   } catch {
-    ElMessage.error('获取入库单详情失败');
+    if (isCurrentDetailRequest(request)) ElMessage.error('获取入库单详情失败');
   }
 };
-
-const handleResubmitReceipt = async (status) => {
-  if (!props.receiptId || !status) return;
-  try {
-    await purchaseApi.outsourcedReceipts.updateStatus(props.receiptId, status);
-    ElMessage.success('已重新提交财务审核');
-    await loadReceiptDetail();
-    emit('success');
-  } catch (error) {
-    ElMessage.error(getApiErrorMessage(error, '重新提交审核失败'));
-  }
-};
-
-const handleApprovalChanged = () => emit('success');
 
 // 提交表单
 const handleSubmit = async () => {
@@ -565,8 +531,9 @@ const handleClose = () => {
   dialogVisible.value = false;
 };
 
-// 监听对话框显示状态变化
-watch(() => props.visible, (newVal) => {
+// 来源深链会在初次挂载前打开弹窗，也可能在弹窗打开时切换单据。
+watch(() => [props.visible, props.mode, props.receiptId, props.processingId], ([newVal]) => {
+  detailRequestSequence += 1;
   if (newVal) {
     // 初始化数据
     Object.assign(receiptForm, {
@@ -587,7 +554,7 @@ watch(() => props.visible, (newVal) => {
     // 如果是创建模式且有加工单ID，加载加工单详情；否则加载加工单列表供选择
     if (props.mode === 'create') {
       if (props.processingId) {
-        loadProcessingDetail();
+        loadProcessingDetailById(props.processingId);
       } else {
         loadProcessingOrders();
       }
@@ -598,7 +565,8 @@ watch(() => props.visible, (newVal) => {
       loadReceiptDetail();
     }
   }
-});
+}, { immediate: true });
+onBeforeUnmount(() => { detailRequestSequence += 1; });
 </script>
 
 <style scoped>

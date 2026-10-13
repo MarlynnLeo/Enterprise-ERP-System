@@ -126,6 +126,11 @@
         </div>
       </div>
 
+      <div class="info-section">
+        <h3 class="section-title">图片附件</h3>
+        <MaterialImages :material-id="route.params.id" :editable="canUploadImages" immediate />
+      </div>
+
       <!-- 其他信息 -->
       <div class="info-section">
         <h3 class="section-title">其他信息</h3>
@@ -154,14 +159,18 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { baseDataApi } from '@/api'
 import { showToast } from 'vant'
 import dayjs from 'dayjs'
+import MaterialImages from '@/components/MaterialImages.vue'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const route = useRoute()
+const authStore = useAuthStore()
+const canUploadImages = computed(() => authStore.hasPermission('basedata:materials:update'))
 
 const loading = ref(false)
 const material = ref(null)

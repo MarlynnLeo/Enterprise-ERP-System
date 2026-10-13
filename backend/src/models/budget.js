@@ -666,8 +666,8 @@ const budgetModel = {
       const [result] = await conn.execute(
         `
         UPDATE budget_details
-        SET used_amount = used_amount + ?,
-            remaining_amount = budget_amount - (used_amount + ?)
+        SET remaining_amount = budget_amount - (COALESCE(used_amount, 0) + ?),
+            used_amount = COALESCE(used_amount, 0) + ?
         WHERE id = ?
       `,
         [amount, amount, detailId]

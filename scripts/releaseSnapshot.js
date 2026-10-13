@@ -75,7 +75,9 @@ function createSourceSnapshot({ projectDir, ref = 'HEAD', explicitRef = false, r
     snapshot.sourceDir = path.join(snapshot.temporaryDir, 'source');
     fs.mkdirSync(snapshot.sourceDir);
     run('git', ['archive', '--format=tar.gz', '--output=' + snapshot.archivePath, commit, '--', ...roots], projectDir);
-    run('tar', ['-xzf', snapshot.archivePath, '-C', snapshot.sourceDir], projectDir);
+    // Git writes UTF-8 paths; Windows bsdtar otherwise decodes headers using the local code page.
+    const tarOptions = process.platform === 'win32' ? ['--options', 'hdrcharset=UTF-8'] : [];
+    run('tar', [...tarOptions, '-xzf', snapshot.archivePath, '-C', snapshot.sourceDir], projectDir);
     const { sourceHash, fileCount } = fingerprintSource(snapshot.sourceDir, roots);
     snapshot.descriptor = {
       buildId: commit.slice(0, 12) + '-' + sourceHash.slice(0, 12),

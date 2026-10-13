@@ -207,14 +207,16 @@
             </el-row>
           </el-form-item>
 
-          <el-form-item label="生效日期" prop="effectiveDate">
+          <el-form-item label="生效日期" prop="effective_date">
             <el-date-picker
               v-model="pricing.pricingForm.effective_date"
               type="date"
               placeholder="选择生效日期"
               class="w-full"
               value-format="YYYY-MM-DD"
+              :disabled-date="date => date.getTime() > new Date().setHours(23, 59, 59, 999)"
             />
+            <span class="text-secondary">未来调价请在生效当天保存。</span>
           </el-form-item>
 
           <el-form-item label="定价备注">

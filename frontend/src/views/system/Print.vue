@@ -241,8 +241,14 @@
               <el-button-group>
                 <el-button size="small" @click="insertVariable('company_name')">公司名称</el-button>
                 <el-button size="small" @click="insertVariable('order_no')">订单号</el-button>
-                <el-button size="small" @click="insertVariable('customer_name')">客户名称</el-button>
-                <el-button size="small" @click="insertVariable('date')">日期</el-button>
+                <el-button v-if="currentTemplate.template_type === 'purchase_order'" size="small" @click="insertVariable('supplier_name')">承制厂商</el-button>
+                <el-button v-else size="small" @click="insertVariable('customer_name')">客户名称</el-button>
+                <el-button size="small" @click="insertVariable(currentTemplate.template_type === 'purchase_order' ? 'order_date' : 'date')">日期</el-button>
+              </el-button-group>
+              <el-button-group v-if="currentTemplate.template_type === 'purchase_order'">
+                <el-button size="small" @click="insertVariable('supplier_code')">厂商编码</el-button>
+                <el-button size="small" @click="insertVariable('sender_name')">发件人</el-button>
+                <el-button size="small" @click="insertVariable('amount_upper')">金额大写</el-button>
               </el-button-group>
               <el-divider direction="vertical" />
               <el-button-group>
@@ -273,6 +279,15 @@
 
           <!-- 代码编辑模式 -->
           <div v-else class="code-editor-container">
+            <p v-if="currentTemplate.template_type === 'purchase_order'" class="template-tip">
+              采购订单可用变量：使用分页明细时，每页提供 8 行，循环写法为
+              <code v-text="'{{#each printPages}}…{{#each items}}…{{/each}}…{{/each}}'"></code>。
+              单价、金额列分别使用 <code v-text="'{{tax_inclusive_unit_price}}'"></code>、<code v-text="'{{tax_inclusive_amount}}'"></code>；
+              合计使用 <code v-text="'{{subtotal}} / {{tax_amount}} / {{total_amount}} / {{amount_upper}}'"></code>。
+              技术成果要求使用 <code v-text="'{{technical_requirements}}'"></code>。
+              审核签字使用 <code v-text="'{{approver_signature}}'"></code>（电子签名字体），姓名使用 <code v-text="'{{approver_name}}'"></code>，
+              审核日期使用 <code v-text="'{{approval_date}}'"></code>；未审核时留空。
+            </p>
             <div v-if="currentTemplate.template_type === 'sales_outbound'">
               <p class="template-tip">销售出库单模板 - 可用变量: \{\{outbound_no\}\}, \{\{order_no\}\}, \{\{customer_name\}\}, \{\{delivery_date\}\}, \{\{#each items\}\}...\{\{/each\}\} 等</p>
               <el-input
@@ -325,6 +340,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="templateDialogVisible = false">取消</el-button>
+          <el-button @click="previewCurrentTemplate" :disabled="!currentTemplate.content">预览当前模板</el-button>
           <el-button v-permission="currentTemplate.id ? 'system:print:update' : 'system:print:create'" type="primary" @click="savePrintTemplate">保存</el-button>
         </span>
       </template>
@@ -372,17 +388,13 @@ import {
   PREVIEW_DATA
 } from '../../constants/printConstants'
 
-import {
-  previewTemplate as processTemplatePreview,
-  processTemplate
-} from '../../utils/helpers/templateUtils'
+import { normalizePreviewTemplateSyntax, processTemplate } from '../../utils/helpers/templateUtils'
 
 // 导入公共组件
 import MarginInputs from '../../components/ui/print/MarginInputs.vue'
 import PaperSizeSelect from '../../components/ui/print/PaperSizeSelect.vue'
 import { sanitizeHtml, writeSafeHtmlDocument } from '@/utils/htmlSecurity'
 import { autoFitPrintDocument } from '@/utils/printAutoFit'
-import { getAppFontFamily } from '@/utils/typography'
 import { useAuthStore } from '@/stores/auth'
 import { getCssTokenValue } from '@/utils/designTokens'
 import printService, { normalizeSystemSettings } from '@/services/printService'
@@ -658,45 +670,18 @@ const deletePrintTemplate = (id) => {
 }
 
 const previewTemplate = (template) => {
-  let content = processTemplatePreview(template);
-  const printTokens = getPrintTokens()
-
-  // 如果内容不包含完整的 HTML 结构，则包装它
-  if (!content.includes('<html>') && !content.includes('<!DOCTYPE')) {
-    content = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <style>
-          body {
-            font-family: ${getAppFontFamily()};
-            padding: 20px;
-            margin: 0;
-          }
-          table {
-            border-collapse: collapse;
-            width: 100%;
-          }
-          th, td {
-            border: 1px solid ${printTokens.border};
-            padding: 8px;
-            text-align: left;
-          }
-          th {
-            background-color: ${printTokens.tableHeader};
-          }
-        </style>
-      </head>
-      <body>
-        ${content}
-      </body>
-      </html>
-    `;
+  try {
+    const templateType = template.template_type ?? template.templateType
+    // 与业务打印共用纸张、边距、字段归一和分页渲染。
+    previewContent.value = printService.generatePrintContent({
+      ...template,
+      content: normalizePreviewTemplateSyntax(template.content)
+    }, PREVIEW_DATA[templateType] || {})
+    previewDialogVisible.value = true
+  } catch (error) {
+    console.error('生成模板预览失败:', error)
+    ElMessage.error(getApiErrorMessage(error, '生成模板预览失败'))
   }
-
-  previewContent.value = content;
-  previewDialogVisible.value = true;
 }
 
 // 当预览对话框完全打开后，渲染 iframe 内容
@@ -870,6 +855,8 @@ watch(editMode, (newMode) => {
     updatePreview()
   }
 })
+
+watch(() => currentTemplate.template_type, updatePreview)
 </script>
 
 <style scoped>
@@ -964,6 +951,7 @@ watch(editMode, (newMode) => {
   padding: 10px;
   border-bottom: 1px solid var(--color-border-base);
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
 }

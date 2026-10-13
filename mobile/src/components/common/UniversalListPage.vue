@@ -15,15 +15,17 @@
     >
       <template #right>
         <div v-if="headerActions.length" class="nav-actions">
-          <span
+          <button
+            type="button"
+            :aria-label="action.label || action.action || '操作'"
             v-for="action in headerActions"
             :key="action.action || action.label || action.icon"
             class="nav-action"
             @click="handleHeaderAction(action)"
             v-permission="action.permission || ''"
           >
-            <SvgIcon :name="action.icon || 'plus'" size="1.125rem" />
-          </span>
+            <SvgIcon :name="action.icon || 'plus'" size="1.125rem" aria-hidden="true" />
+          </button>
         </div>
       </template>
     </NavBar>
@@ -528,6 +530,10 @@
   }
 
   .nav-action {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
     display: inline-flex;
     align-items: center;
     justify-content: center;

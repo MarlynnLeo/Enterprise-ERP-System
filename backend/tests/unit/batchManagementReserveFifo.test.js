@@ -40,6 +40,19 @@ jest.mock('../../src/services/business/DLQService', () => ({
 const db = require('../../src/config/db');
 const BatchManagementService = require('../../src/services/business/BatchManagementService');
 
+function stagingConnection(insertId) {
+  return {
+    execute: jest.fn(async (sql) => {
+      if (/SELECT\s+.+\s+FROM\s+inventory_posting_documents\s+WHERE\s+id\s*=/i.test(sql)) {
+        return [[{ id: insertId, posting_no: `INV-${insertId}`, finance_status: 'pending' }]];
+      }
+      if (sql.trim().startsWith('SELECT')) return [[]];
+      return [{ insertId, affectedRows: 1 }];
+    }),
+    query: jest.fn(),
+  };
+}
+
 describe('BatchManagementService.reserveBatch FIFO connection', () => {
   const conn = db.__mockConn;
 
@@ -246,10 +259,7 @@ describe('InventoryService batch number normalize on ledger write', () => {
   });
 
   it('updateStock stages a posting line with normalized batch_number before finance approval', async () => {
-    const connection = {
-      execute: jest.fn().mockResolvedValue([{ insertId: 55 }]),
-      query: jest.fn(),
-    };
+    const connection = stagingConnection(55);
 
     jest.spyOn(InventoryService, '_findLedgerByIdempotencyKey').mockResolvedValue(null);
     jest.spyOn(InventoryService, 'resolveTransactionDate').mockResolvedValue('2026-06-27');
@@ -281,9 +291,7 @@ describe('InventoryService batch number normalize on ledger write', () => {
     const fifoQuery = connection.query.mock.calls[0]?.[0] || '';
     // inventory_ledger and inventory_posting_lines may use different MySQL
     // collations for batch_number; normalize both UNION branches explicitly.
-    expect(fifoQuery).toMatch(
-      /CONVERT\(batch_number USING utf8mb4\) COLLATE utf8mb4_unicode_ci/i
-    );
+    expect(fifoQuery).toMatch(/CONVERT\(batch_number USING utf8mb4\) COLLATE utf8mb4_unicode_ci/i);
     expect(fifoQuery).toMatch(
       /CONVERT\(l\.batch_number USING utf8mb4\) COLLATE utf8mb4_unicode_ci/i
     );
@@ -301,10 +309,7 @@ describe('InventoryService batch number normalize on ledger write', () => {
   });
 
   it('updateStock normalizes explicit batchNumber before ledger insert', async () => {
-    const connection = {
-      execute: jest.fn().mockResolvedValue([{ insertId: 66 }]),
-      query: jest.fn(),
-    };
+    const connection = stagingConnection(66);
 
     jest.spyOn(InventoryService, '_findLedgerByIdempotencyKey').mockResolvedValue(null);
     jest.spyOn(InventoryService, 'resolveTransactionDate').mockResolvedValue('2026-06-27');

@@ -497,18 +497,19 @@
           <el-table-column prop="unitName" label="单位" min-width="80"></el-table-column>
           <el-table-column prop="remarks" label="备注" min-width="150"></el-table-column>
         </el-table>
-        <InventoryApprovalPanel
+        <InventoryPostingStatusPanel
           v-if="authStore.canViewInventoryApproval"
           source-type="transfer"
           :source-id="transferDetail.id"
           :source-no="transferDetail.transferNo || ''"
-          :resubmit-status="transferDetail.status === 'completed' ? 'completed' : ''"
-          @resubmit="handleResubmitTransfer"
-          @changed="loadTransferList"
+          ref="postingStatusPanel"
+          @loaded="postingStatus = $event"
         />
       </div>
       <template #footer>
         <div class="dialog-footer">
+          <el-button v-if="canResubmitTransfer" type="warning" :loading="resubmitting" :disabled="detailLoading"
+            @click="handleResubmitTransfer('completed')">重新提交审核</el-button>
           <el-button @click="viewDialogVisible = false">关闭</el-button>
         </div>
       </template>
@@ -517,6 +518,7 @@
 </template>
 
 <script setup>
+import { useInventoryPostingSourceLink } from '@/composables/useInventoryPostingSourceLink'
 import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { handleTableRowView } from '@/utils/tableRowView';
 import { ref, reactive, onMounted, computed } from 'vue';
@@ -546,7 +548,7 @@ import { parseListData, parsePaginatedData } from '@/utils/responseParser';
 import { SEARCH_CONFIG, searchMaterials, mapMaterialData } from '@/utils/searchConfig';
 import printService from '@/services/printService';
 import { getApiErrorMessage } from '@/utils/errorHandler'
-import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue';
+import InventoryPostingStatusPanel from '@/components/inventory/InventoryPostingStatusPanel.vue';
 
 // 权限store
 const authStore = useAuthStore();
@@ -627,6 +629,12 @@ const transferForm = reactive({
 
 // 调拨单详情
 const transferDetail = ref({});
+const postingStatusPanel = ref(null);
+const postingStatus = ref(null);
+const resubmitting = ref(false);
+const canResubmitTransfer = computed(() => authStore.hasPermission('inventory:transfer:update') &&
+  transferDetail.value.status === 'completed' &&
+  (transferDetail.value.financeStatus || postingStatus.value) === 'rejected');
 
 const normalizeTransferItemForForm = (item = {}) => ({
   id: item.id,
@@ -762,14 +770,18 @@ const updateStatus = async (id, status) => {
 };
 
 const handleResubmitTransfer = async (status) => {
-  if (!transferDetail.value?.id || !status) return;
+  if (!canResubmitTransfer.value || resubmitting.value || status !== 'completed') return;
+  resubmitting.value = true;
   try {
     await inventoryApi.updateTransferStatus(transferDetail.value.id, status);
     ElMessage.success('已重新提交财务审核');
     await loadTransferList();
     await viewTransfer(transferDetail.value.id);
+    await postingStatusPanel.value?.refresh();
   } catch (error) {
     ElMessage.error(getApiErrorMessage(error, '重新提交审核失败'));
+  } finally {
+    resubmitting.value = false;
   }
 };
 
@@ -1371,6 +1383,13 @@ const batchDeleteTransfers = async () => {
     }
   }
 };
+
+useInventoryPostingSourceLink({
+  path: '/inventory/transfer',
+  sourceTypes: ["transfer"],
+  open: ({ id }) => viewTransfer(id),
+  setSearch: (sourceNo) => { searchForm.transfer_no = sourceNo },
+})
 </script>
 
 <style scoped>

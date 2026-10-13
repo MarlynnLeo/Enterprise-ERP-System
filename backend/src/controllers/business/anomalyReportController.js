@@ -6,7 +6,7 @@ const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
 const { mapKeysToSnake } = require('../../utils/fieldMap');
 const { pool } = require('../../config/db');
-const ScopeGuard = require('../../authorization/ScopeGuard');
+const FileAccessService = require('../../services/FileAccessService');
 
 async function assertAnomalyWriteAccess(_req, anomalyId) {
   const [[row]] = await pool.query(
@@ -21,6 +21,40 @@ async function assertAnomalyWriteAccess(_req, anomalyId) {
 }
 
 module.exports = {
+  async getTaskOptions(req, res) {
+    try {
+      const result = await AnomalyReportService.getTaskOptions(req.query, req);
+      ResponseHandler.paginated(res, result.list, result.total, result.page, result.pageSize);
+    } catch (error) {
+      logger.error('获取异常关联任务失败:', error);
+      ResponseHandler.error(res, '获取关联任务失败');
+    }
+  },
+
+  async uploadImage(req, res) {
+    const file = req.fileInfo;
+    if (!file) return ResponseHandler.error(res, '请选择现场照片', 'BAD_REQUEST', 400);
+    try {
+      await FileAccessService.recordUpload({
+        fileUrl: file.url,
+        source: 'anomaly_image',
+        uploadedBy: req.user?.id ?? req.user?.userId,
+        isPublic: 0,
+        metadata: { originalName: file.originalName, mimetype: file.mimetype, size: file.size },
+      });
+      return ResponseHandler.success(res, {
+        url: file.url,
+        filename: file.originalName,
+        size: file.size,
+        mimetype: file.mimetype,
+      });
+    } catch (error) {
+      FileAccessService.removeLocalFiles([file.url]);
+      logger.error('异常现场照片上传失败:', error);
+      return ResponseHandler.error(res, '照片上传失败，请重试');
+    }
+  },
+
   async getList(req, res) {
     try {
       const result = await AnomalyReportService.getList(req.query);
@@ -44,23 +78,22 @@ module.exports = {
 
   async create(req, res) {
     try {
-      const taskId = req.body?.task_id ?? req.body?.taskId;
-      if (taskId)
-        await (async () => {
-          if (!(await ScopeGuard.assertAccess(pool, req, 'production_task', taskId))) {
-            const error = new Error('无权为该生产任务上报异常');
-            error.statusCode = 403;
-            throw error;
-          }
-        })();
-      const data = await AnomalyReportService.create(req.body, req.user?.id);
+      const data = await AnomalyReportService.create(
+        req.body,
+        req.user?.id ?? req.user?.userId,
+        req
+      );
       ResponseHandler.success(res, data, '异常上报成功');
     } catch (error) {
       logger.error('异常上报失败:', error);
       ResponseHandler.error(
         res,
         error.message || '异常上报失败',
-        error.statusCode === 403 ? 'FORBIDDEN' : 'OPERATION_ERROR',
+        error.statusCode === 403
+          ? 'FORBIDDEN'
+          : error.statusCode === 400
+            ? 'VALIDATION_ERROR'
+            : 'OPERATION_ERROR',
         error.statusCode || 500
       );
     }

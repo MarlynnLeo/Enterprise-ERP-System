@@ -430,7 +430,7 @@ onMounted(fetchData);
 .stat-card:hover {
   border-color: var(--color-border-light);
   background: var(--color-bg-section);
-  box-shadow: var(--shadow-sm) !important;
+  box-shadow: var(--shadow-sm);
   transform: none !important;
 }
 .stat-card .el-card__body { display: flex; justify-content: space-between; align-items: center; }
