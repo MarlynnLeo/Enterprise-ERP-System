@@ -73,3 +73,15 @@ reports/
 *.pyc
 tmp/
 excl/
+
+# Office and root documents
+/*.docx
+/*.xlsx
+/*.pptx
+/*.doc
+/*.xls
+
+# Root temporary audit & repair reports
+/*AUDIT*.md
+/*REPAIR*.md
+!/README.md

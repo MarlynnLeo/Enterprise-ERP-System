@@ -353,8 +353,6 @@ cd frontend
 npm test
 ```
 
-本轮审计范围、修复、清理和验证限制见 [全站审计报告](AUDIT_REPORT.md)。
-
 ---
 
 ## 路线图（持续完善）
