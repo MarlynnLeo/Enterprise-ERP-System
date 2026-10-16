@@ -86,6 +86,14 @@ describe('dashboard theme isolation', () => {
       expect(wrapper.getComponent(SharedDashboardLayout).vm.$.uid).toBe(sharedInstance)
     }
     expect(context.refreshDashboardCharts).toHaveBeenCalledTimes(1)
+    const previousMonth = wrapper.get('button[aria-label="上个月"]')
+    const nextMonth = wrapper.get('button[aria-label="下个月"]')
+    expect(previousMonth.attributes('type')).toBe('button')
+    await previousMonth.trigger('click')
+    await nextMonth.trigger('click')
+    expect(context.changeMonth.mock.calls).toEqual([[-1], [1]])
+    await wrapper.get('.more-btn').trigger('click')
+    expect(context.goToTodoPage).toHaveBeenCalledTimes(1)
     themeState.appearance.preset = 'workspace'
     await flushPromises()
     expect(wrapper.find('.dashboard--classic .overview-metrics').exists()).toBe(true)

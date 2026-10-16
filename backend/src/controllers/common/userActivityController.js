@@ -92,8 +92,12 @@ function getActivityActionLabel(action) {
     READ: '查看',
     EXPORT: '导出',
     IMPORT: '导入',
-    APPROVE: '审批通过',
+    APPROVE: '审核',
     REJECT: '审批驳回',
+    REVERSE: '反审核',
+    POST: '过账',
+    CLOSE: '关账',
+    REOPEN: '重新打开',
     SUBMIT: '提交',
     CANCEL: '取消',
     PRINT: '打印',
@@ -151,7 +155,24 @@ function summarizePath(pathValue) {
   return hit ? hit.label : raw.replace(/^\/api/, '');
 }
 
+function auditOutcome(log) {
+  let response = log.response_body;
+  if (typeof response === 'string') {
+    try { response = JSON.parse(response); } catch { response = null; }
+  }
+  if (Number(log.response_status) >= 400 || response?.outcome === 'failed') return 'failed';
+  return response?.outcome === 'partial' ? 'partial' : null;
+}
+
 function formatActivityContent(log) {
+  const content = formatActivityDescription(log);
+  const outcome = auditOutcome(log);
+  if (outcome === 'failed') return `操作失败：${content}`;
+  if (outcome === 'partial') return `部分成功：${content}`;
+  return content;
+}
+
+function formatActivityDescription(log) {
   const actionKey = String(log.action || '')
     .trim()
     .toUpperCase();
@@ -176,6 +197,10 @@ function formatActivityContent(log) {
   }
   if (actionKey === 'PERMISSION_ASSIGN') {
     return entityId ? `分配权限 · #${entityId}` : '分配权限';
+  }
+
+  if (['APPROVE', 'REJECT', 'REVERSE', 'POST', 'SUBMIT', 'CANCEL', 'CLOSE', 'REOPEN'].includes(actionKey)) {
+    return [moduleLabel, actionLabel, entityId ? `#${entityId}` : ''].filter(Boolean).join(' · ');
   }
 
   if (pathSummary && !pathSummary.startsWith('/')) {
@@ -235,7 +260,7 @@ exports.getUserActivities = async (req, res) => {
       userId: log.user_id,
       timestamp: log.created_at,
       content: formatActivityContent(log),
-      type: 'info',
+      type: auditOutcome(log) === 'failed' ? 'error' : auditOutcome(log) === 'partial' ? 'warning' : 'info',
       category: normalizeActivityCategory(log.module, log.action, log.path),
       createdAt: log.created_at,
     }));

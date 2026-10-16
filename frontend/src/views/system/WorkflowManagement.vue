@@ -202,7 +202,6 @@ const detail = ref(null)
 
 const btLabel = {
   purchase_order: '采购订单',
-  purchase_requisition: '采购请购',
   expense: '费用报销',
   scrap: '报废审批',
   leave: '请假',

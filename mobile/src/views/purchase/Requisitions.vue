@@ -60,8 +60,8 @@
           >
             <div class="list-header">
               <span class="list-id">{{ requisition.requisitionNumber || requisition.requisitionCode }}</span>
-              <Tag :type="getRequisitionStatusType(requisition.status)" size="medium">
-                {{ getRequisitionStatusText(requisition.status) }}
+              <Tag :type="requisition.isFullyOrdered ? 'success' : getRequisitionStatusType(requisition.status)" size="medium">
+                {{ requisition.isFullyOrdered ? '已生成订单' : requisition.isPartiallyOrdered ? '部分生成订单' : getRequisitionStatusText(requisition.status) }}
               </Tag>
             </div>
 
@@ -96,17 +96,18 @@
                 查看详情
               </Button>
               <Button
-                v-if="requisition.status === 'draft'"
+                v-if="canSubmitRequisition(requisition)"
                 v-permission="'purchase:requisitions:update'"
                 size="small"
                 type="success"
                 plain
+                :loading="submittingIds.includes(requisition.id)"
                 @click.stop="submitRequisition(requisition)"
               >
-                提交申请
+                {{ requisition.isPartiallyOrdered ? '生成剩余订单' : '提交并生成采购订单' }}
               </Button>
               <Button
-                v-if="requisition.status === 'approved'"
+                v-if="requisition.status === 'completed' || requisition.isFullyOrdered || requisition.isPartiallyOrdered"
                 v-permission="'purchase:orders:view'"
                 size="small"
                 type="warning"
@@ -135,13 +136,13 @@
     PullRefresh,
     List,
     Button,
-    showToast,
-    showConfirmDialog
+    showToast
   } from 'vant'
   import { purchaseApi } from '@/api'
   import dayjs from 'dayjs'
   import { useAuthStore } from '@/stores/auth'
   import { canViewMaterialPrices, formatMaskedPrice } from '@/utils/priceVisibility'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const authStore = useAuthStore()
   const canViewPrice = computed(() => canViewMaterialPrices((code) => authStore.hasPermission(code)))
@@ -156,15 +157,14 @@
   const finished = ref(false)
   const requisitionList = ref([])
   const activeTab = ref(0)
+  const submittingIds = ref([])
 
   // 状态标签
   const statusTabs = [
     { label: '全部', value: '' },
     { label: '草稿', value: 'draft' },
-    { label: '已提交', value: 'submitted' },
-    { label: '已批准', value: 'approved' },
-    { label: '已拒绝', value: 'rejected' },
-    { label: '已完成', value: 'completed' }
+    { label: '待提交', value: 'submitted' },
+    { label: '已生成订单', value: 'completed' }
   ]
 
   // 分页参数
@@ -257,8 +257,9 @@
     const statusMap = {
       draft: 'default',
       submitted: 'primary',
-      approved: 'success',
-      rejected: 'danger',
+      pending: 'primary',
+      approved: 'primary',
+      rejected: 'primary',
       completed: 'success'
     }
     return statusMap[status] || 'default'
@@ -268,10 +269,12 @@
   const getRequisitionStatusText = (status) => {
     const statusMap = {
       draft: '草稿',
-      submitted: '已提交',
-      approved: '已批准',
-      rejected: '已拒绝',
-      completed: '已完成'
+      submitted: '待提交',
+      pending: '待提交',
+      approved: '待提交',
+      rejected: '待提交',
+      completed: '已生成订单',
+      cancelled: '已取消'
     }
     return statusMap[status] || status
   }
@@ -288,29 +291,26 @@
   }
 
   // 提交申请
+  const canSubmitRequisition = (requisition) => !requisition.isFullyOrdered &&
+    ['draft', 'submitted', 'pending', 'approved', 'rejected', 'completed'].includes(requisition.status)
+
   const submitRequisition = async (requisition) => {
+    if (!canSubmitRequisition(requisition) || submittingIds.value.includes(requisition.id)) return
+    submittingIds.value.push(requisition.id)
     try {
-      await showConfirmDialog({
-        title: '提交申请',
-        message: `确定要提交申请 ${requisition.requisition_number} 吗？`
-      })
-
       await purchaseApi.updateRequisitionStatus(requisition.id, 'submitted')
-      showToast('申请已提交')
-
-      // 更新本地状态
-      requisition.status = 'submitted'
+      showToast('已提交并生成采购订单')
+      resetList()
+      await loadRequisitionList()
     } catch (error) {
-      if (error !== 'cancel') {
-        console.error('提交申请失败:', error)
-        showToast('提交申请失败')
-      }
+      showToast(getApiErrorMessage(error, '提交申请失败'))
+    } finally {
+      submittingIds.value = submittingIds.value.filter(id => id !== requisition.id)
     }
   }
 
-  // 后端审批通过后会自动生成采购订单，移动端进入订单列表查看
+  // 查看提交时自动生成的采购订单
   const viewGeneratedOrders = () => {
-    showToast('审批通过后订单会自动生成，请在采购订单中查看')
     router.push('/purchase/orders')
   }
 
@@ -371,7 +371,7 @@
     &.active {
       background: var(--color-accent-bg, rgba(59, 130, 246, 0.1));
       border-color: var(--color-accent, var(--color-primary));
-      color: var(--color-accent, var(--color-primary));
+      color: var(--color-accent-text, var(--color-primary));
     }
   }
 

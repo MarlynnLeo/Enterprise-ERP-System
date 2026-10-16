@@ -57,36 +57,47 @@
     </FinanceQueryCard>
     <!-- 统计卡片 -->
     <div class="statistics-row">
-      <el-card class="stat-card" shadow="hover" @click="resetStatusFilter">
+      <el-card class="stat-card" shadow="hover" role="button" tabindex="0" :aria-pressed="statusFilter === ''" @click="resetStatusFilter" @keydown.enter.self.prevent="resetStatusFilter" @keydown.space.self.prevent="resetStatusFilter">
         <div class="stat-value">{{ outboundStats.total }}</div>
         <div class="stat-label">全部出库单</div>
       </el-card>
-      <el-card class="stat-card" shadow="hover" @click="setStatusFilter('draft')">
+      <el-card class="stat-card" shadow="hover" role="button" tabindex="0" :aria-pressed="statusFilter === 'draft'" @click="setStatusFilter('draft')" @keydown.enter.self.prevent="setStatusFilter('draft')" @keydown.space.self.prevent="setStatusFilter('draft')">
         <div class="stat-value">{{ outboundStats.draft }}</div>
         <div class="stat-label">草稿</div>
       </el-card>
-      <el-card class="stat-card" shadow="hover" @click="setStatusFilter('processing')">
+      <el-card class="stat-card" shadow="hover" role="button" tabindex="0" :aria-pressed="statusFilter === 'processing'" @click="setStatusFilter('processing')" @keydown.enter.self.prevent="setStatusFilter('processing')" @keydown.space.self.prevent="setStatusFilter('processing')">
         <div class="stat-value">{{ outboundStats.processing }}</div>
         <div class="stat-label">处理中</div>
       </el-card>
-      <el-card class="stat-card" shadow="hover" @click="setStatusFilter('completed')">
+      <el-card class="stat-card" shadow="hover" role="button" tabindex="0" :aria-pressed="statusFilter === 'completed'" @click="setStatusFilter('completed')" @keydown.enter.self.prevent="setStatusFilter('completed')" @keydown.space.self.prevent="setStatusFilter('completed')">
         <div class="stat-value">{{ outboundStats.completed }}</div>
         <div class="stat-label">已完成</div>
       </el-card>
-      <el-card class="stat-card" shadow="hover" @click="setStatusFilter('cancelled')">
+      <el-card class="stat-card" shadow="hover" role="button" tabindex="0" :aria-pressed="statusFilter === 'cancelled'" @click="setStatusFilter('cancelled')" @keydown.enter.self.prevent="setStatusFilter('cancelled')" @keydown.space.self.prevent="setStatusFilter('cancelled')">
         <div class="stat-value">{{ outboundStats.cancelled }}</div>
         <div class="stat-label">已取消</div>
       </el-card>
     </div>
     <!-- 出库单表格 -->
     <el-card class="data-card">
+      <InventoryBatchApproval
+        :selected-rows="selectedApprovalRows"
+        source-type="sales_outbound"
+        source-no-key="outboundNo"
+        :disabled="loading || _outboundsLoading"
+        @clear="clearApprovalSelection"
+        @changed="handleApprovalChanged"
+      />
       <el-table
+        ref="approvalTableRef"
         :data="outbounds"
+        row-key="id"
         border
         class="table-row-click w-full"
         v-loading="loading"
-      
-      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => showDetails(row))">
+        @selection-change="handleApprovalSelectionChange"
+        @row-click="(row, column, event) => column?.type !== 'selection' && handleTableRowView(row, column, event, () => showDetails(row))">
+        <el-table-column v-if="canBatchApprove" type="selection" width="48" fixed="left" :selectable="isApprovalSelectable" />
         <el-table-column prop="outboundNo" label="出库单号" width="150" fixed />
         <el-table-column label="关联订单" width="200">
           <template #default="scope">
@@ -183,6 +194,7 @@
               size="small"
               type="primary"
               v-permission="'sales:outbound:update'"
+              :disabled="statusUpdating"
               @click="handleStatusChange(scope.row, 'processing')"
             >
               开始处理
@@ -192,15 +204,22 @@
               size="small"
               type="primary"
               v-permission="'sales:outbound:update'"
+              :disabled="statusUpdating"
               @click="handleStatusChange(scope.row, 'completed')"
             >
               完成
             </el-button>
             <el-button
+              v-if="canResubmitOutbound(scope.row)"
+              size="small" type="warning" :loading="statusUpdating"
+              @click="handleStatusChange(scope.row, 'completed')"
+            >重新提交出库审核</el-button>
+            <el-button
               v-if="['draft', 'processing'].includes(scope.row.status)"
               size="small"
               type="warning"
               v-permission="'sales:outbound:update'"
+              :disabled="statusUpdating"
               @click="handleStatusChange(scope.row, 'cancelled')"
             >
               取消
@@ -220,7 +239,7 @@
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
-          v-model:current-page="outboundPagination.page"
+          v-model:current-page="outboundPagination.current"
           v-model:page-size="outboundPagination.pageSize"
           :page-sizes="PAGE_SIZE_OPTIONS"
           :small="false"
@@ -259,8 +278,10 @@
         <InventoryApprovalPanel
           v-if="currentOutbound?.id || currentOutbound?.outboundNo"
           source-type="sales_outbound"
+          :active="detailsVisible && !detailsLoading"
           :source-id="currentOutbound.id"
           :source-no="currentOutbound.outboundNo"
+          @changed="handleApprovalChanged"
         />
 
         <el-divider>出库明细</el-divider>
@@ -295,6 +316,10 @@
         </el-table>
       </div>
       </div>
+      <template #footer>
+        <el-button @click="detailsVisible = false">关闭</el-button>
+        <el-button v-if="detailsVisible && !detailsLoading && canResubmitOutbound(currentOutbound)" type="warning" :loading="statusUpdating" @click="handleStatusChange(currentOutbound, 'completed')">重新提交出库审核</el-button>
+      </template>
     </AppDialog>
     <!-- 创建/编辑出库单对话框 -->
     <AppDialog
@@ -540,7 +565,7 @@
                 clearable
               >
                 <template #append>
-                  <el-button @click="searchCustomerProducts" :loading="customerProductsLoading">
+                  <el-button @click="searchCustomerProducts" :loading="customerProductsLoading" aria-label="搜索客户产品">
                     <el-icon><Search /></el-icon>
                   </el-button>
                 </template>
@@ -646,7 +671,8 @@ import { handleTableRowView } from '@/utils/tableRowView'
 import { parseListData, parseResponseData } from '@/utils/responseParser';
 import { formatDate } from '@/utils/helpers/dateUtils'
 import dayjs from 'dayjs'
-import { ref, computed, onMounted, onActivated } from 'vue'
+import { ref, computed, onMounted, onActivated, watch, onBeforeUnmount, onDeactivated } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { salesApi, inventoryApi } from '@/api'
@@ -655,10 +681,30 @@ import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 import printService from '@/services/printService'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
 import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue'
+import InventoryBatchApproval from '@/components/inventory/InventoryBatchApproval.vue'
+const authStore = useAuthStore()
+let detailRequestSequence = 0
+let statsRequestSequence = 0
+const canResubmitOutbound = row => Boolean(row?.id) && authStore.hasPermission('sales:outbound:update') &&
+  row.status === 'completed' && row.financeStatus === 'rejected' && [true, 1].includes(row.canResubmitInventory)
 import { getCommonStatusText } from '@/constants/systemConstants'
 import { getApiErrorMessage } from '@/utils/errorHandler'
 // 状态变量
 const loading = ref(false)
+const approvalTableRef = ref(null)
+const selectedApprovalRows = ref([])
+const canBatchApprove = computed(() => authStore.canViewInventoryApproval && authStore.canApproveInventoryApproval)
+const isApprovalSelectable = row => Boolean(
+  canBatchApprove.value && !loading.value && !_outboundsLoading.value && row?.id && row.status === 'completed' &&
+  (!row.financeStatus || row.financeStatus === 'pending')
+)
+const clearApprovalSelection = () => {
+  selectedApprovalRows.value = []
+  approvalTableRef.value?.clearSelection?.()
+}
+const handleApprovalSelectionChange = rows => {
+  selectedApprovalRows.value = rows.filter(isApprovalSelectable)
+}
 const orders = ref([])
 // 缓存相关
 const dataLoaded = ref(false)
@@ -749,8 +795,10 @@ const calculateOutboundStats = (dataToCount) => {
 }
 // 获取全量出库单统计数据
 const fetchStats = async () => {
+  const request = ++statsRequestSequence
   try {
     const response = await salesApi.getOutboundStats();
+    if (request !== statsRequestSequence) return
     const stats = parseResponseData(response, {});
     outboundStats.value = {
       total: Number(stats.total) || 0,
@@ -760,6 +808,7 @@ const fetchStats = async () => {
       cancelled: Number(stats.cancelled) || 0
     };
   } catch (error) {
+    if (request !== statsRequestSequence) return
     console.error('获取出库单统计数据失败:', error);
     calculateOutboundStats(outbounds.value || []);
   }
@@ -774,6 +823,7 @@ const {
   handleSizeChange: handleOutboundSizeChange
 } = usePaginatedFetching(
   async (params) => {
+    clearApprovalSelection()
     // 构建搜索参数
     const searchParams = {
       search: searchQuery.value,
@@ -803,6 +853,9 @@ const {
     immediate: true
   }
 );
+watch([searchQuery, statusFilter, dateRange], clearApprovalSelection, { deep: true, flush: 'sync' })
+watch(outbounds, clearApprovalSelection, { flush: 'sync' })
+watch(canBatchApprove, allowed => { if (!allowed) clearApprovalSelection() }, { flush: 'sync' })
 const {
   previousItem: previousViewOutbound,
   nextItem: nextViewOutbound,
@@ -884,26 +937,42 @@ onActivated(async () => {
 })
 // 查看详情
 const showDetails = async (row) => {
+  if (!row?.id || !authStore.hasPermission('sales:outbound:view')) return
+  const request = ++detailRequestSequence
   detailsVisible.value = true
   detailsLoading.value = true
   currentOutbound.value = null
+  setCurrentViewOutbound(row)
 
   try {
     const response = await salesApi.getOutbound(row.id)
-    currentOutbound.value = response.data
-
-    // 确保items存在
-    if (!currentOutbound.value.items) {
-      currentOutbound.value.items = []
-    }
-    setCurrentViewOutbound(row)
+    if (request !== detailRequestSequence || !detailsVisible.value) return
+    const data = parseResponseData(response, null)
+    if (!data?.id) throw new Error('出库单详情为空')
+    currentOutbound.value = { ...data, items: data.items || [] }
   } catch {
+    if (request !== detailRequestSequence || !detailsVisible.value) return
     ElMessage.error('获取出库单详情失败')
     detailsVisible.value = false
   } finally {
-    detailsLoading.value = false
+    if (request === detailRequestSequence) detailsLoading.value = false
   }
 }
+
+const clearOutboundDetail = () => {
+  detailRequestSequence += 1
+  currentOutbound.value = null
+  detailsLoading.value = false
+}
+watch(detailsVisible, visible => { if (!visible) clearOutboundDetail() }, { flush: 'sync' })
+onBeforeUnmount(() => { clearApprovalSelection(); clearOutboundDetail(); statsRequestSequence += 1 })
+onDeactivated(() => { clearApprovalSelection(); detailsVisible.value = false; clearOutboundDetail(); statsRequestSequence += 1 })
+
+const refreshOutbound = async (id, context = detailRequestSequence) => {
+  await Promise.all([fetchOutbounds(), fetchStats()])
+  if (id && detailsVisible.value && context === detailRequestSequence && currentOutbound.value?.id === id) await showDetails({ id })
+}
+const handleApprovalChanged = () => refreshOutbound(currentOutbound.value?.id)
 
 const handleViewPrevious = () => {
   if (previousViewOutbound.value) showDetails(previousViewOutbound.value)
@@ -1423,7 +1492,7 @@ const addSelectedProductsToOutbound = async () => {
 const statusUpdating = ref(false)
 const handleStatusChange = async (row, status) => {
   // 防止重复请求
-  if (statusUpdating.value) {
+  if (!row?.id || statusUpdating.value || !authStore.hasPermission('sales:outbound:update')) {
     return
   }
   // 检查状态转换的合法性
@@ -1433,41 +1502,30 @@ const handleStatusChange = async (row, status) => {
     'completed': [],
     'cancelled': []
   };
-  if (!validTransitions[row.status]?.includes(status)) {
+  const retry = status === 'completed' && canResubmitOutbound(row)
+  if (!retry && !validTransitions[row.status]?.includes(status)) {
     ElMessage.warning(`当前状态 "${row.status}" 不能转换为 "${status}"`)
     return
   }
-  // 取消操作需要确认（破坏性操作），完成操作直接执行
-  if (status === 'cancelled') {
-    const message = '确定要取消此出库单吗？如果出库单之前已完成，此操作将恢复库存。'
-    try {
-      await ElMessageBox.confirm(message, '确认操作', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning',
-      })
-    } catch {
-      return // 用户取消操作
-    }
-  }
   statusUpdating.value = true
+  const context = detailRequestSequence
   try {
-    await salesApi.updateOutbound(row.id, { status })
-
-    // 如果状态为已完成，此时后端会自动接管新版的批次消耗追溯，前端无需再调旧版质量追溯接口
-    // if (status === 'completed') {
-    //   ...
-    // }
-
-    // 更新本地数据
-    const index = outbounds.value.findIndex(item => item.id === row.id)
-    if (index !== -1) {
-      outbounds.value[index].status = status
+    if (status === 'cancelled' || retry) {
+      try {
+        await ElMessageBox.confirm(retry ? '重新提交已驳回的销售出库，等待财务审核？' : '确定要取消此出库单吗？', retry ? '重新提交出库审核' : '确认操作', {
+          confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning'
+        })
+      } catch { return }
     }
-
-    ElMessage.success(`出库单状态已更新为${getStatusText(status)}`)
-
-    await Promise.all([fetchOutbounds(), fetchStats()])
+    if (!authStore.hasPermission('sales:outbound:update') || (retry ? !canResubmitOutbound(row) : !validTransitions[row.status]?.includes(status))) return
+    await salesApi.updateOutbound(row.id, { status })
+    for (const record of [row, currentOutbound.value, ...outbounds.value]) {
+      if (record?.id !== row.id) continue
+      record.status = status
+      if (status === 'completed') { record.financeStatus = 'pending'; record.canResubmitInventory = false }
+    }
+    ElMessage.success(retry ? '已重新提交出库审核' : `出库单状态已更新为${getStatusText(status)}`)
+    await refreshOutbound(row.id, context)
   } catch (error) {
     console.error('状态更新失败:', error)
     const errorData = error.response?.data

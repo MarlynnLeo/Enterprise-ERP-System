@@ -84,17 +84,4 @@ describe('classic theme component contracts', () => {
     expect(violations).toEqual([])
   })
 
-  test('reduced motion overrides component declarations regardless of selector specificity', () => {
-    const declarations = []
-    readStyles('theme-compat').walkAtRules('media', (media) => {
-      if (media.params !== '(prefers-reduced-motion: reduce)') return
-      expect(media.parent.name).toBe('layer')
-      expect(media.parent.params).toBe('accessibility')
-      media.walkDecls((decl) => {
-        if (['transition-duration', 'animation-duration'].includes(decl.prop)) declarations.push(decl)
-      })
-    })
-    expect(declarations).toHaveLength(2)
-    expect(declarations.every((decl) => decl.important && parseFloat(decl.value) <= 0.01)).toBe(true)
-  })
 })

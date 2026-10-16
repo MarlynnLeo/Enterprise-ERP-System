@@ -76,7 +76,7 @@ const today = new Date()
 const currentDate = ref([String(today.getFullYear()), String(today.getMonth() + 1).padStart(2, '0'), String(today.getDate()).padStart(2, '0')])
 const form = ref({
   referenceId: null, referenceNo: '', supplierId: null, supplierName: '',
-  materialId: null, materialName: '', materialCode: '', unitId: null, unit: '',
+  materialId: null, purchaseOrderItemId: null, materialName: '', materialCode: '', unitId: null, unit: '',
   batchNo: '', quantity: '', templateId: null, templateName: '',
   plannedDate: currentDate.value.join('-'), inspectionMethod: 'sampling', note: ''
 })
@@ -139,7 +139,7 @@ const openOrderPicker = () => {
 }
 const clearMaterial = () => {
   templateRequest++
-  Object.assign(form.value, { materialId: null, materialName: '', materialCode: '', quantity: '', unitId: null, unit: '', templateId: null, templateName: '' })
+  Object.assign(form.value, { materialId: null, purchaseOrderItemId: null, materialName: '', materialCode: '', quantity: '', unitId: null, unit: '', templateId: null, templateName: '' })
   templateOptions.value = []
   templateLoading.value = false
 }
@@ -153,7 +153,7 @@ const selectOrder = async (order) => {
     const response = await purchaseApi.getOrder(order.id)
     if (selection !== orderSelection) return
     const detail = extractApiData(response)
-    if (!detail.id || !validOrderStatuses.includes(detail.status)) throw new Error('请选择已确认的有效采购订单')
+    if (String(detail.id) !== String(order.id) || !validOrderStatuses.includes(detail.status)) throw new Error('请选择已确认的有效采购订单')
     Object.assign(form.value, { referenceId: detail.id, referenceNo: detail.orderNo, supplierId: detail.supplierId, supplierName: detail.supplierName || '' })
     orderItems.value = (detail.items || []).filter(item => item.materialId)
     showOrderPicker.value = false
@@ -199,7 +199,7 @@ const onMaterialConfirm = ({ selectedOptions }) => {
   const item = orderItems.value.find(item => String(item.id) === String(selectedOptions[0]?.value))
   if (!item) return
   clearMaterial()
-  Object.assign(form.value, { materialId: item.materialId, materialName: item.materialName, materialCode: item.materialCode || '', unitId: item.unitId, unit: item.unitName || item.unit || '', quantity: String(item.quantity ?? '') })
+  Object.assign(form.value, { purchaseOrderItemId: item.id, materialId: item.materialId, materialName: item.materialName, materialCode: item.materialCode || '', unitId: item.unitId, unit: item.unitName || item.unit || '', quantity: String(item.quantity ?? '') })
   showMaterialPicker.value = false
   loadTemplates()
 }
@@ -226,7 +226,7 @@ const onTypeConfirm = ({ selectedOptions }) => {
 const onSubmit = async () => {
   if (submitting.value || orderLoading.value || templateLoading.value) return
   if (!form.value.referenceId || !form.value.referenceNo) return showToast('请选择采购订单')
-  if (!form.value.materialId || !form.value.unit) return showToast('请选择有效的订单物料')
+  if (!form.value.materialId || !form.value.purchaseOrderItemId || !form.value.unit) return showToast('请选择有效的订单物料')
   if (!form.value.templateId) return showToast('请选择有效的检验模板')
   const quantity = Number(form.value.quantity)
   if (!Number.isFinite(quantity) || quantity <= 0) return showToast('到货数量必须是大于0的有效数字')
@@ -237,7 +237,7 @@ const onSubmit = async () => {
     await qualityApi.createIncomingInspection({
       inspectionType: 'incoming', sourceType: 'purchase_order',
       referenceId: form.value.referenceId, referenceNo: form.value.referenceNo,
-      materialId: form.value.materialId, productName: form.value.materialName,
+      materialId: form.value.materialId, purchaseOrderItemId: form.value.purchaseOrderItemId, productName: form.value.materialName,
       supplierId: form.value.supplierId, batchNo: form.value.batchNo.trim(),
       quantity, unit: form.value.unit, unitId: form.value.unitId,
       templateId: form.value.templateId, isFullInspection: form.value.inspectionMethod === 'full',

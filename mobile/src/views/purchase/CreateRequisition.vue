@@ -7,10 +7,10 @@
  */
 -->
 <template>
-  <div class="create-page">
+  <div class="create-page" :inert="submitting" :aria-busy="submitting">
     <NavBar title="新建采购申请" left-arrow @click-left="$router.go(-1)" />
 
-    <Form @submit="onSubmit">
+    <Form @submit="onSubmit" :disabled="submitting || submitted" :inert="submitting || submitted">
       <CellGroup inset title="申请信息">
         <Field
           v-model="form.requestDate"
@@ -140,7 +140,7 @@
       </Popup>
 
       <div class="submit-wrapper">
-        <Button round block type="primary" native-type="submit" :loading="submitting">
+        <Button round block type="primary" native-type="submit" :loading="submitting" :disabled="submitted">
           提交申请
         </Button>
       </div>
@@ -149,15 +149,19 @@
 </template>
 
 <script setup>
-  import { ref, reactive } from 'vue'
+  import { ref, reactive, onBeforeUnmount } from 'vue'
   import { useRouter } from 'vue-router'
   import { NavBar, Form, Field, CellGroup, Button, Popup, DatePicker, Icon, Search, Empty, showToast } from 'vant'
   import { purchaseApi, baseDataApi } from '@/api'
   import { extractApiList } from '@/utils/apiHelper'
   import { getApiErrorMessage } from '@/utils/errorHandler'
+  import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 
   const router = useRouter()
   const submitting = ref(false)
+  const submitted = ref(false)
+  let disposed = false
+  onBeforeUnmount(() => { disposed = true })
 
   const showDatePicker = ref(false)
   const showItemDatePicker = ref(false)
@@ -186,17 +190,22 @@
     items: [{ materialId: '', materialCode: '', materialName: '', quantity: '', requiredDate: '' }]
   })
 
+  const { markSaved } = useUnsavedChanges(form, { busy: submitting })
+
   const onDateConfirm = ({ selectedValues }) => {
+    if (submitting.value || submitted.value || disposed) return
     form.requestDate = formatDate(selectedValues)
     showDatePicker.value = false
   }
 
   const openItemDatePicker = (index) => {
+    if (submitting.value || submitted.value || disposed) return
     activeItemIndex.value = index
     showItemDatePicker.value = true
   }
 
   const onItemDateConfirm = ({ selectedValues }) => {
+    if (submitting.value || submitted.value || disposed) return
     if (activeItemIndex.value !== -1) {
       form.items[activeItemIndex.value].requiredDate = formatDate(selectedValues)
     }
@@ -204,10 +213,12 @@
   }
 
   const addItem = () => {
+    if (submitting.value || submitted.value || disposed) return
     form.items.push({ materialId: '', materialCode: '', materialName: '', quantity: '', requiredDate: '' })
   }
 
   const removeItem = (index) => {
+    if (submitting.value || submitted.value || disposed) return
     form.items.splice(index, 1)
   }
 
@@ -228,6 +239,7 @@
   }
 
   const openMaterialPicker = async (index) => {
+    if (submitting.value || submitted.value || disposed) return
     activeItemIndex.value = index
     const item = form.items[index]
     tempSelectedMaterial.value = item.materialId
@@ -238,6 +250,7 @@
   }
 
   const confirmMaterial = () => {
+    if (submitting.value || submitted.value || disposed) return
     if (!tempSelectedMaterial.value || activeItemIndex.value < 0) return
     const item = form.items[activeItemIndex.value]
     item.materialId = tempSelectedMaterial.value.id
@@ -247,19 +260,24 @@
   }
 
   const onSubmit = async () => {
+    if (submitting.value || submitted.value || disposed) return
     if (form.items.some((item) => !item.materialId || !item.quantity)) {
       showToast('带有必填项的物料明细填写不完整')
       return
     }
 
     submitting.value = true
+    showDatePicker.value = false
+    showItemDatePicker.value = false
+    showMaterialPicker.value = false
+    const submittedForm = JSON.parse(JSON.stringify(form))
     try {
       const payload = {
-        requestDate: form.requestDate,
-        requester: form.requester,
-        department: form.department,
-        remarks: form.remarks,
-        items: form.items.map((i) => ({
+        requestDate: submittedForm.requestDate,
+        requester: submittedForm.requester,
+        department: submittedForm.department,
+        remarks: submittedForm.remarks,
+        items: submittedForm.items.map((i) => ({
           materialId: parseInt(i.materialId, 10),
           quantity: parseFloat(i.quantity),
           requiredDate: i.requiredDate || null
@@ -267,12 +285,14 @@
       }
 
       await purchaseApi.createRequisition(payload)
+      if (disposed) return
+      submitted.value = true
+      markSaved(submittedForm)
       showToast('提交申请单成功')
-      setTimeout(() => {
-        router.back()
-      }, 1000)
+      submitting.value = false
+      router.back()
     } catch (error) {
-      showToast(`提交失败：${getApiErrorMessage(error, '系统错误')}`)
+      if (!disposed) showToast(`提交失败：${getApiErrorMessage(error, '系统错误')}`)
     } finally {
       submitting.value = false
     }

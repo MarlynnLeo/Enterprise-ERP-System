@@ -389,12 +389,7 @@ class TaxAccountingService {
         '主营业务收入'
       );
 
-      // 4. 生成分录编号
-      const entryNumber = await this.generateEntryNumber('VAT-OUT', connection);
-
-      // 5. 获取当前会计期间
       const invoiceDate = toLocalDateString(invoice.invoice_date || currentDateString());
-      const periodId = await this.getCurrentPeriodId(invoiceDate, connection);
       const voucherAmounts = normalizeInvoiceVoucherAmounts(invoice);
       const reusedEntry = await this.reuseLinkedTaxVoucher(
         connection,
@@ -407,6 +402,9 @@ class TaxAccountingService {
         if (shouldManageTransaction) await connection.commit();
         return reusedEntry;
       }
+      // 复用业务凭证不改变原期间；只有新增凭证才要求原票日期期间开放。
+      const periodId = await this.getCurrentPeriodId(invoiceDate, connection);
+      const entryNumber = await this.generateEntryNumber('VAT-OUT', connection);
       if (voucherAmounts.totalAmount < 0)
         throw validationError('红字税票必须关联已过账的退货红字业务凭证');
       const linkedVoucherMode = await this.getOutputTaxLinkedVoucherMode(
@@ -562,12 +560,7 @@ class TaxAccountingService {
         '原材料/库存商品'
       );
 
-      // 4. 生成分录编号
-      const entryNumber = await this.generateEntryNumber('VAT-IN', connection);
-
-      // 5. 获取当前会计期间
       const invoiceDate = toLocalDateString(invoice.invoice_date || currentDateString());
-      const periodId = await this.getCurrentPeriodId(invoiceDate, connection);
       const voucherAmounts = normalizeInvoiceVoucherAmounts(invoice);
       const reusedEntry = await this.reuseLinkedTaxVoucher(
         connection,
@@ -580,6 +573,8 @@ class TaxAccountingService {
         if (shouldManageTransaction) await connection.commit();
         return reusedEntry;
       }
+      const periodId = await this.getCurrentPeriodId(invoiceDate, connection);
+      const entryNumber = await this.generateEntryNumber('VAT-IN', connection);
       if (voucherAmounts.totalAmount < 0)
         throw validationError('红字税票必须关联已过账的退货红字业务凭证');
       const linkedVoucherMode = await this.getInputTaxLinkedVoucherMode(
@@ -743,7 +738,7 @@ class TaxAccountingService {
       SELECT id
       FROM gl_periods
       WHERE start_date <= ? AND end_date >= ? AND is_closed = false
-      LIMIT 1
+      LIMIT 1 FOR SHARE
     `,
       [date, date]
     );

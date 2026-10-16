@@ -14,6 +14,7 @@
  */
 
 const DataScopeService = require('../services/DataScopeService');
+const ProductionTaskScope = require('./ProductionTaskScope');
 const { getResourcePolicy } = require('./resourcePolicies');
 const { getAuthenticatedUserId } = require('../utils/authContext');
 const { ResponseHandler } = require('../utils/responseHandler');
@@ -80,10 +81,17 @@ class ScopeGuard {
    */
   static async applyListScope(req, policyKey, options = {}) {
     const policy = getResourcePolicy(policyKey);
+    const taskScope =
+      policy.key === 'production_task'
+        ? await ProductionTaskScope.buildRequestClause(req, {
+            ...options,
+            tableAlias: options.tableAlias || 't',
+          })
+        : { ...EMPTY_SCOPE_CLAUSE };
     if (this.isFinanceSharedAll(policy) || this.isSharedRead(policy, options)) {
-      return { ...EMPTY_SCOPE_CLAUSE };
+      return taskScope;
     }
-    return DataScopeService.buildRequestOwnerScopeClause(req, {
+    const ownerScope = await DataScopeService.buildRequestOwnerScopeClause(req, {
       tableAlias: options.tableAlias || 't',
       ownerColumn: policy.ownerColumn,
       ownerAlias: options.ownerAlias || `${policy.key}_owner_scope`,
@@ -95,6 +103,11 @@ class ScopeGuard {
         options.includeLocation !== false &&
         Boolean(policy.locationColumn || policy.locationColumns?.length),
     });
+    return {
+      join: `${ownerScope.join || ''}${taskScope.join}`,
+      where: `${ownerScope.where || ''}${taskScope.where}`,
+      params: [...(ownerScope.params || []), ...taskScope.params],
+    };
   }
 
   /**
@@ -102,6 +115,12 @@ class ScopeGuard {
    */
   static async assertAccess(connection, req, policyKey, recordId, options = {}) {
     const policy = getResourcePolicy(policyKey);
+    if (
+      policy.key === 'production_task' &&
+      !(await ProductionTaskScope.assertAccess(connection, req, recordId))
+    ) {
+      return false;
+    }
     if (this.isFinanceSharedAll(policy) || this.isSharedRead(policy, options)) {
       return DataScopeService.assertRecordExists(connection, policy.table, recordId, {
         idColumn: policy.idColumn || 'id',

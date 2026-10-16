@@ -386,7 +386,7 @@
   }
 
   .logo-letter {
-    color: var(--color-brand);
+    color: var(--color-on-accent);
     font-weight: 900;
     font-size: 1.5rem;
     font-style: italic;
@@ -418,7 +418,7 @@
   .brand-tag {
     font-size: 0.625rem;
     font-weight: 900;
-    color: var(--color-accent);
+    color: var(--color-accent-text);
     background: color-mix(in srgb, var(--color-primary) 10%, transparent);
     padding: 2px 8px;
     border-radius: 6px;
@@ -501,7 +501,7 @@
     width: 100%;
     height: 100%;
     padding: 6px;
-    color: var(--color-accent);
+    color: var(--color-accent-text);
     background: color-mix(in srgb, var(--color-primary) 10%, transparent);
     border-radius: 14px;
     border: 1px solid rgba(255, 255, 255, 0.05);
@@ -543,7 +543,7 @@
   .bg-factory {
     width: 160px;
     height: 160px;
-    color: var(--color-accent);
+    color: var(--color-accent-text);
   }
 
   .dashboard-content {
@@ -559,7 +559,7 @@
   }
 
   .dashboard-label {
-    color: var(--color-accent);
+    color: var(--color-accent-text);
     font-size: 0.6875rem;
     font-weight: 900;
     text-transform: uppercase;
@@ -587,7 +587,7 @@
   .hi-dashboard {
     width: 20px;
     height: 20px;
-    color: var(--color-accent);
+    color: var(--color-accent-text);
   }
 
   .stats-grid-3 {
@@ -631,7 +631,7 @@
   }
 
   .stat-cell-value.loading {
-    color: var(--text-disabled);
+    color: var(--text-tertiary);
     animation: pulse 1.5s infinite;
   }
 
@@ -647,7 +647,7 @@
 
   .stat-trend {
     font-size: 0.625rem;
-    color: var(--color-success);
+    color: var(--color-success-text);
     font-weight: 700;
   }
 
@@ -701,13 +701,13 @@
   .hi-bolt {
     width: 14px;
     height: 14px;
-    color: var(--color-accent);
+    color: var(--color-accent-text);
   }
 
   .sync-tag {
     font-size: 0.625rem;
     font-weight: 700;
-    color: var(--text-disabled);
+    color: var(--text-tertiary);
     letter-spacing: 0;
   }
 
@@ -717,7 +717,7 @@
     gap: 4px;
     font-size: 0.75rem;
     font-weight: 700;
-    color: var(--color-accent);
+    color: var(--color-accent-text);
     background: none;
     border: none;
     cursor: pointer;
@@ -806,43 +806,43 @@
   /* 模块配色 */
   .mod-blue {
     background: var(--bg-secondary);
-    color: var(--color-info);
+    color: var(--color-info-text);
   }
   .mod-cyan {
     background: var(--bg-secondary);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
   }
   .mod-indigo {
     background: var(--bg-secondary);
-    color: var(--color-info);
+    color: var(--color-info-text);
   }
   .mod-emerald {
     background: var(--bg-secondary);
-    color: var(--color-success);
+    color: var(--color-success-text);
   }
   .mod-orange {
     background: var(--bg-secondary);
-    color: var(--color-warning);
+    color: var(--color-warning-text);
   }
   .mod-purple {
     background: var(--bg-secondary);
-    color: var(--color-info);
+    color: var(--color-info-text);
   }
   .mod-pink {
     background: var(--bg-secondary);
-    color: var(--color-error);
+    color: var(--color-error-text);
   }
   .mod-teal {
     background: var(--bg-secondary);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
   }
   .mod-amber {
     background: var(--bg-secondary);
-    color: var(--color-warning);
+    color: var(--color-warning-text);
   }
   .mod-yellow {
     background: var(--bg-secondary);
-    color: var(--color-warning);
+    color: var(--color-warning-text);
   }
   .mod-slate {
     background: var(--bg-tertiary);
@@ -962,7 +962,7 @@
   .hi-chevron {
     width: 16px;
     height: 16px;
-    color: var(--text-disabled);
+    color: var(--text-tertiary);
   }
 
 </style>

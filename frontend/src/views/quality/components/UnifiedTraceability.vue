@@ -262,7 +262,7 @@
     </div>
 
     <!-- 空状态 -->
-    <EmptyState v-else description="请输入物料编码和批次号进行查询" ::image-size="200" />
+    <EmptyState v-else description="请输入物料编码和批次号进行查询" :image-size="200" />
   </div>
 </template>
 

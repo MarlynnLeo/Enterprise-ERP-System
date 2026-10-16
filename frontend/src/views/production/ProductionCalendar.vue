@@ -82,9 +82,9 @@
         <div class="card-header">
           <span><el-icon><Calendar /></el-icon> 月度日历</span>
           <div class="month-nav">
-            <el-button :icon="ArrowLeft" size="small" @click="prevMonth" />
+            <el-button :icon="ArrowLeft" size="small" aria-label="上个月" @click="prevMonth" />
             <span class="month-label">{{ currentYear }}年{{ currentMonth }}月</span>
-            <el-button :icon="ArrowRight" size="small" @click="nextMonth" />
+            <el-button :icon="ArrowRight" size="small" aria-label="下个月" @click="nextMonth" />
             <el-button size="small" @click="goToday" class="ml-sm">今天</el-button>
           </div>
         </div>
@@ -98,6 +98,9 @@
             v-for="cell in calendarCells"
             :key="cell.dateStr"
             class="calendar-cell"
+            :role="cell.isCurrentMonth && canUpdateCalendar ? 'button' : undefined"
+            :tabindex="cell.isCurrentMonth && canUpdateCalendar ? 0 : undefined"
+            :aria-label="`${cell.dateStr} ${cell.isWorkday ? '工作日' : '休息日'}${cell.label ? ` ${cell.label}` : ''}`"
             :class="{
               'is-other-month': !cell.isCurrentMonth,
               'is-today': cell.isToday,
@@ -106,6 +109,8 @@
               'is-override': cell.hasOverride,
             }"
             @click="cell.isCurrentMonth && canUpdateCalendar && openDayEdit(cell)"
+            @keydown.enter.self.prevent="cell.isCurrentMonth && canUpdateCalendar && openDayEdit(cell)"
+            @keydown.space.self.prevent="cell.isCurrentMonth && canUpdateCalendar && openDayEdit(cell)"
           >
             <div class="calendar-cell__day">{{ cell.day }}</div>
             <div class="calendar-cell__info" v-if="cell.isCurrentMonth">
@@ -701,6 +706,8 @@ fetchOverrides()
 .card-header {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
   justify-content: space-between;
 }
 
@@ -713,6 +720,7 @@ fetchOverrides()
 
 .month-nav {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
@@ -741,16 +749,18 @@ fetchOverrides()
 }
 
 .calendar-cell {
+  min-width: 0;
   min-height: 78px;
   padding: 6px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border-lighter);
-  cursor: pointer;
   transition: all 0.15s;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
+
+.calendar-cell[role="button"] { cursor: pointer; }
 
 .calendar-cell:hover {
   border-color: var(--color-primary);
@@ -803,6 +813,7 @@ fetchOverrides()
 .calendar-cell__time {
   font-size: 10px;
   color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
 }
 
 .cell-badge {

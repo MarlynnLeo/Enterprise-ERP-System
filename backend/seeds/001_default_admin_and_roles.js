@@ -19,7 +19,6 @@ const { ensureCoreMenus } = require('../src/bootstrap/menus');
 
 const DEFAULT_APPROVAL_TEMPLATES = [
   ['purchase_order', 'DEFAULT_PURCHASE_ORDER_APPROVAL', 'Purchase order approval'],
-  ['purchase_requisition', 'DEFAULT_PURCHASE_REQUISITION_APPROVAL', 'Purchase requisition approval'],
   ['contract', 'DEFAULT_CONTRACT_APPROVAL', 'Contract approval'],
   ['ecn', 'DEFAULT_ECN_APPROVAL', 'Engineering change approval'],
   ['hr_leave', 'DEFAULT_HR_LEAVE_APPROVAL', 'Leave request approval'],

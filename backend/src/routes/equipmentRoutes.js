@@ -40,6 +40,18 @@ router.get(
   requirePermission('production:equipment:view'),
   equipmentController.getEquipmentTypes
 );
+router.put(
+  '/maintenance/:id',
+  authenticateToken,
+  requirePermission('production:equipment:update'),
+  equipmentController.updateMaintenanceRecord
+);
+router.put(
+  '/failures/:id',
+  authenticateToken,
+  requirePermission('production:equipment:update'),
+  equipmentController.updateFailureRecord
+);
 router.post(
   '/types',
   authenticateToken,

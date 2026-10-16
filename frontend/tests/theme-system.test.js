@@ -6,6 +6,7 @@ import { collectRootTokens } from '../../scripts/check-theme-tokens.mjs'
 import {
   THEME_PRESET_LIST,
   getAccessibleTextColor,
+  getSemanticContrastPalette,
   normalizePrimaryColor,
   normalizeThemeAppearance
 } from '@/config/themePresets'
@@ -75,6 +76,55 @@ describe('theme system', () => {
     expect(contrastRatio(getAccessibleTextColor('#FFFFFF'), '#FFFFFF')).toBeGreaterThanOrEqual(4.5)
   })
 
+  test.each(THEME_PRESET_LIST)('$id preserves semantic contrast on surfaces and throughout button gradients', (preset) => {
+    const tokens = collectRootTokens([postcss.parse(readTheme(preset.id))], preset.id)
+    const surfaces = ['base', 'section', 'page', 'hover'].map((name) => readToken(tokens, `--color-bg-${name}`)).filter(Boolean)
+    const mix = (left, right, weight) => `#${parseHexColor(left).map((channel, index) =>
+      Math.round(channel * (1 - weight) + parseHexColor(right)[index] * weight).toString(16).padStart(2, '0')).join('')}`
+    for (const type of ['primary', 'success', 'warning', 'danger', 'info']) {
+      const color = readToken(tokens, `--color-${type}`)
+      const palette = getSemanticContrastPalette(color, surfaces)
+      for (const surface of surfaces) {
+        for (const tint of [0, 0.12, 0.14]) {
+          expect(contrastRatio(palette.text, mix(surface, color, tint)), `${preset.id} ${type} text on ${surface}`).toBeGreaterThanOrEqual(4.5)
+        }
+      }
+      for (const fill of [color, palette.hover, palette.active]) {
+        for (const step of [0, 0.25, 0.5, 0.75, 1]) {
+          expect(contrastRatio(palette.on, mix(color, fill, step)), `${preset.id} ${type} fill`).toBeGreaterThanOrEqual(4.5)
+        }
+      }
+    }
+  })
+
+  test.each(['dark', 'tech'])('%s keeps selected surfaces dark and readable', (id) => {
+    const tokens = collectRootTokens([postcss.parse(readTheme(id))], id)
+    const background = readToken(tokens, '--color-primary-light-9')
+    expect(relativeLuminance(background)).toBeLessThan(0.05)
+    expect(contrastRatio(readToken(tokens, '--color-text-primary'), background)).toBeGreaterThanOrEqual(4.5)
+  })
+
+  test.each(['default', 'business', 'vibrant'])('%s info tags use the contrast tone on their tinted background', (id) => {
+    const tokens = collectRootTokens([
+      postcss.parse(readTheme('theme-compat')),
+      postcss.parse(readTheme(id))
+    ], id)
+    const surfaces = ['base', 'section', 'page', 'hover'].map((name) => readToken(tokens, `--color-bg-${name}`)).filter(Boolean)
+    const info = readToken(tokens, '--color-info')
+    tokens.set('--color-info-text', getSemanticContrastPalette(info, surfaces).text)
+    const tint = parseHexColor(readToken(tokens, '--color-bg-base')).map((channel, index) =>
+      Math.round(channel * 0.88 + parseHexColor(info)[index] * 0.12))
+    const background = `#${tint.map((channel) => channel.toString(16).padStart(2, '0')).join('')}`
+    expect(contrastRatio(readToken(tokens, '--theme-status-info-color'), background)).toBeGreaterThanOrEqual(4.6)
+  })
+
+  test('vibrant plain warning buttons retain readable text on the actual palette fill', () => {
+    const tokens = collectRootTokens([postcss.parse(readTheme('vibrant'))], 'vibrant')
+    const surfaces = ['base', 'section', 'page', 'hover'].map((name) => readToken(tokens, `--color-bg-${name}`)).filter(Boolean)
+    const palette = getSemanticContrastPalette(readToken(tokens, '--color-warning'), surfaces)
+    expect(contrastRatio(palette.text, readToken(tokens, '--color-warning-light'))).toBeGreaterThanOrEqual(4.6)
+  })
+
   test('normalizes invalid primary colors instead of keeping stale derivatives', () => {
     expect(normalizePrimaryColor('red', '#51CF66')).toBe('#51CF66')
     expect(normalizePrimaryColor('#fff', '#51CF66')).toBe('#FFFFFF')
@@ -107,11 +157,6 @@ describe('theme system', () => {
     expect(readTheme('vibrant')).not.toMatch(/\.header\s+\*/)
     expect(readTheme('nature')).not.toMatch(/\.header\s+\*/)
     expect(readTheme('professional')).not.toMatch(/\[data-theme="professional"\]\s+\*/)
-  })
-
-  test('shared compatibility layer honors reduced motion preferences', () => {
-    const compatibility = readFileSync(resolve(themesDirectory, 'theme-compat.css'), 'utf8')
-    expect(compatibility).toContain('@media (prefers-reduced-motion: reduce)')
   })
 
   test('theme-components owns shared layout shell density for all themes', () => {

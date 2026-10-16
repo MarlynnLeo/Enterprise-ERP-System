@@ -17,6 +17,12 @@ const { toLocalDateString } = require('../../../utils/dateUtils');
 const { safeParseId } = require('../../../utils/safeParseId');
 const { getRequestActorLabel } = require('../../../utils/userUtils');
 const InventoryPostingService = require('../../../services/InventoryPostingService');
+const {
+  parsePostingId,
+  parsePostingSource,
+  parsePostingQuery,
+  postingHttpData,
+} = require('../../../utils/inventoryPostingHttp');
 
 function getDefaultReportRange(query = {}) {
   const today = new Date();
@@ -68,14 +74,15 @@ class FinanceEnhancementController {
 
   static async listInventoryPostings(req, res) {
     try {
-      const result = await InventoryPostingService.list(req.query);
+      const result = await InventoryPostingService.list(parsePostingQuery(req.query));
       return ResponseHandler.paginated(
         res,
-        result.list,
+        postingHttpData(result.list),
         result.total,
         result.page,
         result.pageSize,
-        '库存过账列表获取成功'
+        '库存过账列表获取成功',
+        { statistics: result.statistics }
       );
     } catch (error) {
       return respondServiceError(res, error, '获取库存过账列表失败');
@@ -84,8 +91,8 @@ class FinanceEnhancementController {
 
   static async getInventoryPosting(req, res) {
     try {
-      const result = await InventoryPostingService.get(req.params.id);
-      return ResponseHandler.success(res, result, '库存过账详情获取成功');
+      const result = await InventoryPostingService.get(parsePostingId(req.params.id));
+      return ResponseHandler.success(res, postingHttpData(result), '库存过账详情获取成功');
     } catch (error) {
       return respondServiceError(res, error, '获取库存过账详情失败');
     }
@@ -93,24 +100,28 @@ class FinanceEnhancementController {
 
   static async getInventoryPostingApprovalBySource(req, res) {
     try {
-      const sourceType = String(req.query.sourceType || req.query.source_type || '').trim();
-      const sourceId = req.query.sourceId || req.query.source_id || null;
-      const sourceNo = req.query.sourceNo || req.query.source_no || '';
-      const result = await InventoryPostingService.getApprovalBySource({
-        sourceType,
-        sourceId,
-        sourceNo,
-      });
-      return ResponseHandler.success(res, result, '业务单据审批状态获取成功');
+      const result = await InventoryPostingService.getApprovalBySource(parsePostingSource(req.query));
+      return ResponseHandler.success(res, postingHttpData(result), '业务单据审批状态获取成功');
     } catch (error) {
       return respondServiceError(res, error, '获取业务单据审批状态失败');
+    }
+  }
+
+  static async batchApproveInventoryPostings(req, res) {
+    try {
+      const actor = InventoryPostingService.actorFromRequest(req);
+      const ids = req.body?.ids;
+      const result = await InventoryPostingService.batchApprove(ids, actor);
+      return ResponseHandler.success(res, result, '批量审核完成');
+    } catch (error) {
+      return respondServiceError(res, error, '批量审核库存过账失败');
     }
   }
 
   static async approveInventoryPosting(req, res) {
     try {
       const actor = InventoryPostingService.actorFromRequest(req);
-      const result = await InventoryPostingService.approve(req.params.id, actor);
+      const result = await InventoryPostingService.approve(parsePostingId(req.params.id), actor);
       return ResponseHandler.success(res, result, '库存过账审核通过，库存已正式入账');
     } catch (error) {
       return respondServiceError(res, error, '库存过账审核失败');
@@ -121,7 +132,7 @@ class FinanceEnhancementController {
     try {
       const actor = InventoryPostingService.actorFromRequest(req);
       const result = await InventoryPostingService.reject(
-        req.params.id,
+        parsePostingId(req.params.id),
         actor,
         req.body?.remark || ''
       );
@@ -135,7 +146,7 @@ class FinanceEnhancementController {
     try {
       const actor = InventoryPostingService.actorFromRequest(req);
       const result = await InventoryPostingService.reverse(
-        req.params.id,
+        parsePostingId(req.params.id),
         actor,
         req.body?.remark || ''
       );
@@ -686,13 +697,7 @@ class FinanceEnhancementController {
       ResponseHandler.success(res, result, '库存成本重新计算完成');
     } catch (error) {
       logger.error('重新计算库存成本失败:', error);
-      ResponseHandler.error(
-        res,
-        error.message || '重新计算库存成本失败',
-        'SERVER_ERROR',
-        500,
-        error
-      );
+      return respondServiceError(res, error, '重新计算库存成本失败');
     }
   }
 

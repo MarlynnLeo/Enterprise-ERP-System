@@ -10,7 +10,6 @@ function budgetDepartmentPredicate(
   const departmentExpr = budgetDepartmentExpression(budgetAlias, detailAlias);
   return `(
                 ${departmentExpr} IS NULL
-                OR gei.cost_center_id = ${departmentExpr}
                 OR ${costCenterAlias}.department_id = ${departmentExpr}
               )`;
 }
@@ -34,6 +33,7 @@ function budgetDetailActualAmountSql({
                 ${excludeCurrentEntry}
                 AND ge.entry_date BETWEEN ${budgetAlias}.start_date AND ${budgetAlias}.end_date
                 AND ge.is_posted = 1
+                AND COALESCE(ge.document_type, '') NOT IN ('profit_loss_transfer', 'year_end_transfer')
                 AND ${budgetDepartmentPredicate(budgetAlias, detailAlias, costCenterAlias)}
             ), 0
           )`;
@@ -54,6 +54,7 @@ function budgetTotalActualAmountSql({
               WHERE ${detailAlias}.budget_id = ${budgetAlias}.id
                 AND ge.entry_date BETWEEN ${budgetAlias}.start_date AND ${budgetAlias}.end_date
                 AND ge.is_posted = 1
+                AND COALESCE(ge.document_type, '') NOT IN ('profit_loss_transfer', 'year_end_transfer')
                 AND ${budgetDepartmentPredicate(budgetAlias, detailAlias, costCenterAlias)}
             ), 0
           )`;

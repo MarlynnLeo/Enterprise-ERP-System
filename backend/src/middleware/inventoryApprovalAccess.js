@@ -22,9 +22,9 @@ function isFinanceDepartment(departmentName) {
 }
 
 function canAccessInventoryApproval({ isAdmin = false, permissions = [], action = 'view' } = {}) {
+  if (!Object.hasOwn(ACTION_PERMISSIONS, action)) return false;
+  const requiredPermission = ACTION_PERMISSIONS[action];
   if (isAdmin) return true;
-
-  const requiredPermission = ACTION_PERMISSIONS[action] || ACTION_PERMISSIONS.view;
   return PermissionUtils.hasPermission(permissions, requiredPermission);
 }
 

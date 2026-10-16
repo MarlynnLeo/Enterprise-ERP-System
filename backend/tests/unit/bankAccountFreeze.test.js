@@ -27,6 +27,19 @@ describe('frozen bank accounts across cash settlement entry points', () => {
       rollback: jest.fn().mockResolvedValue(undefined),
       release: jest.fn(),
       execute: jest.fn(async (sql) => {
+        // AP now validates the already posted invoice cost before touching cash.
+        // Supply real-shaped posting/budget evidence so this test reaches the
+        // frozen-account guard without bypassing the new budget service.
+        if (/FROM gl_entries\s/.test(sql)) {
+          return [[{ id: 21, entry_date: '2026-09-05' }]];
+        }
+        if (/FROM gl_entry_items gei LEFT JOIN cost_centers/.test(sql)) {
+          return [[{ account_id: 31, department_id: 5, recognized_amount: 100 }]];
+        }
+        if (/FROM budgets b/.test(sql)) {
+          return [[{ budget_id: 41, detail_id: 42, budget_amount: 1000, actual_used: 100,
+            reserved_amount: 0, effective_department_id: 5, warning_threshold: 90 }]];
+        }
         if (/FROM bank_accounts/.test(sql)) {
           return [[{
             id: 2,
@@ -53,6 +66,9 @@ describe('frozen bank accounts across cash settlement entry points', () => {
         if (/INSERT INTO (ap_payments|ar_receipts|ap_payment_items|ar_receipt_items)/.test(sql)) {
           return [{ insertId: 10, affectedRows: 1 }];
         }
+        if (sql.includes('FROM budgets')) return [[]];
+        if (sql.includes('FROM gl_entries')) return [[{ id: 85, entry_date: '2026-09-01' }]];
+        if (sql.includes('FROM gl_entry_items')) return [[{ account_id: 1405, department_id: null, recognized_amount: 100 }]];
         if (/UPDATE (ap|ar)_invoices/.test(sql)) return [{ affectedRows: 1 }];
         if (kind === 'cash' && /INSERT INTO bank_transactions/.test(sql)) {
           return [{ insertId: 10 }];
@@ -80,6 +96,8 @@ describe('frozen bank accounts across cash settlement entry points', () => {
 
     expect(connection.execute.mock.calls.some(([sql]) => /INSERT INTO bank_transactions/.test(sql)))
       .toBe(false);
+    expect(connection.execute.mock.calls.some(([sql]) => /FROM gl_entries\s/.test(sql))).toBe(true);
+    expect(connection.execute.mock.calls.some(([sql]) => /FROM budgets b/.test(sql))).toBe(true);
     expect(connection.rollback).toHaveBeenCalledTimes(1);
     expect(connection.commit).not.toHaveBeenCalled();
     expect(connection.release).toHaveBeenCalledTimes(1);

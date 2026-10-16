@@ -45,6 +45,7 @@
             circle
             size="small"
             :title="previewFullscreen ? '退出全屏' : '全屏显示'"
+            :aria-label="previewFullscreen ? '退出全屏' : '全屏显示'"
             @click="previewFullscreen = !previewFullscreen"
           />
         </div>
@@ -236,7 +237,18 @@ const onUpdateVisible = (val) => {
 .app-dialog__footer-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  min-width: 0;
   gap: 8px;
+}
+
+.app-dialog__footer-actions {
+  justify-content: flex-end;
+}
+
+.app-dialog__navigation :deep(.el-button + .el-button),
+.app-dialog__footer-actions :deep(.el-button + .el-button) {
+  margin-left: 0;
 }
 
 .app-dialog__header-actions {

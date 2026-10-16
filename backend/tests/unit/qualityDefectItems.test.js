@@ -18,7 +18,9 @@ function mockResults(rows = [], total = rows.length) {
 }
 
 function selectedExpression(sql, alias) {
-  return sql.match(new RegExp(`MAX\\((\\(CASE(?:(?!END\\)).)*END\\))\\) as ${alias}`, 's'))?.[1];
+  const end = sql.indexOf(` as ${alias}`);
+  const start = sql.lastIndexOf('MAX(', end);
+  return start >= 0 && end > start ? sql.slice(start + 4, end - 1) : undefined;
 }
 
 describe('quality dashboard defect material fields', () => {

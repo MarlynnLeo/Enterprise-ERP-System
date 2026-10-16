@@ -451,27 +451,27 @@
 
     &.pending {
       background-color: rgba(234, 179, 8, 0.15);
-      color: var(--color-warning);
+      color: var(--color-warning-text);
     }
 
     &.confirmed, &.approved {
       background-color: rgba(59, 130, 246, 0.15);
-      color: var(--color-info);
+      color: var(--color-info-text);
     }
 
     &.partial_received {
       background-color: rgba(234, 179, 8, 0.15);
-      color: var(--color-warning);
+      color: var(--color-warning-text);
     }
 
     &.completed {
       background-color: rgba(34, 197, 94, 0.15);
-      color: var(--color-success);
+      color: var(--color-success-text);
     }
 
     &.cancelled {
       background-color: rgba(239, 68, 68, 0.15);
-      color: var(--color-error);
+      color: var(--color-error-text);
     }
   }
 

@@ -205,7 +205,17 @@ const getRequisitions = async (req, res) => {
             : null;
 
       // 过滤掉值为'undefined'的状态
-      const validStatusArray = statusArray ? statusArray.filter((s) => s !== 'undefined') : [];
+      const validStatusArray = statusArray
+        ? [
+            ...new Set(
+              statusArray
+                .filter((s) => s !== 'undefined')
+                .flatMap((s) =>
+                  s === 'submitted' ? ['submitted', 'pending', 'approved', 'rejected'] : [s]
+                )
+            ),
+          ]
+        : [];
 
       if (validStatusArray && validStatusArray.length > 0) {
         const placeholders = validStatusArray.map(() => '?').join(', ');
@@ -222,9 +232,8 @@ const getRequisitions = async (req, res) => {
     const [statisticsRows] = await db.pool.execute(
       `SELECT COUNT(*) AS total,
         COALESCE(SUM(r.status = 'draft'), 0) AS draftCount,
-        COALESCE(SUM(r.status IN ('submitted', 'pending')), 0) AS submittedCount,
-        COALESCE(SUM(r.status = 'approved'), 0) AS approvedCount,
-        COALESCE(SUM(r.status = 'rejected'), 0) AS rejectedCount
+        COALESCE(SUM(r.status IN ('submitted', 'pending', 'approved', 'rejected')), 0) AS submittedCount,
+        COALESCE(SUM(r.status = 'completed'), 0) AS completedCount
        ${query}`,
       queryParams
     );
@@ -761,15 +770,30 @@ const updateRequisition = async (req, res) => {
     }
 
     const currentStatus = checkRows[0].status;
-    if (currentStatus !== 'draft') {
+    if (!['draft', 'pending', 'submitted', 'approved', 'rejected'].includes(currentStatus)) {
       await connection.rollback();
-      return ResponseHandler.error(res, '只能编辑草稿状态的采购申请', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(res, '只能编辑尚未生成采购订单的申请', 'VALIDATION_ERROR', 400);
+    }
+    // 历史待审核申请可以直接修正，但不能改动已经被有效订单占用的申请明细。
+    const [linkedOrders] = await connection.execute(
+      `SELECT id FROM purchase_orders WHERE requisition_id = ?
+       AND deleted_at IS NULL AND status <> 'cancelled' LIMIT 1 FOR UPDATE`,
+      [id]
+    );
+    if (linkedOrders.length) {
+      await connection.rollback();
+      return ResponseHandler.error(
+        res,
+        '申请已生成采购订单，请在采购订单中修改',
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     // 更新采购申请基本信息（添加合同编码字段）
     const updateQuery = `
       UPDATE purchase_requisitions
-      SET request_date = ?, contract_code = ?, remarks = ?, real_name = ?, updated_at = CURRENT_TIMESTAMP
+      SET request_date = ?, contract_code = ?, remarks = ?, real_name = ?, status = 'draft', updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND deleted_at IS NULL
     `;
     await connection.execute(updateQuery, [
@@ -944,11 +968,15 @@ const updateRequisitionStatus = async (req, res) => {
     const { id } = req.params;
     const { newStatus } = req.body;
 
-    // 检查状态值是否有效
-    const validStatuses = ['draft', 'submitted', 'approved', 'rejected', 'completed'];
-    if (!validStatuses.includes(newStatus)) {
+    // 提交是唯一的状态操作，完成状态由实际生成的订单数量决定。
+    if (newStatus !== 'submitted') {
       await connection.rollback();
-      return ResponseHandler.error(res, '无效的状态值', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(
+        res,
+        '仅支持提交采购申请并生成采购订单',
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     // 检查申请单是否存在
@@ -963,103 +991,45 @@ const updateRequisitionStatus = async (req, res) => {
 
     const currentStatus = checkRows[0].status;
 
-    // 检查状态变更是否有效
-    if (currentStatus === newStatus) {
-      await connection.rollback();
-      return ResponseHandler.error(res, '当前已经是该状态', 'VALIDATION_ERROR', 400);
-    }
-
-    // ✅ 审批结果状态只能由工作流回调变更，前端不可直接设置
-    if (['approved', 'rejected'].includes(newStatus)) {
+    // 旧流程遗留的申请可以直接提交；completed 重试按剩余数量补单，不重复创建。
+    if (
+      !['draft', 'pending', 'submitted', 'approved', 'rejected', 'completed'].includes(
+        currentStatus
+      )
+    ) {
       await connection.rollback();
       return ResponseHandler.error(
         res,
-        '审批通过/拒绝只能通过工作流完成，请先提交审批(submitted)',
+        `当前状态 [${currentStatus}] 不允许提交采购申请`,
         'VALIDATION_ERROR',
         400
       );
     }
 
-    // 状态流转规则（前端可操作的转换）
-    const allowedTransitions = {
-      draft: ['submitted'], // 草稿 → 提交审批
-      submitted: [], // 已提交 → 等待工作流处理，前端不可操作
-      approved: [], // 已批准 → 由工作流管理，前端不可操作
-      rejected: ['draft'], // 已拒绝 → 退回草稿重新编辑
-      completed: [], // 已完成 → 终态
-    };
-    const allowed = allowedTransitions[currentStatus] || [];
-    if (!allowed.includes(newStatus)) {
-      await connection.rollback();
-      return ResponseHandler.error(
-        res,
-        `不允许从 [${currentStatus}] 转换到 [${newStatus}]`,
-        'VALIDATION_ERROR',
-        400
-      );
-    }
+    const [submissionItems] = await connection.query(
+      'SELECT material_id, quantity FROM purchase_requisition_items WHERE requisition_id = ? FOR UPDATE',
+      [id]
+    );
+    await normalizeRequisitionMaterials(connection, submissionItems);
+    await connection.execute(
+      "UPDATE purchase_requisitions SET status = 'submitted', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+      [id]
+    );
+    const {
+      generateOrdersFromRequisition,
+    } = require('../../../services/business/RequisitionAutoOrderService');
+    const generatedOrders = await generateOrdersFromRequisition(
+      id,
+      connection,
+      req.user?.userId || req.user?.id
+    );
 
-    // 提交审批时发起工作流
-    let finalStatus = newStatus;
-    if (newStatus === 'submitted') {
-      const [submissionItems] = await connection.query(
-        'SELECT material_id, quantity FROM purchase_requisition_items WHERE requisition_id = ? FOR UPDATE',
-        [id]
-      );
-      await normalizeRequisitionMaterials(connection, submissionItems);
-      const WorkflowService = require('../../../services/business/WorkflowService');
-      const userId = req.user?.userId || req.user?.id;
-      const [reqInfo] = await connection.execute(
-        'SELECT requisition_number FROM purchase_requisitions WHERE id = ? AND deleted_at IS NULL',
-        [id]
-      );
-      const reqNo = reqInfo[0]?.requisition_number || id;
-      await connection.execute(
-        "UPDATE purchase_requisitions SET status = 'submitted', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-        [id]
-      );
-      const wfResult = await WorkflowService.tryStartWorkflow(
-        'purchase_requisition',
-        id,
-        reqNo,
-        `采购申请 ${reqNo} 审批`,
-        userId,
-        connection
-      );
-      if (wfResult.auto_approved) {
-        finalStatus = 'approved';
-      }
-    }
-
-    // 更新状态
-    const updateQuery = `
-      UPDATE purchase_requisitions
-      SET status = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ? AND deleted_at IS NULL
-    `;
-    await connection.execute(updateQuery, [finalStatus, id]);
-
-    // 如果状态变更为已批准，自动生成采购订单
-    let generatedOrders = [];
-    if (finalStatus === 'approved') {
-      try {
-        const {
-          generateOrdersFromRequisition,
-        } = require('../../../services/business/RequisitionAutoOrderService');
-        generatedOrders = await generateOrdersFromRequisition(id, connection);
-      } catch (autoGenerateError) {
-        logger.error('自动生成采购订单失败:', autoGenerateError);
-        throw autoGenerateError;
-      }
-    }
-
-    await connection.commit();
-
-    // 获取更新后的完整记录
-    const [updatedRows] = await db.pool.execute(
+    // 在同一事务中读取结果；生成、关联或状态同步失败时一并回滚。
+    const [updatedRows] = await connection.execute(
       'SELECT id, requisition_number, request_date, requester, contract_code, real_name, remarks, status, source_type, source_id, source_material_id, created_at, updated_at, deleted_at FROM purchase_requisitions WHERE id = ? AND deleted_at IS NULL',
       [id]
     );
+    await connection.commit();
 
     // 如果生成了采购订单，在响应中包含生成的订单信息
     const response = {
@@ -1067,18 +1037,13 @@ const updateRequisitionStatus = async (req, res) => {
       generated_orders: generatedOrders,
     };
 
-    return ResponseHandler.success(res, response);
+    return ResponseHandler.success(res, response, '提交成功，采购订单已生成');
   } catch (error) {
     if (connection) await connection.rollback();
     logger.error('更新采购申请状态失败:', error);
-    // 工作流配置问题（无审批人/职责分离）应返回 400，便于前端提示配置，而非笼统 500
     const msg = error?.message || '操作失败';
-    const isWorkflowConfig =
-      /审批|工作流|workflow|审批人|职责分离|节点/i.test(msg) ||
-      error?.code === 'VALIDATION_ERROR' ||
-      error?.statusCode === 400;
-    const status = error?.statusCode || (isWorkflowConfig ? 400 : 500);
-    const code = error?.code || (isWorkflowConfig ? 'WORKFLOW_CONFIG_ERROR' : 'OPERATION_ERROR');
+    const status = error?.statusCode || (error?.code === 'VALIDATION_ERROR' ? 400 : 500);
+    const code = error?.code || (status < 500 ? 'VALIDATION_ERROR' : 'OPERATION_ERROR');
     return ResponseHandler.error(res, msg, code, status, error);
   } finally {
     if (connection) connection.release();

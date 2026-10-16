@@ -56,7 +56,7 @@ describe('finance settlement integrity', () => {
 
   test('余额与银行校验', () => {
     expect(() => assertWithinBalance(10002, 10000)).toThrow(/超过发票余额/);
-    expect(() => assertWithinBalance(10001, 10000)).not.toThrow(); // 1 分取整容差
+    expect(() => assertWithinBalance(10001, 10000)).toThrow(/超过发票余额/);
     expect(() => assertWithinBalance(10000, 10000)).not.toThrow();
     expect(() => assertBankBalanceSufficient(5000, 5001)).toThrow(/账户余额不足/);
     expect(() => assertBankBalanceSufficient(5000, 5000)).not.toThrow();

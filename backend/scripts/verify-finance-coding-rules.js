@@ -18,6 +18,8 @@ const NEEDED = [
   'asset_depreciation',
   'asset_disposal',
   'cost_version',
+  'inventory_posting',
+  'inventory_posting_reversal',
 ];
 
 async function main() {
@@ -43,7 +45,14 @@ async function main() {
   }
 
   console.log('=== code preview (read-only) ===');
-  for (const type of ['budget', 'tax_payment', 'bank_transaction', 'ar_invoice']) {
+  for (const type of [
+    'budget',
+    'tax_payment',
+    'bank_transaction',
+    'ar_invoice',
+    'inventory_posting',
+    'inventory_posting_reversal',
+  ]) {
     const code = await CodeGeneratorService.previewCode(type);
     console.log(`${type} => ${code}`);
   }

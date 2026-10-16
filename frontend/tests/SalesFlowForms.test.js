@@ -23,9 +23,12 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('@/api', () => ({ salesApi: mocks.sales, inventoryApi: mocks.inventory, baseDataApi: mocks.baseData }))
 vi.mock('@/api/finance', () => ({ financeApi: { integration: { generateARCreditNoteFromSalesReturn: mocks.creditNote } } }))
-vi.mock('vue-router', () => ({ useRouter: () => ({ push: mocks.push }), useRoute: () => ({ query: {} }) }))
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ hasPermission: () => true }) }))
+vi.mock('vue-router', async (importOriginal) => ({ ...(await importOriginal()), useRouter: () => ({ push: mocks.push }), useRoute: () => ({ query: {} }) }))
 vi.mock('@/stores/dictionary', () => ({ useDictionaryStore: () => ({ groups: {}, isLoaded: false, getOptions: () => [] }) }))
-vi.mock('@/utils/requestOptimizer', () => ({ clearAllRequestCaches: mocks.clearCache }))
+vi.mock('@/utils/requestOptimizer', async (importOriginal) => ({
+  ...await importOriginal(), clearAllRequestCaches: mocks.clearCache,
+}))
 vi.mock('@/utils/optionLoaders', () => ({
   loadCustomerOptions: mocks.options, searchCustomerOptions: mocks.options,
   loadMaterialPageOptions: mocks.materialOptions, searchMaterialPageOptions: mocks.materialSearch,
@@ -140,6 +143,7 @@ beforeEach(() => {
   mocks.inventory.getMaterialsWithStock.mockResolvedValue({ data: [{ id: 100, stockQuantity: 1234 }] })
   mocks.baseData.getMaterials.mockResolvedValue({ data: { list: [{ id: 101, code: 'P-101', name: '换出商品', unitName: '件', stockQuantity: 400, price: 20, costPrice: 8 }], total: 1 } })
   mocks.sales.getReturns.mockResolvedValue({ data: { items: [copy(returned)], total: 21, statusStats: { pendingCount: 10, approvedCount: 10, completedCount: 1 } } })
+  mocks.sales.getReturnDetails.mockResolvedValue({ data: copy(returned) })
   mocks.sales.getExchanges.mockResolvedValue({ data: { items: [copy(exchange)], total: 30, statusStats: { total: 30, pending: 20, processing: 5, completed: 5 } } })
   mocks.sales.getExchange.mockResolvedValue({ data: copy(exchange) })
   mocks.sales.getQuotations.mockResolvedValue({ data: { list: [copy(quotation)], total: 1 } })
@@ -204,6 +208,7 @@ describe('销售退货页面回归', () => {
     await open(SalesReturns)
     expect(wrapper.text()).toContain('30.12')
     await click('查看记录:20')
+    expect(mocks.sales.getReturnDetails).toHaveBeenCalledWith(20)
     const detail = wrapper.get('[data-dialog="退货单详情"]')
     expect(detail.text()).toContain('SRT-20')
     expect(detail.text()).toContain('外观问题')

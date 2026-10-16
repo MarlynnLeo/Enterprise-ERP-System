@@ -41,7 +41,12 @@
       <!-- 数量信息（检验中状态可编辑） -->
       <CellGroup inset title="数量信息">
         <Cell title="到货数量" :value="`${inspection.quantity || 0} ${inspection.unit || '件'}`" />
-        <Cell title="抽检数量" :value="`${inspection.sampleQuantity ?? '未记录'}`" />
+        <Field v-if="isInspecting" v-model="inspection.sampleQuantity" label="抽样数量" type="digit" placeholder="请输入实际抽样数量" />
+        <Cell v-else title="抽检数量" :value="`${inspection.sampleQuantity ?? '未记录'}`" />
+        <Cell v-if="isInspecting" title="全数检验"><template #right-icon><Switch v-model="inspection.isFullInspection" size="24" /></template></Cell>
+        <Field v-if="isInspecting && !inspection.isFullInspection" label="AQL标准" :model-value="inspection.aqlStandardName || ''" readonly is-link placeholder="请选择抽样标准" @click="openAql" />
+        <Cell v-if="!inspection.isFullInspection" title="抽样依据" :label="`Ac=${inspection.acceptLimit ?? '未配置'} / Re=${inspection.rejectLimit ?? '未配置'}；达到拒收数须按拒收流程处理。`" />
+        <Popup v-model:show="showAqlPicker" position="bottom" round><Picker title="选择AQL标准" :columns="aqlOptions" @confirm="selectAql" @cancel="showAqlPicker = false" /></Popup>
       </CellGroup>
 
       <!-- 检验项目（检验中才显示，可操作） -->
@@ -245,6 +250,9 @@
         <Cell :title="inspection.remark || inspection.note" />
       </CellGroup>
 
+      <div v-if="['partial','failed'].includes(inspection.status)" class="followup-section" v-permission="'quality:nonconforming:view'">
+        <VanButton block @click="router.push({ path: '/quality/nonconformance', query: { inspectionId: inspection.id } })">查看不合格品处置</VanButton>
+      </div>
       <!-- 操作按钮 -->
       <div class="action-section" v-if="inspection.status === 'pending'" v-permission="'quality:incoming:update'">
         <VanButton round block type="primary" @click="handleStart" :loading="actionLoading">
@@ -284,6 +292,7 @@
     Button as VanButton,
     Loading,
     Empty,
+    Popup, Picker, Switch,
     showToast,
     showLoadingToast,
     closeToast,
@@ -295,6 +304,7 @@
   import { buildResourceUrl } from '@/config/app'
   import { extractApiData, extractApiList } from '@/utils/apiHelper'
   import { getApiErrorMessage } from '@/utils/errorHandler'
+  import { validateQualityItems } from '@/utils/qualityForm'
   import { getMeasurementState, buildInspectionItemPayload } from '@/utils/inspectionItemPayload'
   import { useAuthStore } from '@/stores/auth'
   import {
@@ -320,6 +330,26 @@
   const actionLoading = ref(false)
   const inspectItems = ref([])
   const photoList = ref([])
+  const aqlOptions = ref([])
+  const showAqlPicker = ref(false)
+  const selectAql = ({ selectedOptions }) => {
+    const standard = selectedOptions[0]?.standard
+    if (!standard) return
+    Object.assign(inspection.value, { aqlStandardId: standard.id, aqlStandardName: standard.name,
+      aqlLevel: standard.aqlLevel, acceptLimit: standard.acceptLimit, rejectLimit: standard.rejectLimit,
+      sampleQuantity: Math.min(Number(standard.sampleSize), Number(inspection.value.quantity)), isAql: true, isFullInspection: false })
+    showAqlPicker.value = false
+  }
+  const openAql = async () => {
+    try {
+      const response = await qualityApi.getAqlStandards({ status: 'active', pageSize: 200 })
+      const quantity = Number(inspection.value.quantity)
+      aqlOptions.value = extractApiList(response).filter(rule => Number(rule.batchMin) <= quantity && Number(rule.batchMax) >= quantity)
+        .map(standard => ({ text: `${standard.name} · n=${standard.sampleSize} Ac=${standard.acceptLimit}/Re=${standard.rejectLimit}`, value: standard.id, standard }))
+      if (!aqlOptions.value.length) { showToast('当前批量没有适用的 AQL 标准，请先维护'); return }
+      showAqlPicker.value = true
+    } catch (error) { showToast(getApiErrorMessage(error, '抽样标准加载失败')) }
+  }
   const uploadingPhotoCount = ref(0)
   const cameraInputRef = ref(null)
   const albumInputRef = ref(null)
@@ -551,6 +581,7 @@
       method: readField('method', 'inspectionMethod', 'inspection_method') || '',
       type: readField('type', 'itemType', 'item_type') || 'other',
       isCritical: !!(item.isCritical ?? item.is_critical),
+      dimensions: item.dimensions ?? null, tolerances: item.tolerances ?? null,
       dimensionValue: item.dimensionValue ?? item.dimension_value ?? null,
       toleranceUpper: item.toleranceUpper ?? item.tolerance_upper ?? null,
       toleranceLower: item.toleranceLower ?? item.tolerance_lower ?? null,
@@ -746,24 +777,19 @@
       return
     }
 
-    // 自动判定总状态
-    const failedCount = inspectItems.value.filter(i => i.result === 'failed').length
-    let status = 'passed'
-    if (failedCount > 0 && failedCount < inspectItems.value.length) {
-      status = unqualifiedQty > 0 ? 'failed' : 'passed'
-    } else if (failedCount === inspectItems.value.length) {
-      status = 'failed'
+    if (qualifiedQty < 0 || unqualifiedQty < 0 || Math.abs(qualifiedQty + unqualifiedQty - Number(inspection.value.quantity)) > 0.0001) {
+      showToast('合格与不合格数量必须非负且合计等于检验数量'); return
     }
-    if (unqualifiedQty > 0 && qualifiedQty > 0) {
-      status = 'failed' // 有不合格品就标记不合格
-    } else if (unqualifiedQty > 0 && qualifiedQty === 0) {
-      status = 'failed'
-    }
+    const evidenceError = validateQualityItems(inspectItems.value)
+    if (evidenceError) { showToast(evidenceError); return }
+    if (unqualifiedQty === 0 && inspectItems.value.some(item => item.result === 'failed')) { showToast('存在不合格检验项目，请核实不合格数量'); return }
+    if (!inspection.value.isFullInspection && (!inspection.value.aqlStandardId || Number(inspection.value.sampleQuantity) <= 0)) { showToast('请选择有效的 AQL 抽样标准和抽样数量'); return }
+    const status = unqualifiedQty > 0 ? (qualifiedQty > 0 ? 'partial' : 'failed') : 'passed'
 
     try {
       await showConfirmDialog({
         title: '确认提交',
-        message: `合格 ${qualifiedQty}，不合格 ${unqualifiedQty}\n照片留存：${photoList.value.length} 张\n检验结论：${status === 'passed' ? '合格' : '不合格'}\n\n确定提交吗？`
+        message: `合格 ${qualifiedQty}，不合格 ${unqualifiedQty}\n照片留存：${photoList.value.length} 张\n检验结论：${status === 'passed' ? '合格' : status === 'partial' ? '部分合格' : '不合格'}\n\n确定提交吗？`
       })
 
       if (currentInspectionId() !== id || actionLoading.value) return
@@ -771,6 +797,13 @@
 
       const submitData = {
         templateId: inspection.value?.templateId || null,
+        sampleQuantity: inspection.value.isFullInspection ? Number(inspection.value.quantity) : Number(inspection.value.sampleQuantity) || null,
+        isFullInspection: !!inspection.value.isFullInspection,
+        isAql: !inspection.value.isFullInspection,
+        aqlStandardId: inspection.value.isFullInspection ? null : inspection.value.aqlStandardId,
+        aqlLevel: inspection.value.isFullInspection ? null : inspection.value.aqlLevel,
+        acceptLimit: inspection.value.isFullInspection ? null : inspection.value.acceptLimit,
+        rejectLimit: inspection.value.isFullInspection ? null : inspection.value.rejectLimit,
         qualifiedQuantity: qualifiedQty,
         unqualifiedQuantity: unqualifiedQty,
         status,
@@ -839,23 +872,23 @@
     }
     &.completed {
       background: color-mix(in srgb, var(--color-success) 15%, transparent);
-      color: var(--color-success);
+      color: var(--color-success-text);
     }
     &.received {
       background: color-mix(in srgb, var(--color-success) 15%, transparent);
-      color: var(--color-success);
+      color: var(--color-success-text);
     }
     &.passed {
       background: rgba(16, 185, 129, 0.15);
-      color: var(--color-success);
+      color: var(--color-success-text);
     }
     &.failed {
       background: rgba(239, 68, 68, 0.15);
-      color: var(--color-error);
+      color: var(--color-error-text);
     }
     &.partial {
       background: rgba(245, 158, 11, 0.15);
-      color: var(--color-warning);
+      color: var(--color-warning-text);
     }
     &.default {
       background: rgba(255, 255, 255, 0.1);
@@ -932,7 +965,7 @@
     padding: 1px 6px;
     border-radius: 4px;
     background: rgba(239, 68, 68, 0.12);
-    color: var(--color-error);
+    color: var(--color-error-text);
     font-weight: 600;
   }
 
@@ -967,7 +1000,7 @@
 
     &.btn-pass {
       border-color: rgba(16, 185, 129, 0.3);
-      color: var(--color-success);
+      color: var(--color-success-text);
       &.active {
         background: rgba(16, 185, 129, 0.15);
         border-color: var(--color-success);
@@ -976,7 +1009,7 @@
 
     &.btn-fail {
       border-color: rgba(239, 68, 68, 0.3);
-      color: var(--color-error);
+      color: var(--color-error-text);
       &.active {
         background: rgba(239, 68, 68, 0.15);
         border-color: var(--color-error);
@@ -989,13 +1022,13 @@
   }
 
   .result-pass {
-    color: var(--color-success);
+    color: var(--color-success-text);
     font-weight: 600;
     font-size: 0.8125rem;
   }
 
   .result-fail {
-    color: var(--color-error);
+    color: var(--color-error-text);
     font-weight: 600;
     font-size: 0.8125rem;
   }
@@ -1063,17 +1096,17 @@
 
   .item-actual-text {
     font-size: 0.75rem;
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     font-weight: 600;
     margin-bottom: 6px;
   }
 
   :deep(.pass-text) {
-    color: var(--color-success) !important;
+    color: var(--color-success-text) !important;
   }
 
   :deep(.fail-text) {
-    color: var(--color-error) !important;
+    color: var(--color-error-text) !important;
   }
 
   /* 问题照片留证区域 */

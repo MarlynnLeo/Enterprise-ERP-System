@@ -9,6 +9,7 @@ import {
   DEFAULT_THEME_PRESET_ID,
   isThemePreset
 } from '@/config/themePresets'
+import { runWhenIdle, shouldPrefetchThemes } from './performanceMode'
 
 /** 与 themePresets 一一对应 */
 const THEME_CSS_LOADERS = {
@@ -28,6 +29,7 @@ const THEME_CSS_LOADERS = {
 const loadedThemes = new Set(['kacon'])
 /** @type {Map<string, Promise<void>>} */
 const inflight = new Map()
+const scheduledPrefetches = new Set()
 
 /**
  * @param {string} presetId
@@ -70,19 +72,15 @@ export async function ensureThemeCss(presetId) {
  * @param {string} presetId
  */
 export function prefetchThemeCss(presetId) {
-  if (typeof window === 'undefined') return
-  if (window.__ERP_PERF__?.saveData || window.__ERP_PERF__?.lowEnd) return
+  if (!shouldPrefetchThemes()) return
 
   const id = isThemePreset(presetId) ? presetId : ''
-  if (!id || loadedThemes.has(id) || inflight.has(id)) return
+  if (!id || loadedThemes.has(id) || inflight.has(id) || scheduledPrefetches.has(id)) return
 
-  const run = () => {
-    ensureThemeCss(id).catch(() => {})
-  }
-
-  if ('requestIdleCallback' in window) {
-    window.requestIdleCallback(run, { timeout: 3000 })
-  } else {
-    setTimeout(run, 900)
-  }
+  scheduledPrefetches.add(id)
+  runWhenIdle(() => {
+    scheduledPrefetches.delete(id)
+    // A queued hover must honor a mode change before the browser becomes idle.
+    if (shouldPrefetchThemes()) ensureThemeCss(id).catch(() => {})
+  }, 3000)
 }

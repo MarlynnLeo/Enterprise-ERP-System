@@ -6,7 +6,6 @@ const { findMenuHierarchyRepairs } = require('../src/bootstrap/menus');
 
 const REQUIRED_APPROVAL_TYPES = [
   'purchase_order',
-  'purchase_requisition',
   'contract',
   'ecn',
   'hr_leave',
@@ -44,6 +43,11 @@ async function verify() {
     assert(repairs.length === 0, `Invalid navigation parents or detail links: ${repairs.map(menu => menu.id).join(', ')}`);
     for (const route of ['/production/plan', '/production/task', '/finance/gl/accounts', '/finance/ar/settlement', '/finance/ap/settlement']) {
       assert(menus.some(menu => menu.path === route), `Required navigation route is missing: ${route}`);
+    }
+    assert(!menus.some(menu => ['/finance/inventory-posting', '/finance/inventory-postings'].includes(menu.path)), 'Retired inventory approval workbench is still registered');
+    const financeRoot = menus.find(menu => menu.path === '/finance');
+    for (const action of ['view', 'approve', 'reverse']) {
+      assert(menus.some(menu => menu.permission === `finance:inventory:${action}` && Number(menu.type) === 2 && menu.parent_id === financeRoot?.id), `Inline inventory approval permission is missing: ${action}`);
     }
 
     const activeTemplates = await knex('workflow_templates')

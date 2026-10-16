@@ -162,7 +162,7 @@
     align-items: center;
     justify-content: center;
     background: rgba(99, 102, 241, 0.1);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     flex-shrink: 0;
   }
   .hero-info {
@@ -186,7 +186,7 @@
     flex-shrink: 0;
     &.success {
       background: rgba(16, 185, 129, 0.1);
-      color: var(--color-success);
+      color: var(--color-success-text);
     }
     &.default {
       background: rgba(107, 114, 128, 0.1);
@@ -268,10 +268,10 @@
     }
   }
   .text-green {
-    color: var(--color-success);
+    color: var(--color-success-text);
   }
   .text-red {
-    color: var(--color-danger);
+    color: var(--color-danger-text);
   }
 
   .loading-state {

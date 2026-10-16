@@ -27,12 +27,12 @@ describe('mobile theme runtime', () => {
   test('uses the workspace palette color for state, DOM, cache and server settings', async () => {
     const theme = themeModule.useTheme()
     expect(await theme.setTheme('workspace')).toBe(true)
-    expect(theme.currentTheme.value.preview.primary).toBe('#4263EB')
+    expect(theme.currentTheme.value.preview.primary).toBe('#2563EB')
     expect(document.documentElement.dataset.theme).toBe('workspace')
-    expect(document.documentElement.style.getPropertyValue('--color-primary')).toBe('#4263EB')
-    expect(JSON.parse(localStorage.getItem('theme_settings')).primaryColor).toBe('#4263EB')
+    expect(document.documentElement.style.getPropertyValue('--color-primary')).toBe('#2563EB')
+    expect(JSON.parse(localStorage.getItem('theme_settings')).primaryColor).toBe('#2563EB')
     expect(api.post).toHaveBeenCalledWith('/auth/theme', {
-      preset: 'workspace', theme: 'light', primaryColor: '#4263EB', fontSize: 14
+      preset: 'workspace', theme: 'light', primaryColor: '#2563EB', fontSize: 14
     }, { signal: expect.any(AbortSignal) })
   })
 

@@ -201,7 +201,8 @@ module.exports = {
     startDate,
     endDate,
     compareStartDate = null,
-    compareEndDate = null
+    compareEndDate = null,
+    { includeClosingEntries = false } = {}
   ) {
     try {
       const connection = await db.pool.getConnection();
@@ -258,7 +259,8 @@ module.exports = {
             account.id,
             startDate,
             endDate,
-            account.is_debit
+            account.is_debit,
+            { includeClosingEntries }
           );
           let compareAmount = null;
 
@@ -268,7 +270,8 @@ module.exports = {
               account.id,
               compareStartDate,
               compareEndDate,
-              account.is_debit
+              account.is_debit,
+              { includeClosingEntries }
             );
           }
 
@@ -319,7 +322,14 @@ module.exports = {
    * @param {boolean} isDebit 是否为借方科目（可选，传入可避免额外查询）
    * @returns {number} 期间发生额
    */
-  async getAccountPeriodAmount(connection, accountId, startDate, endDate, isDebit = null) {
+  async getAccountPeriodAmount(
+    connection,
+    accountId,
+    startDate,
+    endDate,
+    isDebit = null,
+    { includeClosingEntries = false } = {}
+  ) {
     try {
       const [result] = await connection.execute(
         `SELECT
@@ -330,7 +340,8 @@ module.exports = {
            WHERE ei.account_id = ?
              AND e.entry_date >= ?
              AND e.entry_date <= ?
-             AND e.is_posted = 1`,
+             AND e.is_posted = 1
+             ${includeClosingEntries ? '' : "AND COALESCE(e.document_type, '') NOT IN ('profit_loss_transfer', 'year_end_transfer')"}`,
         [accountId, startDate, endDate]
       );
 

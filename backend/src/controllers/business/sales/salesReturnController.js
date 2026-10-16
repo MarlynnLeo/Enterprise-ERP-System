@@ -17,6 +17,13 @@ const { STATUS, getConnection } = require('./salesShared');
 const { getRequestActorLabel } = require('../../../utils/userUtils');
 const { salesReturnMap, salesReturnItemMap } = require('../../../utils/sales/salesFieldMap');
 
+const RETURN_POSTING_COLUMNS = `
+  (SELECT d.finance_status FROM inventory_posting_documents d
+    WHERE d.source_type = 'sales_return'
+      AND d.source_no COLLATE utf8mb4_unicode_ci = sr.return_no COLLATE utf8mb4_unicode_ci
+      AND (d.source_id IS NULL OR d.source_id = sr.id) AND d.posting_kind = 'movement'
+    ORDER BY d.posting_sequence DESC, d.id DESC LIMIT 1) AS finance_status`;
+
 const SALES_RETURN_STATUS_LABELS = {
   [STATUS.SALES_RETURN.DRAFT]: '草稿',
   [STATUS.SALES_RETURN.PENDING]: '待审批',
@@ -117,7 +124,7 @@ exports.getSalesReturns = async (req, res) => {
 
     const query = appendPaginationSQL(
       `
-      SELECT sr.*, c.name AS customer_name, o.order_no
+      SELECT sr.*, ${RETURN_POSTING_COLUMNS}, c.name AS customer_name, o.order_no
       FROM sales_returns sr
       LEFT JOIN sales_orders o ON sr.order_id = o.id AND o.deleted_at IS NULL
       LEFT JOIN customers c ON o.customer_id = c.id
@@ -224,7 +231,7 @@ exports.getSalesReturnById = async (req, res) => {
     }
 
     const query = `
-      SELECT sr.*, c.name as customer_name, c.contact_person, c.contact_phone, o.order_no
+      SELECT sr.*, ${RETURN_POSTING_COLUMNS}, c.name as customer_name, c.contact_person, c.contact_phone, o.order_no
       FROM sales_returns sr
       LEFT JOIN sales_orders o ON sr.order_id = o.id AND o.deleted_at IS NULL
       LEFT JOIN customers c ON o.customer_id = c.id
@@ -354,6 +361,24 @@ exports.updateSalesReturn = async (req, res) => {
     const nextStatus = body.status || current.status;
     if (!isValidSalesReturnStatus(nextStatus)) throw validationError('无效的退货状态');
     if (statusOnly && current.status === nextStatus) {
+      if (nextStatus === 'completed') {
+        const InventoryPostingResubmissionService = require('../../../services/business/InventoryPostingResubmissionService');
+        const InventoryPostingService = require('../../../services/InventoryPostingService');
+        const retry = await InventoryPostingResubmissionService.resubmit(connection, {
+          sourceType: 'sales_return',
+          sourceId: id,
+          sourceNo: current.return_no,
+          actor: InventoryPostingService.actorFromRequest(req),
+        });
+        if (retry) {
+          await connection.commit();
+          return ResponseHandler.success(
+            res,
+            { id: Number(id), status: nextStatus, ...retry },
+            '退货入库已重新提交，待财务审核'
+          );
+        }
+      }
       await connection.commit();
       return ResponseHandler.success(
         res,

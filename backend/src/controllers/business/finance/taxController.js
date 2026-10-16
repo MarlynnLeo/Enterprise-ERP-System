@@ -7,6 +7,8 @@
  */
 
 const taxModel = require('../../../models/tax');
+const TaxPeriodGuard = require('../../../services/finance/TaxPeriodGuard');
+const VATReturnService = require('../../../services/finance/VATReturnService');
 const { safeParseId } = require('../../../utils/safeParseId');
 const TaxAccountingService = require('../../../services/business/TaxAccountingService');
 const DocumentLinkService = require('../../../services/business/DocumentLinkService');
@@ -46,6 +48,23 @@ async function generateTaxPaymentTransactionNumber(connection) {
   return CodeGeneratorService.nextCode('tax_payment', connection);
 }
 
+async function mutateTaxInvoiceLink(id, operation) {
+  const connection = await db.pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [rows] = await connection.execute('SELECT * FROM tax_invoices WHERE id = ? FOR UPDATE', [id]);
+    if (!rows.length) throw new Error('税务发票不存在');
+    ensureTaxInvoiceCanChangeLink(rows[0]);
+    await operation(connection, rows[0]);
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
 function ensureTaxInvoiceCanChangeLink(invoice) {
   if (invoice.original_tax_invoice_id) {
     throw new Error('红字税票的原税票与退货单据关联不能修改或解除');
@@ -67,73 +86,6 @@ function ensureTaxInvoiceDocumentTypeMatches(invoice, documentType) {
   }
 }
 
-function getMonthRangeFromReturnPeriod(returnPeriod) {
-  const period = String(returnPeriod || '');
-  if (!/^\d{4}-\d{2}$/.test(period)) {
-    throw new Error('增值税申报期间必须使用 YYYY-MM 格式');
-  }
-
-  const [year, month] = period.split('-').map(Number);
-  if (month < 1 || month > 12) {
-    throw new Error('增值税申报期间月份无效');
-  }
-
-  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  return {
-    startDate: `${year}-${String(month).padStart(2, '0')}-01`,
-    endDate: `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`,
-  };
-}
-
-async function calculateVATReturnData(returnPeriod, connection = db.pool) {
-  const { startDate, endDate } = getMonthRangeFromReturnPeriod(returnPeriod);
-
-  const [salesRows] = await connection.execute(
-    `SELECT
-       COALESCE(SUM(amount_excluding_tax), 0) AS sales_amount,
-       COALESCE(SUM(tax_amount), 0) AS sales_output_tax
-     FROM tax_invoices
-     WHERE invoice_type = '销项'
-       AND status IN ('已认证', '已抵扣')
-       AND invoice_date BETWEEN ? AND ?`,
-    [startDate, endDate]
-  );
-
-  const [purchaseRows] = await connection.execute(
-    `SELECT
-       COALESCE(SUM(amount_excluding_tax), 0) AS purchase_amount,
-       COALESCE(SUM(tax_amount), 0) AS purchase_input_tax
-     FROM tax_invoices
-     WHERE invoice_type = '进项'
-       AND status IN ('已认证', '已抵扣')
-       AND invoice_date BETWEEN ? AND ?`,
-    [startDate, endDate]
-  );
-
-  const [deductionRows] = await connection.execute(
-    `SELECT COALESCE(SUM(tax_amount), 0) AS input_tax_deduction
-     FROM tax_invoices
-     WHERE invoice_type = '进项'
-       AND status = '已抵扣'
-       AND deduction_date BETWEEN ? AND ?`,
-    [startDate, endDate]
-  );
-
-  const sales = salesRows[0] || {};
-  const purchase = purchaseRows[0] || {};
-  const inputTaxDeduction = roundMoney(deductionRows[0]?.input_tax_deduction || 0);
-  const salesOutputTax = roundMoney(sales.sales_output_tax || 0);
-  const taxPayable = roundMoney(Math.max(Precision.sub(salesOutputTax, inputTaxDeduction), 0));
-
-  return {
-    sales_amount: roundMoney(sales.sales_amount || 0),
-    sales_output_tax: salesOutputTax,
-    purchase_amount: roundMoney(purchase.purchase_amount || 0),
-    purchase_input_tax: roundMoney(purchase.purchase_input_tax || 0),
-    input_tax_deduction: inputTaxDeduction,
-    tax_payable: taxPayable,
-  };
-}
 
 const taxController = {
   /**
@@ -154,6 +106,14 @@ const taxController = {
           'VALIDATION_ERROR',
           400
         );
+      if (invoiceData.related_document_type || invoiceData.related_document_id) {
+        return ResponseHandler.error(
+          res,
+          '手工新建税票请先以未认证状态创建，再通过关联操作绑定应收/应付发票；业务源单关联由系统生成',
+          'VALIDATION_ERROR',
+          400
+        );
+      }
 
       // 验证必填字段
       const requiredFields = [
@@ -179,6 +139,7 @@ const taxController = {
       if (invoiceData.status === '已认证') {
         connection = await db.pool.getConnection();
         await connection.beginTransaction();
+      await TaxPeriodGuard.lock(connection);
 
         const invoiceId = await taxModel.createTaxInvoice(invoiceData, connection);
         const [invoices] = await connection.execute(
@@ -285,6 +246,7 @@ const taxController = {
       const { certification_date } = mapKeysToSnake(req.body || {});
 
       await connection.beginTransaction();
+      await TaxPeriodGuard.lock(connection);
 
       const [invoices] = await connection.execute(
         'SELECT id, invoice_type, invoice_number, invoice_code, invoice_date, supplier_id, customer_id, supplier_or_customer_name, supplier_tax_number, amount_excluding_tax, tax_rate, tax_amount, total_amount, status, certification_date, deduction_date, related_document_type, related_document_id, original_tax_invoice_id, gl_entry_id, remark, created_by, created_at, updated_at FROM tax_invoices WHERE id = ? FOR UPDATE',
@@ -302,7 +264,10 @@ const taxController = {
         return ResponseHandler.error(res, '发票状态不正确，无法认证', 'VALIDATION_ERROR', 400);
       }
 
-      const certifiedDate = certification_date || currentDateString();
+      const certifiedDate = validateBusinessDate(certification_date, '认证日期');
+      await TaxPeriodGuard.assertMutable(connection, [invoice.invoice_date]);
+      await TaxAccountingService.getCurrentPeriodId(toLocalDateString(invoice.invoice_date), connection);
+      await TaxAccountingService.getCurrentPeriodId(certifiedDate, connection);
       await connection.execute(
         'UPDATE tax_invoices SET status = ?, certification_date = ? WHERE id = ?',
         ['已认证', certifiedDate, id]
@@ -362,6 +327,7 @@ const taxController = {
       const { deduction_date } = mapKeysToSnake(req.body || {});
 
       await connection.beginTransaction();
+      await TaxPeriodGuard.lock(connection);
       const [invoices] = await connection.execute(
         'SELECT id, invoice_type, invoice_number, invoice_code, invoice_date, supplier_id, customer_id, supplier_or_customer_name, supplier_tax_number, amount_excluding_tax, tax_rate, tax_amount, total_amount, status, certification_date, deduction_date, related_document_type, related_document_id, original_tax_invoice_id, gl_entry_id, remark, created_by, created_at, updated_at FROM tax_invoices WHERE id = ? FOR UPDATE',
         [id]
@@ -384,6 +350,7 @@ const taxController = {
       }
 
       const deductionDate = validateBusinessDate(deduction_date, '抵扣日期');
+      await TaxPeriodGuard.assertMutable(connection, [deductionDate]);
       await TaxAccountingService.getCurrentPeriodId(deductionDate, connection);
 
       await connection.execute(
@@ -396,7 +363,7 @@ const taxController = {
     } catch (error) {
       await connection.rollback();
       logger.error('抵扣税务发票失败:', error);
-      return ResponseHandler.error(res, '抵扣税务发票失败', 'SERVER_ERROR', 500, error);
+      return ResponseHandler.error(res, error.message || '抵扣税务发票失败', 'VALIDATION_ERROR', 400, error);
     } finally {
       connection.release();
     }
@@ -407,6 +374,7 @@ const taxController = {
    * POST /finance/tax/returns
    */
   createTaxReturn: async (req, res) => {
+    const connection = await db.pool.getConnection();
     try {
       const returnData = {
         ...mapKeysToSnake(req.body || {}),
@@ -431,18 +399,31 @@ const taxController = {
         return ResponseHandler.error(res, '无效的申报税种', 'VALIDATION_ERROR', 400);
       }
 
-      if (returnData.return_type === '增值税' && returnData.auto_calculate !== false) {
-        Object.assign(returnData, await calculateVATReturnData(returnData.return_period));
+      if (returnData.status && returnData.status !== '草稿') throw TaxPeriodGuard.invalid('新建申报只能为草稿');
+      returnData.status = '草稿';
+      returnData.tax_paid = 0;
+      await connection.beginTransaction();
+      await TaxPeriodGuard.lock(connection);
+      const [existing] = await connection.execute(
+        "SELECT id FROM tax_returns WHERE return_type = ? AND return_period = ? AND status <> '已作废' FOR UPDATE",
+        [returnData.return_type, returnData.return_period]
+      );
+      if (existing.length) throw TaxPeriodGuard.invalid('该税种及期间已有申报');
+      if (returnData.return_type === '增值税') {
+        await TaxPeriodGuard.assertNoLaterDeclaration(connection, returnData.return_period);
+        Object.assign(returnData, await VATReturnService.calculate(connection, returnData.return_period, returnData));
       }
 
       // 创建税务申报
-      const returnId = await taxModel.createTaxReturn(returnData);
+      const returnId = await taxModel.createTaxReturn(returnData, connection);
+      await connection.commit();
 
       return ResponseHandler.success(res, { id: returnId }, '税务申报创建成功', 201);
     } catch (error) {
+      await connection.rollback();
       logger.error('创建税务申报失败:', error);
       const isBusinessError =
-        BusinessError.is(error) || /申报期间|税种|YYYY-MM/.test(error.message || '');
+        error.code === 'VALIDATION_ERROR' || BusinessError.is(error) || /申报期间|税种|YYYY-MM/.test(error.message || '');
       return ResponseHandler.error(
         res,
         isBusinessError ? error.message : '创建税务申报失败',
@@ -450,6 +431,8 @@ const taxController = {
         isBusinessError ? 400 : 500,
         error
       );
+    } finally {
+      connection.release();
     }
   },
 
@@ -505,10 +488,11 @@ const taxController = {
     const connection = await db.pool.getConnection();
     try {
       const id = safeParseId(req.params.id);
-      const { declaration_date } = mapKeysToSnake(req.body || {});
+      const { declaration_date, opening_input_credit, opening_credit_note } = mapKeysToSnake(req.body || {});
 
       // 获取申报信息
       await connection.beginTransaction();
+      await TaxPeriodGuard.lock(connection);
       const [returns] = await connection.execute(
         'SELECT * FROM tax_returns WHERE id = ? FOR UPDATE',
         [id]
@@ -525,11 +509,22 @@ const taxController = {
         return ResponseHandler.error(res, '申报状态不正确，无法提交', 'VALIDATION_ERROR', 400);
       }
 
+      const [duplicates] = await connection.execute(
+        "SELECT id FROM tax_returns WHERE return_type = ? AND return_period = ? AND id <> ? AND status <> '已作废' FOR UPDATE",
+        [taxReturn.return_type, taxReturn.return_period, id]
+      );
+      if (duplicates.length) throw TaxPeriodGuard.invalid('该税种及期间存在重复申报，请先核对并删除多余草稿');
+
       await TaxAccountingService.getCurrentPeriodId(`${taxReturn.return_period}-01`, connection);
       if (taxReturn.return_type === '增值税') {
-        const amounts = await calculateVATReturnData(taxReturn.return_period, connection);
+        await TaxPeriodGuard.assertNoLaterDeclaration(connection, taxReturn.return_period);
+        const baseline = opening_input_credit === undefined ? taxReturn : {
+          ...taxReturn, opening_input_credit, opening_credit_note,
+        };
+        const amounts = await VATReturnService.calculate(connection, taxReturn.return_period, baseline);
         await connection.query('UPDATE tax_returns SET ? WHERE id = ?', [
-          { ...amounts, tax_balance: amounts.tax_payable },
+          { ...amounts, opening_credit_note: String(baseline.opening_credit_note || '').trim() || null,
+            tax_balance: amounts.tax_payable, vat_snapshot_version: Number(taxReturn.vat_snapshot_version || 0) + 1 },
           id,
         ]);
       }
@@ -562,6 +557,7 @@ const taxController = {
       const reason = String(req.body.reason || '').trim();
       if (!reason) throw new Error('请填写撤回原因');
       await connection.beginTransaction();
+      await TaxPeriodGuard.lock(connection);
       const [rows] = await connection.execute('SELECT * FROM tax_returns WHERE id = ? FOR UPDATE', [
         id,
       ]);
@@ -574,6 +570,7 @@ const taxController = {
       )
         throw new Error('仅未缴款的已申报记录可撤回；已缴款时请先作废缴款');
       await TaxAccountingService.getCurrentPeriodId(`${taxReturn.return_period}-01`, connection);
+      if (taxReturn.return_type === '增值税') await TaxPeriodGuard.assertNoLaterDeclaration(connection, taxReturn.return_period);
       const note = `${taxReturn.remark || ''}\n${currentDateString()} 用户${getAuthenticatedUserId(req)}撤回：${reason}`;
       await connection.execute(
         'UPDATE tax_returns SET status = ?, declaration_date = NULL, remark = ? WHERE id = ?',
@@ -600,9 +597,10 @@ const taxController = {
       const { payment_date, bank_account_id } = mapKeysToSnake(req.body || {});
 
       await connection.beginTransaction();
+      await TaxPeriodGuard.lock(connection);
 
       const [taxReturns] = await connection.execute(
-        'SELECT id, return_period, return_type, sales_amount, sales_output_tax, purchase_amount, purchase_input_tax, input_tax_deduction, tax_payable, tax_paid, tax_balance, total_revenue, total_cost, total_expense, taxable_income, income_tax_rate, income_tax_payable, status, declaration_date, payment_date, gl_entry_id, remark, created_by, created_at, updated_at FROM tax_returns WHERE id = ? FOR UPDATE',
+        'SELECT * FROM tax_returns WHERE id = ? FOR UPDATE',
         [id]
       );
       if (taxReturns.length === 0) {
@@ -614,6 +612,10 @@ const taxController = {
       if (taxReturn.status !== '已申报') {
         await connection.rollback();
         return ResponseHandler.error(res, '申报状态不正确，无法缴纳', 'VALIDATION_ERROR', 400);
+      }
+
+      if (taxReturn.return_type === '增值税') {
+        await VATReturnService.assertSnapshot(connection, taxReturn);
       }
 
       const payableAmount =
@@ -629,6 +631,7 @@ const taxController = {
       let bankTransactionId = null;
       let entryInfo = null;
       const paymentDate = validateBusinessDate(payment_date, '缴纳日期');
+      await TaxAccountingService.getCurrentPeriodId(paymentDate, connection);
       const userId = getAuthenticatedUserId(req);
 
       if (payableAmount > 0) {
@@ -741,7 +744,7 @@ const taxController = {
       await connection.rollback();
       logger.error('缴纳税款失败:', error);
       const isBusinessError =
-        BusinessError.is(error) ||
+        error.code === 'VALIDATION_ERROR' || BusinessError.is(error) ||
         /不正确|不存在|不足|不能|未配置|未找到|日期格式|有效日期/.test(error.message || '');
       return ResponseHandler.error(
         res,
@@ -769,6 +772,7 @@ const taxController = {
       }
 
       await connection.beginTransaction();
+      await TaxPeriodGuard.lock(connection);
       const userId = getAuthenticatedUserId(req);
 
       const [taxReturns] = await connection.execute(
@@ -1026,28 +1030,27 @@ const taxController = {
         );
       }
 
-      const invoice = await taxModel.getTaxInvoiceById(id);
-      if (!invoice) {
-        return ResponseHandler.error(res, '税务发票不存在', 'NOT_FOUND', 404);
-      }
-      ensureTaxInvoiceCanChangeLink(invoice);
-      ensureTaxInvoiceDocumentTypeMatches(invoice, document_type);
-
       const document = await taxModel.getDocumentSummary(document_type, document_id);
       if (!document) {
         return ResponseHandler.error(res, '关联的单据不存在', 'VALIDATION_ERROR', 400);
       }
 
-      await taxModel.linkToDocument(id, document_type, document_id);
-      await DocumentLinkService.tryAutoLink(
-        document_type,
-        document_id,
-        document.document_number,
-        DocType.TAX_INVOICE,
-        invoice.id,
-        invoice.invoice_number,
-        getAuthenticatedUserId(req)
-      );
+      await mutateTaxInvoiceLink(id, async (connection, invoice) => {
+        ensureTaxInvoiceDocumentTypeMatches(invoice, document_type);
+        await taxModel.linkToDocument(id, document_type, document_id, connection);
+        if (['ap_invoice', 'ar_invoice'].includes(invoice.related_document_type) &&
+            (invoice.related_document_type !== document_type || Number(invoice.related_document_id) !== Number(document_id))) {
+          await DocumentLinkService.deleteLinksByPair({
+            source_type: invoice.related_document_type, source_id: invoice.related_document_id,
+            target_type: DocType.TAX_INVOICE, target_id: invoice.id,
+          }, connection);
+        }
+        await DocumentLinkService.createLink({
+          source_type: document_type, source_id: document_id, source_code: document.document_number,
+          target_type: DocType.TAX_INVOICE, target_id: invoice.id, target_code: invoice.invoice_number,
+          link_type: 'generate', created_by: getAuthenticatedUserId(req),
+        }, connection);
+      });
 
       return ResponseHandler.success(res, null, '税务发票关联成功');
     } catch (error) {
@@ -1070,24 +1073,18 @@ const taxController = {
     try {
       const id = safeParseId(req.params.id);
 
-      const invoice = await taxModel.getTaxInvoiceById(id);
-      if (!invoice) {
-        return ResponseHandler.error(res, '税务发票不存在', 'NOT_FOUND', 404);
-      }
-      ensureTaxInvoiceCanChangeLink(invoice);
-
-      const documentType = invoice.related_document_type;
-      const documentId = invoice.related_document_id;
-      if (documentType && documentId) {
-        await DocumentLinkService.deleteLinksByPair({
-          source_type: documentType,
-          source_id: documentId,
-          target_type: DocType.TAX_INVOICE,
-          target_id: invoice.id,
-        });
-      }
-
-      await taxModel.unlinkDocument(id);
+      await mutateTaxInvoiceLink(id, async (connection, invoice) => {
+        // 先验证来源不可变规则，再在同一事务中删除人工关联和关系图。
+        await taxModel.unlinkDocument(id, connection);
+        if (invoice.related_document_type && invoice.related_document_id) {
+          await DocumentLinkService.deleteLinksByPair({
+            source_type: invoice.related_document_type,
+            source_id: invoice.related_document_id,
+            target_type: DocType.TAX_INVOICE,
+            target_id: invoice.id,
+          }, connection);
+        }
+      });
 
       return ResponseHandler.success(res, null, '关联已取消');
     } catch (error) {
@@ -1132,7 +1129,7 @@ const taxController = {
       const id = safeParseId(req.params.id);
       const { invoice_number } = mapKeysToSnake(req.body || {});
 
-      if (!invoice_number || !invoice_number.trim()) {
+      if (typeof invoice_number !== 'string' || !invoice_number.trim()) {
         return ResponseHandler.error(res, '发票号码不能为空', 'VALIDATION_ERROR', 400);
       }
 
@@ -1166,6 +1163,9 @@ const taxController = {
       return ResponseHandler.success(res, null, '发票号码更新成功');
     } catch (error) {
       logger.error('更新税务发票号码失败:', error);
+      if (error.code === 'VALIDATION_ERROR') {
+        return ResponseHandler.error(res, error.message, error.code, 400);
+      }
       return ResponseHandler.error(res, '更新税务发票号码失败', 'SERVER_ERROR', 500, error);
     }
   },
@@ -1180,6 +1180,7 @@ const taxController = {
       const id = safeParseId(req.params.id, '发票ID');
 
       await connection.beginTransaction();
+      await TaxPeriodGuard.lock(connection);
       const [invoices] = await connection.execute(
         'SELECT id, invoice_type, invoice_number, invoice_code, invoice_date, supplier_id, customer_id, supplier_or_customer_name, supplier_tax_number, amount_excluding_tax, tax_rate, tax_amount, total_amount, status, certification_date, deduction_date, related_document_type, related_document_id, original_tax_invoice_id, gl_entry_id, remark, created_by, created_at, updated_at FROM tax_invoices WHERE id = ? FOR UPDATE',
         [id]
@@ -1201,6 +1202,10 @@ const taxController = {
             .map((value) => toLocalDateString(value))
         ),
       ];
+      if (['已认证', '已抵扣'].includes(invoice.status)) {
+        await TaxPeriodGuard.assertMutable(connection, taxDates);
+        for (const date of taxDates.sort()) await TaxAccountingService.getCurrentPeriodId(date, connection);
+      }
       const [closedPeriods] = taxDates.length
         ? await connection.execute(
             `SELECT id FROM gl_periods WHERE is_closed = 1 AND (${taxDates.map(() => '(start_date <= ? AND end_date >= ?)').join(' OR ')}) FOR UPDATE`,
@@ -1295,8 +1300,8 @@ const taxController = {
       return ResponseHandler.error(
         res,
         error.message || '作废税务发票失败',
-        'SERVER_ERROR',
-        500,
+        error.code === 'VALIDATION_ERROR' ? 'VALIDATION_ERROR' : 'SERVER_ERROR',
+        error.code === 'VALIDATION_ERROR' ? 400 : 500,
         error
       );
     } finally {

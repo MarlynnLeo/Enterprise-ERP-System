@@ -648,6 +648,7 @@ const permissionDialogVisible = ref(false);
 const permissionTreeRef = ref(null);
 const permissionSaveLoading = ref(false);
 const currentRole = ref({});
+let rolePermissionRequestId = 0;
 const selectedMenuIds = ref([]);
 const halfCheckedMenuIds = ref([]);
 const rolePermissionBaselines = new Map();
@@ -1064,8 +1065,15 @@ const handleToggleMenuStatus = async (row) => {
 };
 // 分配权限
 const handleRolePermission = async (row) => {
+  if (permissionSaveLoading.value) return;
+  const requestId = ++rolePermissionRequestId;
+  const isCurrent = () => requestId === rolePermissionRequestId;
   try {
     currentRole.value = row;
+    selectedMenuIds.value = [];
+    halfCheckedMenuIds.value = [];
+    treeRenderFlag.value = false;
+    permissionDialogVisible.value = false;
 
     // 显示加载中指示器
     const loading = ElLoading.service({
@@ -1094,6 +1102,7 @@ const handleRolePermission = async (row) => {
 
       // 获取角色权限
       const response = await systemApi.getRolePermissions(row.id);
+      if (!isCurrent()) return;
 
       if (!response || !response.data) {
         loading.close();
@@ -1139,6 +1148,7 @@ const handleRolePermission = async (row) => {
       }
     }
   } catch (error) {
+    if (!isCurrent()) return;
     console.error('获取角色权限失败:', error);
     if (error.response?.status === 401) {
       ElMessage.error('请先登录');
@@ -1204,12 +1214,11 @@ const saveRole = async () => {
     ElMessage.warning('正在保存中，请勿重复操作');
     return;
   }
+  roleSaveLoading.value = true;
   try {
-    // 表单验证
-    const valid = await roleFormRef.value.validate();
+    let valid;
+    try { valid = await roleFormRef.value.validate(); } catch { return; }
     if (!valid) return;
-    // ?? 立即设置 loading 状态，防止重复提交
-    roleSaveLoading.value = true;
     if (roleForm.id) {
       // 更新
       await systemApi.updateRole(roleForm.id, roleForm);
@@ -1222,10 +1231,6 @@ const saveRole = async () => {
     roleDialogVisible.value = false;
     loadRoles();
   } catch (error) {
-    // 表单验证失败
-    if (error && typeof error === 'object' && !error.response) {
-      return;
-    }
     console.error('保存角色失败:', error);
     // 提取后端返回的错误信息
     const errorMsg = getApiErrorMessage(error, '保存角色失败');
@@ -1241,7 +1246,9 @@ const saveRole = async () => {
 };
 // 保存角色权限，确保严格按照用户勾选进行保存
 const saveRolePermission = async () => {
+  if (permissionSaveLoading.value) return;
   permissionSaveLoading.value = true;
+  const roleId = currentRole.value?.id;
   try {
     // 确保当前角色ID有效
     if (!currentRole.value || !currentRole.value.id) {
@@ -1350,7 +1357,7 @@ const saveRolePermission = async () => {
     // 防止空数组导致清空所有权限
     if (menuIds.length === 0 && halfMenuIds.length === 0) {
       ElMessageBox.confirm(
-        '确定要清空该角色的所有权限吗？清空后该角色将无法访问任何功能。',
+        '确定要清空该角色勾选的菜单权限吗？受管岗位的基础权限仍按岗位规则保留。',
         '确认清空',
         {
           confirmButtonText: '确认',
@@ -1360,8 +1367,7 @@ const saveRolePermission = async () => {
         }
       )
         .then(async () => {
-          // 即使清空权限，也保留仪表盘权限
-          await submitRolePermissions([1], [], uncheckedIds);
+          await submitRolePermissions(roleId, [], [], uncheckedIds);
         })
         .catch(() => {
           permissionSaveLoading.value = false;
@@ -1375,7 +1381,7 @@ const saveRolePermission = async () => {
         dangerouslyUseHTMLString: false,
       })
         .then(async () => {
-          await submitRolePermissions(menuIds, halfMenuIds, uncheckedIds);
+          await submitRolePermissions(roleId, menuIds, halfMenuIds, uncheckedIds);
         })
         .catch(() => {
           permissionSaveLoading.value = false;
@@ -1393,7 +1399,7 @@ const saveRolePermission = async () => {
   }
 };
 // 实际提交权限数据到后端的函数
-const submitRolePermissions = async (menuIds, halfCheckedIds, uncheckedIds = []) => {
+const submitRolePermissions = async (roleId, menuIds, halfCheckedIds, uncheckedIds = []) => {
   try {
     // 新的权限处理逻辑：保持半选中状态，同时确保权限不丢失
     // 1. 完整选中的权限直接保存
@@ -1404,7 +1410,9 @@ const submitRolePermissions = async (menuIds, halfCheckedIds, uncheckedIds = [])
     // 为每个选中的权限添加其父权限链
     numericMenuIds.forEach((id) => {
       let currentMenu = menuList.value.find((menu) => menu.id === id);
-      while (currentMenu && currentMenu.parentId) {
+      const visited = new Set([id]);
+      while (currentMenu && currentMenu.parentId && !visited.has(currentMenu.parentId)) {
+        visited.add(currentMenu.parentId);
         allRequiredIds.add(currentMenu.parentId);
         currentMenu = menuList.value.find((menu) => menu.id === currentMenu.parentId);
       }
@@ -1426,13 +1434,13 @@ const submitRolePermissions = async (menuIds, halfCheckedIds, uncheckedIds = [])
     numericMenuIds = numericMenuIds.filter((id) => !numericUncheckedIds.includes(id));
 
     // 提交数据到API
-    const _response = await systemApi.updateRolePermissions(currentRole.value.id, {
+    const _response = await systemApi.updateRolePermissions(roleId, {
       menuIds: numericMenuIds,
       halfCheckedIds: finalHalfCheckedIds,
       uncheckedIds: numericUncheckedIds,
     });
 
-    setRolePermissionBaseline(currentRole.value.id, numericMenuIds);
+    setRolePermissionBaseline(roleId, numericMenuIds);
     selectedMenuIds.value = numericMenuIds;
     halfCheckedMenuIds.value = finalHalfCheckedIds;
 
@@ -1450,11 +1458,9 @@ const submitRolePermissions = async (menuIds, halfCheckedIds, uncheckedIds = [])
 
       // 关闭权限分配对话框
       permissionDialogVisible.value = false;
-      // ?? 延迟清除权限选择状态，避免渲染错误
-      setTimeout(() => {
-        selectedMenuIds.value = [];
-        currentRole.value = null;
-      }, 100);
+      selectedMenuIds.value = [];
+      halfCheckedMenuIds.value = [];
+      currentRole.value = null;
       // 显示成功消息
       ElMessage.success('权限分配成功！');
       // 刷新角色列表以显示最新状态
@@ -1463,11 +1469,9 @@ const submitRolePermissions = async (menuIds, halfCheckedIds, uncheckedIds = [])
       // 刷新权限缓存失败，不影响主流程，继续执行
       // 关闭权限分配对话框
       permissionDialogVisible.value = false;
-      // ?? 延迟清除权限选择状态，避免渲染错误
-      setTimeout(() => {
-        selectedMenuIds.value = [];
-        currentRole.value = null;
-      }, 100);
+      selectedMenuIds.value = [];
+      halfCheckedMenuIds.value = [];
+      currentRole.value = null;
       // 显示成功消息
       ElMessage.success('权限分配成功！');
       // 刷新角色列表
@@ -1561,12 +1565,11 @@ const saveMenu = async () => {
     ElMessage.warning('正在保存中，请勿重复操作');
     return;
   }
+  menuSaveLoading.value = true;
   try {
-    // 表单验证
-    const valid = await menuFormRef.value.validate();
+    let valid;
+    try { valid = await menuFormRef.value.validate(); } catch { return; }
     if (!valid) return;
-    // ?? 立即设置 loading 状态，防止重复提交
-    menuSaveLoading.value = true;
     if (menuForm.id) {
       // 更新
       await systemApi.updateMenu(menuForm.id, menuForm);
@@ -1584,10 +1587,6 @@ const saveMenu = async () => {
     menuDialogVisible.value = false;
     loadMenus(); // 重新加载菜单数据
   } catch (error) {
-    // 表单验证失败
-    if (error && typeof error === 'object' && !error.response) {
-      return;
-    }
     console.error('保存菜单失败:', error);
     // 提取后端返回的错误信息
     const errorMsg = getApiErrorMessage(error, '保存菜单失败');
@@ -1709,116 +1708,20 @@ const _handleNodeExpand = (_data, _node) => {
 };
 // 修改权限对话框打开事件处理函数，处理精确选中问题
 const onPermissionDialogOpened = async () => {
-  // 显示加载提示
-  const loading = ElLoading.service({
-    lock: true,
-    text: '正在加载菜单数据...',
-    background: 'color-mix(in srgb, var(--ds-black) 70%, transparent)',
-  });
-  try {
-    // 检查菜单树数据是否有效，如果有效则不重新加载
-    let needReloadMenus = false;
-
-    if (!menuTree.value || !Array.isArray(menuTree.value) || menuTree.value.length === 0) {
-      needReloadMenus = true;
-    } else {
-      // 检查是否有子节点
-      let hasChildren = false;
-      menuTree.value.forEach((node) => {
-        if (node.children && node.children.length > 0) {
-          hasChildren = true;
-        }
-      });
-
-      if (!hasChildren) {
-        needReloadMenus = true;
-      }
-    }
-
-    // 只有在必要时才重新加载菜单数据
-    if (needReloadMenus) {
-      await loadMenus();
-    }
-
-    // 始终从后端获取最新的权限数据，确保数据一致性
-    try {
-      // 获取角色权限
-      const response = await systemApi.getRolePermissions(currentRole.value.id);
-      // API响应处理
-      // 检查响应是否有效
-      if (!response) {
-        ElMessage.warning('获取角色权限失败：无响应');
-        selectedMenuIds.value = [];
-        halfCheckedMenuIds.value = [];
-        return;
-      }
-      // 拦截器已解包，response.data 就是业务数据
-      let permissionData = null;
-      // 情况1：直接格式，响应就是数组
-      if (Array.isArray(response.data)) {
-        permissionData = response.data;
-      }
-      // 情况2：响应数据为null或undefined
-      else if (response.data === null || response.data === undefined) {
-        permissionData = [];
-      }
-      // 情况3：其他格式
-      else {
-        permissionData = [];
-      }
-      // 处理权限数据
-      if (Array.isArray(permissionData)) {
-        // 直接是菜单ID数组，需要过滤出叶子节点
-        const allSelectedIds = permissionData.map((id) => Number(id)).filter((id) => !isNaN(id));
-        // ?? 重要修复：只选中叶子节点，避免父节点导致子节点自动全选
-        const leafNodeIds = filterLeafNodes(allSelectedIds);
-        // 使用叶子节点作为选中状态，树组件会自动计算父节点的半选状态
-        selectedMenuIds.value = leafNodeIds;
-        halfCheckedMenuIds.value = [];
-      } else if (permissionData && typeof permissionData === 'object') {
-        // 对象格式：包含完全选中和半选状态
-        selectedMenuIds.value = (permissionData.checkedKeys || [])
-          .map((id) => Number(id))
-          .filter((id) => !isNaN(id));
-        halfCheckedMenuIds.value = (permissionData.halfCheckedKeys || [])
-          .map((id) => Number(id))
-          .filter((id) => !isNaN(id));
-      } else {
-        // 无效数据
-        selectedMenuIds.value = [];
-        halfCheckedMenuIds.value = [];
-      }
-      setRolePermissionBaseline(currentRole.value.id, selectedMenuIds.value);
-    } catch (error) {
-      ElMessage.error(`获取角色权限失败：${getApiErrorMessage(error, '请稍后重试')}`);
-    }
-    // 确保 selectedMenuIds 的值是普通数组而不是响应式Proxy对象
-    if (selectedMenuIds.value && selectedMenuIds.value.length > 0) {
-      // 克隆数组，消除Proxy包装
-      const plainArray = [...selectedMenuIds.value].map((id) => Number(id));
-      selectedMenuIds.value = plainArray;
-    }
-    // 重置树渲染状态
-    treeRenderFlag.value = false;
-    // 使用新的key强制重新渲染树
-    treeKey.value = Date.now();
-    // 关闭加载提示
-    loading.close();
-    // 等待DOM更新完成后再处理树
-    nextTick(() => {
-      // 设置标志位表示可以渲染树了
-      treeRenderFlag.value = true;
-      // 等待树组件完成渲染后展开并应用选中状态
-      nextTick(() => {
-        expandAll();
-        forceApplyCheckedState();
-      });
-    });
-  } catch (error) {
-    console.error('打开权限对话框时发生错误:', error);
-    loading.close();
-    ElMessage.error('加载菜单数据失败');
-  }
+  // handleRolePermission already loaded this role's permissions. A second
+  // request here could overwrite edits or discard the checkedKeys format.
+  const requestId = rolePermissionRequestId;
+  const isCurrent = () => requestId === rolePermissionRequestId && permissionDialogVisible.value;
+  if (!isCurrent()) return;
+  treeRenderFlag.value = false;
+  treeKey.value = Date.now();
+  await nextTick();
+  if (!isCurrent()) return;
+  treeRenderFlag.value = true;
+  await nextTick();
+  if (!isCurrent()) return;
+  expandAll();
+  forceApplyCheckedState();
 };
 // 在选中值处理部分添加一个专门处理菜单ID的函数
 // 在convertToTree函数后面添加这个新函数
@@ -1910,39 +1813,8 @@ const calculateTreeState = (allSelectedIds) => {
 };
 // 优化的权限状态应用函数，减少重试警告
 const forceApplyCheckedState = () => {
-  try {
-    if (!permissionTreeRef.value) {
-      return;
-    }
-    if (!selectedMenuIds.value || !Array.isArray(selectedMenuIds.value)) {
-      return;
-    }
-    // 确保ID格式一致
-    const numericIds = ensureNumericIds(selectedMenuIds.value);
-    if (numericIds.length === 0) {
-      return;
-    }
-    // 直接设置选中状态
-    permissionTreeRef.value.setCheckedKeys(numericIds);
-    // ?? 优化验证逻辑，减少不必要的重试
-    setTimeout(() => {
-      try {
-        const currentChecked = permissionTreeRef.value.getCheckedKeys();
-        const currentHalfChecked = permissionTreeRef.value.getHalfCheckedKeys();
-        const totalSelected = [...currentChecked, ...currentHalfChecked];
-        // 检查是否包含了所有必要的权限，而不是严格相等
-        const missingIds = numericIds.filter((id) => !totalSelected.includes(id));
-        if (missingIds.length > 0 && missingIds.length < numericIds.length) {
-          // 只有在确实缺少权限且不是全部缺少时才重试
-          permissionTreeRef.value.setCheckedKeys(numericIds);
-        }
-      } catch {
-        // 静默处理验证错误，避免控制台警告
-      }
-    }, 150);
-  } catch {
-    // 静默处理错误
-  }
+  if (!permissionTreeRef.value || !permissionDialogVisible.value) return;
+  permissionTreeRef.value.setCheckedKeys(ensureNumericIds(selectedMenuIds.value));
 };
 // 已移除未使用的updateParentNodeStatus函数
 // 已移除未使用的saveCurrentTreeState函数

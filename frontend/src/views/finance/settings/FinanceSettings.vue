@@ -1,16 +1,16 @@
 ﻿<template>
   <div class="module-page finance-settings">
     <PageHeader title="系统设置" subtitle="管理财务模块的全局参数、税务规则、业务字典及自动化任务">
-      <template #actions>
+      <template #actions v-if="canViewSettings">
 <el-button v-permission="'finance:settings:update'" type="warning" plain @click="handleReset" :loading="resetting">重置为默认</el-button>
           <el-button v-permission="'finance:settings:update'" type="primary" @click="handleSave" :loading="saving">保存设置</el-button>
       </template>
     </PageHeader>
 
-    <el-tabs v-model="activeTab" class="settings-tabs" type="border-card" v-loading="loading">
+    <el-tabs v-model="activeTab" class="settings-tabs module-tabs" type="border-card" v-loading="loading">
 
       <!-- 基础发票设置 -->
-      <el-tab-pane label="基础设置" name="base">
+      <el-tab-pane label="基础设置" name="base" v-if="canViewSettings">
         <el-form :model="settings.invoice" label-position="top">
           <el-row :gutter="24">
             <el-col :span="8">
@@ -91,7 +91,7 @@
       </el-tab-pane>
 
       <!-- 税务设置 -->
-      <el-tab-pane label="税务设置" name="tax">
+      <el-tab-pane label="税务设置" name="tax" v-if="canViewSettings">
         <el-row :gutter="24">
           <el-col :span="12">
             <el-card shadow="never" class="inner-card">
@@ -153,7 +153,7 @@
       </el-tab-pane>
 
       <!-- 银行/现金设置 -->
-      <el-tab-pane label="银行/现金" name="bank">
+      <el-tab-pane label="银行/现金" name="bank" v-if="canViewSettings">
         <el-row :gutter="24">
           <el-col :span="12">
             <div class="section-header">
@@ -196,7 +196,7 @@
       </el-tab-pane>
 
       <!-- 总账配置 -->
-      <el-tab-pane label="总账配置" name="gl">
+      <el-tab-pane label="总账配置" name="gl" v-if="canViewSettings">
         <el-form :model="settings.gl" label-position="top" style="max-width: 600px;">
           <el-form-item label="单据类型列表">
             <el-select
@@ -215,7 +215,7 @@
       </el-tab-pane>
 
       <!-- 系统与规则 -->
-      <el-tab-pane label="系统与规则" name="system">
+      <el-tab-pane label="系统与规则" name="system" v-if="canViewSettings">
         <el-row :gutter="24">
           <el-col :span="12">
             <el-card shadow="never" class="inner-card">
@@ -264,7 +264,7 @@
         </el-row>
       </el-tab-pane>
       <!-- 自动化任务 -->
-      <el-tab-pane label="自动化任务" name="automation">
+      <el-tab-pane label="自动化任务" name="automation" v-if="canViewAutomation">
         <AutomationTab />
       </el-tab-pane>
     </el-tabs>
@@ -273,7 +273,8 @@
 
 <script setup>
 import { useDictionaryStore } from '@/stores/dictionary'
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
@@ -283,6 +284,9 @@ import AutomationTab from './AutomationTab.vue'
 
 const dictStore = useDictionaryStore()
 
+const authStore = useAuthStore()
+const canViewSettings = computed(() => authStore.hasPermission('finance:settings:view'))
+const canViewAutomation = computed(() => authStore.hasPermission('finance:automation:view'))
 const activeTab = ref('base')
 
 const addPaymentMethod = () => {
@@ -296,6 +300,7 @@ const removePaymentMethod = (index) => {
 const loading = ref(false)
 const saving = ref(false)
 const resetting = ref(false)
+const settingsLoaded = ref(false)
 
 const settings = reactive({
   tax: {
@@ -358,10 +363,13 @@ const formatPercent = (value) => {
 }
 
 const loadSettings = async () => {
+  if (!canViewSettings.value || loading.value) return
   loading.value = true
+  settingsLoaded.value = false
   try {
     const res = await financeApi.settings.get()
-    const data = res.data || {}
+    const data = res.data
+    if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('设置响应无效')
     if (data) {
       // 深度合并或手动赋值，确保响应式丢失
       // Tax
@@ -394,6 +402,7 @@ const loadSettings = async () => {
       if (data.period) Object.assign(settings.period, data.period)
       if (data.system) Object.assign(settings.system, data.system)
     }
+    settingsLoaded.value = true
   } catch (error) {
     console.error('加载设置失败:', error)
     ElMessage.error('加载设置失败')
@@ -403,6 +412,8 @@ const loadSettings = async () => {
 }
 
 const handleSave = async () => {
+  if (loading.value || saving.value || resetting.value || !canViewSettings.value) return
+  if (!settingsLoaded.value) return ElMessage.warning('请先成功加载设置后再保存')
   saving.value = true
   try {
     await financeApi.settings.update(settings)
@@ -416,6 +427,8 @@ const handleSave = async () => {
 }
 
 const handleReset = async () => {
+  if (loading.value || saving.value || resetting.value || !canViewSettings.value) return
+  resetting.value = true
   try {
     await ElMessageBox.confirm('确定要重置为默认配置吗？', '警告', {
       type: 'warning'
@@ -425,6 +438,7 @@ const handleReset = async () => {
     const res = await financeApi.settings.reset()
     if (res.data) {
       Object.assign(settings, res.data)
+      settingsLoaded.value = true
       ElMessage.success('已重置为默认配置')
     }
   } catch (error) {
@@ -438,13 +452,17 @@ const handleReset = async () => {
 }
 
 const route = useRoute()
-onMounted(() => {
-  loadSettings()
-  // 支持 URL query 定位 tab，如 ?tab=automation
-  if (route.query.tab && typeof route.query.tab === 'string') {
-    activeTab.value = route.query.tab
-  }
-})
+watch([() => route.query.tab, canViewSettings, canViewAutomation], ([requested]) => {
+  const settingsTabs = ['base', 'tax', 'bank', 'gl', 'system']
+  if (requested === 'automation' && canViewAutomation.value) activeTab.value = 'automation'
+  else if (canViewSettings.value) activeTab.value = settingsTabs.includes(requested) ? requested : 'base'
+  else if (canViewAutomation.value) activeTab.value = 'automation'
+}, { immediate: true })
+watch(canViewSettings, allowed => {
+  if (allowed) loadSettings()
+  else settingsLoaded.value = false
+}, { immediate: true })
+
 </script>
 
 <style scoped>
@@ -468,59 +486,14 @@ onMounted(() => {
   font-size: 14px;
 }
 
-.settings-tabs {
-  background: var(--color-bg-base);
-  border-radius: 16px;
-  box-shadow: 0 2px 12px color-mix(in srgb, var(--ds-black) 8%, transparent);
-  border: none;
-  overflow: hidden;
-}
-
-.settings-tabs :deep(.el-tabs__header) {
-  background: var(--color-bg-section);
-  margin: 0;
-  padding: 16px 20px 0;
-  border-bottom: 1px solid var(--color-border-light);
-}
-
 .settings-tabs :deep(.el-tabs__item) {
-  border-radius: 8px 8px 0 0;
-  padding: 12px 24px;
-  font-weight: 500;
   transition: background-color 0.3s, border-color 0.3s, color 0.3s, box-shadow 0.3s, opacity 0.3s, transform 0.3s;
-}
-
-.settings-tabs :deep(.el-tabs__item:hover) {
-  background: color-mix(in srgb, var(--color-primary) 5%, transparent);
-}
-
-.settings-tabs :deep(.el-tabs__item.is-active) {
-  background: var(--color-bg-base);
-  color: var(--color-primary);
-}
-
-.settings-tabs :deep(.el-tabs__content) {
-  padding: 24px;
 }
 
 .inner-card {
   height: 100%;
-  border-radius: 12px;
-  border: 1px solid var(--color-border-light);
   overflow: hidden;
   transition: background-color 0.3s, border-color 0.3s, color 0.3s, box-shadow 0.3s, opacity 0.3s, transform 0.3s;
-}
-
-.inner-card:hover {
-  box-shadow: 0 4px 16px color-mix(in srgb, var(--ds-black) 8%, transparent);
-}
-
-.inner-card :deep(.el-card__header) {
-  background: linear-gradient(135deg, var(--color-bg-hover) 0%, var(--color-border-lighter) 100%);
-  color: var(--color-text-primary);
-  font-weight: 600;
-  padding: 14px 20px;
-  border-bottom: 1px solid var(--color-border-light);
 }
 
 .section-header {
@@ -547,35 +520,15 @@ onMounted(() => {
 
 .settings-tabs :deep(.el-input__wrapper),
 .settings-tabs :deep(.el-input-number__wrapper) {
-  border-radius: 8px;
   transition: background-color 0.3s, border-color 0.3s, color 0.3s, box-shadow 0.3s, opacity 0.3s, transform 0.3s;
 }
 
-.settings-tabs :deep(.el-input__wrapper:hover),
-.settings-tabs :deep(.el-input-number__wrapper:hover) {
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-primary) 15%, transparent);
-}
-
-.settings-tabs :deep(.el-select__wrapper) {
-  border-radius: 8px;
-}
-
-.settings-tabs :deep(.el-button) {
-  border-radius: 8px;
-}
-
 .settings-tabs :deep(.el-table) {
-  border-radius: 8px;
   overflow: hidden;
 }
 
 .settings-tabs :deep(.el-divider__text) {
-  background-color: var(--color-on-primary);
   font-weight: 500;
   color: var(--color-text-regular);
-}
-
-.settings-tabs :deep(.el-alert) {
-  border-radius: 8px;
 }
 </style>

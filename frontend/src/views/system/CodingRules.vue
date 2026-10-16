@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="module-page page-container">
     <!-- 页面头部卡片 -->
     <PageHeader title="编码规则管理" subtitle="配置各业务单据的自动编号规则，默认采用两位年份和三位递增流水号">
@@ -27,6 +27,9 @@
         <el-tag type="info" size="small">共 {{ filteredData.length }} 条</el-tag>
       </template>
     </FinanceQueryCard>
+    <el-alert v-if="loadError" :title="loadError" type="error" :closable="false" show-icon>
+      <el-button :loading="loading" @click="fetchList">重新加载</el-button>
+    </el-alert>
     <!-- 数据表格 -->
     <el-card class="data-card">
       <el-table :data="filteredData" v-loading="loading" border stripe
@@ -65,10 +68,10 @@
           </template>
         </el-table-column>
         <el-table-column prop="description" label="说明" min-width="140" show-overflow-tooltip />
-        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="260" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <div class="table-actions">
-              <el-button size="small" v-permission="'system:settings:edit'" @click="openForm(row)">
+              <el-button size="small" type="primary" v-permission="'system:settings:edit'" @click="openForm(row)">
                 <el-icon><Edit /></el-icon> 编辑
               </el-button>
               <el-button size="small" type="warning" v-permission="'system:settings:view'" @click="openSequences(row)">
@@ -85,34 +88,58 @@
     <!-- 新增/编辑弹窗 -->
     <AppDialog
       v-model="formVis"
+      wide
+      :before-close="beforeClose"
+      :loading="saving"
       :title="form.id ? '编辑编码规则' : '新增编码规则'"
       mode="form"
-      width="600px"
     >
-      <el-form :model="form" :rules="formRules" ref="formRef" label-width="100px">
+      <el-form :model="form" :rules="formRules" ref="formRef" label-width="100px" :disabled="saving" :inert="saving">
         <el-form-item label="业务类型" prop="businessType">
-          <el-input v-model="form.businessType" :disabled="!!form.id" placeholder="如 purchase_order" />
+          <el-select
+            v-if="!form.id"
+            v-model="form.businessType"
+            filterable
+            allow-create
+            default-first-option
+            placeholder="选择系统单据或输入自定义英文标识（如 inventory_posting）"
+            class="w-full"
+            @change="handlePresetSelect"
+          >
+            <el-option-group v-for="group in presetGroups" :key="group.label" :label="group.label">
+              <el-option
+                v-for="item in group.options"
+                :key="item.value"
+                :label="`${item.name} (${item.value})`"
+                :value="item.value"
+              />
+            </el-option-group>
+          </el-select>
+          <el-input v-else v-model="form.businessType" disabled />
         </el-form-item>
         <el-form-item label="规则名称" prop="name">
-          <el-input v-model="form.name" placeholder="如 采购订单" />
+          <el-input v-model="form.name" placeholder="如 存货过账单" />
         </el-form-item>
         <el-row :gutter="16">
-          <el-col :span="8">
+          <el-col :xs="24" :sm="12">
             <el-form-item label="前缀" prop="prefix">
-              <el-input v-model="form.prefix" placeholder="PO" />
+              <el-input v-model="form.prefix" placeholder="PST" />
             </el-form-item>
           </el-col>
-          <el-col :span="8">
+          <el-col :xs="24" :sm="12">
             <el-form-item label="日期格式">
               <el-select v-model="form.dateFormat" :empty-values="[null, undefined]" :value-on-clear="''" class="w-full" clearable placeholder="选择格式">
                 <el-option label="无" value="" />
-                <el-option label="YYMMDD" value="YYMMDD" />
-                <el-option label="YYMM" value="YYMM" />
-                <el-option label="YY" value="YY" />
+                <el-option label="YYYYMMDD (20261012)" value="YYYYMMDD" />
+                <el-option label="YYYYMM (202610)" value="YYYYMM" />
+                <el-option label="YYYY (2026)" value="YYYY" />
+                <el-option label="YYMMDD (261012)" value="YYMMDD" />
+                <el-option label="YYMM (2610)" value="YYMM" />
+                <el-option label="YY (26)" value="YY" />
               </el-select>
             </el-form-item>
           </el-col>
-          <el-col :span="8">
+          <el-col :xs="24" :sm="12">
             <el-form-item label="分隔符">
               <el-select v-model="form.separator" :empty-values="[null, undefined]" class="w-full">
                 <el-option label="无" value="" />
@@ -124,24 +151,24 @@
           </el-col>
         </el-row>
         <el-row :gutter="16">
-          <el-col :span="6">
+          <el-col :xs="24" :sm="12">
             <el-form-item label="流水号位数">
               <el-input-number v-model="form.sequenceLength" :min="1" :max="10" class="w-full" />
             </el-form-item>
           </el-col>
-          <el-col :span="6">
+          <el-col :xs="24" :sm="12">
             <el-form-item label="重置周期">
               <el-select v-model="form.resetCycle" class="w-full">
                 <el-option v-for="(l,k) in cycleLabel" :key="k" :label="l" :value="k" />
               </el-select>
             </el-form-item>
           </el-col>
-          <el-col :span="6">
+          <el-col :xs="24" :sm="12">
             <el-form-item label="起始值">
               <el-input-number v-model="form.initialValue" :min="0" class="w-full" />
             </el-form-item>
           </el-col>
-          <el-col :span="6">
+          <el-col :xs="24" :sm="12">
             <el-form-item label="步长">
               <el-input-number v-model="form.step" :min="1" :max="100" class="w-full" />
             </el-form-item>
@@ -161,10 +188,14 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="formVis = false">取消</el-button>
-        <el-button type="primary" v-permission="'system:settings:edit'" @click="handleSave" :loading="saving">保存</el-button>
+        <el-button @click="closeForm" :disabled="saving">
+          <el-icon><Close /></el-icon> 取消
+        </el-button>
+        <el-button type="primary" v-permission="'system:settings:edit'" @click="handleSave" :loading="saving">
+          <el-icon><Check /></el-icon> 保存
+        </el-button>
       </template>
-        </AppDialog>
+    </AppDialog>
     <!-- 序列详情抽屉 -->
     <el-drawer v-model="seqVis" :title="`序列详情 — ${seqType}`" size="450px">
       <div v-if="seqLoading" v-loading="true" style="height:100px" />
@@ -183,7 +214,9 @@
           <el-popconfirm title="确定重置该业务类型的所有序列？此操作不可撤销！" confirm-button-text="确认重置"
             cancel-button-text="取消" @confirm="handleResetSeq">
             <template #reference>
-              <el-button type="danger" size="small" v-permission="'system:settings:edit'">重置全部序列</el-button>
+              <el-button type="danger" size="small" v-permission="'system:settings:edit'">
+                <el-icon><RefreshLeft /></el-icon> 重置全部序列
+              </el-button>
             </template>
           </el-popconfirm>
         </div>
@@ -193,22 +226,83 @@
 </template>
 <script setup>
 import { getApiErrorMessage } from '@/utils/errorHandler'
-import { ref, computed, onMounted } from 'vue'
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
-import { Plus, Edit, Delete, List } from '@element-plus/icons-vue'
+import { Plus, Edit, Delete, List, Check, Close, RefreshLeft } from '@element-plus/icons-vue'
 import { codingRuleApi } from '@/api/enhanced'
 import dayjs from 'dayjs'
+
 const loading = ref(false)
+const loadError = ref('')
 const saving = ref(false)
 const tableData = ref([])
 const formVis = ref(false)
 const formRef = ref()
 const form = ref({})
+const { dirty, markSaved, confirmDiscard, beforeClose } = useUnsavedChanges(form, { enabled: () => formVis.value, busy: saving })
+let disposed = false
+onBeforeUnmount(() => { disposed = true })
+const closeForm = async () => { if (await confirmDiscard()) formVis.value = false }
 const keyword = ref('')
 const filterCycle = ref('')
 const cycleLabel = { none: '不重置', daily: '每日', monthly: '每月', yearly: '每年' }
 const cycleType = { none: 'info', daily: 'primary', monthly: 'warning', yearly: 'success' }
+
+const presetGroups = [
+  {
+    label: '财务与存货凭证',
+    options: [
+      { value: 'inventory_posting', name: '存货过账单', prefix: 'PST', dateFormat: 'YYYYMMDD', separator: '-', sequenceLength: 4, resetCycle: 'daily', description: '存货过账凭证编号（借贷平衡核算）' },
+      { value: 'inventory_posting_reversal', name: '存货冲销单', prefix: 'RPST', dateFormat: 'YYYYMMDD', separator: '-', sequenceLength: 4, resetCycle: 'daily', description: '存货冲销过账凭证编号' },
+      { value: 'ar_invoice', name: '应收发票', prefix: 'AR', dateFormat: 'YYYYMMDD', separator: '-', sequenceLength: 4, resetCycle: 'daily', description: '应收账款发票编号' },
+      { value: 'ap_invoice', name: '应付发票', prefix: 'AP', dateFormat: 'YYYYMMDD', separator: '-', sequenceLength: 4, resetCycle: 'daily', description: '应付账款发票编号' },
+      { value: 'finance_voucher', name: '记账凭证', prefix: 'V', dateFormat: 'YYMM', separator: '', sequenceLength: 3, resetCycle: 'monthly', description: '财务记账凭证号' },
+    ],
+  },
+  {
+    label: '仓储与物流',
+    options: [
+      { value: 'inventory_inbound', name: '入库单', prefix: 'IN', dateFormat: 'YYMMDD', separator: '', sequenceLength: 3, resetCycle: 'daily', description: '标准入库单号' },
+      { value: 'inventory_outbound', name: '出库单', prefix: 'OUT', dateFormat: 'YYMMDD', separator: '', sequenceLength: 3, resetCycle: 'daily', description: '标准出库单号' },
+      { value: 'inventory_transfer', name: '调拨单', prefix: 'TF', dateFormat: 'YYMMDD', separator: '', sequenceLength: 3, resetCycle: 'daily', description: '库位/仓库调拨单号' },
+      { value: 'inventory_check', name: '盘点单', prefix: 'IC', dateFormat: 'YYMMDD', separator: '', sequenceLength: 3, resetCycle: 'daily', description: '库存盘点单号' },
+      { value: 'inventory_adjustment', name: '库存调整单', prefix: 'TZ', dateFormat: 'YYMMDD', separator: '', sequenceLength: 3, resetCycle: 'daily', description: '库存手工调整单号' },
+    ],
+  },
+  {
+    label: '采购与销售',
+    options: [
+      { value: 'purchase_order', name: '采购订单', prefix: 'PO', dateFormat: 'YYMMDD', separator: '', sequenceLength: 3, resetCycle: 'daily', description: '采购订单编号' },
+      { value: 'purchase_receipt', name: '采购收货单', prefix: 'RCV', dateFormat: 'YYMMDD', separator: '', sequenceLength: 3, resetCycle: 'daily', description: '采购收货入库单号' },
+      { value: 'sales_order', name: '销售订单', prefix: 'SO', dateFormat: 'YYMMDD', separator: '', sequenceLength: 3, resetCycle: 'daily', description: '销售订单编号' },
+      { value: 'sales_outbound', name: '销售出库单', prefix: 'SOB', dateFormat: 'YYMMDD', separator: '', sequenceLength: 3, resetCycle: 'daily', description: '销售出货单号' },
+    ],
+  },
+]
+
+const presetMap = new Map()
+presetGroups.forEach((group) => {
+  group.options.forEach((item) => {
+    presetMap.set(item.value, item)
+  })
+})
+
+const handlePresetSelect = (value) => {
+  if (saving.value || disposed) return
+  const item = presetMap.get(value)
+  if (item) {
+    if (!form.value.name) form.value.name = item.name
+    if (!form.value.prefix) form.value.prefix = item.prefix
+    if (item.dateFormat !== undefined) form.value.dateFormat = item.dateFormat
+    if (item.separator !== undefined) form.value.separator = item.separator
+    if (item.sequenceLength !== undefined) form.value.sequenceLength = item.sequenceLength
+    if (item.resetCycle !== undefined) form.value.resetCycle = item.resetCycle
+    if (item.description && !form.value.description) form.value.description = item.description
+  }
+}
+
 const formRules = {
   businessType: [{ required: true, message: '请输入业务类型', trigger: 'blur' }],
   name: [{ required: true, message: '请输入规则名称', trigger: 'blur' }],
@@ -243,13 +337,14 @@ const livePreview = computed(() => {
   parts.push(String(f.initialValue ?? 1).padStart(f.sequenceLength || 3, '0'))
   return parts.join(sep)
 })
-const filterList = () => { /* computed 自动处理 */ }
+const filterList = () => { if (loadError.value) fetchList() }
 const resetSearch = () => {
   keyword.value = ''
   filterCycle.value = ''
 }
 const fetchList = async () => {
   loading.value = true
+  loadError.value = ''
   try {
     const list = []
     let page = 1
@@ -263,10 +358,14 @@ const fetchList = async () => {
     }
     // 后端随列表返回预览；按页取齐所有规则后再筛选。
     tableData.value = list
-  } catch { ElMessage.error('加载失败') }
+  } catch (error) {
+    loadError.value = getApiErrorMessage(error, '编码规则加载失败，请重新加载')
+    ElMessage.error(loadError.value)
+  }
   finally { loading.value = false }
 }
 const openForm = (row) => {
+  if (saving.value || disposed) return
   form.value = row
     ? { ...row }
     : {
@@ -275,19 +374,25 @@ const openForm = (row) => {
         initialValue: 1, step: 1, isActive: 1, description: ''
       }
   formVis.value = true
+  markSaved()
 }
 const handleSave = async () => {
-  if (formRef.value) {
-    try { await formRef.value.validate() } catch { return }
-  }
+  if (saving.value || !formVis.value || disposed) return
   saving.value = true
   try {
-    if (form.value.id) await codingRuleApi.update(form.value.id, form.value)
-    else await codingRuleApi.create(form.value)
+    if (formRef.value) {
+      try { await formRef.value.validate() } catch { return }
+    }
+    if (disposed) return
+    const submittedForm = JSON.parse(JSON.stringify(form.value))
+    if (submittedForm.id) await codingRuleApi.update(submittedForm.id, submittedForm)
+    else await codingRuleApi.create(submittedForm)
+    if (disposed) return
     ElMessage.success('保存成功')
-    formVis.value = false
+    markSaved(submittedForm)
+    if (!dirty.value) formVis.value = false
     fetchList()
-  } catch (e) { ElMessage.error(getApiErrorMessage(e, '保存失败')) }
+  } catch (e) { if (!disposed) ElMessage.error(getApiErrorMessage(e, '保存失败')) }
   finally { saving.value = false }
 }
 const handleDelete = async (row) => {

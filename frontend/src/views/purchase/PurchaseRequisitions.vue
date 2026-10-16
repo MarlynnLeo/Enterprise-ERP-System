@@ -8,7 +8,7 @@
 -->
 <template>
   <div class="module-page purchase-requisitions-container">
-    <PageHeader title="采购申请管理" subtitle="管理采购需求与申请">
+    <PageHeader title="采购申请管理" subtitle="提交采购申请后自动生成采购订单">
       <template #actions>
 <el-button type="primary" :icon="Plus" v-permission="'purchase:requisitions:create'" @click="showCreateDialog">新建采购申请</el-button>
       </template>
@@ -41,10 +41,8 @@
             @change="loadRequisitions(1)"
           >
             <el-option label="草稿" value="draft"></el-option>
-            <el-option label="待审核" value="submitted"></el-option>
-            <el-option label="已审核" value="approved"></el-option>
-            <el-option label="已驳回" value="rejected"></el-option>
-            <el-option label="已完成" value="completed"></el-option>
+            <el-option label="待提交" value="submitted"></el-option>
+            <el-option label="已生成订单" value="completed"></el-option>
           </el-select>
         </el-form-item>
         <el-form-item label="申请人">
@@ -88,15 +86,11 @@
       </el-card>
       <el-card class="stat-card" shadow="hover">
         <div class="stat-value">{{ requisitionStats.submittedCount || 0 }}</div>
-        <div class="stat-label">待审核</div>
+        <div class="stat-label">待提交</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value">{{ requisitionStats.approvedCount || 0 }}</div>
-        <div class="stat-label">已审核</div>
-      </el-card>
-      <el-card class="stat-card" shadow="hover">
-        <div class="stat-value">{{ requisitionStats.rejectedCount || 0 }}</div>
-        <div class="stat-label">已驳回</div>
+        <div class="stat-value">{{ requisitionStats.completedCount || 0 }}</div>
+        <div class="stat-label">已生成订单</div>
       </el-card>
     </div>
     <!-- 采购申请列表 -->
@@ -129,9 +123,8 @@
         </el-table-column>
         <el-table-column label="状态" min-width="100" show-overflow-tooltip>
           <template #default="{ row }">
-            <el-tag v-if="row.isFullyOrdered" type="success">已采购</el-tag>
-            <el-tag v-else-if="row.isPartiallyOrdered" type="warning">部分采购</el-tag>
-            <el-tag v-else-if="row.status === 'approved'" type="danger">未采购</el-tag>
+            <el-tag v-if="row.isFullyOrdered" type="success">已生成订单</el-tag>
+            <el-tag v-else-if="row.isPartiallyOrdered" type="warning">部分生成订单</el-tag>
             <el-tag v-else :type="getStatusType(row.status)">{{ getStatusText(row.status) }}</el-tag>
           </template>
         </el-table-column>
@@ -146,7 +139,7 @@
           <template #default="{ row }">
             
             <el-button
-              v-if="row.status === 'draft'"
+              v-if="canEditRequisition(row)"
               size="small"
               type="primary"
               v-permission="'purchase:requisitions:update'"
@@ -159,36 +152,20 @@
               size="small"
               type="danger"
               v-permission="'purchase:requisitions:delete'"
-              @click="handleCommand('delete', row)"
+              @click="confirmDelete(row)"
             >
               删除
             </el-button>
             <el-button
-              v-if="row.status === 'draft'"
+              v-if="canSubmitRequisition(row)"
               size="small"
               type="success"
               v-permission="'purchase:requisitions:update'"
-              @click="handleCommand('submit', row)"
+              :loading="submittingIds.includes(row.id)"
+              :disabled="batchLoading"
+              @click="submitRequisition(row)"
             >
-              提交审核
-            </el-button>
-            <el-button
-              v-if="row.status === 'rejected'"
-              size="small"
-              type="primary"
-              v-permission="'purchase:requisitions:update'"
-              @click="handleCommand('redraft', row)"
-            >
-              重新编辑
-            </el-button>
-            <el-button
-              v-if="row.status === 'submitted'"
-              size="small"
-              type="warning"
-              v-permission="'purchase:requisitions:approve'"
-              @click="openApprovalDialog(row)"
-            >
-              审核
+              {{ row.isPartiallyOrdered ? '生成剩余订单' : '提交' }}
             </el-button>
           </template>
         </el-table-column>
@@ -331,7 +308,8 @@
       </div>
       <template #footer>
         <el-button @click="requisitionDialog.visible = false" :disabled="requisitionDialog.loading">取消</el-button>
-        <el-button v-permission="requisitionDialog.isEdit ? 'purchase:requisitions:update' : 'purchase:requisitions:create'" type="primary" @click="submitForm" :loading="requisitionDialog.loading">保存</el-button>
+        <el-button v-permission="requisitionDialog.isEdit ? 'purchase:requisitions:update' : 'purchase:requisitions:create'" @click="submitForm(false)" :disabled="requisitionDialog.loading">保存草稿</el-button>
+        <el-button v-if="authStore.hasPermission('purchase:requisitions:update')" v-permission="requisitionDialog.isEdit ? 'purchase:requisitions:update' : 'purchase:requisitions:create'" type="primary" @click="submitForm(true)" :loading="requisitionDialog.loading">提交并生成采购订单</el-button>
       </template>
         </AppDialog>
     <!-- 采购申请详情对话框 -->
@@ -391,36 +369,6 @@
         <el-button type="primary" @click="handlePrintRequisition" :loading="printLoading">打印</el-button>
       </template>
     </AppDialog>
-    <!-- 状态更新确认对话框 -->
-    <AppDialog
-      v-model="statusDialog.visible"
-      :title="statusDialog.title"
-      mode="form"
-      width="500px"
-    >
-      <div v-loading="statusDialog.loading">
-        <div>您确定要{{ statusDialog.description }}吗？</div>
-      </div>
-      <template #footer>
-        <el-button @click="statusDialog.visible = false">取消</el-button>
-        <el-button
-          v-permission="'purchase:requisitions:update'"
-          type="primary"
-          @click="updateStatus"
-        >
-          确认
-        </el-button>
-      </template>
-        </AppDialog>
-    <BusinessApprovalDialog
-      v-model="approvalDialog.visible"
-      title="审核采购申请"
-      :loading="approvalDialog.loading"
-      v-model:comment="approvalDialog.comment"
-      :summary-items="requisitionApprovalSummary"
-      @approve="handleApproval('approve')"
-      @reject="handleApproval('reject')"
-    />
     <!-- 浮动批量操作栏 -->
     <Transition name="slide-up">
       <div v-if="selectedRequisitions.length > 0" class="floating-batch-bar">
@@ -451,7 +399,6 @@
 <script setup>
 import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { getThemeDefaultPageSize } from '@/utils/themePageSize'
-import { getPurchaseStatusText, getPurchaseStatusColor, getApprovalStatusText, getApprovalStatusColor } from '@/constants/systemConstants'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted, onActivated, nextTick, computed } from 'vue';
@@ -459,8 +406,6 @@ import { useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { purchaseApi, baseDataApi } from '@/api';
-import BusinessApprovalDialog from '@/components/workflow/BusinessApprovalDialog.vue';
-import { useBusinessApproval } from '@/composables/useBusinessApproval';
 import { Plus, Select, Promotion, Close } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
 import { searchMaterials } from '@/utils/searchConfig';
@@ -506,6 +451,7 @@ const operators = ref([]);  // 操作人列表
 const requisitionTableRef = ref(null);
 const selectedRequisitions = ref([]);
 const batchLoading = ref(false);
+const submittingIds = ref([]);
 // 申请单对话框
 
 const requisitionDialog = reactive({
@@ -555,24 +501,13 @@ const viewData = reactive({
   updated_at: '',
   materials: []
 });
-// 状态更新对话框
-
-const statusDialog = reactive({
-  visible: false,
-  loading: false,
-  title: '',
-  description: '',
-  requisitionId: null,
-  newStatus: ''
-});
 // 申请单统计数据
 
 const requisitionStats = ref({
   total: 0,
   draftCount: 0,
   submittedCount: 0,
-  approvedCount: 0,
-  rejectedCount: 0
+  completedCount: 0
 });
 // 加载申请单列表
 
@@ -615,18 +550,6 @@ const loadRequisitions = async (page = pagination.page) => {
     loading.value = false;
   }
 };
-const { approvalDialog, openApprovalDialog, handleApproval } = useBusinessApproval({
-  businessType: 'purchase_requisition',
-  onSuccess: () => loadRequisitions()
-});
-const requisitionApprovalSummary = computed(() => {
-  const row = approvalDialog.row || {};
-  return [
-    { label: '申请单号', value: row.requisitionNumber || '-' },
-    { label: '申请人', value: row.realName || row.requester || '-' },
-    { label: '备注', value: row.remarks || '无' }
-  ];
-});
 // 搜索重置
 
 const resetSearch = () => {
@@ -659,10 +582,29 @@ const handleCurrentChange = (newPage) => {
 };
 // 获取状态文本
 
-const getStatusText = (status) => getPurchaseStatusText(status) || getApprovalStatusText(status) || status;
+const getStatusText = (status) => ({
+  draft: '草稿',
+  submitted: '待提交',
+  pending: '待提交',
+  approved: '待提交',
+  rejected: '待提交',
+  completed: '已生成订单',
+  cancelled: '已取消'
+}[status] || status);
 // 获取状态类型（用于标签样式）
 
-const getStatusType = (status) => getPurchaseStatusColor(status) || getApprovalStatusColor(status) || 'info';
+const getStatusType = (status) => status === 'completed' ? 'success' : status === 'draft' || status === 'cancelled' ? 'info' : 'warning';
+
+const canSubmitRequisition = (row) => !row.isFullyOrdered && ['draft', 'submitted', 'pending', 'approved', 'rejected', 'completed'].includes(row.status);
+const canEditRequisition = (row) => !row.isFullyOrdered && !row.isPartiallyOrdered && ['draft', 'submitted', 'pending', 'approved', 'rejected'].includes(row.status);
+
+const notifyOrdersGenerated = (response) => {
+  const result = parseDataObject(response, { enableLog: false }) || {};
+  const orders = result.generatedOrders || [];
+  ElMessage.success(orders.length
+    ? `提交成功，已自动生成 ${orders.length} 个采购订单：${orders.map(order => order.orderNo).join('、')}`
+    : '提交成功，采购订单已生成');
+};
 
 const getRequisitionErrorMessage = (error, fallback) => {
   const message = getApiErrorMessage(error, fallback)
@@ -678,6 +620,7 @@ const showCreateDialog = () => {
   requisitionDialog.isEdit = false;
   requisitionForm.id = null;
   requisitionForm.requestDate = formatLocalDate(new Date());
+  requisitionForm.contractCode = '';
   requisitionForm.remarks = '';
   requisitionForm.materials = [];
   // 自动添加一行空的物料
@@ -748,62 +691,69 @@ const editRequisition = async (row) => {
 };
 // 提交表单
 
-const submitForm = async () => {
-  if (!requisitionFormRef.value) return;
+const submitForm = async (submitImmediately = false) => {
+  if (!requisitionFormRef.value || requisitionDialog.loading) return;
+  if (submitImmediately && !authStore.hasPermission('purchase:requisitions:update')) return;
 
-  await requisitionFormRef.value.validate(async (valid) => {
+  requisitionDialog.loading = true;
+  let savedDraft = false;
+  try {
+    const valid = await requisitionFormRef.value.validate().catch(() => false);
     if (!valid) return;
 
+    // 先尝试获取最新的用户信息
     try {
-      requisitionDialog.loading = true;
-
-      // 先尝试获取最新的用户信息
-      try {
-        await authStore.fetchUserProfile();
-      } catch {
-      }
-
-      // 确保物料数据格式正确
-
-      const processedMaterials = requisitionForm.materials.map(material => ({
-        materialId: material.materialId || null,
-        materialCode: material.materialCode || '',
-        materialName: material.materialName || '',
-        specification: material.specification || '',
-        unit: material.unit || '',
-        unitId: material.unitId || null,
-        quantity: material.quantity || 0
-      }));
-
-      const formData = {
-        requestDate: requisitionForm.requestDate,
-        contractCode: requisitionForm.contractCode || null,  // 合同编码（选填）
-        remarks: requisitionForm.remarks,
-        materials: processedMaterials,
-        requester: authStore.user?.realName || authStore.realName || '',
-        real_name: authStore.user?.realName || ''
-      };
-
-      if (requisitionDialog.isEdit) {
-        await purchaseApi.updateRequisition(requisitionForm.id, formData);
-        ElMessage.success('采购申请更新成功');
-      } else {
-        await purchaseApi.createRequisition(formData);
-        ElMessage.success('采购申请创建成功');
-      }
-
-      requisitionDialog.visible = false;
-      loadRequisitions();
-    } catch (error) {
-      console.error('保存采购申请失败:', error);
-      if (error.response) {
-        console.error('错误响应:', error.response.data);
-      }
-      ElMessage.error(`保存采购申请失败：${getRequisitionErrorMessage(error, '请检查申请内容后重试')}`);
-    } finally {
-      requisitionDialog.loading = false;
+      await authStore.fetchUserProfile();
+    } catch {
     }
-  });
+
+    const processedMaterials = requisitionForm.materials.map(material => ({
+      materialId: material.materialId || null,
+      materialCode: material.materialCode || '',
+      materialName: material.materialName || '',
+      specification: material.specification || '',
+      unit: material.unit || '',
+      unitId: material.unitId || null,
+      quantity: material.quantity || 0
+    }));
+
+    const formData = {
+      requestDate: requisitionForm.requestDate,
+      contractCode: requisitionForm.contractCode || null,
+      remarks: requisitionForm.remarks,
+      materials: processedMaterials,
+      requester: authStore.user?.realName || authStore.realName || '',
+      real_name: authStore.user?.realName || ''
+    };
+
+    if (requisitionDialog.isEdit) {
+      await purchaseApi.updateRequisition(requisitionForm.id, formData);
+    } else {
+      const response = await purchaseApi.createRequisition(formData);
+      const created = parseDataObject(response, { enableLog: false }) || {};
+      requisitionForm.id = created.id;
+      requisitionDialog.isEdit = true;
+    }
+    savedDraft = true;
+
+    if (submitImmediately) {
+      const response = await purchaseApi.submitRequisition(requisitionForm.id);
+      notifyOrdersGenerated(response);
+    } else {
+      ElMessage.success('采购申请草稿已保存');
+    }
+
+    requisitionDialog.visible = false;
+    await loadRequisitions();
+  } catch (error) {
+    const action = submitImmediately && savedDraft ? '提交失败，草稿已保存' : '保存采购申请失败';
+    ElMessage.error(`${action}：${getRequisitionErrorMessage(error, '请检查申请内容后重试')}`);
+    if (savedDraft) {
+      await loadRequisitions();
+    }
+  } finally {
+    requisitionDialog.loading = false;
+  }
 };
 // 移除物料
 
@@ -1005,7 +955,7 @@ const requisitionViewNavigation = computed(() => ({
 
 const canBatchSubmit = computed(() => {
   if (selectedRequisitions.value.length === 0) return false;
-  return selectedRequisitions.value.every(req => req.status === 'draft');
+  return selectedRequisitions.value.every(canSubmitRequisition);
 });
 // 批量操作方法
 
@@ -1019,26 +969,27 @@ const clearSelection = () => {
   selectedRequisitions.value = [];
 };
 const handleBatchSubmit = async () => {
+  if (!authStore.hasPermission('purchase:requisitions:update') || batchLoading.value || submittingIds.value.length > 0 || !canBatchSubmit.value) return;
+  batchLoading.value = true;
   try {
     await ElMessageBox.confirm(
-      `确定要批量提交选中的 ${selectedRequisitions.value.length} 个申请单吗？`,
-      '批量提交',
+      `确定要提交选中的 ${selectedRequisitions.value.length} 个申请单并自动生成采购订单吗？`,
+      '批量提交并生成采购订单',
       {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
         type: 'warning'
       }
     );
-    batchLoading.value = true;
     let successCount = 0;
     let failCount = 0;
     let firstFailureMessage = '';
     for (const req of selectedRequisitions.value) {
       try {
-        await purchaseApi.updateRequisitionStatus(req.id, { newStatus: 'submitted' });
+        await purchaseApi.submitRequisition(req.id);
         successCount++;
       } catch (error) {
-        console.error(`申请单 ${req.requisition_number} 提交失败:`, error);
+        console.error(`申请单 ${req.requisitionNumber} 提交失败:`, error);
         failCount++;
         if (!firstFailureMessage) {
           firstFailureMessage = getRequisitionErrorMessage(error, '请检查申请内容后重试');
@@ -1048,10 +999,10 @@ const handleBatchSubmit = async () => {
     if (successCount > 0) {
       if (failCount > 0) {
         ElMessage.warning(
-          `成功提交 ${successCount} 个申请单，${failCount} 个失败：${firstFailureMessage}`
+          `已为 ${successCount} 个申请单生成采购订单，${failCount} 个失败：${firstFailureMessage}`
         );
       } else {
-        ElMessage.success(`成功提交 ${successCount} 个申请单`);
+        ElMessage.success(`已为 ${successCount} 个申请单生成采购订单`);
       }
       clearSelection();
       await loadRequisitions();
@@ -1066,68 +1017,17 @@ const handleBatchSubmit = async () => {
     batchLoading.value = false;
   }
 };
-// 处理下拉菜单命令
-
-const handleCommand = (command, row) => {
-  switch (command) {
-    case 'submit':
-      showStatusDialog(row.id, 'submitted', '状态更新', '将此申请提交审核');
-      break;
-    case 'redraft':
-      showStatusDialog(row.id, 'draft', '重新编辑', '将此申请退回至草稿状态');
-      break;
-    case 'delete':
-      confirmDelete(row);
-      break;
-  }
-};
-// 显示状态更新对话框
-
-const showStatusDialog = (id, newStatus, title, description) => {
-  statusDialog.requisitionId = id;
-  statusDialog.newStatus = newStatus;
-  statusDialog.title = title;
-  statusDialog.description = description;
-  statusDialog.visible = true;
-};
-// 更新状态
-
-const updateStatus = async () => {
-  statusDialog.loading = true;
+const submitRequisition = async (row) => {
+  if (!authStore.hasPermission('purchase:requisitions:update') || batchLoading.value || submittingIds.value.includes(row.id) || !canSubmitRequisition(row)) return;
+  submittingIds.value.push(row.id);
   try {
-    const response = await purchaseApi.updateRequisitionStatus(
-      statusDialog.requisitionId,
-      { newStatus: statusDialog.newStatus }
-    );
-
-    // 检查后端自动审核通过后是否生成了采购订单（auto_approved场景）
-    if (response.generated_orders && response.generated_orders.length > 0) {
-      const orders = response.generated_orders;
-      let message = `审核成功！已自动生成 ${orders.length} 个采购订单：\n`;
-      orders.forEach((order, index) => {
-        message += `\n${index + 1}. 订单号: ${order.orderNo}`;
-        message += `\n   供应商: ${order.supplierName}`;
-        message += `\n   物料数: ${order.itemsCount} 件`;
-        message += `\n   总金额: ¥${Number(order.totalAmount || 0).toFixed(2)}`;
-      });
-      message += '\n\n请前往"采购订单"页面查看详情。';
-
-      ElMessageBox.alert(message, '采购订单已生成', {
-        confirmButtonText: '知道了',
-        type: 'success',
-        dangerouslyUseHTMLString: false
-      });
-    } else {
-      ElMessage.success('状态更新成功');
-    }
-
-    statusDialog.visible = false;
-    loadRequisitions();
+    const response = await purchaseApi.submitRequisition(row.id);
+    notifyOrdersGenerated(response);
+    await loadRequisitions();
   } catch (error) {
-    console.error('更新状态失败:', error);
-    ElMessage.error(`更新状态失败：${getRequisitionErrorMessage(error, '请检查申请内容后重试')}`);
+    ElMessage.error(`提交失败：${getRequisitionErrorMessage(error, '请检查申请内容后重试')}`);
   } finally {
-    statusDialog.loading = false;
+    submittingIds.value = submittingIds.value.filter(id => id !== row.id);
   }
 };
 // 确认删除

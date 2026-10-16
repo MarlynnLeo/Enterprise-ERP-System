@@ -5,6 +5,11 @@
  * belongs to each page/component.
  */
 
+:root {
+  --module-section-gap: 16px;
+  --module-panel-padding: 20px;
+}
+
 /* Element Plus renders an empty suffix box even when an input has no suffix. */
 .el-input:not(.el-input--suffix) .el-input__suffix {
   display: none !important;
@@ -16,7 +21,7 @@
 
 /* Shared spacing between the standard query panel and the following content. */
 .search-card {
-  margin-bottom: 20px;
+  margin-bottom: var(--module-section-gap);
 }
 
 /* Standard module page frame: header, query panel, stats, table. */
@@ -24,6 +29,11 @@
   width: 100%;
   min-width: 0;
   padding: 0 !important;
+}
+
+/* The page owns vertical section spacing; nested grids keep their own gaps. */
+.module-page:not(.dashboard-page):not(.overview-page) {
+  row-gap: 0 !important;
 }
 
 /* Allow nested flex/grid content to shrink inside the shell on laptop widths. */
@@ -41,19 +51,101 @@
   padding: 0 !important;
 }
 
-.module-page
-  > :where(.header-card, .search-card, .action-card, .data-card, .empty-card, .box-card) {
-  margin-bottom: 16px !important;
+.module-page:not(.dashboard-page) > :is(
+  .header-card, .search-card, .filter-card, .action-card, .data-card, .table-card,
+  .list-card, .empty-card, .box-card, .history-panel,
+  .statistics-row, .stats-row, .stats-cards, .stat-cards, .stats-grid
+) {
+  margin-top: 0 !important;
+  margin-bottom: var(--module-section-gap) !important;
 }
 
 /* 常规业务模块信息展示卡：排除统计指标卡，避免向统计卡片泄露下边距 */
 .module-page :where(.info-card:not(.stat-card)) {
-  margin-bottom: 16px;
+  margin-bottom: var(--module-section-gap);
 }
 
 /* 兼容历史 box-card 命名：等同 data-card 间距 */
 .module-page .box-card {
-  margin-bottom: 16px !important;
+  margin-bottom: var(--module-section-gap) !important;
+}
+
+/* Direct tables and component-wrapped tables use the same panel padding. */
+.module-page:not(.dashboard-page) .el-card:is(
+  .data-card, .table-card, .box-card, .list-card, .search-card, .filter-card, .action-card
+) > .el-card__body {
+  padding: var(--module-panel-padding) !important;
+}
+
+/* Inside a data panel, the query component is a toolbar, not a second card. */
+.module-page:not(.dashboard-page) :is(.data-card, .table-card, .box-card, .history-panel) .el-card.finance-query-card {
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.module-page:not(.dashboard-page) :is(.data-card, .table-card, .box-card, .history-panel) .el-card.finance-query-card > .el-card__body {
+  padding: 0 !important;
+}
+
+.module-page:not(.dashboard-page) :is(.data-card, .table-card, .box-card) > .el-card__body > :is(
+  .filter-bar, .filter-section, .search-container, .finance-query-card, .el-form--inline
+),
+.module-page:not(.dashboard-page) .history-panel > .search-bar {
+  margin: 0 0 var(--module-section-gap) !important;
+  padding: 0 0 var(--module-section-gap) !important;
+  border-bottom: 1px solid var(--color-border-light) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.module-page:not(.dashboard-page) :is(.data-card, .table-card, .box-card) > .el-card__body > :is(
+  .filter-bar, .filter-section, .search-container, .finance-query-card, .el-form--inline
+) + .el-table {
+  margin-top: 0 !important;
+}
+
+.module-page:not(.dashboard-page) .data-card > .el-card__body > .el-form--inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+}
+
+.module-page:not(.dashboard-page) .data-card > .el-card__body > .el-form--inline .el-form-item {
+  margin: 0;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Custom history/reconciliation panels follow the standard data-card surface. */
+.module-page:not(.dashboard-page) :is(.history-panel, .reconciliation-tabs) {
+  padding: var(--module-panel-padding);
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-lighter);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.module-page.purchase-history {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.purchase-history > .header-card {
+  flex-shrink: 0;
+}
+
+.purchase-history > .history-panel {
+  flex: 1;
+  min-height: 0;
+  height: auto;
 }
 
 /*
@@ -114,8 +206,8 @@
 /* Shared fallback for list-page statistic cards used in the standard module frame. */
 .module-page .statistics-row {
   display: flex;
-  gap: 20px !important;
-  margin-bottom: 20px !important;
+  gap: var(--module-section-gap) !important;
+  margin-bottom: var(--module-section-gap) !important;
   flex-wrap: wrap;
 }
 
@@ -142,38 +234,38 @@
 }
 
 .module-page :where(.stats-row, .stats-cards) {
-  margin-bottom: 20px !important;
+  margin-bottom: var(--module-section-gap) !important;
 }
 
 /* Shared module tabs and nested content cards. */
-.module-page .module-tabs.el-tabs--border-card {
+.module-page .el-tabs--border-card {
   background: var(--color-bg-base) !important;
   border: 1px solid var(--color-border-lighter) !important;
-  border-radius: var(--radius-md, 12px) !important;
+  border-radius: var(--radius-lg, 12px) !important;
   box-shadow: var(--shadow-sm) !important;
   overflow: hidden;
 }
 
-.module-page .module-tabs.el-tabs--border-card > .el-tabs__header {
+.module-page .el-tabs--border-card > .el-tabs__header {
   background: var(--color-bg-section) !important;
   border-bottom: 1px solid var(--color-border-lighter) !important;
   margin: 0 !important;
   padding: 8px 12px 0 !important;
 }
 
-.module-page .module-tabs.el-tabs--border-card > .el-tabs__header .el-tabs__item {
+.module-page .el-tabs--border-card > .el-tabs__header .el-tabs__item {
   border-radius: var(--radius-sm, 8px) var(--radius-sm, 8px) 0 0 !important;
   color: var(--color-text-secondary) !important;
   font-weight: 500;
 }
 
-.module-page .module-tabs.el-tabs--border-card > .el-tabs__header .el-tabs__item:hover,
-.module-page .module-tabs.el-tabs--border-card > .el-tabs__header .el-tabs__item.is-active {
+.module-page .el-tabs--border-card > .el-tabs__header .el-tabs__item:hover,
+.module-page .el-tabs--border-card > .el-tabs__header .el-tabs__item.is-active {
   color: var(--color-primary) !important;
 }
 
-.module-page .module-tabs.el-tabs--border-card > .el-tabs__content {
-  padding: 16px !important;
+.module-page .el-tabs--border-card > .el-tabs__content {
+  padding: var(--module-panel-padding) !important;
 }
 
 .module-page .module-tabs .inner-card.el-card {
@@ -217,11 +309,32 @@
 }
 
 .pagination-container {
-  margin-top: 15px;
+  margin-top: var(--module-section-gap);
   display: flex;
   justify-content: flex-end;
   max-width: 100%;
   overflow-x: auto;
+}
+
+/* Legacy wrappers and bare pagers share one footer; only the outer node has spacing. */
+.module-page:not(.dashboard-page) :is(
+  .pagination-container, .pagination-wrapper, .table-pagination,
+  .pagination-bar, .pagination-end, .pagination
+),
+.module-page:not(.dashboard-page) .flex-end:has(> .el-pagination),
+.module-page:not(.dashboard-page) :is(.el-card__body, .el-tab-pane) > .el-pagination {
+  display: flex;
+  justify-content: safe flex-end;
+  align-items: center;
+  margin: var(--module-section-gap) 0 0 !important;
+  padding: var(--module-section-gap) 0 0 !important;
+  border-top: 1px solid var(--color-border-light);
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.module-page:not(.dashboard-page) :where(.el-pagination) {
+  padding: 0 !important;
 }
 
 /* Inline dialog widths remain preferred sizes, but never exceed the viewport. */

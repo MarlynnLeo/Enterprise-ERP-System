@@ -7,7 +7,7 @@
 }
 
 body {
-  font-size: $font-size-md;
+  font-size: 1rem;
   line-height: 1.5;
 }
 
@@ -33,7 +33,7 @@ ol {
 
 // 链接样式
 a {
-  color: $primary-color;
+  color: var(--color-primary-text);
   text-decoration: none;
 
   &:hover,
@@ -61,7 +61,7 @@ button:focus:not(:focus-visible) {
 }
 
 button:focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--color-primary-text);
   outline-offset: 2px;
 }
 
@@ -84,12 +84,12 @@ img {
 }
 
 ::-webkit-scrollbar-track {
-  background: color-mix(in srgb, var(--ds-black) 5%, transparent);
+  background: var(--bg-tertiary);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--ds-black) 20%, transparent);
+  background: color-mix(in srgb, var(--text-secondary) 45%, transparent);
   border-radius: 3px;
 }
 

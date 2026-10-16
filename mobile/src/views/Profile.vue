@@ -358,7 +358,7 @@ onMounted(() => { loadStatistics() })
   display: inline-block;
   font-size: 0.625rem;
   font-weight: 600;
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   background: color-mix(in srgb, var(--color-primary) 10%, transparent);
   padding: 1px 8px;
   border-radius: 99px;
@@ -519,7 +519,7 @@ onMounted(() => { loadStatistics() })
   border-radius: 12px;
   border: 1px solid color-mix(in srgb, var(--ds-red) 20%, transparent);
   background: color-mix(in srgb, var(--ds-red) 6%, transparent);
-  color: var(--color-danger);
+  color: var(--color-danger-text);
   font-size: 0.875rem;
   font-weight: 600;
   display: flex;

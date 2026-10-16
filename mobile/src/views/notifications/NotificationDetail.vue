@@ -167,7 +167,10 @@
     const type = n.sourceType || n.relatedType || n.bizType || n.entityType
     const id = n.sourceId || n.relatedId || n.bizId || n.entityId
     const link = n.link || n.actionUrl || n.url || n.meta?.link
-    navigateMobileDeepLink(router, showToast, type, id, { link })
+    navigateMobileDeepLink(router, showToast, type, id, {
+      link,
+      linkParams: n.linkParams ?? n.link_params
+    })
   }
 
   onMounted(() => {
@@ -207,10 +210,10 @@
     border-radius: 12px;
     background: var(--bg-secondary);
   }
-  .type-badge.system { color: var(--color-info); }
-  .type-badge.approval { color: var(--color-warning); }
-  .type-badge.alert { color: var(--color-error); }
-  .type-badge.task { color: var(--color-success); }
+  .type-badge.system { color: var(--color-info-text); }
+  .type-badge.approval { color: var(--color-warning-text); }
+  .type-badge.alert { color: var(--color-error-text); }
+  .type-badge.task { color: var(--color-success-text); }
 
   .header-info {
     flex: 1;

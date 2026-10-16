@@ -174,7 +174,11 @@ const handleThemeChange = async (presetId) => {
   color: var(--shell-accent, var(--color-primary));
   background: var(--shell-control-hover-bg, var(--color-bg-hover));
   border-color: var(--shell-control-border, var(--color-border-light));
-  outline: none;
+}
+
+.theme-selector:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
 .theme-dropdown {

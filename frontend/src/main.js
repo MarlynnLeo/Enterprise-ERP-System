@@ -43,6 +43,7 @@ import './assets/themes/pc/theme-compat.css'
 import './assets/themes/pc/theme-components.css'
 import './assets/themes/pc/kacon.css'
 import './assets/stat-cards.css'
+import './assets/performance-policy.css'
 
 import permissionDirective from './directives/permission'
 import { setupErrorReporter } from '@/utils/errorReporter'
@@ -116,7 +117,8 @@ wrapMessageBox('prompt')
 
 const app = createApp(App)
 const pinia = createPinia()
-initPerformanceMode()
+const stopPerformanceMode = initPerformanceMode()
+app.onUnmount(stopPerformanceMode)
 
 // 全局错误处理与上报（替代简单的 console.error）
 setupErrorReporter(app)

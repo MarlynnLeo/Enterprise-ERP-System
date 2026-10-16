@@ -22,6 +22,7 @@ const ScopeGuard = require('../../../authorization/ScopeGuard');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 const ProductProcessExecutionService = require('../../../services/business/ProductProcessExecutionService');
+const ProductionReportQuantityService = require('../../../services/business/ProductionReportQuantityService');
 
 // Old clients may send report_quantity or one of the two defect aliases.
 // Normalize once so create/update persist the same balanced quantities.
@@ -104,7 +105,13 @@ exports.getReportSummary = async (req, res) => {
       params.push(taskId);
     }
 
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const scope = await ScopeGuard.applyListScope(req, 'production_task', {
+      tableAlias: 'pt',
+      ownerAlias: 'production_report_task_owner_scope',
+      accessMode: 'read',
+    });
+    const whereClause = `WHERE ${conditions.length ? conditions.join(' AND ') : '1 = 1'}${scope.where || ''}`;
+    params.push(...(scope.params || []));
 
     const query = `
       SELECT
@@ -118,6 +125,7 @@ exports.getReportSummary = async (req, res) => {
       FROM production_reports pr
       JOIN production_tasks pt ON pr.task_id = pt.id AND pt.deleted_at IS NULL
       LEFT JOIN materials m ON pt.product_id = m.id
+      ${scope.join || ''}
       ${whereClause}
       GROUP BY pr.task_id, pt.code, m.name
     `;
@@ -171,12 +179,19 @@ exports.getReportDetail = async (req, res) => {
       params.push(endDate);
     }
 
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const scope = await ScopeGuard.applyListScope(req, 'production_task', {
+      tableAlias: 'pt',
+      ownerAlias: 'production_report_task_owner_scope',
+      accessMode: 'read',
+    });
+    const whereClause = `WHERE ${conditions.length ? conditions.join(' AND ') : '1 = 1'}${scope.where || ''}`;
+    params.push(...(scope.params || []));
 
     const [total] = await pool.query(
       `SELECT COUNT(*) as count
        FROM production_reports pr
        JOIN production_tasks pt ON pr.task_id = pt.id AND pt.deleted_at IS NULL
+       ${scope.join || ''}
        ${whereClause}`,
       params
     );
@@ -186,6 +201,7 @@ exports.getReportDetail = async (req, res) => {
       FROM production_reports pr
       JOIN production_tasks pt ON pr.task_id = pt.id AND pt.deleted_at IS NULL
       LEFT JOIN materials m ON pt.product_id = m.id
+      ${scope.join || ''}
       ${whereClause}
       ORDER BY pr.report_time DESC, pr.created_at DESC
       LIMIT ${pagination.pageSize} OFFSET ${pagination.offset}
@@ -243,7 +259,13 @@ exports.exportReport = async (req, res) => {
       params.push(endDate);
     }
 
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const scope = await ScopeGuard.applyListScope(req, 'production_task', {
+      tableAlias: 'pt',
+      ownerAlias: 'production_report_task_owner_scope',
+      accessMode: 'read',
+    });
+    const whereClause = `WHERE ${conditions.length ? conditions.join(' AND ') : '1 = 1'}${scope.where || ''}`;
+    params.push(...(scope.params || []));
 
     const query = `
       SELECT
@@ -261,6 +283,7 @@ exports.exportReport = async (req, res) => {
       FROM production_reports pr
       JOIN production_tasks pt ON pr.task_id = pt.id AND pt.deleted_at IS NULL
       LEFT JOIN materials m ON pt.product_id = m.id
+      ${scope.join || ''}
       ${whereClause}
       ORDER BY pr.report_time DESC
     `;
@@ -389,31 +412,13 @@ exports.createReport = async (req, res) => {
     const { completedQty, qualifiedQty, defectiveQty, unqualifiedQty, workHours } =
       normalizeReportQuantities(reportData);
 
-    if (process_id) {
-      const [processRows] = await connection.query(
-        'SELECT id FROM production_processes WHERE id = ? AND task_id = ? FOR UPDATE',
-        [process_id, task_id]
-      );
-      if (processRows.length === 0) {
-        await connection.rollback();
-        return ResponseHandler.error(res, '报工工序不属于当前生产任务', 'VALIDATION_ERROR', 400);
-      }
-    }
-
-    const [reportedRows] = await connection.query(
-      'SELECT COALESCE(SUM(completed_quantity), 0) as total_reported FROM production_reports WHERE task_id = ?',
-      [task_id]
+    const quantityContext = await ProductionReportQuantityService.read(connection, task_id);
+    ProductionReportQuantityService.assertCanReport(
+      quantityContext,
+      task,
+      process_id,
+      completedQty
     );
-    const alreadyReported = Number(reportedRows[0]?.total_reported || 0);
-    if (alreadyReported + completedQty > planQuantity) {
-      await connection.rollback();
-      return ResponseHandler.error(
-        res,
-        `累计报工数量不能超过任务数量，剩余可报工 ${Math.max(0, planQuantity - alreadyReported)}`,
-        'VALIDATION_ERROR',
-        400
-      );
-    }
 
     // 生成报工单号
     const reportNo = await CodeGenerators.generateReportCode(connection);
@@ -485,10 +490,11 @@ exports.updateReport = async (req, res) => {
 
     const { id } = req.params;
     const reportData = mapKeysToSnake(req.body || {});
-    const { process_id, process_name, report_time, remarks } = reportData;
+    let { process_id } = reportData;
+    const { process_name, report_time, remarks } = reportData;
 
     const [reportCheck] = await connection.query(
-      'SELECT id, task_id, process_id as old_process_id FROM production_reports WHERE id = ? FOR UPDATE',
+      'SELECT id, task_id FROM production_reports WHERE id = ?',
       [id]
     );
 
@@ -519,17 +525,6 @@ exports.updateReport = async (req, res) => {
       workHours,
     } = normalizeReportQuantities(reportData);
 
-    if (process_id) {
-      const [processRows] = await connection.query(
-        'SELECT id FROM production_processes WHERE id = ? AND task_id = ? FOR UPDATE',
-        [process_id, task_id]
-      );
-      if (processRows.length === 0) {
-        await connection.rollback();
-        return ResponseHandler.error(res, '报工工序不属于当前生产任务', 'VALIDATION_ERROR', 400);
-      }
-    }
-
     const [taskRows] = await connection.query(
       'SELECT status, quantity FROM production_tasks WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
       [task_id]
@@ -543,21 +538,35 @@ exports.updateReport = async (req, res) => {
       return ResponseHandler.error(res, '只能修改生产中任务的报工记录', 'INVALID_STATUS', 400);
     }
 
-    const [otherReportRows] = await connection.query(
-      'SELECT COALESCE(SUM(completed_quantity), 0) as total_reported FROM production_reports WHERE task_id = ? AND id != ?',
-      [task_id, id]
+    // All report mutations lock the parent task first, matching creation.
+    // Re-read the report because it may have changed while the task was locked.
+    const [lockedReports] = await connection.query(
+      'SELECT id, process_id as old_process_id, completed_quantity FROM production_reports WHERE id = ? AND task_id = ? FOR UPDATE',
+      [id, task_id]
     );
-    const planQuantity = Number(taskRows[0].quantity || 0);
-    const otherReported = Number(otherReportRows[0]?.total_reported || 0);
-    if (otherReported + newCompletedQty > planQuantity) {
+    if (lockedReports.length === 0) {
       await connection.rollback();
-      return ResponseHandler.error(
-        res,
-        `累计报工数量不能超过任务数量，剩余可报工 ${Math.max(0, planQuantity - otherReported)}`,
-        'VALIDATION_ERROR',
-        400
-      );
+      return ResponseHandler.error(res, '报工记录不存在', 'NOT_FOUND', 404);
     }
+
+    if (process_id === undefined) process_id = lockedReports[0].old_process_id;
+
+    const quantityContext = await ProductionReportQuantityService.read(connection, task_id, {
+      excludeReportId: id,
+    });
+    ProductionReportQuantityService.assertCorrection(
+      quantityContext,
+      lockedReports[0].old_process_id,
+      lockedReports[0].completed_quantity,
+      process_id,
+      newCompletedQty
+    );
+    ProductionReportQuantityService.assertCanReport(
+      quantityContext,
+      taskRows[0],
+      process_id,
+      newCompletedQty
+    );
 
     await connection.query(
       `
@@ -583,7 +592,7 @@ exports.updateReport = async (req, res) => {
       ]
     );
 
-    const old_process_id = reportCheck[0].old_process_id;
+    const old_process_id = lockedReports[0].old_process_id;
 
     // 如果修改了工序关联，需要将原工序的进度也刷新一下
     if (old_process_id && old_process_id !== process_id) {
@@ -614,7 +623,7 @@ exports.deleteReport = async (req, res) => {
     const { id } = req.params;
 
     const [reportCheck] = await connection.query(
-      'SELECT id, task_id, process_id FROM production_reports WHERE id = ? FOR UPDATE',
+      'SELECT id, task_id FROM production_reports WHERE id = ?',
       [id]
     );
 
@@ -624,7 +633,6 @@ exports.deleteReport = async (req, res) => {
     }
 
     const task_id = reportCheck[0].task_id;
-    const process_id = reportCheck[0].process_id;
     if (
       !(await ScopeGuard.denyUnlessAccess(
         res,
@@ -651,6 +659,25 @@ exports.deleteReport = async (req, res) => {
       await connection.rollback();
       return ResponseHandler.error(res, '只能删除生产中任务的报工记录', 'INVALID_STATUS', 400);
     }
+
+    const [lockedReports] = await connection.query(
+      'SELECT id, process_id, completed_quantity FROM production_reports WHERE id = ? AND task_id = ? FOR UPDATE',
+      [id, task_id]
+    );
+    if (lockedReports.length === 0) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '报工记录不存在', 'NOT_FOUND', 404);
+    }
+    const process_id = lockedReports[0].process_id;
+
+    const quantityContext = await ProductionReportQuantityService.read(connection, task_id);
+    ProductionReportQuantityService.assertCorrection(
+      quantityContext,
+      process_id,
+      lockedReports[0].completed_quantity,
+      null,
+      0
+    );
 
     await connection.query('DELETE FROM production_reports WHERE id = ?', [id]);
 
@@ -698,24 +725,11 @@ exports.getTaskReportStats = async (req, res) => {
 
     const task = tasks[0];
 
-    // 获取该任务的报工汇总
-    const [reportStats] = await pool.query(
-      `
-      SELECT
-        COALESCE(SUM(completed_quantity), 0) as reported_quantity,
-        COALESCE(SUM(qualified_quantity), 0) as qualified_quantity,
-        COALESCE(SUM(defective_quantity), 0) as defective_quantity,
-        COALESCE(SUM(work_hours), 0) as total_work_hours,
-        COUNT(*) as report_count
-      FROM production_reports
-      WHERE task_id = ?
-    `,
-      [taskId]
-    );
-
-    const stats = reportStats[0];
-    const planQuantity = parseFloat(task.quantity) || 0;
-    const reportedQuantity = parseFloat(stats.reported_quantity) || 0;
+    const context = await ProductionReportQuantityService.read(pool, taskId, { lock: false });
+    const summary = ProductionReportQuantityService.summarize(context, task, req.query?.processId);
+    const stats = summary.selected;
+    const planQuantity = summary.planQuantity;
+    const reportedQuantity = summary.reportedQuantity;
     const remainingQuantity = Math.max(0, planQuantity - reportedQuantity);
 
     ResponseHandler.success(
@@ -726,13 +740,15 @@ exports.getTaskReportStats = async (req, res) => {
         product_id: task.product_id,
         product_name: task.product_name,
         product_code: task.product_code,
+        reporting_mode: summary.reportingMode,
+        output_process_id: summary.outputProcessId,
         plan_quantity: planQuantity,
         reported_quantity: reportedQuantity,
         remaining_quantity: remainingQuantity,
         qualified_quantity: parseFloat(stats.qualified_quantity) || 0,
         defective_quantity: parseFloat(stats.defective_quantity) || 0,
-        total_work_hours: parseFloat(stats.total_work_hours) || 0,
-        report_count: parseInt(stats.report_count) || 0,
+        total_work_hours: summary.totalWorkHours,
+        report_count: summary.reportCount,
         completion_rate:
           planQuantity > 0 ? ((reportedQuantity / planQuantity) * 100).toFixed(2) + '%' : '0%',
         qualification_rate:
@@ -799,13 +815,20 @@ exports.getReportStatistics = async (req, res) => {
       params.push(endDate);
     }
 
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const scope = await ScopeGuard.applyListScope(req, 'production_task', {
+      tableAlias: 'pt',
+      ownerAlias: 'production_report_task_owner_scope',
+      accessMode: 'read',
+    });
+    const whereClause = `WHERE ${conditions.length ? conditions.join(' AND ') : '1 = 1'}${scope.where || ''}`;
+    params.push(...(scope.params || []));
 
     // 获取总报工数
     const [totalResult] = await pool.query(
       `SELECT COUNT(*) as total
        FROM production_reports pr
        JOIN production_tasks pt ON pr.task_id = pt.id AND pt.deleted_at IS NULL
+       ${scope.join || ''}
        ${whereClause}`,
       params
     );
@@ -820,6 +843,7 @@ exports.getReportStatistics = async (req, res) => {
         COALESCE(SUM(pr.work_hours), 0) as total_work_hours
       FROM production_reports pr
       JOIN production_tasks pt ON pr.task_id = pt.id AND pt.deleted_at IS NULL
+      ${scope.join || ''}
       ${whereClause}
     `,
       params
@@ -831,6 +855,7 @@ exports.getReportStatistics = async (req, res) => {
       SELECT COUNT(DISTINCT pr.task_id) as task_count
       FROM production_reports pr
       JOIN production_tasks pt ON pr.task_id = pt.id AND pt.deleted_at IS NULL
+      ${scope.join || ''}
       ${whereClause}
     `,
       params
@@ -874,7 +899,7 @@ async function syncProgressAndStatus(connection, task_id, process_id) {
       const procQuantity = parseFloat(procCheck[0].quantity) || 0;
       const currentProcStatus = procCheck[0].status;
       const [procStats] = await connection.query(
-        'SELECT COALESCE(SUM(completed_quantity), 0) as total_proc_reported FROM production_reports WHERE process_id = ?',
+        'SELECT COALESCE(SUM(completed_quantity), 0) as total_proc_reported FROM production_reports WHERE process_id = ? FOR UPDATE',
         [process_id]
       );
       const totalProcReported = parseFloat(procStats[0].total_proc_reported) || 0;
@@ -919,17 +944,11 @@ async function syncProgressAndStatus(connection, task_id, process_id) {
   const task = taskCheck[0];
   const planQuantity = parseFloat(task.quantity) || 0;
 
-  const [reportStats] = await connection.query(
-    'SELECT COALESCE(SUM(completed_quantity), 0) as total_reported FROM production_reports WHERE task_id = ?',
-    [task_id]
+  const quantityContext = await ProductionReportQuantityService.read(connection, task_id);
+  const { totalReported, progress: taskProgress } = ProductionReportQuantityService.summarize(
+    quantityContext,
+    task
   );
-  const totalReported = parseFloat(reportStats[0].total_reported) || 0;
-  const taskProgress =
-    planQuantity > 0
-      ? Math.min(100, Math.round((totalReported / planQuantity) * 100))
-      : totalReported > 0
-        ? 100
-        : 0;
 
   await connection.query(
     'UPDATE production_tasks SET completed_quantity = ?, progress = ? WHERE id = ? AND deleted_at IS NULL',
@@ -939,7 +958,7 @@ async function syncProgressAndStatus(connection, task_id, process_id) {
   // 3. 状态推进：仅通过生命周期服务
   let apiStatus = null;
   const [processes] = await connection.query(
-    'SELECT id, status FROM production_processes WHERE task_id = ?',
+    'SELECT id, status FROM production_processes WHERE task_id = ? FOR UPDATE',
     [task_id]
   );
 
@@ -971,7 +990,7 @@ async function syncProgressAndStatus(connection, task_id, process_id) {
       (task.status === TASK_STATUS.IN_PROGRESS || apiStatus === TASK_STATUS.IN_PROGRESS)
     ) {
       const result = await promoteTaskToInspection(connection, task_id, {
-        setCompletedQuantityToPlan: fullyReported || allProcessesCompleted,
+        setCompletedQuantityToPlan: false,
         requireOpenInspectionClear: true,
       });
       if (result.promoted || result.status === 'inspection') {

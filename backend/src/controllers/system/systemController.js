@@ -24,6 +24,10 @@ const PermissionService = require('../../services/PermissionService');
 const RoleAccessService = require('../../services/RoleAccessService');
 const { getRequestActorLabel } = require('../../utils/userUtils');
 const { isSuperAdminRole } = require('../../authorization/superAdmin');
+const {
+  disconnectUserSessions,
+  revokeRoleSessionsInTransaction,
+} = require('../../utils/sessionRevocation');
 
 function omitUserSecrets(user) {
   if (!user || typeof user !== 'object') return user;
@@ -285,15 +289,14 @@ const systemController = {
 
       await assertCanManageTargetUser(req, id);
 
-      if ((await targetUserHasAdminRole(id)) && (String(status) === '0' || Number(status) === 0)) {
-        return ResponseHandler.error(res, '超级管理员账号不允许禁用', 'FORBIDDEN', 403);
-      }
-
       if (status === undefined) {
         return ResponseHandler.error(res, '缺少状态参数', 'VALIDATION_ERROR', 400);
       }
 
       const normalizedStatus = normalizeBinaryStatus(status);
+      if ((await targetUserHasAdminRole(id)) && normalizedStatus === 0) {
+        return ResponseHandler.error(res, '超级管理员账号不允许禁用', 'FORBIDDEN', 403);
+      }
       const result = await systemModel.updateUserStatus(id, normalizedStatus);
 
       if (!result) {
@@ -624,15 +627,16 @@ const systemController = {
       const { id } = req.params;
       const { status } = req.body;
 
-      if ((await roleIsSuperAdmin(id)) && (String(status) === '0' || Number(status) === 0)) {
-        return ResponseHandler.error(res, '系统内置超级管理员角色不允许禁用', 'FORBIDDEN', 403);
-      }
-
       if (status === undefined) {
         return ResponseHandler.error(res, '缺少状态参数', 'VALIDATION_ERROR', 400);
       }
 
       const normalizedStatus = normalizeBinaryStatus(status);
+      if (await roleIsSuperAdmin(id)) {
+        if (!(await isSuperAdminRequest(req)) || normalizedStatus === 0) {
+          return ResponseHandler.error(res, '系统内置超级管理员角色不允许修改状态', 'FORBIDDEN', 403);
+        }
+      }
       const result = await systemModel.updateRoleStatus(id, normalizedStatus);
 
       if (!result) {
@@ -797,6 +801,27 @@ const systemController = {
     try {
       // 获取部门ID查询参数
       const departmentId = req.query.departmentId ? parseInt(req.query.departmentId, 10) : null;
+      const status =
+        req.query.status !== undefined && req.query.status !== ''
+          ? normalizeBinaryStatus(req.query.status)
+          : null;
+      let roleCodes = [];
+      if (req.query.roleCodes !== undefined) {
+        if (typeof req.query.roleCodes !== 'string') {
+          throw new Error('角色编码必须是逗号分隔的字符串');
+        }
+        roleCodes = [
+          ...new Set(
+            req.query.roleCodes
+              .split(',')
+              .map((code) => code.trim())
+              .filter(Boolean)
+          ),
+        ];
+        if (!roleCodes.length || roleCodes.some((code) => !/^[a-zA-Z0-9_]{1,50}$/.test(code))) {
+          throw new Error('无效的角色编码');
+        }
+      }
 
       // 构建简化的SQL查询
       let query = `
@@ -815,6 +840,21 @@ const systemController = {
         params.push(departmentId);
       }
 
+      if (status !== null) {
+        query += ' AND u.status = ?';
+        params.push(status);
+      }
+
+      if (roleCodes.length) {
+        const placeholders = roleCodes.map(() => '?').join(',');
+        query += ` AND EXISTS (
+          SELECT 1 FROM user_roles ur
+          JOIN roles r ON r.id = ur.role_id
+          WHERE ur.user_id = u.id AND r.status = 1 AND r.code IN (${placeholders})
+        )`;
+        params.push(...roleCodes);
+      }
+
       // 添加排序和安全 LIMIT（防止大数据量下内存溢出）
       query += ' ORDER BY u.created_at DESC LIMIT 1000';
 
@@ -825,7 +865,7 @@ const systemController = {
       return ResponseHandler.success(res, users, '获取用户列表成功');
     } catch (error) {
       logger.error('获取用户列表失败:', error);
-      return ResponseHandler.error(res, '获取用户列表失败', 'SERVER_ERROR', 500, error);
+      return sendBusinessError(res, error, '获取用户列表失败');
     }
   },
 
@@ -913,6 +953,7 @@ const systemController = {
 
       const connection = await pool.getConnection();
       let result;
+      let revokedUserIds = [];
       try {
         await connection.beginTransaction();
         result = await RoleAccessService.applyRole(connection, {
@@ -921,6 +962,7 @@ const systemController = {
           name: role.name,
           is_super_admin: role.is_super_admin,
         });
+        revokedUserIds = await revokeRoleSessionsInTransaction(connection, [role.id]);
         await connection.commit();
       } catch (error) {
         await connection.rollback();
@@ -929,6 +971,7 @@ const systemController = {
         connection.release();
       }
 
+      disconnectUserSessions(revokedUserIds, 'role_access_profile_changed');
       await PermissionService.clearUserPermissionsCache();
       return ResponseHandler.success(res, result, '已按岗位模板重置角色权限');
     } catch (error) {
@@ -939,11 +982,17 @@ const systemController = {
 
   async applyAllRoleAccessProfiles(req, res) {
     try {
+      if (!(await isSuperAdminRequest(req))) {
+        return ResponseHandler.error(res, '批量重置系统角色需要超级管理员权限', 'FORBIDDEN', 403);
+      }
       const connection = await pool.getConnection();
       let summary;
+      let revokedUserIds = [];
       try {
         await connection.beginTransaction();
         summary = await RoleAccessService.applyAllProfiles(connection);
+        const [roles] = await connection.execute('SELECT id FROM roles ORDER BY id');
+        revokedUserIds = await revokeRoleSessionsInTransaction(connection, roles.map((role) => role.id));
         await connection.commit();
       } catch (error) {
         await connection.rollback();
@@ -952,6 +1001,7 @@ const systemController = {
         connection.release();
       }
 
+      disconnectUserSessions(revokedUserIds, 'role_access_profiles_changed');
       await PermissionService.clearUserPermissionsCache();
       return ResponseHandler.success(res, { summary }, '已按岗位模板重置全部系统角色');
     } catch (error) {
@@ -1133,7 +1183,11 @@ const systemController = {
       try {
         let insertedCount = 0;
         let updatedCount = 0;
-        const { bindMenuPermission } = require('../../services/PermissionRegistry');
+        const {
+          bindMenuPermission,
+          syncRolePermissionsFromMenus,
+        } = require('../../services/PermissionRegistry');
+        const changedMenuIds = new Set();
 
         const { normalizePermissionCode } = require('../../services/PermissionRegistry');
         // 批量查出所有已存在的菜单 permission（消除 N+1）
@@ -1210,6 +1264,7 @@ const systemController = {
             insertedCount++;
           }
           // 同步 permissions SSOT + permission_id
+          if (menuId) changedMenuIds.add(Number(menuId));
           if (menuId && permission) {
             await bindMenuPermission(connection, menuId, permission, menu.name);
           }
@@ -1247,7 +1302,27 @@ const systemController = {
           );
         }
 
+        // Imported status/permission changes must update the same authorization
+        // graph and session version as an individual menu edit, in one commit.
+        let revokedUserIds = [];
+        if (changedMenuIds.size) {
+          const placeholders = [...changedMenuIds].map(() => '?').join(',');
+          const [affectedRoles] = await connection.execute(
+            `SELECT DISTINCT role_id FROM role_menus WHERE menu_id IN (${placeholders})`,
+            [...changedMenuIds]
+          );
+          const roleIds = affectedRoles.map((role) => role.role_id);
+          for (const roleId of roleIds) {
+            const [roleMenus] = await connection.execute(
+              'SELECT menu_id FROM role_menus WHERE role_id = ?',
+              [roleId]
+            );
+            await syncRolePermissionsFromMenus(connection, roleId, roleMenus.map((row) => row.menu_id));
+          }
+          revokedUserIds = await revokeRoleSessionsInTransaction(connection, roleIds);
+        }
         await connection.commit();
+        disconnectUserSessions(revokedUserIds, 'menus_imported');
         await PermissionService.clearUserPermissionsCache();
 
         logger.info(`菜单导入成功: 新增${insertedCount}条, 更新${updatedCount}条`);
@@ -1376,8 +1451,9 @@ const systemController = {
       const actualOffset = Math.max(parseInt(offset) || 0, 0);
       const [logs] = await pool.query(
         `SELECT id, user_id, username, module, action, entity_type, entity_id,
-                ip_address, created_at
-         FROM audit_logs ORDER BY created_at DESC LIMIT ${actualLimit} OFFSET ${actualOffset}`
+                request_id, method, path, old_value, new_value, field_diff,
+                request_body, response_status, response_body, ip_address, created_at
+         FROM audit_logs ORDER BY created_at DESC, id DESC LIMIT ${actualLimit} OFFSET ${actualOffset}`
       );
       return ResponseHandler.success(res, logs, '获取系统日志成功');
     } catch (error) {
@@ -1409,10 +1485,16 @@ const systemController = {
     try {
       const { id } = req.params;
       const operator = getRequestActorLabel(req);
-      await DLQService.markResolved(id, operator);
+      const resolved = await DLQService.markResolved(id, operator);
+      if (!resolved) {
+        return ResponseHandler.error(res, '失败任务不存在', 'NOT_FOUND', 404);
+      }
       return ResponseHandler.success(res, { id: Number(id) }, '失败任务已标记为已处理');
     } catch (error) {
       logger.error('标记失败任务失败:', error);
+      if (error.statusCode === 409) {
+        return ResponseHandler.error(res, error.message, 'CONFLICT', 409, error);
+      }
       return ResponseHandler.error(res, '标记失败任务失败', 'SERVER_ERROR', 500, error);
     }
   },

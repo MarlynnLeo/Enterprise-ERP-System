@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { buildDownloadUrl, buildResourceUrl } from '@/config/app'
+import { buildDownloadUrl, buildResourceUrl, normalizeApiRequestUrl } from '@/config/app'
 
 describe('buildResourceUrl', () => {
   test('keeps controlled relative upload paths', () => {
@@ -34,5 +34,17 @@ describe('buildResourceUrl', () => {
       '/api/base-data/download-file?filePath=x.pdf'
     )
     expect(buildDownloadUrl('javascript:alert(1)')).toBe('')
+  })
+
+  test.each([
+    '//untrusted.example/file.pdf',
+    '/\\untrusted.example/file.pdf',
+    '\\\\untrusted.example/file.pdf',
+    '/\t/untrusted.example/file.pdf',
+    'https://localhost\\@untrusted.example/file.pdf'
+  ])('rejects ambiguous resource and download URL %j', (url) => {
+    expect(buildResourceUrl(url)).toBe('')
+    expect(buildDownloadUrl(url)).toBe('')
+    expect(() => normalizeApiRequestUrl(url)).toThrow('请求地址不可用')
   })
 })

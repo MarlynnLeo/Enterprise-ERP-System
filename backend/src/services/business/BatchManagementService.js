@@ -59,7 +59,7 @@ class BatchManagementService {
       const refNo = reference_no || referenceNo || receipt_no || `BATCH-${batch_number}`;
       const hasPurchaseReceiptContext = Boolean(receipt_id || receipt_no);
       const refType =
-        reference_type || referenceType || (hasPurchaseReceiptContext ? 'inbound' : 'batch_create');
+        reference_type || referenceType || (hasPurchaseReceiptContext ? 'purchase_receipt' : 'batch_create');
       let txType = transaction_type || transactionType || 'inbound';
       if (
         !transaction_type &&
@@ -86,6 +86,7 @@ class BatchManagementService {
             transactionType: txType,
             referenceNo: refNo,
             referenceType: refType,
+            sourceId: hasPurchaseReceiptContext ? receipt_id : batchData.sourceId,
             operator: await resolveActorLabel(connection, created_by),
             remark: `批次入库: ${batch_number}`,
             unitId: unit ? await this._getUnitId(connection, unit) : null,
@@ -101,6 +102,7 @@ class BatchManagementService {
             receiptId: receipt_id,
             receiptNo: receipt_no,
             transactionDate: transaction_date || transactionDate || receipt_date,
+            sourceLineKey: batchData.sourceLineKey || null,
             idempotencyKey:
               batchData.idempotencyKey ||
               batchData.idempotency_key ||

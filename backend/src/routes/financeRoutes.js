@@ -454,14 +454,19 @@ router.put(
 // 2. 收款管理
 router.get(
   '/ar/receipts/generate-number',
-  requirePermission('finance:ar:create'),
+  requirePermission('finance:ar:receive'),
   arController.generateReceiptNumber
 ); // 生成收款编号
 router.get(
   '/ar/receipts/unpaid-invoices',
-  requirePermission('finance:ar:view'),
+  requirePermission(['finance:ar:view', 'finance:ar:receive']),
   arController.getUnpaidInvoices
 ); // 获取未付清的发票
+router.get(
+  '/ar/receipts/accounts',
+  requirePermission('finance:ar:receive'),
+  arController.getReceiptAccounts
+);
 router.get('/ar/receipts', requirePermission('finance:ar:view'), arController.getReceipts);
 router.get('/ar/receipts/:id', requirePermission('finance:ar:view'), arController.getReceiptById);
 router.post('/ar/receipts', requirePermission('finance:ar:receive'), arController.createReceipt);
@@ -597,6 +602,7 @@ router.get(
 );
 
 // 资产操作
+router.get('/assets/cost-sources', requirePermission('finance:assets:view'), assetsController.getCostSources);
 router.get('/assets/:id', requirePermission('finance:assets:view'), assetsController.getAssetById);
 router.post('/assets', requirePermission('finance:assets:create'), assetsController.createAsset);
 router.put('/assets/:id', requirePermission('finance:assets:update'), assetsController.updateAsset);
@@ -973,6 +979,19 @@ router.post(
 
 // 财务报表模块路由（基于真实数据）
 const enhancedReportsController = require('../controllers/common/enhancedReportsController');
+const financialLedgerController = require('../controllers/business/finance/financialLedgerController');
+
+// 账簿查询和完整打印/导出使用同一报表查看权限，筛选资料仅提供编号、名称。
+router.get(
+  '/reports/ledger-options',
+  requirePermission('finance:reports:view'),
+  financialLedgerController.getOptions
+);
+router.get(
+  '/reports/ledgers/:type',
+  requirePermission('finance:reports:view'),
+  financialLedgerController.getLedger
+);
 
 // 1. 资产负债表
 router.get(

@@ -409,6 +409,23 @@ class NonconformingProduct {
       connection = await db.pool.getConnection();
       await connection.beginTransaction();
 
+      const [[current]] = await connection.query(
+        'SELECT status, concession_status, handled_quantity FROM nonconforming_products WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+        [id]
+      );
+      if (
+        !current ||
+        ['completed', 'closed', 'cancelled'].includes(current.status) ||
+        ['pending', 'approved'].includes(current.concession_status) ||
+        Number(current.handled_quantity) > 0
+      ) {
+        throw new (require('../utils/BusinessError'))(
+          '处置已执行、已完结或正在让步审批，不能修改处置结果',
+          null,
+          'CONFLICT',
+          409
+        );
+      }
       const query = `
         UPDATE nonconforming_products
         SET disposition = ?, disposition_reason = ?, disposition_by = ?,
@@ -419,7 +436,7 @@ class NonconformingProduct {
         WHERE id = ? AND deleted_at IS NULL
       `;
 
-      await connection.query(query, [
+      const [updated] = await connection.query(query, [
         dispositionData.disposition,
         dispositionData.disposition_reason || null,
         dispositionData.disposition_by || null,
@@ -431,6 +448,8 @@ class NonconformingProduct {
         dispositionData.supplier_name || null,
         id,
       ]);
+
+      if (updated.affectedRows !== 1) throw new Error('处置更新失败，请刷新后重试');
 
       // Add action record
       await connection.query(

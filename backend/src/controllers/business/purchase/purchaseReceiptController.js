@@ -13,6 +13,7 @@ const {
 } = require('../../../utils/purchase/purchaseValidation');
 const PurchaseReceiptValidationService = require('../../../services/business/PurchaseReceiptValidationService');
 const PurchaseReceiptReleaseService = require('../../../services/business/PurchaseReceiptReleaseService');
+const InventoryPostingResubmissionService = require('../../../services/business/InventoryPostingResubmissionService');
 const crypto = require('crypto');
 
 const db = require('../../../config/db');
@@ -330,6 +331,22 @@ const getReceipt = async (req, res) => {
       });
       response.items = formattedItems;
       response.remarks = response.remarks || '';
+      if (receipt.status === RECEIPT_STATUS.COMPLETED) {
+        const InventoryPostingService = require('../../../services/InventoryPostingService');
+        try {
+          const approval = await InventoryPostingService.getApprovalBySource({
+            sourceType: 'purchase_receipt', sourceId: receiptId, sourceNo: receipt.receipt_no,
+          }, connection);
+          // The business operator needs status to resubmit, but no finance amounts/events.
+          response.financeStatus = approval.movement?.finance_status || null;
+        } catch (error) {
+          if (!['SNAPSHOT_INVALID', 'POSTING_SOURCE_CHANGED'].includes(error.code)) throw error;
+          // Keep the source document readable for reconciliation; finance actions
+          // still use the approval endpoint, where the validation error blocks them.
+          response.financeStatus = 'invalid';
+          response.financeValidationError = error.message;
+        }
+      }
 
       const hasPerm = await hasFinancePermission(req.user);
       const desensitizedResponse = desensitizeData(response, hasPerm);
@@ -1360,6 +1377,19 @@ const updateReceiptStatus = async (req, res) => {
 
       currentStatus = checkRows[0].status;
 
+      if (currentStatus === RECEIPT_STATUS.COMPLETED && status === RECEIPT_STATUS.COMPLETED) {
+        const result = await InventoryPostingResubmissionService.resubmit(client, {
+          sourceType: 'purchase_receipt', sourceId: Number(id), sourceNo: checkRows[0].receipt_no,
+          actor: { id: req.user.id, label: await getCurrentUserName(req) },
+        });
+        if (!result) {
+          await client.rollback();
+          return ResponseHandler.error(res, '只有财务已驳回的采购收货单可以重新提交', 'INVALID_STATUS', 409);
+        }
+        await client.commit();
+        return ResponseHandler.success(res, result, '采购收货已重新提交财务审核');
+      }
+
       // 验证状态变更是否有效
       if (!isValidStatusTransition(currentStatus, status)) {
         // 使用标准回滚
@@ -1371,7 +1401,9 @@ const updateReceiptStatus = async (req, res) => {
     } catch (checkError) {
       logger.error('检查入库单状态失败:', checkError);
       await client.rollback();
-      return ResponseHandler.error(res, '数据库查询错误', 'SERVER_ERROR', 500, checkError);
+      const statusCode = checkError.statusCode || 500;
+      return ResponseHandler.error(res, statusCode < 500 ? checkError.message : '数据库查询错误',
+        checkError.code || (statusCode < 500 ? 'VALIDATION_ERROR' : 'SERVER_ERROR'), statusCode, checkError);
     }
 
     // 准备状态变更备注
@@ -1479,7 +1511,7 @@ const updateReceiptStatus = async (req, res) => {
 
         // 获取收货单详情用于追溯链路
         const getReceiptQuery = `
-          SELECT r.*, ri.*, m.code as material_code, m.name as material_name, u.name as unit,
+          SELECT r.*, ri.*, ri.id AS receipt_item_id, m.code as material_code, m.name as material_name, u.name as unit,
                  COALESCE(poi.price, 0) as order_price,
                  poi.tax_rate as order_tax_rate
           FROM purchase_receipts r
@@ -1508,6 +1540,7 @@ const updateReceiptStatus = async (req, res) => {
             }
 
             const batchItems = receiptItems.map((item) => ({
+              receipt_item_id: item.receipt_item_id,
               material_id: item.material_id,
               material_code: item.material_code,
               material_name: item.material_name,

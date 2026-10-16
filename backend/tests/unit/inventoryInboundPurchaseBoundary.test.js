@@ -11,7 +11,7 @@ jest.mock('../../src/services/InventoryService', () => ({
 }));
 jest.mock('../../src/models/nonconformingProduct', () => ({}));
 jest.mock('../../src/services/business/CostAccountingService', () => ({}));
-jest.mock('../../src/services/business/TaskLifecycleService', () => ({ validateTaskTransition: jest.fn() }));
+jest.mock('../../src/services/business/TaskLifecycleService', () => ({ validateTaskTransition: jest.fn(), promoteTaskToward: jest.fn(async () => ({ promoted: true })) }));
 jest.mock('../../src/services/business/DLQService', () => ({ runWithRetry: jest.fn(), registerHandler: jest.fn() }));
 jest.mock('../../src/services/business/AsyncTaskService', () => ({}));
 jest.mock('../../src/services/business/PeriodValidationService', () => ({ validateInventoryTransaction: jest.fn() }));
@@ -159,6 +159,8 @@ describe('采购收货不可绕过检验流转至通用库存入库', () => {
 describe('生产终检仅生成生产任务的入库单', () => {
   test('不存在的生产任务不能回退查找同编号采购订单', async () => {
     const connection = mockConnection(async (sql) => {
+      if (sql.includes("inspection_type IN ('first_article'") || sql.includes('FROM production_processes') || sql.includes('FROM nonconforming_products')) return [[]];
+      if (sql.includes('FROM quality_inspections')) return [[{ id: 7, inspection_type: 'final', reference_id: 8 }]];
       if (/FROM inventory_inbound\b|FROM production_tasks/.test(sql)) return [[]];
       throw new Error(`Unexpected SQL: ${sql}`);
     });
@@ -180,9 +182,11 @@ describe('生产终检仅生成生产任务的入库单', () => {
 
   test('正常生产终检仍生成生产任务入库草稿', async () => {
     const connection = mockConnection(async (sql) => {
+      if (sql.includes("inspection_type IN ('first_article'") || sql.includes('FROM production_processes') || sql.includes('FROM nonconforming_products')) return [[]];
+      if (sql.includes('FROM quality_inspections')) return [[{ id: 7, inspection_type: 'final', reference_id: 8, product_id: 3, quantity: 5, qualified_quantity: 5, unqualified_quantity: 0, status: 'passed', batch_no: 'BATCH-1' }]];
       if (/FROM inventory_inbound\b/.test(sql)) return [[]];
       if (/FROM production_tasks/.test(sql)) return [[{
-        id: 8, code: 'PT-8', product_id: 3, material_location_id: 2, material_unit_id: 1,
+        id: 8, code: 'PT-8', product_id: 3, status: 'inspection', completed_quantity: 5, material_location_id: 2, material_unit_id: 1,
       }]];
       if (/FROM locations/.test(sql)) return [[{ id: 2 }]];
       if (/INSERT INTO inventory_inbound\b/.test(sql)) return [{ insertId: 10 }];
@@ -192,10 +196,33 @@ describe('生产终检仅生成生产任务的入库单', () => {
     await expect(ProductionInboundService.createDraftFromFinalInspection(connection, {
       inspection: {
         id: 7, inspection_no: 'FQC-7', inspection_type: 'final', reference_type: 'production_task',
-        reference_id: 8, qualified_quantity: 5, batch_no: 'BATCH-1', inspector_id: 1,
+        reference_id: 8, product_id: 3, qualified_quantity: 5, batch_no: 'BATCH-1', inspector_id: 1,
       },
     })).resolves.toMatchObject({ created: true, id: 10, task_id: 8 });
     const header = connection.execute.mock.calls.find(([sql]) => /INSERT INTO inventory_inbound\b/.test(sql));
     expect(header[1].slice(1, 4)).toEqual(['production', 'production_task', 8]);
   });
+});
+
+
+test.each([{}, { batchNumber: 'B-FINAL-7' }, { batchNo: 'B-FINAL-7' }])('regenerated final inbound preserves source batch with %j', async (batch) => {
+  const connection = mockConnection(async sql => {
+    if (sql.includes('FROM production_tasks')) return [[{ id: 8, status: 'inspection', product_id: 3, completed_quantity: 100 }]];
+    if (sql.includes('FROM production_processes') || sql.includes("inspection_type IN ('first_article'") || sql.includes('FROM nonconforming_products') || sql.includes('SELECT ii.quantity')) return [[]];
+    if (sql.includes('FROM quality_inspections')) return [[{ id: 7, inspection_type: 'final', status: 'partial', qualified_quantity: 90, unqualified_quantity: 10, quantity: 100, reference_id: 8, product_id: 3, batch_no: 'B-FINAL-7' }]];
+    if (sql.includes('SELECT id, inbound_no FROM inventory_inbound')) {
+      expect(sql).toContain("status NOT IN ('cancelled', 'reversed')");
+      return [[]];
+    }
+    if (sql.includes('FROM materials')) return [[{ id: 3, unit_id: 1, location_id: 2 }]];
+    if (sql.includes('INSERT INTO inventory_inbound ')) return [{ insertId: 21 }];
+    if (sql.includes('INSERT INTO inventory_inbound_items')) return [{ affectedRows: 1 }];
+    throw new Error('Unexpected SQL ' + sql);
+  });
+  const res = response();
+  await createInboundFromQuality(request({ ...createBody(), inspectionId: 7, items: [{ materialId: 3, unitId: 1, quantity: 90, ...batch }] }), res);
+  expect(connection.rollback).not.toHaveBeenCalled();
+  expect(connection.commit).toHaveBeenCalled();
+  const insert = connection.execute.mock.calls.find(([sql]) => sql.includes('INSERT INTO inventory_inbound_items'));
+  expect(insert[1][4]).toBe('B-FINAL-7');
 });

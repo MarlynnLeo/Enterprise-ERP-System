@@ -94,10 +94,11 @@ const cipController = {
         );
       }
 
-      const id = await cipModel.createCipProject(req.body);
+      const id = await cipModel.createCipProject(mapKeysToSnake(req.body || {}));
       return ResponseHandler.success(res, { id }, '在建工程创建成功', 201);
     } catch (error) {
       logger.error('创建在建工程失败:', error);
+      if (error.code === 'VALIDATION_ERROR') return ResponseHandler.error(res, error.message, error.code, 400);
       ResponseHandler.error(res, '创建在建工程失败', 'SERVER_ERROR', 500, error);
     }
   },
@@ -112,10 +113,11 @@ const cipController = {
         return ResponseHandler.error(res, '无效的工程ID', 'VALIDATION_ERROR', 400);
       }
 
-      await cipModel.updateCipProject(id, req.body);
+      await cipModel.updateCipProject(id, mapKeysToSnake(req.body || {}));
       return ResponseHandler.success(res, { id }, '更新在建工程成功');
     } catch (error) {
       logger.error('更新在建工程失败:', error);
+      if (error.code === 'VALIDATION_ERROR') return ResponseHandler.error(res, error.message, error.code, 400);
       ResponseHandler.error(res, '更新在建工程失败', 'SERVER_ERROR', 500, error);
     }
   },
@@ -151,7 +153,7 @@ const cipController = {
         return ResponseHandler.error(res, '无效的工程ID', 'VALIDATION_ERROR', 400);
       }
 
-      const { assetData } = req.body;
+      const assetData = mapKeysToSnake(req.body.assetData || {});
       if (!assetData || !assetData.asset_code || !assetData.asset_name) {
         return ResponseHandler.error(
           res,
@@ -170,6 +172,7 @@ const cipController = {
     } catch (error) {
       logger.error('在建工程转固失败:', error);
       if (
+        error.code === 'VALIDATION_ERROR' ||
         error.message.includes('不能重复操作') ||
         error.message.includes('不能转为无形/固定资产')
       ) {
@@ -190,22 +193,27 @@ const cipController = {
         return ResponseHandler.error(res, '无效的工程ID', 'VALIDATION_ERROR', 400);
       }
 
-      const amount = parseFloat(req.body.amount || 0);
-      if (!(amount > 0) || Number.isNaN(amount)) {
+      const amount = Number(req.body.amount);
+      if (!['number', 'string'].includes(typeof req.body.amount) || !(amount > 0) || !Number.isFinite(amount)) {
         return ResponseHandler.error(res, '附加费用金额必须大于0', 'VALIDATION_ERROR', 400);
       }
 
-      const { previousAmount, newAmount } = await cipModel.addAccumulatedAmount(id, amount);
+      const source = mapKeysToSnake(req.body || {});
+      if (source.reconciles_existing !== undefined && typeof source.reconciles_existing !== 'boolean') {
+        return ResponseHandler.error(res, '历史核对选项必须为布尔值', 'VALIDATION_ERROR', 400);
+      }
+      source.created_by = getAuthenticatedUserId(req);
+      const result = await cipModel.addAccumulatedAmount(id, amount, source);
 
       return ResponseHandler.success(
         res,
-        { previousAmount, newAmount, addedAmount: amount },
+        { ...result, addedAmount: result.newAmount - result.previousAmount },
         '归集成本成功'
       );
     } catch (error) {
       logger.error('归集在建工程成本失败:', error);
       if (
-        error.message?.includes('不存在') ||
+        error.code === 'VALIDATION_ERROR' || error.message?.includes('不存在') ||
         error.message?.includes('不可附加') ||
         error.message?.includes('必须大于')
       ) {

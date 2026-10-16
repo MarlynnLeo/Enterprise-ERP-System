@@ -637,6 +637,39 @@ function normalizeEcnItem(item = {}) {
   };
 }
 
+function ecnValidationError(message) {
+  return Object.assign(new Error(message), { code: 'VALIDATION_ERROR', statusCode: 400 });
+}
+
+function ecnNumber(value) {
+  if (!['string', 'number'].includes(typeof value) || isBlank(value)) return NaN;
+  return Number(value);
+}
+
+function validateEcnBomValue(field, value, row) {
+  if (field === 'remark') {
+    return typeof value === 'string' ? null : `第${row}行备注必须为文本`;
+  }
+  const number = ecnNumber(value);
+  if (field === 'quantity') {
+    if (!Number.isFinite(number) || number <= 0) return `第${row}行BOM数量必须为有限正数`;
+    // bom_details.quantity 为 DECIMAL(10,2)，拒绝会被数据库舍入为0或截断的用量。
+    if (
+      number < 0.01 ||
+      number > 99999999.99 ||
+      Math.abs(number * 100 - Math.round(number * 100)) > 0.000001
+    ) {
+      return `第${row}行BOM数量须在0.01到99999999.99之间，最多两位小数`;
+    }
+    return null;
+  }
+  const labels = { unit_id: '单位', level: '层级', parent_id: '父项' };
+  if (!Number.isSafeInteger(number) || number < (field === 'parent_id' ? 0 : 1)) {
+    return `第${row}行${labels[field]}必须为${field === 'parent_id' ? '非负' : '正'}整数`;
+  }
+  return null;
+}
+
 function validateEcnPayload(data = {}, { requireItems = false } = {}) {
   if (isBlank(data.title)) return 'ECN标题不能为空';
   if (isBlank(data.reason)) return '变更原因不能为空';
@@ -649,21 +682,36 @@ function validateEcnPayload(data = {}, { requireItems = false } = {}) {
     if (!ECN_ALLOWED_CHANGE_TYPES.has(item.change_type)) return `第${row}行变更类型不支持`;
     if (ECN_BOM_CHANGE_TYPES.has(item.change_type) && !item.bom_id) return `第${row}行BOM不能为空`;
     if (
+      ECN_BOM_CHANGE_TYPES.has(item.change_type) &&
+      (!Number.isSafeInteger(ecnNumber(item.bom_id)) || ecnNumber(item.bom_id) <= 0)
+    ) {
+      return `第${row}行BOM无效`;
+    }
+    if (
       ['bom_add', 'bom_remove', 'bom_modify', 'material_modify'].includes(item.change_type) &&
       !item.material_id
     ) {
       return `第${row}行物料不能为空`;
     }
+    if (!Number.isSafeInteger(ecnNumber(item.material_id)) || ecnNumber(item.material_id) <= 0) {
+      return `第${row}行物料无效`;
+    }
     if (item.change_type === 'bom_modify') {
       if (!ECN_BOM_FIELDS.has(item.field_name)) return `第${row}行BOM变更字段不支持`;
-      if (isBlank(item.new_value)) return `第${row}行变更后不能为空`;
+      const valueError = validateEcnBomValue(item.field_name, item.new_value, row);
+      if (valueError) return valueError;
     }
     if (item.change_type === 'material_modify') {
       if (!ECN_MATERIAL_FIELDS.has(item.field_name)) return `第${row}行物料变更字段不支持`;
       if (isBlank(item.new_value)) return `第${row}行变更后不能为空`;
     }
-    if (item.change_type === 'bom_add' && isBlank(item.new_value)) {
-      item.new_value = 1;
+    if (item.change_type === 'bom_add') {
+      const valueError = validateEcnBomValue(
+        'quantity',
+        isBlank(item.new_value) ? 1 : item.new_value,
+        row
+      );
+      if (valueError) return valueError;
     }
   }
 
@@ -966,7 +1014,12 @@ const ecn = {
     } catch (e) {
       await conn.rollback();
       logger.error('ECN状态变更失败:', e);
-      ResponseHandler.error(res, e.message);
+      ResponseHandler.error(
+        res,
+        e.message,
+        e.code === 'VALIDATION_ERROR' ? e.code : 'SERVER_ERROR',
+        e.statusCode || 500
+      );
     } finally {
       conn.release();
     }
@@ -1087,13 +1140,37 @@ const ecn = {
   },
 };
 
+async function validateEcnBomStructure(conn, bomId) {
+  const [details] = await conn.query(
+    'SELECT id, parent_id, level FROM bom_details WHERE bom_id = ? FOR UPDATE',
+    [bomId]
+  );
+  const byId = new Map(details.map((detail) => [Number(detail.id), detail]));
+  for (const detail of details) {
+    const seen = new Set([Number(detail.id)]);
+    let parentId = Number(detail.parent_id || 0);
+    let depth = 1;
+    while (parentId) {
+      if (seen.has(parentId)) throw ecnValidationError(`BOM ${bomId} 的父子关系存在循环`);
+      seen.add(parentId);
+      const parent = byId.get(parentId);
+      if (!parent) throw ecnValidationError(`BOM ${bomId} 的父项不存在或不属于本BOM`);
+      parentId = Number(parent.parent_id || 0);
+      depth += 1;
+    }
+    if (Number(detail.level) !== depth) {
+      throw ecnValidationError(`BOM ${bomId} 的层级与父子关系不一致，请一并变更相关层级`);
+    }
+  }
+}
+
 /** 应用ECN变更明细到BOM/物料。必须在调用方事务内执行，失败即抛错回滚状态。 */
 async function applyEcnChanges(ecnId, userId, conn) {
   const [[order]] = await conn.query(
     'SELECT code, title, reason FROM ecn_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
     [ecnId]
   );
-  if (!order) throw new Error('ECN不存在');
+  if (!order) throw ecnValidationError('ECN不存在');
 
   const [rawItems] = await conn.query(
     'SELECT id, ecn_id, change_type, material_id, material_code, material_name, bom_id, field_name, old_value, new_value, remark FROM ecn_order_items WHERE ecn_id = ?',
@@ -1101,29 +1178,30 @@ async function applyEcnChanges(ecnId, userId, conn) {
   );
   const items = rawItems.map(normalizeEcnItem);
   const validationError = validateEcnPayload({ ...order, items }, { requireItems: true });
-  if (validationError) throw new Error(validationError);
+  if (validationError) throw ecnValidationError(validationError);
 
   const changedBomIds = new Set();
+  const changedStructureBomIds = new Set();
   for (let index = 0; index < items.length; index += 1) {
     const item = items[index];
     const row = index + 1;
 
     if (['process_modify', 'drawing_modify'].includes(item.change_type)) {
-      throw new Error(`第${row}行${item.change_type}暂未配置自动落地规则，不能直接实施`);
+      throw ecnValidationError(`第${row}行${item.change_type}暂未配置自动落地规则，不能直接实施`);
     }
 
     const [[material]] = await conn.query(
       'SELECT id, code, name, unit_id, specs, safety_stock, min_stock, max_stock, price FROM materials WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
       [item.material_id]
     );
-    if (!material) throw new Error(`第${row}行物料不存在或已删除`);
+    if (!material) throw ecnValidationError(`第${row}行物料不存在或已删除`);
 
     if (ECN_BOM_CHANGE_TYPES.has(item.change_type)) {
       const [[bom]] = await conn.query(
         'SELECT id, version FROM bom_masters WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
         [item.bom_id]
       );
-      if (!bom) throw new Error(`第${row}行BOM不存在或已删除`);
+      if (!bom) throw ecnValidationError(`第${row}行BOM不存在或已删除`);
       changedBomIds.add(item.bom_id);
     }
 
@@ -1132,10 +1210,15 @@ async function applyEcnChanges(ecnId, userId, conn) {
         'SELECT id FROM bom_details WHERE bom_id = ? AND material_id = ? LIMIT 1 FOR UPDATE',
         [item.bom_id, item.material_id]
       );
-      if (existing) throw new Error(`第${row}行BOM中已存在该物料，不能重复新增`);
-      const quantity = Number(item.new_value || 1);
+      if (existing) throw ecnValidationError(`第${row}行BOM中已存在该物料，不能重复新增`);
+      const quantity = Number(isBlank(item.new_value) ? 1 : item.new_value);
       if (!Number.isFinite(quantity) || quantity <= 0)
-        throw new Error(`第${row}行新增数量必须大于0`);
+        throw ecnValidationError(`第${row}行新增数量必须大于0`);
+      const [[unit]] = await conn.query(
+        'SELECT id FROM units WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+        [material.unit_id]
+      );
+      if (!unit) throw ecnValidationError(`第${row}行物料单位不存在或已删除`);
       await conn.query(
         `INSERT INTO bom_details (bom_id, material_id, quantity, unit_id, remark, level, parent_id)
          VALUES (?, ?, ?, ?, ?, 1, 0)`,
@@ -1157,8 +1240,9 @@ async function applyEcnChanges(ecnId, userId, conn) {
         'SELECT id FROM bom_details WHERE bom_id = ? AND material_id = ? LIMIT 1 FOR UPDATE',
         [item.bom_id, item.material_id]
       );
-      if (!detail) throw new Error(`第${row}行BOM中不存在该物料，不能移除`);
+      if (!detail) throw ecnValidationError(`第${row}行BOM中不存在该物料，不能移除`);
       await conn.query('DELETE FROM bom_details WHERE id = ?', [detail.id]);
+      changedStructureBomIds.add(item.bom_id);
       logger.info(
         `ECN#${ecnId}: BOM ${item.bom_id} 移除物料 ${item.material_code || material.code}`
       );
@@ -1170,12 +1254,21 @@ async function applyEcnChanges(ecnId, userId, conn) {
          FROM bom_details WHERE bom_id = ? AND material_id = ? LIMIT 1 FOR UPDATE`,
         [item.bom_id, item.material_id]
       );
-      if (!detail) throw new Error(`第${row}行BOM中不存在该物料，不能修改`);
+      if (!detail) throw ecnValidationError(`第${row}行BOM中不存在该物料，不能修改`);
       if (!sameValue(item.old_value, detail[item.field_name])) {
-        throw new Error(`第${row}行变更前值与当前BOM不一致，请刷新后重填`);
+        throw ecnValidationError(`第${row}行变更前值与当前BOM不一致，请刷新后重填`);
       }
+      const newValue = item.field_name === 'remark' ? item.new_value : Number(item.new_value);
+      if (item.field_name === 'unit_id') {
+        const [[unit]] = await conn.query(
+          'SELECT id FROM units WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+          [newValue]
+        );
+        if (!unit) throw ecnValidationError(`第${row}行单位不存在或已删除`);
+      }
+      if (['parent_id', 'level'].includes(item.field_name)) changedStructureBomIds.add(item.bom_id);
       await conn.query(`UPDATE bom_details SET ${item.field_name} = ? WHERE id = ?`, [
-        item.new_value,
+        newValue,
         detail.id,
       ]);
       logger.info(
@@ -1199,6 +1292,8 @@ async function applyEcnChanges(ecnId, userId, conn) {
     }
   }
 
+  for (const bomId of changedStructureBomIds) await validateEcnBomStructure(conn, bomId);
+
   for (const bomId of changedBomIds) {
     const [[bom]] = await conn.query('SELECT version FROM bom_masters WHERE id = ? FOR UPDATE', [
       bomId,
@@ -1214,6 +1309,12 @@ async function applyEcnChanges(ecnId, userId, conn) {
   }
 
   await syncEcnDocumentLinks(conn, ecnId, order.code, items, userId);
+  // 使用同一事务连接读取变更后的引用并删除缓存；失败时实施、版本及缓存一起回滚。
+  // 不可在提交前调用默认 pool 连接，否则祖先查询可能读到旧关系。
+  if (changedBomIds.size) {
+    const BomExplosionService = require('../../services/BomExplosionService');
+    for (const bomId of changedBomIds) await BomExplosionService.invalidateCache(bomId, conn);
+  }
   logger.info(`ECN#${ecnId}: 已应用 ${items.length} 条变更明细`);
 }
 

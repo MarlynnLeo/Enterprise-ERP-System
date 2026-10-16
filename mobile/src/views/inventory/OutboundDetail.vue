@@ -461,10 +461,10 @@ onMounted(() => {
     justify-content: center;
     overflow: hidden;
     &.status-draft { background: color-mix(in srgb, var(--text-tertiary) 15%, transparent); color: var(--text-tertiary); }
-    &.status-confirmed { background: rgba(59, 130, 246, 0.15); color: var(--module-blue); }
-    &.status-partial { background: color-mix(in srgb, var(--color-warning) 15%, transparent); color: var(--color-warning); }
-    &.status-completed { background: color-mix(in srgb, var(--color-success) 15%, transparent); color: var(--color-success); }
-    &.status-cancelled { background: rgba(239, 68, 68, 0.15); color: var(--color-error); }
+    &.status-confirmed { background: rgba(59, 130, 246, 0.15); color: var(--module-blue-text); }
+    &.status-partial { background: color-mix(in srgb, var(--color-warning) 15%, transparent); color: var(--color-warning-text); }
+    &.status-completed { background: color-mix(in srgb, var(--color-success) 15%, transparent); color: var(--color-success-text); }
+    &.status-cancelled { background: rgba(239, 68, 68, 0.15); color: var(--color-error-text); }
 }
 
 .status-info { flex: 1; }
@@ -513,7 +513,7 @@ onMounted(() => {
     text-align: right;
     flex: 1;
     word-break: break-all;
-    &.accent { color: var(--module-blue); font-weight: 500; }
+    &.accent { color: var(--module-blue-text); font-weight: 500; }
 }
 
 .items-list {
@@ -556,8 +556,8 @@ onMounted(() => {
 }
 .detail-label { color: var(--text-tertiary); }
 .detail-value { color: var(--text-primary); }
-.detail-value.highlight { color: var(--module-purple); font-weight: 600; }
-.text-danger { color: var(--color-error) !important; font-weight: 600; }
+.detail-value.highlight { color: var(--module-purple-text); font-weight: 600; }
+.text-danger { color: var(--color-error-text) !important; font-weight: 600; }
 
 .loading-container,
 .empty-container {

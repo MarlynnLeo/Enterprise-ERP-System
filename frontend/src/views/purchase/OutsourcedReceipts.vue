@@ -119,7 +119,7 @@
               type="warning"
               @click.stop="handleViewReceipt(scope.row)"
             >
-              {{ scope.row.approvalStatus === 'pending' ? '审批' : '查看审批' }}
+              查看过账
             </el-button>
             <el-button
               v-if="scope.row.status === 'pending' && !scope.row.arrivalRequired"
@@ -291,6 +291,7 @@
 </template>
 
 <script setup>
+import { useInventoryPostingSourceLink } from '@/composables/useInventoryPostingSourceLink'
 import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { getApiErrorMessage } from '@/utils/errorHandler'
@@ -584,6 +585,13 @@ onMounted(() => {
     receiptDialogVisible.value = true;
   }
 });
+
+useInventoryPostingSourceLink({
+  path: '/purchase/processing-receipts',
+  sourceTypes: ["outsourced_processing_receipt"],
+  open: ({ id }) => handleViewReceipt({ id }),
+  setSearch: (sourceNo) => { searchForm.keyword = sourceNo },
+})
 </script>
 
 <style scoped>
@@ -600,7 +608,7 @@ onMounted(() => {
 .stat-value {
   font-size: 24px;
   font-weight: bold;
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   margin-bottom: 8px;
 }
 

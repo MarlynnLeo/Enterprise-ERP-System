@@ -71,7 +71,7 @@ function assertAllowedTable(table) {
   return table;
 }
 
-async function insertRecord(table, data, allowedFields) {
+async function insertRecord(table, data, allowedFields, connection = null) {
   assertAllowedTable(table);
   const record = pickFields(data, allowedFields);
   const columns = Object.keys(record);
@@ -79,10 +79,12 @@ async function insertRecord(table, data, allowedFields) {
 
   const placeholders = columns.map(() => '?').join(', ');
   const values = columns.map((field) => record[field]);
-  return await db.query(
-    `INSERT INTO ${table} (${columns.map((field) => `\`${field}\``).join(', ')}) VALUES (${placeholders})`,
-    values
-  );
+  const sql = `INSERT INTO ${table} (${columns.map((field) => `\`${field}\``).join(', ')}) VALUES (${placeholders})`;
+  if (connection) {
+    const [result] = await connection.query(sql, values);
+    return result;
+  }
+  return db.query(sql, values);
 }
 
 async function updateRecord(table, data, id, allowedFields) {
@@ -374,6 +376,7 @@ const gaugeController = {
    * 创建校准记录
    */
   async createCalibrationRecord(req, res) {
+    let connection;
     try {
       // HTTP camel → snake
       const data = mapKeysToSnake(req.body || {});
@@ -382,44 +385,89 @@ const gaugeController = {
         return ResponseHandler.error(res, '量具ID和校准日期不能为空', 'VALIDATION_ERROR', 400);
       }
 
-      // 验证量具存在
-      const gauge = await db.query(
-        'SELECT id, gauge_no, gauge_name, gauge_type, model, manufacturer, serial_number, measurement_range, accuracy, resolution, location, custodian, status, purchase_date, last_calibration_date, next_calibration_date, calibration_cycle_days, note, created_at, updated_at FROM gauges WHERE id = ?',
+      const isDate = (value) =>
+        typeof value === 'string' &&
+        /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+        Number.isFinite(Date.parse(`${value}T00:00:00Z`)) &&
+        new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+      if (
+        !isDate(data.calibration_date) ||
+        (data.next_due_date &&
+          (!isDate(data.next_due_date) || data.next_due_date < data.calibration_date)) ||
+        !['qualified', 'unqualified', 'limited'].includes(data.result)
+      ) {
+        return ResponseHandler.error(
+          res,
+          '校准日期、到期日期或校准结果无效',
+          'VALIDATION_ERROR',
+          400
+        );
+      }
+
+      connection = await db.pool.getConnection();
+      await connection.beginTransaction();
+      // Serialize record creation with concurrent calibration and gauge status updates.
+      const [gauges] = await connection.query(
+        'SELECT id, status, last_calibration_date, next_calibration_date, calibration_cycle_days FROM gauges WHERE id = ? FOR UPDATE',
         [data.gauge_id]
       );
-      if (!gauge.rows || gauge.rows.length === 0) {
+      if (gauges.length === 0) {
+        await connection.rollback();
         return ResponseHandler.error(res, '量具不存在', 'NOT_FOUND', 404);
       }
 
       // 自动生成校准编号
       if (!data.calibration_no) {
-        data.calibration_no = await CodeGeneratorService.nextCode('quality_calibration');
+        data.calibration_no = await CodeGeneratorService.nextCode(
+          'quality_calibration',
+          connection
+        );
       }
 
       // 计算下次到期日期
-      const gaugeData = gauge.rows[0];
+      const gaugeData = gauges[0];
       if (!data.next_due_date && gaugeData.calibration_cycle_days) {
-        const calDate = new Date(data.calibration_date);
-        calDate.setDate(calDate.getDate() + gaugeData.calibration_cycle_days);
+        const calDate = new Date(`${data.calibration_date}T00:00:00Z`);
+        calDate.setUTCDate(calDate.getUTCDate() + Number(gaugeData.calibration_cycle_days));
         data.next_due_date = calDate.toISOString().split('T')[0];
       }
 
-      const result = await insertRecord('gauge_calibration_records', data, CALIBRATION_FIELDS);
+      const result = await insertRecord(
+        'gauge_calibration_records',
+        data,
+        CALIBRATION_FIELDS,
+        connection
+      );
 
-      // 同步更新量具的校准日期信息
-      await db.query(
+      // Historical records are append-only. Same-date entries are serialized corrections.
+      // Calibration does not reactivate scrapped, idle, or repair-held gauges.
+      await connection.query(
         `UPDATE gauges SET
           last_calibration_date = ?,
           next_calibration_date = ?,
-          status = CASE WHEN ? = 'unqualified' THEN 'repaired' ELSE 'in_use' END
-        WHERE id = ?`,
-        [data.calibration_date, data.next_due_date, data.result, data.gauge_id]
+          status = CASE
+            WHEN status IN ('in_use', 'calibrating') AND ? = 'unqualified' THEN 'repaired'
+            WHEN status = 'calibrating' AND ? = 'qualified' THEN 'in_use'
+            ELSE status END
+        WHERE id = ? AND (last_calibration_date IS NULL OR last_calibration_date <= ?)`,
+        [
+          data.calibration_date,
+          data.next_due_date || null,
+          data.result,
+          data.result,
+          data.gauge_id,
+          data.calibration_date,
+        ]
       );
 
+      await connection.commit();
       ResponseHandler.success(res, { id: result.insertId }, '校准记录创建成功', 201);
     } catch (error) {
+      if (connection) await connection.rollback();
       logger.error('创建校准记录失败:', error);
       ResponseHandler.error(res, '创建校准记录失败', 'SERVER_ERROR', 500, error);
+    } finally {
+      if (connection) connection.release();
     }
   },
 

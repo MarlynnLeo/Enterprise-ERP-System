@@ -394,7 +394,7 @@ onMounted(() => {
   font-weight: 600;
 }
 .comment {
-  color: #666;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 </style>

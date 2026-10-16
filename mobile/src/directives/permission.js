@@ -1,48 +1,62 @@
 /**
  * permission.js
- * @description 移动端权限指令 — 与网页端逻辑一致
- * @date 2026-04-20
+ * @description 自定义指令文件
+  * @date 2025-08-27
  * @version 1.0.0
- *
- * 用法：
- *   v-permission="'purchase:requisitions:create'"
- *   无权限时元素将被隐藏
  */
 
 import { useAuthStore } from '../stores/auth'
-import { watch } from 'vue'
+import { shallowRef, watchEffect } from 'vue'
+import { isActionPermission } from '../utils/permissionActions'
 
-/**
- * 隐藏元素
- */
+const hiddenStates = new WeakMap()
+
+// Hide denied controls without changing their business disabled state.
 function hideElement(el) {
+  if (!hiddenStates.has(el)) {
+    hiddenStates.set(el, {
+      display: el.style.getPropertyValue('display'),
+      displayPriority: el.style.getPropertyPriority('display'),
+      ariaHidden: el.getAttribute('aria-hidden')
+    })
+  }
   el.setAttribute('data-permission-denied', 'true')
-  el.style.display = 'none'
+  el.setAttribute('aria-hidden', 'true')
+  el.style.setProperty('display', 'none', 'important')
 }
 
-/**
- * 显示元素
- */
+// 显示元素 - 优化版
 function showElement(el) {
-  if (el.getAttribute('data-permission-denied') === 'true' || el.getAttribute('data-permission-pending') === 'true') {
-    el.removeAttribute('data-permission-denied')
-    el.removeAttribute('data-permission-pending')
-    el.style.display = ''
+  const previous = hiddenStates.get(el)
+  el.removeAttribute('data-permission-denied')
+  el.removeAttribute('data-permission-pending')
+  if (previous) {
+    if (previous.ariaHidden === null) el.removeAttribute('aria-hidden')
+    else el.setAttribute('aria-hidden', previous.ariaHidden)
+    el.style.setProperty('display', previous.display, previous.displayPriority)
+    hiddenStates.delete(el)
   }
 }
 
 /**
- * 统一权限检查 — 与桌面端对齐
- * 精确权限 + 模块父级（无冒号时 hasChildPermission）
+ * 统一的权限检查函数
+ * 核心逻辑委托给 authStore.hasPermission()，确保全系统单一权限判断入口
+ * 仅额外保留侧边栏父级菜单可见性的向上兼容判断
  */
 function checkPermission(authStore, permission) {
   if (Array.isArray(permission)) {
     return permission.some((p) => checkPermission(authStore, p))
   }
+
   if (authStore.hasPermission(permission)) {
     return true
   }
-  // 与 PC / 路由守卫统一：中间码也可被子权限满足
+
+  // 操作按钮必须精确命中 create/update/delete…，不能用父级 production 顶上
+  if (isActionPermission(permission)) {
+    return false
+  }
+
   return authStore.hasChildPermission(permission)
 }
 
@@ -50,65 +64,46 @@ export const permission = {
   // 挂载时检查权限
   mounted(el, binding) {
     const authStore = useAuthStore()
-    const permValue = binding.value
-
-    if (permValue) {
-      const checkAndUpdate = () => {
-        const hasPerm = checkPermission(authStore, permValue)
-        if (!hasPerm) {
-          hideElement(el)
-        } else {
-          showElement(el)
-        }
-      }
-
-      // 如果权限还没加载完成，监听加载完成事件
-      if (!authStore.permissionsLoaded) {
+    const requiredPermission = shallowRef(binding.value)
+    el._requiredPermission = requiredPermission
+    el._permissionWatcher = watchEffect(() => {
+      // The store indexes permission strings in a Set, so explicitly track
+      // replacement of the server list as well as its loaded flag.
+      void authStore.permissions
+      if (!requiredPermission.value) {
+        showElement(el)
+      } else if (!authStore.permissionsLoaded) {
         el.setAttribute('data-permission-pending', 'true')
         hideElement(el)
-
-        const stopWatch = watch(
-          () => authStore.permissionsLoaded,
-          (loaded) => {
-            if (loaded) {
-              el.removeAttribute('data-permission-pending')
-              checkAndUpdate()
-              if (stopWatch) stopWatch()
-            }
-          },
-          { immediate: true }
-        )
-
-        el._permissionWatcher = stopWatch
+      } else if (checkPermission(authStore, requiredPermission.value)) {
+        showElement(el)
       } else {
-        // 权限已加载，直接检查
-        checkAndUpdate()
+        el.removeAttribute('data-permission-pending')
+        hideElement(el)
       }
-    }
+    })
   },
 
-  // 更新时重新检查
+  // 组件更新时重新检查权限
   updated(el, binding) {
-    const authStore = useAuthStore()
-    const permValue = binding.value
-
-    if (permValue && authStore.permissionsLoaded) {
-      const hasPerm = checkPermission(authStore, permValue)
-      if (!hasPerm) {
-        hideElement(el)
-      } else {
-        showElement(el)
-        el.removeAttribute('data-permission-pending')
-      }
+    if (el._requiredPermission) el._requiredPermission.value = binding.value
+    // A vnode style patch may restore display while the permission is denied.
+    if (el.getAttribute('data-permission-denied') === 'true') {
+      el.style.setProperty('display', 'none', 'important')
     }
   },
 
   // 卸载时清理
   unmounted(el) {
+    // 停止监听
     if (el._permissionWatcher) {
       el._permissionWatcher()
       delete el._permissionWatcher
     }
+    delete el._requiredPermission
+    hiddenStates.delete(el)
+
+    // 清理可能存在的属性
     el.removeAttribute('data-permission-denied')
     el.removeAttribute('data-permission-pending')
   }

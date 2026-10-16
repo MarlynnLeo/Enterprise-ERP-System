@@ -4,6 +4,8 @@ const ProductionLaborService = require('./ProductionLaborService');
 const FinalInspectionService = require('./FinalInspectionService');
 const { ensureTaskQualityInspections } = require('./ProductionQualityInspectionService');
 const { jsonArray } = require('../../utils/productProcessDefinition');
+const { assertTaskQualityReleased } = require('./ProductionQualityHoldService');
+const ProductionReportQuantityService = require('./ProductionReportQuantityService');
 
 const fail = (message, code = 'INVALID_PROCESS_TRANSITION', status = 409) => {
   throw new BusinessError(message, null, code, status);
@@ -44,9 +46,18 @@ class ProductProcessExecutionService {
 
     // Report completion even when quality approval is still pending; repeat calls are idempotent.
     result.report = await ProductionLaborService.ensureTaskReport(connection, taskId, operator);
+    const quantities = await ProductionReportQuantityService.read(connection, taskId);
+    const { totalReported } = ProductionReportQuantityService.summarize(
+      quantities,
+      result.report.task
+    );
+    await connection.query(
+      'UPDATE production_tasks SET completed_quantity = ?, progress = ? WHERE id = ? AND deleted_at IS NULL',
+      [Math.min(totalReported, Number(result.report.task.quantity)), 100, taskId]
+    );
     try {
       const promoted = await promoteTaskToInspection(connection, taskId, {
-        setCompletedQuantityToPlan: true,
+        setCompletedQuantityToPlan: false,
         requireOpenInspectionClear: true,
       });
       result.mainChainPromoted = Boolean(promoted.promoted || promoted.status === 'inspection');
@@ -113,6 +124,8 @@ class ProductProcessExecutionService {
     }
     if (changing && next === 'completed' && task.status !== 'in_progress')
       fail('任务未处于生产中，不能完成工序');
+    if (changing && ['in_progress', 'completed'].includes(next))
+      await assertTaskQualityReleased(connection, task);
     if (changing && next === 'cancelled' && !String(data.remarks || '').trim())
       fail('跳过工序必须填写原因', 'PROCESS_SKIP_REASON_REQUIRED', 400);
     if (changing && ['in_progress', 'cancelled'].includes(next)) {

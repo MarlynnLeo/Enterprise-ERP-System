@@ -252,7 +252,7 @@ onMounted(loadReports)
 
   &.active {
     border-color: var(--color-primary);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
   }
 }
 
@@ -291,17 +291,17 @@ onMounted(loadReports)
 
 .status-pending {
   background: var(--module-orange-light);
-  color: var(--module-orange);
+  color: var(--module-orange-text);
 }
 
 .status-approved {
   background: var(--module-green-light);
-  color: var(--module-green);
+  color: var(--module-green-text);
 }
 
 .status-rejected {
   background: var(--module-red-light);
-  color: var(--module-red);
+  color: var(--module-red-text);
 }
 
 .info-row {
@@ -314,11 +314,11 @@ onMounted(loadReports)
   color: var(--van-text-color-2);
 }
 .info-value.success {
-  color: var(--module-green);
+  color: var(--module-green-text);
   font-weight: 600;
 }
 .info-value.error {
-  color: var(--module-red);
+  color: var(--module-red-text);
   font-weight: 600;
 }
 

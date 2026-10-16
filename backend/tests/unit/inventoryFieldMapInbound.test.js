@@ -1,6 +1,15 @@
-const { inventoryInboundMap, inventoryInboundItemMap } = require('../../src/utils/inventory/inventoryFieldMap');
+/* global describe, test, expect */
+const { inventoryInboundMap } = require('../../src/utils/inventory/inventoryFieldMap');
 
 describe('inventoryInboundMap.fromApi', () => {
+  test('显式清空来源不会被忽略，详情返回质检关联和业务审批状态', () => {
+    expect(
+      inventoryInboundMap.fromApi({ referenceType: null, referenceId: null, referenceNo: null })
+    ).toEqual({ reference_type: null, reference_id: null, reference_no: null });
+    expect(
+      inventoryInboundMap.toApi({ id: 1, inspection_id: 2, finance_status: 'rejected' })
+    ).toMatchObject({ inspectionId: 2, financeStatus: 'rejected' });
+  });
   test('同时接受 camel 和车间提交的 snake 字段', () => {
     const snake = inventoryInboundMap.fromApi({
       inbound_date: '2026-08-14',

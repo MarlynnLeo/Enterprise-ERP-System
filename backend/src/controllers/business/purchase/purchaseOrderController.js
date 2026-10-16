@@ -1015,9 +1015,49 @@ const getStatistics = async (req, res) => {
 const getOrderById = async (id) => {
   try {
     const query = `
-      SELECT o.*, s.code as supplier_code, s.name as supplier_master_name
+      SELECT o.*, s.code as supplier_code, s.name as supplier_master_name,
+             creator.real_name AS sender_real_name, creator.username AS sender_username,
+             COALESCE(approval_completion.actor_id, final_approval.approver_id) AS print_approver_id,
+             CASE WHEN approval_completion.id IS NOT NULL THEN approval_completion.actor_name
+                  ELSE final_approval.approver_name END AS print_approver_name,
+             approver.real_name AS print_approver_real_name,
+             approver.username AS print_approver_username,
+             approver.signature_code AS print_approver_signature_code,
+             COALESCE(approval_completion.created_at, final_approval.acted_at) AS print_approved_at
       FROM purchase_orders o
         LEFT JOIN suppliers s ON o.supplier_id = s.id
+        LEFT JOIN users creator ON o.created_by = creator.id
+        LEFT JOIN workflow_instances approval_workflow ON approval_workflow.id = (
+          SELECT latest.id FROM workflow_instances latest
+          WHERE latest.business_type = 'purchase_order' AND latest.business_id = o.id
+            AND latest.deleted_at IS NULL
+          ORDER BY latest.id DESC LIMIT 1
+        )
+          AND approval_workflow.status = 'approved'
+          AND o.status IN ('approved', 'confirmed', 'received', 'inspecting', 'inspected',
+                           'warehousing', 'partial_received', 'completed')
+          AND (o.workflow_instance_id IS NULL OR o.workflow_instance_id = approval_workflow.id)
+        LEFT JOIN workflow_action_logs approval_completion ON approval_completion.id = (
+          SELECT completion.id FROM workflow_action_logs completion
+          WHERE completion.instance_id = approval_workflow.id
+            AND completion.action = 'complete' AND completion.to_status = 'approved'
+            AND completion.actor_id > 0
+          ORDER BY completion.created_at DESC, completion.id DESC LIMIT 1
+        )
+        LEFT JOIN workflow_instance_nodes final_approval ON final_approval.id = (
+          SELECT final_node.id FROM workflow_instance_nodes final_node
+          WHERE final_node.instance_id = approval_workflow.id AND final_node.node_type = 'approval'
+          ORDER BY final_node.sequence DESC, final_node.id DESC LIMIT 1
+        )
+          AND final_approval.status = 'approved'
+          AND final_approval.approver_id > 0 AND final_approval.acted_at IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM workflow_instance_nodes unfinished
+            WHERE unfinished.instance_id = approval_workflow.id
+              AND unfinished.node_type = 'approval' AND unfinished.status <> 'approved'
+          )
+        LEFT JOIN users approver
+          ON approver.id = COALESCE(approval_completion.actor_id, final_approval.approver_id)
       WHERE o.id = ? AND o.deleted_at IS NULL
     `;
     const [rows] = await pool.query(query, [id]);
@@ -1110,6 +1150,19 @@ const getOrderById = async (id) => {
       totalQuantity > 0 ? Math.round((totalWarehoused / totalQuantity) * 100 * 100) / 100 : 0;
     api.pendingQuantity = totalQuantity - totalReceived;
     api.supplierCode = order.supplier_code ?? null;
+    api.senderName = order.sender_real_name?.trim() || order.sender_username?.trim() || null;
+    // Only completed approval evidence identifies a signer; assignments, creators and viewers do not.
+    api.approverId = order.print_approver_id ?? null;
+    api.approverName = api.approverId
+      ? order.print_approver_name?.trim() ||
+        order.print_approver_real_name?.trim() ||
+        order.print_approver_username?.trim() ||
+        null
+      : null;
+    api.approverSignatureCode = api.approverId
+      ? (order.print_approver_signature_code ?? null)
+      : null;
+    api.approvedAt = api.approverId ? (order.print_approved_at ?? null) : null;
 
     return api;
   } catch (error) {
@@ -1159,7 +1212,12 @@ const getRequisitions = async (req, res) => {
     const { page = 1, pageSize = 10, requisitionNo, status } = req.query;
     const pagination = parsePagination(page, pageSize, { defaultPageSize: 10, maxPageSize: 100 });
 
-    const defaultStatus = status || 'approved';
+    // Historical approved requisitions remain available alongside submitted ones.
+    const requisitionStatuses = !status
+      ? ['submitted', 'approved', 'completed']
+      : ['submitted', 'approved'].includes(status)
+        ? ['submitted', 'approved']
+        : [status];
     const scopeClause = await ScopeGuard.applyListScope(req, 'purchase_requisition', {
       tableAlias: 'r',
       ownerAlias: 'purchase_requisition_order_picker_scope',
@@ -1171,12 +1229,12 @@ const getRequisitions = async (req, res) => {
       FROM purchase_requisitions r
       LEFT JOIN users u ON r.requester = u.username
       ${scopeClause.join || ''}
-      WHERE r.status = ?
+      WHERE r.status IN (?)
         AND r.deleted_at IS NULL
         ${scopeClause.where || ''}
     `;
 
-    const queryParams = [defaultStatus, ...(scopeClause.params || [])];
+    const queryParams = [requisitionStatuses, ...(scopeClause.params || [])];
 
     if (requisitionNo) {
       query += ' AND r.requisition_number LIKE ?';
@@ -1301,8 +1359,8 @@ const getRequisition = async (req, res) => {
     const { id } = req.params;
 
     const query =
-      'SELECT r.*, u.real_name as user_real_name FROM purchase_requisitions r LEFT JOIN users u ON r.requester = u.username WHERE r.id = ? AND r.status IN (?, ?) AND r.deleted_at IS NULL';
-    const [rows] = await pool.query(query, [id, 'approved', 'completed']);
+      'SELECT r.*, u.real_name as user_real_name FROM purchase_requisitions r LEFT JOIN users u ON r.requester = u.username WHERE r.id = ? AND r.status IN (?, ?, ?) AND r.deleted_at IS NULL';
+    const [rows] = await pool.query(query, [id, 'submitted', 'approved', 'completed']);
 
     if (rows.length === 0) {
       return ResponseHandler.notFound(res, '采购申请不存在或已被删除');

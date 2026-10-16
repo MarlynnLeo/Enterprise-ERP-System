@@ -18,7 +18,7 @@
           :on-change="handleChange"
           :before-upload="beforeUpload"
         >
-          <el-button size="small" type="primary" circle>
+          <el-button size="small" type="primary" circle aria-label="更换头像">
             <el-icon><Edit /></el-icon>
           </el-button>
         </el-upload>
@@ -226,7 +226,7 @@ const handleError = (failedAvatar) => {
 }
 .stat-label {
   font-size: 12px;
-  color: var(--color-text-secondary);
+  color: var(--color-text-regular);
 }
 .online-time-display {
   margin: 20px 0;

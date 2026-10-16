@@ -143,13 +143,15 @@
                 type="success"
                 @click="handleApprove(scope.row)"
 
-              v-permission="'sales:returns:approve'">
+                :disabled="statusUpdating"
+              v-permission="'sales:returns:update'">
                 审批通过
               </el-button>
               <el-button
                 size="small"
                 type="danger"
-                v-permission="'sales:returns:approve'"
+                v-permission="'sales:returns:update'"
+                :disabled="statusUpdating"
                 @click="handleReject(scope.row)"
               >
                 拒绝
@@ -159,12 +161,19 @@
             <!-- 已审批状态：可以完成 -->
             <el-button
               v-if="scope.row.status === 'approved'"
+              v-permission="'sales:returns:update'"
+              :disabled="statusUpdating"
               size="small"
               type="warning"
               @click="handleComplete(scope.row)"
             >
               完成
             </el-button>
+            <el-button
+              v-if="canResubmitReturn(scope.row)"
+              size="small" type="warning" :loading="statusUpdating"
+              @click="handleComplete(scope.row)"
+            >重新提交入库审核</el-button>
             <el-button
               v-if="scope.row.status === 'completed'"
               v-permission="'finance:ar:create'"
@@ -205,7 +214,8 @@
       content-width="wide"
       :detail-navigation="salesReturnViewNavigation"
     >
-      <div v-if="currentReturn" v-loading="detailsLoading">
+      <div v-loading="detailsLoading" class="min-h-form">
+        <template v-if="currentReturn">
         <el-descriptions :column="2" border>
           <el-descriptions-item label="退货单号">{{ currentReturn.returnNo || '未生成退货单号' }}</el-descriptions-item>
           <el-descriptions-item label="关联订单号">{{ currentReturn.orderNo || '-' }}</el-descriptions-item>
@@ -242,14 +252,18 @@
         <InventoryApprovalPanel
           v-if="currentReturn?.id || currentReturn?.returnNo"
           source-type="sales_return"
+          :active="detailsVisible && !detailsLoading"
           :source-id="currentReturn.id"
           :source-no="currentReturn.returnNo"
+          @changed="handleApprovalChanged"
         />
+        </template>
       </div>
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="detailsVisible = false">关闭</el-button>
-          <el-button type="primary" @click="handlePrintReturn" :loading="printLoading">打印</el-button>
+          <el-button v-if="detailsVisible && !detailsLoading && canResubmitReturn(currentReturn)" type="warning" :loading="statusUpdating" @click="handleComplete(currentReturn)">重新提交入库审核</el-button>
+          <el-button type="primary" @click="handlePrintReturn" :loading="printLoading" :disabled="detailsLoading || !currentReturn?.id">打印</el-button>
         </span>
       </template>
     </AppDialog>
@@ -315,7 +329,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="createDialog.visible = false">取消</el-button>
-          <el-button v-permission="'sales:returns:create'" type="primary" @click="submitCreate">提交</el-button>
+          <el-button v-permission="'sales:returns:create'" type="primary" :loading="createSubmitting" @click="submitCreate">提交</el-button>
         </span>
       </template>
         </AppDialog>
@@ -376,7 +390,8 @@ import { handleTableRowView } from '@/utils/tableRowView'
 import { formatDate, formatDateTime } from '@/utils/helpers/dateUtils'
 import { formatCurrency } from '@/utils/helpers/formatters'
 import dayjs from 'dayjs'
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed, watch, onBeforeUnmount, onDeactivated } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { salesApi } from '@/api'
@@ -389,9 +404,16 @@ const detailsVisible = ref(false)
 const currentReturn = ref(null)
 const detailsLoading = ref(false)
 const creditNoteLoadingId = ref(null)
+const authStore = useAuthStore()
+const statusUpdating = ref(false)
+const createSubmitting = ref(false)
+let detailRequestSequence = 0
+let listRequestSequence = 0
+const canResubmitReturn = row => Boolean(row?.id) && authStore.hasPermission('sales:returns:update') &&
+  row.status === 'completed' && row.financeStatus === 'rejected' && [true, 1].includes(row.canResubmitInventory)
 
 const handleGenerateCreditNote = async (row) => {
-  if (creditNoteLoadingId.value !== null) return
+  if (!row?.id || row.status !== 'completed' || !authStore.hasPermission('finance:ar:create') || creditNoteLoadingId.value !== null) return
   creditNoteLoadingId.value = row.id
   try {
     const result = await financeApi.integration.generateARCreditNoteFromSalesReturn(row.id)
@@ -592,6 +614,8 @@ const selectOutbound = async (row) => {
 
 // 提交创建
 const submitCreate = async () => {
+  if (!createDialog.visible || createSubmitting.value || !authStore.hasPermission('sales:returns:create')) return
+  createSubmitting.value = true
   try {
     if (!createForm.outbound.id) return ElMessage.warning('请选择出库单')
     if (!createForm.returnDate) return ElMessage.warning('请选择退货日期')
@@ -638,6 +662,8 @@ const submitCreate = async () => {
   } catch (e) {
     console.error('创建退货单失败:', e)
     ElMessage.error(getApiErrorMessage(e, '创建退货单失败'))
+  } finally {
+    createSubmitting.value = false
   }
 }
 // 搜索方法
@@ -656,6 +682,7 @@ const resetSearch = () => {
 
 // 获取退货单数据（从后端）
 const fetchData = async () => {
+  const request = ++listRequestSequence
   loading.value = true
   try {
     const params = {
@@ -667,6 +694,7 @@ const fetchData = async () => {
       endDate: Array.isArray(dateRange.value) && dateRange.value[1] ? dateRange.value[1] : undefined
     }
     const resp = await salesApi.getReturns(params)
+    if (request !== listRequestSequence) return
     const data = parseResponseData(resp, {})
     const items = Array.isArray(data.items) ? data.items : (Array.isArray(data) ? data : [])
 
@@ -695,12 +723,13 @@ const fetchData = async () => {
       }
     }
   } catch (error) {
+    if (request !== listRequestSequence) return
     console.error('获取退货单数据失败:', error)
     ElMessage.error('获取退货单数据失败')
     returnRecords.value = []
     total.value = 0
   } finally {
-    loading.value = false
+    if (request === listRequestSequence) loading.value = false
   }
 }
 
@@ -711,30 +740,42 @@ onMounted(() => {
 
 // 查看详情
 const handleView = async (row) => {
-  if (detailsLoading.value) return
-
+  if (!row?.id || !authStore.hasPermission('sales:returns:view')) return
+  const request = ++detailRequestSequence
+  detailsVisible.value = true
   detailsLoading.value = true
+  currentReturn.value = null
+  setCurrentViewReturn(row)
   try {
-    // 如果行数据已包含明细，直接显示
-    if (row.items && Array.isArray(row.items)) {
-      currentReturn.value = row
-      setCurrentViewReturn(row)
-      detailsVisible.value = true
-      return
-    }
-
-    // 否则从后端获取详情
     const resp = await salesApi.getReturnDetails(row.id)
-    currentReturn.value = resp.data || row
-    setCurrentViewReturn(row)
-    detailsVisible.value = true
+    if (request !== detailRequestSequence || !detailsVisible.value) return
+    const data = parseResponseData(resp, null)
+    if (!data?.id) throw new Error('退货单详情为空')
+    currentReturn.value = { ...data, items: data.items || [] }
   } catch (error) {
+    if (request !== detailRequestSequence || !detailsVisible.value) return
     console.error('获取退货单详情失败:', error)
     ElMessage.error('获取退货单详情失败')
+    detailsVisible.value = false
   } finally {
-    detailsLoading.value = false
+    if (request === detailRequestSequence) detailsLoading.value = false
   }
 }
+
+const clearReturnDetail = () => {
+  detailRequestSequence += 1
+  currentReturn.value = null
+  detailsLoading.value = false
+}
+watch(detailsVisible, visible => { if (!visible) clearReturnDetail() }, { flush: 'sync' })
+onBeforeUnmount(() => { clearReturnDetail(); listRequestSequence += 1 })
+onDeactivated(() => { detailsVisible.value = false; clearReturnDetail() })
+
+const refreshReturn = async (id, context = detailRequestSequence) => {
+  await fetchData()
+  if (id && detailsVisible.value && context === detailRequestSequence && currentReturn.value?.id === id) await handleView({ id })
+}
+const handleApprovalChanged = () => refreshReturn(currentReturn.value?.id)
 
 const handleViewPrevious = () => {
   if (previousViewReturn.value) handleView(previousViewReturn.value)
@@ -754,72 +795,69 @@ const salesReturnViewNavigation = computed(() => ({
 
 // 通用状态更新函数
 const updateReturnStatus = async (row, status, remarks = null) => {
-  try {
-    await salesApi.updateReturn(row.id, {
-      status,
-      ...(remarks !== null ? { remarks } : {}),
-    })
-
-    // 刷新数据以获取最新状态
-    await fetchData()
-  } catch (error) {
-    console.error(`状态更新失败:`, error)
-    throw error
+  const context = detailRequestSequence
+  await salesApi.updateReturn(row.id, {
+    status,
+    ...(remarks !== null ? { remarks } : {}),
+  })
+  for (const record of [row, currentReturn.value, ...returnRecords.value]) {
+    if (record?.id !== row.id) continue
+    record.status = status
+    if (status === 'completed') { record.financeStatus = 'pending'; record.canResubmitInventory = false }
   }
+  await refreshReturn(row.id, context)
 }
 
 // 审批通过
-const handleApprove = (row) => {
-  ElMessageBox.confirm('确定要审批通过此退货单吗？', '审批通过', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    type: 'success'
-  }).then(async () => {
-    try {
-      await updateReturnStatus(row, 'approved')
-      ElMessage.success(`退货单 ${row.returnNo || '未命名'} 已审批通过`)
-    } catch {
-      ElMessage.error('审批失败，请重试')
-    }
-  }).catch(() => {})
+const handleApprove = async (row) => {
+  if (!row?.id || row.status !== 'pending' || statusUpdating.value || !authStore.hasPermission('sales:returns:update')) return
+  statusUpdating.value = true
+  try {
+    await ElMessageBox.confirm('确定要审批通过此退货单吗？', '审批通过', {
+      confirmButtonText: '确定', cancelButtonText: '取消', type: 'success'
+    })
+    if (row.status !== 'pending' || !authStore.hasPermission('sales:returns:update')) return
+    await updateReturnStatus(row, 'approved')
+    ElMessage.success(`退货单 ${row.returnNo || '未命名'} 已审批通过`)
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') ElMessage.error(getApiErrorMessage(error, '审批失败，请重试'))
+  } finally { statusUpdating.value = false }
 }
 
 // 拒绝审批
-const handleReject = (row) => {
-  ElMessageBox.prompt('请输入拒绝原因', '拒绝审批', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    inputPattern: /.+/,
-    inputErrorMessage: '拒绝原因不能为空'
-  }).then(async ({ value: rejectReason }) => {
-    try {
-      // 获取原有备注并添加拒绝原因
-      const response = await salesApi.getReturn(row.id)
-      const fullReturnData = response.data || response
-      const newRemarks = (fullReturnData.remarks || '') + `\n拒绝原因：${rejectReason}`
-
-      await updateReturnStatus(row, 'rejected', newRemarks)
-      ElMessage.success(`退货单 ${row.returnNo || '未命名'} 已拒绝`)
-    } catch {
-      ElMessage.error('拒绝失败，请重试')
-    }
-  }).catch(() => {})
+const handleReject = async (row) => {
+  if (!row?.id || row.status !== 'pending' || statusUpdating.value || !authStore.hasPermission('sales:returns:update')) return
+  statusUpdating.value = true
+  try {
+    const { value: rejectReason } = await ElMessageBox.prompt('请输入拒绝原因', '拒绝审批', {
+      confirmButtonText: '确定', cancelButtonText: '取消', inputPattern: /\S+/, inputErrorMessage: '拒绝原因不能为空'
+    })
+    if (row.status !== 'pending' || !authStore.hasPermission('sales:returns:update')) return
+    const response = await salesApi.getReturnDetails(row.id)
+    const fullReturnData = parseResponseData(response, {})
+    const newRemarks = (fullReturnData.remarks || '') + `\n拒绝原因：${rejectReason}`
+    await updateReturnStatus(row, 'rejected', newRemarks)
+    ElMessage.success(`退货单 ${row.returnNo || '未命名'} 已拒绝`)
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') ElMessage.error(getApiErrorMessage(error, '拒绝失败，请重试'))
+  } finally { statusUpdating.value = false }
 }
 
 // 完成退货
-const handleComplete = (row) => {
-  ElMessageBox.confirm('确定要完成此退货单吗？完成后将无法修改。', '完成退货', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    type: 'warning'
-  }).then(async () => {
-    try {
-      await updateReturnStatus(row, 'completed')
-      ElMessage.success(`退货单 ${row.returnNo || '未命名'} 已完成`)
-    } catch {
-      ElMessage.error('完成失败，请重试')
-    }
-  }).catch(() => {})
+const handleComplete = async (row) => {
+  const retry = canResubmitReturn(row)
+  if (!row?.id || (row.status !== 'approved' && !retry) || statusUpdating.value || !authStore.hasPermission('sales:returns:update')) return
+  statusUpdating.value = true
+  try {
+    await ElMessageBox.confirm(retry ? '重新提交已驳回的退货入库，等待财务审核？' : '确定要完成此退货单吗？完成后将无法修改。', retry ? '重新提交入库审核' : '完成退货', {
+      confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning'
+    })
+    if (!authStore.hasPermission('sales:returns:update') || (retry ? !canResubmitReturn(row) : row.status !== 'approved')) return
+    await updateReturnStatus(row, 'completed')
+    ElMessage.success(retry ? '已重新提交入库审核' : `退货单 ${row.returnNo || '未命名'} 已完成`)
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') ElMessage.error(getApiErrorMessage(error, retry ? '重新提交失败，请重试' : '完成失败，请重试'))
+  } finally { statusUpdating.value = false }
 }
 
 // 处理每页显示数量变化
@@ -836,7 +874,7 @@ const handleCurrentChange = (val) => {
 // ========== 打印功能 ==========
 const printLoading = ref(false)
 const handlePrintReturn = async () => {
-  if (!currentReturn.value) return
+  if (!detailsVisible.value || detailsLoading.value || !currentReturn.value?.id || printLoading.value || !authStore.hasPermission('sales:returns:view')) return
   printLoading.value = true
   try {
     const ret = currentReturn.value

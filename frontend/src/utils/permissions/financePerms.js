@@ -435,9 +435,9 @@ export const financePerms = [
   {
     id: 716,
     parentId: 7,
-    name: '资产负债表',
-    path: '/finance/reports/balance-sheet',
-    component: 'finance/reports/BalanceSheet',
+    name: '财务报表',
+    path: '/finance/reports',
+    component: 'finance/reports/ReportCenter',
     icon: 'icon-document',
     type: 1,
     permission: 'finance:reports:view',

@@ -12,11 +12,23 @@ const hasValue = (value) => value !== undefined && value !== null && value !== '
 
 const pickValue = (...values) => values.find(hasValue)
 
+// An explicit null from the current API revokes old approval evidence.
+const pickApprovalValue = (current, legacy) => current !== undefined ? current : legacy
+
 const toFiniteNumber = (value, fallback = 0) => {
   if (!hasValue(value)) return fallback
   const number = Number(value)
   return Number.isFinite(number) ? number : fallback
 }
+
+// Financial aliases must preserve an explicit null or redacted value. Skipping
+// it can reveal another alias or turn an unavailable price into a zero price.
+const pickFinancialValue = (...values) => values.find(value => value !== undefined)
+const toFinancialNumber = (value) => {
+  if (!hasValue(value) || typeof value === 'boolean' || !String(value).trim()) return null
+  return toFiniteNumber(String(value).replace(/,/g, ''), null)
+}
+const roundMoney = (value) => Math.round((value + Number.EPSILON) * 100) / 100
 
 const hasRelationId = (value) => hasValue(value) && String(value) !== '0'
 
@@ -62,20 +74,25 @@ const isPurchaseRequisitionEntity = (value) => {
 export const normalizePurchaseOrderItem = (item = {}) => {
   if (!isObject(item)) return item
 
-  const quantity = toFiniteNumber(pickValue(item.quantity, item.order_quantity), 0)
-  const unitPrice = toFiniteNumber(
-    pickValue(item.unitPrice, item.unit_price, item.price),
-    0
+  const knownQuantity = toFiniteNumber(pickValue(item.quantity, item.order_quantity), null)
+  const quantity = knownQuantity ?? 0
+  const unitPrice = toFinancialNumber(
+    pickFinancialValue(item.unitPrice, item.unit_price, item.price)
   )
-  const explicitTotal = pickValue(
+  const explicitTotal = pickFinancialValue(
     item.totalPrice,
     item.total_price,
     item.total,
     item.amount
   )
-  const totalPrice = hasValue(explicitTotal)
-    ? toFiniteNumber(explicitTotal, quantity * unitPrice)
-    : quantity * unitPrice
+  const totalPrice = explicitTotal !== undefined
+    ? toFinancialNumber(explicitTotal)
+    : knownQuantity === null || unitPrice === null ? null : roundMoney(knownQuantity * unitPrice)
+  const taxRate = toFinancialNumber(pickFinancialValue(item.taxRate, item.tax_rate))
+  const explicitTaxAmount = pickFinancialValue(item.taxAmount, item.tax_amount)
+  const taxAmount = explicitTaxAmount !== undefined
+    ? toFinancialNumber(explicitTaxAmount)
+    : totalPrice === null || taxRate === null ? null : roundMoney(totalPrice * (taxRate > 1 ? taxRate / 100 : taxRate))
 
   return {
     ...item,
@@ -90,18 +107,15 @@ export const normalizePurchaseOrderItem = (item = {}) => {
     unit: pickValue(item.unit, item.unitName, item.unit_name) ?? '',
     unitName: pickValue(item.unitName, item.unit_name, item.unit) ?? '',
     unitId: pickValue(item.unitId, item.unit_id) ?? null,
+    deliveryDate: pickValue(item.deliveryDate, item.delivery_date) ?? '',
     quantity,
     price: unitPrice,
     unitPrice,
     totalPrice,
     amount: totalPrice,
     total: totalPrice,
-    taxRate: hasValue(pickValue(item.taxRate, item.tax_rate))
-      ? toFiniteNumber(pickValue(item.taxRate, item.tax_rate), 0)
-      : null,
-    taxAmount: hasValue(pickValue(item.taxAmount, item.tax_amount))
-      ? toFiniteNumber(pickValue(item.taxAmount, item.tax_amount), 0)
-      : 0,
+    taxRate,
+    taxAmount,
     receivedQuantity: toFiniteNumber(
       pickValue(item.receivedQuantity, item.received_quantity),
       0
@@ -145,7 +159,15 @@ export const normalizePurchaseOrder = (order = {}) => {
     orderNo: pickValue(order.orderNo, order.order_no) ?? '',
     orderDate: pickValue(order.orderDate, order.order_date) ?? '',
     supplierId: pickValue(order.supplierId, order.supplier_id) ?? null,
+    supplierCode: pickValue(order.supplierCode, order.supplier_code) ?? '',
     supplierName: pickValue(order.supplierName, order.supplier_name) ?? '',
+    supplierFax: pickValue(order.supplierFax, order.supplier_fax) ?? '',
+    senderName: pickValue(order.senderName, order.sender_name) ?? '',
+    approverId: pickApprovalValue(order.approverId, order.approver_id) ?? null,
+    approverName: pickApprovalValue(order.approverName, order.approver_name) ?? null,
+    approverSignatureCode: pickApprovalValue(order.approverSignatureCode, order.approver_signature_code) ?? null,
+    approvedAt: pickApprovalValue(order.approvedAt, order.approved_at) ?? null,
+    technicalRequirements: pickValue(order.technicalRequirements, order.technical_requirements) ?? order.remarks ?? '',
     expectedDeliveryDate: pickValue(
       order.expectedDeliveryDate,
       order.expected_delivery_date
@@ -153,18 +175,10 @@ export const normalizePurchaseOrder = (order = {}) => {
     contactPerson: pickValue(order.contactPerson, order.contact_person) ?? '',
     contactPhone: pickValue(order.contactPhone, order.contact_phone) ?? '',
     contractCode: pickValue(order.contractCode, order.contract_code) ?? '',
-    totalAmount: hasValue(pickValue(order.totalAmount, order.total_amount))
-      ? toFiniteNumber(pickValue(order.totalAmount, order.total_amount), 0)
-      : null,
-    subtotal: hasValue(pickValue(order.subtotal, order.sub_total))
-      ? toFiniteNumber(pickValue(order.subtotal, order.sub_total), 0)
-      : null,
-    taxAmount: hasValue(pickValue(order.taxAmount, order.tax_amount))
-      ? toFiniteNumber(pickValue(order.taxAmount, order.tax_amount), 0)
-      : null,
-    taxRate: hasValue(pickValue(order.taxRate, order.tax_rate))
-      ? toFiniteNumber(pickValue(order.taxRate, order.tax_rate), 0)
-      : null,
+    totalAmount: toFinancialNumber(pickFinancialValue(order.totalAmount, order.total_amount)),
+    subtotal: toFinancialNumber(pickFinancialValue(order.subtotal, order.sub_total)),
+    taxAmount: toFinancialNumber(pickFinancialValue(order.taxAmount, order.tax_amount)),
+    taxRate: toFinancialNumber(pickFinancialValue(order.taxRate, order.tax_rate)),
     status: pickValue(order.status) ?? '',
     requisitionId,
     requisitionNo: pickValue(order.requisitionNo, order.requisition_no) ?? requisitionNumber,

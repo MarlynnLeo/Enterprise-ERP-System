@@ -1,10 +1,10 @@
 /**
  * RequisitionAutoOrderService.js
- * @description 采购申请批准后自动生成采购订单的独立服务
+ * @description 采购申请提交后自动生成采购订单的独立服务
  * @date 2026-04-22
  *
  * 从 purchaseRequisitionController.updateRequisitionStatus 中提取，
- * 供控制器直接调用和工作流回调共用。
+ * 供控制器和缺料自动请购共用。
  */
 
 const { pool } = require('../../config/db');
@@ -25,10 +25,10 @@ const { firstValidUserId } = require('../../utils/userUtils');
 const { DOCUMENT_LINK_TYPES: DocType } = require('../../constants/documentLinkTypes');
 
 /**
- * 采购申请批准后自动生成采购订单
+ * 采购申请提交后自动生成采购订单
  * @param {number} requisitionId - 采购申请ID
  * @param {object} [conn] - 数据库连接（可选，不传则自行获取）
- * @param {number} [actorId] - 审批人用户ID（当 created_by 为空时的充底责任人）
+ * @param {number} [actorId] - 提交人用户ID（当 created_by 为空时的责任人）
  * @returns {Array} 生成的采购订单列表
  */
 async function generateOrdersFromRequisition(requisitionId, conn, actorId) {
@@ -40,7 +40,7 @@ async function generateOrdersFromRequisition(requisitionId, conn, actorId) {
     if (useOwnConn) await conn.beginTransaction();
 
     logger.info(
-      `Purchase requisition approved; generating purchase orders: requisitionId=${requisitionId}`
+      `Purchase requisition submitted; generating purchase orders: requisitionId=${requisitionId}`
     );
 
     // 获取采购申请的基本信息
@@ -55,8 +55,8 @@ async function generateOrdersFromRequisition(requisitionId, conn, actorId) {
       throw new Error('采购申请不存在');
     }
     const requisition = requisitionRows[0];
-    if (!['approved', 'completed'].includes(requisition.status))
-      throw Object.assign(new Error('采购申请尚未审批通过，不能自动转单'), { statusCode: 400 });
+    if (!['submitted', 'approved', 'completed'].includes(requisition.status))
+      throw Object.assign(new Error('请先提交采购申请，再生成采购订单'), { statusCode: 400 });
 
     // 获取采购申请的物料项，关联物料表获取供应商信息和价格
     let [itemsRows] = await conn.execute(
@@ -138,7 +138,7 @@ async function generateOrdersFromRequisition(requisitionId, conn, actorId) {
       );
     }
 
-    // Workflow retries and manual partial conversions share the same requisition
+    // Submission retries and manual partial conversions share the same requisition
     // lock. Allocate only the unfulfilled quantity across its material lines.
     const [activeOrderItems] = await conn.execute(
       `SELECT poi.material_id, poi.quantity FROM purchase_order_items poi
@@ -276,12 +276,12 @@ async function generateOrdersFromRequisition(requisitionId, conn, actorId) {
       const taxAmountTotal = sumMoney(calculatedItems.map((item) => item.tax_amount));
       const totalAmount = roundMoney(subtotal + taxAmountTotal);
 
-      // created_by 优先用申请单原始值，fallback 到审批人（actorId），
+      // created_by 优先用申请单原始值，fallback 到提交人（actorId），
       // 兼容历史脏数据（早期录入时 created_by 可能为 NULL）。
       const createdBy = firstValidUserId(requisition.created_by, actorId);
       if (!createdBy) {
         throw new Error(
-          `采购申请 ${requisition.requisition_number || requisitionId} 缺少可追溯责任人，不能自动生成采购订单（请确认申请单创建人或审批人信息）`
+          `采购申请 ${requisition.requisition_number || requisitionId} 缺少责任人，不能自动生成采购订单（请确认申请单创建人或提交人信息）`
         );
       }
 

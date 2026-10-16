@@ -25,6 +25,11 @@ jest.mock('../../src/utils/logger', () => ({
   logger: { error: jest.fn(), info: jest.fn(), warn: jest.fn(), debug: jest.fn() },
 }));
 
+// Numbering failure propagation is covered by inventoryPostingNumbering.test.js.
+jest.mock('../../src/services/business/CodeGeneratorService', () => ({
+  nextCode: jest.fn().mockResolvedValue('INV-BATCH-TEST'),
+}));
+
 jest.mock('../../src/services/business/PeriodValidationService', () => ({
   validateInventoryTransaction: jest.fn().mockResolvedValue({ allowed: true }),
 }));
@@ -39,6 +44,22 @@ jest.mock('../../src/services/business/DLQService', () => ({
 
 const db = require('../../src/config/db');
 const BatchManagementService = require('../../src/services/business/BatchManagementService');
+
+function stagingConnection(insertId, batchStock = 0) {
+  return {
+    execute: jest.fn(async (sql) => {
+      if (/FROM\s+inventory_ledger/i.test(sql) && /AS\s+batch_stock/i.test(sql)) {
+        return [[{ batch_stock: batchStock }]];
+      }
+      if (/SELECT\s+.+\s+FROM\s+inventory_posting_documents\s+WHERE\s+id\s*=/i.test(sql)) {
+        return [[{ id: insertId, posting_no: `INV-${insertId}`, finance_status: 'pending' }]];
+      }
+      if (sql.trim().startsWith('SELECT')) return [[]];
+      return [{ insertId, affectedRows: 1 }];
+    }),
+    query: jest.fn(),
+  };
+}
 
 describe('BatchManagementService.reserveBatch FIFO connection', () => {
   const conn = db.__mockConn;
@@ -246,10 +267,7 @@ describe('InventoryService batch number normalize on ledger write', () => {
   });
 
   it('updateStock stages a posting line with normalized batch_number before finance approval', async () => {
-    const connection = {
-      execute: jest.fn().mockResolvedValue([{ insertId: 55 }]),
-      query: jest.fn(),
-    };
+    const connection = stagingConnection(55);
 
     jest.spyOn(InventoryService, '_findLedgerByIdempotencyKey').mockResolvedValue(null);
     jest.spyOn(InventoryService, 'resolveTransactionDate').mockResolvedValue('2026-06-27');
@@ -281,9 +299,7 @@ describe('InventoryService batch number normalize on ledger write', () => {
     const fifoQuery = connection.query.mock.calls[0]?.[0] || '';
     // inventory_ledger and inventory_posting_lines may use different MySQL
     // collations for batch_number; normalize both UNION branches explicitly.
-    expect(fifoQuery).toMatch(
-      /CONVERT\(batch_number USING utf8mb4\) COLLATE utf8mb4_unicode_ci/i
-    );
+    expect(fifoQuery).toMatch(/CONVERT\(batch_number USING utf8mb4\) COLLATE utf8mb4_unicode_ci/i);
     expect(fifoQuery).toMatch(
       /CONVERT\(l\.batch_number USING utf8mb4\) COLLATE utf8mb4_unicode_ci/i
     );
@@ -301,10 +317,7 @@ describe('InventoryService batch number normalize on ledger write', () => {
   });
 
   it('updateStock normalizes explicit batchNumber before ledger insert', async () => {
-    const connection = {
-      execute: jest.fn().mockResolvedValue([{ insertId: 66 }]),
-      query: jest.fn(),
-    };
+    const connection = stagingConnection(66, 50);
 
     jest.spyOn(InventoryService, '_findLedgerByIdempotencyKey').mockResolvedValue(null);
     jest.spyOn(InventoryService, 'resolveTransactionDate').mockResolvedValue('2026-06-27');
@@ -324,7 +337,7 @@ describe('InventoryService batch number normalize on ledger write', () => {
         referenceNo: 'OUT-2',
         referenceType: 'test',
         operator: 'tester',
-        batchNumber: 'B-EXPLICIT',
+        batchNumber: ' B-EXPLICIT ',
       },
       connection
     );
@@ -337,7 +350,7 @@ describe('InventoryService batch number normalize on ledger write', () => {
     await new Promise((resolve) => setImmediate(resolve));
   });
 
-  it('uses the inbound posting source for batches created from purchase receipts', async () => {
+  it('uses the canonical purchase receipt posting source and receipt ID for purchase batches', async () => {
     const updateStock = jest.spyOn(InventoryService, 'updateStock').mockResolvedValue({
       success: true,
     });
@@ -366,7 +379,8 @@ describe('InventoryService batch number normalize on ledger write', () => {
     expect(updateStock).toHaveBeenCalledWith(
       expect.objectContaining({
         transactionType: 'purchase_inbound',
-        referenceType: 'inbound',
+        referenceType: 'purchase_receipt',
+        sourceId: 12,
         referenceNo: 'RCV-20260909-0001',
       }),
       connection

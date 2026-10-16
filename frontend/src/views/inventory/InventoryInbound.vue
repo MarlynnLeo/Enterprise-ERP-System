@@ -27,6 +27,11 @@
         </el-form-item>
       </template>
       <template #advanced>
+        <el-form-item label="状态">
+          <el-select v-model="searchForm.status" placeholder="全部状态" clearable>
+            <el-option v-for="status in ['draft', 'confirmed', 'completed', 'reversed', 'cancelled']" :key="status" :label="getStatusText(status)" :value="status" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="入库单号">
           <el-input v-model="searchForm.inboundNo" placeholder="入库单号" clearable />
         </el-form-item>
@@ -79,16 +84,27 @@
 
     <!-- 数据表格 -->
     <el-card class="data-card">
+      <InventoryBatchApproval
+        :selected-rows="selectedInbounds"
+        source-type="inbound"
+        source-no-key="inboundNo"
+        :disabled="loading"
+        @clear="clearInboundSelection"
+        @changed="handleApprovalChanged"
+      />
       <el-table
+        ref="inboundTableRef"
         :data="tableData"
+        row-key="id"
         class="table-row-click w-full"
         v-loading="loading"
         border
-      
-      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row.id))">
+        @selection-change="handleInboundSelectionChange"
+      @row-click="(row, column, event) => column?.type !== 'selection' && handleTableRowView(row, column, event, () => handleView(row.id))">
         <template #empty>
           <EmptyState description="暂无入库单数据" />
         </template>
+        <el-table-column v-if="canBatchApprove" type="selection" width="55" fixed="left" :selectable="canSelectInbound" />
         <el-table-column prop="inboundNo" label="入库单号" width="135" />
         <el-table-column prop="inboundType" label="入库类型" width="110">
           <template #default="{ row }">
@@ -138,11 +154,20 @@
             {{ scope.row.operatorName || scope.row.operator || '未知' }}
           </template>
         </el-table-column>
-        <el-table-column prop="remark" label="备注" width="180" show-overflow-tooltip />
+        <el-table-column prop="remarks" label="备注" width="180" show-overflow-tooltip />
         <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
       >
           <template #default="{ row }">
             <TableRowActions>
+              <el-button
+                size="small"
+                type="primary"
+                v-permission="'inventory:inbound:view'"
+                @click="handleView(row.id)"
+              >
+                <el-icon><ViewIcon /></el-icon> {{ row.status === 'completed' && row.financeStatus === 'pending' ? '审核' : '详情' }}
+              </el-button>
+              <el-button v-if="canEditInbound(row)" size="small" type="primary" @click="handleEdit(row)">编辑</el-button>
               <el-popconfirm
                 v-if="row.status === 'draft'"
                 title="确定要确认该入库单吗？"
@@ -227,6 +252,7 @@
             <el-form-item label="入库类型" prop="inboundType">
               <el-select
                 v-model="form.inboundType"
+                :disabled="sourceLocked"
                 placeholder="请选择入库类型"
                 class="w-full"
                 @change="handleInboundTypeChange"
@@ -270,7 +296,7 @@
           </el-col>
         </el-row>
         <!-- 生产退料时显示关联任务选择 -->
-        <el-row :gutter="20" v-if="form.inboundType === 'production_return'">
+        <el-row :gutter="20" v-if="['production', 'production_return'].includes(form.inboundType)">
           <el-col :span="16">
             <el-form-item label="关联任务" prop="referenceNo">
               <el-input
@@ -280,7 +306,7 @@
                 @click="openTaskSelectDialog"
               >
                 <template #append>
-                  <el-button @click="openTaskSelectDialog">选择任务</el-button>
+                  <el-button :disabled="sourceLocked" @click="openTaskSelectDialog">选择任务</el-button>
                 </template>
               </el-input>
             </el-form-item>
@@ -455,18 +481,19 @@
         <el-table-column prop="remarks" label="备注" min-width="150" />
       </el-table>
       <InventoryApprovalPanel
-        v-if="authStore.canViewInventoryApproval"
+        v-if="Boolean(currentInbound.id)"
         source-type="inbound"
+        :active="viewDialogVisible && !viewLoading"
         :source-id="currentInbound.id"
         :source-no="currentInbound.inboundNo"
-        :resubmit-status="currentInbound.status === 'completed' ? 'completed' : ''"
-        @resubmit="handleResubmitInbound"
         @changed="handleApprovalChanged"
       />
       </div>
       <template #footer>
         <el-button @click="viewDialogVisible = false">关闭</el-button>
-        <el-button type="primary" @click="handlePrintInbound" :loading="printLoading">打印</el-button>
+        <el-button v-if="canEditInbound(currentInbound)" type="primary" :disabled="viewLoading" @click="handleEdit(currentInbound)">编辑</el-button>
+        <el-button v-if="canResubmitInbound" type="warning" :loading="resubmittingInbound" @click="handleResubmitInbound('completed')">重新提交审核</el-button>
+        <el-button type="primary" @click="handlePrintInbound" :loading="printLoading" :disabled="viewLoading || !currentInbound.id">打印</el-button>
       </template>
     </AppDialog>
     <!-- 物料选择对话框 -->
@@ -527,7 +554,7 @@
     <!-- 生产任务选择对话框 -->
     <AppDialog
       v-model="productionTaskDialogVisible"
-      title="选择生产任务（生产退料）"
+      :title="form.inboundType === 'production' ? '选择生产任务与终检放行单' : '选择生产任务（生产退料）'"
       mode="form"
       wide
     >
@@ -567,8 +594,15 @@
         </el-table-column>
       </el-table>
       <!-- 选中任务后显示领料记录 -->
-      <template v-if="selectedTask">
-        <el-divider>任务 {{ selectedTask.code }} 的领料记录</el-divider>
+      <template v-if="pickerTask && form.inboundType === 'production'">
+        <el-divider>任务 {{ pickerTask.code }} 的终检放行依据</el-divider>
+        <el-alert v-if="!releaseSources.length && !taskMaterialLoading" title="该任务暂无可入库的终检放行数量" type="warning" :closable="false" />
+        <el-select v-else v-model="selectedInspectionId" placeholder="请选择终检放行单" :loading="taskMaterialLoading" class="w-full">
+          <el-option v-for="source in releaseSources" :key="source.id" :value="source.id" :label="`${source.inspectionNo} · 批次 ${source.batchNo || '-'} · 可入库 ${source.availableQuantity}`" />
+        </el-select>
+      </template>
+      <template v-if="pickerTask && form.inboundType === 'production_return'">
+        <el-divider>任务 {{ pickerTask.code }} 的领料记录</el-divider>
         <el-alert
           v-if="taskMaterialRecords.length === 0 && !taskMaterialLoading"
           title="该任务暂无领料记录"
@@ -624,7 +658,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="productionTaskDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="confirmTaskSelection" :disabled="!selectedTask">确认选择</el-button>
+          <el-button type="primary" @click="confirmTaskSelection" :disabled="!pickerTask || taskMaterialLoading">确认选择</el-button>
         </span>
       </template>
         </AppDialog>
@@ -636,10 +670,10 @@ import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
-import { ref, reactive, onMounted, computed, nextTick } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, onDeactivated, computed, nextTick, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus/es/components/message/index'
-import { Plus, Check, Finished, Close } from '@element-plus/icons-vue'
+import { Plus, Check, Finished, Close, View as ViewIcon } from '@element-plus/icons-vue'
 import { inventoryApi, baseDataApi, productionApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { useDictionaryStore } from '@/stores/dictionary'
@@ -659,21 +693,26 @@ import { loadLocationOptions } from '@/utils/optionLoaders'
 import printService from '@/services/printService'
 import TableRowActions from '@/components/common/TableRowActions.vue'
 import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue'
+import InventoryBatchApproval from '@/components/inventory/InventoryBatchApproval.vue'
 const route = useRoute()
 // 权限store
 const authStore = useAuthStore()
 const dictionaryStore = useDictionaryStore()
 const getCurrentUserDisplayName = () => {
   const currentUser = authStore.user || tokenManager.getUser()
-  return currentUser?.realName || currentUser?.realName || currentUser?.name || currentUser?.username || ''
+  return currentUser?.realName || currentUser?.name || currentUser?.username || ''
 }
 // 权限计算属性
 const canCreate = computed(() => authStore.hasPermission && authStore.hasPermission('inventory:inbound:create'));
+const canUpdate = computed(() => Boolean(authStore.hasPermission?.('inventory:inbound:update')))
+const canBatchApprove = computed(() => Boolean(authStore.canViewInventoryApproval && authStore.canApproveInventoryApproval))
+const canEditInbound = (inbound) => canUpdate.value && ['draft', 'confirmed'].includes(inbound?.status)
 // 搜索表单
 const searchForm = reactive({
   materialName: '',
   inboundNo: '',
   locationId: '',
+  status: '',
   dateRange: []
 })
 // 表格数据
@@ -686,6 +725,20 @@ const {
   setCurrentItem: setCurrentViewInbound
 } = useListDetailNavigation(tableData)
 const loading = ref(false)
+const inboundTableRef = ref(null)
+const selectedInbounds = ref([])
+const canSelectInbound = (row) => !loading.value && canBatchApprove.value && row.status === 'completed' &&
+  (!row.financeStatus || row.financeStatus === 'pending')
+const handleInboundSelectionChange = (selection) => {
+  selectedInbounds.value = selection.filter(canSelectInbound)
+}
+const clearInboundSelection = () => {
+  selectedInbounds.value = []
+  inboundTableRef.value?.clearSelection?.()
+}
+watch(searchForm, clearInboundSelection, { deep: true, flush: 'sync' })
+watch(tableData, clearInboundSelection, { flush: 'sync' })
+watch(canBatchApprove, clearInboundSelection)
 // 添加响应式分页对象
 const pagination = reactive({
   currentPage: 1,
@@ -700,6 +753,7 @@ const viewLoading = ref(false)
 const submitLoading = ref(false)
 const formRef = ref(null)
 const form = reactive({
+  id: null,
   inboundDate: '',
   locationId: '',
   operator: '',
@@ -710,8 +764,11 @@ const form = reactive({
   inboundType: 'other',
   referenceType: null,
   referenceId: null,
-  referenceNo: null
+  referenceNo: null,
+  inspectionId: null,
+  inspectionNo: '',
 })
+const sourceLocked = computed(() => dialogType.value === 'edit' && Boolean(form.inspectionId))
 const inboundTypeDefinitions = Object.freeze([
   { value: 'other', dictionaryCode: 'inbound', fallbackLabel: '其他入库' },
   { value: 'production', dictionaryCode: 'production_inbound', fallbackLabel: '生产入库' },
@@ -747,19 +804,32 @@ const productionTasks = ref([])
 const taskSearchKeyword = ref('')
 const taskLoading = ref(false)
 const selectedTask = ref(null)
+const pickerTask = ref(null)
+const pickerProduct = ref(null)
+const releaseSources = ref([])
+const selectedInspectionId = ref(null)
+const committedRelease = ref(null)
+let taskSelectionSequence = 0
+let viewRequestSequence = 0
+let editRequestSequence = 0
 const taskMaterialRecords = ref([])
 const taskMaterialLoading = ref(false)
 // 当前查看的入库单
 const currentInbound = reactive({
+  id: null,
   inboundNo: '',
   inboundDate: '',
   locationName: '',
   status: '',
+  financeStatus: null,
   operator: '',
   operatorName: '',
   remarks: '',
   items: []
 })
+const resubmittingInbound = ref(false)
+const canResubmitInbound = computed(() => viewDialogVisible.value && !viewLoading.value && Boolean(currentInbound.id) &&
+  canUpdate.value && currentInbound.status === 'completed' && currentInbound.financeStatus === 'rejected')
 // 基础数据
 const locations = ref([])
 const _materials = ref([])
@@ -852,6 +922,7 @@ const loadUnits = async () => {
 };
 // 加载入库单列表
 const loadInbounds = async () => {
+  clearInboundSelection()
   loading.value = true;
   try {
     const params = {
@@ -860,6 +931,7 @@ const loadInbounds = async () => {
       materialName: searchForm.materialName,
       inboundNo: searchForm.inboundNo,
       locationId: searchForm.locationId,
+      status: searchForm.status,
       startDate: searchForm.dateRange && searchForm.dateRange[0] ? searchForm.dateRange[0] : '',
       endDate: searchForm.dateRange && searchForm.dateRange[1] ? searchForm.dateRange[1] : ''
     };
@@ -884,14 +956,21 @@ const handleSearch = () => {
 };
 // 新建入库单
 const handleCreate = () => {
+  if (!canCreate.value || submitLoading.value) return
+  editRequestSequence += 1
   dialogType.value = 'create'
+  form.id = null
   form.inboundDate = formatLocalDate(new Date())
   form.locationId = ''
   form.inboundType = getDefaultInboundType()
   form.referenceType = null
   form.referenceId = null
   form.referenceNo = null
+  form.inspectionId = null
+  form.inspectionNo = ''
   selectedTask.value = null
+  committedRelease.value = null
+  selectedReturnMaterials.value = []
   // 设置当前用户为操作人（使用真实姓名）
   form.operator = getCurrentUserDisplayName()
 
@@ -900,9 +979,42 @@ const handleCreate = () => {
   form.items = []
   dialogVisible.value = true
 }
+
+const handleEdit = async (row) => {
+  if (!row?.id || !canEditInbound(row) || submitLoading.value) return
+  const id = row.id
+  const request = ++editRequestSequence
+  const fromDetail = row === currentInbound
+  const viewContext = viewRequestSequence
+  const isCurrent = () => request === editRequestSequence &&
+    (!fromDetail || (viewDialogVisible.value && viewContext === viewRequestSequence))
+  try {
+    const data = parseResponseData(await inventoryApi.getInboundDetail(id))
+    if (!isCurrent() || !data || !canEditInbound(data)) return
+    dialogType.value = 'edit'
+    Object.assign(form, {
+      id: data.id, inboundDate: formatLocalDate(data.inboundDate), locationId: data.locationId,
+      inboundType: data.inboundType, status: data.status,
+      referenceType: data.referenceType || null, referenceId: data.referenceId || null,
+      referenceNo: data.referenceNo || null, inspectionId: data.inspectionId || null,
+      inspectionNo: data.inspectionNo || '', operator: data.operator || getCurrentUserDisplayName(),
+      remarks: data.remarks || '', items: (data.items || []).map(item => ({ ...item })),
+    })
+    selectedTask.value = null
+    committedRelease.value = null
+    selectedReturnMaterials.value = []
+    viewDialogVisible.value = false
+    dialogVisible.value = true
+    await nextTick()
+    formRef.value?.clearValidate?.()
+  } catch (error) {
+    if (isCurrent()) ElMessage.error(getApiErrorMessage(error, '获取待编辑入库单失败'))
+  }
+}
 // ========== 打印功能 ==========
 const printLoading = ref(false)
 const handlePrintInbound = async () => {
+  if (!viewDialogVisible.value || viewLoading.value || !currentInbound.id || printLoading.value || !authStore.hasPermission?.('inventory:inbound:view')) return
   printLoading.value = true
   try {
     // 业务侧只传 camel；printService 展开 snake 模板占位
@@ -936,21 +1048,30 @@ const handlePrintInbound = async () => {
   }
 }
 // 查看入库单
+const clearInboundDetail = () => {
+  Object.keys(currentInbound).forEach(key => { delete currentInbound[key] })
+  Object.assign(currentInbound, { id: null, inboundNo: '', status: '', financeStatus: null, items: [] })
+}
 const handleView = async (id) => {
+  if (!id) return
+  const request = ++viewRequestSequence
+  clearInboundDetail()
   viewDialogVisible.value = true
   viewLoading.value = true
   try {
     const res = await inventoryApi.getInboundDetail(id)
+    if (request !== viewRequestSequence || !viewDialogVisible.value) return
     // 后端使用 ResponseHandler.success 返回，统一由 parser 解包
     const inboundData = parseResponseData(res)
     Object.assign(currentInbound, inboundData)
     const row = tableData.value.find((item) => String(item.id) === String(id))
     if (row) setCurrentViewInbound(row)
   } catch (error) {
+    if (request !== viewRequestSequence) return
     console.error('获取入库单详情失败:', error)
     ElMessage.error('获取入库单详情失败')
   } finally {
-    viewLoading.value = false
+    if (request === viewRequestSequence) viewLoading.value = false
   }
 }
 
@@ -971,6 +1092,7 @@ const inboundViewNavigation = computed(() => ({
 }))
 // 更新入库单状态
 const handleUpdateStatus = async (id, newStatus) => {
+  if (!canUpdate.value) return
   try {
     // 确保使用正确的参数格式
     await inventoryApi.updateInboundStatus(id, { newStatus });
@@ -985,14 +1107,33 @@ const handleUpdateStatus = async (id, newStatus) => {
 }
 
 const handleResubmitInbound = async (status) => {
-  if (!currentInbound.id || !status) return
-  await handleUpdateStatus(currentInbound.id, status)
-  await handleView(currentInbound.id)
+  if (!currentInbound.id || status !== 'completed' || !canResubmitInbound.value || resubmittingInbound.value) return
+  const id = currentInbound.id
+  resubmittingInbound.value = true
+  try {
+    await inventoryApi.updateInboundStatus(id, { newStatus: 'completed' })
+    ElMessage.success('已重新提交财务审核')
+    if (currentInbound.id === id) currentInbound.financeStatus = 'pending'
+    await loadInbounds()
+    if (viewDialogVisible.value && currentInbound.id === id) await handleView(id)
+  } catch (error) {
+    ElMessage.error(getApiErrorMessage(error, '重新提交审核失败'))
+  } finally {
+    resubmittingInbound.value = false
+  }
 }
 
 const handleApprovalChanged = async () => {
+  const id = currentInbound.id
   await loadInbounds()
+  if (viewDialogVisible.value && currentInbound.id === id) await handleView(id)
 }
+
+watch(viewDialogVisible, visible => { if (!visible) { viewRequestSequence += 1; clearInboundDetail() } })
+watch(dialogVisible, visible => { if (!visible) editRequestSequence += 1 })
+const invalidateInboundRequests = () => { clearInboundSelection(); viewRequestSequence += 1; taskSelectionSequence += 1; editRequestSequence += 1 }
+onBeforeUnmount(invalidateInboundRequests)
+onDeactivated(() => { invalidateInboundRequests(); viewDialogVisible.value = false; dialogVisible.value = false; productionTaskDialogVisible.value = false })
 // 组件引用管理
 const materialSelectRefs = ref({})
 const quantityInputRefs = ref({})
@@ -1123,12 +1264,19 @@ const handleLocationChange = () => {
 }
 // 入库类型变化
 const handleInboundTypeChange = () => {
+  if (sourceLocked.value) return
+  taskSelectionSequence += 1
   // 清空关联信息和明细
   form.referenceType = null
   form.referenceId = null
   form.referenceNo = null
   form.items = []
   selectedTask.value = null
+  pickerTask.value = null
+  committedRelease.value = null
+  form.inspectionId = null
+  form.inspectionNo = ''
+  selectedReturnMaterials.value = []
   taskMaterialRecords.value = []
 }
 // 计算对话框标题
@@ -1143,10 +1291,16 @@ const getDialogTitle = computed(() => {
 })
 // 打开生产任务选择对话框
 const openTaskSelectDialog = async () => {
+  if (sourceLocked.value) return
+  taskSelectionSequence += 1
   productionTaskDialogVisible.value = true
   taskSearchKeyword.value = ''
-  selectedTask.value = null
+  pickerTask.value = null
+  pickerProduct.value = null
   taskMaterialRecords.value = []
+  releaseSources.value = []
+  selectedInspectionId.value = null
+  selectedReturnMaterials.value = []
   await searchProductionTasks()
 }
 // 搜索生产任务
@@ -1172,38 +1326,59 @@ const handleTaskRowClick = (row) => {
 }
 // 选择任务
 const selectTask = async (task) => {
-  selectedTask.value = task
-  await loadTaskMaterialRecords(task.id)
+  const request = ++taskSelectionSequence
+  pickerTask.value = null
+  pickerProduct.value = null
+  selectedReturnMaterials.value = []
+  taskMaterialRecords.value = []
+  releaseSources.value = []
+  selectedInspectionId.value = null
+  taskMaterialLoading.value = true
+  try {
+    const taskData = parseResponseData(await productionApi.getProductionTask(task.id))
+    if (request !== taskSelectionSequence || !productionTaskDialogVisible.value) return
+    pickerTask.value = taskData
+    if (form.inboundType === 'production') {
+      const [releaseResponse, productResponse] = await Promise.all([
+        inventoryApi.getTaskReleaseSources(taskData.id),
+        baseDataApi.getMaterial(taskData.productId),
+      ])
+      if (request !== taskSelectionSequence || !productionTaskDialogVisible.value) return
+      releaseSources.value = parseListData(releaseResponse, { enableLog: false })
+      pickerProduct.value = parseResponseData(productResponse)
+    } else {
+      await loadTaskMaterialRecords(taskData.id, request)
+    }
+  } catch (error) {
+    if (request !== taskSelectionSequence) return
+    pickerTask.value = null
+    ElMessage.error(getApiErrorMessage(error, '获取生产任务来源失败'))
+  } finally {
+    if (request === taskSelectionSequence) taskMaterialLoading.value = false
+  }
 }
 // 加载任务领料记录
-const loadTaskMaterialRecords = async (taskId) => {
+const loadTaskMaterialRecords = async (taskId, request = taskSelectionSequence) => {
   try {
     taskMaterialLoading.value = true
-    const response = await inventoryApi.getTaskMaterialIssueRecords(taskId)
+    const response = await inventoryApi.getTaskMaterialIssueRecords(taskId,
+      dialogType.value === 'edit' && form.id ? { excludeInboundId: form.id } : undefined)
+    if (request !== taskSelectionSequence) return
     const data = parseResponseData(response)
     taskMaterialRecords.value = (data?.records || []).map(r => ({
       ...r,
-      materialId: r.materialId ?? r.materialId,
-      materialCode: r.materialCode ?? r.materialCode,
-      materialName: r.materialName ?? r.materialName,
-      materialSpecs: r.materialSpecs ?? r.materialSpecs,
-      unitName: r.unitName ?? r.unitName,
-      unitId: r.unitId ?? r.unitId,
       batchNo: r.batchNo ?? r.batchNumber,
-      issuedQuantity: r.issuedQuantity ?? r.issuedQuantity ?? 0,
-      returnedQuantity: r.returnedQuantity ?? r.returnedQuantity ?? 0,
-      maxReturnableQuantity: r.maxReturnableQuantity ?? r.maxReturnableQuantity ?? 0,
-      defaultLocationId: r.defaultLocationId ?? r.defaultLocationId,
-      defaultLocationName: r.defaultLocationName ?? r.defaultLocationName,
-      returnQuantity: (r.maxReturnableQuantity ?? r.maxReturnableQuantity ?? 0) > 0
-        ? (r.maxReturnableQuantity ?? r.maxReturnableQuantity)
-        : 0
+      issuedQuantity: Number(r.issuedQuantity || 0),
+      returnedQuantity: Number(r.returnedQuantity || 0),
+      maxReturnableQuantity: Number(r.maxReturnableQuantity || 0),
+      returnQuantity: Math.max(0, Number(r.maxReturnableQuantity || 0)),
     }))
   } catch (error) {
+    if (request !== taskSelectionSequence) return
     console.error('获取领料记录失败:', error)
     taskMaterialRecords.value = []
   } finally {
-    taskMaterialLoading.value = false
+    if (request === taskSelectionSequence) taskMaterialLoading.value = false
   }
 }
 // 检查是否可选择退料
@@ -1217,16 +1392,50 @@ const handleReturnMaterialSelection = (selection) => {
 }
 // 确认任务选择
 const confirmTaskSelection = () => {
-  if (!selectedTask.value) {
+  if (!pickerTask.value || taskMaterialLoading.value) {
     ElMessage.warning('请先选择一个生产任务')
     return
   }
+  const task = pickerTask.value
+  if (form.inboundType === 'production') {
+    const release = releaseSources.value.find(source => String(source.id) === String(selectedInspectionId.value))
+    const product = pickerProduct.value
+    if (!release || !(Number(release.availableQuantity) > 0) || !product?.id || !product.unitId ||
+      (release.productId && Number(release.productId) !== Number(product.id))) {
+      ElMessage.warning('请选择有效的终检放行单及任务产品')
+      return
+    }
+    selectedTask.value = { ...task }
+    committedRelease.value = { ...release }
+    form.referenceType = 'production_task'
+    form.referenceId = task.id
+    form.referenceNo = task.code
+    form.inspectionId = release.id
+    form.inspectionNo = release.inspectionNo
+    form.items = [{
+      materialId: product.id, materialCode: product.code, materialName: product.name,
+      specification: product.specs || '', unitId: product.unitId, unitName: product.unitName || '',
+      quantity: Number(release.availableQuantity), batchNo: release.batchNo || '',
+      locationId: form.locationId, remarks: '',
+    }]
+    productionTaskDialogVisible.value = false
+    return
+  }
   // 获取选中的退料物料
-  const returnItems = taskMaterialRecords.value.filter(r => r.returnQuantity > 0 && r.maxReturnableQuantity > 0)
+  const returnItems = selectedReturnMaterials.value.filter(row => taskMaterialRecords.value.includes(row))
   if (returnItems.length === 0) {
     ElMessage.warning('请至少选择一个物料并设置退料数量')
     return
   }
+  if (returnItems.some(item => !Number.isFinite(Number(item.returnQuantity)) || Number(item.returnQuantity) <= 0)) {
+    ElMessage.warning('退料数量必须为大于零的有限数值')
+    return
+  }
+  if (returnItems.some(item => Number(item.returnQuantity) > Number(item.maxReturnableQuantity))) {
+    ElMessage.warning('退料数量不能超过该批次的可退数量')
+    return
+  }
+  selectedTask.value = { ...task }
   // 设置关联信息
   form.referenceType = 'production_task'
   form.referenceId = selectedTask.value.id
@@ -1245,6 +1454,7 @@ const confirmTaskSelection = () => {
     materialName: item.materialName,
     specification: item.materialSpecs,
     quantity: item.returnQuantity,
+    maxReturnableQuantity: item.maxReturnableQuantity,
     unitName: item.unitName,
     unitId: item.unitId || null,
     batchNo: item.batchNo || '',
@@ -1260,17 +1470,44 @@ const getTaskStatusType = (status) => getProductionStatusColor(status) || 'info'
 const getTaskStatusText = (status) => getProductionStatusText(status) || status || '未知'
 // 提交表单
 const handleSubmit = async () => {
-  if (!formRef.value) return
+  if (!formRef.value || submitLoading.value || !dialogVisible.value) return
+  if (dialogType.value === 'create' ? !canCreate.value : !canEditInbound(form)) return
+  const mode = dialogType.value
+  const id = form.id
+  const request = editRequestSequence
+  const isCurrent = () => dialogVisible.value && request === editRequestSequence && dialogType.value === mode && form.id === id
 
+  submitLoading.value = true
   try {
-    await formRef.value.validate()
+    if (await formRef.value.validate() === false || !isCurrent()) return
 
     if (form.items.length === 0) {
       ElMessage.warning('请至少添加一个物料项')
       return
     }
 
-    submitLoading.value = true
+    if (form.items.some(item => !Number.isSafeInteger(Number(item.materialId)) || Number(item.materialId) <= 0 ||
+      !Number.isFinite(Number(item.quantity)) || Number(item.quantity) <= 0)) {
+      ElMessage.warning('物料及入库数量无效，数量必须为大于零的有限数值')
+      return
+    }
+    if (form.inboundType === 'production' && !sourceLocked.value) {
+      const task = selectedTask.value
+      const release = committedRelease.value
+      if (!task || !release || Number(form.referenceId) !== Number(task.id) || form.referenceType !== 'production_task' ||
+        Number(form.inspectionId) !== Number(release.id) || form.items.length !== 1 ||
+        Number(form.items[0].materialId) !== Number(task.productId) ||
+        Number(form.items[0].quantity) > Number(release.availableQuantity) ||
+        (Number(task.quantity) > 0 && Number(form.items[0].quantity) > Number(task.quantity))) {
+        ElMessage.warning('生产入库必须关联任务产品及有效终检放行数量')
+        return
+      }
+    }
+    if (form.inboundType === 'production_return' && (!form.referenceId || form.referenceType !== 'production_task' ||
+      form.items.some(item => item.maxReturnableQuantity != null && Number(item.quantity) > Number(item.maxReturnableQuantity)))) {
+      ElMessage.warning('生产退料必须关联原任务，且不能超过该批次的可退数量')
+      return
+    }
 
     // 确保所有物料项有 unitId / unitName
     for (const item of form.items) {
@@ -1299,27 +1536,29 @@ const handleSubmit = async () => {
       referenceType: form.referenceType,
       referenceId: form.referenceId,
       referenceNo: form.referenceNo,
+      inspectionId: form.inspectionId,
+      inspectionNo: form.inspectionNo,
       items: form.items.map(item => ({
         materialId: item.materialId,
         quantity: item.quantity,
         unitId: item.unitId,
-        batchNo: item.batchNo,
+        batchNo: String(item.batchNo || '').trim(),
         locationId: item.locationId || form.locationId,
         remarks: item.remarks
       }))
     };
 
     // 根据对话框类型决定是创建还是更新
-    if (dialogType.value === 'create') {
+    if (mode === 'create') {
       await inventoryApi.createInbound(submitData)
       ElMessage.success('入库单创建成功')
     } else {
-      await inventoryApi.updateInbound(form.id, submitData)
+      await inventoryApi.updateInbound(id, submitData)
       ElMessage.success('入库单更新成功')
     }
     // 追溯关系由后端入库流程统一写入 batch_relationships，前端不再重复发起旧追溯接口。
 
-    dialogVisible.value = false
+    if (isCurrent()) dialogVisible.value = false
     handleSearch()
   } catch (error) {
     console.error('提交失败:', error)
@@ -1331,6 +1570,7 @@ const handleSubmit = async () => {
 // 分页处理
 const handleSizeChange = (val) => {
   pagination.pageSize = val;
+  pagination.currentPage = 1;
   loadInbounds();
 };
 const handleCurrentChange = (val) => {
@@ -1478,6 +1718,7 @@ const resetSearch = () => {
   searchForm.materialName = '';
   searchForm.inboundNo = '';
   searchForm.locationId = '';
+  searchForm.status = '';
   searchForm.dateRange = [];
   pagination.currentPage = 1;
   loadInbounds();
@@ -1488,7 +1729,8 @@ const updateStats = async () => {
     const params = {
       materialName: searchForm.materialName || undefined,
       inboundNo: searchForm.inboundNo || undefined,
-      locationId: searchForm.locationId || undefined
+      locationId: searchForm.locationId || undefined,
+      status: searchForm.status || undefined
     };
     if (searchForm.dateRange && searchForm.dateRange.length === 2) {
       params.startDate = searchForm.dateRange[0];

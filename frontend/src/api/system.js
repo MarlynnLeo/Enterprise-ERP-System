@@ -45,7 +45,7 @@ export const systemApi = {
 
     // 用户管理
     getUsers: (params) => api.get('/system/users', { params: normalizeUserParams(params) }),
-    getUsersList: () => api.get('/system/users/list'),
+    getUsersList: (params) => api.get('/system/users/list', { params }),
     getUser: (id) => api.get(`/system/users/${id}`),
     createUser: (data) => api.post('/system/users', data),
     updateUser: (id, data) => api.put(`/system/users/${id}`, data),

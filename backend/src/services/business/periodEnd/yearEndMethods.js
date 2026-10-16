@@ -18,6 +18,7 @@ module.exports = {
   async yearEndTransfer(yearData) {
     const connection = await db.pool.getConnection();
     try {
+      await connection.execute('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
       await connection.beginTransaction();
 
       const { year, transferred_by } = yearData;
@@ -25,6 +26,12 @@ module.exports = {
       if (!year) {
         throw new Error('会计年度不能为空');
       }
+      // 与反结账持有同一期间锁；锁后读取最新余额，串行化同年度重复结转。
+      const [yearPeriods] = await connection.execute(
+        'SELECT id FROM gl_periods WHERE fiscal_year = ? ORDER BY id FOR UPDATE',
+        [year]
+      );
+      if (!yearPeriods.length) throw new Error(`${year}年度没有会计期间`);
 
       // 1. 检查该年度所有期间是否已关闭
       const [openPeriods] = await connection.execute(

@@ -7,15 +7,18 @@ import { salesApi } from '@/api'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 
 vi.mock('@/api', () => ({ salesApi: { getExchanges: vi.fn(), updateExchangeStatus: vi.fn(async () => ({})) }, baseDataApi: {} }))
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ hasPermission: () => true }) }))
 vi.mock('@/stores/dictionary', () => ({ useDictionaryStore: () => ({ getOptions: () => [], getLabel: () => '', getColor: () => '' }) }))
 vi.mock('@/components/inventory/InventoryApprovalPanel.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('element-plus/es/components/message/index', () => ({ ElMessage: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }))
+vi.mock('element-plus/es/components/message/style/css', () => ({}))
 vi.mock('element-plus/es/components/message-box/index', () => ({ ElMessageBox: { confirm: vi.fn(async () => true) } }))
+vi.mock('@/services/printService', () => ({ default: {} }))
 let wrapper
 afterEach(() => wrapper?.unmount())
 
 test('keeps the rejected approval action through list mapping and resubmits only the status', async () => {
-  const row = { id: 7, exchangeNo: 'EX-7', status: 'completed', canResubmitInventory: true }
+  const row = { id: 7, exchangeNo: 'EX-7', status: 'completed', financeStatus: 'rejected', canResubmitInventory: true }
   salesApi.getExchanges.mockResolvedValueOnce({ data: { items: [row], total: 1 } })
     .mockResolvedValue({ data: { items: [{ ...row, canResubmitInventory: false }], total: 1 } })
   const source = readFileSync(resolve(process.cwd(), 'src/views/sales/SalesExchanges.vue'), 'utf8')

@@ -16,6 +16,7 @@
 const { logger } = require('../utils/logger');
 const { pool } = require('../config/db');
 const cacheService = require('./cache/CacheManager');
+const { getProfile, permissionAllowed } = require('../authorization/roleAccessProfiles');
 
 /**
  * 权限别名映射表（双向，前缀匹配）
@@ -144,6 +145,17 @@ function applyBidirectionalAliases(permissions) {
   return expanded;
 }
 
+function roleAllowsPermission(role, code) {
+  const profile = getProfile(role.code);
+  if (!profile) return true;
+  // Managed profiles grant exact registry codes. Keeping a scoped wildcard
+  // would bypass exclusions such as an accountant's :approve restrictions.
+  if (code.includes('*')) return false;
+  const aliases = [...applyBidirectionalAliases([code])];
+  if (aliases.some((alias) => (profile.denyPermissions || []).includes(alias))) return false;
+  return aliases.some((alias) => permissionAllowed(alias, profile));
+}
+
 /**
  * 展开权限列表，添加所有别名变体
  *
@@ -210,16 +222,27 @@ class PermissionService {
    */
   static async getUserPermissions(userId, forceRefresh = false) {
     try {
-      const cacheKey = `${this.CACHE_CONFIG.PREFIX.USER_PERMISSIONS}${userId}`;
+      if (!Number.isSafeInteger(Number(userId)) || Number(userId) <= 0) return [];
+      // Bind cached grants to the committed authorization version. A concurrent
+      // pre-revocation read may refill its old key, but cannot affect a new login,
+      // even when Redis invalidation fails or another process uses memory cache.
+      const [[user]] = await pool.execute(
+        'SELECT status, token_version FROM users WHERE id = ? LIMIT 1',
+        [userId]
+      );
+      if (!user || Number(user.status) !== 1) return [];
+      const tokenVersion = Number(user.token_version ?? 0);
+      if (!Number.isSafeInteger(tokenVersion) || tokenVersion < 0) return [];
+      const cacheKey = `${this.CACHE_CONFIG.PREFIX.USER_PERMISSIONS}${userId}:v${tokenVersion}`;
 
       // 如果不是强制刷新，尝试从缓存获取
       if (!forceRefresh) {
         const cachedPermissions = await cacheService.get(cacheKey);
-        if (cachedPermissions !== null) {
+        if (Array.isArray(cachedPermissions)) {
           logger.debug(
             `Permission cache hit: cacheKey=${cacheKey}, permissionCount=${cachedPermissions.length}`
           );
-          return cachedPermissions;
+          return [...cachedPermissions];
         }
       }
 
@@ -246,7 +269,7 @@ class PermissionService {
         `Permission cache stored: cacheKey=${cacheKey}, permissionCount=${permissions.length}`
       );
 
-      return permissions;
+      return [...permissions];
     } catch (error) {
       logger.error('获取用户权限失败:', error);
       throw error;
@@ -317,7 +340,7 @@ class PermissionService {
     const placeholders = roleIds.map(() => '?').join(',');
 
     const [permissions] = await pool.execute(
-      `SELECT DISTINCT p.code AS permission
+      `SELECT DISTINCT rp.role_id, p.code AS permission
          FROM permissions p
          JOIN role_permissions rp ON rp.permission_id = p.id
         WHERE rp.role_id IN (${placeholders})
@@ -325,7 +348,15 @@ class PermissionService {
         ORDER BY p.code`,
       roleIds
     );
-    const rawPermissions = permissions.map((permission) => permission.permission).filter(Boolean);
+    const rolesById = new Map(userRoles.map((role) => [Number(role.id), role]));
+    const rawPermissions = permissions
+      .filter((row) => {
+        const code = row.permission;
+        if (typeof code !== 'string' || !code.trim() || code.trim() === '*') return false;
+        const role = rolesById.get(Number(row.role_id));
+        return Boolean(role) && roleAllowsPermission(role, code);
+      })
+      .map((row) => row.permission);
 
     return expandPermissionsWithAliases(rawPermissions);
   }
@@ -338,6 +369,7 @@ class PermissionService {
     if (userId) {
       const cacheKey = `${this.CACHE_CONFIG.PREFIX.USER_PERMISSIONS}${userId}`;
       await cacheService.delete(cacheKey);
+      await cacheService.deleteByPrefix(`${cacheKey}:`);
       logger.info(`User permission cache cleared: userId=${userId}`);
     } else {
       const count = await cacheService.deleteByPrefix(this.CACHE_CONFIG.PREFIX.USER_PERMISSIONS);

@@ -7,7 +7,10 @@ jest.mock('../../src/models/purchase', () => ({}));
 jest.mock('../../src/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
-jest.mock('../../src/authorization/ScopeGuard', () => ({ assertAccess: jest.fn() }));
+jest.mock('../../src/authorization/ScopeGuard', () => ({
+  assertAccess: jest.fn(),
+  applyListScope: jest.fn(),
+}));
 jest.mock('../../src/utils/desensitizer', () => ({ desensitizeDataForUser: jest.fn() }));
 jest.mock('../../src/services/business/PurchaseOrderStatusService', () => ({}));
 jest.mock('../../src/services/business/PurchaseReceiveInspectionService', () => ({}));
@@ -26,6 +29,85 @@ jest.mock('../../src/services/PurchaseOrderService', () => {
     insertOrderItems: jest.fn(),
     syncRequisitionStatusFromOrders: jest.fn(),
   };
+});
+
+describe('purchase order source requisitions after approval removal', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    db.pool.query.mockReset();
+    ScopeGuard.assertAccess.mockResolvedValue(true);
+    ScopeGuard.applyListScope.mockResolvedValue({ join: '', where: '', params: [] });
+  });
+
+  test.each(['submitted', 'approved'])(
+    'lists submitted and historical approved requisitions for the %s source filter',
+    async (status) => {
+      db.pool.query.mockResolvedValueOnce([[]]);
+      const res = response();
+
+      await controller.getRequisitions({ query: { status } }, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(db.pool.query).toHaveBeenCalledWith(expect.stringContaining('r.status IN (?)'), [
+        ['submitted', 'approved'],
+      ]);
+      expect(ScopeGuard.applyListScope).toHaveBeenCalledWith(
+        expect.any(Object),
+        'purchase_requisition',
+        expect.objectContaining({ accessMode: 'read' })
+      );
+    }
+  );
+
+  test('includes all submitted source states by default', async () => {
+    db.pool.query.mockResolvedValueOnce([[]]);
+    const res = response();
+
+    await controller.getRequisitions({ query: {} }, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(db.pool.query.mock.calls[0][1]).toEqual([['submitted', 'approved', 'completed']]);
+  });
+
+  test('keeps explicit completed source filtering available', async () => {
+    db.pool.query.mockResolvedValueOnce([[]]);
+    const res = response();
+
+    await controller.getRequisitions({ query: { status: 'completed' } }, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(db.pool.query.mock.calls[0][1]).toEqual([['completed']]);
+  });
+
+  test('opens a submitted source and returns its outstanding quantities', async () => {
+    db.pool.query
+      .mockResolvedValueOnce([[{ id: 4, requisition_number: 'PR-4', status: 'submitted' }]])
+      .mockResolvedValueOnce([
+        [{ id: 40, requisition_id: 4, material_id: 3, material_code: 'M-3', quantity: 10 }],
+      ])
+      .mockResolvedValueOnce([[{ material_code: 'M-3', ordered_qty: 4 }]]);
+    const res = response();
+
+    await controller.getRequisition({ params: { id: '4' } }, res);
+
+    expect(db.pool.query.mock.calls[0][1]).toEqual(['4', 'submitted', 'approved', 'completed']);
+    expect(ScopeGuard.assertAccess).toHaveBeenCalledWith(
+      db.pool,
+      expect.any(Object),
+      'purchase_requisition',
+      '4',
+      { accessMode: 'read' }
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'submitted',
+          materials: [expect.objectContaining({ quantity: 10, orderedQuantity: 4 })],
+        }),
+      })
+    );
+  });
 });
 
 const db = require('../../src/config/db');

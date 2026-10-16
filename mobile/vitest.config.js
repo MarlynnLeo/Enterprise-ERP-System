@@ -11,6 +11,7 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    setupFiles: ['./tests/setup/browserStorage.js'],
     include: ['tests/**/*.test.js'],
     clearMocks: true,
     restoreMocks: true

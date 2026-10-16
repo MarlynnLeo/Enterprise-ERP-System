@@ -23,7 +23,10 @@ const {
 const ScopeGuard = require('../../../authorization/ScopeGuard');
 const PermissionService = require('../../../services/PermissionService');
 const PaymentApprovalService = require('../../../services/finance/PaymentApprovalService');
-const { parseSettlementLine } = require('../../../utils/finance/settlementMath');
+const {
+  parseSettlementLine,
+  normalizeSettlementPaymentMethod,
+} = require('../../../utils/finance/settlementMath');
 const {
   fromInvoiceApi,
   toInvoiceApi,
@@ -533,21 +536,9 @@ const apController = {
         );
       }
 
-      // 转换支付方式为数据库接受的值
-      let paymentMethod = '银行转账'; // 默认值
-      if (paymentData.paymentMethod) {
-        // 映射前端传来的值到数据库接受的值
-        const methodMap = {
-          bank_transfer: '银行转账',
-          cash: '现金',
-          check: '支票',
-          credit_card: '信用卡',
-          wechat: '微信',
-          alipay: '支付宝',
-        };
-
-        paymentMethod = methodMap[paymentData.paymentMethod] || '银行转账';
-      }
+      const paymentMethod = normalizeSettlementPaymentMethod(
+        paymentData.paymentMethod || '银行转账'
+      );
 
       if (BANK_BACKED_PAYMENT_METHODS.has(paymentMethod) && !paymentData.bankAccountId) {
         return ResponseHandler.error(

@@ -41,7 +41,7 @@ describe('outsourced processing detail', () => {
   test('returns the remaining receivable quantity for each product', async () => {
     db.pool.execute
       .mockResolvedValueOnce([[
-        { id: 7, processing_no: 'WW260824001', status: 'in_progress' },
+        { id: 7, processing_no: 'WW260824001', status: 'in_progress', finance_status: 'rejected' },
       ]])
       .mockResolvedValueOnce([[]])
       .mockResolvedValueOnce([[
@@ -72,6 +72,7 @@ describe('outsourced processing detail', () => {
       success: true,
       data: expect.objectContaining({
         processingNo: 'WW260824001',
+        financeStatus: 'rejected',
         products: [expect.objectContaining({
           productCode: '300300402024',
           receivedQuantity: 1,

@@ -2,7 +2,7 @@
   统一空状态
 -->
 <template>
-  <div class="erp-empty-state" role="status" :aria-label="title || '暂无数据'">
+  <div class="erp-empty-state" role="status" :aria-label="title || description || '暂无数据'">
     <el-empty :description="title || description" :image-size="imageSize">
       <template v-if="$slots.default" #default>
         <slot />

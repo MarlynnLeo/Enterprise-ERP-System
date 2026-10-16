@@ -6,17 +6,17 @@
 /* 语义文本色（跟主题 token） */
 .text-success,
 .text-positive {
-  color: var(--color-success) !important;
+  color: var(--color-success-text) !important;
 }
 .text-danger,
 .text-negative {
-  color: var(--color-danger) !important;
+  color: var(--color-danger-text) !important;
 }
 .text-warning {
-  color: var(--color-warning) !important;
+  color: var(--color-warning-text) !important;
 }
 .text-primary {
-  color: var(--color-primary) !important;
+  color: var(--color-primary-text) !important;
 }
 .text-info,
 .text-muted {
@@ -37,22 +37,39 @@
   width: 100% !important;
 }
 .form-control-xs {
+  --form-control-width: 110px;
   width: 110px;
 }
 .form-control-100 {
+  --form-control-width: 100px;
   width: 100px;
 }
 .form-control-sm {
+  --form-control-width: 120px;
   width: 120px;
 }
 .form-control-md {
+  --form-control-width: 160px;
   width: 160px;
 }
 .form-control-lg {
+  --form-control-width: 200px;
   width: 200px;
 }
 .form-control-xl {
+  --form-control-width: 280px;
   width: 280px;
+}
+
+/* Component CSS is lazy-loaded; width utilities must survive its later rules. */
+:is(.el-input, .el-select, .el-input-number, .el-cascader, .el-date-editor):is(
+  .form-control-xs, .form-control-100, .form-control-sm,
+  .form-control-md, .form-control-lg, .form-control-xl,
+  .form-control-240, .form-control-260, .form-control-180, .form-control-130,
+  .form-control-150-mr, .form-control-280-mr, .form-control-140-mr, .form-control-260-mr
+) {
+  width: var(--form-control-width);
+  max-width: 100%;
 }
 
 /* 间距工具（替代常见 margin 行内） */
@@ -114,9 +131,11 @@
   padding: 4px 0;
 }
 .form-control-240 {
+  --form-control-width: 240px;
   width: 240px;
 }
 .form-control-260 {
+  --form-control-width: 260px;
   width: 260px;
 }
 .dialog-max-vw {
@@ -142,15 +161,15 @@
 }
 /* 质量/评分语义色 */
 .score-good {
-  color: var(--color-success) !important;
+  color: var(--color-success-text) !important;
   font-weight: 700;
 }
 .score-warn {
-  color: var(--color-warning) !important;
+  color: var(--color-warning-text) !important;
   font-weight: 700;
 }
 .score-bad {
-  color: var(--color-danger) !important;
+  color: var(--color-danger-text) !important;
   font-weight: 700;
 }
 .score-plain {
@@ -230,7 +249,7 @@
   min-width: 100px;
 }
 .option-row__stock {
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   font-weight: 700;
   min-width: 60px;
   text-align: right;
@@ -254,17 +273,17 @@
   color: var(--color-text-secondary);
 }
 .is-substitute {
-  color: var(--color-success) !important;
+  color: var(--color-success-text) !important;
 }
 .is-substitute-sm {
-  color: var(--color-success) !important;
+  color: var(--color-success-text) !important;
   font-size: 12px;
 }
 .text-stock-ok {
-  color: var(--color-success) !important;
+  color: var(--color-success-text) !important;
 }
 .text-stock-low {
-  color: var(--color-danger) !important;
+  color: var(--color-danger-text) !important;
 }
 .text-disabled {
   color: var(--color-text-disabled, var(--color-text-secondary)) !important;
@@ -351,12 +370,12 @@
   text-align: center;
 }
 .qty-up {
-  color: var(--color-success) !important;
+  color: var(--color-success-text) !important;
   font-weight: 700;
   font-size: 14px;
 }
 .qty-down {
-  color: var(--color-danger) !important;
+  color: var(--color-danger-text) !important;
   font-weight: 700;
   font-size: 14px;
 }
@@ -384,13 +403,13 @@
   padding: 0 20px 10px 40px;
 }
 .strength-weak {
-  color: var(--color-danger);
+  color: var(--color-danger-text);
 }
 .strength-medium {
-  color: var(--color-warning);
+  color: var(--color-warning-text);
 }
 .strength-strong {
-  color: var(--color-success);
+  color: var(--color-success-text);
 }
 .detail-print-area {
   padding: 10px;
@@ -443,7 +462,7 @@
   justify-content: space-between;
   font-size: 15px;
   font-weight: 700;
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   margin-top: 4px;
 }
 .cursor-pointer {
@@ -567,7 +586,7 @@
   font-weight: 700;
 }
 .text-amount-lg {
-  color: var(--color-danger);
+  color: var(--color-danger-text);
   font-size: 18px;
   margin-left: 5px;
 }
@@ -619,7 +638,7 @@
   color: var(--el-color-white);
 }
 .text-danger-hint {
-  color: var(--color-danger);
+  color: var(--color-danger-text);
   font-size: 12px;
   margin-top: 5px;
 }
@@ -628,10 +647,10 @@
   color: var(--color-text-secondary);
 }
 .amount-positive {
-  color: var(--color-danger) !important;
+  color: var(--color-danger-text) !important;
 }
 .amount-negative {
-  color: var(--color-success) !important;
+  color: var(--color-success-text) !important;
 }
 .amount-zero {
   color: var(--color-text-regular) !important;
@@ -639,18 +658,22 @@
 
 /* 表单控件宽度扩展 */
 .form-control-180 {
+  --form-control-width: 180px;
   width: 180px;
   margin-right: 10px;
 }
 .form-control-130 {
+  --form-control-width: 130px;
   width: 130px;
   margin-right: 10px;
 }
 .form-control-150-mr {
+  --form-control-width: 150px;
   width: 150px;
   margin-right: 10px;
 }
 .form-control-280-mr {
+  --form-control-width: 280px;
   width: 280px;
   margin-right: 10px;
 }
@@ -685,19 +708,19 @@
 }
 .icon-mid-primary {
   vertical-align: middle;
-  color: var(--color-primary);
+  color: var(--color-primary-text);
 }
 .icon-mid-danger {
   vertical-align: middle;
-  color: var(--color-danger);
+  color: var(--color-danger-text);
 }
 .icon-mid-warning {
   vertical-align: middle;
-  color: var(--color-warning);
+  color: var(--color-warning-text);
 }
 .icon-mid-success {
   vertical-align: middle;
-  color: var(--color-success);
+  color: var(--color-success-text);
 }
 
 /* 打印/等宽字体区 */
@@ -744,7 +767,7 @@
 .detail-total-amount {
   font-size: 18px;
   font-weight: 700;
-  color: var(--color-danger);
+  color: var(--color-danger-text);
 }
 .help-text-sm {
   font-size: 12px;
@@ -797,7 +820,7 @@
 }
 .return-hint {
   margin-top: 8px;
-  color: var(--color-success);
+  color: var(--color-success-text);
   font-size: 13px;
 }
 .flex-end-mb {
@@ -806,7 +829,7 @@
   margin-bottom: 8px;
 }
 .icon-warning-ml {
-  color: var(--color-warning);
+  color: var(--color-warning-text);
   margin-left: 4px;
 }
 .mt-8 {
@@ -830,21 +853,23 @@
 }
 .text-warning-ml {
   margin-left: 8px;
-  color: var(--color-warning);
+  color: var(--color-warning-text);
 }
 .text-primary-bold {
   font-weight: 700;
-  color: var(--el-color-primary, var(--color-primary));
+  color: var(--color-primary-text);
 }
 
 /* —— 全量清理补充 —— */
 .gap-15 { gap: 15px; }
 .gap-20 { gap: 20px; }
 .form-control-140-mr {
+  --form-control-width: 140px;
   width: 140px;
   margin-right: 10px;
 }
 .form-control-260-mr {
+  --form-control-width: 260px;
   width: 260px;
   margin-right: 10px;
 }

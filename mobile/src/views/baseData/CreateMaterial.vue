@@ -10,7 +10,7 @@
   <div class="create-page">
     <NavBar :title="isEdit ? '编辑物料' : '新建物料'" left-arrow @click-left="router.back()">
       <template #right>
-        <Button type="primary" size="small" @click="submitForm" :loading="submitting">保存</Button>
+        <Button type="primary" size="small" @click="submitForm" :loading="submitting" :disabled="imagesBusy">保存</Button>
       </template>
     </NavBar>
 
@@ -243,6 +243,11 @@
           />
         </div>
 
+        <div class="form-section">
+          <div class="section-title">图片附件</div>
+          <MaterialImages ref="materialImages" :material-id="editId" :editable="canUploadImages" :disabled="submitting" @busy-change="imagesBusy = $event" />
+        </div>
+
         <!-- 底部安全间距 -->
         <div style="height: 20px;"></div>
       </Form>
@@ -334,11 +339,18 @@
   import { baseDataApi, systemApi } from '@/api'
   import { extractApiData } from '@/utils/apiHelper'
   import { getApiErrorMessage } from '@/utils/errorHandler'
+  import MaterialImages from '@/components/MaterialImages.vue'
+  import { useAuthStore } from '@/stores/auth'
 
   const router = useRouter()
   const route = useRoute()
-  const isEdit = computed(() => !!route.params.id)
-  const editId = computed(() => route.params.id)
+  const savedMaterialId = ref(null)
+  const isEdit = computed(() => !!(route.params.id || savedMaterialId.value))
+  const editId = computed(() => route.params.id || savedMaterialId.value)
+  const authStore = useAuthStore()
+  const canUploadImages = computed(() => authStore.hasPermission('basedata:materials:update'))
+  const materialImages = ref(null)
+  const imagesBusy = ref(false)
   const formRef = ref()
   const submitting = ref(false)
 
@@ -636,19 +648,26 @@
 
   // === 提交表单 ===
   const submitForm = async () => {
+    if (submitting.value || imagesBusy.value) return
+    submitting.value = true
     try {
       await formRef.value?.validate()
-      submitting.value = true
       showLoadingToast({ message: '保存中...', forbidClick: true })
       if (isEdit.value) {
         await baseDataApi.updateMaterial(editId.value, form)
-        closeToast()
-        showToast('物料更新成功')
       } else {
-        await baseDataApi.createMaterial(form)
-        closeToast()
-        showToast('物料创建成功')
+        const result = extractApiData(await baseDataApi.createMaterial(form))
+        savedMaterialId.value = result.id
       }
+      closeToast()
+      if (materialImages.value?.hasPending()) {
+        const uploaded = await materialImages.value.uploadPending(editId.value)
+        if (!uploaded) {
+          showToast('物料已保存，部分图片上传失败，请再次点击保存重试')
+          return
+        }
+      }
+      showToast('物料保存成功')
       router.back()
     } catch (e) {
       closeToast()
@@ -872,7 +891,7 @@
     }
 
     &.active {
-      color: var(--color-primary);
+      color: var(--color-primary-text);
       background: rgba(64, 150, 255, 0.06);
     }
   }
@@ -885,13 +904,13 @@
     text-overflow: ellipsis;
 
     .active & {
-      color: var(--color-primary);
+      color: var(--color-primary-text);
       font-weight: 600;
     }
   }
 
   .search-picker-item-check {
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     font-size: 1.125rem;
     flex-shrink: 0;
     margin-left: 8px;

@@ -309,7 +309,7 @@
     justify-content: center;
     flex-shrink: 0;
     background: color-mix(in srgb, var(--ds-blue) 10%, transparent);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
   }
 
   .hero-main {

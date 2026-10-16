@@ -1,14 +1,22 @@
 <template>
   <div class="module-page dashboard-page dashboard-container dashboard--classic">
     <div class="main-layout">
+      <!-- 头部欢迎栏与日期 -->
       <header class="dashboard-heading">
         <div class="dashboard-heading-copy">
-          <h1>工作概览</h1>
-          <p>掌握今日待办、团队动态与市场行情</p>
+          <div class="heading-title-row">
+            <h1>工作概览</h1>
+            <span class="heading-badge">实时动态</span>
+          </div>
+          <p>掌握今日待办、团队协作与工业行情</p>
         </div>
-        <div class="dashboard-date"><el-icon><Calendar /></el-icon>{{ todayLabel }}</div>
+        <div class="dashboard-date">
+          <el-icon class="date-icon"><Calendar /></el-icon>
+          <span>{{ todayLabel }}</span>
+        </div>
       </header>
-      <!-- 工作概览和个人信息 -->
+
+      <!-- 核心指标统计与个人信息 -->
       <section class="overview-grid" aria-label="工作统计与个人信息">
         <div class="overview-metrics">
           <div
@@ -29,8 +37,8 @@
               </div>
             </div>
           </div>
-
         </div>
+
         <!-- 个人信息与天气整合卡片 -->
         <div class="overview-profile">
           <PersonalInfoCard
@@ -40,7 +48,10 @@
           />
         </div>
       </section>
+
+      <!-- 主工作区内容：双栏弹性响应式排版 -->
       <div class="dashboard-content">
+        <!-- 左侧核心主栏：待办事项与生产计划 -->
         <section class="dashboard-primary" aria-label="待办事项与生产计划">
           <div class="dashboard-panel dashboard-todos">
             <DashboardTodoList
@@ -59,6 +70,8 @@
             />
           </div>
         </section>
+
+        <!-- 右侧辅助侧栏：团队排行、市场行情与日历 -->
         <section class="dashboard-secondary" aria-label="团队动态、市场行情与日历">
           <div class="dashboard-panel ranking-container">
             <OnlineTimeRanking
@@ -89,27 +102,45 @@
             <div class="calendar-wrapper">
               <div class="calendar-header">
                 <div class="month-selector">
-                  <el-button text circle class="month-arrow" aria-label="上个月" @click="changeMonth(-1)"><el-icon><ArrowLeft /></el-icon></el-button>
-                  <span>{{ currentMonthStr }}</span>
-                  <el-button text circle class="month-arrow" aria-label="下个月" @click="changeMonth(1)"><el-icon><ArrowRight /></el-icon></el-button>
+                  <button type="button" class="month-arrow-btn" aria-label="上个月" @click="changeMonth(-1)">
+                    <el-icon><ArrowLeft /></el-icon>
+                  </button>
+                  <span class="month-title">{{ currentMonthStr }}</span>
+                  <button type="button" class="month-arrow-btn" aria-label="下个月" @click="changeMonth(1)">
+                    <el-icon><ArrowRight /></el-icon>
+                  </button>
                 </div>
-                <el-button link class="more-btn" @click="goToTodoPage">查看待办</el-button>
+                <button type="button" class="calendar-today-btn" @click="goToTodoPage">
+                  <span>查看待办</span>
+                </button>
               </div>
-              <div class="calendar-alert">{{ currentYear }}年{{ currentMonth }}月{{ currentDay }}日</div>
+              <div class="calendar-alert">
+                <span class="calendar-alert-dot"></span>
+                <span>今日：{{ currentYear }}年{{ currentMonth }}月{{ currentDay }}日</span>
+              </div>
               <div class="calendar-content">
                 <div class="weekdays-header">
-                  <div class="weekday">日</div>
+                  <div class="weekday weekend">日</div>
                   <div class="weekday">一</div>
                   <div class="weekday">二</div>
                   <div class="weekday">三</div>
                   <div class="weekday">四</div>
                   <div class="weekday">五</div>
-                  <div class="weekday">六</div>
+                  <div class="weekday weekend">六</div>
                 </div>
                 <div class="days-grid">
                   <div class="day-cell" v-for="(day, index) in calendarDays" :key="index">
-                    <div :class="['day-number', {'has-events': day.hasEvents, 'current': day.isCurrentDay, 'other-month': !day.isCurrentMonth}]">
-                      {{ day.date }}
+                    <div
+                      :class="[
+                        'day-number',
+                        {
+                          'has-events': day.hasEvents,
+                          'current': day.isCurrentDay,
+                          'other-month': !day.isCurrentMonth
+                        }
+                      ]"
+                    >
+                      <span class="date-text">{{ day.date }}</span>
                     </div>
                   </div>
                 </div>
@@ -121,6 +152,7 @@
     </div>
   </div>
 </template>
+
 <script setup>
 import { inject } from 'vue'
 import { ArrowLeft, ArrowRight, Calendar } from '@element-plus/icons-vue'
@@ -142,250 +174,449 @@ const {
   currentMonthStr, currentYear, currentMonth, currentDay, calendarDays, todayLabel
 } = inject(DASHBOARD_CONTEXT)
 </script>
+
 <style scoped>
 .dashboard-container {
-  --classic-primary-width: 1150px;
-  --classic-secondary-width: 500px;
-  --classic-calendar-height: 284px;
-  --classic-card-gap: 10px;
-  min-width: 0;
-  min-height: 0;
+  --classic-sidebar-width: clamp(380px, 28vw, 440px);
+  --classic-gap: 14px;
+  --classic-card-radius: 4px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 0;
   display: flex;
-  overflow: auto;
+  flex-direction: column;
   background: transparent;
+  overflow-x: hidden;
 }
+
 .main-layout {
-  /* 保持桌面卡片尺寸，窄窗口通过页面滚动查看。 */
-  width: calc(var(--classic-primary-width) + var(--classic-secondary-width) + var(--classic-card-gap));
-  flex: none;
-  display: grid;
-  grid-template-rows: repeat(3, auto);
-  align-content: start;
-  gap: 10px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--classic-gap);
 }
+
+/* 顶部标题栏 */
 .dashboard-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
-  padding: 2px 0;
+  padding: 4px 2px 2px;
 }
-.dashboard-heading h1 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 650;
-  letter-spacing: -0.5px;
-  color: var(--color-text-primary);
-}
+
 .dashboard-heading-copy {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
-  gap: 4px 12px;
+  gap: 8px 12px;
 }
-.dashboard-heading p {
-  margin: 2px 0 0;
-  color: var(--color-text-secondary);
-  font-size: 13px;
-}
-.dashboard-date {
+
+.heading-title-row {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.dashboard-heading h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--color-text-primary);
+  line-height: 1.2;
+}
+
+.heading-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  color: var(--color-primary);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 20%, transparent);
+}
+
+.dashboard-heading p {
+  margin: 0;
   color: var(--color-text-secondary);
   font-size: 13px;
-  font-variant-numeric: tabular-nums;
 }
-.overview-grid {
-  display: grid;
-  grid-template-columns: var(--classic-primary-width) var(--classic-secondary-width);
-  height: 72px;
-  gap: 10px;
-}
-.overview-metrics {
-  display: grid;
-  height: 72px;
-  box-sizing: border-box;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+
+.dashboard-date {
+  display: inline-flex;
   align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: var(--classic-card-radius);
   background: var(--color-bg-base);
   border: 1px solid var(--color-border-base);
-  border-radius: var(--radius-sm);
+  box-shadow: none;
+  color: var(--color-text-regular);
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
-.overview-stat + .overview-stat {
-  border-left: 1px solid var(--color-border-light);
+
+.date-icon {
+  color: var(--color-primary);
+  font-size: 14px;
 }
-.overview-stat,
-.overview-profile,
-.dashboard-panel {
+
+/* 统计卡片与个人信息栅格 */
+.overview-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--classic-sidebar-width);
+  gap: var(--classic-gap);
   min-width: 0;
 }
-.overview-profile :deep(.combined-info-card) {
-  margin: 0;
-  border-radius: var(--radius-sm);
-}
-.dashboard-container .dashboard-stat {
-  position: relative;
-  display: flex;
-  flex: 1;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 10px;
-  min-width: 0;
-  min-height: 52px;
-  padding: 8px 14px;
-  margin: 0;
+
+.overview-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: stretch;
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-base);
+  border-radius: var(--classic-card-radius);
+  box-shadow: none;
   box-sizing: border-box;
-  text-align: left;
-  background: transparent;
+  min-height: 82px;
+  overflow: hidden;
 }
+
+.overview-stat {
+  display: flex;
+  min-width: 0;
+}
+
+.overview-stat + .overview-stat {
+  border-left: 1px solid var(--color-border-lighter);
+}
+
+.dashboard-container .dashboard-stat {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  box-sizing: border-box;
+  background: transparent;
+  transition: background-color var(--transition-fast) ease;
+}
+
+.dashboard-container .dashboard-stat:hover {
+  background: color-mix(in srgb, var(--color-primary) 3%, transparent);
+}
+
+.dashboard-stat-icon {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--metric-color) 12%, var(--color-bg-base));
+  color: var(--metric-color);
+  border: 1px solid color-mix(in srgb, var(--metric-color) 18%, transparent);
+  box-shadow: none;
+  transition: transform var(--transition-fast) ease;
+}
+
+.dashboard-stat:hover .dashboard-stat-icon {
+  transform: scale(1.05);
+}
+
+.dashboard-stat-icon .el-icon {
+  font-size: 22px;
+}
+
+.blue { --metric-color: var(--color-primary); }
+.red { --metric-color: var(--color-danger); }
+.green { --metric-color: var(--color-success); }
+.purple { --metric-color: #8B5CF6; }
+
 .dashboard-stat-content {
   display: flex;
   flex-direction: column;
   min-width: 0;
-}
-.dashboard-stat-icon {
-  width: 30px;
-  height: 30px;
-  flex: 0 0 30px;
-  border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
   justify-content: center;
-  background: color-mix(in srgb, var(--metric-color) 10%, var(--color-bg-base));
-  color: var(--metric-color);
 }
-.blue { --metric-color: var(--color-primary); }
-.red { --metric-color: var(--color-danger); }
-.green { --metric-color: var(--color-warning); }
-.purple { --metric-color: var(--ds-purple); }
-.dashboard-stat-icon .el-icon { font-size: 17px; }
+
 .dashboard-stat-value {
   color: var(--color-text-primary);
-  font-size: 21px;
-  font-weight: 650;
+  font-size: 24px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.6px;
-  line-height: 1.2;
-  overflow-wrap: anywhere;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
 }
+
 .dashboard-stat-label {
   margin-top: 4px;
   color: var(--color-text-secondary);
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
 }
-.dashboard-content {
-  display: grid;
-  grid-template-columns: var(--classic-primary-width) var(--classic-secondary-width);
-  align-items: start;
-  gap: 10px;
-}
-.dashboard-primary,
-.dashboard-secondary {
-  display: grid;
-  align-content: start;
-  gap: 10px;
+
+.overview-profile {
   min-width: 0;
 }
-.dashboard-panel > :deep(*) {
-  margin-bottom: 0;
+
+/* 主内容两栏 */
+.dashboard-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--classic-sidebar-width);
+  gap: var(--classic-gap);
+  align-items: start;
+  min-width: 0;
 }
-.dashboard-todos { height: 394px; }
-.ranking-container { height: 202px; }
-.dashboard-market { height: 244px; }
+
+.dashboard-primary,
+.dashboard-secondary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--classic-gap);
+  min-width: 0;
+}
+
+.dashboard-todos {
+  min-height: 410px;
+}
+
 .dashboard-plans {
-  /* 补齐左右上方卡片的 62px 高差，使生产计划底边与日历对齐。 */
-  height: calc(var(--classic-calendar-height) + 62px);
+  min-height: 340px;
 }
-.dashboard-calendar { height: var(--classic-calendar-height); }
+
+.ranking-container {
+  min-height: 220px;
+}
+
+.dashboard-market {
+  min-height: 250px;
+}
+
+.dashboard-calendar {
+  min-height: 280px;
+}
+
+/* 日历组件视觉精修 */
 .calendar-wrapper {
   display: flex;
   flex-direction: column;
   height: 100%;
   box-sizing: border-box;
-  padding: 10px 12px;
+  padding: 12px 14px;
   border: 1px solid var(--color-border-base);
-  border-radius: var(--radius-sm);
+  border-radius: var(--classic-card-radius);
   background: var(--color-bg-base);
+  box-shadow: none;
 }
+
 .calendar-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
+
 .month-selector {
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: var(--color-text-primary);
+  gap: 6px;
+}
+
+.month-arrow-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border-light);
+  background: var(--color-bg-base);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: 0;
+  transition: all var(--transition-fast) ease;
+}
+
+.month-arrow-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent);
+}
+
+.month-title {
   font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  min-width: 72px;
+  text-align: center;
+}
+
+.calendar-today-btn {
+  border: 0;
+  background: transparent;
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background var(--transition-fast) ease;
+}
+
+.calendar-today-btn:hover {
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+}
+
+.calendar-alert {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: color-mix(in srgb, var(--color-primary) 7%, var(--color-bg-base));
+  color: var(--color-primary);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 16%, transparent);
+  padding: 5px 10px;
+  border-radius: 6px;
+  margin-bottom: 10px;
+  font-size: 12px;
   font-weight: 600;
 }
-.month-arrow { color: var(--color-text-secondary); }
-.more-btn { font-size: 12px; }
-.calendar-alert {
-  background: var(--color-primary-light-9);
-  color: var(--color-primary);
-  padding: 5px 8px;
-  border-radius: var(--radius-sm);
-  margin-bottom: 8px;
-  text-align: center;
-  font-size: 13px;
+
+.calendar-alert-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-primary);
 }
+
 .calendar-content {
   display: flex;
   flex-direction: column;
 }
+
 .weekdays-header,
 .days-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 4px;
+  gap: 3px;
 }
+
 .weekdays-header {
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   text-align: center;
   color: var(--color-text-secondary);
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 600;
 }
+
+.weekday.weekend {
+  color: var(--color-warning);
+}
+
 .day-cell {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 24px;
-  font-size: 13px;
+  min-height: 28px;
 }
+
 .day-number {
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-  border-radius: var(--radius-sm);
+  border-radius: 6px;
   color: var(--color-text-regular);
+  font-size: 12px;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
+  cursor: default;
+  transition: all var(--transition-fast) ease;
 }
+
+.day-number:hover:not(.current) {
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+
 .day-number.has-events {
   color: var(--color-primary);
-  background: var(--color-primary-light-9);
+  font-weight: 700;
 }
+
 .day-number.has-events::after {
   content: '';
   position: absolute;
   bottom: 2px;
-  width: 3px;
-  height: 3px;
-  background: currentColor;
+  width: 4px;
+  height: 4px;
+  background: var(--color-primary);
   border-radius: 50%;
 }
+
 .day-number.current {
   background: var(--color-primary);
   color: var(--color-on-primary);
-  font-weight: 600;
+  font-weight: 700;
+  box-shadow: none;
 }
-.day-number.other-month { color: var(--color-text-placeholder); }
+
+.day-number.current::after {
+  background: var(--color-on-primary);
+}
+
+.day-number.other-month {
+  color: var(--color-text-placeholder);
+  opacity: 0.5;
+}
+
+/* 响应式断点适配 */
+@media (max-width: 1200px) {
+  .overview-grid,
+  .dashboard-content {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .overview-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .overview-stat:nth-child(2) {
+    border-right: none;
+  }
+
+  .overview-stat:nth-child(3),
+  .overview-stat:nth-child(4) {
+    border-top: 1px solid var(--color-border-lighter);
+  }
+
+  .overview-stat:nth-child(3) {
+    border-left: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .overview-metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .overview-stat + .overview-stat {
+    border-left: none;
+    border-top: 1px solid var(--color-border-lighter);
+  }
+}
 </style>

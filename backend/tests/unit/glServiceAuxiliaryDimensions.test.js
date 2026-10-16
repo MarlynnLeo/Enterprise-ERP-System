@@ -35,6 +35,9 @@ describe('GLService auxiliary dimensions', () => {
         if (sql.includes('FROM gl_accounts')) {
           return [[{ id: 1001 }, { id: 6001 }]];
         }
+        if (sql.includes('FROM cost_centers')) {
+          return [[{ id: 11 }]];
+        }
         if (sql.includes('INSERT INTO gl_entry_items')) {
           insertedItemSql = sql;
           insertedItemValues = params[0];

@@ -346,7 +346,7 @@
         color: var(--ds-green-strong);
       }
       &.out {
-        color: var(--color-danger);
+        color: var(--color-danger-text);
       }
       &.transfer {
         color: var(--ds-purple-strong);
@@ -416,7 +416,7 @@
     &.active {
       background: rgba(59, 130, 246, 0.1);
       border-color: var(--color-primary);
-      color: var(--color-primary);
+      color: var(--color-primary-text);
       .chip-badge {
         background: var(--color-primary);
         color: var(--text-primary);
@@ -504,23 +504,23 @@
     flex-shrink: 0;
     &.accent-green {
       background: rgba(16, 185, 129, 0.12);
-      color: var(--color-success);
+      color: var(--color-success-text);
     }
     &.accent-red {
       background: rgba(239, 68, 68, 0.12);
-      color: var(--color-danger);
+      color: var(--color-danger-text);
     }
     &.accent-purple {
       background: rgba(168, 85, 247, 0.12);
-      color: var(--module-purple);
+      color: var(--module-purple-text);
     }
     &.accent-yellow {
       background: rgba(245, 158, 11, 0.12);
-      color: var(--color-warning);
+      color: var(--color-warning-text);
     }
     &.accent-blue {
       background: rgba(59, 130, 246, 0.12);
-      color: var(--color-primary);
+      color: var(--color-primary-text);
     }
   }
 
@@ -536,10 +536,10 @@
     font-family: var(--font-ui);
     flex-shrink: 0;
     &.qty-in {
-      color: var(--color-success);
+      color: var(--color-success-text);
     }
     &.qty-out {
-      color: var(--color-danger);
+      color: var(--color-danger-text);
     }
     &.qty-neutral {
       color: var(--text-primary);

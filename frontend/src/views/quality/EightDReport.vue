@@ -1414,7 +1414,7 @@ onMounted(() => {
 }
 /* 超期样式 */
 .text-danger {
-  color: var(--color-danger);
+  color: var(--color-danger-text);
   font-weight: 600;
 }
 </style>

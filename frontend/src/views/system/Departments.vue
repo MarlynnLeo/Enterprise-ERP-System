@@ -540,13 +540,11 @@ const saveDepartment = async () => {
     return
   }
 
+  saveLoading.value = true
   try {
-    // 表单验证
-    const valid = await departmentFormRef.value.validate()
+    let valid
+    try { valid = await departmentFormRef.value.validate() } catch { return }
     if (!valid) return
-
-    // 🔒 立即设置 loading 状态，防止重复提交
-    saveLoading.value = true
 
     const formData = {
       name: departmentForm.name,
@@ -571,11 +569,6 @@ const saveDepartment = async () => {
     dialogVisible.value = false
     loadDepartments()
   } catch (error) {
-    // 表单验证失败
-    if (error && typeof error === 'object' && !error.response) {
-      return
-    }
-
     console.error('保存部门失败:', error)
 
     // 提取后端返回的错误信息

@@ -781,7 +781,7 @@ function toPickerValue(value) {
   width: 40px;
   height: 40px;
   flex: 0 0 40px;
-  color: var(--el-color-white);
+  color: var(--color-on-primary, var(--el-color-white));
   background: var(--el-color-primary);
   font-size: 20px;
 }
@@ -830,22 +830,22 @@ function toPickerValue(value) {
 }
 
 .summary-icon--primary {
-  color: var(--el-color-white);
+  color: var(--color-on-primary, var(--el-color-white));
   background: var(--el-color-primary);
 }
 
 .summary-icon--success {
-  color: var(--el-color-white);
+  color: var(--color-on-success, var(--el-color-white));
   background: var(--el-color-success);
 }
 
 .summary-icon--warning {
-  color: var(--el-color-white);
+  color: var(--color-on-warning, var(--el-color-white));
   background: var(--el-color-warning);
 }
 
 .summary-icon--danger {
-  color: var(--el-color-white);
+  color: var(--color-on-danger, var(--el-color-white));
   background: var(--el-color-danger);
 }
 

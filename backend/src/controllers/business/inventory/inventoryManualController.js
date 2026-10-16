@@ -894,6 +894,7 @@ const approveManualTransaction = async (req, res) => {
           allowNegativeStock: false,
           businessApprovedById: approverId,
           businessApprovedBy: approver,
+          sourceLineKey: `manual_transaction:${transaction_no}:item:${item.id}`,
           idempotencyKey: `manual_approve:${transaction_no}:item:${item.id}`,
         });
       }

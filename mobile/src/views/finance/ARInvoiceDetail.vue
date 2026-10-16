@@ -89,7 +89,7 @@
       </div>
 
       <!-- 操作按钮 -->
-      <div class="action-section" v-if="invoice.status === '草稿'" v-permission="'finance:ar:update'">
+      <div class="action-section" v-if="invoice.status === '草稿'" v-permission="'finance:ar:approve'">
         <VanButton round block type="primary" @click="handleConfirm" :loading="actionLoading">
           确认发票
         </VanButton>
@@ -164,10 +164,12 @@
 
   // 确认发票
   const handleConfirm = async () => {
+    if (actionLoading.value || !invoice.value?.id) return
+    const recordId = invoice.value.id
+    actionLoading.value = true
     try {
       await showConfirmDialog({ title: '确认', message: '确定确认此应收发票？' })
-      actionLoading.value = true
-      await financeApi.updateARInvoiceStatus(invoice.value.id, '已确认')
+      await financeApi.updateARInvoiceStatus(recordId, '已确认')
       showToast('发票已确认')
       await loadDetail()
     } catch (e) {
@@ -179,10 +181,12 @@
 
   // 作废发票
   const handleVoid = async () => {
+    if (actionLoading.value || !invoice.value?.id) return
+    const recordId = invoice.value.id
+    actionLoading.value = true
     try {
       await showConfirmDialog({ title: '作废确认', message: '确定作废此应收发票？此操作不可撤销。' })
-      actionLoading.value = true
-      await financeApi.updateARInvoiceStatus(invoice.value.id, '已取消')
+      await financeApi.updateARInvoiceStatus(recordId, '已取消')
       showToast('发票已作废')
       await loadDetail()
     } catch (e) {
@@ -225,7 +229,7 @@
     align-items: center;
     justify-content: center;
     background: rgba(59, 130, 246, 0.1);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     flex-shrink: 0;
   }
   .hero-info {
@@ -250,19 +254,19 @@
     flex-shrink: 0;
     &.success {
       background: rgba(16, 185, 129, 0.1);
-      color: var(--color-success);
+      color: var(--color-success-text);
     }
     &.warning {
       background: rgba(245, 158, 11, 0.1);
-      color: var(--color-warning);
+      color: var(--color-warning-text);
     }
     &.danger {
       background: rgba(239, 68, 68, 0.1);
-      color: var(--color-danger);
+      color: var(--color-danger-text);
     }
     &.info {
       background: rgba(59, 130, 246, 0.1);
-      color: var(--color-primary);
+      color: var(--color-primary-text);
     }
     &.default {
       background: rgba(107, 114, 128, 0.1);
@@ -299,13 +303,13 @@
     color: var(--text-primary);
     font-family: var(--font-ui);
     &.primary {
-      color: var(--color-primary);
+      color: var(--color-primary-text);
     }
     &.success {
-      color: var(--color-success);
+      color: var(--color-success-text);
     }
     &.danger {
-      color: var(--color-danger);
+      color: var(--color-danger-text);
     }
   }
 
@@ -366,7 +370,7 @@
   .payment-amount {
     font-size: 0.9375rem;
     font-weight: 700;
-    color: var(--color-success);
+    color: var(--color-success-text);
     font-family: var(--font-ui);
   }
 

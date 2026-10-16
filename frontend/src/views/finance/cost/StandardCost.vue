@@ -152,7 +152,7 @@
                 <template #default="{row}">{{ formatCurrency(row.totalCost) }}</template>
               </el-table-column>
             </el-table>
-            <EmptyState v-else description="暂无BOM材料数据，请先为该产品配置BOM" ::image-size="60" />
+            <EmptyState v-else description="暂无BOM材料数据，请先为该产品配置BOM" :image-size="60" />
           </el-tab-pane>
           <el-tab-pane label="人工明细" name="labor">
             <el-table v-if="currentDetail.labor_details?.length > 0" :data="currentDetail.labor_details" border size="small">
@@ -168,7 +168,7 @@
                 <template #default="{row}">{{ formatCurrency(row.totalCost) }}</template>
               </el-table-column>
             </el-table>
-            <EmptyState v-else description="暂无工艺模板数据，请先为该产品配置工艺模板" ::image-size="60" />
+            <EmptyState v-else description="暂无工艺模板数据，请先为该产品配置工艺模板" :image-size="60" />
           </el-tab-pane>
           <el-tab-pane label="制造费用" name="overhead">
             <template v-if="currentDetail.overhead_details?.rules?.length > 0">
@@ -194,7 +194,7 @@
                 <span class="detail-total-amount">{{ formatCurrency(currentDetail.overhead_cost) }}</span>
               </div>
             </template>
-            <EmptyState v-else description="暂无制造费用明细" ::image-size="60" />
+            <EmptyState v-else description="暂无制造费用明细" :image-size="60" />
             <div class="help-text-mt">
               <p>* 制造费用 = 各专属规则与全局通用规则的累加之和。</p>
               <p>* 单项费用 = 基数数值 × 计算费率。</p>
@@ -245,7 +245,7 @@
           </template>
         </el-table-column>
         <template #empty>
-          <EmptyState description="暂无专属费率，将使用全局默认费率" ::image-size="60" />
+          <EmptyState description="暂无专属费率，将使用全局默认费率" :image-size="60" />
         </template>
       </el-table>
 

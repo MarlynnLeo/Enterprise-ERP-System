@@ -127,8 +127,9 @@
             
             <!-- 待处理状态：可以开始处理 -->
             <el-button
-              v-if="scope.row.status === 'completed' && scope.row.canResubmitInventory"
+              v-if="canResubmitExchange(scope.row)"
               size="small" type="warning" v-permission="'sales:exchanges:update'"
+              :loading="statusUpdating"
               @click="handleComplete(scope.row)"
             >重新提交审批</el-button>
             <el-button
@@ -136,6 +137,7 @@
               size="small"
               type="primary"
               v-permission="'sales:exchanges:update'"
+              :disabled="statusUpdating"
               @click="handleProcess(scope.row)"
             >
               开始处理
@@ -146,6 +148,7 @@
                 size="small"
                 type="success"
                 v-permission="'sales:exchanges:update'"
+                :disabled="statusUpdating"
                 @click="handleComplete(scope.row)"
               >
                 完成
@@ -154,6 +157,7 @@
                 size="small"
                 type="danger"
                 v-permission="'sales:exchanges:update'"
+                :disabled="statusUpdating"
                 @click="handleReject(scope.row)"
               >
                 拒绝
@@ -521,13 +525,16 @@
       <InventoryApprovalPanel
         v-if="currentExchange?.id || currentExchange?.exchangeNo"
         source-type="sales_exchange"
+        :active="detailDialogVisible && !detailDialogLoading"
         :source-id="currentExchange.id"
         :source-no="currentExchange.exchangeNo"
+        @changed="handleApprovalChanged"
       />
       </div>
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="detailDialogVisible = false">关闭</el-button>
+          <el-button v-if="detailDialogVisible && !detailDialogLoading && canResubmitExchange(currentExchange)" type="warning" :loading="statusUpdating" @click="handleComplete(currentExchange)">重新提交审批</el-button>
         </span>
       </template>
     </AppDialog>
@@ -648,12 +655,19 @@ import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { formatCurrency } from '@/utils/helpers/formatters'
 import 'dayjs'
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch, onBeforeUnmount, onDeactivated } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { salesApi, baseDataApi } from '@/api'
 import { Plus, Check, ArrowDown, ArrowUp } from '@element-plus/icons-vue'
 import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue'
+const authStore = useAuthStore()
+const statusUpdating = ref(false)
+let detailRequestSequence = 0
+let listRequestSequence = 0
+const canResubmitExchange = row => Boolean(row?.id) && authStore.hasPermission('sales:exchanges:update') &&
+  row.status === 'completed' && row.financeStatus === 'rejected' && [true, 1].includes(row.canResubmitInventory)
 const loading = ref(false)
 const exchangeRecords = ref([])
 const {
@@ -821,6 +835,7 @@ const resetSearch = () => {
 }
 // 获取换货单数据
 const fetchData = async () => {
+  const request = ++listRequestSequence
   loading.value = true
   try {
     const params = {
@@ -832,6 +847,7 @@ const fetchData = async () => {
       endDate: dateRange.value?.[1] || ''
     }
     const response = await salesApi.getExchanges(params)
+    if (request !== listRequestSequence) return
     if (response?.data) {
       // 使用统一解析器
       const items = parseListData(response, { enableLog: false })
@@ -845,6 +861,7 @@ const fetchData = async () => {
         reason: item.exchangeReason || item.reason,
         status: normalizeExchangeStatus(item.status),
         canResubmitInventory: Boolean(item.canResubmitInventory),
+        financeStatus: item.financeStatus,
         remark: item.remarks || item.remark,
         returnAmount: isBlankAmount(item.returnAmount) ? null : item.returnAmount,
         newAmount: isBlankAmount(item.newAmount) ? null : item.newAmount,
@@ -862,13 +879,14 @@ const fetchData = async () => {
       throw new Error('API响应数据格式错误')
     }
   } catch (error) {
+    if (request !== listRequestSequence) return
     console.error('获取换货单数据失败:', error)
     ElMessage.error('获取换货单数据失败')
     // 清空数据
     exchangeRecords.value = []
     total.value = 0
   } finally {
-    loading.value = false
+    if (request === listRequestSequence) loading.value = false
   }
 }
 // 在组件挂载时获取数据
@@ -941,13 +959,19 @@ const handleEdit = async (row) => {
 }
 // 查看换货单详情
 const handleView = async (row) => {
+  if (!row?.id || !authStore.hasPermission('sales:exchanges:view')) return
+  const request = ++detailRequestSequence
   detailDialogVisible.value = true
   detailDialogLoading.value = true
+  currentExchange.value = null
+  setCurrentViewExchange(row)
   try {
     // 调用API获取完整的换货单详情
     const response = await salesApi.getExchange(row.id)
+    if (request !== detailRequestSequence || !detailDialogVisible.value) return
     // 使用response.data，这是实际的数据
     const exchangeData = response.data || response
+    if (!exchangeData?.id) throw new Error('换货单详情为空')
     // 直接使用后端返回的数据，同时保留驼峰命名的字段用于显示
     currentExchange.value = {
       ...exchangeData,
@@ -962,15 +986,30 @@ const handleView = async (row) => {
       remark: exchangeData.remarks || exchangeData.remark,
       items: exchangeData.items || []
     }
-    setCurrentViewExchange(row)
   } catch (error) {
+    if (request !== detailRequestSequence || !detailDialogVisible.value) return
     console.error('获取换货单详情失败:', error)
     ElMessage.error('获取换货单详情失败')
     detailDialogVisible.value = false
   } finally {
-    detailDialogLoading.value = false
+    if (request === detailRequestSequence) detailDialogLoading.value = false
   }
 }
+
+const clearExchangeDetail = () => {
+  detailRequestSequence += 1
+  currentExchange.value = null
+  detailDialogLoading.value = false
+}
+watch(detailDialogVisible, visible => { if (!visible) clearExchangeDetail() }, { flush: 'sync' })
+onBeforeUnmount(() => { clearExchangeDetail(); listRequestSequence += 1 })
+onDeactivated(() => { detailDialogVisible.value = false; clearExchangeDetail() })
+
+const refreshExchange = async (id, context = detailRequestSequence) => {
+  await fetchData()
+  if (id && detailDialogVisible.value && context === detailRequestSequence && currentExchange.value?.id === id) await handleView({ id })
+}
+const handleApprovalChanged = () => refreshExchange(currentExchange.value?.id)
 
 const handleViewPrevious = () => {
   if (previousViewExchange.value) handleView(previousViewExchange.value)
@@ -988,48 +1027,60 @@ const exchangeViewNavigation = computed(() => ({
   next: handleViewNext
 }))
 // 处理换货单
-const handleProcess = (row) => {
-  ElMessageBox.confirm('确定要处理此换货单吗？', '提示', { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' })
-    .then(async () => {
-      try {
-        await salesApi.updateExchangeStatus(row.id, 'processing')
-        ElMessage.success(`换货单 ${row.exchangeNo} 已开始处理`)
-        detailDialogVisible.value = false
-        await fetchData()
-      } catch (error) {
-        ElMessage.error(getApiErrorMessage(error, '处理失败'))
-      }
-    }).catch(() => {})
+const handleProcess = async (row) => {
+  if (!row?.id || row.status !== 'pending' || statusUpdating.value || !authStore.hasPermission('sales:exchanges:update')) return
+  statusUpdating.value = true
+  const context = detailRequestSequence
+  try {
+    await ElMessageBox.confirm('确定要处理此换货单吗？', '提示', { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' })
+    if (row.status !== 'pending' || !authStore.hasPermission('sales:exchanges:update')) return
+    await salesApi.updateExchangeStatus(row.id, 'processing')
+    row.status = 'processing'
+    ElMessage.success(`换货单 ${row.exchangeNo} 已开始处理`)
+    await refreshExchange(row.id, context)
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') ElMessage.error(getApiErrorMessage(error, '处理失败'))
+  } finally { statusUpdating.value = false }
 }
 // 完成换货单
-const handleComplete = (row) => {
-  const retry = row.status === 'completed' && row.canResubmitInventory
-  ElMessageBox.confirm(retry ? '重新提交已驳回的库存过账，等待财务审核？' : '确认完成这个换货单吗？完成后将无法修改。', retry ? '重新提交审批' : '确认完成', { confirmButtonText: '确认', cancelButtonText: '取消', type: 'success' })
-    .then(async () => {
-      try {
-        await salesApi.updateExchangeStatus(row.id, 'completed')
-        ElMessage.success(retry ? '库存过账已重新提交，待财务审核' : `换货单 ${row.exchangeNo} 已完成`)
-        detailDialogVisible.value = false
-        await fetchData()
-      } catch (error) {
-        ElMessage.error(getApiErrorMessage(error, '完成失败'))
-      }
-    }).catch(() => {})
+const handleComplete = async (row) => {
+  const retry = canResubmitExchange(row)
+  if (!row?.id || (row.status !== 'processing' && !retry) || statusUpdating.value || !authStore.hasPermission('sales:exchanges:update')) return
+  statusUpdating.value = true
+  const context = detailRequestSequence
+  try {
+    await ElMessageBox.confirm(retry ? '重新提交已驳回的库存过账，等待财务审核？' : '确认完成这个换货单吗？完成后将无法修改。', retry ? '重新提交审批' : '确认完成', { confirmButtonText: '确认', cancelButtonText: '取消', type: 'success' })
+    if (!authStore.hasPermission('sales:exchanges:update') || (retry ? !canResubmitExchange(row) : row.status !== 'processing')) return
+    await salesApi.updateExchangeStatus(row.id, 'completed')
+    for (const record of [row, currentExchange.value, ...exchangeRecords.value]) {
+      if (record?.id !== row.id) continue
+      record.status = 'completed'
+      record.financeStatus = 'pending'
+      record.canResubmitInventory = false
+    }
+    ElMessage.success(retry ? '库存过账已重新提交，待财务审核' : `换货单 ${row.exchangeNo} 已完成`)
+    await refreshExchange(row.id, context)
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') ElMessage.error(getApiErrorMessage(error, '完成失败'))
+  } finally { statusUpdating.value = false }
 }
 // 拒绝换货单
-const handleReject = (row) => {
-  ElMessageBox.prompt('请输入拒绝原因', '拒绝换货', {
-    confirmButtonText: '确认拒绝', cancelButtonText: '取消', inputPattern: /.+/, inputErrorMessage: '拒绝原因不能为空',
-  }).then(async ({ value }) => {
-    try {
-      await salesApi.updateExchange(row.id, { status: 'rejected', remarks: `${row.remark || ''}\n拒绝原因：${value}` })
-      ElMessage.success('换货单已拒绝')
-      detailDialogVisible.value = false
-      await fetchData()
-    } catch (error) {
-      ElMessage.error(getApiErrorMessage(error, '拒绝失败'))
-    }
-  }).catch(() => {})
+const handleReject = async (row) => {
+  if (!row?.id || row.status !== 'processing' || statusUpdating.value || !authStore.hasPermission('sales:exchanges:update')) return
+  statusUpdating.value = true
+  const context = detailRequestSequence
+  try {
+    const { value } = await ElMessageBox.prompt('请输入拒绝原因', '拒绝换货', {
+      confirmButtonText: '确认拒绝', cancelButtonText: '取消', inputPattern: /\S+/, inputErrorMessage: '拒绝原因不能为空',
+    })
+    if (row.status !== 'processing' || !authStore.hasPermission('sales:exchanges:update')) return
+    await salesApi.updateExchange(row.id, { status: 'rejected', remarks: `${row.remark || ''}\n拒绝原因：${value}` })
+    row.status = 'rejected'
+    ElMessage.success('换货单已拒绝')
+    await refreshExchange(row.id, context)
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') ElMessage.error(getApiErrorMessage(error, '拒绝失败'))
+  } finally { statusUpdating.value = false }
 }
 const resetForm = () => {
   exchangeForm.value = {
@@ -1244,7 +1295,8 @@ const confirmProductSelection = () => {
 }
 // 提交表单
 const handleSubmit = async () => {
-  if (!exchangeFormRef.value) return
+  if (!exchangeFormRef.value || !dialogVisible.value || submitLoading.value || dialogLoading.value || !authStore.hasPermission(isEdit.value ? 'sales:exchanges:update' : 'sales:exchanges:create')) return
+  submitLoading.value = true
   try {
     await exchangeFormRef.value.validate()
     // 验证退回商品

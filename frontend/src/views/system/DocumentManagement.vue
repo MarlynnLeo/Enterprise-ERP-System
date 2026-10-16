@@ -9,17 +9,17 @@
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
-      @search="fetchList"
+      @search="handleSearch"
       @reset="resetSearch"
     >
       <template #basic>
         <el-form-item label="文档名称">
-          <el-input v-model="keyword" placeholder="文档名称" clearable @keyup.enter="fetchList" />
+          <el-input v-model="keyword" placeholder="文档名称" clearable @keyup.enter="handleSearch" />
         </el-form-item>
       </template>
       <template #advanced>
         <el-form-item label="分类">
-          <el-select v-model="filterCategory" placeholder="全部" clearable @change="fetchList">
+          <el-select v-model="filterCategory" placeholder="全部" clearable @change="handleSearch">
             <el-option label="合同" value="contract" /><el-option label="图纸" value="drawing" />
             <el-option label="规格书" value="specification" /><el-option label="报告" value="report" />
             <el-option label="证书" value="certificate" /><el-option label="手册" value="manual" /><el-option label="其他" value="other" />
@@ -64,6 +64,7 @@
       <div class="pagination-container">
         <el-pagination
           v-model:current-page="page"
+          :page-size="pageSize"
           :total="paginationTotal"
           :layout="totalExact ? 'total, prev, pager, next' : 'prev, pager, next'"
           @change="fetchList"
@@ -85,7 +86,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="文件">
-          <el-upload :auto-upload="false" :on-change="onFileChange" :limit="1" :file-list="fileList">
+          <el-upload v-model:file-list="fileList" :auto-upload="false" :on-change="onFileChange" :on-remove="onFileRemove" :limit="1">
             <el-button type="primary">选择文件</el-button>
           </el-upload>
         </el-form-item>
@@ -102,11 +103,12 @@
 
 <script setup>
 import { getApiErrorMessage } from '@/utils/errorHandler'
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { Download, Delete } from '@element-plus/icons-vue'
 import { documentApi } from '@/api/enhanced'
 import { commonApi } from '@/api/common'
+import { buildResourceUrl } from '@/config/app'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -123,23 +125,31 @@ const fileList = ref([])
 
 const catLabel = { contract:'合同', drawing:'图纸', specification:'规格书', report:'报告', certificate:'证书', manual:'手册', other:'其他' }
 const pageSize = 20
+let listRequest = 0
 const paginationTotal = computed(() => {
   if (totalExact.value) return total.value
   return (page.value - 1) * pageSize + tableData.value.length + (hasMore.value ? 1 : 0)
 })
 
 const fetchList = async () => {
+  const request = ++listRequest
   loading.value = true
   try {
     const res = await documentApi.getList({ keyword: keyword.value, category: filterCategory.value, page: page.value, pageSize })
+    if (request !== listRequest) return
     const d = res.data || res
     tableData.value = d.list || []
     total.value = d.total || 0
     totalExact.value = d.totalExact !== false
     hasMore.value = d.hasMore === true
-  } catch (error) { ElMessage.error(getApiErrorMessage(error, '加载失败')) }
-  finally { loading.value = false }
+  } catch (error) {
+    if (request === listRequest) ElMessage.error(getApiErrorMessage(error, '加载失败'))
+  } finally {
+    if (request === listRequest) loading.value = false
+  }
 }
+
+const handleSearch = () => { page.value = 1; return fetchList() }
 
 const resetSearch = () => {
   keyword.value = ''
@@ -157,7 +167,15 @@ const onFileChange = (file) => {
   form.value._file = file.raw
 }
 
+const onFileRemove = () => {
+  delete form.value._file
+  delete form.value.fileName
+  delete form.value.file_size
+  delete form.value.file_type
+}
+
 const handleSave = async () => {
+  if (saving.value) return
   if (!form.value.name) return ElMessage.warning('请输入文档名称')
   saving.value = true
   try {
@@ -168,8 +186,11 @@ const handleSave = async () => {
       fd.append('file', form.value._file)
       const uploadRes = await commonApi.uploadFile(fd)
       fileUrl = uploadRes.data?.url || uploadRes.data?.filePath || ''
+      if (!fileUrl) throw new Error('上传未返回文件地址，请重试')
     }
-    await documentApi.create({ ...form.value, file_url: fileUrl || 'manual' })
+    const { _file, ...metadata } = form.value
+    void _file
+    await documentApi.create({ ...metadata, file_url: fileUrl || 'manual' })
     ElMessage.success('上传成功'); formVis.value = false; fetchList()
   } catch (e) { ElMessage.error(getApiErrorMessage(e, '上传失败')) }
   finally { saving.value = false }
@@ -179,7 +200,8 @@ const handleDownload = async (row) => {
   try {
     const res = await documentApi.download(row.id)
     const d = res.data || res
-    if (d?.fileUrl) window.open(d.fileUrl, '_blank')
+    const fileUrl = buildResourceUrl(d?.fileUrl)
+    if (fileUrl) window.open(fileUrl, '_blank', 'noopener,noreferrer')
     else ElMessage.info('无文件链接')
   } catch { ElMessage.error('下载失败') }
 }
@@ -190,6 +212,7 @@ const handleDelete = async (id) => {
 }
 
 onMounted(fetchList)
+onBeforeUnmount(() => { listRequest += 1 })
 </script>
 
 <style scoped>

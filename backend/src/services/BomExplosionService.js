@@ -52,6 +52,7 @@ class BomExplosionService {
 
       const ancestorPath = [];
       const baseQuantity = netStockMap ? quantity : 1;
+      const cacheBomVersions = new Map([[Number(bom.id), String(bom.version)]]);
 
       const explosionResult = await this.recursiveExplode(
         bom.id,
@@ -60,7 +61,7 @@ class BomExplosionService {
         1,
         baseQuantity,
         ancestorPath,
-        options
+        { ...options, cacheBomVersions }
       );
 
       if (!netStockMap) {
@@ -70,7 +71,7 @@ class BomExplosionService {
         }
 
         if (explosionResult.length > 0 && useCache) {
-          await this.saveToCache(bom.id, bom.version, explosionResult);
+          await this.saveToCache(bom.id, bom.version, explosionResult, cacheBomVersions);
         }
 
         return explosionResult.map((item) => ({
@@ -216,6 +217,9 @@ class BomExplosionService {
               : await this.getLatestApprovedBom(currentDetail.material_id);
 
             if (childBom) {
+              if (options.cacheBomVersions && !options.cacheBomVersions.has(Number(childBom.id))) {
+                options.cacheBomVersions.set(Number(childBom.id), String(childBom.version));
+              }
               const externalChildren = await this.recursiveExplode(
                 childBom.id,
                 currentDetail.material_id,
@@ -364,17 +368,32 @@ class BomExplosionService {
   /**
    * 保存展开结果到缓存
    */
-  static async saveToCache(bomId, bomVersion, explosionResult) {
+  static async saveToCache(
+    bomId,
+    bomVersion,
+    explosionResult,
+    expectedVersions = new Map([[Number(bomId), String(bomVersion)]])
+  ) {
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
 
-      // 获取产品信息
+      // 展开可能早于ECN提交开始。核对所有实际展开的BOM版本，并锁到缓存提交，
+      // 防止旧展开在变更事务删缓存后又回填旧用量（包括祖先BOM的缓存）。
+      const sourceBomIds = [...expectedVersions.keys()].sort((left, right) => left - right);
       const [bomInfo] = await connection.query(
-        'SELECT product_id FROM bom_masters WHERE id = ? AND deleted_at IS NULL',
-        [bomId]
+        'SELECT id, product_id, version FROM bom_masters WHERE id IN (?) AND deleted_at IS NULL ORDER BY id FOR SHARE',
+        [sourceBomIds]
       );
-      const productId = bomInfo[0]?.product_id;
+      if (
+        bomInfo.length !== expectedVersions.size ||
+        bomInfo.some((bom) => expectedVersions.get(Number(bom.id)) !== String(bom.version))
+      ) {
+        await connection.rollback();
+        logger.info(`BOM ${bomId} 展开期间版本已变化，跳过缓存回填`);
+        return;
+      }
+      const productId = bomInfo.find((bom) => Number(bom.id) === Number(bomId))?.product_id;
 
       // 清除旧缓存（统一使用 DELETE 策略）
       await connection.query('DELETE FROM bom_explosion_cache WHERE bom_id = ?', [bomId]);
@@ -422,7 +441,7 @@ class BomExplosionService {
    * 使BOM缓存失效（当BOM变更时调用）
    * 优化：递归级联向上失效所有祖先BOM的缓存，解决多级场景下底层变更上层不失效的问题
    */
-  static async invalidateCache(bomId) {
+  static async invalidateCache(bomId, executor = pool) {
     try {
       const invalidated = new Set();
       const queue = [bomId];
@@ -435,11 +454,11 @@ class BomExplosionService {
         invalidated.add(currentBomId);
 
         // 1. 删除该BOM的缓存（统一使用DELETE策略）
-        await pool.query('DELETE FROM bom_explosion_cache WHERE bom_id = ?', [currentBomId]);
+        await executor.query('DELETE FROM bom_explosion_cache WHERE bom_id = ?', [currentBomId]);
 
         // 2. 获取该BOM的产品ID
-        const [bomInfo] = await pool.query(
-          'SELECT product_id FROM bom_masters WHERE id = ? AND deleted_at IS NULL',
+        const [bomInfo] = await executor.query(
+          'SELECT product_id FROM bom_masters WHERE id = ? AND deleted_at IS NULL FOR SHARE',
           [currentBomId]
         );
 
@@ -447,11 +466,12 @@ class BomExplosionService {
           const productId = bomInfo[0].product_id;
 
           // 3. 查找所有引用该产品作为子组件的父级BOM，加入队列继续向上失效
-          const [parentBoms] = await pool.query(
+          const [parentBoms] = await executor.query(
             `
-            SELECT DISTINCT bd.bom_id
+            SELECT bd.bom_id
             FROM bom_details bd
             WHERE bd.material_id = ? AND bd.has_sub_bom = 1
+            FOR SHARE
           `,
             [productId]
           );
@@ -548,15 +568,23 @@ class BomExplosionService {
   /**
    * 更新物料的has_sub_bom标记
    */
-  static async updateHasSubBomFlag(materialId) {
+  static async updateHasSubBomFlag(materialId, executor = pool) {
     try {
       // 检查该物料是否有已审核的BOM
-      const bom = await this.getLatestApprovedBom(materialId);
+      const bom =
+        executor === pool
+          ? await this.getLatestApprovedBom(materialId)
+          : (
+              await executor.query(
+                'SELECT id FROM bom_masters WHERE product_id = ? AND approved_by IS NOT NULL AND deleted_at IS NULL ORDER BY approved_at DESC, id DESC LIMIT 1 FOR SHARE',
+                [materialId]
+              )
+            )[0][0];
       const hasSubBom = bom ? 1 : 0;
       const refBomId = bom?.id || null;
 
       // 更新所有使用该物料的BOM明细
-      await pool.query(
+      await executor.query(
         `
         UPDATE bom_details SET has_sub_bom = ?, ref_bom_id = ? WHERE material_id = ?
       `,

@@ -113,6 +113,10 @@ export const financeApi = {
     return api.get('/finance/ar/receipts/unpaid-invoices', { params })
   },
 
+  getARReceiptAccounts(params) {
+    return api.get('/finance/ar/receipts/accounts', { params })
+  },
+
   getARReceiptById(id) {
     return api.get(`/finance/ar/receipts/${id}`)
   },

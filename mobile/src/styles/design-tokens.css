@@ -20,6 +20,9 @@
 @import './themes/tech.css';
 @import './themes/workspace.css';
 
+/* Shared component mappings must follow the theme palettes. */
+@import './themes/_vant.css';
+
 :root[data-theme="dark"],
 :root[data-theme="tech"] {
   --color-on-primary: #0f172a;
@@ -92,6 +95,20 @@ body {
   touch-action: manipulation;
 }
 
+html {
+  color-scheme: light;
+  font-size: calc(var(--font-size-base, 14px) * 8 / 7);
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+:where(a, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-primary-text);
+  outline-offset: 2px;
+}
+
 button, input, select, textarea, optgroup, option, code, kbd, pre, samp {
   font-family: inherit;
 }
@@ -102,8 +119,9 @@ button, input, select, textarea, optgroup, option, code, kbd, pre, samp {
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
-    transition-duration: 0.01ms !important;
+    transition: none !important;
   }
 }

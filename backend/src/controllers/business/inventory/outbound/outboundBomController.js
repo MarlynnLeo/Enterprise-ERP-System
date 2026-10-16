@@ -23,8 +23,11 @@ const {
   mergeRequirementRows,
   normalizeIssueQuantities,
   assertOutboundSourceAccess,
+  isProductionOutboundReference,
 } = require('./outboundHelpers');
 const ScopeGuard = require('../../../../authorization/ScopeGuard');
+const { createHash } = require('crypto');
+const Precision = require('../../../../utils/precision');
 
 const fetchBomItemsForOutbound = async (connection, outboundId, referenceType, referenceId) => {
   try {
@@ -179,8 +182,8 @@ const normalizeSupplementItems = (items) => {
   const normalized = [];
   const outboundItemIds = new Set();
   for (const item of items) {
-    const outboundItemId = Number(item?.outbound_item_id);
-    const materialId = Number(item?.material_id);
+    const outboundItemId = Number(item?.outboundItemId ?? item?.outbound_item_id);
+    const materialId = Number(item?.materialId ?? item?.material_id);
     const quantity = Number(item?.quantity);
     if (
       !Number.isInteger(outboundItemId) ||
@@ -207,7 +210,7 @@ const supplementOutbound = async (req, res) => {
     const { id } = req.params;
     await connection.beginTransaction();
 
-    const { remark } = req.body || {};
+    const remark = req.body?.remarks ?? req.body?.remark;
     const items = normalizeSupplementItems(req.body?.items);
 
     // 1. 检查原出库单状态
@@ -283,9 +286,12 @@ const supplementOutbound = async (req, res) => {
       );
     }
 
+    const originalItemMap = new Map(originalItems.map((item) => [Number(item.id), item]));
+    const requestedByStock = new Map();
+
     // 4. 验证每个补发物料
     for (const item of items) {
-      const originalItem = originalItems.find((oi) => Number(oi.id) === item.outbound_item_id);
+      const originalItem = originalItemMap.get(item.outbound_item_id);
 
       if (!originalItem || Number(originalItem.material_id) !== item.material_id) {
         await connection.rollback();
@@ -329,7 +335,11 @@ const supplementOutbound = async (req, res) => {
         `[补发验证] 物料: ${materialName}, 物料ID: ${item.material_id}, 库位ID: ${locationId}, 补发数量: ${supplementQty}`
       );
 
-      // 检查库存是否充足
+      const stockKey = `${item.material_id}:${locationId}`;
+      const requestedQuantity = Precision.add(requestedByStock.get(stockKey) || 0, supplementQty);
+      requestedByStock.set(stockKey, requestedQuantity);
+
+      // Check the combined request when the same material occurs on multiple lines.
       const currentStock = await InventoryService.getCurrentStock(
         item.material_id,
         locationId,
@@ -341,16 +351,35 @@ const supplementOutbound = async (req, res) => {
         `[补发验证] 物料: ${materialName}, 当前库存: ${currentStock}, 需要: ${supplementQty}`
       );
 
-      if (currentStock < supplementQty) {
+      if (currentStock < requestedQuantity) {
         await connection.rollback();
         return ResponseHandler.error(
           res,
-          `物料 ${materialName} 库存不足，当前库存: ${currentStock}，需要: ${supplementQty}`,
+          `物料 ${materialName} 库存不足，当前库存: ${currentStock}，需要: ${requestedQuantity}`,
           'VALIDATION_ERROR',
           400
         );
       }
     }
+
+    // The locked cumulative quantities identify this supplement. Equal-sized
+    // later supplements get a new identity; a rolled-back retry keeps its key.
+    // Use a separate source number too, so an earlier approved snapshot never
+    // blocks a subsequent supplement or absorbs it as a duplicate frozen line.
+    const supplementIdentity = createHash('sha256')
+      .update(
+        JSON.stringify([
+          Number(id),
+          items.map((item) => [
+            item.outbound_item_id,
+            Number(originalItemMap.get(item.outbound_item_id).actual_quantity || 0),
+            item.quantity,
+            Number(originalItemMap.get(item.outbound_item_id).shortage_quantity),
+          ]),
+        ])
+      )
+      .digest('hex');
+    const refNo = `${originalOutbound.outbound_no}-S${supplementIdentity.slice(0, 16)}`;
 
     // 5. 更新原出库单明细的actual_quantity和shortage_quantity,并扣减库存
     for (const item of items) {
@@ -358,10 +387,20 @@ const supplementOutbound = async (req, res) => {
 
       const [itemUpdate] = await connection.execute(
         `UPDATE inventory_outbound_items
-         SET actual_quantity = actual_quantity + ?,
-             shortage_quantity = shortage_quantity - ?
+         SET actual_quantity = COALESCE(actual_quantity, 0) + ?,
+             is_shortage = IF(shortage_quantity > ?, 1, 0),
+             shortage_quantity = shortage_quantity - ?,
+             updated_at = NOW()
          WHERE id = ? AND outbound_id = ? AND material_id = ? AND shortage_quantity >= ?`,
-        [supplementQty, supplementQty, item.outbound_item_id, id, item.material_id, supplementQty]
+        [
+          supplementQty,
+          supplementQty,
+          supplementQty,
+          item.outbound_item_id,
+          id,
+          item.material_id,
+          supplementQty,
+        ]
       );
       if (itemUpdate.affectedRows !== 1) {
         const conflict = new Error('补发明细已被并发处理，请刷新后重试');
@@ -378,21 +417,33 @@ const supplementOutbound = async (req, res) => {
       // 补发时正常扣减库存
       logger.info(`物料 ${materialName} 补发扣减库存: ${supplementQty}`);
 
-      const refNo = `${originalOutbound.outbound_no}-补发`;
-      await InventoryService.updateStock(
+      const movementKey = `outbound_supplement:${supplementIdentity}:${item.outbound_item_id}`;
+      const stockResult = await InventoryService.updateStock(
         {
           materialId: item.material_id,
           locationId: locationId,
           quantity: -supplementQty,
-          transactionType: 'outbound',
+          transactionType:
+            isProductionOutboundReference(originalOutbound.reference_type) ||
+            originalOutbound.production_task_id
+              ? 'production_outbound'
+              : 'outbound',
           referenceType: 'outbound_supplement',
           referenceNo: refNo,
+          sourceId: Number(id),
+          sourceLineKey: movementKey,
           operator: getRequestActorLabel(req),
           remark: `补发: ${remark || ''}`,
-          idempotencyKey: `outbound_supplement:${refNo}:${item.material_id}:${locationId}:${supplementQty}:${item.outbound_item_id}`,
+          idempotencyKey: movementKey,
         },
         connection
       );
+      if (stockResult?.idempotent) {
+        const conflict = new Error('补发库存变动已存在，请刷新后核对补发明细');
+        conflict.statusCode = 409;
+        conflict.code = 'OUTBOUND_SUPPLEMENT_CONFLICT';
+        throw conflict;
+      }
     }
 
     // 6. 检查是否所有物料都已补齐

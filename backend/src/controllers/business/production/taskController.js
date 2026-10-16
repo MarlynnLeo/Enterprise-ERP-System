@@ -27,6 +27,7 @@ const ScopeGuard = require('../../../authorization/ScopeGuard');
 const {
   validateTaskTransition,
   promoteTaskToInspection,
+  promoteTaskToInProgress,
   syncPlanStatus,
   generateBatchNo,
 } = require('../../../services/business/TaskLifecycleService');
@@ -885,6 +886,14 @@ exports.updateProductionTaskStatus = async (req, res) => {
     logger.info(`[状态转换] 任务ID: ${id}, API状态: ${status}, 数据库状态: ${dbStatus}`);
 
     const currentStatus = taskCheck[0].status;
+    if (['material_partial_issued', 'material_issued'].includes(dbStatus)) {
+      throw new BusinessError(
+        '发料状态由仓库实际出库结果自动更新，请通过发料流程操作',
+        null,
+        'MATERIAL_ISSUE_REQUIRED',
+        400
+      );
+    }
     const transitionCheck = validateTaskTransition(currentStatus, dbStatus);
     if (!transitionCheck.valid) {
       await connection.rollback();
@@ -912,10 +921,14 @@ exports.updateProductionTaskStatus = async (req, res) => {
     }
 
     logger.info(`[执行更新] 任务ID: ${id}, 最终数据库状态: ${dbStatus}`);
-    await connection.query(
-      'UPDATE production_tasks SET status = ? WHERE id = ? AND deleted_at IS NULL',
-      [dbStatus, id]
-    );
+    if (dbStatus === 'in_progress') {
+      await promoteTaskToInProgress(connection, id);
+    } else {
+      await connection.query(
+        'UPDATE production_tasks SET status = ? WHERE id = ? AND deleted_at IS NULL',
+        [dbStatus, id]
+      );
+    }
 
     const taskData = taskCheck[0];
     const planId = taskData.plan_id;

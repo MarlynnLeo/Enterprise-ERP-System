@@ -1,15 +1,15 @@
 const COMPLETED_OUTBOUND_STATUSES = new Set(['completed', 'partial_completed'])
 
 const FINANCE_STATUS_DISPLAY = Object.freeze({
-  approved: { text: '已审核', type: 'success' },
-  pending: { text: '待财务审', type: 'warning' },
-  rejected: { text: '财务驳回', type: 'danger' },
+  approved: { text: '已审', type: 'success' },
+  pending: { text: '未审核', type: 'warning' },
+  rejected: { text: '已驳回', type: 'danger' },
+  reversed: { text: '已反审', type: 'info' },
 })
 
 /**
- * Returns the single status shown in the outbound list.
- * Business status remains authoritative for workflow actions; finance status
- * only replaces it visually after the outbound has reached a completed state.
+ * Formats the approval summary for an outbound document after business completion.
+ * The business status column and workflow actions use the business status directly.
  */
 export const getOutboundDisplayStatus = (row = {}, getBusinessStatusDisplay = (status) => ({
   text: status || '',

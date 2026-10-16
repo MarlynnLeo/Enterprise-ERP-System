@@ -130,9 +130,9 @@ export const themes = Object.freeze([
     dataTheme: 'workspace',
     isDark: false,
     preview: {
-      primary: '#4263EB',
-      accent: '#4263EB',
-      bg: '#F8FAFC'
+      primary: '#2563EB',
+      accent: '#2563EB',
+      bg: '#F4F7FB'
     }
   }
 ])

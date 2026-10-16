@@ -20,7 +20,7 @@
       <!-- Logo 区域 -->
       <div class="logo-area fade-up">
         <div class="logo-badge">
-          <svg width="32" height="32" fill="none" stroke="#fff" viewBox="0 0 24 24" stroke-width="1.8">
+          <svg width="32" height="32" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round"
               d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
           </svg>
@@ -46,6 +46,8 @@
               v-model="username"
               type="text"
               placeholder="请输入用户名"
+              aria-label="用户名"
+              :aria-invalid="errors.username"
               autocomplete="username"
               @focus="focusState.username = true"
               @blur="focusState.username = false"
@@ -64,11 +66,13 @@
               v-model="password"
               :type="showPassword ? 'text' : 'password'"
               placeholder="请输入密码"
+              aria-label="密码"
+              :aria-invalid="errors.password"
               autocomplete="current-password"
               @focus="focusState.password = true"
               @blur="focusState.password = false"
             />
-            <button type="button" class="toggle-pw" @click="showPassword = !showPassword" tabindex="-1">
+            <button type="button" class="toggle-pw" @click="showPassword = !showPassword" :aria-label="showPassword ? '隐藏密码' : '显示密码'" :aria-pressed="showPassword">
               <svg v-if="!showPassword" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round"
                   d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -83,12 +87,12 @@
           </div>
 
           <!-- B-17: 登录失败延迟提示 -->
-          <div v-if="lockoutRemaining > 0" class="lockout-tip">
+          <div v-if="lockoutRemaining > 0" class="lockout-tip" role="status">
             登录失败次数过多，请等待 {{ lockoutRemaining }} 秒后重试
           </div>
 
           <!-- 登录按钮 -->
-          <button type="submit" class="submit-btn" :disabled="loading || lockoutRemaining > 0">
+          <button type="submit" class="submit-btn" :disabled="loading || lockoutRemaining > 0" :aria-label="loading ? '正在登录' : '登录'" :aria-busy="loading">
             <span v-if="!loading">登 录</span>
             <span v-else class="loading-dots">
               <i></i><i></i><i></i>
@@ -229,13 +233,14 @@
 <style lang="scss" scoped>
   /* ======================== 页面容器 ======================== */
   .login-page {
-    position: fixed;
-    inset: 0;
+    position: relative;
+    height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #0c0e1a;
-    overflow: hidden;
+    background: var(--bg-primary);
+    overflow-x: hidden;
+    overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
 
@@ -277,7 +282,7 @@
   .orb-3 {
     width: 180px;
     height: 180px;
-    background: radial-gradient(circle, #06b6d4 0%, transparent 70%);
+    background: radial-gradient(circle, var(--color-info) 0%, transparent 70%);
     top: 50%;
     left: 60%;
     animation-duration: 16s;
@@ -296,7 +301,9 @@
     z-index: 1;
     width: 100%;
     max-width: 380px;
-    padding: 0 24px;
+    padding: calc(24px + var(--safe-area-top, 0px)) 24px calc(24px + var(--safe-area-bottom, 0px));
+    margin: auto;
+    flex-shrink: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -315,22 +322,23 @@
     width: 64px;
     height: 64px;
     border-radius: 20px;
-    background: linear-gradient(135deg, var(--color-primary), var(--ds-purple));
-    box-shadow: 0 8px 32px rgba(99, 102, 241, 0.35);
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+    box-shadow: var(--shadow-glow);
     margin-bottom: 16px;
   }
 
   .app-name {
     font-size: 1.75rem;
     font-weight: 800;
-    color: var(--color-on-primary, #fff);
+    color: var(--text-primary);
     letter-spacing: 1px;
     margin: 0 0 6px;
   }
 
   .app-desc {
     font-size: 0.8125rem;
-    color: rgba(255, 255, 255, 0.45);
+    color: var(--text-secondary);
     margin: 0;
     letter-spacing: 2px;
   }
@@ -338,10 +346,10 @@
   /* ======================== 登录卡片 ======================== */
   .login-card {
     width: 100%;
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--bg-secondary);
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--surface-border);
     border-radius: 20px;
     padding: 32px 24px 28px;
   }
@@ -349,7 +357,7 @@
   .card-title {
     font-size: 1.25rem;
     font-weight: 700;
-    color: var(--color-on-primary, #fff);
+    color: var(--text-primary);
     text-align: center;
     margin: 0 0 28px;
   }
@@ -368,48 +376,50 @@
     padding: 0 16px;
     height: 52px;
     border-radius: 14px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1.5px solid rgba(255, 255, 255, 0.08);
+    background: var(--bg-tertiary);
+    border: 1.5px solid var(--surface-border-hover);
     transition:
       background-color 0.25s ease,
       border-color 0.25s ease,
       box-shadow 0.25s ease;
 
     &.focused {
-      border-color: rgba(99, 102, 241, 0.6);
-      background: rgba(99, 102, 241, 0.06);
-      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+      border-color: var(--color-primary);
+      background: var(--bg-secondary);
+      box-shadow: 0 0 0 3px var(--color-primary-bg);
     }
 
     &.error {
-      border-color: rgba(239, 68, 68, 0.5);
+      border-color: var(--color-error);
       animation: shake 0.35s ease;
     }
   }
 
   .input-icon {
     flex-shrink: 0;
-    color: rgba(255, 255, 255, 0.35);
+    color: var(--text-secondary);
     display: flex;
     transition: color 0.25s;
 
     .focused & {
-      color: #818cf8;
+      color: var(--color-primary-text);
     }
   }
 
   .input-group input {
     flex: 1;
+    min-width: 0;
+    width: 100%;
     background: transparent;
     border: none;
     outline: none;
-    color: var(--color-on-primary, #fff);
+    color: var(--text-primary);
     font-size: 0.9375rem;
     font-weight: 500;
     height: 100%;
 
     &::placeholder {
-      color: rgba(255, 255, 255, 0.3);
+      color: var(--text-tertiary);
       font-weight: 400;
     }
   }
@@ -418,21 +428,24 @@
     flex-shrink: 0;
     background: none;
     border: none;
-    padding: 4px;
-    color: rgba(255, 255, 255, 0.3);
+    min-width: 32px;
+    height: 44px;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
     cursor: pointer;
     display: flex;
     transition: color 0.2s;
 
     &:active {
-      color: rgba(255, 255, 255, 0.6);
+      color: var(--text-primary);
     }
   }
 
   /* ======================== B-17: 锁定提示 ======================== */
   .lockout-tip {
     text-align: center;
-    color: var(--color-error);
+    color: var(--color-error-text);
     font-size: 0.8125rem;
     padding: 8px 0;
     animation: fadeUp 0.3s ease-out;
@@ -444,7 +457,7 @@
     height: 52px;
     border: none;
     border-radius: 14px;
-    background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+    background: var(--color-primary);
     color: var(--color-on-primary, #fff);
     font-size: 1rem;
     font-weight: 700;
@@ -454,7 +467,7 @@
     position: relative;
     overflow: hidden;
     transition: transform 0.15s, box-shadow 0.25s;
-    box-shadow: 0 4px 20px rgba(99, 102, 241, 0.35);
+    box-shadow: var(--shadow-glow);
 
     &:active:not(:disabled) {
       transform: scale(0.97);
@@ -498,7 +511,7 @@
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: var(--bg-primary);
+      background: currentColor;
       animation: dotBounce 0.6s ease-in-out infinite;
 
       &:nth-child(2) { animation-delay: 0.1s; }
@@ -515,7 +528,7 @@
   .footer {
     margin-top: 28px;
     text-align: center;
-    color: rgba(255, 255, 255, 0.2);
+    color: var(--text-tertiary);
     font-size: 0.6875rem;
     letter-spacing: 1px;
   }

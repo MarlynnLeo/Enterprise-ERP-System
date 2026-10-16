@@ -285,7 +285,7 @@ onMounted(() => {
   .chip-text { font-weight: 500; }
   &.active {
     background: var(--color-accent-bg, rgba(59,130,246,0.1));
-    border-color: var(--color-accent, var(--color-primary)); color: var(--color-accent, var(--color-primary));
+    border-color: var(--color-accent, var(--color-primary)); color: var(--color-accent-text, var(--color-primary));
   }
 }
 
@@ -345,10 +345,10 @@ onMounted(() => {
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
   overflow: hidden;
-  &.accent-blue { background: rgba(59, 130, 246, 0.1); color: var(--module-blue); }
-  &.accent-green { background: color-mix(in srgb, var(--color-success) 10%, transparent); color: var(--color-success); }
-  &.accent-yellow { background: color-mix(in srgb, var(--color-warning) 10%, transparent); color: var(--color-warning); }
-  &.accent-red { background: rgba(239, 68, 68, 0.1); color: var(--color-error); }
+  &.accent-blue { background: rgba(59, 130, 246, 0.1); color: var(--module-blue-text); }
+  &.accent-green { background: color-mix(in srgb, var(--color-success) 10%, transparent); color: var(--color-success-text); }
+  &.accent-yellow { background: color-mix(in srgb, var(--color-warning) 10%, transparent); color: var(--color-warning-text); }
+  &.accent-red { background: rgba(239, 68, 68, 0.1); color: var(--color-error-text); }
   &.accent-gray { background: color-mix(in srgb, var(--text-tertiary) 10%, transparent); color: var(--text-tertiary); }
 }
 .item-title {
@@ -368,9 +368,9 @@ onMounted(() => {
   font-weight: 700;
   flex-shrink: 0;
   &.st-draft { background: color-mix(in srgb, var(--text-tertiary) 12%, transparent); color: var(--text-tertiary); }
-  &.st-confirmed { background: rgba(59, 130, 246, 0.1); color: var(--module-blue); }
-  &.st-completed { background: color-mix(in srgb, var(--color-success) 12%, transparent); color: var(--color-success); }
-  &.st-cancelled { background: rgba(239, 68, 68, 0.1); color: var(--color-error); }
+  &.st-confirmed { background: rgba(59, 130, 246, 0.1); color: var(--module-blue-text); }
+  &.st-completed { background: color-mix(in srgb, var(--color-success) 12%, transparent); color: var(--color-success-text); }
+  &.st-cancelled { background: rgba(239, 68, 68, 0.1); color: var(--color-error-text); }
 }
 
 .item-subtitle {

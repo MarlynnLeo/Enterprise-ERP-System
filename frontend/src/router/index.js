@@ -170,6 +170,9 @@ function findFirstAccessibleRoute(authStore, excludedPath) {
   const accessible = routes.find((route) => {
     if (!route.name || route.redirect || !route.meta?.requiresAuth) return false
     if (!route.path || route.path.includes(':') || route.path === excludedPath) return false
+    // This legacy route itself redirects home. Choosing it as the fallback
+    // for a denied dashboard traps accounts without business permissions.
+    if (route.path === '/force-password') return false
     return hasRoutePermission(authStore, route.meta.permission)
   })
 

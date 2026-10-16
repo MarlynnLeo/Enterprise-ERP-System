@@ -49,10 +49,7 @@ export const baseChartConfig = {
     intersect: false,
     mode: 'index'
   },
-  animation: {
-    duration: 1200,
-    easing: 'easeOutQuart'
-  }
+  animation: false
 };
 
 export const createCartesianScales = () => ({

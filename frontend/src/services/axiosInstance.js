@@ -7,7 +7,6 @@ import 'element-plus/es/components/message/style/css';
 // 使用环境变量，如果没有设置则使用相对路径
 const API_URL = API_CONFIG.defaultBaseURL;
 const UNSAFE_METHODS = new Set(['post', 'put', 'patch', 'delete']);
-const ABSOLUTE_URL_PATTERN = /^[a-z][a-z\d+\-.]*:/i;
 let csrfToken = '';
 let csrfTokenPromise = null;
 let csrfGeneration = 0;
@@ -31,8 +30,6 @@ const getWindowOrigin = () => (
     typeof window !== 'undefined' && window.location?.origin ? window.location.origin : ''
 );
 
-const isAbsoluteUrl = (url) => ABSOLUTE_URL_PATTERN.test(String(url || ''));
-
 const getUrl = (url, baseOrigin) => {
     try {
         return new URL(String(url || ''), baseOrigin || undefined);
@@ -42,14 +39,13 @@ const getUrl = (url, baseOrigin) => {
 };
 
 const isCredentialedApiRequest = (config) => {
-    const url = String(config.url || '');
-    if (!isAbsoluteUrl(url)) return true;
-
     const origin = getWindowOrigin();
     if (!origin) return false;
 
-    const requestUrl = getUrl(url, origin);
-    const apiBaseUrl = getUrl(config.baseURL || API_URL, origin);
+    // A relative URL can still target an external host through baseURL.
+    // Trust the configured application API, never a per-request override.
+    const requestUrl = getUrl(axios.getUri(config), origin);
+    const apiBaseUrl = getUrl(API_URL, origin);
     if (!requestUrl || !apiBaseUrl || requestUrl.origin !== apiBaseUrl.origin) {
         return false;
     }
@@ -60,12 +56,9 @@ const isCredentialedApiRequest = (config) => {
         || requestUrl.pathname.startsWith(`${apiPath}/`);
 };
 
-const isCrossOriginAbsoluteRequest = (config) => {
-    const url = String(config.url || '');
-    if (!isAbsoluteUrl(url)) return false;
-
+const isCrossOriginRequest = (config) => {
     const origin = getWindowOrigin();
-    const requestUrl = origin ? getUrl(url, origin) : null;
+    const requestUrl = origin ? getUrl(axios.getUri(config), origin) : null;
     return Boolean(requestUrl && requestUrl.origin !== origin);
 };
 
@@ -388,12 +381,12 @@ const setupInterceptors = (apiInstance) => {
         config.url = normalizeApiRequestUrl(config.url);
 
         const isTrustedApiRequest = isCredentialedApiRequest(config);
-        config.headers = config.headers || {};
-        delete config.headers['Authorization'];
-        delete config.headers.authorization;
+        config.headers = axios.AxiosHeaders.from(config.headers);
+        config.headers.delete('Authorization');
 
-        if (!isTrustedApiRequest && isCrossOriginAbsoluteRequest(config)) {
-            config.withCredentials = false;
+        if (!isTrustedApiRequest) {
+            config.headers.delete('X-CSRF-Token');
+            if (isCrossOriginRequest(config)) config.withCredentials = false;
         }
 
         if (shouldAttachCsrfToken(config, isTrustedApiRequest)) {
@@ -430,7 +423,7 @@ const setupInterceptors = (apiInstance) => {
             assertRequestSession(originalRequest);
             const requestUrl = String(originalRequest.url || '');
             const csrfErrorCode = error.response?.data?.errorCode || error.response?.data?.code;
-            if (error.response?.status === 403 && csrfErrorCode === 'INVALID_CSRF_TOKEN' && !originalRequest._csrfRetry) {
+            if (error.response?.status === 403 && isCredentialedApiRequest(originalRequest) && csrfErrorCode === 'INVALID_CSRF_TOKEN' && !originalRequest._csrfRetry) {
                 resetCsrfToken({ sessionChanged: false });
                 originalRequest._csrfRetry = true;
                 originalRequest.headers = originalRequest.headers || {};

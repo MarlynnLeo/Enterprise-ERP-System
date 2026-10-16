@@ -86,10 +86,10 @@
           </template>
         </el-table-column>
       </el-table>
-      <EmptyState v-else description="暂无订单明细" ::image-size="72" />
+      <EmptyState v-else description="暂无订单明细" :image-size="72" />
     </template>
 
-    <EmptyState v-else-if="!loading" description="未加载到订单详情" ::image-size="80" />
+    <EmptyState v-else-if="!loading" description="未加载到订单详情" :image-size="80" />
 
     <template #footer>
       <span class="dialog-footer">

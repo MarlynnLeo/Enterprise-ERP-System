@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { reactive } from 'vue'
 import InventoryOutbound from '@/views/inventory/InventoryOutbound.vue'
 
 const mocks = vi.hoisted(() => ({
@@ -16,16 +17,17 @@ vi.mock('@/api', async () => ({
   baseDataApi: {},
 }))
 vi.mock('@/api/finance', () => ({ financeApi: { inventoryPostings: { getBySource: mocks.getBySource } } }))
-vi.mock('@/stores/auth', () => ({
-  useAuthStore: () => ({
-    user: { id: 7 }, realName: '财务审核员', hasPermission: () => true,
-    canViewInventoryApproval: true, canApproveInventoryApproval: true, canReverseInventoryApproval: false,
-  }),
-}))
+const auth = reactive({
+  user: { id: 7 }, realName: '财务审核员', permissions: [],
+  hasPermission: (permission) => auth.permissions.includes(permission),
+  canViewInventoryApproval: true, canApproveInventoryApproval: true, canReverseInventoryApproval: false,
+})
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => auth }))
 vi.mock('@/stores/dictionary', () => ({
   useDictionaryStore: () => ({ getOptions: () => [], fetchDictionary: async () => {} }),
 }))
 vi.mock('@/services/printService', () => ({ default: {} }))
+vi.mock('@/utils/optionLoaders', () => ({ loadLocationOptions: async () => [] }))
 vi.mock('element-plus/es/components/message/index', () => ({ ElMessage: mocks }))
 
 const slotStub = { template: '<div><slot /></div>' }
@@ -39,7 +41,8 @@ let financeStatus
 
 beforeEach(() => {
   Object.values(mocks).forEach(mock => mock.mockReset())
-  outbound = { id: 5362, outboundNo: 'OUT-RESUBMIT-TEST', status: 'completed', items: [] }
+  Object.assign(auth, { canViewInventoryApproval: true, canApproveInventoryApproval: true, permissions: ['inventory:outbound:update'] })
+  outbound = { id: 5362, outboundNo: 'OUT-RESUBMIT-TEST', status: 'completed', financeStatus: 'rejected', items: [] }
   financeStatus = 'rejected'
   mocks.get.mockImplementation(async (url) => {
     if (url === '/inventory/outbound/5362') return { data: structuredClone(outbound) }
@@ -51,6 +54,7 @@ beforeEach(() => {
   }))
   mocks.put.mockImplementation(async () => {
     financeStatus = 'pending'
+    outbound.financeStatus = 'pending'
     return { data: {} }
   })
 })
@@ -61,10 +65,10 @@ const openOutbound = async () => {
     global: {
       stubs: {
         PageHeader: true, FinanceQueryCard: true, EmptyState: true, TableRowActions: true,
-        AppDialog: { props: ['modelValue'], template: '<div v-if="modelValue"><slot /></div>' },
+        AppDialog: { props: ['modelValue'], template: '<div v-if="modelValue"><slot /><slot name="footer" /></div>' },
         ElTable: true, ElTableColumn: true, ElPagination: true,
         ElRow: slotStub, ElCol: slotStub, ElCard: slotStub, ElButton: buttonStub,
-        ElIcon: true, ElTag: slotStub, ElInput: true, ElAutocomplete: true,
+        ElIcon: true, ElTag: slotStub, ElInput: true, ElAutocomplete: true, ElTooltip: slotStub,
         ElSelect: true, ElOption: true, ElDatePicker: true, ElForm: true, ElFormItem: true,
         ElPopconfirm: true, ElDivider: true, ElDescriptions: slotStub, ElDescriptionsItem: slotStub,
         ElSteps: slotStub, ElStep: true, ElTimeline: slotStub, ElTimelineItem: slotStub,
@@ -85,6 +89,34 @@ const clickResubmit = async () => {
 }
 
 describe('outbound finance approval resubmission', () => {
+  test('lets a warehouse updater resubmit without fetching restricted finance details', async () => {
+    Object.assign(auth, { canViewInventoryApproval: false, canApproveInventoryApproval: false })
+    await openOutbound()
+    await clickResubmit()
+    expect(mocks.put).toHaveBeenCalledExactlyOnceWith('/inventory/outbound/5362/status', { newStatus: 'completed' })
+    expect(mocks.getBySource).not.toHaveBeenCalled()
+    expect(wrapper.text()).not.toContain('重新提交审核')
+  })
+
+  test('does not offer or execute resubmission with finance approval permission alone', async () => {
+    auth.permissions = ['finance:inventory:approve']
+    await openOutbound()
+    expect(wrapper.text()).not.toContain('重新提交审核')
+    await wrapper.vm.handleResubmitOutbound('completed')
+    expect(mocks.put).not.toHaveBeenCalled()
+  })
+
+  test('ignores a second resubmission while the first request is pending', async () => {
+    await openOutbound()
+    let resolveRequest
+    mocks.put.mockImplementationOnce(() => new Promise(resolve => { resolveRequest = resolve }))
+    const firstRequest = wrapper.vm.handleResubmitOutbound('completed')
+    await wrapper.vm.handleResubmitOutbound('completed')
+    expect(mocks.put).toHaveBeenCalledTimes(1)
+    resolveRequest({ data: {} })
+    await firstRequest
+    expect(wrapper.vm.resubmittingOutbound).toBe(false)
+  })
   test.each(['completed', 'partial_completed'])('sends a flat status payload for a rejected %s outbound and refreshes approval', async (status) => {
     outbound.status = status
     await openOutbound()
@@ -96,7 +128,7 @@ describe('outbound finance approval resubmission', () => {
     expect(mocks.get.mock.calls.filter(([url]) => url === '/inventory/outbound')).toHaveLength(2)
     expect(mocks.get.mock.calls.filter(([url]) => url === '/inventory/outbound/5362')).toHaveLength(2)
     expect(mocks.getBySource).toHaveBeenCalledTimes(2)
-    expect(wrapper.text()).toContain('待财务审核')
+    expect(wrapper.text()).toContain('未审核')
     expect(wrapper.text()).not.toContain('重新提交审核')
   })
 

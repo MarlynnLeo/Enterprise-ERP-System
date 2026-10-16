@@ -4,7 +4,7 @@ const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { createSourceSnapshot, cleanupSnapshot, assertForwardRelease, verifySnapshotArchive } = require('../releaseSnapshot');
+const { createSourceSnapshot, cleanupSnapshot, fingerprintSource, assertForwardRelease, verifySnapshotArchive } = require('../releaseSnapshot');
 const { parseArguments } = require('../deploy_to_server');
 
 let directory;
@@ -55,6 +55,28 @@ test('a committed snapshot stays identical while the working tree changes', () =
   assert.equal(fs.readFileSync(path.join(second.sourceDir, 'frontend/source.js'), 'utf8'), 'first');
   assert.equal(fs.existsSync(path.join(second.sourceDir, 'frontend/untracked.js')), false);
   verifySnapshotArchive(second);
+});
+
+test('Unicode asset filenames and source fingerprints survive archive extraction', () => {
+  const assetDirectory = path.join('backend', 'assets', 'quality-templates');
+  const assetNames = ['抽样检验标准.docx', '首件检验记录表.xlsx'];
+  const contents = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00, 0xff]);
+  fs.mkdirSync(path.join(directory, assetDirectory), { recursive: true });
+  for (const name of assetNames) {
+    fs.writeFileSync(path.join(directory, assetDirectory, name), contents);
+  }
+  git('add', '.');
+  git('commit', '-qm', 'Unicode quality templates');
+
+  const roots = ['frontend', 'backend'];
+  const expected = fingerprintSource(directory, roots);
+  const release = snapshot({ roots });
+  assert.deepEqual(fs.readdirSync(path.join(release.sourceDir, assetDirectory)).sort(), assetNames.sort());
+  for (const name of assetNames) {
+    assert.deepEqual(fs.readFileSync(path.join(release.sourceDir, assetDirectory, name)), contents);
+  }
+  assert.equal(release.descriptor.sourceHash, expected.sourceHash);
+  assert.equal(release.descriptor.fileCount, expected.fileCount);
 });
 
 test('archive changes are detected before upload', () => {

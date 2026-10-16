@@ -48,6 +48,8 @@ function calculateDepreciationSnapshot(asset, depreciationMonthStart, alreadySub
   let depreciationAmount = 0;
   if (
     !alreadySubmitted &&
+    // 拆分资产继承最近计提月份；该月份之前的历史折旧已经包含在账面余额中。
+    (!asset.last_depreciation_date || monthIndex(depreciationMonthStart) > monthIndex(asset.last_depreciation_date)) &&
     normalizedMethod !== 'no_depreciation' &&
     netValueBefore > residualValue &&
     usedMonths >= 0 &&

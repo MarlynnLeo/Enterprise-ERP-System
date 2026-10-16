@@ -142,6 +142,7 @@
   --erp-table-fixed-striped-bg: var(--color-bg-section);
   --erp-table-fixed-border-color: rgba(255, 255, 255, 0.08);
   --erp-table-fixed-hover-bg: color-mix(in srgb, white 4.5%, var(--color-bg-base));
+  --theme-input-bg: rgba(255, 255, 255, 0.045);
 }
 
 [data-theme="premium"] body,
@@ -184,7 +185,7 @@
 [data-theme="premium"] .app-sidebar {
   background: var(--shell-sidebar-bg) !important;
   border-right: 1px solid var(--shell-border) !important;
-  box-shadow: 8px 0 24px rgba(0, 0, 0, 0.3) !important;
+  box-shadow: 8px 0 24px rgba(0, 0, 0, 0.3);
 }
 
 [data-theme="premium"] .logo-container {
@@ -222,7 +223,7 @@
   background: rgba(5, 5, 5, 0.96) !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
   border-radius: var(--radius-md, 8px) !important;
-  box-shadow: var(--shadow-sm) !important;
+  box-shadow: var(--shadow-sm);
 }
 
 [data-theme="premium"] .breadcrumb,
@@ -292,20 +293,6 @@
 [data-theme="premium"] .el-table td.el-table__cell {
   border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
   color: var(--color-text-regular) !important;
-}
-
-/* 输入表面：半透明深色（共享壳默认 bg-base，此处覆盖） */
-[data-theme="premium"] .el-input__wrapper,
-[data-theme="premium"] .el-select__wrapper,
-[data-theme="premium"] .el-textarea__inner {
-  color: var(--color-text-primary) !important;
-  background: rgba(255, 255, 255, 0.045) !important;
-  box-shadow: none !important;
-}
-
-[data-theme="premium"] .el-input__inner::placeholder,
-[data-theme="premium"] .el-textarea__inner::placeholder {
-  color: var(--color-text-disabled) !important;
 }
 
 [data-theme="premium"] .el-tag {
@@ -392,49 +379,49 @@
 }
 
 /* Checkbox — checked */
-[data-theme="premium"] .el-checkbox__input.is-checked .el-checkbox__inner {
+[data-theme="premium"] .el-checkbox__input.is-checked:not(.is-disabled) .el-checkbox__inner {
   background-color: var(--color-primary) !important;
   border-color: var(--color-primary) !important;
 }
 
-[data-theme="premium"] .el-checkbox__input.is-checked .el-checkbox__inner::after {
+[data-theme="premium"] .el-checkbox__input.is-checked:not(.is-disabled) .el-checkbox__inner::after {
   border-color: var(--color-on-primary) !important;
 }
 
-[data-theme="premium"] .el-checkbox__input.is-checked + .el-checkbox__label {
+[data-theme="premium"] .el-checkbox__input.is-checked:not(.is-disabled) + .el-checkbox__label {
   color: var(--color-text-primary) !important;
 }
 
-[data-theme="premium"] .el-checkbox__input.is-indeterminate .el-checkbox__inner {
+[data-theme="premium"] .el-checkbox__input.is-indeterminate:not(.is-disabled) .el-checkbox__inner {
   background-color: var(--color-primary) !important;
   border-color: var(--color-primary) !important;
 }
 
-[data-theme="premium"] .el-checkbox__input.is-indeterminate .el-checkbox__inner::before {
+[data-theme="premium"] .el-checkbox__input.is-indeterminate:not(.is-disabled) .el-checkbox__inner::before {
   background-color: var(--color-on-primary) !important;
 }
 
 /* Radio — checked */
-[data-theme="premium"] .el-radio__input.is-checked .el-radio__inner {
+[data-theme="premium"] .el-radio__input.is-checked:not(.is-disabled) .el-radio__inner {
   background-color: var(--color-primary) !important;
   border-color: var(--color-primary) !important;
 }
 
-[data-theme="premium"] .el-radio__input.is-checked .el-radio__inner::after {
+[data-theme="premium"] .el-radio__input.is-checked:not(.is-disabled) .el-radio__inner::after {
   background-color: var(--color-on-primary) !important;
 }
 
-[data-theme="premium"] .el-radio__input.is-checked + .el-radio__label {
+[data-theme="premium"] .el-radio__input.is-checked:not(.is-disabled) + .el-radio__label {
   color: var(--color-text-primary) !important;
 }
 
 /* Switch — active */
-[data-theme="premium"] .el-switch.is-checked .el-switch__core {
+[data-theme="premium"] .el-switch.is-checked:not(.is-disabled) .el-switch__core {
   background-color: var(--color-primary) !important;
   border-color: var(--color-primary) !important;
 }
 
-[data-theme="premium"] .el-switch.is-checked .el-switch__action {
+[data-theme="premium"] .el-switch.is-checked:not(.is-disabled) .el-switch__action {
   background-color: var(--color-on-primary) !important;
 }
 
@@ -478,14 +465,14 @@
   color: var(--color-text-regular) !important;
 }
 
-[data-theme="premium"] .el-radio-button__original-radio:checked + .el-radio-button__inner {
+[data-theme="premium"] .el-radio-button__original-radio:checked:not(:disabled) + .el-radio-button__inner {
   background-color: var(--color-primary) !important;
   border-color: var(--color-primary) !important;
   color: var(--color-on-primary) !important;
   box-shadow: -1px 0 0 0 var(--color-primary) !important;
 }
 
-[data-theme="premium"] .el-radio-button__inner:hover {
+[data-theme="premium"] .el-radio-button:not(.is-disabled) .el-radio-button__inner:hover {
   color: var(--color-text-primary) !important;
 }
 

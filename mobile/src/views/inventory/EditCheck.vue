@@ -53,7 +53,7 @@
         <div class="material-list-container">
           <div class="material-list-header">
             <div class="header-title">物料明细({{ checkForm.items.length }})</div>
-            <div class="header-actions">
+          <div class="header-actions" v-if="editableMaterials">
               <Button type="primary" size="small" icon="plus" @click="showMaterialPicker = true">添加物料</Button>
             </div>
           </div>
@@ -91,6 +91,7 @@
                     <span class="qty-input">
                       <Stepper
                         v-model="item.actualQuantity"
+                        allow-empty
                         theme="round"
                         button-size="22"
                         :min="0"
@@ -179,6 +180,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
+import { buildCheckResultItems, checkQuantity, checkItemDifference } from '@/utils/inventoryCheck';
 import { useRouter, useRoute } from 'vue-router';
 import {
   NavBar,
@@ -242,16 +244,15 @@ const getCheckTypeText = (type) => {
 
 // 计算数量差异
 const getDiffText = (bookQty, actualQty) => {
-  if (bookQty === undefined || actualQty === undefined) return '0';
-  const diff = actualQty - bookQty;
+  const diff = checkItemDifference({ bookQuantity: bookQty, actualQuantity: actualQty });
+  if (diff === null) return '实盘未完成';
   return diff > 0 ? `+${diff}` : `${diff}`;
 };
 
 // 获取差异样式
 const getDiffClass = (bookQty, actualQty) => {
-  if (bookQty === undefined || actualQty === undefined) return '';
-
-  const diff = actualQty - bookQty;
+  const diff = checkItemDifference({ bookQuantity: bookQty, actualQuantity: actualQty });
+  if (diff === null) return '';
   if (diff > 0) return 'profit-text';
   if (diff < 0) return 'loss-text';
   return '';
@@ -315,13 +316,7 @@ const submitCheckForm = async () => {
       locationId: checkForm.value.locationId,
       description: checkForm.value.description,
       remarks: checkForm.value.remarks,
-      items: checkForm.value.items.map((item) => ({
-        id: item.id,
-        materialId: item.materialId,
-        bookQuantity: Number(item.bookQuantity ?? 0),
-        actualQuantity: Number(item.actualQuantity ?? 0),
-        remarks: item.remarks || ''
-      }))
+      items: buildCheckResultItems(checkForm.value.items)
     };
 
     await inventoryApi.updateCheck(checkForm.value.id, submitData);
@@ -360,8 +355,9 @@ const loadCheckDetail = async () => {
       // 填充物料明细
       if (checkData.items && checkData.items.length > 0) {
       checkForm.value.items = checkData.items.map(item => {
-          const book = parseFloat(item.bookQuantity ?? item.system_quantity ?? item.book_qty) || 0;
-          const actual = parseFloat(item.actualQuantity ?? item.actual_quantity ?? item.actual_qty) || 0;
+          const book = checkQuantity(item.bookQuantity);
+          const rawActual = checkQuantity(item.actualQuantity);
+          const actual = rawActual !== null && rawActual >= 0 ? rawActual : null;
           return {
             id: item.id,
             materialId: item.materialId,

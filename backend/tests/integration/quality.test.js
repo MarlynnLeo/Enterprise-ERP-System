@@ -243,6 +243,12 @@ describe('质量管理 - 质量统计 /api/quality/statistics', () => {
 
     expect(res.status).toBe(200);
   });
+
+  test('混合字符排序规则的物料来源仍支持缺陷项目关键字搜索', async () => {
+    const res = await api.get('/api/quality/defect-items').query({ keyword: '测试物料' });
+
+    expect(res.status).toBe(200);
+  });
 });
 
 // ==================== 不合格品管理 ====================

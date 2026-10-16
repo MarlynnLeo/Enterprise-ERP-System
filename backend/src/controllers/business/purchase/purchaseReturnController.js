@@ -856,6 +856,7 @@ const updateReturnStatus = async (req, res) => {
             unitCost: item.unit_price, // 透传退货单价以保证存货账面精确相减
             ...(item.batch_number ? { batchNumber: item.batch_number } : {}),
             transactionDate: returnResult[0].return_date,
+            sourceLineKey: `purchase_return:${id}:item:${item.id}`,
             idempotencyKey: `purchase_return:${returnNo}:${item.material_id}:${warehouseId}:${returnQuantity}:${item.id}`,
           },
           connection

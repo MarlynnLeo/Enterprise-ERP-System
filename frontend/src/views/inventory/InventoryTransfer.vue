@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * InventoryTransfer.vue
  * @description 前端界面组件文件
@@ -498,17 +498,17 @@
           <el-table-column prop="remarks" label="备注" min-width="150"></el-table-column>
         </el-table>
         <InventoryApprovalPanel
-          v-if="authStore.canViewInventoryApproval"
+          v-if="Boolean(transferDetail.id)"
           source-type="transfer"
+          :active="viewDialogVisible && !detailLoading"
           :source-id="transferDetail.id"
           :source-no="transferDetail.transferNo || ''"
-          :resubmit-status="transferDetail.status === 'completed' ? 'completed' : ''"
-          @resubmit="handleResubmitTransfer"
-          @changed="loadTransferList"
+          @changed="handleTransferApprovalChanged"
         />
       </div>
       <template #footer>
         <div class="dialog-footer">
+          <el-button v-if="canResubmitTransfer" type="warning" :loading="resubmittingTransfer" @click="handleResubmitTransfer('completed')">重新提交审核</el-button>
           <el-button @click="viewDialogVisible = false">关闭</el-button>
         </div>
       </template>
@@ -519,7 +519,7 @@
 <script setup>
 import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { handleTableRowView } from '@/utils/tableRowView';
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, reactive, onMounted, onBeforeUnmount, onDeactivated, watch, computed } from 'vue';
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
 import { ElMessage } from 'element-plus/es/components/message/index';
 import { ElMessageBox } from 'element-plus/es/components/message-box/index';
@@ -609,6 +609,8 @@ const transferDialogVisible = ref(false); // 调拨单对话框可见性
 const viewDialogVisible = ref(false); // 查看对话框可见性
 const submitting = ref(false); // 提交中状态
 const detailLoading = ref(false); // 详情加载状态
+let detailRequestSequence = 0;
+const resubmittingTransfer = ref(false);
 const editLoading = ref(false); // 编辑加载状态
 
 // 表单引用
@@ -682,21 +684,30 @@ const getStatusType = (status) => {
 
 // 查看调拨单
 const viewTransfer = async (id) => {
+  if (!id) return;
+  const request = ++detailRequestSequence;
   viewDialogVisible.value = true;
   detailLoading.value = true;
+  transferDetail.value = { items: [] };
   try {
     const response = await inventoryApi.getTransferDetail(id);
+    if (request !== detailRequestSequence || !viewDialogVisible.value) return;
     // 拦截器已解包，response.data 就是业务数据
-    transferDetail.value = response.data;
+    transferDetail.value = { ...response.data, items: response.data?.items || [] };
     const row = transferList.value.find((item) => String(item.id) === String(id));
     if (row) setCurrentViewTransfer(row);
   } catch (error) {
+    if (request !== detailRequestSequence || !viewDialogVisible.value) return;
     console.error('获取调拨单详情失败:', error);
     ElMessage.error('获取调拨单详情失败');
   } finally {
-    detailLoading.value = false;
+    if (request === detailRequestSequence) detailLoading.value = false;
   }
 };
+
+watch(viewDialogVisible, visible => { if (!visible) detailRequestSequence += 1; });
+onBeforeUnmount(() => { detailRequestSequence += 1; });
+onDeactivated(() => { detailRequestSequence += 1; viewDialogVisible.value = false; });
 
 const handleViewPrevious = () => {
   if (previousViewTransfer.value) viewTransfer(previousViewTransfer.value.id);
@@ -761,16 +772,34 @@ const updateStatus = async (id, status) => {
   }
 };
 
-const handleResubmitTransfer = async (status) => {
-  if (!transferDetail.value?.id || !status) return;
+const canResubmitTransfer = computed(() =>
+  viewDialogVisible.value && !detailLoading.value && Boolean(transferDetail.value?.id) &&
+  authStore.hasPermission('inventory:transfer:update') && transferDetail.value.status === 'completed' &&
+  transferDetail.value.financeStatus === 'rejected'
+);
+
+const handleResubmitTransfer = async (status = 'completed') => {
+  if (status !== 'completed' || !canResubmitTransfer.value || resubmittingTransfer.value) return;
+  const id = transferDetail.value.id;
+  resubmittingTransfer.value = true;
   try {
-    await inventoryApi.updateTransferStatus(transferDetail.value.id, status);
+    await inventoryApi.updateTransferStatus(id, 'completed');
     ElMessage.success('已重新提交财务审核');
+    if (transferDetail.value.id === id) transferDetail.value.financeStatus = 'pending';
     await loadTransferList();
-    await viewTransfer(transferDetail.value.id);
+    if (viewDialogVisible.value && transferDetail.value.id === id) await viewTransfer(id);
   } catch (error) {
     ElMessage.error(getApiErrorMessage(error, '重新提交审核失败'));
+  } finally {
+    resubmittingTransfer.value = false;
   }
+};
+
+const handleTransferApprovalChanged = async () => {
+  const id = transferDetail.value.id;
+  await loadTransferList();
+  await loadTransferStats();
+  if (id && viewDialogVisible.value && transferDetail.value.id === id) await viewTransfer(id);
 };
 
 // 删除调拨单

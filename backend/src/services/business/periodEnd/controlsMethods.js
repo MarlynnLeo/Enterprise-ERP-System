@@ -38,6 +38,18 @@ module.exports = {
       throw new Error(`仍有 ${failedJobs.count} 个未解决的财务集成失败任务，不能关账`);
     }
 
+    // Durable events own their retries; they no longer create one DLQ row per attempt.
+    const [[unfinishedEvents]] = await connection.execute(
+      `SELECT COUNT(*) AS count FROM domain_events
+        WHERE status <> 'processed' AND event_name IN (
+          'INVENTORY_POSTING_APPROVED', 'SALES_OUTBOUND_COMPLETED',
+          'PURCHASE_RECEIPT_COMPLETED', 'PRODUCTION_TASK_COMPLETED',
+          'SALES_RETURN_COMPLETED', 'PURCHASE_RETURN_COMPLETED')`
+    );
+    if (Number(unfinishedEvents.count || 0) > 0) {
+      throw new Error(`仍有 ${unfinishedEvents.count} 个未完成的财务领域事件，不能关账`);
+    }
+
     const [[inventoryPostings]] = await connection.execute(
       `SELECT COUNT(*) AS count
            FROM inventory_posting_documents d
@@ -404,7 +416,7 @@ module.exports = {
       const requestedPeriodId = payload.period_id ? Number.parseInt(payload.period_id, 10) : null;
       const [entries] = await connection.execute(
         `SELECT e.id, e.entry_number, e.is_posted, e.is_reversed, e.period_id,
-                  p.period_name, p.start_date, p.end_date, p.is_closed
+                  p.period_name, p.start_date, p.end_date, p.is_closed, p.is_locked
            FROM gl_entries e
            LEFT JOIN gl_periods p ON p.id = e.period_id
            WHERE e.id = ?
@@ -423,13 +435,16 @@ module.exports = {
       if (entry.is_reversed) {
         throw new Error('已冲销凭证不能修改日期');
       }
+      if (this.isClosed(entry.is_closed) || this.isClosed(entry.is_locked)) {
+        throw new Error(`不能修改已关闭或锁定期间 [${entry.period_name}] 的凭证日期`);
+      }
       if (!entry.period_id && !requestedPeriodId) {
         throw new Error('凭证未归属会计期间，请先指定会计期间');
       }
 
       if (requestedPeriodId && Number(entry.period_id) !== requestedPeriodId) {
         const [periods] = await connection.execute(
-          `SELECT id, period_name, start_date, end_date, is_closed
+          `SELECT id, period_name, start_date, end_date, is_closed, is_locked
              FROM gl_periods
              WHERE id = ?
              FOR UPDATE`,
@@ -444,11 +459,12 @@ module.exports = {
           start_date: periods[0].start_date,
           end_date: periods[0].end_date,
           is_closed: periods[0].is_closed,
+          is_locked: periods[0].is_locked,
         });
       }
 
-      if (this.isClosed(entry.is_closed)) {
-        throw new Error(`不能修改已关闭期间 [${entry.period_name}] 的凭证日期`);
+      if (this.isClosed(entry.is_closed) || this.isClosed(entry.is_locked)) {
+        throw new Error(`不能修改已关闭或锁定期间 [${entry.period_name}] 的凭证日期`);
       }
 
       const entryDate = this.normalizeDateInput(payload.entry_date, '凭证日期');

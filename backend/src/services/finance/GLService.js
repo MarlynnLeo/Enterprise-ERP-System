@@ -15,6 +15,8 @@ const {
   normalizeDateInput,
   isClosedFlag,
   isDateWithinPeriod,
+  requirePositiveInteger,
+  normalizeOpeningAmount,
 } = require('../../models/finance/helpers');
 
 function shouldPostEntry(entryData) {
@@ -146,7 +148,7 @@ class GLService {
    */
   static async _createEntryInternal(entryData, items, connection = null) {
     // 1. 数据完整性基本校验
-    if (!items || items.length === 0) {
+    if (!Array.isArray(items) || items.length === 0) {
       throw new BusinessError('分录明细不能为空');
     }
 
@@ -180,15 +182,31 @@ class GLService {
 
       // 2. 分录明细校验与借贷平衡校验 (精确到分)
       const normalizedItems = items.map((item, index) => {
-        const accountId = Number.parseInt(item.account_id, 10);
-        if (!Number.isInteger(accountId) || accountId <= 0) {
-          throw new BusinessError(`第${index + 1}行分录科目不能为空`);
+        if (!item || typeof item !== 'object' || Array.isArray(item)) {
+          throw new BusinessError(`第${index + 1}行分录格式无效`);
         }
-
-        const debitCents = Math.round((parseFloat(item.debit_amount) || 0) * 100);
-        const creditCents = Math.round((parseFloat(item.credit_amount) || 0) * 100);
-        if (debitCents < 0 || creditCents < 0) {
-          throw new BusinessError(`第${index + 1}行借贷金额不能为负数`);
+        let accountId;
+        let costCenterId = null;
+        let debitCents;
+        let creditCents;
+        try {
+          accountId = requirePositiveInteger(item.account_id, `第${index + 1}行分录科目`);
+          if (
+            item.cost_center_id !== undefined &&
+            item.cost_center_id !== null &&
+            item.cost_center_id !== '' &&
+            item.cost_center_id !== 0
+          ) {
+            costCenterId = requirePositiveInteger(item.cost_center_id, `第${index + 1}行成本中心`);
+          }
+          debitCents = Math.round(
+            normalizeOpeningAmount(item.debit_amount, `第${index + 1}行借方金额`) * 100
+          );
+          creditCents = Math.round(
+            normalizeOpeningAmount(item.credit_amount, `第${index + 1}行贷方金额`) * 100
+          );
+        } catch (error) {
+          throw new BusinessError(error.message);
         }
         if (debitCents > 0 && creditCents > 0) {
           throw new BusinessError(`第${index + 1}行不能同时填写借方和贷方金额`);
@@ -217,6 +235,7 @@ class GLService {
         return {
           ...item,
           account_id: accountId,
+          cost_center_id: costCenterId,
           debit_amount: debitCents / 100,
           credit_amount: creditCents / 100,
           currency_code: currencyCode,
@@ -234,6 +253,9 @@ class GLService {
       );
 
       // 分录入账必须精确借贷平衡。金额已经转为分，不能保留 0.01 的尾差进总账。
+      if (!Number.isSafeInteger(totalDebit) || !Number.isSafeInteger(totalCredit)) {
+        throw new BusinessError('凭证合计超出金额范围');
+      }
       if (totalDebit !== totalCredit) {
         const debit = totalDebit / 100;
         const credit = totalCredit / 100;
@@ -242,14 +264,14 @@ class GLService {
 
       const accountIds = [...new Set(normalizedItems.map((item) => item.account_id))];
 
-      // 3. 期间状态校验（只读，禁止 FOR UPDATE：长事务+FOR UPDATE 易造成锁等待 50s+）
+      // 3. 共享锁允许同期间并行记账，并阻止关账在本事务完成前更新期间状态。
       let resolvedPeriodId = entryData.period_id || null;
       if (resolvedPeriodId) {
         const [periods] = await conn.execute(
           `SELECT id, is_closed, is_locked, period_name, start_date, end_date, status
            FROM gl_periods
            WHERE id = ?
-           LIMIT 1`,
+           LIMIT 1 LOCK IN SHARE MODE`,
           [resolvedPeriodId]
         );
         if (periods.length === 0) {
@@ -274,7 +296,7 @@ class GLService {
         }
       }
 
-      // 4. 按日期解析开放期间（只读）
+      // 4. 按日期解析并锁定期间，保持与关账的互斥。
       if (!resolvedPeriodId && shouldPostEntry(entryData)) {
         const [periods] = await conn.execute(
           `SELECT id, is_closed, is_locked, period_name, start_date, end_date, status
@@ -282,7 +304,7 @@ class GLService {
            WHERE ? BETWEEN start_date AND end_date
              AND ? BETWEEN start_date AND end_date
            ORDER BY start_date DESC
-           LIMIT 1`,
+           LIMIT 1 LOCK IN SHARE MODE`,
           [entryDate, postingDate]
         );
 
@@ -317,13 +339,28 @@ class GLService {
 
       const accountPlaceholders = accountIds.map(() => '?').join(',');
       const [activeAccounts] = await conn.query(
-        `SELECT id FROM gl_accounts WHERE id IN (${accountPlaceholders}) AND is_active = 1`,
+        `SELECT id FROM gl_accounts WHERE id IN (${accountPlaceholders}) AND is_active = 1 LOCK IN SHARE MODE`,
         accountIds
       );
       const activeAccountIds = new Set(activeAccounts.map((account) => Number(account.id)));
       const missingAccountIds = accountIds.filter((accountId) => !activeAccountIds.has(accountId));
       if (missingAccountIds.length > 0) {
         throw new Error('会计科目不存在或未启用，请检查科目配置');
+      }
+
+      const costCenterIds = [
+        ...new Set(normalizedItems.map((item) => item.cost_center_id).filter(Boolean)),
+      ].sort((a, b) => a - b);
+      if (costCenterIds.length) {
+        const [costCenters] = await conn.query(
+          `SELECT id FROM cost_centers WHERE id IN (${costCenterIds.map(() => '?').join(',')})
+           AND deleted_at IS NULL AND (is_active = 1 OR is_active IS NULL)
+           ORDER BY id LOCK IN SHARE MODE`,
+          costCenterIds
+        );
+        if (costCenters.length !== costCenterIds.length) {
+          throw new BusinessError('成本中心不存在或已停用，请刷新后重新选择');
+        }
       }
 
       // 5. 凭证字号：禁止对 gl_entries 做 MAX...FOR UPDATE（间隙锁会拖死合并长事务）

@@ -508,7 +508,7 @@ onMounted(() => {
 }
 
 .text-danger {
-  color: var(--color-danger);
+  color: var(--color-danger-text);
 }
 
 .generated-amount {

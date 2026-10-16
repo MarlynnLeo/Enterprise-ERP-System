@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { themes, defaultThemeName, getTheme } from '@/config/themes'
 import api from '@/api'
 import { extractApiData } from '@/utils/apiHelper'
+import { applyAccessibleThemeColors } from '@/utils/themeContrast'
 
 const STORAGE_KEY = 'theme_settings'
 const DEFAULT_FONT_SIZE = 14
@@ -50,15 +51,6 @@ const persistTheme = (settings) => {
   }
 }
 
-const accessibleTextColor = (color) => {
-  const luminance = [1, 3, 5].reduce((sum, index, channel) => {
-    const value = Number.parseInt(color.slice(index, index + 2), 16) / 255
-    const linear = value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
-    return sum + linear * [0.2126, 0.7152, 0.0722][channel]
-  }, 0)
-  return (luminance + 0.05) / 0.05 >= 1.05 / (luminance + 0.05) ? '#000000' : '#FFFFFF'
-}
-
 const currentSettings = ref(buildThemeSettings(null, readStoredSettings()))
 const currentThemeName = computed(() => currentSettings.value.preset)
 let appearanceRevision = 0
@@ -74,11 +66,11 @@ const applyThemeToDOM = (settings) => {
   if (typeof document === 'undefined') return
   const root = document.documentElement
   root.setAttribute('data-theme', settings.preset)
-  root.classList.remove('light', 'dark')
-  root.classList.add(settings.theme)
+  root.classList.remove('light', 'dark', 'van-theme-light', 'van-theme-dark')
+  root.classList.add(settings.theme, `van-theme-${settings.theme}`)
   root.style.setProperty('--font-size-base', `${settings.fontSize}px`)
   root.style.setProperty('--color-primary', settings.primaryColor)
-  root.style.setProperty('--color-on-primary', accessibleTextColor(settings.primaryColor))
+  applyAccessibleThemeColors(root, settings.primaryColor, getTheme(settings.preset).preview.bg)
 }
 
 export const useTheme = () => {

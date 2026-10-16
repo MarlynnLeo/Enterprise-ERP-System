@@ -146,7 +146,15 @@ function desensitizeSensitiveResponse(action = 'view') {
         })
         .catch((error) => {
           logger.error('[priceAccessControl] response desensitization failed:', error);
-          return originalJson(payload);
+          // Never fall back to the raw financial response when masking fails.
+          // Use the original sender to avoid re-entering the failing wrapper.
+          if (res.headersSent) return;
+          res.status(500);
+          return originalJson({
+            code: 500,
+            message: '敏感数据权限校验失败，请稍后重试',
+            errorCode: 'PRICE_ACCESS_CHECK_FAILED',
+          });
         });
       return res;
     };

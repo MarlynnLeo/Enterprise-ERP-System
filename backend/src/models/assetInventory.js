@@ -7,6 +7,19 @@ const db = require('../config/db');
 const { logger } = require('../utils/logger');
 const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
 
+function inventoryError(message) {
+  return Object.assign(new Error(message), { code: 'VALIDATION_ERROR' });
+}
+
+async function lockActiveInventory(connection, id) {
+  const [rows] = await connection.query(
+    'SELECT id, status FROM asset_inventories WHERE id = ? FOR UPDATE',
+    [id]
+  );
+  if (!rows.length) throw inventoryError('盘点单不存在或已被删除');
+  if (rows[0].status !== '进行中') throw inventoryError('仅进行中的盘点单可以修改或完成');
+}
+
 const assetInventoryModel = {
   /**
    * 获取盘点单列表
@@ -105,9 +118,13 @@ const assetInventoryModel = {
     try {
       await connection.beginTransaction();
 
+      // 编码规则是一条稳定的公共锁，串行化“当前没有进行中盘点”的判断。
+      await connection.query(
+        "SELECT id FROM coding_rules WHERE business_type = 'asset_inventory' FOR UPDATE"
+      );
       // 检查是否有未完成的盘点单
       const [activeInventories] = await connection.query(
-        'SELECT id FROM asset_inventories WHERE status = "进行中"'
+        'SELECT id FROM asset_inventories WHERE status = "进行中" FOR UPDATE'
       );
       if (activeInventories.length > 0) {
         throw new Error('存在未完成的盘点单，请先完成或取消当前盘点');
@@ -155,18 +172,41 @@ const assetInventoryModel = {
   /**
    * 更新单条盘点明细（实盘数据）
    */
-  updateInventoryItem: async (itemId, data) => {
+  updateInventoryItem: async (itemId, data, inventoryId) => {
+    const quantity = Number(data.actual_quantity);
+    if (
+      !['number', 'string'].includes(typeof data.actual_quantity) ||
+      String(data.actual_quantity).trim() === '' ||
+      !Number.isSafeInteger(quantity) || quantity < 0
+    ) {
+      throw inventoryError('实盘数量必须为非负整数');
+    }
+    const connection = await db.pool.getConnection();
     try {
-      await db.pool.query(
+      await connection.beginTransaction();
+      // 与完成操作使用同一个主单锁，防止完成后仍写入盘点结果。
+      await lockActiveInventory(connection, inventoryId);
+      const [items] = await connection.query(
+        'SELECT id, book_quantity FROM asset_inventory_items WHERE id = ? AND inventory_id = ? FOR UPDATE',
+        [itemId, inventoryId]
+      );
+      if (!items.length) throw inventoryError('盘点明细不属于当前盘点单');
+      const bookQuantity = Number(items[0].book_quantity);
+      const status = quantity === bookQuantity ? '盘点相符' : quantity > bookQuantity ? '盘盈' : '盘亏';
+      await connection.query(
         `UPDATE asset_inventory_items
                  SET actual_quantity = ?, status = ?, notes = ?
-                 WHERE id = ?`,
-        [data.actual_quantity, data.status, data.notes || null, itemId]
+                 WHERE id = ? AND inventory_id = ?`,
+        [quantity, status, data.notes || null, itemId, inventoryId]
       );
+      await connection.commit();
       return true;
     } catch (error) {
+      await connection.rollback();
       logger.error('更新盘点明细失败模型:', error);
       throw error;
+    } finally {
+      connection.release();
     }
   },
 
@@ -177,16 +217,28 @@ const assetInventoryModel = {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
+      await lockActiveInventory(connection, id);
 
       // 检查是否所有明细都已盘点
       const [uncounted] = await connection.query(
-        `SELECT id FROM asset_inventory_items WHERE inventory_id = ? AND status = '未盘点'`,
+        `SELECT id FROM asset_inventory_items WHERE inventory_id = ?
+         AND (status = '未盘点' OR actual_quantity IS NULL OR actual_quantity < 0
+              OR actual_quantity <> FLOOR(actual_quantity)) FOR UPDATE`,
         [id]
       );
 
       if (uncounted.length > 0) {
-        throw new Error('存在未确认实盘数量的资产明细，请完成所有明细盘点后再提交');
+        throw inventoryError('存在未确认实盘数量的资产明细，请完成所有明细盘点后再提交');
       }
+
+      // 重新由数量推导历史明细状态，避免客户端状态与实盘结果不一致。
+      await connection.query(
+        `UPDATE asset_inventory_items SET status = CASE
+           WHEN actual_quantity = book_quantity THEN '盘点相符'
+           WHEN actual_quantity > book_quantity THEN '盘盈' ELSE '盘亏' END
+         WHERE inventory_id = ?`,
+        [id]
+      );
 
       // 更新主单状态
       await connection.query(

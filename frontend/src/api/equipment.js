@@ -12,9 +12,11 @@ export const equipmentApi = {
 
   getMaintenances: (params) => api.get('/equipment/maintenance', { params }),
   createMaintenance: (equipmentId, data) => api.post(`/equipment/${equipmentId}/maintenance`, data),
+  updateMaintenance: (id, data) => api.put(`/equipment/maintenance/${id}`, data),
 
   getFailures: (params) => api.get('/equipment/failures', { params }),
   createFailure: (equipmentId, data) => api.post(`/equipment/${equipmentId}/failure`, data),
+  updateFailure: (id, data) => api.put(`/equipment/failures/${id}`, data),
 
   getInspections: (params) => api.get('/equipment/inspections', { params }),
   createInspection: (equipmentId, data) => api.post(`/equipment/${equipmentId}/inspection`, data),

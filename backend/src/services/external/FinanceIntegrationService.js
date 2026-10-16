@@ -40,7 +40,27 @@ const {
 // 采购订单/入库: price；销售订单: unit_price；销售出库: price
 
 class FinanceIntegrationService {
-  static async requireApprovedInventoryPosting(connection, sourceType, sourceNo) {
+  static async requireApprovedInventoryPosting(connection, sourceType, sourceNo, sourceId = null) {
+    if (sourceType === 'purchase_receipt') {
+      const { movement } = await InventoryPostingService.getApprovalBySource({
+        sourceType, sourceId, sourceNo,
+      }, connection);
+      if (!movement || movement.finance_status !== 'approved' || Number(movement.locked) !== 1) {
+        throw Object.assign(new Error(`采购收货单 ${sourceNo} 尚无已锁定的财务过账记录`), {
+          code: 'INVENTORY_POSTING_REQUIRED', statusCode: 409,
+        });
+      }
+      const approved = await InventoryPostingService.requireApprovedForTransaction(connection, {
+        posting_document_id: movement.id, reference_no: sourceNo,
+      });
+      const receipt = await require('../business/PurchaseReceiptPostingSourceService').resolve(connection, approved);
+      if (receipt?.receiptId !== Number(sourceId) || receipt.receiptNo !== sourceNo) {
+        throw Object.assign(new Error('采购收货凭证与财务审核来源不一致'), {
+          code: 'POSTING_SOURCE_CHANGED', statusCode: 409,
+        });
+      }
+      return approved;
+    }
     return InventoryPostingService.requireApprovedForTransaction(connection, {
       reference_type: sourceType,
       reference_no: sourceNo,
@@ -1462,7 +1482,7 @@ class FinanceIntegrationService {
     const connection = options.connection || (await db.pool.getConnection());
     try {
       if (!isExternalConn) await connection.beginTransaction();
-      await this.requireApprovedInventoryPosting(connection, 'inbound', purchaseReceipt.receipt_no);
+      await this.requireApprovedInventoryPosting(connection, 'purchase_receipt', purchaseReceipt.receipt_no, purchaseReceipt.id);
       await this.lockSourceDocument(connection, 'purchase_receipts', purchaseReceipt.id);
 
       const [receiptAmountRows] = await connection.execute(
@@ -1754,7 +1774,7 @@ class FinanceIntegrationService {
       await connection.beginTransaction();
 
       const [receiptRows] = await connection.execute(
-        `SELECT receipt_no
+        `SELECT id, receipt_no
            FROM purchase_receipts
           WHERE order_id = ?
             AND deleted_at IS NULL
@@ -1768,7 +1788,7 @@ class FinanceIntegrationService {
         );
       }
       for (const receipt of receiptRows) {
-        await this.requireApprovedInventoryPosting(connection, 'inbound', receipt.receipt_no);
+        await this.requireApprovedInventoryPosting(connection, 'purchase_receipt', receipt.receipt_no, receipt.id);
       }
       await this.lockSourceDocument(connection, 'purchase_orders', purchaseOrder.id);
 
@@ -2501,7 +2521,7 @@ class FinanceIntegrationService {
     const connection = options.connection || (await db.pool.getConnection());
     try {
       if (!isExternalConn) await connection.beginTransaction();
-      await this.requireApprovedInventoryPosting(connection, 'inbound', purchaseReceipt.receipt_no);
+      await this.requireApprovedInventoryPosting(connection, 'purchase_receipt', purchaseReceipt.receipt_no, purchaseReceipt.id);
       await this.lockSourceDocument(connection, 'purchase_receipts', purchaseReceipt.id);
 
       const existingInvoice = await this.findExistingTaxInvoice(

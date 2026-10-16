@@ -111,7 +111,7 @@ class BankAccountModel {
         params.push(filters.is_active);
       }
 
-      const orderClause = ' ORDER BY bank_name, account_name';
+      const orderClause = ' ORDER BY bank_name, account_name, id';
 
       // 如果提供了分页参数，使用数据库级分页
       if (filters.page && filters.pageSize) {
@@ -152,8 +152,26 @@ class BankAccountModel {
    * 更新银行账户
    */
   static async updateBankAccount(id, accountData) {
+    const connection = await db.pool.getConnection();
     try {
-      const [result] = await db.pool.execute(
+      await connection.beginTransaction();
+      const [accounts] = await connection.execute(
+        'SELECT id, currency_code, opening_balance, current_balance, account_type, is_active FROM bank_accounts WHERE id = ? FOR UPDATE',
+        [id]
+      );
+      if (!accounts.length) throw new Error('银行账户不存在');
+      const account = accounts[0];
+      const currency = String(accountData.currency_code || account.currency_code || 'CNY').trim().toUpperCase();
+      if (currency !== String(account.currency_code || 'CNY').toUpperCase()) {
+        const [history] = await connection.execute(
+          'SELECT id FROM bank_transactions WHERE bank_account_id = ? LIMIT 1 FOR UPDATE',
+          [id]
+        );
+        if (history.length || Number(account.opening_balance || 0) !== 0 || Number(account.current_balance || 0) !== 0) {
+          throw new Error('银行账户已有余额或交易记录，不能变更币种');
+        }
+      }
+      const [result] = await connection.execute(
         `UPDATE bank_accounts SET
          account_number = ?,
          account_name = ?,
@@ -172,9 +190,9 @@ class BankAccountModel {
           accountData.account_name,
           accountData.bank_name,
           accountData.branch_name || null,
-          accountData.currency_code || financeConfig.get('account.defaultCurrency', 'CNY'),
-          accountData.account_type || '活期',
-          accountData.is_active !== undefined ? accountData.is_active : true,
+          currency,
+          accountData.account_type || account.account_type || '活期',
+          accountData.is_active !== undefined ? accountData.is_active : account.is_active,
           accountData.contact_person || null,
           accountData.contact_phone || null,
           accountData.notes || null,
@@ -182,10 +200,14 @@ class BankAccountModel {
           id,
         ]
       );
+      await connection.commit();
       return result.affectedRows > 0;
     } catch (error) {
+      await connection.rollback();
       logger.error('更新银行账户失败:', error);
       throw error;
+    } finally {
+      connection.release();
     }
   }
 

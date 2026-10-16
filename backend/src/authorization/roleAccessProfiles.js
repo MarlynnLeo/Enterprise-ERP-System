@@ -181,7 +181,7 @@ const QUALITY_APPROVE = [
   'quality:nonconforming:approve',
 ];
 
-// 财务审核必须在来源业务单据详情中完成，因此财务岗位需要来源单据的只读权限。
+// 财务岗位在各业务单据详情内完成存货审核，因此保留来源单据只读权限。
 // 这些权限只开放查询，不授予建单、修改、删除或业务审核能力。
 const FINANCE_INVENTORY_SOURCE_VIEW = [
   'inventory:inbound:view',

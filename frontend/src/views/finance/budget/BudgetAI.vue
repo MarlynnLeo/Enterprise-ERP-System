@@ -886,8 +886,8 @@ onBeforeUnmount(() => {
 /* ===== 全局容器（匹配生产看板） ===== */
 .budget-ai-container { padding: 20px; }
 
-/* ===== 页头卡片（白色简洁） ===== */
-.header-card { margin-bottom: 20px; border-radius: 8px !important; }
+/* ===== 页头布局 ===== */
+.header-card { margin-bottom: 20px; }
 .header-left { display: flex; flex-direction: column; gap: 4px; }
 .header-desc { font-size: 12px; color: var(--color-text-secondary); }
 .header-right { display: flex; align-items: center; }
@@ -895,47 +895,17 @@ onBeforeUnmount(() => {
 .token-stats :deep(.el-tag) { font-size: 12px; }
 .token-stats strong { margin-left: 2px; }
 
-/* ===== 标签页（CostSettings风格：圆角+渐变+hover） ===== */
-.ai-tabs {
-  background: var(--color-bg-base);
-  border-radius: 16px;
-  box-shadow: 0 2px 12px color-mix(in srgb, var(--ds-black) 8%, transparent);
-  border: none;
-  overflow: hidden;
-}
-.ai-tabs :deep(.el-tabs__header) {
-  background: var(--color-bg-section);
-  margin: 0;
-  padding: 16px 20px 0;
-  border-bottom: 1px solid var(--color-border-light);
-}
+/* ===== 标签页内容布局（表面与间距由共享主题提供） ===== */
 .ai-tabs :deep(.el-tabs__item) {
-  border-radius: 8px 8px 0 0;
-  padding: 12px 24px;
-  font-weight: 500;
-  font-size: 14px;
-  height: auto;
-  line-height: 1.5;
   transition: background-color 0.3s, border-color 0.3s, color 0.3s, box-shadow 0.3s, opacity 0.3s, transform 0.3s;
-}
-.ai-tabs :deep(.el-tabs__item:hover) {
-  background: color-mix(in srgb, var(--color-primary) 5%, transparent);
-}
-.ai-tabs :deep(.el-tabs__item.is-active) {
-  background: var(--color-bg-base);
-  color: var(--color-primary) !important;
-  font-weight: 600;
-}
-.ai-tabs :deep(.el-tabs__content) {
-  padding: 24px !important;
 }
 .tab-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px; }
 
 /* ===== 统计卡片 ===== */
 .summary-row { margin-bottom: 16px; }
 .summary-row :deep(.el-col) { display: flex; }
-.stat-card { text-align: center; padding: 16px; border-radius: 8px !important; transition: border-color .2s ease, background-color .2s ease; width: 100%; box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-black) 5%, transparent) !important; display: flex; flex-direction: column; justify-content: center; min-height: 110px; }
-.stat-card:hover { box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-black) 5%, transparent) !important; transform: none; background: var(--color-bg-section); }
+.stat-card { text-align: center; padding: 16px; transition: border-color .2s ease, background-color .2s ease; width: 100%; box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-black) 5%, transparent); display: flex; flex-direction: column; justify-content: center; min-height: 110px; }
+.stat-card:hover { box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-black) 5%, transparent); transform: none; background: var(--color-bg-section); }
 .stat-label { font-size: 13px; color: var(--color-text-secondary); margin-bottom: 8px; }
 .stat-value { font-size: 24px; font-weight: 700; color: var(--color-text-primary); }
 .stat-value small { font-size: 14px; font-weight: 400; color: var(--color-text-secondary); margin-left: 2px; }
@@ -1094,6 +1064,4 @@ onBeforeUnmount(() => {
 .metric-label { font-size: 12px; color: var(--color-text-secondary); }
 .metric-value { font-size: 16px; font-weight: 700; }
 
-/* ===== 表格 ===== */
-.ai-tabs :deep(.el-table th) { background: var(--color-bg-section) !important; font-weight: 600; font-size: 13px; }
 </style>

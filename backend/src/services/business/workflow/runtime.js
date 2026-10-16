@@ -18,15 +18,6 @@ const BUSINESS_STATUS_MAP = {
     pendingStatuses: ['pending'],
     extra: '',
   },
-  purchase_requisition: {
-    table: 'purchase_requisitions',
-    ownerColumn: 'created_by',
-    approved: 'approved',
-    rejected: 'draft',
-    withdrawn: 'draft',
-    pendingStatuses: ['submitted'],
-    extra: '',
-  },
   contract: {
     table: 'contracts',
     ownerColumn: 'created_by',

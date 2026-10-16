@@ -3,6 +3,8 @@
  * 只保留打印中心的元数据、表单默认值和预览样例；业务打印内容以数据库模板为准。
  */
 
+import { buildPurchaseOrderPrintData } from '../utils/purchaseOrderPrint'
+
 export const PAPER_SIZE_OPTIONS = [
   { label: 'A4', value: 'A4' },
   { label: 'A5', value: 'A5' },
@@ -244,32 +246,44 @@ export const PREVIEW_DATA = {
       { index: 1, material_code: 'P-1001', material_name: '控制器组件', specification: 'K-100', quantity: '2.00', unit_name: '件', remark: '待质检' }
     ]
   },
-  purchase_order: {
-    company_name: '示例制造有限公司',
-    company_phone: '021-00000000',
-    company_fax: '021-00000001',
-    company_address: '上海市浦东新区示例路 88 号',
-    order_number: 'PO-20260511001',
-    order_no: 'PO-20260511001',
-    order_date: '2026-05-11',
-    expected_delivery_date: '2026-05-18',
-    delivery_date: '2026-05-18',
-    supplier_name: '示例供应商有限公司',
-    contact_person: '供应商联系人',
-    contact_phone: '13900000000',
+  purchase_order: buildPurchaseOrderPrintData({
+    companyName: '浙江开控电气有限公司',
+    companyPhone: '0577-61719000  61719003  61719007',
+    companyFax: '0577-61719009',
+    orderNo: 'G2610060022',
+    orderDate: '2026-10-06',
+    expectedDeliveryDate: '2026-10-30',
+    supplierCode: 'G010',
+    supplierName: '浙江久制电气有限公司',
+    contactPerson: '',
+    contactPhone: '',
+    supplierFax: '',
+    senderName: '潘林苏',
+    approverId: 42,
+    approverName: '陈贤萍',
+    approverSignatureCode: 'C',
+    approvedAt: '2026-10-06 16:30:00',
     status: '已审核',
-    notes: '标准采购订单预览',
-    remark: '标准采购订单预览',
-    subtotal: '8,000.00',
-    tax_amount: '1,040.00',
-    total_amount: '9,040.00',
-    total_quantity: '300.00',
-    print_time: '2026-05-11 16:30:00',
+    remarks: '',
+    subtotal: 12869.47,
+    taxAmount: 1673.03,
+    totalAmount: 14542.50,
+    printTime: '2026-10-06 16:30:00',
     items: [
-      { index: 1, material_code: 'M-1001', material_name: '铜端子', specification: 'T2', unit: '件', unit_name: '件', quantity: '200.00', price: '10.00', unit_price: '10.00', total_price: '2,000.00', amount: '2,000.00', delivery_date: '2026-05-18' },
-      { index: 2, material_code: 'M-1002', material_name: '塑胶壳体', specification: '黑色', unit: '件', unit_name: '件', quantity: '100.00', price: '60.00', unit_price: '60.00', total_price: '6,000.00', amount: '6,000.00', delivery_date: '2026-05-18' }
+      {
+        materialCode: '3012007035',
+        materialName: 'SL 40（红）',
+        specification: 'D4 RECTANGLE LED ASS',
+        unit: '个',
+        quantity: 5000,
+        price: 2.573894,
+        totalPrice: 12869.47,
+        taxAmount: 1673.03,
+        taxRate: 13,
+        deliveryDate: '2026-10-30'
+      }
     ]
-  },
+  }),
   purchase_requisition: {
     requisition_number: 'PR-20260511001',
     request_date: '2026-05-11',

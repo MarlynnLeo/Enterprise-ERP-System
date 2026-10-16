@@ -65,7 +65,7 @@ html.dark .app-shell {
 .app-sidebar {
   background: var(--shell-surface) !important;
   border: 1px solid var(--shell-border) !important;
-  box-shadow: var(--shell-shadow) !important;
+  box-shadow: var(--shell-shadow);
 }
 .logo-container {
   flex: 0 0 60px;
@@ -179,7 +179,7 @@ html.dark .app-shell {
     color 150ms ease,
     background-color 150ms ease,
     border-color 150ms ease,
-    box-shadow 150ms ease !important;
+    box-shadow 150ms ease;
 }
 .app-menu-item:hover {
   background-color: var(--shell-control-hover-bg) !important;
@@ -268,7 +268,7 @@ html.dark .app-shell {
 .app-header {
   background: var(--shell-surface) !important;
   border: 1px solid var(--shell-border) !important;
-  box-shadow: var(--shell-shadow) !important;
+  box-shadow: var(--shell-shadow);
 }
 .header-left {
   display: flex;
@@ -431,7 +431,7 @@ html.dark .app-shell {
   gap: var(--shell-float-gap);
   outline: none;
 }
-.main-content {
+#workspace-page {
   padding: 20px;
   background-color: transparent;
   overflow-x: hidden;
@@ -448,10 +448,6 @@ html.dark .app-shell {
   width: var(--shell-sidebar-collapsed-width) !important;
 }
 /* 主线程繁忙或用户要求减少动画时，避免侧栏宽度动画继续触发整页重排。 */
-html.perf-low-end .sidebar,
-html.perf-reduced-motion .sidebar {
-  transition: none !important;
-}
 .sidebar.is-mini .sidebar-menu {
   width: 100%;
   padding-left: 0;
@@ -511,6 +507,12 @@ html.perf-reduced-motion .sidebar {
     gap: 8px;
   }
 
+  /* The drawer overlaps page content. An opaque theme surface keeps text
+     legible without restoring expensive backdrop filtering. */
+  :root[data-theme] .app-sidebar {
+    background: var(--color-bg-base) !important;
+  }
+
   .sidebar {
     position: fixed;
     z-index: 1000;
@@ -529,7 +531,7 @@ html.perf-reduced-motion .sidebar {
     width: var(--shell-sidebar-expanded-width) !important;
   }
 
-  .header, .main-content {
+  .header, #workspace-page {
     margin: 0;
   }
 }

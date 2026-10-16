@@ -18,6 +18,10 @@ const { currentDateString, toLocalDateString } = require('../../utils/dateUtils'
 const { financeConfig } = require('../../config/financeConfig');
 const Precision = require('../../utils/precision');
 const InventoryPostingService = require('../InventoryPostingService');
+const {
+  buildCostDocumentNumber,
+  costDocumentValue,
+} = require('../../utils/inventoryCostDocumentIdentity');
 
 /**
  * 库存成本自动化服务
@@ -25,12 +29,39 @@ const InventoryPostingService = require('../InventoryPostingService');
  */
 class InventoryCostService {
   static buildCostDocumentNumber(transaction, direction) {
-    const reference = transaction.reference_no || transaction.id || direction;
-    const materialId = transaction.material_id || transaction.materialId || 'NA';
-    const lineId = transaction.posting_line_id || transaction.postingLineId;
-    const suffix = lineId ? `-L${lineId}` : '';
-    const value = `${reference}-M${materialId}${suffix}`;
-    return value.length <= 50 ? value : value.slice(0, 50);
+    return buildCostDocumentNumber(transaction, direction);
+  }
+
+  static async assertNoAmbiguousLegacyCostEntry(connection, transaction, direction, documentType) {
+    const value = costDocumentValue(transaction, direction);
+    if (value.length <= 50) return;
+    const legacy = await this.findExistingActiveGlEntry(
+      connection,
+      documentType,
+      value.slice(0, 50)
+    );
+    if (legacy) {
+      throw new Error('历史库存成本凭证编号被截断，无法唯一关联过账明细，请先核对历史凭证');
+    }
+  }
+
+  static calculateTotalCost(transaction, quantity, unitCost) {
+    const value = transaction.total_value;
+    if (value !== null && value !== undefined) {
+      if (!Number.isFinite(Number(value))) throw new Error('库存过账金额无效，不能生成成本凭证');
+      return Precision.round2(Math.abs(Number(value)));
+    }
+    return Precision.round2(Precision.mul(quantity, unitCost));
+  }
+
+  static resolvePostingActorId(posting) {
+    const id = Number(posting?.finance_approved_by);
+    if (!Number.isSafeInteger(id) || id <= 0) {
+      throw new Error('库存过账缺少可追溯的财务审核人，不能生成成本凭证');
+    }
+    // The reviewer remains the author even if their account was disabled after
+    // approval. Do not substitute another active user during asynchronous replay.
+    return id;
   }
 
   static calculateMacFromBalances(balances, fallbackUnitCost) {
@@ -65,6 +96,31 @@ class InventoryCostService {
     return transactionType === 'sales_outbound' || referenceType === 'sales_outbound';
   }
 
+  static resolveAccountingType(transaction = {}) {
+    const transactionType = transaction.transaction_type || transaction.transactionType;
+    const referenceType = transaction.reference_type || transaction.referenceType;
+    // A reference identifies the owning document (for example a generic inbound
+    // or a two-sided exchange); the movement carries its accounting direction.
+    const accountingTypes = new Set([
+      'purchase_inbound',
+      'purchase_receipt',
+      'purchase_return',
+      'production_inbound',
+      'production_outbound',
+      'sales_outbound',
+      'sales_return',
+      'sales_exchange_return',
+      'sales_exchange_out',
+      'manual_in',
+      'manual_out',
+      'adjustment_in',
+      'adjustment_out',
+    ]);
+    return accountingTypes.has(transactionType)
+      ? transactionType
+      : referenceType || transactionType;
+  }
+
   /**
    * 库存入库时自动生成成本分录
    * @param {Object} transaction 库存交易记录
@@ -75,7 +131,11 @@ class InventoryCostService {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
-      await InventoryPostingService.requireApprovedForTransaction(connection, transaction);
+      const posting = await InventoryPostingService.requireApprovedForTransaction(
+        connection,
+        transaction
+      );
+      const userId = this.resolvePostingActorId(posting);
 
       // 1. 验证并获取物料信息
       const material = await this.getMaterialInfo(connection, transaction.material_id);
@@ -83,6 +143,12 @@ class InventoryCostService {
         transaction.transaction_date || transaction.date || currentDateString()
       );
       const documentNumber = this.buildCostDocumentNumber(transaction, 'IN');
+      await this.assertNoAmbiguousLegacyCostEntry(
+        connection,
+        transaction,
+        'IN',
+        DOCUMENT_TYPE_MAPPING.INVENTORY_INBOUND
+      );
       const existingEntry = await this.findExistingActiveGlEntry(
         connection,
         DOCUMENT_TYPE_MAPPING.INVENTORY_INBOUND,
@@ -105,7 +171,7 @@ class InventoryCostService {
           ? parseFloat(transaction.unit_cost)
           : parseFloat(material.cost_price || 0);
       const inboundQty = parseFloat(transaction.quantity) || 0;
-      const totalCost = Precision.round2(Precision.mul(inboundQty, inboundUnitCost));
+      const totalCost = this.calculateTotalCost(transaction, inboundQty, inboundUnitCost);
 
       if (!(inboundQty > 0)) {
         throw new Error(`物料 ${material.code} 入库数量必须大于 0，不能生成成本分录`);
@@ -122,30 +188,26 @@ class InventoryCostService {
       const oldCostPrice = parseFloat(material.cost_price || 0);
       let newMac = inboundUnitCost;
 
-      try {
-        // 结存表已经包含本次库存变动，直接按结存数量和金额计算 MAC。
-        const [stockBalances] = await connection.execute(
-          `SELECT quantity, total_value
-             FROM inventory_stock_balances
-            WHERE material_id = ?
-            FOR UPDATE`,
-          [transaction.material_id]
-        );
-        newMac = this.calculateMacFromBalances(stockBalances, inboundUnitCost);
+      // MAC and GL must share the approval/source locks in this transaction.
+      // A deadlock can roll back the entire transaction; propagate every SQL
+      // failure so the durable finance event retries from the approval gate.
+      const [stockBalances] = await connection.execute(
+        `SELECT quantity, total_value
+           FROM inventory_stock_balances
+          WHERE material_id = ?
+          FOR UPDATE`,
+        [transaction.material_id]
+      );
+      newMac = this.calculateMacFromBalances(stockBalances, inboundUnitCost);
 
-        // 回写到 materials 表 (确保其回归反映真实库存账面的职责)
-        if (newMac > 0) {
-          await connection.execute(
-            'UPDATE materials SET cost_price = ? WHERE id = ? AND deleted_at IS NULL',
-            [newMac.toFixed(4), transaction.material_id]
-          );
-          logger.info(
-            `Material ${material.code} MAC updated: oldUnitCost=${oldCostPrice}, inboundUnitCost=${inboundUnitCost}, inboundQuantity=${inboundQty}, newUnitCost=${newMac.toFixed(4)}`
-          );
-        }
-      } catch (macErr) {
-        logger.error(`Failed to update material ${material.code} MAC price:`, macErr);
-        // 不阻断凭证流程
+      if (newMac > 0) {
+        await connection.execute(
+          'UPDATE materials SET cost_price = ? WHERE id = ? AND deleted_at IS NULL',
+          [newMac.toFixed(4), transaction.material_id]
+        );
+        logger.info(
+          `Material ${material.code} MAC updated: oldUnitCost=${oldCostPrice}, inboundUnitCost=${inboundUnitCost}, inboundQuantity=${inboundQty}, newUnitCost=${newMac.toFixed(4)}`
+        );
       }
 
       // 3. 获取当前会计期间
@@ -156,17 +218,13 @@ class InventoryCostService {
       const entryNumber = await this.generateEntryNumber(connection, ENTRY_NUMBER_PREFIX.INVENTORY);
 
       // 5. 获取会计科目ID
-      const referenceType = transaction.reference_type || transaction.transaction_type;
+      const referenceType = this.resolveAccountingType(transaction);
       const inventoryAccountId = await this.getInventoryAccountId(
         connection,
         transaction.material_id,
         referenceType
       );
       const sourceAccountId = await this.getSourceAccountId(connection, referenceType);
-
-      // 6. 获取用户ID（如果传入的是用户名或姓名）
-      const { resolveActorUserId } = require('../../utils/userUtils');
-      const userId = await resolveActorUserId(connection, context.userId, context.created_by);
 
       // 7. 准备分录数据
       const entryData = {
@@ -220,7 +278,7 @@ class InventoryCostService {
         message: '库存入库成本分录生成成功',
       };
     } catch (error) {
-      await connection.rollback();
+      await this.rollbackAfterFailure(connection, error);
       logger.error('生成库存入库成本分录失败:', {
         error: error.message,
         transaction,
@@ -255,7 +313,11 @@ class InventoryCostService {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
-      await InventoryPostingService.requireApprovedForTransaction(connection, transaction);
+      const posting = await InventoryPostingService.requireApprovedForTransaction(
+        connection,
+        transaction
+      );
+      const userId = this.resolvePostingActorId(posting);
 
       // 1. 验证并获取物料信息
       const material = await this.getMaterialInfo(connection, transaction.material_id);
@@ -263,6 +325,12 @@ class InventoryCostService {
         transaction.transaction_date || transaction.date || currentDateString()
       );
       const documentNumber = this.buildCostDocumentNumber(transaction, 'OUT');
+      await this.assertNoAmbiguousLegacyCostEntry(
+        connection,
+        transaction,
+        'OUT',
+        DOCUMENT_TYPE_MAPPING.INVENTORY_OUTBOUND
+      );
       const existingEntry = await this.findExistingActiveGlEntry(
         connection,
         DOCUMENT_TYPE_MAPPING.INVENTORY_OUTBOUND,
@@ -287,8 +355,10 @@ class InventoryCostService {
       if (!(unitCost > 0)) {
         throw new Error(`物料 ${material.code} 出库单位成本必须大于 0，请先维护物料成本价`);
       }
-      const totalCost = Precision.round2(
-        Precision.mul(Math.abs(parseFloat(transaction.quantity) || 0), unitCost)
+      const totalCost = this.calculateTotalCost(
+        transaction,
+        Math.abs(parseFloat(transaction.quantity) || 0),
+        unitCost
       );
 
       if (!(totalCost > 0)) {
@@ -303,16 +373,13 @@ class InventoryCostService {
       const entryNumber = await this.generateEntryNumber(connection, ENTRY_NUMBER_PREFIX.INVENTORY);
 
       // 5. 获取会计科目ID
-      const referenceType = transaction.reference_type || transaction.transaction_type;
+      const referenceType = this.resolveAccountingType(transaction);
       const costAccountId = await this.getCostAccountId(connection, referenceType);
       const inventoryAccountId = await this.getInventoryAccountId(
         connection,
-        transaction.material_id
+        transaction.material_id,
+        referenceType
       );
-
-      // 6. 获取用户ID（如果传入的是用户名或姓名）
-      const { resolveActorUserId } = require('../../utils/userUtils');
-      const userId = await resolveActorUserId(connection, context.userId, context.created_by);
 
       // 7. 准备分录数据
       const entryData = {
@@ -366,7 +433,7 @@ class InventoryCostService {
         message: '库存出库成本分录生成成功',
       };
     } catch (error) {
-      await connection.rollback();
+      await this.rollbackAfterFailure(connection, error);
       logger.error('生成库存出库成本分录失败:', {
         error: error.message,
         transaction,
@@ -379,6 +446,19 @@ class InventoryCostService {
   }
 
   // ==================== 私有辅助方法 ====================
+
+  static async rollbackAfterFailure(connection, originalError) {
+    try {
+      await connection.rollback();
+    } catch (rollbackError) {
+      // A lost connection can also reject ROLLBACK. Preserve the original
+      // failure for retry diagnostics and always release the connection.
+      logger.error('库存成本分录事务回滚失败:', {
+        error: rollbackError.message,
+        originalError: originalError.message,
+      });
+    }
+  }
 
   /**
    * 获取物料信息
@@ -438,8 +518,8 @@ class InventoryCostService {
    * @private
    */
   static async getInventoryAccountId(connection, _materialId = null, referenceType = null) {
-    // 当前标准成本流程统一使用配置中心的库存商品科目。
-    // 如果企业按物料分类分账，应在配置层增加分类映射后再扩展这里。
+    // Purchase receipts and their returns use the same configured inventory
+    // classification so a return reverses the account recognized at receipt.
     await accountingConfig.loadFromDatabase(db);
     const accountKey = ['purchase_inbound', 'purchase_receipt', 'purchase_return'].includes(
       referenceType
@@ -479,6 +559,8 @@ class InventoryCostService {
         accountKey = 'PRODUCTION_COST'; // 生产成本
         break;
       case 'sales_return':
+      case 'sales_exchange_return':
+      case 'sales_exchange':
         accountKey = 'SALES_COST'; // 销售退货入库冲回主营业务成本
         break;
       case 'manual_in':
@@ -518,6 +600,8 @@ class InventoryCostService {
         accountKey = 'GR_IR'; // 采购退货出库借方科目：应付暂估
         break;
       case 'sales_outbound':
+      case 'sales_exchange_out':
+      case 'sales_exchange':
       case 'sale':
       case 'outbound': // 添加通用出库类型
         accountKey = 'SALES_COST'; // 销售成本

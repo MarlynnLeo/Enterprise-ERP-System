@@ -355,7 +355,7 @@
         color: var(--text-secondary);
       }
       &.accent {
-        color: var(--color-warning);
+        color: var(--color-warning-text);
       }
       &.success {
         color: var(--ds-green-strong);
@@ -409,7 +409,7 @@
     &.active {
       background: rgba(59, 130, 246, 0.1);
       border-color: var(--color-primary);
-      color: var(--color-primary);
+      color: var(--color-primary-text);
     }
   }
 
@@ -489,15 +489,15 @@
     }
     &.status-progress {
       background: rgba(245, 158, 11, 0.12);
-      color: var(--color-warning);
+      color: var(--color-warning-text);
     }
     &.status-completed {
       background: rgba(16, 185, 129, 0.12);
-      color: var(--color-success);
+      color: var(--color-success-text);
     }
     &.status-cancelled {
       background: rgba(239, 68, 68, 0.1);
-      color: var(--color-danger);
+      color: var(--color-danger-text);
     }
   }
   .order-qty {
@@ -554,15 +554,15 @@
       }
       &.confirm {
         background: rgba(59, 130, 246, 0.1);
-        color: var(--color-primary);
+        color: var(--color-primary-text);
       }
       &.complete {
         background: rgba(16, 185, 129, 0.1);
-        color: var(--color-success);
+        color: var(--color-success-text);
       }
       &.warning {
         background: rgba(245, 158, 11, 0.1);
-        color: var(--color-warning);
+        color: var(--color-warning-text);
       }
     }
   }

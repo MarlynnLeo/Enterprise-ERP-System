@@ -240,6 +240,8 @@ module.exports = {
   async closePeriod(periodData) {
     const connection = await db.pool.getConnection();
     try {
+      // 等待期间排他锁期间可能有记账事务提交；检查必须读取锁取得后的最新已提交数据。
+      await connection.execute('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
       await connection.beginTransaction();
 
       const period_id = periodData.period_id;
@@ -316,7 +318,7 @@ module.exports = {
 
       await this.assertCoreClosingControls(connection, period);
 
-      const trialBalance = await financeModel.getTrialBalance(period_id);
+      const trialBalance = await financeModel.getTrialBalance(period_id, connection);
       if (!trialBalance.isBalanced) {
         throw new Error('试算平衡表借贷不平衡，请先检查凭证或期初余额');
       }
@@ -701,6 +703,23 @@ module.exports = {
       const period = periodInfo[0];
       // 重开 = 解锁 + 打开期间 + 冲销损益结转（专业反结账）
       // 不再要求调用方先手动 unlock
+
+      // 年结凭证与零利润年结日志均代表已完成的年度，月度反结账不能留下旧年结结果。
+      const [yearTransfers] = await connection.execute(
+        `SELECT id FROM gl_entries WHERE document_type = ? AND YEAR(entry_date) = ? LIMIT 1 FOR UPDATE`,
+        [DOCUMENT_TYPE_MAPPING.YEAR_END_TRANSFER, period.fiscal_year]
+      );
+      const [yearTransferLogs] = await connection.execute(
+        `SELECT id FROM operation_logs
+         WHERE module = 'finance' AND operation = 'year_end_transfer'
+           AND JSON_VALID(request_data)
+           AND JSON_UNQUOTE(JSON_EXTRACT(request_data, '$.year')) = ?
+         LIMIT 1 FOR UPDATE`,
+        [String(period.fiscal_year)]
+      );
+      if (yearTransfers.length || yearTransferLogs.length) {
+        throw new Error(`${period.fiscal_year}年度已完成年度结转，不能通过月度反结账修改`);
+      }
 
       // 检查是否有后续期间已关闭
       const [laterPeriods] = await connection.execute(

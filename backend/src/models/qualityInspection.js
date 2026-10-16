@@ -5,6 +5,10 @@
  * @version 1.0.0
  */
 
+const {
+  fixedMeasurements: normalizeFixedMeasurements,
+  assertMeasurementVerdict,
+} = require('../utils/quality/inspectionEvidence');
 const { logger } = require('../utils/logger');
 const { softDelete } = require('../utils/softDelete');
 const db = require('../config/db');
@@ -162,6 +166,10 @@ class QualityInspection {
       throw this._createValidationError(`还有 ${unjudged.length} 个检验项目未判定，不能关闭检验单`);
     }
 
+    for (const item of items) {
+      assertMeasurementVerdict(item, this._normalizeItemResult(item.result) === 'failed');
+    }
+
     const failedItems = items.filter((item) => this._normalizeItemResult(item.result) === 'failed');
     const hasCriticalFailure = failedItems.some(
       (item) => item.is_critical === true || item.is_critical === 1
@@ -184,21 +192,27 @@ class QualityInspection {
     }
 
     if (
-      inspection?.is_aql &&
-      status === 'passed' &&
+      [true, 1, '1'].includes(inspection?.is_aql) &&
+      status !== 'failed' &&
       Number(inspection.reject_limit) > 0 &&
       Number(inspection.unqualified_quantity) >= Number(inspection.reject_limit)
     ) {
-      throw this._createValidationError('不合格数量达到AQL拒收数，检验单不能判定为通过');
+      throw this._createValidationError('不合格数量达到AQL拒收数，必须整批判定不合格');
     }
   }
 
   static async _getStoredInspectionItems(connection, inspectionId) {
     const [items] = await connection.query(
-      'SELECT id, inspection_id, item_name, standard, type, is_critical, dimension_value, tolerance_upper, tolerance_lower, actual_value, measure_1, measure_2, measure_3, measure_4, measure_5, measure_6, method, result, is_qualified, remark, created_at, updated_at FROM quality_inspection_items WHERE inspection_id = ? ORDER BY id',
+      "SELECT id, inspection_id, item_name, standard, type, is_critical, dimension_value, tolerance_upper, tolerance_lower, actual_value, measure_1, measure_2, measure_3, measure_4, measure_5, measure_6, method, result, is_qualified, remark, created_at, updated_at, (SELECT JSON_ARRAYAGG(JSON_OBJECT('sample_no', qm.sample_no, 'measured_value', qm.measured_value, 'measured_by', qm.measured_by)) FROM quality_inspection_measurements qm WHERE qm.item_id = quality_inspection_items.id) AS measurements FROM quality_inspection_items WHERE inspection_id = ? ORDER BY id",
       [inspectionId]
     );
-    return items || [];
+    return (items || []).map((item) => ({
+      ...item,
+      measurements:
+        typeof item.measurements === 'string'
+          ? JSON.parse(item.measurements)
+          : item.measurements || [],
+    }));
   }
 
   static _itemEvidence(items) {
@@ -784,6 +798,11 @@ class QualityInspection {
         await connection.beginTransaction();
       }
 
+      await require('../services/business/FinalInspectionReadinessService').validate(
+        connection,
+        inspection
+      );
+
       // 来料检验必须明确区分采购订单与委外入库单；旧调用方未传来源时
       // 兼容性默认为采购订单，但显式委外来源必须原样持久化。
       inspection.source_type = this._normalizeSourceType(
@@ -1119,10 +1138,7 @@ class QualityInspection {
           const itemType = this._normalizeItemType(item.type);
           // 数值录入模式由检验标准决定，不再局限于 dimension 类型。
           // 前端会把定性项目的固定列置空，因此这里保留所有已提交的数值列。
-          const fixedMeasurements = Array.from(
-            { length: 6 },
-            (_, index) => item[`measure_${index + 1}`] ?? item[`measure${index + 1}`] ?? null
-          );
+          const fixedMeasurements = normalizeFixedMeasurements(item);
 
           // 这里如果是免检我们自动赋予OK通过结果
           let itemResult = item.result || null;
@@ -1339,6 +1355,37 @@ class QualityInspection {
           }
         }
         await this._assertLinkedEvidenceUnchanged(connection, inspection, data);
+        if (Object.prototype.hasOwnProperty.call(data, 'items')) {
+          data.items = require('../utils/quality/inspectionSnapshot').bindInspectionItems(
+            await this._getStoredInspectionItems(connection, id),
+            data.items
+          );
+        }
+        if (inspection.inspection_type === 'final') {
+          for (const field of [
+            'task_id',
+            'reference_id',
+            'product_id',
+            'material_id',
+            'batch_no',
+          ]) {
+            if (
+              data[field] !== undefined &&
+              String(data[field] ?? '') !== String(inspection[field] ?? '')
+            ) {
+              throw this._createValidationError('终检的任务、产品和批次不能修改');
+            }
+          }
+          if (
+            data.status !== 'cancelled' &&
+            Object.keys(data).some((key) => TERMINAL_VALIDATION_UPDATE_FIELDS.has(key))
+          ) {
+            await require('../services/business/FinalInspectionReadinessService').validate(
+              connection,
+              { ...inspection, ...data }
+            );
+          }
+        }
         if (InspectionSamplingService.shouldRefresh(inspection, data)) {
           Object.assign(
             data,
@@ -1389,18 +1436,15 @@ class QualityInspection {
 
         // 如果有检验项，更新检验项
         if (data.items && data.items.length > 0) {
-          // 先删除旧的检验项
+          // 仅替换测量子表；保留原检验项目和标准快照
           await connection.execute(
             `DELETE qim FROM quality_inspection_measurements qim
                INNER JOIN quality_inspection_items qii ON qii.id = qim.item_id
               WHERE qii.inspection_id = ?`,
             [id]
           );
-          await connection.execute('DELETE FROM quality_inspection_items WHERE inspection_id = ?', [
-            id,
-          ]);
 
-          // 插入新的检验项
+          // 按原项目 ID 保存可信标准和本次测量
           for (const item of data.items) {
             // 处理is_critical字段，确保它是0或1
             const isCritical = item.is_critical === true || item.is_critical === 1 ? 1 : 0;
@@ -1410,20 +1454,16 @@ class QualityInspection {
 
             const itemType = this._normalizeItemType(item.type);
             // performance / safety 等项目也可能依据标准文本录入数值。
-            const fixedMeasurements = Array.from(
-              { length: 6 },
-              (_, index) => item[`measure_${index + 1}`] ?? item[`measure${index + 1}`] ?? null
-            );
+            const fixedMeasurements = normalizeFixedMeasurements(item);
 
-            const [updatedItemResult] = await connection.execute(
-              `INSERT INTO quality_inspection_items(
-            inspection_id, item_name, standard, method, type, is_critical,
-            dimension_value, tolerance_upper, tolerance_lower,
-            result, actual_value, remark,
-            measure_1, measure_2, measure_3, measure_4, measure_5, measure_6
-          ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            await connection.execute(
+              `UPDATE quality_inspection_items SET
+                item_name = ?, standard = ?, method = ?, type = ?, is_critical = ?,
+                dimension_value = ?, tolerance_upper = ?, tolerance_lower = ?,
+                result = ?, actual_value = ?, remark = ?,
+                measure_1 = ?, measure_2 = ?, measure_3 = ?, measure_4 = ?, measure_5 = ?, measure_6 = ?
+              WHERE id = ? AND inspection_id = ?`,
               [
-                id,
                 item.item_name,
                 item.standard,
                 item.method || item.inspection_method || null,
@@ -1436,11 +1476,13 @@ class QualityInspection {
                 item.actual_value === '' ? null : (item.actual_value ?? null),
                 remark,
                 ...fixedMeasurements,
+                item.id,
+                id,
               ]
             );
 
             // 同时写入动态测量子表
-            const updatedItemId = updatedItemResult.insertId;
+            const updatedItemId = item.id;
             const measurements = Array.isArray(item.measurements)
               ? item.measurements.slice(0, 6)
               : [];
@@ -1538,21 +1580,11 @@ class QualityInspection {
                   connection,
                   taskId,
                   targetTaskStatus,
-                  { requireOpenInspectionClear: false }
+                  { requireOpenInspectionClear: true }
                 );
                 logger.info(
                   `生产任务 ${taskId} 生命周期推进: ${promoteResult.status} (promoted=${promoteResult.promoted}, reason=${promoteResult.reason || ''})`
                 );
-
-                if (newInspectionStatus === 'passed') {
-                  await connection.execute(
-                    `UPDATE production_processes
-                     SET status = 'completed'
-                     WHERE task_id = ?
-                       AND status NOT IN ('completed', 'cancelled')`,
-                    [taskId]
-                  );
-                }
 
                 if (planId) {
                   await syncPlanStatus(planId, connection);

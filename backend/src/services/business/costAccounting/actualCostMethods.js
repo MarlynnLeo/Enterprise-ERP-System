@@ -39,6 +39,7 @@ module.exports = {
            ON qi.id = ib.inspection_id
           AND qi.deleted_at IS NULL
         WHERE COALESCE(ib.is_deleted, 0) = 0
+          AND ib.status NOT IN ('reversed', 'cancelled')
           AND ib.inbound_type IN ('production', 'production_return')
           AND (
             (ib.reference_type IN ('production_task', 'production') AND ib.reference_id = ?)
@@ -65,7 +66,7 @@ module.exports = {
     }
 
     const [outboundRows] = await connection.execute(
-      `SELECT DISTINCT io.outbound_no
+      `SELECT DISTINCT io.id, io.outbound_no
          FROM inventory_outbound io
         WHERE io.deleted_at IS NULL
           AND io.status IN ('completed', 'partial_completed')
@@ -79,7 +80,7 @@ module.exports = {
               AND JSON_CONTAINS(io.source_task_ids, CAST(? AS JSON))
             )
           )
-        ORDER BY io.outbound_no`,
+        ORDER BY io.outbound_no FOR UPDATE`,
       [productionOrderId, productionOrderId, planId, planId, String(productionOrderId)]
     );
 
@@ -90,9 +91,48 @@ module.exports = {
       });
     }
 
+    // Supplements advance the parent item's actual_quantity, which is already
+    // included by collectTaskMaterialMovements. Each supplement has its own
+    // frozen posting and must be approved before that cumulative cost enters GL.
+    // Keep the parent rows locked while checking so a concurrent supplement
+    // cannot change the cost quantity after this approval gate has passed.
+    const supplementRows = outboundRows.length
+      ? (
+          await connection.execute(
+            `SELECT pd.id, pd.source_no
+             FROM inventory_posting_documents pd
+             JOIN inventory_outbound io ON (
+               pd.source_id = io.id OR
+               (pd.source_id IS NULL AND pd.source_no = CONCAT(io.outbound_no, '-补发') COLLATE utf8mb4_unicode_ci)
+             )
+            WHERE pd.source_type = 'outbound_supplement'
+              AND pd.posting_kind = 'movement'
+              AND io.id IN (${outboundRows.map(() => '?').join(',')})
+              AND NOT EXISTS (
+                SELECT 1 FROM inventory_posting_documents newer
+                 WHERE newer.source_type = pd.source_type
+                   AND newer.source_no = pd.source_no
+                   AND newer.posting_kind = pd.posting_kind
+                   AND (newer.posting_sequence > pd.posting_sequence
+                     OR (newer.posting_sequence = pd.posting_sequence AND newer.id > pd.id))
+              )
+            ORDER BY pd.id FOR UPDATE`,
+            outboundRows.map((row) => row.id)
+          )
+        )[0]
+      : [];
+    for (const row of supplementRows) {
+      await InventoryPostingService.requireApprovedForTransaction(connection, {
+        posting_document_id: row.id,
+        reference_type: 'outbound_supplement',
+        reference_no: row.source_no,
+      });
+    }
+
     return {
       inboundNos: rows.map((row) => row.inbound_no),
       outboundNos: outboundRows.map((row) => row.outbound_no),
+      supplementNos: supplementRows.map((row) => row.source_no),
     };
   },
 
@@ -239,7 +279,9 @@ module.exports = {
                FROM inventory_inbound ii
                JOIN inventory_inbound_items iii ON iii.inbound_id = ii.id
                LEFT JOIN quality_inspections qi ON qi.id = ii.inspection_id
-               WHERE iii.material_id = ?
+               WHERE ii.status NOT IN ('reversed', 'cancelled')
+                 AND COALESCE(ii.is_deleted, 0) = 0
+                 AND iii.material_id = ?
                  AND iii.batch_number IS NOT NULL
                  AND iii.batch_number != ''
                  AND (
@@ -269,6 +311,8 @@ module.exports = {
               AND task_batches.batch_number COLLATE utf8mb4_0900_ai_ci =
                   il.batch_number COLLATE utf8mb4_0900_ai_ci
              WHERE il.transaction_type IN ('production_inbound', 'sales_outbound')
+               AND NOT EXISTS (SELECT 1 FROM inventory_posting_documents reversed_posting
+                 WHERE reversed_posting.id = il.posting_document_id AND reversed_posting.finance_status = 'reversed')
                AND il.material_id = ?`,
           [
             order.product_id,
@@ -302,7 +346,9 @@ module.exports = {
                FROM inventory_inbound ii
                JOIN inventory_inbound_items iii ON iii.inbound_id = ii.id
                LEFT JOIN quality_inspections qi ON qi.id = ii.inspection_id
-               WHERE iii.material_id = ?
+               WHERE ii.status NOT IN ('reversed', 'cancelled')
+                 AND COALESCE(ii.is_deleted, 0) = 0
+                 AND iii.material_id = ?
                  AND (
                    (ii.reference_type = 'production_task' AND ii.reference_id = ?)
                    OR qi.task_id = ?
@@ -594,8 +640,20 @@ module.exports = {
               );
             }
 
+            // Transfer only quantities that remain in effective production inbounds.
+            // Reversed units stay in WIP until their replacement inbound is approved.
+            const allocation = require('../ProductionCompletionAllocationService');
+            const activeInboundQuantity = await allocation.getActiveInboundQuantity(
+              connection,
+              productionOrderId
+            );
+            const completionTransferAmount = allocation.transferAmount(
+              totalActualCost,
+              producedQuantity,
+              activeInboundQuantity
+            );
             // --- 凭证 4: 完工入库 (借: 库存商品 / 贷: 生产成本) ---
-            if (totalActualCost > 0) {
+            if (completionTransferAmount > 0) {
               await createProductionEntry(
                 'PRODUCTION_COMPLETE',
                 {
@@ -606,14 +664,14 @@ module.exports = {
                 [
                   {
                     account_id: accFG,
-                    debit_amount: totalActualCost,
+                    debit_amount: completionTransferAmount,
                     credit_amount: 0,
                     description: `生产完工入库: ${order.code}`,
                   },
                   {
                     account_id: accWIP,
                     debit_amount: 0,
-                    credit_amount: totalActualCost,
+                    credit_amount: completionTransferAmount,
                     description: `结转生产成本: ${order.code}`,
                   },
                 ],

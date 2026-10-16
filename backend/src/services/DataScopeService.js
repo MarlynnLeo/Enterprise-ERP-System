@@ -17,6 +17,8 @@
  *   不是缺陷。代码保留是为了随时可重新启用，而不是当前的安全保障：
  *   排查越权问题时不要把本服务当成生效中的隔离层，
  *   ScopeGuard 的 sharedRead / financeShared 区分同样因此不产生差异。
+ *   生产任务例外：ScopeGuard 另以 ProductionTaskScope 限制车间账号的当前部门任务，
+ *   该业务范围不依赖本服务的角色 data_scope。
  *
  *   若要重新启用行级隔离，至少需要：
  *     1. 去掉 assertRoleIsValid 里 data_scope 的硬编码，让角色管理能存值；

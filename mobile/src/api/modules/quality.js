@@ -4,6 +4,15 @@
 import api from '../client'
 
 export const qualityApi = {
+  getProductionSources(params) {
+    return api.get('/quality/inspection-sources/production', { params })
+  },
+
+  getReworkTasks(params) { return api.get('/quality/rework-tasks', { params }) },
+  getReworkTask(id) { return api.get(`/quality/rework-tasks/${id}`) },
+  assignReworkTask(id, data) { return api.post(`/quality/rework-tasks/${id}/assign`, data) },
+  completeReworkTask(id, data) { return api.post(`/quality/rework-tasks/${id}/complete`, data) },
+
   // 质量统计
   getStatistics() {
     return api.get('/quality/statistics')
@@ -116,6 +125,9 @@ export const qualityApi = {
   updateNonconformanceRecord(id, data) {
     return api.put(`/quality/nonconforming-products/${id}`, data)
   },
+
+  applyConcession(id, data) { return api.post(`/quality/ncp/${id}/concession/apply`, data) },
+  approveConcession(id, data) { return api.post(`/quality/ncp/${id}/concession/approve`, data) },
 
   processNonconformance(id, action, data) {
     if (action === 'start') {

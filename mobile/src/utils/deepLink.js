@@ -15,11 +15,27 @@ export function resolveMobileDeepLink(type, id, extra = {}) {
     return { path: null, reason: 'missing_type' }
   }
 
-  // 后端若直接下发 link 路径，优先使用（仅允许站内相对路径）
+  // Default notification rules share PC paths. Normalize known aliases before navigation.
   if (extra.link && typeof extra.link === 'string') {
     const link = extra.link.trim()
-    if (link.startsWith('/') && !link.startsWith('//')) {
-      return { path: link }
+    if (link.startsWith('/') && !link.startsWith('//') && !link.includes('\\')) {
+      const url = new URL(link, 'https://notification.local')
+      let params = extra.linkParams ?? extra.link_params ?? {}
+      try {
+        if (typeof params === 'string') params = JSON.parse(params)
+      } catch { params = {} }
+      if (params && typeof params === 'object' && !Array.isArray(params)) {
+        for (const [key, value] of Object.entries(params)) {
+          if (['string', 'number', 'boolean'].includes(typeof value)) url.searchParams.set(key, String(value))
+        }
+      }
+      if (url.pathname === '/production/task') {
+        const taskId = url.searchParams.get('id') || url.searchParams.get('taskId') || id
+        url.pathname = taskId ? `/production/tasks/${encodeURIComponent(String(taskId))}` : '/production/tasks'
+        url.searchParams.delete('id')
+        url.searchParams.delete('taskId')
+      }
+      return { path: `${url.pathname}${url.search}${url.hash}` }
     }
   }
 
@@ -146,7 +162,11 @@ export function resolveMobileDeepLink(type, id, extra = {}) {
  */
 export function navigateMobileDeepLink(router, toast, type, id, extra = {}) {
   const { path, reason } = resolveMobileDeepLink(type, id, extra)
-  if (path) {
+  const target = path && router.resolve(path)
+  const supported = target?.matched?.length && !target.matched.some(
+    (record) => record.name === 'NotFound' || record.path.includes(':pathMatch')
+  )
+  if (path && supported) {
     router.push(path)
     return true
   }

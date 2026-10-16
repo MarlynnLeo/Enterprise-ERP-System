@@ -541,7 +541,7 @@ function auditStaticGuards() {
   if (/DataScopeService|scopedLocationIds|DATA_SCOPE/.test(inventoryStock)) {
     findings.push('inventory stock queries still contain a legacy row-level data scope guard');
   }
-  if (!/res\.on\(\s*['"]finish['"]/.test(auditInterceptor)) {
+  if (!/res\.(?:on|once)\(\s*['"]finish['"]/.test(auditInterceptor)) {
     findings.push('audit interceptor must write after response finish');
   }
   if (!/audit-failures\.ndjson/.test(auditLogService)) {

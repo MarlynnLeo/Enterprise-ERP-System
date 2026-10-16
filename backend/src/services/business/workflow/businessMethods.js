@@ -258,6 +258,9 @@ module.exports = {
     if (!normalizedBusinessType) {
       throw new Error('工作流模板业务类型不能为空');
     }
+    if (normalizedBusinessType === 'purchase_requisition') {
+      throw new Error('采购申请已取消审批，请在采购申请页面直接提交生成采购订单');
+    }
     if (!BUSINESS_STATUS_MAP[normalizedBusinessType]) {
       throw new Error(`业务类型 ${normalizedBusinessType} 未配置审批状态回调，无法创建审批流程`);
     }
@@ -335,18 +338,6 @@ module.exports = {
         params
       );
       logger.info(`工作流${action}回调: ${businessType}#${businessId} → ${targetStatus}`);
-
-      // 采购申购单批准后自动生成采购订单
-      if (action === 'approved' && businessType === 'purchase_requisition') {
-        try {
-          const { generateOrdersFromRequisition } = require('../RequisitionAutoOrderService');
-          // 传入审批人（approverId）作为关联责任人兑底
-          await generateOrdersFromRequisition(businessId, conn, approverId);
-        } catch (autoErr) {
-          logger.error(`采购申请 ${businessId} 自动生成采购订单失败，审批回调已回滚:`, autoErr);
-          throw autoErr;
-        }
-      }
     } catch (e) {
       logger.error(`工作流${action}回调失败 [${businessType}:${businessId}]:`, e);
       throw e;

@@ -6,8 +6,10 @@
  */
 
 const EventBus = require('../EventBus');
+const { AsyncLocalStorage } = require('async_hooks');
 const FinanceIntegrationService = require('../../services/external/FinanceIntegrationService');
 const InventoryPostingService = require('../../services/InventoryPostingService');
+const PurchaseReceiptPostingSourceService = require('../../services/business/PurchaseReceiptPostingSourceService');
 const { logger } = require('../../utils/logger');
 const DLQService = require('../../services/business/DLQService');
 const {
@@ -17,6 +19,7 @@ const {
 
 class FinanceSubscriber {
   constructor() {
+    this.retryContext = new AsyncLocalStorage();
     this.registerDLQHandlers();
     this.registerListeners();
     logger.info('🎧 [FinanceSubscriber] 已挂载财务集成事件监听器');
@@ -56,6 +59,20 @@ class FinanceSubscriber {
             payload.currentUserId || payload.userId || null
           );
         }
+      },
+      'Finance:GenerateARInvoiceFromSalesOutbound': async (payload) => {
+        const outbound = await this.fetchSalesOutbound(payload.outboundId);
+        if (['reversed', 'cancelled'].includes(String(outbound.status || '').toLowerCase())) {
+          return;
+        }
+        const exists = await this.existsBySource('ar_invoices', 'sales_outbound', outbound.id);
+        if (exists) return;
+        const salesOrders = await this.fetchSalesOrdersForOutbound(outbound.id, outbound.order_id);
+        await FinanceIntegrationService.generateARInvoiceFromSalesOutbound(
+          outbound,
+          salesOrders,
+          payload.currentUserId || payload.userId || null
+        );
       },
       'Finance:GenerateCostEntryFromSalesOutbound': async (payload) => {
         const outbound =
@@ -170,7 +187,9 @@ class FinanceSubscriber {
     };
 
     Object.entries(handlers).forEach(([taskName, handler]) => {
-      DLQService.registerHandler(taskName, handler);
+      DLQService.registerHandler(taskName, (payload) =>
+        this.retryContext.run({ isRetry: true }, () => handler(payload))
+      );
     });
   }
 
@@ -347,9 +366,17 @@ class FinanceSubscriber {
     EventBus.on('INVENTORY_POSTING_APPROVED', this.handleInventoryPostingApproved.bind(this));
   }
 
-  async isInventoryPostingApproved(referenceNo) {
+  async isInventoryPostingApproved(referenceNo, source = {}) {
     if (!referenceNo) return false;
     const db = require('../../config/db');
+    if (source.sourceType === 'purchase_receipt') {
+      const { movement } = await InventoryPostingService.getApprovalBySource({
+        sourceType: 'purchase_receipt', sourceId: source.sourceId, sourceNo: referenceNo,
+      }, db.pool);
+      if (!movement || movement.finance_status !== 'approved' || Number(movement.locked) !== 1) return false;
+      const receipt = await PurchaseReceiptPostingSourceService.resolve(db.pool, movement);
+      return receipt?.receiptId === Number(source.sourceId) && receipt.receiptNo === referenceNo;
+    }
     return Boolean(
       await InventoryPostingService.findApprovedForTransaction(db.pool, {
         reference_no: referenceNo,
@@ -357,8 +384,8 @@ class FinanceSubscriber {
     );
   }
 
-  async deferUntilInventoryPosted(referenceNo, flowName) {
-    if (await this.isInventoryPostingApproved(referenceNo)) return false;
+  async deferUntilInventoryPosted(referenceNo, flowName, source = {}) {
+    if (await this.isInventoryPostingApproved(referenceNo, source)) return false;
     logger.info(
       `[FinanceSubscriber] ${flowName} waits for finance-approved inventory posting: ${referenceNo}`
     );
@@ -390,15 +417,20 @@ class FinanceSubscriber {
         reference_type: line.reference_type,
         quantity: line.signed_quantity,
         unit_cost: line.unit_cost,
+        total_value: line.posted_value ?? line.total_value,
         transaction_date: line.transaction_date,
         posting_document_id: posting.id,
         posting_line_id: line.id,
       };
 
       if (Number(line.signed_quantity) > 0) {
-        await InventoryCostService.generateInboundCostEntry(transaction);
+        await InventoryCostService.generateInboundCostEntry(transaction, {
+          userId: posting.finance_approved_by,
+        });
       } else {
-        await InventoryCostService.generateOutboundCostEntry(transaction);
+        await InventoryCostService.generateOutboundCostEntry(transaction, {
+          userId: posting.finance_approved_by,
+        });
       }
     }
   }
@@ -410,6 +442,11 @@ class FinanceSubscriber {
     const posting = payload?.postingDocumentId
       ? await InventoryPostingService.get(payload.postingDocumentId)
       : null;
+
+    if (posting?.finance_status === 'reversed') {
+      const closure = require('../../services/business/InventoryPostingEventClosureService');
+      if (await closure.closeReversedPosting(posting.id)) return;
+    }
 
     if (
       !posting ||
@@ -492,20 +529,19 @@ class FinanceSubscriber {
       return;
     }
 
-    const isPurchaseReceiptPosting =
-      ['inbound', 'purchase_receipt'].includes(sourceType) ||
-      (sourceType === 'batch_create' &&
-        posting.lines.some((line) => line.transaction_type === 'purchase_inbound'));
-    if (isPurchaseReceiptPosting) {
+    const receiptSource = await PurchaseReceiptPostingSourceService.resolve(db.pool, posting);
+    if (receiptSource) {
       const [purchaseReceipts] = await db.pool.execute(
-        'SELECT id FROM purchase_receipts WHERE receipt_no = ? AND deleted_at IS NULL LIMIT 1',
-        [sourceNo]
+        'SELECT id, receipt_no, status FROM purchase_receipts WHERE id = ? AND deleted_at IS NULL LIMIT 1',
+        [receiptSource.receiptId]
       );
-      if (purchaseReceipts[0]) {
-        await this.handlePurchaseReceiptCompleted({ receiptId: purchaseReceipts[0].id });
-        await this.replayInventoryPostingCosts(posting);
-        return;
+      const receipt = purchaseReceipts[0];
+      if (!receipt || receipt.receipt_no !== receiptSource.receiptNo || receipt.status !== 'completed') {
+        throw new Error(`采购收货单不存在、编号不一致或尚未完成: ${receiptSource.receiptNo}`);
       }
+      await this.handlePurchaseReceiptCompleted({ receiptId: receipt.id, currentUserId: financeActorId });
+      await this.replayInventoryPostingCosts(posting);
+      return;
     }
 
     if (
@@ -577,18 +613,7 @@ class FinanceSubscriber {
       return;
     }
 
-    // Sales/general outbound and outsourced issue reversals are compensated by
-    // their business reversal services; do not create a second generic cost GL.
-    if (
-      posting?.posting_kind === 'reversal' &&
-      ['outbound', 'sales_outbound', 'outsourced_processing_material'].includes(
-        String(posting.source_type || '')
-      )
-    ) {
-      return;
-    }
-
-    if (posting) await this.replayInventoryPostingCosts(posting);
+    await this.replayInventoryPostingCosts(posting);
   }
 
   assertAllowedIdentifier(value, allowedValues, label) {
@@ -651,8 +676,13 @@ class FinanceSubscriber {
   }
 
   async recordFailure(taskName, payload, error, logMessage) {
-    logger.warn(`${logMessage}: ${error.message}`);
-    await DLQService.recordSideEffectFailure(taskName, payload, error);
+    // A replay must fail its existing job, preserving attempts and backoff.
+    // Enqueuing another job here would reset the retry budget indefinitely.
+    if (this.retryContext.getStore()?.isRetry) throw error;
+    if (logMessage) logger.warn(`${logMessage}: ${error.message}`);
+    await DLQService.recordSideEffectFailure(taskName, payload, error, {
+      throwOnPersistenceFailure: true,
+    });
   }
 
   /**
@@ -680,7 +710,9 @@ class FinanceSubscriber {
       if (receiptData.length > 0) {
         const receipt = receiptData[0];
         const receiptNo = receipt.receipt_no;
-        if (await this.deferUntilInventoryPosted(receiptNo, 'purchase receipt finance flow'))
+        if (await this.deferUntilInventoryPosted(receiptNo, 'purchase receipt finance flow', {
+          sourceType: 'purchase_receipt', sourceId: receipt.id,
+        }))
           return;
 
         // 1. 生成应付发票（幂等检查）
@@ -737,7 +769,7 @@ class FinanceSubscriber {
         `[FinanceSubscriber] Purchase receipt finance processing failed: receiptId=${receiptId}`,
         criticalError
       );
-      await DLQService.recordSideEffectFailure(
+      await this.recordFailure(
         'Finance:PurchaseReceiptCompleted',
         { receiptId, currentUserId },
         criticalError
@@ -767,7 +799,7 @@ class FinanceSubscriber {
           `[FinanceSubscriber] 无法确认销售出库状态，停止财务事件: outboundId=${outboundId}`,
           error
         );
-        await DLQService.recordSideEffectFailure(
+        await this.recordFailure(
           'Finance:SalesOutboundCompleted',
           { outboundId, outboundData, salesOrderId: salesOrder?.id, currentUserId },
           error
@@ -907,7 +939,7 @@ class FinanceSubscriber {
         `[FinanceSubscriber] Sales outbound finance processing failed: outboundNo=${outboundNo}`,
         criticalError
       );
-      await DLQService.recordSideEffectFailure(
+      await this.recordFailure(
         'Finance:SalesOutboundCompleted',
         { outboundNo, outboundData, salesOrderId: salesOrder?.id, currentUserId },
         criticalError

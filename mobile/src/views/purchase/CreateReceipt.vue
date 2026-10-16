@@ -8,9 +8,9 @@
 -->
 <template>
   <div class="create-receipt-page">
-    <NavBar title="创建入库单" left-arrow @click-left="onClickLeft">
+    <NavBar title="创建收货单" left-arrow @click-left="onClickLeft">
       <template #right>
-        <Button type="primary" size="small" @click="submitForm" :loading="submitting">
+        <Button type="primary" size="small" @click="submitForm" :loading="submitting" :disabled="orderLoading">
           保存
         </Button>
       </template>
@@ -71,26 +71,26 @@
               <span class="label">供应商</span>
               <span class="value">{{ selectedOrder.supplierName }}</span>
             </div>
-            <div class="info-item" v-if="selectedOrder.contact_person">
+            <div class="info-item" v-if="selectedOrder.contactPerson">
               <span class="label">联系人</span>
-              <span class="value">{{ selectedOrder.contact_person }}</span>
+              <span class="value">{{ selectedOrder.contactPerson }}</span>
             </div>
-            <div class="info-item" v-if="selectedOrder.contact_phone">
+            <div class="info-item" v-if="selectedOrder.contactPhone">
               <span class="label">联系电话</span>
-              <span class="value">{{ selectedOrder.contact_phone }}</span>
+              <span class="value">{{ selectedOrder.contactPhone }}</span>
             </div>
           </div>
         </div>
 
         <!-- 入库明细 -->
         <div class="form-section" v-if="receiptItems.length > 0">
-          <div class="section-title">入库明细</div>
+          <div class="section-title">收货明细（每张单选择一条明细）</div>
 
           <div class="items-list">
             <div v-for="(item, index) in receiptItems" :key="index" class="item-card">
               <div class="item-header">
                 <span class="item-name">{{ item.materialName }}</span>
-                <Checkbox v-model="item.selected" @change="onItemSelect(index)" />
+                <Checkbox v-model="item.selected" :disabled="item.pendingQuantity <= 0" @change="onItemSelect(index)" />
               </div>
 
               <div class="item-details">
@@ -127,6 +127,12 @@
                     { required: true, message: '请输入入库数量' },
                     { validator: (val) => validateReceiptQuantity(val, item) }
                   ]"
+                />
+
+                <Field
+                  v-model="item.batchNumber"
+                  label="到货批次"
+                  placeholder="请输入本次到货批次"
                 />
 
                 <Field
@@ -200,7 +206,7 @@
             <div class="order-info">
               <div class="order-no">{{ order.orderNo }}</div>
               <div class="order-supplier">{{ order.supplierName }}</div>
-              <div class="order-date">{{ formatDate(order.order_date) }}</div>
+              <div class="order-date">{{ formatDate(order.orderDate) }}</div>
             </div>
             <div class="order-status">
               <Tag :type="getOrderStatusType(order.status)" size="small">
@@ -212,6 +218,7 @@
           <div v-if="orderList.length === 0" class="empty-state">
             <Empty description="暂无可入库的采购订单" />
           </div>
+          <Button v-if="!ordersFinished" block plain :loading="ordersLoading" @click="fetchOrders(false)">加载更多</Button>
         </div>
       </div>
     </Popup>
@@ -249,7 +256,7 @@
 </template>
 
 <script setup>
-  import { extractApiList } from '@/utils/apiHelper'
+  import { extractApiData, extractApiList, extractApiTotal } from '@/utils/apiHelper'
   import { ref, reactive, computed, onMounted } from 'vue'
   import { useRouter, useRoute } from 'vue-router'
   import {
@@ -268,6 +275,7 @@
   } from 'vant'
   import { purchaseApi, inventoryApi } from '@/api'
   import { getApiErrorMessage } from '@/utils/errorHandler'
+  import { createIdempotencyKey } from '@/utils/idempotency'
 
   const router = useRouter()
   const route = useRoute()
@@ -287,6 +295,16 @@
   const submitting = ref(false)
   const showOrderPicker = ref(false)
   const showWarehousePicker = ref(false)
+  const orderLoading = ref(false)
+  const ordersLoading = ref(false)
+  const ordersFinished = ref(false)
+  let orderPage = 1
+  let activeOrderKeyword = ''
+  let orderListRequest = 0
+  let orderSelection = 0
+  let submittedPayload = ''
+  let receiptIdempotencyKey = ''
+  const receivableStatuses = ['approved', 'confirmed', 'received', 'partial_received', 'inspecting', 'inspected', 'warehousing', 'completed']
 
   // 订单相关
   const orderList = ref([])
@@ -322,40 +340,38 @@
   })
 
   // 获取可入库的采购订单
-  const fetchOrders = async () => {
+  const fetchOrders = async (reset = true) => {
+    if (ordersLoading.value && !reset) return
+    if (reset) {
+      orderPage = 1
+      activeOrderKeyword = orderSearchValue.value.trim()
+      orderList.value = []
+      ordersFinished.value = false
+    }
+    const request = ++orderListRequest
+    const page = orderPage
+    ordersLoading.value = true
     try {
       const response = await purchaseApi.getOrders({
-        status: 'confirmed', // 只获取已确认的订单
-        page: 1,
-        pageSize: 50
+        page,
+        pageSize: 50,
+        keyword: activeOrderKeyword || undefined
       })
-      orderList.value = response.data?.items || response.data || []
+      if (request !== orderListRequest) return
+      const list = extractApiList(response)
+      orderList.value.push(...list.filter(order => receivableStatuses.includes(order.status)))
+      const total = extractApiTotal(response)
+      ordersFinished.value = list.length < 50 || (total >= 0 && page * 50 >= total)
+      orderPage = page + 1
     } catch (error) {
-      console.error('获取采购订单列表失败:', error)
-      showToast('获取采购订单列表失败')
+      if (request === orderListRequest) showToast(getApiErrorMessage(error, '获取采购订单列表失败'))
+    } finally {
+      if (request === orderListRequest) ordersLoading.value = false
     }
   }
 
   // 搜索订单
-  const searchOrders = async () => {
-    try {
-      const params = {
-        status: 'confirmed',
-        page: 1,
-        pageSize: 50
-      }
-
-      if (orderSearchValue.value) {
-        params.orderNo = orderSearchValue.value
-      }
-
-      const response = await purchaseApi.getOrders(params)
-      orderList.value = response.data?.items || response.data || []
-    } catch (error) {
-      console.error('搜索采购订单失败:', error)
-      showToast('搜索采购订单失败')
-    }
-  }
+  const searchOrders = () => fetchOrders(true)
 
   // 选择订单
   const selectOrder = (order) => {
@@ -365,8 +381,6 @@
   // 确认选择订单
   const confirmOrder = async () => {
     if (tempSelectedOrder.value) {
-      selectedOrder.value = tempSelectedOrder.value
-      receiptForm.orderId = tempSelectedOrder.value.id
       showOrderPicker.value = false
 
       // 加载订单明细
@@ -376,16 +390,29 @@
 
   // 加载订单明细
   const loadOrderItems = async (orderId) => {
+    const selection = ++orderSelection
+    orderLoading.value = true
+    selectedOrder.value = null
+    receiptForm.orderId = ''
+    receiptItems.value = []
     try {
       const response = await purchaseApi.getOrder(orderId)
-      const orderData = response.data
+      if (selection !== orderSelection) return
+      const orderData = extractApiData(response, null)
+      if (!orderData?.id || String(orderData.id) !== String(orderId) || !orderData.supplierId || !receivableStatuses.includes(orderData.status)) {
+        throw new Error('请选择已审批且有效的采购订单')
+      }
+      selectedOrder.value = orderData
+      receiptForm.orderId = orderData.id
 
-      if (orderData.items && orderData.items.length > 0) {
+      if (Array.isArray(orderData.items) && orderData.items.length > 0) {
         receiptItems.value = orderData.items.map((item) => {
           const qty = Number(item.quantity) || 0
           const received = Number(item.receivedQuantity || 0)
           return {
+            orderItemId: item.id,
             materialId: item.materialId,
+            unitId: item.unitId,
             materialName: item.materialName,
             materialCode: item.materialCode,
             specification: item.specification,
@@ -395,14 +422,16 @@
             receivedQuantity: received,
             pendingQuantity: Math.max(0, qty - received),
             receiptQuantity: '',
+            batchNumber: '',
             selected: false,
             remarks: ''
           }
         })
       }
     } catch (error) {
-      console.error('获取订单明细失败:', error)
-      showToast('获取订单明细失败')
+      if (selection === orderSelection) showToast(getApiErrorMessage(error, '获取订单明细失败'))
+    } finally {
+      if (selection === orderSelection) orderLoading.value = false
     }
   }
 
@@ -443,6 +472,9 @@
       item.receiptQuantity = ''
       item.remarks = ''
     } else {
+      receiptItems.value.forEach((other, otherIndex) => {
+        if (otherIndex !== index) other.selected = false
+      })
       // 默认设置为待收数量
       item.receiptQuantity = String(item.pendingQuantity)
     }
@@ -450,8 +482,8 @@
 
   // 验证入库数量
   const validateReceiptQuantity = (value, item) => {
-    const quantity = parseFloat(value)
-    if (isNaN(quantity) || quantity <= 0) {
+    const quantity = Number(value)
+    if (!Number.isFinite(quantity) || quantity <= 0) {
       return '请输入有效的入库数量'
     }
     if (quantity > item.pendingQuantity) {
@@ -463,6 +495,7 @@
   // 获取订单状态类型
   const getOrderStatusType = (status) => {
     const statusMap = {
+      approved: 'primary',
       confirmed: 'primary',
       partial_received: 'warning',
       completed: 'success'
@@ -473,6 +506,7 @@
   // 获取订单状态文本
   const getOrderStatusText = (status) => {
     const statusMap = {
+      approved: '已审批',
       confirmed: '已确认',
       partial_received: '部分收货',
       completed: '已完成'
@@ -494,6 +528,8 @@
 
   // 提交表单
   const submitForm = async () => {
+    if (submitting.value || orderLoading.value) return
+    submitting.value = true
     try {
       await formRef.value?.validate()
 
@@ -511,38 +547,49 @@
         showToast('请选择要入库的物料')
         return
       }
+      if (selectedItems.value.length !== 1) {
+        showToast('每张收货单只能选择一条采购订单明细，请分别建单')
+        return
+      }
 
       // 验证所有选中物料的入库数量
       for (const item of selectedItems.value) {
-        if (!item.receiptQuantity || parseFloat(item.receiptQuantity) <= 0) {
-          showToast(`请输入${item.materialName}的入库数量`)
+        const quantityError = validateReceiptQuantity(item.receiptQuantity, item)
+        if (quantityError !== true) {
+          showToast(`${item.materialName}：${quantityError}`)
           return
         }
       }
 
-      submitting.value = true
       showLoadingToast({ message: '保存中...', forbidClick: true })
 
       // 纯 camel，后端 purchaseReceiptMap.fromApi
       const formData = {
         receiptNo: receiptForm.receiptNo || undefined,
         orderId: receiptForm.orderId,
+        supplierId: selectedOrder.value.supplierId,
         receiptDate: receiptForm.receiptDate,
         warehouseId: receiptForm.warehouseId,
-        totalAmount: totalReceiptAmount.value,
         remarks: receiptForm.remarks,
         items: selectedItems.value.map((item) => ({
+          orderItemId: item.orderItemId,
           materialId: item.materialId,
-          quantity: parseFloat(item.receiptQuantity),
-          unitPrice: parseFloat(item.unitPrice),
+          unitId: item.unitId,
+          receivedQuantity: Number(item.receiptQuantity),
+          qualifiedQuantity: 0,
+          batchNumber: item.batchNumber.trim() || undefined,
           remarks: item.remarks
         }))
       }
-
-      await purchaseApi.createReceipt(formData)
+      const fingerprint = JSON.stringify(formData)
+      if (fingerprint !== submittedPayload) {
+        submittedPayload = fingerprint
+        receiptIdempotencyKey = createIdempotencyKey('purchase-receipt')
+      }
+      await purchaseApi.createReceipt({ ...formData, idempotencyKey: receiptIdempotencyKey })
 
       closeToast()
-      showToast('入库单创建成功')
+      showToast('收货单创建成功，完成检验后再入库')
 
       // 返回列表页面
       router.back()
@@ -565,17 +612,13 @@
     fetchWarehouses()
 
     // 设置默认入库日期为今天
-    receiptForm.receiptDate = new Date().toISOString().split('T')[0]
+    const today = new Date()
+    receiptForm.receiptDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
 
     // 如果URL中有orderId参数，自动选择该订单
     const orderId = route.query.orderId
     if (orderId) {
-      const order = orderList.value.find((o) => o.id == orderId)
-      if (order) {
-        selectedOrder.value = order
-        receiptForm.orderId = order.id
-        loadOrderItems(order.id)
-      }
+      loadOrderItems(orderId)
     }
   })
 </script>

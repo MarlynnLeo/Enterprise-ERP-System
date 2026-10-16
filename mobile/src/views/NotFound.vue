@@ -44,6 +44,6 @@
   }
 
   .warning-icon {
-    color: var(--color-warning);
+    color: var(--color-warning-text);
   }
 </style>

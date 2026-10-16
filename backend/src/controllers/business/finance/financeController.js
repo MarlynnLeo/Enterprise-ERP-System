@@ -20,6 +20,7 @@ const { financeConfig } = require('../../../config/financeConfig');
 const { safeParseId } = require('../../../utils/safeParseId');
 const BusinessError = require('../../../utils/BusinessError');
 const ScopeGuard = require('../../../authorization/ScopeGuard');
+const { normalizeDateInput, normalizeOpeningAmount } = require('../../../models/finance/helpers');
 const {
   toGlAccountApi,
   fromGlAccountApi,
@@ -172,6 +173,11 @@ const financeController = {
         is_active,
         currency_code,
         description,
+        has_customer: mapped.has_customer,
+        has_supplier: mapped.has_supplier,
+        has_employee: mapped.has_employee,
+        has_department: mapped.has_department,
+        has_project: mapped.has_project,
       });
 
       ResponseHandler.success(
@@ -224,7 +230,8 @@ const financeController = {
       // 根据科目类型自动设置is_debit（借贷方向）
       const debitTypes = ['资产', '成本', '费用'];
       const autoIsDebit = debitTypes.includes(account_type) ? 1 : 0;
-      const finalIsDebit = userIsDebit !== undefined ? userIsDebit : autoIsDebit;
+      const finalIsDebit =
+        userIsDebit !== undefined ? userIsDebit : (account.is_debit ?? autoIsDebit);
 
       // 警告科目类型与借贷方向不匹配
       if (userIsDebit !== undefined && userIsDebit !== autoIsDebit) {
@@ -244,6 +251,11 @@ const financeController = {
         is_active,
         currency_code,
         description,
+        has_customer: mapped.has_customer ?? account.has_customer,
+        has_supplier: mapped.has_supplier ?? account.has_supplier,
+        has_employee: mapped.has_employee ?? account.has_employee,
+        has_department: mapped.has_department ?? account.has_department,
+        has_project: mapped.has_project ?? account.has_project,
       });
 
       if (success) {
@@ -253,7 +265,7 @@ const financeController = {
       }
     } catch (error) {
       logger.error('更新会计科目失败:', error);
-      ResponseHandler.error(res, '更新会计科目失败', 'SERVER_ERROR', 500, error);
+      BusinessError.handleError(res, error, '更新会计科目失败', ResponseHandler);
     }
   },
 
@@ -352,8 +364,8 @@ const financeController = {
       const { debit, credit, balanceDate, notes } = req.body;
 
       const result = await financeModel.setOpeningBalance(id, {
-        debit: parseFloat(debit) || 0,
-        credit: parseFloat(credit) || 0,
+        debit,
+        credit,
         balanceDate,
         notes,
         setBy: getAuthenticatedUserId(req),
@@ -452,12 +464,18 @@ const financeController = {
       let totalCreditCents = 0;
 
       for (const item of items) {
-        if (!item.account_id) {
+        if (!item || !item.account_id) {
           return ResponseHandler.error(res, '每个分录明细必须包含科目ID', 'VALIDATION_ERROR', 400);
         }
 
-        totalDebitCents += Math.round((parseFloat(item.debit_amount) || 0) * 100);
-        totalCreditCents += Math.round((parseFloat(item.credit_amount) || 0) * 100);
+        try {
+          item.debit_amount = normalizeOpeningAmount(item.debit_amount, '借方金额');
+          item.credit_amount = normalizeOpeningAmount(item.credit_amount, '贷方金额');
+        } catch (error) {
+          throw new BusinessError(error.message);
+        }
+        totalDebitCents += Math.round(item.debit_amount * 100);
+        totalCreditCents += Math.round(item.credit_amount * 100);
       }
 
       const totalDebit = totalDebitCents / 100;
@@ -746,6 +764,7 @@ const financeController = {
         period_id,
         description,
         created_by: ownerStamp.created_by,
+        requireManualSource: true,
       });
 
       ResponseHandler.success(
@@ -863,8 +882,21 @@ const financeController = {
         );
       }
 
-      const startDt = new Date(start_date);
-      const endDt = new Date(end_date);
+      let startDt;
+      let endDt;
+      try {
+        startDt = new Date(`${normalizeDateInput(start_date, 'start_date')}T00:00:00`);
+        endDt = new Date(`${normalizeDateInput(end_date, 'end_date')}T00:00:00`);
+      } catch (error) {
+        throw new BusinessError(error.message);
+      }
+      if (
+        !Number.isInteger(Number(fiscal_year)) ||
+        Number(fiscal_year) < 1000 ||
+        Number(fiscal_year) > 9999
+      ) {
+        throw new BusinessError('会计年度必须为四位整数');
+      }
 
       // 验证日期
       if (startDt > endDt) {
@@ -910,8 +942,8 @@ const financeController = {
 
         periods.push({
           period_name: `${year}年${monthStr}月`,
-          start_date: monthStart,
-          end_date: monthEnd,
+          start_date: monthStart < start_date ? start_date : monthStart,
+          end_date: monthEnd > end_date ? end_date : monthEnd,
           is_adjusting: is_adjusting || false,
           fiscal_year: year,
         });
@@ -954,7 +986,10 @@ const financeController = {
       );
     } catch (error) {
       logger.error('创建会计期间失败:', error);
-      const statusCode = /overlaps|must|required|date/i.test(error.message || '') ? 400 : 500;
+      const statusCode = BusinessError.statusCodeOf(
+        error,
+        /overlaps|must|required|date/i.test(error.message || '') ? 400 : 500
+      );
       ResponseHandler.error(
         res,
         error.message || '创建会计期间失败',
@@ -1017,7 +1052,10 @@ const financeController = {
       return ResponseHandler.success(res, { id }, 'Accounting period updated successfully');
     } catch (error) {
       logger.error('Update accounting period failed:', error);
-      const statusCode = /not found|cannot|overlaps/i.test(error.message || '') ? 400 : 500;
+      const statusCode = BusinessError.statusCodeOf(
+        error,
+        /not found|cannot|overlaps/i.test(error.message || '') ? 400 : 500
+      );
       return ResponseHandler.error(
         res,
         error.message || 'Update accounting period failed',

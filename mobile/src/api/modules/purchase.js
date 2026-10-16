@@ -3,6 +3,7 @@
  */
 import api from '../client'
 import { baseDataApi } from './baseData'
+import { createIdempotencyKey } from '@/utils/idempotency'
 
 export const purchaseApi = {
   // 采购申请
@@ -65,7 +66,9 @@ export const purchaseApi = {
   },
 
   createReceipt(data) {
-    return api.post('/purchase/receipts', data)
+    return api.post('/purchase/receipts', data, {
+      headers: { 'Idempotency-Key': data.idempotencyKey || createIdempotencyKey('purchase-receipt') }
+    })
   },
 
   updateReceipt(id, data) {

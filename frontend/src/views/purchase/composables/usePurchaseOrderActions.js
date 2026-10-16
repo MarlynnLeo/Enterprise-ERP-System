@@ -8,6 +8,7 @@ import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { purchaseApi } from '@/api'
 import { normalizePurchaseReceivingItems } from '@/utils/purchaseReceiving'
+import { buildPurchaseOrderPrintData } from '@/utils/purchaseOrderPrint'
 import printService from '@/services/printService'
 import {
   PURCHASE_STATUS_ACTION_TEXT,
@@ -39,15 +40,10 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
     const number = Number(value)
     return Number.isNaN(number) ? null : number
   }
-  const formatPlainAmount = (value) => {
-    if (isBlankAmount(value)) return '-'
-    const number = Number(value)
-    return Number.isNaN(number) ? '-' : number.toFixed(2)
-  }
-
   // 详情对话框
   const detailLoading = ref(false)
   const viewDialogVisible = ref(false)
+  const sourceOrderForPrint = ref(null)
   const {
     previousItem: previousViewOrder,
     nextItem: nextViewOrder,
@@ -189,11 +185,13 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
 
   const viewOrder = async (id) => {
     detailLoading.value = true; viewDialogVisible.value = true
+    sourceOrderForPrint.value = null
     try {
       const response = await purchaseApi.getOrder(id)
       Object.keys(viewData).forEach(key => { if (key !== 'items') viewData[key] = ''; else viewData[key] = [] })
       if (response) {
         const data = parseResponseData(response)
+        sourceOrderForPrint.value = data
         let items = data.items || data.orderItems || data.materialItems || []
         items = fixItemsStructure(items)
         const calculatedSubtotal = items.reduce((sum, it) => sum + (Number(it.totalPrice) || 0), 0)
@@ -382,7 +380,7 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
 
   // ========== 打印 ==========
   const printOrder = async () => {
-    if (!viewData.id) { ElMessage.warning('无法打印，订单详情不完整'); return }
+    if (!viewData.id || !sourceOrderForPrint.value || detailLoading.value) { ElMessage.warning('无法打印，订单详情不完整'); return }
     try {
       let companyInfo = { company_name: '', company_phone: '', company_fax: '', company_address: '' }
       try {
@@ -391,39 +389,10 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
         ElMessage.warning('系统设置读取失败，已使用默认公司信息')
       }
       const printData = {
-        ...companyInfo, order_number: viewData.orderNo || '', order_no: viewData.orderNo || '',
-        order_date: formatDate(viewData.orderDate), expected_delivery_date: formatDate(viewData.expectedDeliveryDate), delivery_date: formatDate(viewData.expectedDeliveryDate),
-        supplier_name: viewData.supplierName || '', contact_person: viewData.contactPerson || '-', contact_phone: viewData.contactPhone || '-',
-        status: getStatusText(viewData.status), notes: viewData.remarks || '', remark: viewData.remarks || '', contract_code: viewData.contractCode || '-',
-        subtotal: formatPlainAmount(viewData.subtotal), tax_amount: formatPlainAmount(viewData.taxAmount), total_amount: formatPlainAmount(viewData.totalAmount),
-        total_quantity: (viewData.items || []).reduce((sum, item) => sum + parseFloat(item.quantity || 0), 0).toFixed(2),
-        print_time: new Date().toLocaleString('zh-CN'),
-        items: (viewData.items || []).map((item, index) => {
-          const quantity = parseFloat(item.quantity || 0)
-          const priceSource = item.price ?? item.unitPrice
-          const price = isBlankAmount(priceSource) ? null : Number(priceSource)
-          const totalPriceSource = item.totalPrice ?? item.amount
-          const totalPrice = isBlankAmount(totalPriceSource)
-            ? (price === null ? null : quantity * price)
-            : Number(totalPriceSource)
-          return {
-            ...item,
-            index: index + 1,
-            material_code: item.materialCode || item.code || item.productCode || '-',
-            product_code: item.materialCode || item.code || item.productCode || '-',
-            material_name: item.materialName || item.name || item.productName || '-',
-            product_name: item.materialName || item.name || item.productName || '-',
-            specification: item.specification || item.specs || item.model || '-',
-            unit: item.unit || item.unitName || item.Unit || '-',
-            unit_name: item.unit || item.unitName || item.Unit || '-',
-            quantity: quantity.toFixed(2),
-            price: formatPlainAmount(price),
-            unit_price: formatPlainAmount(price),
-            total_price: formatPlainAmount(totalPrice),
-            amount: formatPlainAmount(totalPrice),
-            delivery_date: formatDate(item.deliveryDate || viewData.expectedDeliveryDate || '')
-          }
-        })
+        ...companyInfo,
+        ...buildPurchaseOrderPrintData(sourceOrderForPrint.value),
+        status: getStatusText(sourceOrderForPrint.value.status),
+        printTime: new Date().toLocaleString('zh-CN')
       }
       await printService.previewByDefaultTemplate('purchase', 'purchase_order', printData)
     } catch (error) { console.error('打印失败:', error); ElMessage.error(`打印失败：${getApiErrorMessage(error, '请稍后重试')}`) }

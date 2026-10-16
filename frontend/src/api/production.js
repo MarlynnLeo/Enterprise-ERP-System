@@ -95,7 +95,7 @@ export const productionApi = {
     params,
     responseType: 'blob'
   }),
-  getTaskReportStats: (taskId) => api.get(`/production/reports/task/${taskId}/stats`),
+  getTaskReportStats: (taskId, params) => api.get(`/production/reports/task/${taskId}/stats`, { params }),
   getTaskProcesses: (taskId) => api.get(`/production/reports/task/${taskId}/processes`),
   createProductionReport: (data) => api.post('/production/reports', data),
   updateProductionReport: (id, data) => api.put(`/production/reports/${id}`, data),

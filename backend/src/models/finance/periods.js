@@ -7,7 +7,38 @@
 
 const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
-const { parseOptionalBoolean, currentDateString } = require('./helpers');
+const {
+  parseOptionalBoolean,
+  currentDateString,
+  normalizeDateInput,
+  isClosedFlag,
+  toDateString,
+} = require('./helpers');
+const BusinessError = require('../../utils/BusinessError');
+
+function normalizePeriodData(data) {
+  try {
+    const start_date = normalizeDateInput(data.start_date, 'start_date');
+    const end_date = normalizeDateInput(data.end_date, 'end_date');
+    const fiscal_year = Number(data.fiscal_year);
+    if (start_date > end_date) throw new Error('开始日期不能晚于结束日期');
+    if (!Number.isInteger(fiscal_year) || fiscal_year < 1000 || fiscal_year > 9999) {
+      throw new Error('会计年度必须为四位整数');
+    }
+    const period_name = typeof data.period_name === 'string' ? data.period_name.trim() : '';
+    if (!period_name || period_name.length > 50) throw new Error('期间名称必须为1至50个字符');
+    return {
+      ...data,
+      period_name,
+      start_date,
+      end_date,
+      fiscal_year,
+      is_adjusting: parseOptionalBoolean(data.is_adjusting, 'is_adjusting') ?? 0,
+    };
+  } catch (error) {
+    throw new BusinessError(error.message);
+  }
+}
 
 module.exports = {
   /**
@@ -103,33 +134,40 @@ module.exports = {
    * 创建会计期间
    */
   createPeriod: async (periodData) => {
+    const normalized = normalizePeriodData(periodData);
+    const connection = await db.pool.getConnection();
     try {
-      const [overlaps] = await db.pool.execute(
+      await connection.beginTransaction();
+      const [overlaps] = await connection.execute(
         `SELECT id FROM gl_periods
          WHERE start_date <= ? AND end_date >= ?
-         LIMIT 1`,
-        [periodData.end_date, periodData.start_date]
+         LIMIT 1 FOR UPDATE`,
+        [normalized.end_date, normalized.start_date]
       );
 
       if (overlaps.length > 0) {
         throw new Error('Accounting period date range overlaps an existing period');
       }
 
-      const [result] = await db.pool.execute(
+      const [result] = await connection.execute(
         'INSERT INTO gl_periods (period_name, start_date, end_date, is_closed, is_adjusting, fiscal_year) VALUES (?, ?, ?, ?, ?, ?)',
         [
-          periodData.period_name,
-          periodData.start_date,
-          periodData.end_date,
+          normalized.period_name,
+          normalized.start_date,
+          normalized.end_date,
           0,
-          periodData.is_adjusting !== undefined ? periodData.is_adjusting : false,
-          periodData.fiscal_year,
+          normalized.is_adjusting,
+          normalized.fiscal_year,
         ]
       );
+      await connection.commit();
       return result.insertId;
     } catch (error) {
+      await connection.rollback();
       logger.error('创建会计期间失败:', error);
       throw error;
+    } finally {
+      connection.release();
     }
   },
 
@@ -137,12 +175,13 @@ module.exports = {
    * 更新会计期间
    */
   updatePeriod: async (id, periodData) => {
+    const normalized = normalizePeriodData(periodData);
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
 
       const [periods] = await connection.execute(
-        'SELECT id, is_closed FROM gl_periods WHERE id = ? FOR UPDATE',
+        'SELECT id, is_closed, is_locked, start_date, end_date, fiscal_year, is_adjusting FROM gl_periods WHERE id = ? FOR UPDATE',
         [id]
       );
 
@@ -150,15 +189,36 @@ module.exports = {
         throw new Error('Accounting period not found');
       }
 
-      if (periods[0].is_closed) {
-        throw new Error('Closed accounting periods cannot be edited');
+      const period = periods[0];
+      if (isClosedFlag(period.is_closed) || isClosedFlag(period.is_locked)) {
+        throw new BusinessError('已关闭或锁定的会计期间不能修改');
+      }
+
+      const calendarChanged =
+        toDateString(period.start_date) !== normalized.start_date ||
+        toDateString(period.end_date) !== normalized.end_date ||
+        Number(period.fiscal_year) !== normalized.fiscal_year ||
+        Number(period.is_adjusting || 0) !== normalized.is_adjusting;
+      if (calendarChanged) {
+        // 期间行锁与记账共享锁互斥，禁止挪动已有凭证的报表归属。
+        const [entries] = await connection.execute(
+          'SELECT id FROM gl_entries WHERE period_id = ? LIMIT 1 FOR UPDATE',
+          [id]
+        );
+        const [balances] = await connection.execute(
+          'SELECT account_id FROM gl_period_balances WHERE period_id = ? LIMIT 1 FOR UPDATE',
+          [id]
+        );
+        if (entries.length || balances.length) {
+          throw new BusinessError('已有凭证或余额快照的期间不能修改日期、会计年度或调整期属性');
+        }
       }
 
       const [overlaps] = await connection.execute(
         `SELECT id FROM gl_periods
          WHERE id <> ? AND start_date <= ? AND end_date >= ?
-         LIMIT 1`,
-        [id, periodData.end_date, periodData.start_date]
+         LIMIT 1 FOR UPDATE`,
+        [id, normalized.end_date, normalized.start_date]
       );
 
       if (overlaps.length > 0) {
@@ -174,11 +234,11 @@ module.exports = {
           fiscal_year = ?
          WHERE id = ?`,
         [
-          periodData.period_name,
-          periodData.start_date,
-          periodData.end_date,
-          periodData.is_adjusting ? 1 : 0,
-          periodData.fiscal_year,
+          normalized.period_name,
+          normalized.start_date,
+          normalized.end_date,
+          normalized.is_adjusting,
+          normalized.fiscal_year,
           id,
         ]
       );

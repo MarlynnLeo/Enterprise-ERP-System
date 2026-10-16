@@ -12,6 +12,7 @@ describe('inventoryTransferMap.toApi', () => {
       from_location: '零部件库',
       to_location: '原材料库',
       status: 'completed',
+      finance_status: 'rejected',
       remark: 'test',
       creator: '陈成',
       items: [
@@ -32,6 +33,7 @@ describe('inventoryTransferMap.toApi', () => {
     expect(result).toMatchObject({
       id: 3,
       transferNo: 'TF202609100001',
+      financeStatus: 'rejected',
       transferDate: '2026-09-10',
       fromLocationId: 1,
       toLocationId: 2,

@@ -21,6 +21,11 @@
           class="stat-card"
           shadow="hover"
           :class="{ active: settlementKey === card.key }"
+          role="button"
+          tabindex="0"
+          :aria-pressed="settlementKey === card.key"
+          @keydown.enter.self.prevent="selectKey(card.key)"
+          @keydown.space.self.prevent="selectKey(card.key)"
           @click="selectKey(card.key)"
         >
           <div class="stat-content">
@@ -86,7 +91,7 @@
         :max-height="standalone ? undefined : 360"
       >
         <template #empty>
-          <EmptyState description="当前筛选下暂无明细" ::image-size="64" />
+          <EmptyState description="当前筛选下暂无明细" :image-size="64" />
         </template>
         <el-table-column prop="invoiceNumber" label="发票编号" min-width="150" fixed="left" />
         <el-table-column

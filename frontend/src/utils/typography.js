@@ -13,25 +13,25 @@ export function getAppFontFamily() {
 export const isSymbolFont = (family) =>
   /icon|barcode|code\s*(?:39|128)|wingdings|webdings|symbol|awesome|spplmfont/i.test(family)
 
-/** 在打印布局测量之前统一旧模板字体，保留字号、字重、纸张和图形字体。 */
+/** 在打印布局测量之前统一旧模板字体，显式标记的样式表可保留模板字体。 */
 export function applyPrintTypography(printDocument) {
   const family = getAppFontFamily()
-  const updateStyle = (style) => {
+  const updateStyle = (style, preserveFonts = false) => {
     const previousFamily = style.getPropertyValue('font-family')
-    if (previousFamily && !isSymbolFont(previousFamily)) {
+    if (!preserveFonts && previousFamily && !isSymbolFont(previousFamily)) {
       style.setProperty('font-family', family, style.getPropertyPriority('font-family'))
     }
     if (style.getPropertyValue('text-shadow')) {
       style.setProperty('text-shadow', 'none', style.getPropertyPriority('text-shadow'))
     }
   }
-  const updateRules = (rules) => {
+  const updateRules = (rules, preserveFonts = false) => {
     for (const rule of rules) {
       // 仅改样式规则，不改 @font-face；同时处理 @media print 等嵌套规则。
       if (rule.type === 1) {
-        updateStyle(rule.style)
+        updateStyle(rule.style, preserveFonts)
       }
-      if (rule.cssRules) updateRules(rule.cssRules)
+      if (rule.cssRules) updateRules(rule.cssRules, preserveFonts)
     }
   }
 
@@ -46,7 +46,8 @@ export function applyPrintTypography(printDocument) {
 
   for (const styleElement of printDocument.querySelectorAll('style')) {
     if (styleElement.id === 'erp-print-spplmfont') continue
-    if (styleElement.sheet) updateRules(styleElement.sheet.cssRules)
+    const preserveFonts = styleElement.getAttribute('data-print-preserve-fonts') === 'true'
+    if (styleElement.sheet) updateRules(styleElement.sheet.cssRules, preserveFonts)
   }
   for (const element of printDocument.querySelectorAll('[style]')) {
     updateStyle(element.style)

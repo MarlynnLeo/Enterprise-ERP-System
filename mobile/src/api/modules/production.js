@@ -2,6 +2,7 @@
  * 生产管理 API 模块
  */
 import api from '../client'
+import { buildResourceUrl } from '@/config/app'
 
 export const productionApi = {
   // 仪表盘数据
@@ -89,6 +90,9 @@ export const productionApi = {
     const {
       taskId,
       task_id: taskIdSnake,
+      processId,
+      process_id: processIdSnake,
+      processName,
       completedQuantity,
       completed_quantity: completedQuantitySnake,
       defectiveQuantity,
@@ -100,6 +104,11 @@ export const productionApi = {
     } = data || {}
     const id = Number(taskId ?? taskIdSnake)
     const completed = Number(completedQuantity ?? completedQuantitySnake ?? quantity)
+    const selectedProcess = processId ?? processIdSnake
+    const process = selectedProcess == null || selectedProcess === '' ? null : Number(selectedProcess)
+    if (process !== null && (!Number.isSafeInteger(process) || process <= 0)) {
+      throw new Error('请选择有效的生产工序')
+    }
     const defective = Number(defectiveQuantity ?? defectiveQuantitySnake ?? unqualifiedQuantity ?? 0)
     if (!Number.isSafeInteger(id) || id <= 0) {
       throw new Error('请选择有效的生产任务')
@@ -112,6 +121,7 @@ export const productionApi = {
     }
     return api.post('/production/reports', {
       taskId: id,
+      ...(process === null ? {} : { processId: process, processName: processName || '' }),
       completedQuantity: completed,
       qualifiedQuantity: completed - defective,
       defectiveQuantity: defective,
@@ -124,9 +134,21 @@ export const productionApi = {
     return api.get('/production/tasks/generate-code')
   },
 
+  getTaskReportStats(taskId, params) {
+    return api.get(`/production/reports/task/${taskId}/stats`, { params })
+  },
+
+  getTaskReportProcesses(taskId) {
+    return api.get(`/production/reports/task/${taskId}/processes`)
+  },
+
   // 获取生产过程
   getProcesses(params) {
     return api.get('/production/processes', { params })
+  },
+
+  updateProcess(id, data) {
+    return api.put(`/production/processes/${id}`, data)
   },
 
   // 物料需求计算
@@ -160,6 +182,19 @@ export const productionApi = {
   },
 
   // 异常上报
+  getAnomalyTaskOptions(params) {
+    return api.get('/production/anomaly-reports/task-options', { params })
+  },
+  uploadAnomalyImage(data) {
+    return api.post('/production/anomaly-reports/images', data, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+  downloadAnomalyImage(path) {
+    const url = buildResourceUrl(path)
+    if (!url) return Promise.reject(new Error('图片地址不可用'))
+    return api.get(url, { baseURL: '', responseType: 'blob' })
+  },
   createAnomaly(data) {
     return api.post('/production/anomaly-reports', data)
   },

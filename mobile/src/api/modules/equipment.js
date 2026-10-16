@@ -28,6 +28,12 @@ export const equipmentApi = {
   getFailureRecords(params) {
     return api.get('/equipment/failures', { params })
   },
+  updateMaintenance(id, data) {
+    return api.put(`/equipment/maintenance/${id}`, data)
+  },
+  updateFailure(id, data) {
+    return api.put(`/equipment/failures/${id}`, data)
+  },
   getInspectionRecords(params) {
     return api.get('/equipment/inspections', { params })
   },

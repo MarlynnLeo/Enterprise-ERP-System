@@ -61,7 +61,7 @@ describe('mobile scan lookup workflow', () => {
   afterEach(() => wrapper.unmount())
 
   const selectType = async (label) => {
-    await wrapper.findAll('.type-tab').find((tab) => tab.text() === label).trigger('click')
+    await wrapper.findAll('.type-tab').find((tab) => tab.attributes('aria-label') === label).trigger('click')
   }
   const scan = async (code) => {
     await wrapper.find('.input-card').trigger('click')

@@ -83,39 +83,13 @@ module.exports = {
         // 预付账款
         // 预收账款
 
-        // 投资活动现金流项目
-        const fixedAssetChange = await this.getAccountChangeByCodes(
+        // 投资和筹资按已过账现金分录识别，转固、折旧、债转股等非现金变动不构成现金流。
+        const cashMovements = await this.getCashFlowCashMovements(
           connection,
-          accountCodes.fixedAssets,
-          periodStart,
-          endDate
-        ); // 固定资产
-        const intangibleAssetChange = await this.getAccountChangeByCodes(
-          connection,
-          accountCodes.intangibleAssets,
-          periodStart,
-          endDate
-        ); // 无形资产
-
-        // 筹资活动现金流项目
-        const shortLoanChange = await this.getAccountChangeByCodes(
-          connection,
-          accountCodes.shortLoans,
-          periodStart,
-          endDate
-        ); // 短期借款
-        const longLoanChange = await this.getAccountChangeByCodes(
-          connection,
-          accountCodes.longLoans,
-          periodStart,
-          endDate
-        ); // 长期借款
-        const paidInCapitalChange = await this.getAccountChangeByCodes(
-          connection,
-          accountCodes.paidInCapital,
-          periodStart,
-          endDate
-        ); // 实收资本
+          startDate,
+          endDate,
+          accountCodes
+        );
 
         // 5. 构建现金流量表数据
         const reportData = [];
@@ -224,7 +198,7 @@ module.exports = {
           name: '购建固定资产、无形资产支付的现金',
           code: 'FIXED_ASSET_PURCHASE',
           rowNum: rowNum++,
-          amount: this.roundAmount(-Math.max(0, fixedAssetChange + intangibleAssetChange) / unit),
+          amount: this.roundAmount(-cashMovements.investing.outflow / unit),
           compareAmount: null,
           level: 1,
         });
@@ -235,12 +209,12 @@ module.exports = {
           name: '处置固定资产、无形资产收回的现金',
           code: 'FIXED_ASSET_DISPOSAL',
           rowNum: rowNum++,
-          amount: this.roundAmount(Math.max(0, -(fixedAssetChange + intangibleAssetChange)) / unit),
+          amount: this.roundAmount(cashMovements.investing.inflow / unit),
           compareAmount: null,
           level: 1,
         });
 
-        const investingCashFlow = -(fixedAssetChange + intangibleAssetChange);
+        const investingCashFlow = cashMovements.investing.inflow - cashMovements.investing.outflow;
         reportData.push({
           id: 'investing-total',
           name: '投资活动产生的现金流量净额',
@@ -265,7 +239,7 @@ module.exports = {
         });
 
         // 取得借款收到的现金
-        const loanIncrease = Math.max(0, shortLoanChange + longLoanChange);
+        const loanIncrease = cashMovements.loans.inflow;
         reportData.push({
           id: 'loan-received',
           name: '取得借款收到的现金',
@@ -277,7 +251,7 @@ module.exports = {
         });
 
         // 偿还债务支付的现金
-        const loanRepaid = Math.max(0, -(shortLoanChange + longLoanChange));
+        const loanRepaid = cashMovements.loans.outflow;
         reportData.push({
           id: 'loan-repaid',
           name: '偿还债务支付的现金',
@@ -291,15 +265,18 @@ module.exports = {
         // 吸收投资收到的现金
         reportData.push({
           id: 'capital-received',
-          name: '吸收投资收到的现金',
+          name: '吸收投资及退还投资的现金净额',
           code: 'CAPITAL_RECEIVED',
           rowNum: rowNum++,
-          amount: this.roundAmount(Math.max(0, paidInCapitalChange) / unit),
+          amount: this.roundAmount(
+            (cashMovements.capital.inflow - cashMovements.capital.outflow) / unit
+          ),
           compareAmount: null,
           level: 1,
         });
 
-        const financingCashFlow = shortLoanChange + longLoanChange + paidInCapitalChange;
+        const financingCashFlow =
+          loanIncrease - loanRepaid + cashMovements.capital.inflow - cashMovements.capital.outflow;
         reportData.push({
           id: 'financing-total',
           name: '筹资活动产生的现金流量净额',
@@ -312,7 +289,25 @@ module.exports = {
         });
 
         // 四、现金及现金等价物净增加额
-        const totalCashFlow = operatingCashFlow + investingCashFlow + financingCashFlow;
+        const classifiedCashFlow = operatingCashFlow + investingCashFlow + financingCashFlow;
+        const beginningCash = await this.getCashBalance(connection, periodStart, accountCodes);
+        const endingCash = await this.getCashBalance(connection, endDate, accountCodes);
+        const totalCashFlow = endingCash - beginningCash;
+        const reconciliationDifference = this.roundAmount(totalCashFlow - classifiedCashFlow);
+        const isReconciled =
+          Math.abs(reconciliationDifference) < 0.01 && cashMovements.ambiguousEntryIds.length === 0;
+        if (!isReconciled) {
+          reportData.push({
+            id: 'cash-reconciliation',
+            name: '现金流分类与总账差额（待核对）',
+            code: 'CASH_RECONCILIATION',
+            rowNum: rowNum++,
+            amount: this.roundAmount(reconciliationDifference / unit),
+            compareAmount: null,
+            level: 0,
+            isWarning: true,
+          });
+        }
         reportData.push({
           id: 'cash-increase',
           name: '四、现金及现金等价物净增加额',
@@ -325,7 +320,6 @@ module.exports = {
         });
 
         // 获取期初现金余额
-        const beginningCash = await this.getCashBalance(connection, periodStart, accountCodes);
         reportData.push({
           id: 'cash-beginning',
           name: '加：期初现金及现金等价物余额',
@@ -341,7 +335,7 @@ module.exports = {
           name: '五、期末现金及现金等价物余额',
           code: 'CASH_ENDING',
           rowNum: rowNum++,
-          amount: this.roundAmount((beginningCash + totalCashFlow) / unit),
+          amount: this.roundAmount(endingCash / unit),
           compareAmount: null,
           level: 0,
           isTotal: true,
@@ -369,7 +363,10 @@ module.exports = {
             financingCashFlow: this.roundAmount(financingCashFlow / unit),
             netCashIncrease: this.roundAmount(totalCashFlow / unit),
             beginningCash: this.roundAmount(beginningCash / unit),
-            endingCash: this.roundAmount((beginningCash + totalCashFlow) / unit),
+            endingCash: this.roundAmount(endingCash / unit),
+            reconciliationDifference: this.roundAmount(reconciliationDifference / unit),
+            isReconciled,
+            ambiguousEntryIds: cashMovements.ambiguousEntryIds,
           },
           items: reportData,
         };
@@ -403,6 +400,8 @@ module.exports = {
         'FIXED_ASSET_IMPAIRMENT_ALLOWANCE',
       ]),
       intangibleAssets: await this.getConfiguredAccountCodes(['INTANGIBLE_ASSETS']),
+      constructionInProgress: await this.getConfiguredAccountCodes(['CONSTRUCTION_IN_PROGRESS']),
+      fixedAssetClearing: await this.getConfiguredAccountCodes(['FIXED_ASSET_CLEARING']),
       shortLoans: await this.getConfiguredAccountCodes(['SHORT_TERM_LOANS']),
       longLoans: await this.getConfiguredAccountCodes(['LONG_TERM_LOANS']),
       paidInCapital: await this.getConfiguredAccountCodes(['PAID_IN_CAPITAL']),
@@ -412,6 +411,75 @@ module.exports = {
         'OTHER_MONETARY_ASSETS',
       ]),
     };
+  },
+
+  async getCashFlowCashMovements(connection, startDate, endDate, accountCodes) {
+    const cashCodes = (accountCodes.cashEquivalents || []).filter(Boolean).map(String);
+    if (cashCodes.length === 0) throw new Error('未配置现金及现金等价物科目');
+    const [rows] = await connection.execute(
+      `SELECT e.id AS entry_id, a.account_code, ei.debit_amount, ei.credit_amount
+       FROM gl_entries e
+       JOIN gl_entry_items ei ON ei.entry_id = e.id
+       JOIN gl_accounts a ON a.id = ei.account_id
+       WHERE e.is_posted = 1 AND e.entry_date BETWEEN ? AND ?
+         AND EXISTS (
+           SELECT 1 FROM gl_entry_items ci JOIN gl_accounts ca ON ca.id = ci.account_id
+           WHERE ci.entry_id = e.id AND (${cashCodes.map(() => 'ca.account_code LIKE ?').join(' OR ')})
+         )
+       ORDER BY e.id, ei.line_number`,
+      [startDate, endDate, ...cashCodes.map((code) => `${code}%`)]
+    );
+    const groups = {
+      investing: [
+        'fixedAssets',
+        'intangibleAssets',
+        'constructionInProgress',
+        'fixedAssetClearing',
+      ],
+      loans: ['shortLoans', 'longLoans'],
+      capital: ['paidInCapital'],
+    };
+    const matches = (code, prefixes) =>
+      prefixes.some((prefix) => String(code).startsWith(String(prefix)));
+    const entries = new Map();
+    for (const row of rows) {
+      const cents =
+        Math.round(Number(row.debit_amount || 0) * 100) -
+        Math.round(Number(row.credit_amount || 0) * 100);
+      if (cents === 0) continue;
+      const entry = entries.get(row.entry_id) || { cash: 0, groups: new Set() };
+      if (matches(row.account_code, cashCodes)) {
+        entry.cash += cents;
+      } else {
+        const group = Object.keys(groups).find((name) =>
+          matches(
+            row.account_code,
+            groups[name].flatMap((key) => accountCodes[key] || [])
+          )
+        );
+        entry.groups.add(group || 'other');
+      }
+      entries.set(row.entry_id, entry);
+    }
+    const result = {
+      investing: { inflow: 0, outflow: 0 },
+      loans: { inflow: 0, outflow: 0 },
+      capital: { inflow: 0, outflow: 0 },
+      ambiguousEntryIds: [],
+    };
+    for (const [entryId, entry] of entries) {
+      if (entry.cash === 0) continue;
+      const categories = [...entry.groups];
+      // 复合凭证未提供现金流分项时，不按资产余额或金额比例推断现金用途。
+      if (categories.length !== 1) {
+        if (categories.some((category) => category !== 'other'))
+          result.ambiguousEntryIds.push(entryId);
+        continue;
+      }
+      const bucket = result[categories[0]];
+      if (bucket) bucket[entry.cash > 0 ? 'inflow' : 'outflow'] += Math.abs(entry.cash) / 100;
+    }
+    return result;
   },
 
   /**
@@ -462,7 +530,7 @@ module.exports = {
       };
     } catch (error) {
       logger.error('获取余额变动失败:', error);
-      return { beginBalance: 0, endBalance: 0, change: 0 };
+      throw error;
     }
   },
 
@@ -525,7 +593,7 @@ module.exports = {
       return totalChange;
     } catch (error) {
       logger.error('获取科目变动失败:', { accountCodes, error: error.message });
-      return 0;
+      throw error;
     }
   },
 
@@ -541,7 +609,7 @@ module.exports = {
         preloadedCodes?.cashEquivalents || (await this.getCashFlowAccountCodes()).cashEquivalents;
 
       if (accountCodes.length === 0) {
-        return 0;
+        throw new Error('未配置现金及现金等价物科目');
       }
 
       // 获取现金及现金等价物科目
@@ -572,7 +640,7 @@ module.exports = {
       return totalCash;
     } catch (error) {
       logger.error('获取现金余额失败:', error);
-      return 0;
+      throw error;
     }
   },
 };
