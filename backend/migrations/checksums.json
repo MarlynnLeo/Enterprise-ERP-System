@@ -320,5 +320,6 @@
   "20261015000003_add_vat_credit_chain.js": "62cf0e4c6fae8691f5ab23d447c07ec63b45aa4b46e3d5d0fa4b0c21b4536e44",
   "20261015000031_asset_capitalization_sources.js": "ddaceddeae2dafc08b5a444f393e1ac0a0380b7bd5686224b80dfabf712988e3",
   "20261016000001_add_finance_report_center.js": "da65a8fbec6c7176b49342adbff699d185f97081fd3b4e2339985d08f0536d94",
-  "20261016000040_ensure_purchase_batch_number_rule.js": "2dca7c565d45d7a686123bcd2d1fb27e2cff31b5d1ebb2ceeb61102248822d24"
+  "20261016000040_ensure_purchase_batch_number_rule.js": "2dca7c565d45d7a686123bcd2d1fb27e2cff31b5d1ebb2ceeb61102248822d24",
+  "20261016000100_nest_finance_ledger_menus.js": "47bf9d1fd912247ec7d7adf6e933fa696361ffb57f7018cf08cd9642be1a9271"
 }

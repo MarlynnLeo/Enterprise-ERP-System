@@ -2,7 +2,6 @@
   <div class="module-page ledger-report-page">
     <PageHeader :title="title" subtitle="按会计期间查询账簿，核对发生额与结余">
       <template #actions>
-        <el-button @click="router.push('/finance/reports')">返回报表中心</el-button>
         <el-button :icon="Download" :disabled="!canOutput" :loading="outputMode === 'excel'" @click="outputReport('excel')">导出 Excel</el-button>
         <el-button :icon="Printer" :disabled="!canOutput" :loading="outputMode === 'print'" @click="outputReport('print')">打印报表</el-button>
       </template>

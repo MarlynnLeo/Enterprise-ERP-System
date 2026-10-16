@@ -339,7 +339,7 @@ export default {
     {
       path: 'reports',
       name: 'finance-reports',
-      component: () => import('../../views/finance/reports/ReportCenter.vue'),
+      redirect: '/finance/reports/balance-sheet',
       meta: {
         requiresAuth: true,
         permission: 'finance:reports:view',

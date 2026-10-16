@@ -1,13 +1,19 @@
 import { nextTick } from 'vue';
 import { mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { createMemoryHistory, createRouter } from 'vue-router';
+import SidebarMenu from '@/components/layout/SidebarMenu.vue';
 import ReportCenter from '@/views/finance/reports/ReportCenter.vue';
 import financeRoutes from '@/router/modules/finance';
 import { financePerms } from '@/utils/permissions/financePerms';
+import { buildMenuTree, menuPermissions } from '@/utils/menuPermissions';
 import { getMenuLabel } from '@/utils/menuLabels';
+import { prepareMenuTree, resolveMenuNavigationState } from '@/utils/menuTree';
+import zhCN from '@/locales/zhCN';
 
 const state = vi.hoisted(() => ({ permissions: [] }));
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ hasPermission: permission => state.permissions.includes(permission) }) }));
+vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: key => key }) }));
 
 let wrapper;
 const stubs = {
@@ -24,7 +30,7 @@ const links = () => wrapper.findAll('a').map(link => link.attributes('href'));
 beforeEach(() => { state.permissions = ['finance:reports:view']; });
 afterEach(() => wrapper?.unmount());
 
-describe('financial report center', () => {
+describe('legacy financial report center', () => {
   test('makes the five requested ledgers and existing financial statements reachable with the reports permission', () => {
     open();
     for (const type of ['vat', 'quantity', 'general', 'cash', 'payable']) {
@@ -81,11 +87,83 @@ describe('financial report center', () => {
     expect(wrapper.text()).not.toContain('增值税多栏账');
   });
 
-  test('exposes the report center in menu definitions and preserves the balance sheet route', () => {
+});
+
+describe('financial report directory', () => {
+  const reportPaths = [
+    '/finance/reports/balance-sheet',
+    '/finance/reports/income-statement',
+    '/finance/reports/standard-cash-flow',
+    '/finance/reports/cash-flow',
+    ...['vat', 'quantity', 'general', 'cash', 'payable'].map(type => `/finance/reports/ledgers/${type}`),
+  ];
+
+  test('keeps four existing reports and five ledgers directly under one directory', () => {
     const menu = financePerms.find(menu => menu.path === '/finance/reports');
-    expect(menu).toMatchObject({ permission: 'finance:reports:view', component: 'finance/reports/ReportCenter' });
-    expect(getMenuLabel(menu, key => key)).toBe('menu.reportCenter');
-    expect(financeRoutes.children.find(route => route.path === 'reports').meta.permission).toBe('finance:reports:view');
+    expect(menu).toMatchObject({ name: '财务报表', type: 0, permission: 'finance:reports', component: '' });
+    expect(getMenuLabel(menu, key => zhCN.menu[key.slice('menu.'.length)])).toBe('财务报表');
+    expect(getMenuLabel({ permission: 'finance:reports' }, key => zhCN.menu[key.slice('menu.'.length)])).toBe('财务报表');
+    const children = financePerms.filter(child => child.parentId === menu.id).sort((a, b) => a.sort - b.sort);
+    expect(children.map(child => child.path)).toEqual(reportPaths);
+    expect(children.slice(0, 4).map(child => child.id)).toEqual([716, 717, 718, 7205]);
+    for (const reportMenu of [menu, ...children]) {
+      expect(menuPermissions.filter(item => item.id === reportMenu.id)).toHaveLength(1);
+    }
+    for (const child of children) {
+      expect(child.type).toBe(1);
+      expect(financePerms.filter(item => item.path === child.path)).toHaveLength(1);
+      const route = financeRoutes.children.find(route => `/finance/${route.path}` === child.path);
+      expect(route, child.path).toBeDefined();
+      expect(route.meta.permission).toBe(child.permission);
+    }
     expect(financeRoutes.children.find(route => route.path === 'reports/balance-sheet').component.toString()).toContain('BalanceSheet.vue');
+  });
+
+  test('expands the sidebar directory and navigates directly to each report', async () => {
+    const menus = prepareMenuTree(buildMenuTree(financePerms));
+    const financeMenu = menus.find(menu => menu.path === '/finance');
+    const reportsMenu = financeMenu.children.find(menu => menu.path === '/finance/reports');
+    wrapper = mount(SidebarMenu, { props: { menus }, global: { stubs: { ElIcon: stubs.ElIcon } } });
+    await wrapper.get(`[data-menu-index="${financeMenu.menuIndex}"] > button`).trigger('click');
+    const directory = wrapper.get(`[data-menu-index="${reportsMenu.menuIndex}"] > button`);
+    expect(directory.attributes('aria-expanded')).toBe('false');
+    await directory.trigger('click');
+    expect(directory.attributes('aria-expanded')).toBe('true');
+    expect(wrapper.emitted('navigate')).toBeUndefined();
+    for (const path of reportPaths) {
+      const link = wrapper.get(`[data-menu-index="${path}"] > button`);
+      expect(link.element.parentElement.hidden).toBe(false);
+      await link.trigger('click');
+      expect(wrapper.emitted('navigate').at(-1)).toEqual([path]);
+      expect(resolveMenuNavigationState(menus, path)).toMatchObject({
+        activePath: path, openeds: [financeMenu.menuIndex, reportsMenu.menuIndex],
+      });
+    }
+    await directory.trigger('click');
+    expect(wrapper.get(`[data-menu-index="${reportPaths[0]}"]`).element.hidden).toBe(true);
+    expect(wrapper.emitted('navigate')).toHaveLength(reportPaths.length);
+  });
+
+  test('redirects the old reports URL to the balance sheet and preserves direct report routes', async () => {
+    const index = financeRoutes.children.find(route => route.path === 'reports');
+    expect(index.component).toBeUndefined();
+    expect(index.redirect).toBe('/finance/reports/balance-sheet');
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{
+        ...financeRoutes,
+        path: '/finance',
+        component: { template: '<router-view />' },
+        children: financeRoutes.children.map(route => ({
+          ...route, component: route.component ? { template: '<div />' } : undefined,
+        })),
+      }],
+    });
+    await router.push('/finance/reports?period=2026-10');
+    expect(router.currentRoute.value.fullPath).toBe('/finance/reports/balance-sheet?period=2026-10');
+    for (const path of reportPaths) {
+      await router.push(path);
+      expect(router.currentRoute.value.path).toBe(path);
+    }
   });
 });
