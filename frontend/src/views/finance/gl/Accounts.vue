@@ -49,18 +49,28 @@
 
     <!-- 表格区域 -->
     <el-card class="data-card">
+      <div class="account-tree-toolbar">
+        <span class="account-tree-hint">点击科目编码前的箭头展开子科目，按一级科目分页</span>
+        <div class="account-tree-actions">
+          <el-button :disabled="loading || !branchKeys.length" @click="expandAll">全部展开</el-button>
+          <el-button :disabled="loading || !expandedRowKeys.length" @click="collapseAll">全部收起</el-button>
+        </div>
+      </div>
       <el-table
         :data="accountList"
         class="w-full"
         row-key="id"
         border
-        :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
+        :tree-props="{ children: 'children' }"
+        :expand-row-keys="expandedRowKeys"
+        :indent="20"
+        @expand-change="handleExpandChange"
         v-loading="loading"
       >
         <template #empty>
           <EmptyState description="暂无会计科目数据" />
         </template>
-        <el-table-column prop="accountCode" label="科目编码" width="120"></el-table-column>
+        <el-table-column prop="accountCode" label="科目编码" min-width="220"></el-table-column>
         <el-table-column prop="accountName" label="科目名称" width="180"></el-table-column>
         <el-table-column prop="accountType" label="科目类型" width="140"></el-table-column>
         <el-table-column label="借/贷方向" width="100">
@@ -216,7 +226,8 @@
 <script setup>
 import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { getThemeDefaultPageSize } from '@/utils/themePageSize'
-import { parsePaginatedData, parseListData } from '@/utils/responseParser';
+import { parseListData } from '@/utils/responseParser';
+import { buildAccountTree, filterAccountTree, getAccountBranchKeys } from '@/utils/accountTree';
 
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus/es/components/message/index'
@@ -237,7 +248,6 @@ const loading = ref(false);
 const saveLoading = ref(false);
 
 // 分页相关
-const total = ref(0);
 const pageSize = ref(getThemeDefaultPageSize(10));
 const currentPage = ref(1);
 
@@ -248,8 +258,9 @@ const isAdding = ref(true);
 const accountFormRef = ref(null);
 
 // 会计科目列表
-const accountList = ref([]);
-const accountOptions = ref([]);
+const accountTree = ref([]);
+const accountOptions = computed(() => accountTree.value);
+const expandedRowKeys = ref([]);
 
 // 搜索表单
 const searchForm = reactive({
@@ -257,6 +268,24 @@ const searchForm = reactive({
   account_name: '',
   account_type: ''
 });
+const appliedSearch = ref({ ...searchForm });
+const hasSearch = computed(() => Object.values(appliedSearch.value).some(value => String(value ?? '').trim()));
+const filteredAccounts = computed(() => filterAccountTree(accountTree.value, appliedSearch.value));
+const total = computed(() => filteredAccounts.value.length);
+const accountList = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value;
+  return filteredAccounts.value.slice(start, start + pageSize.value);
+});
+const branchKeys = computed(() => getAccountBranchKeys(filteredAccounts.value));
+
+const expandAll = () => { expandedRowKeys.value = [...branchKeys.value]; };
+const collapseAll = () => { expandedRowKeys.value = []; };
+const handleExpandChange = (row, expanded) => {
+  const keys = new Set(expandedRowKeys.value);
+  if (expanded) keys.add(String(row.id));
+  else keys.delete(String(row.id));
+  expandedRowKeys.value = [...keys];
+};
 
 // 会计科目表单
 const accountForm = reactive({
@@ -294,63 +323,31 @@ const accountRules = {
 const loadAccounts = async () => {
   loading.value = true;
   try {
-    const params = {
-      page: currentPage.value,
-      limit: pageSize.value
-    };
-
-    // 添加搜索条件
-    if (searchForm.account_code) {
-      params.account_code = searchForm.account_code;
-    }
-    if (searchForm.account_name) {
-      params.account_name = searchForm.account_name;
-    }
-    if (searchForm.account_type) {
-      params.account_type = searchForm.account_type;
-    }
-
-    const response = await financeApi.accounts.getList(params);
-
-    // 使用统一的响应解析工具
-    const { list, total: totalCount } = parsePaginatedData(response, {
-      logPrefix: '📋 会计科目列表: ',
-      enableLog: false
-    });
-
-    accountList.value = list;
-    total.value = totalCount;
+    // Fetch the complete chart before grouping; flat pagination splits parents
+    // and children across pages. This endpoint also feeds the parent selector.
+    const response = await financeApi.accounts.getOptions();
+    accountTree.value = buildAccountTree(parseListData(response, { enableLog: false }));
+    currentPage.value = Math.min(currentPage.value, Math.max(1, Math.ceil(total.value / pageSize.value)));
+    if (hasSearch.value) expandAll();
+    else expandedRowKeys.value = expandedRowKeys.value.filter(key => branchKeys.value.includes(key));
   } catch (error) {
     console.error('加载会计科目失败:', error);
     ElMessage.error('加载会计科目失败');
-    accountList.value = [];
-    total.value = 0;
+    accountTree.value = [];
+    expandedRowKeys.value = [];
   } finally {
     loading.value = false;
   }
 };
 
-// 加载会计科目选项（用于级联选择器）
-const loadAccountOptions = async () => {
-  try {
-    const response = await financeApi.accounts.getOptions();
-    // 使用统一的列表数据解析工具
-    const accounts = parseListData(response, { enableLog: false });
-    accountOptions.value = accounts.map(item => ({
-      ...item,
-      fullName: `${item.accountCode} - ${item.accountName}`
-    }));
-  } catch (error) {
-    console.error('加载会计科目选项失败:', error);
-    ElMessage.error('加载会计科目选项失败');
-    accountOptions.value = [];
-  }
-};
-
 // 搜索会计科目
-const searchAccounts = () => {
+const searchAccounts = async () => {
+  appliedSearch.value = { ...searchForm };
   currentPage.value = 1;
-  loadAccounts();
+  if (!accountTree.value.length && !loading.value) await loadAccounts();
+  // Reveal matches together with their ancestor path, even for a leaf-only query.
+  if (hasSearch.value) expandAll();
+  else collapseAll();
 };
 
 // 重置搜索条件
@@ -428,7 +425,6 @@ const saveAccount = async () => {
         }
         dialogVisible.value = false;
         loadAccounts();
-        loadAccountOptions();
       } catch (error) {
         console.error('保存会计科目失败:', error);
         ElMessage.error('保存会计科目失败');
@@ -463,22 +459,39 @@ const resetAccountForm = () => {
 // 分页相关方法
 const handleSizeChange = (size) => {
   pageSize.value = size;
-  loadAccounts();
+  currentPage.value = 1;
 };
 
 const handleCurrentChange = (page) => {
   currentPage.value = page;
-  loadAccounts();
 };
 
 // 页面加载时执行
 onMounted(() => {
   loadAccounts();
-  loadAccountOptions();
 });
 </script>
 
 <style scoped>
+.account-tree-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.account-tree-hint {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.account-tree-actions {
+  display: flex;
+  flex-shrink: 0;
+}
+
 .header-card {
   margin-bottom: 20px;
 }
