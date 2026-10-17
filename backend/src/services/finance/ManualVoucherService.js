@@ -983,10 +983,12 @@ class ManualVoucherService {
         `采购入库单 ${receipt.receipt_no} 未完成，不能生成凭证（当前：${receipt.status}）`
       );
     }
-    await InventoryPostingService.requireApprovedForTransaction(db.pool, {
-      reference_type: 'inbound',
-      reference_no: receipt.receipt_no,
-    });
+    await FinanceIntegrationService.requireApprovedInventoryPosting(
+      options.connection || db.pool,
+      'purchase_receipt',
+      receipt.receipt_no,
+      receipt.id
+    );
 
     const shared = {
       force: true,

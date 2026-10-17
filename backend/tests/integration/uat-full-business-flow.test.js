@@ -469,7 +469,22 @@ describeLiveUat('UAT full business flow', () => {
       .send({ status: 'completed', remarks: 'UAT receive complete' });
     expectHttp(completePurchaseReceiptRes, 200, 'complete purchase receipt');
 
-    await approveInventoryPosting(db, financeApi, context.purchaseReceiptNo, { businessApi: api });
+    const blockedApRes = await api.post(
+      `/api/finance/integration/ap-invoice/${context.purchaseReceiptId}`
+    );
+    expectHttp(blockedApRes, 409, 'prevent AP generation before finance approval');
+    expect(blockedApRes.body.code).toBe('INVENTORY_POSTING_REQUIRED');
+
+    const [purchasePostingId] = await approveInventoryPosting(
+      db, financeApi, context.purchaseReceiptNo, { businessApi: api }
+    );
+    const purchasePosting = await scalar(
+      'SELECT source_type, source_id, source_no FROM inventory_posting_documents WHERE id = ?',
+      [purchasePostingId]
+    );
+    expect(purchasePosting.source_type).toBe('purchase_receipt');
+    expect(Number(purchasePosting.source_id)).toBe(context.purchaseReceiptId);
+    expect(purchasePosting.source_no).toBe(context.purchaseReceiptNo);
 
     const rawStockAfterPurchase = await scalar(
       `SELECT COALESCE(SUM(quantity), 0) AS qty

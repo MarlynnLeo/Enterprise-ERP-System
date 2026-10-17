@@ -14,6 +14,7 @@ jest.mock('../../src/utils/logger', () => ({ logger: { info: jest.fn(), warn: je
 const db = require('../../src/config/db');
 const Posting = require('../../src/services/InventoryPostingService');
 const Finance = require('../../src/services/external/FinanceIntegrationService');
+const ManualVoucher = require('../../src/services/finance/ManualVoucherService');
 const { hashSnapshot } = require('../../src/utils/inventoryPostingSnapshot');
 
 describe('purchase finance exact posting gate', () => {
@@ -120,6 +121,57 @@ describe('purchase finance exact posting gate', () => {
     }, connection);
     expect(Posting.requireApprovedForTransaction).toHaveBeenCalledWith(connection, {
       posting_document_id: 70, reference_no: 'RCV-12',
+    });
+  });
+
+  describe('manual receipt vouchers use the same source-identity gate', () => {
+    beforeEach(() => {
+      jest.spyOn(ManualVoucher, 'loadPurchaseReceipt').mockResolvedValue({
+        id: 12, receipt_no: 'RCV-12', status: 'completed',
+      });
+      jest.spyOn(Finance, 'generateAPInvoiceFromPurchaseReceipt').mockResolvedValue({
+        invoiceId: 31, invoiceNumber: 'AP-31', amount: 20,
+      });
+      jest.spyOn(Finance, 'generateInputTaxInvoiceFromPurchaseReceipt').mockResolvedValue({
+        success: true,
+      });
+    });
+
+    test.each([false, true])('approved canonical receipt reaches AP and tax generation (shared transaction: %s)', async (sharedTransaction) => {
+      const options = sharedTransaction ? { connection } : {};
+      const expectedConnection = sharedTransaction ? connection : db.pool;
+
+      await expect(ManualVoucher.generateFromPurchaseReceipt('12', 60, null, options))
+        .resolves.toMatchObject({ result: { invoiceId: 31 } });
+
+      expect(Posting.getApprovalBySource).toHaveBeenCalledWith({
+        sourceType: 'purchase_receipt', sourceId: 12, sourceNo: 'RCV-12',
+      }, expectedConnection);
+      expect(Posting.requireApprovedForTransaction).toHaveBeenCalledWith(expectedConnection, {
+        posting_document_id: 70, reference_no: 'RCV-12',
+      });
+      expect(Finance.generateAPInvoiceFromPurchaseReceipt).toHaveBeenCalledTimes(1);
+      expect(Finance.generateInputTaxInvoiceFromPurchaseReceipt).toHaveBeenCalledTimes(1);
+    });
+
+    test.each(['pending', 'rejected', 'reversed'])('manual generation rejects %s approval before either invoice write', async (status) => {
+      movement.finance_status = status;
+
+      await expect(ManualVoucher.generateFromPurchaseReceipt(12, 60))
+        .rejects.toMatchObject({ code: 'INVENTORY_POSTING_REQUIRED' });
+
+      expect(Finance.generateAPInvoiceFromPurchaseReceipt).not.toHaveBeenCalled();
+      expect(Finance.generateInputTaxInvoiceFromPurchaseReceipt).not.toHaveBeenCalled();
+    });
+
+    test('manual generation rejects a same-number approval belonging to another receipt', async () => {
+      movement.source_id = 99;
+
+      await expect(ManualVoucher.generateFromPurchaseReceipt(12, 60))
+        .rejects.toMatchObject({ code: 'POSTING_SOURCE_CHANGED' });
+
+      expect(Finance.generateAPInvoiceFromPurchaseReceipt).not.toHaveBeenCalled();
+      expect(Finance.generateInputTaxInvoiceFromPurchaseReceipt).not.toHaveBeenCalled();
     });
   });
 });
