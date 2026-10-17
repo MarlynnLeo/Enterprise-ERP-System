@@ -23,7 +23,7 @@
   --color-success-light: #d3f9d8;
   --color-success-dark: #40a651;
   --color-warning: #FFA94D;
-  --color-warning-light: #ffe0c2;
+  --color-warning-light: #ffe6cc;
   --color-warning-dark: #cc873e;
   --color-danger: #FF6B6B;
   --color-danger-light: #ffe9e9;
@@ -194,7 +194,7 @@
 [data-theme="vibrant"] .app-sidebar {
   background: var(--shell-sidebar-bg) !important;
   border-right: 3px solid var(--shell-border) !important;
-  box-shadow: 4px 0 30px color-mix(in srgb, var(--color-bg-overlay) 30%, transparent) !important;
+  box-shadow: 4px 0 30px color-mix(in srgb, var(--color-bg-overlay) 30%, transparent);
 }
 
 [data-theme="vibrant"] .logo-container {
@@ -219,7 +219,7 @@
   background: var(--color-bg-base) !important;
   border: 1px solid var(--color-primary) !important;
   border-radius: var(--radius-md, 6px) !important;
-  box-shadow: var(--shadow-sm) !important;
+  box-shadow: var(--shadow-sm);
   color: var(--color-text-primary) !important;
 }
 
@@ -247,8 +247,4 @@
   color: var(--color-on-primary) !important;
   font-weight: 700 !important;
   border: none !important;
-}
-
-[data-theme="vibrant"] .el-input__wrapper.is-focus {
-  box-shadow: 0 0 0 1px var(--color-primary) inset !important;
 }

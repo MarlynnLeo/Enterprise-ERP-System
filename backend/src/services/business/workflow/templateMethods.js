@@ -10,8 +10,8 @@ module.exports = {
   async getTemplates(params = {}) {
     const { keyword, business_type, is_active, page = 1, pageSize = 20 } = params;
     const pagination = parsePagination(page, pageSize, { defaultPageSize: 20, maxPageSize: 100 });
-    let countWhere = 'WHERE deleted_at IS NULL';
-    let listWhere = 'WHERE wt.deleted_at IS NULL';
+    let countWhere = "WHERE deleted_at IS NULL AND business_type <> 'purchase_requisition'";
+    let listWhere = "WHERE wt.deleted_at IS NULL AND wt.business_type <> 'purchase_requisition'";
     const values = [];
 
     if (keyword) {

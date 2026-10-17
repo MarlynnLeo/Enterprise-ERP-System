@@ -40,6 +40,11 @@ describe('mobile production reporting contract', () => {
     }))
   })
 
+  test('preserves the chosen process instead of falling back to task-level reporting', async () => {
+    await productionApi.reportProductionProgress({ taskId: 42, processId: '102', processName: '装配', completedQuantity: 100 })
+    expect(api.post).toHaveBeenCalledWith('/production/reports', expect.objectContaining({ processId: 102, processName: '装配', completedQuantity: 100 }))
+  })
+
   test.each([
     { completedQuantity: -1 },
     { completedQuantity: 0 },
@@ -51,6 +56,7 @@ describe('mobile production reporting contract', () => {
     { defectiveQuantity: 'Infinity' },
     { taskId: 0 },
     { taskId: 'invalid' },
+    { processId: 'invalid' },
   ])('blocks invalid input before any write: %j', (changes) => {
     expect(() => productionApi.reportProductionProgress({
       taskId: 42, completedQuantity: 10, defectiveQuantity: 0, ...changes

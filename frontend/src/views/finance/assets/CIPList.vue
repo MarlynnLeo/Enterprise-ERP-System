@@ -105,6 +105,7 @@
                 </el-button>
               </template>
               <template v-else>
+                <el-button type="primary" size="small" @click="handleAddCost(row)">成本来源</el-button>
                 <el-button type="info" size="small" disabled>
                   <el-icon><CircleCheck /></el-icon> 已完成
                 </el-button>
@@ -190,18 +191,29 @@
     >
       <el-descriptions :column="1" border>
         <el-descriptions-item label="工程名称">{{ currentProject?.projectName }}</el-descriptions-item>
-        <el-descriptions-item label="当前归集">{{ formatMoney(currentProject?.accumulated_amount) }}</el-descriptions-item>
+        <el-descriptions-item label="当前归集">{{ formatMoney(currentProject?.accumulatedAmount) }}</el-descriptions-item>
         <el-descriptions-item label="预算金额">{{ formatMoney(currentProject?.budget) }}</el-descriptions-item>
       </el-descriptions>
-      <el-form class="mt-md" label-width="100px">
+      <el-table v-if="costSources.length" :data="costSources" class="mt-md" size="small">
+        <el-table-column prop="entryNumber" label="来源凭证" />
+        <el-table-column prop="sourceDate" label="入账日期" />
+        <el-table-column prop="amount" label="已归集金额" />
+      </el-table>
+      <el-form v-if="currentProject?.status === '建设中'" class="mt-md" label-width="100px">
+        <el-form-item label="成本凭证" required>
+          <AssetCostSourcePicker v-model="costSourceId" kind="cip" />
+        </el-form-item>
         <el-form-item label="归集金额" required>
           <el-input-number v-model="costAmount" :min="0.01" :precision="2" :controls="false" class="w-full"
             placeholder="请输入归集金额" />
         </el-form-item>
+        <el-form-item label="历史核对">
+          <el-checkbox v-model="reconcilesExisting">仅补关联已有累计成本，不增加工程金额</el-checkbox>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="costDialogVisible = false">取消</el-button>
-        <el-button v-permission="'finance:assets:update'" type="primary" @click="submitCost" :loading="submitting">确认归集</el-button>
+        <el-button v-if="currentProject?.status === '建设中'" v-permission="'finance:assets:update'" type="primary" @click="submitCost" :loading="submitting">确认归集</el-button>
       </template>
         </AppDialog>
 
@@ -218,13 +230,13 @@
       <el-descriptions :column="2" border class="mb-md">
         <el-descriptions-item label="工程编号">{{ currentProject?.projectCode }}</el-descriptions-item>
         <el-descriptions-item label="工程名称">{{ currentProject?.projectName }}</el-descriptions-item>
-        <el-descriptions-item label="归集成本">{{ formatMoney(currentProject?.accumulated_amount) }}</el-descriptions-item>
+        <el-descriptions-item label="归集成本">{{ formatMoney(currentProject?.accumulatedAmount) }}</el-descriptions-item>
       </el-descriptions>
       <el-form :model="transferForm" :rules="transferRules" ref="transferFormRef" label-width="100px">
-        <el-form-item label="资产编号" prop="assetCode">
+        <el-form-item label="资产编号" prop="asset_code">
           <el-input v-model="transferForm.asset_code" placeholder="请输入固定资产编号" />
         </el-form-item>
-        <el-form-item label="资产名称" prop="assetName">
+        <el-form-item label="资产名称" prop="asset_name">
           <el-input v-model="transferForm.asset_name" placeholder="请输入固定资产名称" />
         </el-form-item>
         <el-row :gutter="16">
@@ -269,6 +281,7 @@ import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Plus, Coin, Finished, Edit, Delete, CircleCheck } from '@element-plus/icons-vue'
 import { financeApi } from '@/api/finance'
+import AssetCostSourcePicker from './AssetCostSourcePicker.vue'
 import { formatDate } from '@/utils/helpers/dateUtils'
 
 // ========== 数据 ==========
@@ -282,6 +295,9 @@ const transferDialogVisible = ref(false)
 const isEdit = ref(false)
 const currentProject = ref(null)
 const costAmount = ref(0)
+const costSourceId = ref(null)
+const reconcilesExisting = ref(false)
+const costSources = ref([])
 const formRef = ref(null)
 const transferFormRef = ref(null)
 
@@ -363,7 +379,7 @@ const loadData = async () => {
 
     const response = await financeApi.assetCip.getList(params)
     const data = response.data
-    tableData.value = data?.items || data?.data || []
+    tableData.value = data?.list || data?.items || data?.data || []
     pagination.total = data?.total || 0
   } catch (error) {
     console.error('加载在建工程列表失败:', error)
@@ -389,8 +405,8 @@ const resetSearch = () => {
 const handleCreate = () => {
   isEdit.value = false
   Object.assign(form, {
-    id: null, project_code: '', project_name: '', budget: 0,
-    startDate: '', estimated_end_date: '', responsible: '', department: '', notes: '',
+    id: null, projectCode: '', projectName: '', budget: 0,
+    startDate: '', estimatedEndDate: '', responsible: '', department: '', notes: '',
   })
   formDialogVisible.value = true
 }
@@ -453,13 +469,26 @@ const handleDelete = (row) => {
 }
 
 // 归集成本
-const handleAddCost = (row) => {
+const handleAddCost = async (row) => {
   currentProject.value = row
   costAmount.value = 0
+  costSourceId.value = null
+  reconcilesExisting.value = false
+  costSources.value = []
   costDialogVisible.value = true
+  try {
+    const response = await financeApi.assetCip.getDetail(row.id)
+    if (currentProject.value?.id === row.id) costSources.value = response.data?.costSources || []
+  } catch (error) {
+    ElMessage.error(getApiErrorMessage(error, '成本来源加载失败'))
+  }
 }
 
 const submitCost = async () => {
+  if (!costSourceId.value) {
+    ElMessage.warning('请选择已过账的在建工程成本凭证明细')
+    return
+  }
   if (!costAmount.value || costAmount.value <= 0) {
     ElMessage.warning('请输入有效的归集金额')
     return
@@ -468,6 +497,8 @@ const submitCost = async () => {
   try {
     await financeApi.assetCip.addCost(currentProject.value.id, {
       amount: costAmount.value,
+      sourceEntryItemId: costSourceId.value,
+      reconcilesExisting: reconcilesExisting.value,
     })
     ElMessage.success('成本归集成功')
     costDialogVisible.value = false

@@ -83,6 +83,72 @@ describe('WorkflowService approval gates', () => {
     expect(pool.query).not.toHaveBeenCalled();
   });
 
+  test('purchase requisitions cannot start a workflow or create an approval template', async () => {
+    await expect(workflowService.startWorkflow({
+      business_type: 'purchase_requisition', business_id: 1, initiator_id: 7,
+    })).rejects.toThrow('采购申请已取消审批');
+    await expect(workflowService.createTemplate({
+      code: 'WF-PR', name: 'Purchase requisition approval', business_type: 'purchase_requisition',
+      nodes: [{ node_name: 'Approval', approver_type: 'self' }],
+    }, 7)).rejects.toThrow('采购申请已取消审批');
+
+    expect(pool.query).not.toHaveBeenCalled();
+    expect(pool.getConnection).not.toHaveBeenCalled();
+    expect(workflowService.BUSINESS_STATUS_MAP.purchase_requisition).toBeUndefined();
+  });
+
+  test.each(['approve', 'reject'])('blocks %s on historical requisition workflows before any write', async (action) => {
+    const conn = {
+      query: jest.fn()
+        .mockResolvedValueOnce([[{ id: 2, instance_id: 1 }]])
+        .mockResolvedValueOnce([[{ id: 1, business_type: 'purchase_requisition' }]]),
+      beginTransaction: jest.fn(), rollback: jest.fn(), release: jest.fn(),
+    };
+    pool.getConnection.mockResolvedValueOnce(conn);
+
+    await expect(workflowService.handleApproval({
+      instance_id: 1, node_id: 2, action, approver_id: 7,
+    })).rejects.toThrow('采购申请已取消审批');
+
+    expect(conn.query.mock.calls.every(([sql]) => sql.startsWith('SELECT'))).toBe(true);
+    expect(conn.rollback).toHaveBeenCalled();
+  });
+
+  test('blocks withdrawal of historical requisition workflows before any write', async () => {
+    const conn = {
+      query: jest.fn().mockResolvedValueOnce([[{ id: 1, business_type: 'purchase_requisition' }]]),
+      beginTransaction: jest.fn(), rollback: jest.fn(), release: jest.fn(),
+    };
+    pool.getConnection.mockResolvedValueOnce(conn);
+
+    await expect(workflowService.withdrawWorkflow(1, 7)).rejects.toThrow('采购申请已取消审批');
+
+    expect(conn.query.mock.calls.every(([sql]) => sql.startsWith('SELECT'))).toBe(true);
+    expect(conn.rollback).toHaveBeenCalled();
+  });
+
+  test('excludes old requisition templates from both configuration list and count', async () => {
+    pool.query.mockResolvedValueOnce([[{ total: 0 }]]).mockResolvedValueOnce([[]]);
+
+    await workflowService.getTemplates();
+
+    expect(pool.query).toHaveBeenCalledTimes(2);
+    for (const [sql] of pool.query.mock.calls) {
+      expect(sql).toContain("business_type <> 'purchase_requisition'");
+    }
+  });
+
+  test('excludes old requisition approvals from both pending list and count', async () => {
+    pool.query.mockResolvedValueOnce([[{ total: 0 }]]).mockResolvedValueOnce([[]]);
+
+    await workflowService.getMyPending(7);
+
+    expect(pool.query).toHaveBeenCalledTimes(2);
+    for (const [sql] of pool.query.mock.calls) {
+      expect(sql).toContain("wi.business_type <> 'purchase_requisition'");
+    }
+  });
+
   test('createTemplate rejects unsupported business types before opening a connection', async () => {
     await expect(workflowService.createTemplate({
       code: 'WF-MANUAL-IN',

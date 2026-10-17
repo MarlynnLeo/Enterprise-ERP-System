@@ -26,6 +26,7 @@
         <Cell title="工单号" :value="inspection.referenceNo || '--'" />
         <Cell title="生产工序" :value="inspection.processName || '--'" />
         <Cell title="产品名称" :value="inspection.itemName || inspection.productName || '--'" />
+        <Cell title="检验标准" :value="inspectionBasisLabel(inspection)" />
         <Cell
           title="检验日期"
           :value="formatDate(inspection.actualDate || inspection.createdAt)"
@@ -35,9 +36,11 @@
       <!-- 数量信息 -->
       <CellGroup inset title="数量信息">
         <Cell title="待检数量" :value="`${inspection.quantity || 0} ${inspection.unit || '件'}`" />
-        <Cell title="抽检数量" :value="`${inspection.sampleQuantity ?? '未记录'}`" />
+        <Cell :title="inspection.isFullInspection ? '全检数量' : '抽检数量'" :value="`${inspectionSampleCount(inspection)}`" />
       </CellGroup>
 
+      <SamplingConfig v-model:inspection="inspection" :editable="inspection.status === 'in_progress'" />
+      <InspectionItems v-model="inspectItems" :editable="inspection.status === 'in_progress'" />
       <!-- 检验结果 -->
       <CellGroup v-if="inspection.status !== 'pending'" inset title="检验结果录入">
         <Field
@@ -70,6 +73,9 @@
         />
       </CellGroup>
 
+      <div v-if="['partial','failed'].includes(inspection.status)" class="followup-section" v-permission="'quality:nonconforming:view'">
+        <Button block @click="router.push({ path: '/quality/nonconformance', query: { inspectionId: inspection.id } })">查看不合格品处置</Button>
+      </div>
       <!-- 操作按钮 -->
       <div class="action-section" v-if="inspection.status === 'pending'" v-permission="'quality:process:update'">
         <Button round block type="primary" @click="handleStart"> 开始检验 </Button>
@@ -110,6 +116,10 @@
   } from 'vant'
   import { qualityApi } from '@/api'
   import { extractApiData } from '@/utils/apiHelper'
+  import SamplingConfig from '@/components/quality/SamplingConfig.vue'
+  import InspectionItems from '@/components/quality/InspectionItems.vue'
+  import { buildInspectionItemPayload } from '@/utils/inspectionItemPayload'
+  import { normalizeQualityItems, validateQualityItems, samplingPayload, validateSampling, inspectionBasisLabel, inspectionSampleCount } from '@/utils/qualityForm'
   import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const router = useRouter()
@@ -117,6 +127,8 @@
   const inspection = ref(null)
   const loading = ref(true)
   const errorMessage = ref('')
+  const inspectItems = ref([])
+  const submitting = ref(false)
 
   const inspectForm = reactive({
     qualifiedQuantity: 0,
@@ -130,7 +142,8 @@
       in_progress: '检验中',
       completed: '已完成',
       passed: '已合格',
-      failed: '不合格'
+      failed: '不合格',
+      partial: '部分合格'
     }
     return map[status] || status
   }
@@ -161,6 +174,7 @@
 
   const applyInspectionData = (data) => {
     inspection.value = data
+    inspectItems.value = normalizeQualityItems(data.items || [])
     inspectForm.qualifiedQuantity = data.qualifiedQuantity ?? data.quantity ?? 0
     inspectForm.unqualifiedQuantity = data.unqualifiedQuantity || 0
     inspectForm.note = data.note || ''
@@ -170,13 +184,7 @@
     loading.value = true
     errorMessage.value = ''
     try {
-      if (route.query.data) {
-        const data = JSON.parse(route.query.data)
-        if (!data || typeof data !== 'object') throw new Error('invalid inspection data')
-        applyInspectionData(data)
-      } else {
-        await loadFromApi()
-      }
+      await loadFromApi()
     } catch (error) {
       console.error('加载过程检验详情失败:', error)
       inspection.value = null
@@ -214,38 +222,48 @@
       inspection.value.status = 'in_progress'
     } catch (error) {
       console.error('开始检验失败:', error)
-      showToast('操作失败')
+      showToast(getApiErrorMessage(error, '操作失败'))
     }
   }
 
   const handleComplete = async () => {
     const q = Number(inspectForm.qualifiedQuantity) || 0
     const uq = Number(inspectForm.unqualifiedQuantity) || 0
-    if (q + uq <= 0) {
-      showToast('请输入有效的数量')
+    if (submitting.value) return
+    if (!Number.isFinite(q) || !Number.isFinite(uq) || q < 0 || uq < 0 || q + uq <= 0 || Math.abs(q + uq - Number(inspection.value.quantity)) > 0.0001) {
+      showToast('合格与不合格数量必须非负且合计等于检验数量')
       return
     }
 
+    const samplingError = validateSampling(inspection.value)
+    if (samplingError) { showToast(samplingError); return }
+    const itemError = validateQualityItems(inspectItems.value)
+    if (itemError) { showToast(itemError); return }
+    if (uq === 0 && inspectItems.value.some(item => item.result === 'failed')) { showToast('存在不合格检验项目，请核实不合格数量'); return }
     try {
       await showConfirmDialog({ title: '确认完成', message: '确定完成此次检验记录提交吗？' })
-      const status = uq > 0 ? 'failed' : 'passed'
+      submitting.value = true
+      const status = uq > 0 ? (q > 0 ? 'partial' : 'failed') : 'passed'
       // 纯 camel，后端 qualityInspectionMap.fromApi
       await qualityApi.completeInspection(inspection.value.id, {
+        ...samplingPayload(inspection.value),
         qualifiedQuantity: q,
         unqualifiedQuantity: uq,
         status,
+        items: inspectItems.value.map(buildInspectionItemPayload),
         note: inspectForm.note
       })
       showToast('检验已完成')
       inspection.value.status = status
+      await loadDetail()
       setTimeout(() => {
         router.go(-1)
       }, 1000)
     } catch (error) {
       if (error === 'cancel') return
       console.error('完成检验失败:', error)
-      showToast('操作失败')
-    }
+      showToast(getApiErrorMessage(error, '操作失败'))
+    } finally { submitting.value = false }
   }
 
   onMounted(() => {
@@ -281,8 +299,8 @@
     margin-bottom: 8px;
     &.pending { background: rgba(255, 170, 0, 0.15); color: #ffaa00; }
     &.in-progress { background: rgba(94, 123, 246, 0.15); color: #5E7BF6; }
-    &.completed, &.received { background: color-mix(in srgb, var(--color-success) 15%, transparent); color: var(--color-success); }
-    &.failed { background: rgba(239, 68, 68, 0.15); color: var(--color-error); }
+    &.completed, &.received { background: color-mix(in srgb, var(--color-success) 15%, transparent); color: var(--color-success-text); }
+    &.failed { background: rgba(239, 68, 68, 0.15); color: var(--color-error-text); }
   }
 
   .inspection-no {

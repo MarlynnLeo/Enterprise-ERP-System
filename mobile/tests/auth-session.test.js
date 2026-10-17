@@ -104,6 +104,47 @@ describe('mobile authentication session isolation', () => {
     expect(sessionStorage.getItem('user')).toBeNull()
   })
 
+  test('a cookie account switch revokes cached permissions and pending previous-account responses', async () => {
+    const stalePermissions = deferred()
+    const staleUpdate = deferred()
+    auth.permissions = ['*']
+    auth.permissionsLoaded = true
+    sessionStorage.setItem('user_permissions', JSON.stringify(['*']))
+    api.get.mockReturnValueOnce(stalePermissions.promise)
+      .mockResolvedValueOnce({ data: { id: 2, username: 'new-user' } })
+    api.put.mockReturnValueOnce(staleUpdate.promise)
+    const permissions = auth.fetchUserPermissions(true)
+    const update = auth.updateProfile({ realName: 'old account' })
+    expect(await auth.fetchUserProfile()).toBe(true)
+    expect(auth.user.id).toBe(2)
+    expect(auth.permissionsLoaded).toBe(false)
+    expect(auth.permissions).toEqual([])
+    expect(sessionStorage.getItem('user_permissions')).toBeNull()
+    stalePermissions.resolve({ data: ['*'] })
+    staleUpdate.resolve({ data: { id: 1, username: 'old-user' } })
+    await Promise.all([permissions, update])
+    expect(auth.user.id).toBe(2)
+    expect(auth.hasPermission('finance:ap:pay')).toBe(false)
+  })
+
+  test('a slower profile response cannot overwrite a newer confirmed identity', async () => {
+    const stale = deferred()
+    api.get.mockReturnValueOnce(stale.promise)
+      .mockResolvedValueOnce({ data: { id: 1, username: 'fresh-profile' } })
+    const first = auth.fetchUserProfile()
+    expect(await auth.fetchUserProfile()).toBe(true)
+    stale.resolve({ data: { id: 9, username: 'stale-profile' } })
+    expect(await first).toBe(false)
+    expect(auth.user.username).toBe('fresh-profile')
+  })
+
+  test('malformed profile data cannot mark a session authenticated', async () => {
+    api.get.mockResolvedValueOnce({ data: {} })
+    expect(await auth.fetchUserProfile()).toBe(false)
+    expect(auth.isAuthenticated).toBe(false)
+    expect(auth.profileLoaded).toBe(false)
+  })
+
   test('keeps new-account permissions when the previous account responds late', async () => {
     const old = deferred()
     api.get.mockReturnValueOnce(old.promise).mockResolvedValueOnce({ data: ['sales:orders:view'] })

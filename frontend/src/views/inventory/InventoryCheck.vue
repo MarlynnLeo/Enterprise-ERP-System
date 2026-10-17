@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * InventoryCheck.vue
  * @description 前端界面组件文件
@@ -316,7 +316,7 @@
                 type="danger"
                 size="small"
                 circle
-                @click="removeCheckItem(scope.$index)"
+                @click="removeCheckItem(scope.$index)" aria-label="移除盘点明细"
               >
                 <el-icon><Delete /></el-icon>
               </el-button>
@@ -400,8 +400,10 @@
         <InventoryApprovalPanel
           v-if="checkDetail.id || checkDetail.checkNo"
           source-type="check"
+          :active="viewDialogVisible"
           :source-id="checkDetail.id"
           :source-no="checkDetail.checkNo"
+          @changed="() => { loadCheckList(); loadCheckStats(); }"
         />
       </div>
       <template #footer>

@@ -1,0 +1,16 @@
+name: kacon-device-gateway
+
+# Independent of the ERP release stack; run on 192.168.1.251.
+services:
+  gateway:
+    image: nginx:1.28-alpine
+    restart: unless-stopped
+    ports:
+      - "18083:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/gateway-health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

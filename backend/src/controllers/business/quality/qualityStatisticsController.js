@@ -133,11 +133,13 @@ const getDefectItems = async (req, res) => {
       LEFT JOIN materials proc_m ON qi.inspection_type IN ('process', 'final', 'first_article') AND qi.product_id = proc_m.id
       LEFT JOIN production_tasks pt ON qi.inspection_type IN ('process', 'final', 'first_article') AND COALESCE(qi.task_id, qi.reference_id) = pt.id
       LEFT JOIN materials task_m ON pt.product_id = task_m.id`;
-    const materialField = (field) => `(CASE
+    // Historical snapshot columns and material masters may use different
+    // collations. Normalize the result before MAX/LIKE combines those sources.
+    const materialField = (field) => `(CONVERT((CASE
       WHEN qi.inspection_type = 'incoming' THEN COALESCE(NULLIF(m.${field}, ''), NULLIF(qi.product_${field}, ''))
       WHEN qi.inspection_type = 'final' THEN COALESCE(NULLIF(task_m.${field}, ''), NULLIF(qi.product_${field}, ''), NULLIF(proc_m.${field}, ''))
       ELSE COALESCE(NULLIF(qi.product_${field}, ''), NULLIF(proc_m.${field}, ''), NULLIF(task_m.${field}, ''))
-    END)`;
+    END) USING utf8mb4) COLLATE utf8mb4_unicode_ci)`;
     const materialName = materialField('name');
     const materialCode = materialField('code');
 

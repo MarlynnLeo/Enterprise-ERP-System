@@ -5,6 +5,9 @@ const parsePositiveInt = (value, fallback) => {
 
 const trimTrailingSlash = (value) => String(value || '').trim().replace(/\/+$/, '')
 const hasProtocol = (value) => /^[a-z][a-z\d+\-.]*:/i.test(String(value || ''))
+// Browsers normalize backslashes and control characters inside URLs. Reject
+// those ambiguous spellings before checking origins or relative paths.
+const hasUnsafeUrlSyntax = (value) => value.startsWith('//') || /[\\\u0000-\u001f\u007f]/.test(value)
 const allowedResourceProtocols = new Set(['http:', 'https:'])
 const rawBaseURL = trimTrailingSlash(
   import.meta.env.VITE_APP_API_BASE_URL ||
@@ -78,6 +81,7 @@ export const normalizeApiRequestUrl = (url = '') => {
   if (!url) return url
 
   const rawUrl = String(url)
+  if (hasUnsafeUrlSyntax(rawUrl)) throw new Error('请求地址不可用')
   if (hasProtocol(rawUrl)) return rawUrl
 
   const normalizedPath = rawUrl.startsWith('/') ? rawUrl : `/${rawUrl}`
@@ -95,8 +99,7 @@ export const buildApiUrl = (path = '') => {
 export const buildResourceUrl = (path = '') => {
   const rawPath = String(path || '').trim()
   if (!rawPath) return rawPath
-
-  if (rawPath.startsWith('//')) return ''
+  if (hasUnsafeUrlSyntax(rawPath)) return ''
 
   if (hasProtocol(rawPath)) {
     return isAllowedAbsoluteResourceUrl(rawPath) ? rawPath : ''
@@ -120,6 +123,7 @@ export const buildResourceUrl = (path = '') => {
 export const buildDownloadUrl = (path = '') => {
   const rawPath = String(path || '').trim()
   if (!rawPath) return rawPath
+  if (hasUnsafeUrlSyntax(rawPath)) return ''
 
   if (hasProtocol(rawPath)) {
     // Absolute download targets must use the same-origin resource policy as

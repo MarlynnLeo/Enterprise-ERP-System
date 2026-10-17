@@ -84,9 +84,10 @@
                   <span class="status-tag" :class="statusAccent(item.status)">{{ statusLabel[item.status] }}</span>
                 </div>
                 <div class="item-title">{{ item.title }}</div>
+                <div v-if="item.taskCode" class="linked-task">任务：{{ item.taskCode }}</div>
                 <div class="card-bottom">
                   <div class="meta-area">
-                    <span class="meta-item" v-if="item.reporter_name">{{ item.reporter_name }}</span>
+                    <span class="meta-item" v-if="item.reporterName">{{ item.reporterName }}</span>
                     <span class="meta-item">{{ categoryLabel[item.category] || item.category }}</span>
                     <span class="meta-item" v-if="item.location">{{ item.location }}</span>
                   </div>
@@ -100,21 +101,61 @@
     </div>
 
     <!-- 上报弹窗 -->
-    <Popup v-model:show="showCreate" position="bottom" :style="{ height: '70%' }" round>
+    <Popup v-model:show="showCreate" position="bottom" :style="{ height: '85%' }" :close-on-click-overlay="!submitting" round>
       <div class="create-dialog">
         <div class="dialog-header">
           <div class="dialog-title">上报异常</div>
-          <VanIcon name="cross" size="18" @click="showCreate = false" />
+          <VanIcon v-if="!submitting" name="cross" size="18" @click="showCreate = false" />
         </div>
         <div class="dialog-content">
-          <Field v-model="form.title" label="标题" placeholder="简要描述异常" required />
-          <Field v-model="form.category" is-link readonly label="类别" :placeholder="categoryLabel[form.category]" @click="showCategoryPicker = true" />
-          <Field v-model="form.severity" is-link readonly label="严重程度" :placeholder="severityLabel[form.severity]" @click="showSeverityPicker = true" />
-          <Field v-model="form.location" label="位置" placeholder="发生位置/工位" />
-          <Field v-model="form.description" type="textarea" label="描述" placeholder="详细描述异常情况" rows="3" required />
+          <Field :model-value="selectedTask?.code || ''" is-link readonly label="关联任务" placeholder="选择生产任务（可选）" :disabled="submitting" @click="openTaskPicker" />
+          <div class="task-context">
+            <template v-if="selectedTask">
+              <div>生产计划：{{ selectedTask.planCode || '-' }}</div>
+              <div>产品：{{ [selectedTask.productCode, selectedTask.productName, selectedTask.specification].filter(Boolean).join(' · ') || '-' }}</div>
+              <div v-if="selectedTask.processName">工序：{{ selectedTask.processName }}</div>
+              <VanButton size="mini" plain :disabled="submitting" @click="selectedTask = null">取消关联</VanButton>
+            </template>
+            <span v-else>与生产有关的异常请选择任务，车间通用异常可直接上报。</span>
+          </div>
+          <Field v-model="form.title" label="标题" placeholder="简要描述异常" :disabled="submitting" maxlength="200" required />
+          <Field :model-value="categoryLabel[form.category]" is-link readonly label="类别" :disabled="submitting" @click="!submitting && (showCategoryPicker = true)" />
+          <Field :model-value="severityLabel[form.severity]" is-link readonly label="严重程度" :disabled="submitting" @click="!submitting && (showSeverityPicker = true)" />
+          <Field v-model="form.location" label="位置" placeholder="发生位置/工位" :disabled="submitting" maxlength="100" />
+          <Field v-model="form.description" type="textarea" label="描述" placeholder="详细描述异常情况" :disabled="submitting" rows="3" required />
+          <div class="image-field">
+            <div class="section-title">现场图片</div>
+            <AnomalyImages ref="reportImages" :disabled="submitting" />
+          </div>
           <div class="form-actions">
             <VanButton block type="primary" @click="submitReport" :loading="submitting">提交上报</VanButton>
           </div>
+        </div>
+      </div>
+    </Popup>
+
+    <Popup v-model:show="showTaskPicker" position="bottom" :style="{ height: '75%' }" round>
+      <div class="create-dialog">
+        <div class="dialog-header">
+          <div class="dialog-title">选择生产任务</div>
+          <VanIcon name="cross" size="18" @click="showTaskPicker = false" />
+        </div>
+        <Search v-model="taskKeyword" placeholder="搜索任务号、生产计划号、产品" show-action @search="loadTaskOptions(true)" @clear="loadTaskOptions(true)">
+          <template #action>
+            <button type="button" class="task-search-button" @click="loadTaskOptions(true)">搜索</button>
+          </template>
+        </Search>
+        <div class="dialog-content task-options">
+          <button v-for="task in taskOptions" :key="task.id" type="button" class="task-option" @click="selectTask(task)">
+            <strong>{{ task.code }}</strong>
+            <span>生产计划：{{ task.planCode || '-' }}</span>
+            <span>{{ [task.productCode, task.productName, task.specification].filter(Boolean).join(' · ') || '未指定产品' }}</span>
+            <span v-if="task.processName">工序：{{ task.processName }}</span>
+          </button>
+          <Loading v-if="taskLoading" class="task-loading" size="20">加载任务中...</Loading>
+          <VanButton v-if="taskLoadError" block plain @click="loadTaskOptions(taskOptions.length === 0)">任务加载失败，点击重试</VanButton>
+          <Empty v-else-if="!taskLoading && !taskOptions.length" description="未找到生产任务，可更换关键词或不关联任务上报" />
+          <VanButton v-if="!taskLoading && !taskLoadError && taskHasMore" block plain @click="loadTaskOptions(false)">加载更多任务</VanButton>
         </div>
       </div>
     </Popup>
@@ -138,7 +179,8 @@
     </Popup>
 
     <!-- 详情弹窗 -->
-    <Popup v-model:show="showDetail" position="bottom" :style="{ height: '75%' }" round>
+    <Popup v-model:show="showDetail" position="bottom" :style="{ height: '75%' }" round @closed="closeDetail">
+      <Loading v-if="detailLoading" class="task-loading" size="20">详情加载中...</Loading>
       <div class="detail-dialog" v-if="detail">
         <div class="dialog-header">
           <div class="dialog-title">{{ detail.code }}</div>
@@ -146,6 +188,24 @@
         </div>
         <div class="dialog-content detail-content">
           <div class="detail-section">
+            <div class="detail-row">
+              <span class="detail-label">关联任务</span>
+              <span class="detail-value">{{ detail.taskCode || '未关联（车间通用异常）' }}</span>
+            </div>
+            <template v-if="detail.taskId">
+              <div class="detail-row">
+                <span class="detail-label">生产计划</span>
+                <span class="detail-value">{{ detail.planCode || '-' }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">产品</span>
+                <span class="detail-value">{{ [detail.productCode, detail.productName, detail.specification].filter(Boolean).join(' · ') || '-' }}</span>
+              </div>
+              <div v-if="detail.processName" class="detail-row">
+                <span class="detail-label">工序</span>
+                <span class="detail-value">{{ detail.processName }}</span>
+              </div>
+            </template>
             <div class="detail-row">
               <span class="detail-label">标题</span>
               <span class="detail-value">{{ detail.title }}</span>
@@ -164,7 +224,7 @@
             </div>
             <div class="detail-row">
               <span class="detail-label">上报人</span>
-              <span class="detail-value">{{ detail.reporter_name || '-' }}</span>
+              <span class="detail-value">{{ detail.reporterName || '-' }}</span>
             </div>
             <div class="detail-row">
               <span class="detail-label">位置</span>
@@ -172,7 +232,7 @@
             </div>
             <div class="detail-row">
               <span class="detail-label">处理人</span>
-              <span class="detail-value">{{ detail.assignee_name || '-' }}</span>
+              <span class="detail-value">{{ detail.assigneeName || '-' }}</span>
             </div>
           </div>
           <div class="detail-section">
@@ -182,6 +242,10 @@
           <div class="detail-section" v-if="detail.resolution">
             <div class="section-title">解决方案</div>
             <div class="description-text">{{ detail.resolution }}</div>
+          </div>
+          <div class="detail-section">
+            <div class="section-title">现场图片</div>
+            <AnomalyImages :images="detail.images || []" :editable="false" />
           </div>
 
           <!-- 操作按钮 -->
@@ -212,11 +276,13 @@
   import { ref, reactive, onMounted } from 'vue'
   import {
     NavBar, Icon, PullRefresh, List, Empty, Popup, Field,
-    Button as VanButton, Picker, Icon as VanIcon, showToast
+    Button as VanButton, Picker, Icon as VanIcon, Search, Loading, showToast
   } from 'vant'
   import { productionApi } from '@/api'
   import dayjs from 'dayjs'
   import { getApiErrorMessage } from '@/utils/errorHandler'
+  import { extractApiData, extractApiList, extractApiTotal } from '@/utils/apiHelper'
+  import AnomalyImages from '@/components/AnomalyImages.vue'
 
   // 状态/标签
   const categoryLabel = { quality: '质量', equipment: '设备', material: '物料', safety: '安全', process: '工艺', other: '其他' }
@@ -248,11 +314,54 @@
   const showSeverityPicker = ref(false)
   const submitting = ref(false)
   const detail = ref(null)
+  const detailLoading = ref(false)
+  let detailVersion = 0
   const resolution = ref('')
+  const reportImages = ref(null)
+  const selectedTask = ref(null)
+  const showTaskPicker = ref(false)
+  const taskKeyword = ref('')
+  const taskOptions = ref([])
+  const taskLoading = ref(false)
+  const taskLoadError = ref(false)
+  const taskHasMore = ref(false)
+  let taskPage = 1
+  let taskVersion = 0
 
   const form = reactive({
     title: '', category: 'quality', severity: 'medium', location: '', description: '',
   })
+
+  const openTaskPicker = () => {
+    if (submitting.value) return
+    showTaskPicker.value = true
+    loadTaskOptions(true)
+  }
+  const selectTask = task => {
+    selectedTask.value = task
+    showTaskPicker.value = false
+  }
+  const loadTaskOptions = async (reset = false) => {
+    if (taskLoading.value && !reset) return
+    const version = ++taskVersion
+    const requestedPage = reset ? 1 : taskPage
+    if (reset) taskOptions.value = []
+    taskLoading.value = true
+    taskLoadError.value = false
+    try {
+      const response = await productionApi.getAnomalyTaskOptions({ keyword: taskKeyword.value.trim(), page: requestedPage, pageSize: 20 })
+      if (version !== taskVersion) return
+      const items = extractApiList(response)
+      taskOptions.value = reset ? items : [...taskOptions.value, ...items]
+      const total = extractApiTotal(response)
+      taskHasMore.value = total < 0 ? items.length === 20 : taskOptions.value.length < total
+      taskPage = requestedPage + 1
+    } catch {
+      if (version === taskVersion) taskLoadError.value = true
+    } finally {
+      if (version === taskVersion) taskLoading.value = false
+    }
+  }
 
   // 样式映射
   const severityAccent = (s) => ({
@@ -321,14 +430,18 @@
 
   // 提交上报
   const submitReport = async () => {
+    if (submitting.value) return
     if (!form.title?.trim()) return showToast('请填写标题')
     if (!form.description?.trim()) return showToast('请填写描述')
     submitting.value = true
     try {
-      await productionApi.createAnomaly(form)
+      const images = await reportImages.value.uploadPending()
+      await productionApi.createAnomaly({ ...form, title: form.title.trim(), description: form.description.trim(), taskId: selectedTask.value?.id || null, images })
       showToast('上报成功')
       showCreate.value = false
-      form.title = ''; form.description = ''; form.location = ''
+      Object.assign(form, { title: '', description: '', location: '', category: 'quality', severity: 'medium' })
+      selectedTask.value = null
+      reportImages.value.reset()
       loadData(true)
       loadStats()
     } catch (err) {
@@ -339,14 +452,29 @@
   }
 
   // 查看详情
-  const viewDetail = (item) => {
-    detail.value = item
+  const viewDetail = async (item) => {
+    const version = ++detailVersion
+    detail.value = null
     resolution.value = ''
     showDetail.value = true
+    detailLoading.value = true
+    try {
+      const response = await productionApi.getAnomalyById(item.id)
+      if (version === detailVersion && showDetail.value) detail.value = extractApiData(response)
+    } catch (err) {
+      if (version === detailVersion) {
+        showToast(getApiErrorMessage(err, '详情加载失败'))
+        showDetail.value = false
+      }
+    } finally {
+      if (version === detailVersion) detailLoading.value = false
+    }
   }
+  const closeDetail = () => { detailVersion++; detail.value = null; detailLoading.value = false }
 
   // 解决
   const handleResolve = async () => {
+    if (submitting.value) return
     if (!resolution.value?.trim()) return showToast('请输入解决方案')
     submitting.value = true
     try {
@@ -399,8 +527,8 @@
       font-size: 1.25rem;
       font-weight: 800;
       color: var(--text-primary);
-      &.danger { color: var(--color-danger); }
-      &.accent { color: var(--color-warning); }
+      &.danger { color: var(--color-danger-text); }
+      &.accent { color: var(--color-warning-text); }
       &.success { color: var(--ds-green-strong); }
     }
     .stat-label {
@@ -463,7 +591,7 @@
     &.active {
       background: var(--color-accent-bg, rgba(59, 130, 246, 0.1));
       border-color: var(--color-accent, var(--color-primary));
-      color: var(--color-accent, var(--color-primary));
+      color: var(--color-accent-text, var(--color-primary));
       .chip-badge {
         background: var(--color-accent, var(--color-primary));
         color: var(--text-primary);
@@ -538,9 +666,9 @@
     font-weight: 700;
 
     &.sev-low { background: rgba(148, 163, 184, 0.12); color: var(--text-secondary); }
-    &.sev-medium { background: rgba(245, 158, 11, 0.12); color: var(--color-warning); }
+    &.sev-medium { background: rgba(245, 158, 11, 0.12); color: var(--color-warning-text); }
     &.sev-high { background: rgba(249, 115, 22, 0.12); color: #f97316; }
-    &.sev-critical { background: rgba(239, 68, 68, 0.15); color: var(--color-danger); }
+    &.sev-critical { background: rgba(239, 68, 68, 0.15); color: var(--color-danger-text); }
   }
 
   // 状态标签
@@ -551,9 +679,9 @@
     font-size: 0.625rem;
     font-weight: 700;
 
-    &.st-open { background: rgba(239, 68, 68, 0.1); color: var(--color-danger); }
-    &.st-processing { background: rgba(245, 158, 11, 0.12); color: var(--color-warning); }
-    &.st-resolved { background: rgba(16, 185, 129, 0.12); color: var(--color-success); }
+    &.st-open { background: rgba(239, 68, 68, 0.1); color: var(--color-danger-text); }
+    &.st-processing { background: rgba(245, 158, 11, 0.12); color: var(--color-warning-text); }
+    &.st-resolved { background: rgba(16, 185, 129, 0.12); color: var(--color-success-text); }
     &.st-closed { background: rgba(107, 114, 128, 0.1); color: var(--text-secondary); }
   }
 
@@ -621,6 +749,35 @@
     padding: 16px;
   }
 
+  .task-context, .image-field {
+    padding: 10px 16px;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    line-height: 1.6;
+  }
+
+  .task-context .van-button { margin-top: 6px; }
+  .task-options { padding: 0 16px 20px; }
+  .task-option {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+    padding: 12px 0;
+    border: 0;
+    border-bottom: 1px solid var(--surface-border, var(--border-subtle));
+    background: transparent;
+    color: var(--text-secondary);
+    text-align: left;
+    font: inherit;
+    font-size: 0.8125rem;
+    overflow-wrap: anywhere;
+  }
+  .task-option strong { color: var(--text-primary); }
+  .task-search-button { border: 0; background: transparent; color: var(--text-primary); font: inherit; }
+  .task-loading { padding: 20px; text-align: center; }
+  .linked-task { color: var(--text-secondary); font-size: 0.75rem; margin-bottom: 8px; }
+
   // 详情
   .detail-content {
     padding: 0;
@@ -648,6 +805,8 @@
     font-size: 0.8125rem;
     color: var(--text-primary);
     text-align: right;
+    margin-left: 12px;
+    overflow-wrap: anywhere;
   }
 
   .section-title {

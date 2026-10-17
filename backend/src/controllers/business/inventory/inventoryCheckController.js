@@ -13,6 +13,7 @@ const { INVENTORY_CHECK_TRANSITIONS } = require('../../../constants/statusRegist
 const { parsePagination } = require('../../../utils/safePagination');
 
 const db = require('../../../config/db');
+const InventoryService = require('../../../services/InventoryService');
 const { softDelete } = require('../../../utils/softDelete');
 const { CodeGenerators } = require('../../../utils/codeGenerator');
 const { getCurrentUserName } = require('../../../utils/userHelper');
@@ -581,11 +582,32 @@ const updateCheck = async (req, res) => {
 
     const currentStatus = checkResult[0].status;
 
-    // 只有草稿状态的盘点单可以更新
-    if (currentStatus !== 'draft') {
+    // 进行中允许录入实盘数量和备注；待审核及终态不得再覆盖结果。
+    if (!['draft', 'in_progress'].includes(currentStatus)) {
       await connection.rollback();
-      return ResponseHandler.error(res, '只有草稿状态的盘点单可以更新', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '只有草稿或进行中的盘点单可以更新', 'BAD_REQUEST', 400);
     }
+
+    // 检查原始实盘输入，避免字段转换器把非法字符串补成0。
+    if (req.body?.items !== undefined && !Array.isArray(req.body.items)) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '盘点明细格式无效', 'VALIDATION_ERROR', 400);
+    }
+    for (const item of req.body?.items || []) {
+      const rawActual = item?.actualQuantity;
+      if (rawActual !== undefined) {
+        const actual = parseCheckQuantity(rawActual);
+        if (actual === null || actual < 0) {
+          await connection.rollback();
+          return ResponseHandler.error(res, '实盘数量必须为有效的非负数', 'VALIDATION_ERROR', 400);
+        }
+      }
+    }
+
+    const [storedItems] = await connection.execute(
+      'SELECT id, system_quantity FROM inventory_check_items WHERE check_id = ? FOR UPDATE',
+      [id]
+    );
 
     // 更新盘点单基本信息
     await connection.execute(
@@ -594,7 +616,7 @@ const updateCheck = async (req, res) => {
         remark = ?,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND deleted_at IS NULL`,
-      [check_date || null, remark || null, id]
+      [currentStatus === 'draft' ? check_date || null : null, remark || null, id]
     );
 
     // 如果提供了物料明细，更新明细
@@ -610,7 +632,12 @@ const updateCheck = async (req, res) => {
           continue;
         }
 
-        const systemQuantity = parseFloat(item.system_quantity) || 0;
+        const stored = storedItems.find((row) => Number(row.id) === Number(item.id));
+        const systemQuantity = parseCheckQuantity(stored?.system_quantity);
+        if (systemQuantity === null) {
+          await connection.rollback();
+          return ResponseHandler.error(res, '盘点明细或账面数量无效', 'VALIDATION_ERROR', 400);
+        }
         const actualQuantity = parseFloat(item.actual_quantity);
         if (!Number.isFinite(actualQuantity)) {
           await connection.rollback();
@@ -703,6 +730,58 @@ const deleteCheck = async (req, res) => {
   }
 };
 
+function parseCheckQuantity(value) {
+  if (!['number', 'string'].includes(typeof value) || String(value).trim() === '') return null;
+  const quantity = Number(value);
+  return Number.isFinite(quantity) ? quantity : null;
+}
+
+// 完成盘点必须覆盖全部明细；账面数量只以锁定的数据库记录为准。
+function prepareCheckResults(storedItems, submittedItems) {
+  if (!storedItems.length) throw new Error('请先添加盘点物料并录入实盘数量');
+  if (submittedItems !== undefined && !Array.isArray(submittedItems)) {
+    throw new Error('盘点明细格式无效');
+  }
+  const supplied = new Map();
+  for (const item of submittedItems || []) {
+    const itemId = Number(item?.id);
+    if (
+      !Number.isSafeInteger(itemId) ||
+      itemId <= 0 ||
+      supplied.has(itemId) ||
+      !storedItems.some((stored) => Number(stored.id) === itemId)
+    ) {
+      throw new Error('盘点明细包含无效、重复或不属于本单的记录');
+    }
+    supplied.set(itemId, item);
+  }
+  if (submittedItems !== undefined && supplied.size !== storedItems.length) {
+    throw new Error('请提交全部盘点明细的实盘数量');
+  }
+  return storedItems.map((stored, index) => {
+    const submitted = supplied.get(Number(stored.id));
+    const rawActual = submitted
+      ? Object.hasOwn(submitted, 'actualQuantity')
+        ? submitted.actualQuantity
+        : submitted.actual_quantity
+      : stored.actual_quantity;
+    const actual = parseCheckQuantity(rawActual);
+    const book = parseCheckQuantity(stored.system_quantity);
+    if (actual === null || actual < 0) {
+      throw new Error(`第${index + 1}项实盘数量必须为有效的非负数`);
+    }
+    if (book === null) throw new Error(`第${index + 1}项账面数量无效，请重新加载盘点单`);
+    return {
+      id: stored.id,
+      actual_quantity: actual,
+      difference: actual - book,
+      remark: submitted
+        ? (submitted.remarks ?? submitted.remark ?? stored.remark ?? null)
+        : stored.remark,
+    };
+  });
+}
+
 // 提交盘点结果
 
 const submitCheckResult = async (req, res) => {
@@ -737,35 +816,32 @@ const submitCheckResult = async (req, res) => {
       );
     }
 
-    // 更新盘点单状态为待审核
-    await connection.execute(
-      'UPDATE inventory_checks SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NULL',
-      ['pending', id]
+    const [storedItems] = await connection.execute(
+      'SELECT id, system_quantity, actual_quantity, remark FROM inventory_check_items WHERE check_id = ? FOR UPDATE',
+      [id]
     );
-
-    // 如果提供了物料明细，更新明细
-    if (items && Array.isArray(items) && items.length > 0) {
-      for (const item of items) {
-        // items already snake via FieldMap
-        if (!item.id) continue;
-        if (item.actual_quantity === undefined) {
-          continue;
-        }
-
-        const systemQuantity = parseFloat(item.system_quantity) || 0;
-        const actualQuantity = parseFloat(item.actual_quantity) || 0;
-        const difference = actualQuantity - systemQuantity;
-
-        await connection.execute(
-          `UPDATE inventory_check_items SET
+    let results;
+    try {
+      results = prepareCheckResults(storedItems, items);
+    } catch (error) {
+      await connection.rollback();
+      return ResponseHandler.error(res, error.message, 'VALIDATION_ERROR', 400);
+    }
+    for (const item of results) {
+      await connection.execute(
+        `UPDATE inventory_check_items SET
             actual_quantity = ?,
             difference = ?,
             remark = ?
           WHERE id = ? AND check_id = ?`,
-          [actualQuantity, difference, item.remark || null, item.id, id]
-        );
-      }
+        [item.actual_quantity, item.difference, item.remark || null, item.id, id]
+      );
     }
+
+    await connection.execute(
+      'UPDATE inventory_checks SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NULL',
+      ['pending', id]
+    );
 
     await connection.commit();
 
@@ -831,6 +907,25 @@ const updateCheckStatus = async (req, res) => {
         'VALIDATION_ERROR',
         400
       );
+    }
+
+    if (status === 'pending' || status === 'completed') {
+      const [storedItems] = await connection.execute(
+        'SELECT id, system_quantity, actual_quantity, remark FROM inventory_check_items WHERE check_id = ? FOR UPDATE',
+        [id]
+      );
+      try {
+        const results = prepareCheckResults(storedItems);
+        if (
+          status === 'completed' &&
+          results.some((item) => Math.abs(item.difference) > 0.000001)
+        ) {
+          throw new Error('盘点存在差异，请先通过调整库存处理差异');
+        }
+      } catch (error) {
+        await connection.rollback();
+        return ResponseHandler.error(res, error.message, 'VALIDATION_ERROR', 400);
+      }
     }
 
     // 更新状态
@@ -906,6 +1001,32 @@ const adjustInventory = async (req, res) => {
 
     const checkOperator = await getCurrentUserName(req);
 
+    // Physical counts cannot be reconciled against the formal ledger while
+    // unposted movements exist. Serialize with movement staging and use a
+    // current read, since this transaction may already have a read snapshot.
+    const materialIds = [...new Set(items.map((item) => Number(item.material_id)))].sort(
+      (a, b) => a - b
+    );
+    for (const materialId of materialIds) {
+      await InventoryService._lockStockLocation(materialId, check.location_id, connection);
+      const [pending] = await connection.execute(
+        `SELECT l.id FROM inventory_posting_lines l
+         JOIN inventory_posting_documents d ON d.id = l.posting_document_id
+         WHERE l.material_id = ? AND l.location_id = ? AND d.finance_status = 'pending'
+         LIMIT 1 FOR UPDATE`,
+        [materialId, check.location_id]
+      );
+      if (pending.length) {
+        await connection.rollback();
+        return ResponseHandler.error(
+          res,
+          '盘点范围内存在待财务审核的库存单据，请先完成审核并复核实盘数量后再调整库存',
+          'PENDING_INVENTORY_APPROVAL',
+          409
+        );
+      }
+    }
+
     // 处理每个物料的库存调整
     for (const item of items) {
       // 只处理有差异的物料
@@ -916,8 +1037,8 @@ const adjustInventory = async (req, res) => {
       );
 
       const currentQuantity = stockResult.length > 0 ? parseFloat(stockResult[0].quantity) : 0;
-      const newQuantity = parseFloat(item.actual_quantity);
-      if (!Number.isFinite(newQuantity)) {
+      const newQuantity = parseCheckQuantity(item.actual_quantity);
+      if (newQuantity === null || newQuantity < 0) {
         await connection.rollback();
         return ResponseHandler.error(
           res,

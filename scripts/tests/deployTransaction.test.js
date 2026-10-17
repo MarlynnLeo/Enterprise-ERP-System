@@ -9,7 +9,18 @@ const { RELEASE_ROOTS } = require('../releaseSnapshot');
 const { createRemoteScript, shellQuote } = require('../deploy_to_server');
 
 const bash = process.env.ERP_TEST_BASH || (process.platform === 'win32' ? 'C:/Program Files/Git/bin/bash.exe' : 'bash');
-const python = process.env.ERP_TEST_PYTHON || 'python3';
+function resolvePython() {
+  const candidates = process.env.ERP_TEST_PYTHON
+    ? [process.env.ERP_TEST_PYTHON]
+    : process.platform === 'win32' ? ['python', 'python3'] : ['python3', 'python'];
+  for (const candidate of candidates) {
+    const probe = spawnSync(candidate, ['-c', 'import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)'],
+      { encoding: 'utf8', windowsHide: true, timeout: 10_000 });
+    if (!probe.error && probe.status === 0) return candidate;
+  }
+  throw new Error('Release transaction tests require Python 3.9+. Set ERP_TEST_PYTHON to a working interpreter.');
+}
+const python = resolvePython();
 const toPosix = (value) => {
   if (process.platform !== 'win32') return value;
   const result = spawnSync(bash, ['-c', 'cygpath -u "$1"', 'test', value], { encoding: 'utf8', windowsHide: true });

@@ -219,6 +219,9 @@
           </el-col>
         </el-row>
 
+        <el-form-item label="取得凭证" prop="acquisitionEntryItemId">
+          <AssetCostSourcePicker v-model="assetForm.acquisitionEntryItemId" />
+        </el-form-item>
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="使用年限" prop="usefulLife">
@@ -539,6 +542,7 @@ import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { Plus, ArrowDown } from '@element-plus/icons-vue';
 import { financeApi } from '@/api';
+import AssetCostSourcePicker from './AssetCostSourcePicker.vue';
 import { formatDate, formatCurrency } from '@/utils/helpers/formatters';
 import { loadDepartmentOptions as loadCachedDepartmentOptions } from '@/utils/optionLoaders';
 import { getApiErrorMessage } from '@/utils/errorHandler'
@@ -694,6 +698,7 @@ const searchForm = reactive({
 // 资产表单
 const assetForm = reactive({
   id: null,
+  acquisitionEntryItemId: null,
   assetCode: '',
   assetName: '',
   categoryId: null,
@@ -712,6 +717,7 @@ const assetForm = reactive({
 
 // 表单验证规则
 const assetRules = {
+  acquisitionEntryItemId: [{ required: true, message: '请选择取得成本凭证明细', trigger: 'change' }],
   /* assetCode 设置为非必填，后端自动生成如果在前端没提供的情况下 */
   assetCode: [],
   assetName: [
@@ -1248,7 +1254,7 @@ const saveAsset = async () => {
         loadAssets();
       } catch (error) {
         console.error('保存资产失败:', error);
-        ElMessage.error('保存资产失败');
+        ElMessage.error(getApiErrorMessage(error, '保存资产失败'));
       } finally {
         saveLoading.value = false;
       }
@@ -1259,6 +1265,7 @@ const saveAsset = async () => {
 // 重置资产表单
 const resetAssetForm = () => {
   assetForm.id = null;
+  assetForm.acquisitionEntryItemId = null;
   assetForm.assetCode = '';
   assetForm.assetName = '';
   assetForm.categoryId = null;

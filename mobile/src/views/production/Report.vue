@@ -55,6 +55,7 @@
       <div class="info-section">
         <div class="section-title">报工信息</div>
         <CellGroup inset>
+          <ReportProcessSelector v-if="selectedTask" :task-id="selectedTask.id" :disabled="submitting" @change="reportScope = $event" />
           <Field
             v-model="reportForm.completedQuantity"
             type="number"
@@ -117,6 +118,7 @@
   import { NavBar, Field, CellGroup, Popup, Button as VanButton, Icon, showToast } from 'vant'
   import { productionApi } from '@/api'
   import { getApiErrorMessage } from '@/utils/errorHandler'
+  import ReportProcessSelector from './components/ReportProcessSelector.vue'
 
   const router = useRouter()
   const route = useRoute()
@@ -125,6 +127,7 @@
   const selectedTaskName = ref('')
   const showTaskPicker = ref(false)
   const submitting = ref(false)
+  const reportScope = ref({ ready: false, processId: null })
   const reportForm = reactive({ completedQuantity: '', defectiveQuantity: '', remarks: '' })
 
   const selectTask = (task) => {
@@ -177,10 +180,13 @@
       showToast('请输入完成数量')
       return
     }
+    if (!reportScope.value.ready) { showToast('请先加载报工工序和额度'); return }
     submitting.value = true
     try {
       await productionApi.reportProductionProgress({
         taskId: selectedTask.value.id,
+        processId: reportScope.value.processId,
+        processName: reportScope.value.processName,
         completedQuantity: reportForm.completedQuantity,
         defectiveQuantity: reportForm.defectiveQuantity || 0,
         remarks: reportForm.remarks
@@ -248,7 +254,7 @@
       font-family: var(--font-ui);
     }
     &.highlight {
-      color: var(--color-primary);
+      color: var(--color-primary-text);
       font-weight: 700;
     }
   }

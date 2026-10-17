@@ -189,6 +189,8 @@ const SENSITIVE_FIELDS = [
   'estimatedFee',
   'total_value',
   'totalValue',
+  'posted_value',
+  'postedValue',
   'balance_value',
   'balanceValue',
   'inbound_value',

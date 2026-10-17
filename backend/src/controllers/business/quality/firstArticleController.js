@@ -13,12 +13,16 @@ const { BUSINESS_RULES } = require('../../../constants/systemConstants');
 const businessConfig = require('../../../config/businessConfig');
 const QualityInspection = require('../../../models/qualityInspection');
 const InspectionClosureService = require('../../../services/quality/InspectionClosureService');
+const InspectionSamplingService = require('../../../services/quality/InspectionSamplingService');
 const {
   generateBatchNo,
   normalizeTaskBatchNo,
+  promoteTaskToInProgress,
 } = require('../../../services/business/TaskLifecycleService');
 const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 const { mapKeysToSnake } = require('../../../utils/fieldMap');
+const { qualityInspectionItemMap } = require('../../../utils/quality/qualityFieldMap');
+const { fixedMeasurements, decimalOrNull } = require('../../../utils/quality/inspectionEvidence');
 const ScopeGuard = require('../../../authorization/ScopeGuard');
 
 // 首检配置常量
@@ -338,6 +342,7 @@ const firstArticleController = {
     let connection;
     try {
       const { id } = req.params;
+      const requestData = mapKeysToSnake(req.body || {});
       const {
         first_article_result,
         qualified_quantity,
@@ -346,8 +351,11 @@ const firstArticleController = {
         inspector_id,
         inspector_name,
         note,
-        items,
-      } = mapKeysToSnake(req.body || {});
+        items: rawItems,
+      } = requestData;
+      let items = Array.isArray(rawItems)
+        ? rawItems.map(qualityInspectionItemMap.fromApi)
+        : rawItems;
 
       if (!first_article_result) {
         return ResponseHandler.error(res, '首检结果不能为空', 'VALIDATION_ERROR', 400);
@@ -376,8 +384,21 @@ const firstArticleController = {
       connection = await db.pool.getConnection();
       await connection.beginTransaction();
 
+      // Match production entry points: task lock first, inspection lock second.
+      const [sources] = await connection.query(
+        "SELECT task_id, reference_id FROM quality_inspections WHERE id = ? AND inspection_type = 'first_article' AND deleted_at IS NULL",
+        [id]
+      );
+      const sourceTaskId = sources[0]?.task_id || sources[0]?.reference_id;
+      if (sourceTaskId) {
+        await connection.query(
+          'SELECT id FROM production_tasks WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+          [sourceTaskId]
+        );
+      }
+
       const [existingRows] = await connection.query(
-        "SELECT id, inspection_no, inspection_type, reference_id, reference_no, material_id, supplier_id, product_id, product_name, product_code, process_id, process_name, batch_no, quantity, qualified_quantity, unqualified_quantity, unit, unit_id, status, planned_date, actual_date, inspector_id, inspector_name, punch_time, standard_type, standard_no, template_id, note, created_at, updated_at, traceability_id, traceability_batch, chain_id, chain_step_id, is_first_article, first_article_qty, is_full_inspection, first_article_result, production_can_continue, task_id, is_aql, aql_standard_id, aql_level, accept_limit, reject_limit, deleted_at FROM quality_inspections WHERE id = ? AND inspection_type = 'first_article' AND deleted_at IS NULL FOR UPDATE",
+        "SELECT sample_quantity, sampling_plan, id, inspection_no, inspection_type, reference_id, reference_no, material_id, supplier_id, product_id, product_name, product_code, process_id, process_name, batch_no, quantity, qualified_quantity, unqualified_quantity, unit, unit_id, status, planned_date, actual_date, inspector_id, inspector_name, punch_time, standard_type, standard_no, template_id, note, created_at, updated_at, traceability_id, traceability_batch, chain_id, chain_step_id, is_first_article, first_article_qty, is_full_inspection, first_article_result, production_can_continue, task_id, is_aql, aql_standard_id, aql_level, accept_limit, reject_limit, deleted_at FROM quality_inspections WHERE id = ? AND inspection_type = 'first_article' AND deleted_at IS NULL FOR UPDATE",
         [id]
       );
 
@@ -401,6 +422,17 @@ const firstArticleController = {
       }
 
       const inspection = existingRows[0];
+      const taskId = inspection.task_id || inspection.reference_id;
+      if (String(taskId || '') !== String(sourceTaskId || '')) {
+        await connection.rollback();
+        return ResponseHandler.error(res, '首检关联任务已变化，请刷新后重试', 'CONFLICT', 409);
+      }
+      if (items !== undefined) {
+        items = require('../../../utils/quality/inspectionSnapshot').bindInspectionItems(
+          await QualityInspection._getStoredInspectionItems(connection, id),
+          items
+        );
+      }
       const itemsForValidation =
         Array.isArray(items) && items.length > 0
           ? items
@@ -409,20 +441,60 @@ const firstArticleController = {
         first_article_result === STATUS.FIRST_ARTICLE.CONDITIONAL
           ? 'partial'
           : first_article_result;
+      const samplingInput = Object.fromEntries(
+        ['is_aql', 'is_full_inspection', 'aql_standard_id', 'aql_level']
+          .filter((field) => requestData[field] !== undefined)
+          .map((field) => [field, requestData[field]])
+      );
+      const samplingUpdate = InspectionSamplingService.shouldRefresh(inspection, samplingInput)
+        ? await InspectionSamplingService.resolve(connection, { ...inspection, ...samplingInput })
+        : {};
+      const effectiveInspection = {
+        ...inspection,
+        ...samplingUpdate,
+        status: validationStatus,
+        qualified_quantity: qualifiedQty,
+        unqualified_quantity: unqualifiedQty,
+      };
+      InspectionSamplingService.assertReadyForCompletion(effectiveInspection, inspection);
       QualityInspection._validateTerminalStatusAgainstItems(
         {
-          ...inspection,
-          status: validationStatus,
-          qualified_quantity: qualifiedQty,
-          unqualified_quantity: unqualifiedQty,
+          ...effectiveInspection,
         },
         validationStatus,
         itemsForValidation
       );
 
+      if (Object.keys(samplingUpdate).length) {
+        const fields = Object.keys(samplingUpdate);
+        await connection.query(
+          `UPDATE quality_inspections SET ${fields.map((field) => `${field} = ?`).join(', ')} WHERE id = ?`,
+          [...fields.map((field) => samplingUpdate[field]), id]
+        );
+      }
+
+      const requestedRelease =
+        production_can_continue === true ||
+        production_can_continue === 1 ||
+        production_can_continue === '1';
+      const releaseUserId = Number(req.user?.id ?? req.user?.userId);
+      const releaseNote = String(note ?? inspection.note ?? '').trim();
+      if (
+        first_article_result === STATUS.FIRST_ARTICLE.CONDITIONAL &&
+        requestedRelease &&
+        (!Number.isInteger(releaseUserId) || releaseUserId <= 0 || !releaseNote)
+      ) {
+        await connection.rollback();
+        return ResponseHandler.error(
+          res,
+          '条件放行必须由当前登录检验人员填写放行依据',
+          'QUALITY_RELEASE_REQUIRED',
+          400
+        );
+      }
       const canContinue =
         first_article_result === STATUS.FIRST_ARTICLE.PASSED ||
-        (first_article_result === STATUS.FIRST_ARTICLE.CONDITIONAL && production_can_continue);
+        (first_article_result === STATUS.FIRST_ARTICLE.CONDITIONAL && requestedRelease);
 
       await connection.query(
         `
@@ -444,7 +516,7 @@ const firstArticleController = {
           qualifiedQty,
           unqualifiedQty,
           canContinue,
-          inspector_id,
+          Number.isInteger(releaseUserId) && releaseUserId > 0 ? releaseUserId : inspector_id,
           inspector_name,
           note,
           validationStatus,
@@ -454,19 +526,22 @@ const firstArticleController = {
 
       // 如果有检验项目明细，更新或插入
       if (items && items.length > 0) {
-        await connection.query('DELETE FROM quality_inspection_items WHERE inspection_id = ?', [
-          id,
-        ]);
+        await connection.query(
+          `DELETE qim FROM quality_inspection_measurements qim
+          INNER JOIN quality_inspection_items qii ON qii.id = qim.item_id WHERE qii.inspection_id = ?`,
+          [id]
+        );
 
         for (const item of items) {
           await connection.query(
             `
-            INSERT INTO quality_inspection_items
-            (inspection_id, item_name, standard, method, type, actual_value, result, remark)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            UPDATE quality_inspection_items SET
+              item_name = ?, standard = ?, method = ?, type = ?, actual_value = ?, result = ?, remark = ?,
+              is_critical = ?, dimension_value = ?, tolerance_upper = ?, tolerance_lower = ?,
+              measure_1 = ?, measure_2 = ?, measure_3 = ?, measure_4 = ?, measure_5 = ?, measure_6 = ?
+            WHERE id = ? AND inspection_id = ?
           `,
             [
-              id,
               item.item_name,
               item.standardValue || item.standard || '',
               item.method || item.inspection_method || null,
@@ -474,14 +549,31 @@ const firstArticleController = {
               item.actual_value,
               item.result,
               item.note || item.remark || '',
+              item.is_critical ? 1 : 0,
+              decimalOrNull(item.dimension_value),
+              decimalOrNull(item.tolerance_upper),
+              decimalOrNull(item.tolerance_lower),
+              ...fixedMeasurements(item),
+              item.id,
+              id,
             ]
           );
+          for (const measurement of item.measurements || []) {
+            const value = decimalOrNull(measurement.measured_value);
+            if (value == null) continue;
+            await connection.query(
+              `INSERT INTO quality_inspection_measurements
+              (item_id, sample_no, measured_value, measured_by) VALUES (?, ?, ?, ?)`,
+              [item.id, measurement.sample_no, value, measurement.measured_by || null]
+            );
+          }
         }
       }
 
       const closureResult = await InspectionClosureService.closeIfTerminal(
         {
           ...inspection,
+          ...samplingUpdate,
           items: itemsForValidation,
         },
         {
@@ -493,9 +585,9 @@ const firstArticleController = {
         connection
       );
 
-      // 如果首检不通过，自动暂停关联的生产任务
-      if (first_article_result === STATUS.FIRST_ARTICLE.FAILED) {
-        if (inspection.task_id) {
+      // 不合格或尚未允许继续的条件判定，都必须保持停产。
+      if (!canContinue) {
+        if (taskId) {
           await connection.query(
             `
               UPDATE production_tasks
@@ -504,29 +596,30 @@ const firstArticleController = {
                   pause_time = NOW()
               WHERE id = ? AND deleted_at IS NULL AND status NOT IN ('completed', 'cancelled')
             `,
-            [inspection.task_id]
+            [taskId]
           );
           logger.info(`首检不合格，已暂停生产任务 ID: ${inspection.task_id}`);
         }
       }
 
       // 如果首检通过或有条件放行，自动恢复暂停的生产任务
-      if (
-        first_article_result === STATUS.FIRST_ARTICLE.PASSED ||
-        (first_article_result === STATUS.FIRST_ARTICLE.CONDITIONAL && production_can_continue)
-      ) {
-        if (inspection.task_id) {
-          await connection.query(
-            `
-              UPDATE production_tasks
-              SET status = 'in_progress',
-                  pause_reason = NULL,
-                  pause_time = NULL
-              WHERE id = ? AND deleted_at IS NULL AND status = 'paused' AND pause_reason LIKE '%首检不合格%'
-            `,
-            [inspection.task_id]
-          );
-          logger.info(`首检合格，已恢复生产任务 ID: ${inspection.task_id}`);
+      if (canContinue && taskId) {
+        const [tasks] = await connection.query(
+          'SELECT id, status, pause_reason FROM production_tasks WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+          [taskId]
+        );
+        if (tasks[0]?.status === 'paused' && /首检|质量/.test(tasks[0].pause_reason || '')) {
+          try {
+            // All active first articles must be released, not just this record.
+            await promoteTaskToInProgress(connection, taskId);
+            await connection.query(
+              'UPDATE production_tasks SET pause_reason = NULL, pause_time = NULL WHERE id = ?',
+              [taskId]
+            );
+          } catch (error) {
+            if (error.code !== 'QUALITY_RELEASE_REQUIRED') throw error;
+            logger.info(`首检结果已保存，任务 ${taskId} 仍有其他首检未放行，保持暂停`);
+          }
         }
       }
 

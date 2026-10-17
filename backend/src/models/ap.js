@@ -19,6 +19,7 @@ const AccountMappingService = require('../services/finance/AccountMappingService
 const DocumentLinkService = require('../services/business/DocumentLinkService');
 const { DOCUMENT_LINK_TYPES: DocType } = require('../constants/documentLinkTypes');
 const VoucherReversalService = require('../services/finance/VoucherReversalService');
+const SettlementCashService = require('../services/finance/SettlementCashService');
 const { financeConfig } = require('../config/financeConfig');
 const { accountingConfig } = require('../config/accountingConfig');
 const { parsePagination } = require('../utils/safePagination');
@@ -33,6 +34,7 @@ const {
   invoiceStatusAfterSettlement,
   isTruthyFlag,
   assertInvoiceSettlementsEligible,
+  normalizeSettlementPaymentMethod,
 } = require('../utils/finance/settlementMath');
 const { applyNormalizedInvoiceAmounts } = require('../utils/finance/invoiceAmounts');
 const { toInvoiceApi } = require('../utils/finance/invoiceFieldMap');
@@ -958,7 +960,7 @@ const apModel = {
           invoiceData.amount_excluding_tax ?? invoiceData.subtotal ?? null,
           invoiceData.tax_amount ?? null,
           invoiceData.tax_rate ?? null,
-          invoiceData.total_amount - (invoiceData.paid_amount || 0), // 重新计算余额
+          fromCents(toCents(invoiceData.total_amount) - toCents(current.paid_amount)),
           invoiceData.terms ?? null,
           invoiceData.notes || null,
           invoiceData.id,
@@ -1049,6 +1051,10 @@ const apModel = {
    * @param {Object|null} externalConnection 可选外层事务连接（批量付款时复用）
    */
   createPayment: async (paymentData, paymentItems, externalConnection = null) => {
+    paymentData = {
+      ...paymentData,
+      payment_method: normalizeSettlementPaymentMethod(paymentData.payment_method),
+    };
     const isExternalTransaction = !!externalConnection;
     const connection = externalConnection || (await db.pool.getConnection());
     try {
@@ -1080,31 +1086,6 @@ const apModel = {
         !paymentData.bank_account_id
       ) {
         throw new Error(`${paymentData.payment_method}必须选择付款账户`);
-      }
-
-      // 预算硬控：传入费用科目时占用预算；无适用预算则跳过（skipIfNoBudget）
-      const budgetAccountId =
-        paymentData.budget_account_id ||
-        paymentData.gl_entry?.expense_account_id ||
-        paymentData.gl_entry?.purchase_cost_account_id ||
-        null;
-      if (budgetAccountId) {
-        const BudgetControlService = require('../services/business/BudgetControlService');
-        await BudgetControlService.executeBudgetControl(
-          {
-            accountId: budgetAccountId,
-            departmentId: paymentData.department_id || paymentData.gl_entry?.department_id || null,
-            amount: paymentData.total_amount,
-            date: paymentData.payment_date,
-            documentType: 'ap_payment',
-            documentId: null,
-            documentNo: paymentData.payment_number,
-            description: `应付付款 ${paymentData.payment_number}`,
-            userId: paymentData.created_by,
-            skipIfNoBudget: true,
-          },
-          connection
-        );
       }
 
       // 插入付款记录
@@ -1162,6 +1143,9 @@ const apModel = {
         }
 
         const invoice = invoices[0];
+        if (Number(invoice.supplier_id) !== Number(paymentData.supplier_id)) {
+          throw new Error('付款供应商与发票供应商不一致');
+        }
         if (
           String(invoice.currency_code || 'CNY').toUpperCase() !== 'CNY' ||
           Math.abs(Number(invoice.exchange_rate || 1) - 1) > 0.000001
@@ -1172,6 +1156,13 @@ const apModel = {
         }
         linkedInvoices.push({ id: invoice.id, invoice_number: invoice.invoice_number });
         assertInvoiceSettlementsEligible(invoice.status, `发票 ${invoice.invoice_number}`);
+
+        if (!paymentData.is_refund) {
+          await require('../services/finance/APPaymentBudgetService').assertInvoiceWithinBudget(
+            connection,
+            invoice
+          );
+        }
 
         const line = paymentData.is_refund
           ? parseRefundLine(item, invoice, 'purchase_return')
@@ -1287,6 +1278,7 @@ const apModel = {
         const entryItems = [
           {
             account_id: glEntry.payable_account_id,
+            supplier_id: paymentData.supplier_id,
             debit_amount: totalSettlement,
             credit_amount: 0,
             description: `应付账款减少 - 付款单号: ${paymentData.payment_number}`,
@@ -1336,6 +1328,20 @@ const apModel = {
             bankTransactionId,
           ]);
         }
+      }
+
+      if (paymentData.payment_method === '现金') {
+        await SettlementCashService.create(connection, {
+          kind: 'ap',
+          settlementId: paymentId,
+          number: paymentData.payment_number,
+          date: paymentData.payment_date,
+          amount: totalPaid,
+          counterparty: paymentData.supplier_name,
+          userId: paymentData.created_by,
+          entryId: glEntryId,
+          entryNumber: glEntryNumber,
+        });
       }
 
       for (const invoice of linkedInvoices) {
@@ -1657,6 +1663,7 @@ const apModel = {
 
       const payment = payments[0];
       let originalBankTransactionId = null;
+      const reversalDate = currentDateString();
       let originalBankTransactionNumber = null;
       let reversalBankTransactionId = null;
       let reversalBankTransactionNumber = null;
@@ -1719,7 +1726,11 @@ const apModel = {
       }
 
       // 5. 如果有银行交易记录，创建冲销交易
-      if (payment.bank_account_id && BANK_BACKED_PAYMENT_METHODS.has(payment.payment_method)) {
+      if (
+        toCents(payment.total_amount) !== 0 &&
+        payment.bank_account_id &&
+        BANK_BACKED_PAYMENT_METHODS.has(payment.payment_method)
+      ) {
         try {
           // 获取原银行交易记录
           const [bankTxs] = await connection.execute(
@@ -1741,7 +1752,6 @@ const apModel = {
             throw new Error('关联银行流水已对账，请先取消对账后再作废付款');
           }
 
-          const reversalDate = currentDateString();
           originalBankTransactionId = originalTx.id;
           originalBankTransactionNumber = originalTx.transaction_number;
           reversalBankTransactionNumber = `${payment.payment_number}-VOID`;
@@ -1799,13 +1809,27 @@ const apModel = {
           documentType: DOCUMENT_TYPES.PAYMENT,
           voidedBy,
           reason: `冲销付款凭证 - 原因: ${voidData.void_reason}`,
+          entryDate: reversalDate,
         });
         for (const item of reversed) {
-          reversalEntries.push({ entryId: item.entryId, entryNumber: item.entryNumber });
+          reversalEntries.push(item);
         }
       } catch (err) {
         logger.error(`[作废付款] 冲销GL凭证失败: ${err.message}`);
         throw new Error(`冲销GL凭证失败: ${err.message}`, { cause: err });
+      }
+
+      if (payment.payment_method === '现金') {
+        await SettlementCashService.reverse(connection, {
+          kind: 'ap',
+          settlementId: paymentId,
+          number: payment.payment_number,
+          date: reversalDate,
+          amount: payment.total_amount,
+          userId: voidedBy,
+          reason: voidData.void_reason,
+          reversalEntries,
+        });
       }
 
       for (const reversalEntry of reversalEntries) {

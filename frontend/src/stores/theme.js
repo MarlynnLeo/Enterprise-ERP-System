@@ -14,6 +14,7 @@ import {
   THEME_PRESET_LIST,
   THEME_PRESETS,
   getAccessibleTextColor,
+  getSemanticContrastPalette,
   getThemePreset,
   isThemePreset,
   normalizeThemeAppearance
@@ -116,13 +117,36 @@ export const useThemeStore = defineStore('theme', () => {
     appearance.value = normalizeThemeAppearance(appearance.value)
     const html = document.documentElement
 
-    html.classList.remove('light', 'dark')
-    html.classList.add(currentTheme.value)
-    html.setAttribute('data-theme', appearance.value.preset)
+    // The account response often repeats the cached startup theme. Compare
+    // against the real DOM so replaying it does not invalidate every table and
+    // chart, while a missing or externally changed attribute is still repaired.
+    for (const mode of ['light', 'dark']) {
+      const enabled = mode === currentTheme.value
+      if (html.classList.contains(mode) !== enabled) html.classList.toggle(mode, enabled)
+    }
+    if (html.getAttribute('data-theme') !== appearance.value.preset) {
+      html.setAttribute('data-theme', appearance.value.preset)
+    }
+    // A declared custom property may have an empty serialized value. Track
+    // declarations, not truthy values, when returning an override to its palette.
+    const inlineProperties = new Set(Array.from(html.style))
+    const syncStyleProperty = (key, value) => {
+      if (value === null) {
+        if (inlineProperties.has(key)) {
+          html.style.removeProperty(key)
+          inlineProperties.delete(key)
+        }
+        return
+      }
+      if (html.style.getPropertyValue(key) !== value || html.style.getPropertyPriority(key)) {
+        html.style.setProperty(key, value)
+        inlineProperties.add(key)
+      }
+    }
 
     const primaryColor = appearance.value.primaryColor
-    html.style.setProperty('--font-size-base', `${appearance.value.fontSize}px`)
-    html.style.setProperty('--el-font-size-base', `${appearance.value.fontSize}px`)
+    syncStyleProperty('--font-size-base', `${appearance.value.fontSize}px`)
+    syncStyleProperty('--el-font-size-base', `${appearance.value.fontSize}px`)
 
     const primaryOverrides = {
       '--color-primary': primaryColor,
@@ -133,22 +157,23 @@ export const useThemeStore = defineStore('theme', () => {
     const isCustomColor = primaryColor.toUpperCase() !== getThemePreset(appearance.value.preset).primaryColor.toUpperCase()
     Object.entries(primaryOverrides).forEach(([key, value]) => {
       // Preset palettes own their color ramps, especially the dark theme surfaces.
-      if (isCustomColor) html.style.setProperty(key, value)
-      else html.style.removeProperty(key)
+      syncStyleProperty(key, isCustomColor ? value : null)
     })
 
     const computedStyle = window.getComputedStyle(html)
-    const semanticColors = {
-      '--color-on-success': '--color-success',
-      '--color-on-warning': '--color-warning',
-      '--color-on-danger': '--color-danger',
-      '--color-on-info': '--color-info'
-    }
-
-    Object.entries(semanticColors).forEach(([textToken, backgroundToken]) => {
-      const background = computedStyle.getPropertyValue(backgroundToken).trim()
-      html.style.setProperty(textToken, getAccessibleTextColor(background))
+    const surfaces = ['base', 'section', 'page', 'hover'].map((name) =>
+      computedStyle.getPropertyValue(`--color-bg-${name}`).trim())
+    // Batch reads before writes to avoid a separate style calculation per token.
+    const semanticPalettes = ['primary', 'success', 'warning', 'danger', 'info'].map((type) => {
+      const color = type === 'primary' ? primaryColor : computedStyle.getPropertyValue(`--color-${type}`).trim()
+      return [type, color, getSemanticContrastPalette(color, surfaces)]
     })
+    for (const [type, color, palette] of semanticPalettes) {
+      if (type !== 'primary') syncStyleProperty(`--color-on-${type}`, getAccessibleTextColor(color))
+      syncStyleProperty(`--color-${type}-text`, palette.text)
+      syncStyleProperty(`--color-${type}-hover-fill`, palette.hover)
+      syncStyleProperty(`--color-${type}-active-fill`, palette.active)
+    }
   }
 
   const persistLocalTheme = (settings) => {

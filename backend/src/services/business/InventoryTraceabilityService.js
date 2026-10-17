@@ -75,6 +75,9 @@ class InventoryTraceabilityService {
           receipt_no,
           inspection_id: item.inspection_id,
           created_by: operator_id ?? operator,
+          sourceLineKey: item.receipt_item_id
+            ? `purchase_receipt:${receipt_id || receipt_no}:item:${item.receipt_item_id}`
+            : null,
         };
 
         // ✅ 传递 connection 给 BatchManagementService

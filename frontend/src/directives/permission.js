@@ -6,46 +6,35 @@
  */
 
 import { useAuthStore } from '../stores/auth'
-import { watch } from 'vue'
+import { shallowRef, watchEffect } from 'vue'
 import { isActionPermission } from '../utils/permissionActions'
 
-// 隐藏元素：不参与点击与读屏；菜单类仍尽量用 visibility 保布局
+const hiddenStates = new WeakMap()
+
+// Hide denied controls without changing their business disabled state.
 function hideElement(el) {
+  if (!hiddenStates.has(el)) {
+    hiddenStates.set(el, {
+      display: el.style.getPropertyValue('display'),
+      displayPriority: el.style.getPropertyPriority('display'),
+      ariaHidden: el.getAttribute('aria-hidden')
+    })
+  }
   el.setAttribute('data-permission-denied', 'true')
   el.setAttribute('aria-hidden', 'true')
-  el.setAttribute('tabindex', '-1')
-  el.style.visibility = 'hidden'
-  el.style.position = 'absolute'
-  el.style.pointerEvents = 'none'
-  el.style.height = '0'
-  el.style.overflow = 'hidden'
-  el.style.margin = '0'
-  el.style.padding = '0'
-  // 按钮类：额外禁用，防止 DevTools 改回 visibility 后仍可点
-  if (el.tagName === 'BUTTON' || el.getAttribute('role') === 'button' || el.classList?.contains('el-button')) {
-    el.setAttribute('disabled', 'disabled')
-    el.style.display = 'none'
-  }
+  el.style.setProperty('display', 'none', 'important')
 }
 
 // 显示元素 - 优化版
 function showElement(el) {
-  if (el.getAttribute('data-permission-denied') === 'true' || el.getAttribute('data-permission-pending') === 'true') {
-    // 恢复显示
-    el.removeAttribute('data-permission-denied')
-    el.removeAttribute('data-permission-pending')
-
-    el.removeAttribute('aria-hidden')
-    el.removeAttribute('tabindex')
-    el.removeAttribute('disabled')
-    el.style.display = ''
-    el.style.visibility = ''
-    el.style.position = ''
-    el.style.pointerEvents = ''
-    el.style.height = ''
-    el.style.overflow = ''
-    el.style.margin = ''
-    el.style.padding = ''
+  const previous = hiddenStates.get(el)
+  el.removeAttribute('data-permission-denied')
+  el.removeAttribute('data-permission-pending')
+  if (previous) {
+    if (previous.ariaHidden === null) el.removeAttribute('aria-hidden')
+    else el.setAttribute('aria-hidden', previous.ariaHidden)
+    el.style.setProperty('display', previous.display, previous.displayPriority)
+    hiddenStates.delete(el)
   }
 }
 
@@ -75,67 +64,32 @@ export const permission = {
   // 挂载时检查权限
   mounted(el, binding) {
     const authStore = useAuthStore()
-    const permission = binding.value
-
-    if (permission) {
-      // 检查权限的函数
-      const checkAndUpdate = () => {
-        const hasPermission = checkPermission(authStore, permission)
-        if (!hasPermission) {
-          hideElement(el)
-        } else {
-          showElement(el)
-        }
-      }
-
-      if (!authStore.permissionsLoaded) {
+    const requiredPermission = shallowRef(binding.value)
+    el._requiredPermission = requiredPermission
+    el._permissionWatcher = watchEffect(() => {
+      // The store indexes permission strings in a Set, so explicitly track
+      // replacement of the server list as well as its loaded flag.
+      void authStore.permissions
+      if (!requiredPermission.value) {
+        showElement(el)
+      } else if (!authStore.permissionsLoaded) {
         el.setAttribute('data-permission-pending', 'true')
         hideElement(el)
-
-        // 监听权限加载完成
-        const stopWatch = watch(
-          () => authStore.permissionsLoaded,
-          (loaded) => {
-            if (loaded) {
-              // 权限加载完成后,检查权限并更新显示状态
-              el.removeAttribute('data-permission-pending')
-              checkAndUpdate()
-              // 停止监听
-              if (stopWatch) stopWatch()
-            }
-          },
-          { immediate: true }
-        )
-
-        // 保存 stopWatch 以便在 unmounted 时清理
-        el._permissionWatcher = stopWatch
+      } else if (checkPermission(authStore, requiredPermission.value)) {
+        showElement(el)
       } else {
-        // 权限已加载，直接检查
-        checkAndUpdate()
+        el.removeAttribute('data-permission-pending')
+        hideElement(el)
       }
-    }
+    })
   },
 
   // 组件更新时重新检查权限
   updated(el, binding) {
-    const authStore = useAuthStore()
-    const permission = binding.value
-
-    if (permission) {
-      if (authStore.permissionsLoaded) {
-        const hasPermission = checkPermission(authStore, permission)
-
-        if (!hasPermission) {
-          hideElement(el)
-        } else {
-          // 如果有权限，确保元素显示（特别是之前被隐藏的待加载权限的元素）
-          showElement(el)
-          el.removeAttribute('data-permission-pending')
-        }
-      } else {
-        el.setAttribute('data-permission-pending', 'true')
-        hideElement(el)
-      }
+    if (el._requiredPermission) el._requiredPermission.value = binding.value
+    // A vnode style patch may restore display while the permission is denied.
+    if (el.getAttribute('data-permission-denied') === 'true') {
+      el.style.setProperty('display', 'none', 'important')
     }
   },
 
@@ -146,6 +100,8 @@ export const permission = {
       el._permissionWatcher()
       delete el._permissionWatcher
     }
+    delete el._requiredPermission
+    hiddenStates.delete(el)
 
     // 清理可能存在的属性
     el.removeAttribute('data-permission-denied')

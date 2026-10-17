@@ -17,6 +17,7 @@ const { accountingConfig } = require('../config/accountingConfig');
 const { toLocalDateString } = require('../utils/dateUtils');
 const { getAssetStatusText } = require('../constants/systemConstants');
 const { calculateDepreciationSnapshot } = require('../utils/finance/assetDepreciation');
+const { toCents, fromCents } = require('../utils/finance/settlementMath');
 
 async function getOpenAccountingPeriodId(connection, accountingDate = null) {
   const params = [];
@@ -124,6 +125,16 @@ const assetsModel = {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
+      const cost = Number(assetData.acquisition_cost);
+      if (!Number.isFinite(cost) || cost <= 0 || Math.abs(cost * 100 - toCents(cost)) > 0.00001) {
+        throw Object.assign(new Error('资产原值必须大于0且最多保留两位小数'), {
+          code: 'VALIDATION_ERROR',
+        });
+      }
+      if (assetData.gl_entry)
+        throw Object.assign(new Error('请关联已过账取得凭证，不接受客户端指定购置会计分录'), {
+          code: 'VALIDATION_ERROR',
+        });
 
       // 插入固定资产
       const [result] = await connection.query(
@@ -131,8 +142,8 @@ const assetsModel = {
         (asset_code, asset_name, asset_type, category_id, acquisition_date,
          acquisition_cost, depreciation_method, useful_life, salvage_value,
          current_value, net_value, accumulated_depreciation, location_id, department_id,
-         custodian, status, notes, created_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         custodian, status, notes, created_by, acquisition_entry_item_id, audit_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')`,
         [
           assetData.asset_code,
           assetData.asset_name,
@@ -152,58 +163,15 @@ const assetsModel = {
           assetData.status || '在用',
           assetData.notes || null,
           assetData.created_by || null,
+          assetData.acquisition_entry_item_id || null,
         ]
       );
 
       const assetId = result.insertId;
       logger.info(`固定资产创建成功，ID: ${assetId}`);
 
-      // 如果提供了会计分录信息，创建资产购置会计分录
-      if (assetData.gl_entry) {
-        const entryData = {
-          entry_number: assetData.gl_entry.entry_number,
-          entry_date: assetData.acquisition_date,
-          posting_date: assetData.acquisition_date,
-          document_type: DOCUMENT_TYPE_MAPPING.ASSET_ACQUISITION,
-          document_number: assetData.asset_code,
-          period_id: assetData.gl_entry.period_id,
-          description: `固定资产购置: ${assetData.asset_name}`,
-          created_by: assetData.gl_entry.created_by,
-          status: 'posted',
-          is_posted: 1,
-        };
-
-        // 资产购置分录明细
-        const entryItems = [
-          // 借：固定资产
-          {
-            account_id: assetData.gl_entry.asset_account_id,
-            debit_amount: assetData.acquisition_cost,
-            credit_amount: 0,
-            description: `固定资产购置 - ${assetData.asset_name}`,
-          },
-          // 贷：银行/应付账款
-          {
-            account_id: assetData.gl_entry.payment_account_id,
-            debit_amount: 0,
-            credit_amount: assetData.acquisition_cost,
-            description: `固定资产购置付款 - ${assetData.asset_name}`,
-          },
-        ];
-
-        // 创建会计分录
-        const entryId = await financeModel.createEntry(entryData, entryItems, connection);
-        await DocumentLinkService.tryAutoLink(
-          DocType.ASSET,
-          assetId,
-          assetData.asset_code,
-          DocType.FINANCE_VOUCHER,
-          entryId,
-          entryData.entry_number,
-          assetData.gl_entry.created_by || null,
-          connection
-        );
-      }
+      // A draft stores the selected evidence. Approval validates and reserves
+      // the posted debit under the same transaction as the audit status change.
 
       await connection.commit();
 
@@ -274,6 +242,7 @@ const assetsModel = {
       category_id: asset.category_id,
       acquisition_date: asset.acquisition_date,
       acquisition_cost: parseFloat(asset.acquisition_cost),
+      acquisition_entry_item_id: asset.acquisition_entry_item_id || null,
       depreciation_method: depreciationMethodMap[asset.depreciation_method] || 'straight_line',
       useful_life: Math.ceil(asset.useful_life / 12), // 转换为年
       salvage_value: parseFloat(asset.salvage_value),
@@ -517,6 +486,10 @@ const assetsModel = {
         sql += ', acquisition_date = ?';
         params.push(toLocalDateString(assetData.acquisition_date));
       }
+      if (assetData.acquisition_entry_item_id !== undefined) {
+        sql += ', acquisition_entry_item_id = ?';
+        params.push(assetData.acquisition_entry_item_id || null);
+      }
 
       if (assetData.acquisition_cost !== undefined) {
         sql += `, acquisition_cost = ?, current_value = ?, net_value = ?, accumulated_depreciation = ?`;
@@ -529,7 +502,7 @@ const assetsModel = {
         );
       }
 
-      sql += ` WHERE id = ?`;
+      sql += ` WHERE id = ? AND audit_status = 'draft'`;
       params.push(id);
 
       const [result] = await db.pool.query(sql, params);
@@ -2230,32 +2203,58 @@ const assetsModel = {
       ensureAssetReadyForFinanceAction(originalAsset, '资产拆分');
 
       // 拆分值计算
-      const splitCost = parseFloat(splitData.split_cost);
-      if (isNaN(splitCost) || splitCost <= 0) {
+      const requestedCost = Number(splitData.split_cost);
+      const splitCostCents = toCents(requestedCost);
+      if (
+        !Number.isFinite(requestedCost) ||
+        !Number.isSafeInteger(splitCostCents) ||
+        splitCostCents <= 0
+      ) {
         throw new Error('拆分金额必须大于0');
       }
-      if (splitCost >= parseFloat(originalAsset.acquisition_cost)) {
+      const originalCostCents = toCents(originalAsset.acquisition_cost);
+      if (splitCostCents >= originalCostCents) {
         throw new Error('拆分金额不能大于或等于原资产总价值');
       }
+      const originalDepreciationCents = toCents(originalAsset.accumulated_depreciation);
+      const originalImpairmentCents = toCents(originalAsset.impairment_amount);
+      const originalSalvageCents = toCents(originalAsset.salvage_value);
+      if (
+        [
+          originalCostCents,
+          originalDepreciationCents,
+          originalImpairmentCents,
+          originalSalvageCents,
+        ].some((value) => !Number.isSafeInteger(value) || value < 0) ||
+        originalDepreciationCents + originalImpairmentCents > originalCostCents ||
+        originalSalvageCents > originalCostCents
+      )
+        throw new Error('原资产账面金额不一致，请先核实原值、折旧、减值和残值');
 
-      // 计算按比例分配的累计折旧和减值准备
-      const splitRatio = splitCost / parseFloat(originalAsset.acquisition_cost);
-      const splitDepreciation = roundMoney(
-        parseFloat(originalAsset.accumulated_depreciation || 0) * splitRatio
+      // 分币分配各账面组成，净值必须由原值减折旧和减值推导，不能另行按比例取整。
+      const splitRatio = splitCostCents / originalCostCents;
+      const splitDepreciationCents = Math.round(originalDepreciationCents * splitRatio);
+      const splitImpairmentCents = Math.min(
+        Math.round(originalImpairmentCents * splitRatio),
+        splitCostCents - splitDepreciationCents
       );
-      const splitImpairment = roundMoney(
-        parseFloat(originalAsset.impairment_amount || 0) * splitRatio
+      const splitSalvageCents = Math.round(originalSalvageCents * splitRatio);
+      const splitCost = fromCents(splitCostCents);
+      const splitDepreciation = fromCents(splitDepreciationCents);
+      const splitImpairment = fromCents(splitImpairmentCents);
+      const splitCurrentValue = fromCents(
+        splitCostCents - splitDepreciationCents - splitImpairmentCents
       );
-      const splitCurrentValue = roundMoney(calculateAssetNetBookValue(originalAsset) * splitRatio);
-      const remainingCost = roundMoney(parseFloat(originalAsset.acquisition_cost) - splitCost);
-      const remainingDepreciation = roundMoney(
-        parseFloat(originalAsset.accumulated_depreciation || 0) - splitDepreciation
-      );
-      const remainingImpairment = roundMoney(
-        parseFloat(originalAsset.impairment_amount || 0) - splitImpairment
-      );
-      const remainingCurrentValue = roundMoney(
-        calculateAssetNetBookValue(originalAsset) - splitCurrentValue
+      const remainingCost = fromCents(originalCostCents - splitCostCents);
+      const remainingDepreciation = fromCents(originalDepreciationCents - splitDepreciationCents);
+      const remainingImpairment = fromCents(originalImpairmentCents - splitImpairmentCents);
+      const remainingCurrentValue = fromCents(
+        originalCostCents -
+          splitCostCents -
+          originalDepreciationCents +
+          splitDepreciationCents -
+          originalImpairmentCents +
+          splitImpairmentCents
       );
 
       // 生成新资产编号
@@ -2274,8 +2273,9 @@ const assetsModel = {
         (asset_code, asset_name, asset_type, category_id, acquisition_date,
          acquisition_cost, depreciation_method, useful_life, salvage_value,
          current_value, net_value, accumulated_depreciation, impairment_amount, location_id, department_id,
-         custodian, status, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         custodian, status, notes, audit_status, audited_by, audited_at, created_by,
+         depreciation_start_date, depreciation_end_date, last_depreciation_date)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           newAssetCode,
           splitData.new_asset_name || `${originalAsset.asset_name}-拆分${splitSuffix}`,
@@ -2285,7 +2285,7 @@ const assetsModel = {
           splitCost,
           originalAsset.depreciation_method,
           originalAsset.useful_life,
-          parseFloat(originalAsset.salvage_value || 0) * splitRatio,
+          fromCents(splitSalvageCents),
           splitCurrentValue,
           splitCurrentValue,
           splitDepreciation,
@@ -2295,6 +2295,13 @@ const assetsModel = {
           splitData.custodian || originalAsset.custodian,
           originalAsset.status,
           `自资产 ${originalAsset.asset_code} 拆分而来。原因：${splitData.reason || '无'}`,
+          originalAsset.audit_status,
+          originalAsset.audited_by || null,
+          originalAsset.audited_at || null,
+          userId || null,
+          originalAsset.depreciation_start_date || null,
+          originalAsset.depreciation_end_date || null,
+          originalAsset.last_depreciation_date || null,
         ]
       );
 
@@ -2307,7 +2314,8 @@ const assetsModel = {
              accumulated_depreciation = ?,
              impairment_amount = ?,
              current_value = ?,
-             net_value = ?
+             net_value = ?,
+             salvage_value = ?
          WHERE id = ?`,
         [
           remainingCost,
@@ -2315,6 +2323,7 @@ const assetsModel = {
           remainingImpairment,
           remainingCurrentValue,
           remainingCurrentValue,
+          fromCents(originalSalvageCents - splitSalvageCents),
           assetId,
         ]
       );

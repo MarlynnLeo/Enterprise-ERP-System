@@ -230,6 +230,46 @@ describe('asset finance mutations and shared calculation paths', () => {
     expect(connection.rollback).not.toHaveBeenCalled();
   });
 
+  test('split preserves every ledger component and the original depreciation schedule', async () => {
+    Object.assign(asset, {
+      acquisition_cost: 100.03, accumulated_depreciation: 20.01, impairment_amount: 10.01,
+      salvage_value: 5.01, audited_by: 'reviewer', audited_at: '2026-01-10',
+      depreciation_start_date: '2026-02-01', depreciation_end_date: '2031-01-31',
+      last_depreciation_date: '2026-09-01',
+    });
+    await assetsModel.splitAsset(1, { split_cost: 33.34 }, 5);
+    const [, created] = connection.query.mock.calls.find(([sql]) => sql.includes('INSERT INTO fixed_assets'));
+    const [, remaining] = connection.query.mock.calls.find(([sql]) => sql.includes('UPDATE fixed_assets'));
+    const cents = (value) => Math.round(value * 100);
+    expect(cents(created[5]) + cents(remaining[0])).toBe(10003);
+    expect(cents(created[11]) + cents(remaining[1])).toBe(2001);
+    expect(cents(created[12]) + cents(remaining[2])).toBe(1001);
+    expect(cents(created[8]) + cents(remaining[5])).toBe(501);
+    expect(cents(created[9])).toBe(cents(created[5]) - cents(created[11]) - cents(created[12]));
+    expect(cents(remaining[3])).toBe(cents(remaining[0]) - cents(remaining[1]) - cents(remaining[2]));
+    expect(created.slice(18)).toEqual([
+      'approved', 'reviewer', '2026-01-10', 5, '2026-02-01', '2031-01-31', '2026-09-01',
+    ]);
+    expect(calculateDepreciationSnapshot(asset, '2026-09-01').depreciationAmount).toBe(0);
+    expect(calculateDepreciationSnapshot(asset, '2026-10-01').depreciationAmount).toBeGreaterThan(0);
+  });
+
+  test.each(['1oops', Infinity, 0.001, -5])('split rejects malformed or sub-cent amount %s', async (split_cost) => {
+    await expect(assetsModel.splitAsset(1, { split_cost }, 5)).rejects.toThrow('拆分金额必须大于0');
+    expect(connection.query.mock.calls.some(([sql]) => sql.includes('INSERT INTO fixed_assets'))).toBe(false);
+    expect(connection.rollback).toHaveBeenCalledTimes(1);
+  });
+
+  test('fully depreciated tiny split cannot allocate more depreciation and impairment than its cost', async () => {
+    Object.assign(asset, { acquisition_cost: 0.06, accumulated_depreciation: 0.03, impairment_amount: 0.03 });
+    await assetsModel.splitAsset(1, { split_cost: 0.01 }, 5);
+    const [, created] = connection.query.mock.calls.find(([sql]) => sql.includes('INSERT INTO fixed_assets'));
+    const [, remaining] = connection.query.mock.calls.find(([sql]) => sql.includes('UPDATE fixed_assets'));
+    expect(created[9]).toBe(0);
+    expect(remaining[3]).toBe(0);
+    expect(created[11] + created[12]).toBe(0.01);
+  });
+
   test('preview and posting use the same schedule and repeat submission creates no second voucher', async () => {
     const [preview] = await assetsModel.calculateBatchDepreciation('2026-01');
     const result = await assetsModel.submitDepreciation(

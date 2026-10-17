@@ -14,7 +14,7 @@
  * 2. standardCostMethods — 标准成本 / BOM 多层成本
  * 3. actualCostMethods — 实际成本（材料/人工/制造费用）
  * 4. varianceMethods — 成本差异分析与分摊
- * 5. inventoryRecalcMethods — 库存成本重算（FIFO / 加权平均）
+ * 5. inventoryRecalcMethods — 按已入账估值恢复库存结存与加权成本缓存
  * 6. settingsMethods — 成本参数与表初始化
  * 7. wipMethods — 在制品成本与 WIP 凭证
  * 8. vouchersMethods — 科目解析与废弃凭证桩

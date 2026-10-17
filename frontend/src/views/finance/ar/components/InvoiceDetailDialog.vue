@@ -75,7 +75,7 @@
         </template>
       </el-table-column>
     </el-table>
-    <EmptyState v-else description="暂无明细项" ::image-size="72" />
+    <EmptyState v-else description="暂无明细项" :image-size="72" />
 
     <template #footer>
       <span class="dialog-footer">

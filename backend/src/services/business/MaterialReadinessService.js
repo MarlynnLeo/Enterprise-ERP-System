@@ -4,6 +4,7 @@
  */
 
 const { pool } = require('../../config/db');
+const Precision = require('../../utils/precision');
 
 class MaterialReadinessService {
   /**
@@ -11,7 +12,7 @@ class MaterialReadinessService {
    * @param {number} taskId - 生产任务ID
    * @returns {Object} { ready, totalItems, readyItems, shortageItems, details }
    */
-  static async checkByTask(taskId) {
+  static async checkByTask(taskId, stockBudget = null) {
     // 1. 获取任务信息
     const [tasks] = await pool.query(
       'SELECT id, code, product_id, quantity FROM production_tasks WHERE id = ? AND deleted_at IS NULL',
@@ -49,7 +50,7 @@ class MaterialReadinessService {
        FROM bom_details bd
        LEFT JOIN materials m ON bd.material_id = m.id
        LEFT JOIN units u ON m.unit_id = u.id
-       WHERE bd.bom_id = ?`,
+       WHERE bd.bom_id = ? ORDER BY bd.id`,
       [bomMasters[0].id]
     );
 
@@ -67,7 +68,22 @@ class MaterialReadinessService {
     }
 
     // 4. 计算每种物料的需求量（BOM 单位用量 × 任务数量）
-    const materialIds = bomDetails.map((d) => d.material_id);
+    const requirements = new Map();
+    for (const item of bomDetails) {
+      const key = String(item.material_id);
+      const existing = requirements.get(key);
+      if (existing) {
+        existing.unit_quantity = Precision.add(existing.unit_quantity, item.unit_quantity);
+        existing.bom_detail_ids.push(item.bom_detail_id);
+      } else {
+        requirements.set(key, {
+          ...item,
+          unit_quantity: Number(item.unit_quantity),
+          bom_detail_ids: [item.bom_detail_id],
+        });
+      }
+    }
+    const materialIds = [...requirements.values()].map((item) => item.material_id);
     const [stockRows] = await pool.query(
       `SELECT material_id, SUM(quantity) AS available_qty
        FROM inventory_stock_balances
@@ -78,16 +94,20 @@ class MaterialReadinessService {
 
     const stockMap = {};
     stockRows.forEach((s) => {
-      stockMap[s.material_id] = Number(s.available_qty);
+      stockMap[s.material_id] = Math.max(0, Number(s.available_qty) || 0);
     });
 
     // 5. 汇总结果
-    const details = bomDetails.map((item) => {
-      const requiredQty = Number(item.unit_quantity) * Number(task.quantity);
-      const availableQty = stockMap[item.material_id] || 0;
-      const shortageQty = Math.max(0, requiredQty - availableQty);
+    const details = [...requirements.values()].map((item) => {
+      const requiredQty = Precision.mul(item.unit_quantity, task.quantity);
+      const key = String(item.material_id);
+      if (stockBudget && !stockBudget.has(key)) stockBudget.set(key, stockMap[key] || 0);
+      const availableQty = stockBudget ? stockBudget.get(key) : stockMap[key] || 0;
+      const shortageQty = Math.max(0, Precision.sub(requiredQty, availableQty));
+      if (stockBudget) stockBudget.set(key, Math.max(0, Precision.sub(availableQty, requiredQty)));
       return {
         bom_detail_id: item.bom_detail_id,
+        bom_detail_ids: item.bom_detail_ids,
         material_id: item.material_id,
         material_code: item.material_code,
         material_name: item.material_name,
@@ -120,9 +140,16 @@ class MaterialReadinessService {
    */
   static async checkBatch(taskIds) {
     const results = [];
+    // Read-only allocation by input priority; this is a projection, not a stock reservation.
+    let stockBudget = new Map();
+    const seenTasks = new Set();
     for (const taskId of taskIds) {
+      if (seenTasks.has(String(taskId))) continue;
+      seenTasks.add(String(taskId));
       try {
-        const result = await this.checkByTask(taskId);
+        const taskBudget = new Map(stockBudget);
+        const result = await this.checkByTask(taskId, taskBudget);
+        stockBudget = taskBudget;
         results.push({ taskId, ...result });
       } catch {
         results.push({ taskId, ready: false, error: '生产任务齐套检查失败，请稍后重试' });

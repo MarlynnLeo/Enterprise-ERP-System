@@ -607,11 +607,11 @@ onMounted(() => {
       margin-bottom: 4px;
 
       &.unread {
-        color: var(--module-red);
+        color: var(--module-red-text);
       }
 
       &.urgent {
-        color: var(--module-orange);
+        color: var(--module-orange-text);
       }
     }
 
@@ -656,7 +656,7 @@ onMounted(() => {
   &.active {
     background: var(--color-accent-bg, rgba(59, 130, 246, 0.1));
     border-color: var(--color-accent, var(--color-primary));
-    color: var(--color-accent, var(--color-primary));
+    color: var(--color-accent-text, var(--color-primary));
   }
 }
 

@@ -362,7 +362,7 @@ onMounted(() => {
 }
 
 .detail-value.highlight {
-    color: var(--module-purple);
+    color: var(--module-purple-text);
     font-weight: 600;
 }
 

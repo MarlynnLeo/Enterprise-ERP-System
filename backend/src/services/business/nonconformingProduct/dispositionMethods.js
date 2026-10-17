@@ -237,12 +237,20 @@ module.exports = {
         logger.info(`该不合格品 ${ncp.ncp_no} 无检验单关联, 执行无源让步接收建单`);
       }
 
-      // 过程/终检让步：走库存其它入库，不创建采购收货
-      if (
-        inspectionType === 'process' ||
-        inspectionType === 'final' ||
-        inspectionType === 'first_article'
-      ) {
+      // 成品让步仍属于生产入库，保留原终检的不良证据并计入生产完成数量。
+      if (inspectionType === 'final') {
+        const ProductionInboundService = require('../ProductionInboundService');
+        const result = await ProductionInboundService.createDraftFromFinalConcession(connection, {
+          ncpId: ncp.id,
+          quantity,
+          createdBy: firstValidUserId(actorId, ncp.concession_approver_id, ncp.created_by),
+          operator: await resolveActorLabel(connection, ncp.disposition_by, actorId),
+        });
+        return { ...result, path: 'inventory_inbound' };
+      }
+
+      // 过程/首件让步：走库存其它入库，不创建采购收货
+      if (inspectionType === 'process' || inspectionType === 'first_article') {
         const InventoryService = require('../../InventoryService');
         const { CodeGenerators } = require('../../../utils/codeGenerator');
         const warehouseId = await InventoryService.getMaterialLocation(ncp.material_id, connection);

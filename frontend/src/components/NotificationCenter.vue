@@ -55,6 +55,7 @@
             link
             size="small"
             class="close-btn"
+            aria-label="关闭通知中心"
             @click="popoverVisible = false"
           >
             <el-icon :size="16">
@@ -80,15 +81,15 @@
           :key="notification.id"
           class="notification-item"
           :class="{ 'unread': !notification.isRead }"
-          @click="handleNotificationClick(notification)"
         >
-          <div class="notification-icon">
+          <button type="button" class="notification-open" :aria-label="notification.title" @click="handleNotificationClick(notification)">
+          <span class="notification-icon">
             <el-icon :size="24" :color="getNotificationColor(notification.type)">
               <component :is="getNotificationIcon(notification.type)" />
             </el-icon>
-          </div>
-          <div class="notification-content">
-            <div class="notification-title">
+          </span>
+          <span class="notification-content">
+            <span class="notification-title">
               {{ notification.title }}
               <el-tag
                 v-if="notification.priority === 2"
@@ -105,10 +106,11 @@
               >
                 重要
               </el-tag>
-            </div>
-            <div class="notification-text">{{ notification.content }}</div>
-            <div class="notification-time">{{ formatTime(notification.createdAt) }}</div>
-          </div>
+            </span>
+            <span class="notification-text">{{ notification.content }}</span>
+            <span class="notification-time">{{ formatTime(notification.createdAt) }}</span>
+          </span>
+          </button>
           <div class="notification-actions">
             <el-button
               v-if="!notification.isRead"
@@ -158,6 +160,7 @@ import {
 } from '@element-plus/icons-vue'
 import notificationApi from '@/api/notification'
 import { parseResponseData } from '@/utils/responseParser'
+import { resolveNotificationLocation } from '@/utils/notificationNavigation'
 import { useSocket } from '@/composables/useSocket'
 import { cancelIdleTask, runWhenIdle } from '@/utils/performanceMode'
 import {
@@ -240,26 +243,10 @@ const handleNotificationClick = async (notification) => {
   }
 
   // 如果有链接，跳转
-  if (notification.link) {
+  const location = resolveNotificationLocation(notification)
+  if (location) {
     popoverVisible.value = false
-
-    // 解析link_params
-    let params = {}
-    if (notification.link_params) {
-      try {
-        params = typeof notification.link_params === 'string'
-          ? JSON.parse(notification.link_params)
-          : notification.link_params
-      } catch {
-        // 解析失败时使用空对象
-      }
-    }
-
-    // 跳转并传递参数
-    router.push({
-      path: notification.link,
-      query: params
-    })
+    router.push(location)
   }
 }
 
@@ -464,9 +451,21 @@ onUnmounted(() => {
   display: flex;
   padding: 12px 16px;
   border-bottom: 1px solid var(--color-border-lighter);
-  cursor: pointer;
   transition: background-color var(--transition-base);
   position: relative;
+}
+
+.notification-open {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
 }
 
 .notification-item::before {
@@ -503,6 +502,7 @@ onUnmounted(() => {
 }
 
 .notification-content {
+  display: block;
   flex: 1;
   min-width: 0;
 }
@@ -517,6 +517,7 @@ onUnmounted(() => {
 }
 
 .notification-text {
+  display: block;
   font-size: 13px;
   color: var(--color-text-secondary);
   margin-bottom: 4px;
@@ -526,6 +527,7 @@ onUnmounted(() => {
 }
 
 .notification-time {
+  display: block;
   font-size: 12px;
   color: var(--color-text-placeholder);
 }

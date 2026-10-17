@@ -144,28 +144,30 @@
           </template>
         </el-table-column>
         <el-table-column prop="batchNo" label="批次号" min-width="150" show-overflow-tooltip />
-        <el-table-column label="操作" fixed="right" min-width="150" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+        <el-table-column label="操作" fixed="right" min-width="260" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
       >
           <template #default="scope">
             
             <el-button
-              v-if="scope.row.status === 'pending' && canInspect"
+              v-if="['pending', 'in_progress'].includes(scope.row.status) && canInspect"
               size="small"
               type="primary"
               @click="handleInspect(scope.row)"
             >检验</el-button>
             <el-button
-              v-if="scope.row.status === 'failed' && reworkStatusMap[scope.row.id]?.allowReinspection && canInspect"
+              v-if="['failed', 'partial'].includes(scope.row.status) && reworkStatusMap[scope.row.id]?.allowReinspection && canInspect"
               size="small"
               type="primary"
               @click="handleReview(scope.row)"
             >复检</el-button>
             <el-tag
-              v-else-if="scope.row.status === 'failed' && !reworkStatusMap[scope.row.id]?.allowReinspection"
+              v-else-if="['failed', 'partial'].includes(scope.row.status) && !reworkStatusMap[scope.row.id]?.allowReinspection"
               type="info"
               size="small"
               effect="plain"
             >{{ getReworkHintText(scope.row.id) }}</el-tag>
+            <el-button v-if="['failed', 'partial'].includes(scope.row.status)" size="small"
+              v-permission="'quality:nonconforming:view'" @click="router.push({ path: '/quality/nonconforming', query: { inspection_id: scope.row.id } })">不良处置</el-button>
             <el-button
               v-if="scope.row.status !== 'pending'"
               size="small"
@@ -231,6 +233,9 @@
 </template>
 
 <script setup>
+import { useInspectionDeepLink } from '@/composables/useInspectionDeepLink'
+import { useRouter } from 'vue-router'
+const router = useRouter()
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, onMounted } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
@@ -264,7 +269,7 @@ const searchKeyword = ref('')
 
 // 权限控制
 const canCreate = computed(() => authStore.hasPermission('quality:inspections:create') || authStore.isAdmin)
-const canInspect = computed(() => authStore.hasPermission('quality:inspections:update') || authStore.isAdmin)
+const canInspect = computed(() => authStore.hasPermission('quality:incoming:update') || authStore.hasPermission('quality:inspections:update') || authStore.isAdmin)
 const statusFilter = ref('')
 const dateRange = ref([])
 const searchFormModel = computed(() => ({
@@ -308,7 +313,9 @@ const isMissingMaterialName = (value) => {
 const getMaterialId = (item) => item?.materialId
 
 // ===== 初始化 =====
-onMounted(() => { fetchData() })
+onMounted(() => {
+  fetchData()
+})
 
 // ===== 数据获取 =====
 const fetchData = async () => {
@@ -469,7 +476,7 @@ const calculateInspectionStats = async () => {
 
 // ===== 返工状态 =====
 const fetchReworkStatusForFailedInspections = async () => {
-  const failedItems = inspectionList.value.filter(row => row.status === 'failed')
+  const failedItems = inspectionList.value.filter(row => ['failed', 'partial'].includes(row.status))
   if (failedItems.length === 0) return
 
   try {
@@ -478,9 +485,9 @@ const fetchReworkStatusForFailedInspections = async () => {
     failedItems.forEach(row => {
       reworkStatusMap.value[row.id] = data[row.id] || { allow_reinspection: false }
     })
-  } catch {
+  } catch (error) {
     failedItems.forEach(row => {
-      reworkStatusMap.value[row.id] = { allow_reinspection: false }
+      reworkStatusMap.value[row.id] = { allowReinspection: false, error: getApiErrorMessage(error, '无法查询返工状态') }
     })
   }
 }
@@ -488,6 +495,7 @@ const fetchReworkStatusForFailedInspections = async () => {
 const getReworkHintText = (inspectionId) => {
   const status = reworkStatusMap.value[inspectionId]
   if (!status) return '查询中...'
+  if (status.error) return `查询失败：${status.error}`
   if (!status.hasNcp) return '待处置'
   if (!status.hasRework && status.disposition === 'rework') return '待返工'
   if (!status.hasRework) return status.disposition === 'scrap' ? '已报废' : '待处理'
@@ -508,7 +516,15 @@ const handleCurrentChange = (val) => { currentPage.value = val; fetchData() }
 // ===== 弹窗操作 =====
 const handleView = (row) => { currentRow.value = row; detailDialogVisible.value = true }
 const handleInspect = (row) => { currentRow.value = row; inspectDialogVisible.value = true }
-const handleReview = (row) => { currentRow.value = row; reviewDialogVisible.value = true }
+const handleReview = (row) => {
+  const state = reworkStatusMap.value[row.id]
+  if (!state?.allowReinspection || !state.reinspectionId) {
+    ElMessage.warning('尚无可执行的独立复检单，请先完成返工')
+    return
+  }
+  currentRow.value = { ...row, id: state.reinspectionId, status: state.reinspectionStatus || 'pending' }
+  reviewDialogVisible.value = true
+}
 
 const handlePrint = async (row) => {
   try {
@@ -521,6 +537,7 @@ const handlePrint = async (row) => {
     ElMessage.error(`获取检验报告数据失败：${getApiErrorMessage(error, '请稍后重试')}`)
   }
 }
+useInspectionDeepLink(router, '/quality/incoming', handleInspect)
 </script>
 
 <style scoped>

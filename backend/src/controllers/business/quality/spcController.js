@@ -152,6 +152,7 @@ function calculateXbarRChart(subgroups) {
 
   const xbars = [];
   const ranges = [];
+  const subgroupNumbers = [];
 
   for (const sg of subgroups) {
     const vals = sg.values;
@@ -160,6 +161,7 @@ function calculateXbarRChart(subgroups) {
     const r = Math.max(...vals) - Math.min(...vals);
     xbars.push(xbar);
     ranges.push(r);
+    subgroupNumbers.push(sg.subgroup_no);
   }
 
   if (xbars.length === 0) return null;
@@ -174,13 +176,19 @@ function calculateXbarRChart(subgroups) {
 
   return {
     xbarChart: {
-      data: xbars.map((v, i) => ({ subgroup: i + 1, value: parseFloat(v.toFixed(6)) })),
+      data: xbars.map((v, i) => ({
+        subgroup: subgroupNumbers[i],
+        value: parseFloat(v.toFixed(6)),
+      })),
       cl: parseFloat(xbarBar.toFixed(6)),
       ucl: parseFloat((xbarBar + a2 * rBar).toFixed(6)),
       lcl: parseFloat((xbarBar - a2 * rBar).toFixed(6)),
     },
     rChart: {
-      data: ranges.map((v, i) => ({ subgroup: i + 1, value: parseFloat(v.toFixed(6)) })),
+      data: ranges.map((v, i) => ({
+        subgroup: subgroupNumbers[i],
+        value: parseFloat(v.toFixed(6)),
+      })),
       cl: parseFloat(rBar.toFixed(6)),
       ucl: parseFloat((d4 * rBar).toFixed(6)),
       lcl: parseFloat((d3 * rBar).toFixed(6)),
@@ -337,50 +345,72 @@ const spcController = {
    * 批量录入SPC数据
    */
   async addDataPoints(req, res) {
+    let connection;
     try {
       const body = mapKeysToSnake(req.body || {});
-      const plan_id = body.plan_id;
-      const subgroup_no = body.subgroup_no;
-      const samples = Array.isArray(req.body?.samples)
-        ? req.body.samples.map((sample) => mapKeysToSnake(sample || {}))
-        : body.samples;
-
-      if (!plan_id || !subgroup_no || !samples || !Array.isArray(samples)) {
-        return ResponseHandler.error(
-          res,
-          '控制计划ID、子组号和样本数据不能为空',
-          'VALIDATION_ERROR',
-          400
-        );
+      const planId = Number(body.plan_id);
+      const subgroup = Number(body.subgroup_no);
+      const samples = Array.isArray(body.samples)
+        ? body.samples.map((sample) => mapKeysToSnake(sample || {}))
+        : null;
+      const invalid = (message, status = 400) =>
+        Object.assign(new Error(message), {
+          statusCode: status,
+          code: status === 409 ? 'CONFLICT' : 'VALIDATION_ERROR',
+        });
+      if (
+        !Number.isSafeInteger(planId) ||
+        planId <= 0 ||
+        !Number.isSafeInteger(subgroup) ||
+        subgroup <= 0 ||
+        !samples?.length
+      ) {
+        throw invalid('控制计划ID、子组号必须是正整数且样本不能为空');
       }
-
-      const plan = await db.query(
-        'SELECT id, plan_no, plan_name, product_id, product_code, product_name, process_id, process_name, characteristic, usl, lsl, target_value, subgroup_size, chart_type, is_active, note, created_at, updated_at FROM spc_control_plans WHERE id = ?',
-        [plan_id]
+      if (
+        samples.some(
+          (s) =>
+            s.measured_value == null ||
+            String(s.measured_value).trim() === '' ||
+            !Number.isFinite(Number(s.measured_value))
+        )
+      ) {
+        throw invalid('所有实测值必须是有效数字');
+      }
+      connection = await db.pool.getConnection();
+      await connection.beginTransaction();
+      // Serialize subgroup creation against both plan edits and competing requests.
+      const [[plan]] = await connection.query(
+        'SELECT id, is_active, subgroup_size FROM spc_control_plans WHERE id = ? FOR UPDATE',
+        [planId]
       );
-      if (!plan.rows || plan.rows.length === 0) {
-        return ResponseHandler.error(res, '控制计划不存在', 'NOT_FOUND', 404);
-      }
-
+      if (!plan) throw invalid('控制计划不存在', 404);
+      if (!Number(plan.is_active)) throw invalid('停用的控制计划不能录入数据');
+      if (samples.length !== Number(plan.subgroup_size))
+        throw invalid('样本数必须等于控制计划的子组大小');
+      const [existing] = await connection.query(
+        'SELECT id FROM spc_data_points WHERE plan_id = ? AND subgroup_no = ? LIMIT 1 FOR UPDATE',
+        [planId, subgroup]
+      );
+      if (existing.length) throw invalid('该子组已存在，请勿重复录入', 409);
       const insertedIds = [];
       for (let i = 0; i < samples.length; i++) {
-        const s = samples[i];
-        const result = await db.query(
-          `INSERT INTO spc_data_points (plan_id, subgroup_no, sample_no, measured_value, measured_by, batch_no, inspection_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        const sample = samples[i];
+        const [result] = await connection.query(
+          'INSERT INTO spc_data_points (plan_id, subgroup_no, sample_no, measured_value, measured_by, batch_no, inspection_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
           [
-            plan_id,
-            subgroup_no,
+            planId,
+            subgroup,
             i + 1,
-            s.measured_value,
-            s.measured_by || null,
-            s.batch_no || null,
-            s.inspection_id || null,
+            Number(sample.measured_value),
+            sample.measured_by || null,
+            sample.batch_no || null,
+            sample.inspection_id || null,
           ]
         );
         insertedIds.push(result.insertId);
       }
-
+      await connection.commit();
       ResponseHandler.success(
         res,
         { ids: insertedIds, count: insertedIds.length },
@@ -388,8 +418,17 @@ const spcController = {
         201
       );
     } catch (error) {
+      if (connection) await connection.rollback();
       logger.error('录入SPC数据失败:', error);
-      ResponseHandler.error(res, '录入SPC数据失败', 'SERVER_ERROR', 500, error);
+      ResponseHandler.error(
+        res,
+        error.statusCode ? error.message : '录入SPC数据失败',
+        error.code || 'SERVER_ERROR',
+        error.statusCode || 500,
+        error
+      );
+    } finally {
+      if (connection) connection.release();
     }
   },
 

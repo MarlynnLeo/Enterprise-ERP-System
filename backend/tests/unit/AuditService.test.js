@@ -21,9 +21,13 @@ jest.mock('../../src/utils/logger', () => ({
     debug: jest.fn(),
   },
 }));
+jest.mock('../../src/services/system/AuditLogService', () => ({
+  writeAuditFailure: jest.fn().mockResolvedValue(true),
+}));
 
 const { AuditService, AuditAction, AuditModule } = require('../../src/services/AuditService');
 const { getConnection } = require('../../src/config/db');
+const { writeAuditFailure } = require('../../src/services/system/AuditLogService');
 
 describe('AuditService', () => {
   beforeEach(() => {
@@ -71,7 +75,7 @@ describe('AuditService', () => {
       expect(mockConnection.release).toHaveBeenCalled();
     });
 
-    test('审计失败不应抛出异常（静默降级）', async () => {
+    test('非事务审计失败保存降级证据', async () => {
       mockConnection.query.mockRejectedValueOnce(new Error('DB connection lost'));
 
       // 不应抛出
@@ -81,6 +85,7 @@ describe('AuditService', () => {
           action: 'update',
         })
       ).resolves.toBeUndefined();
+      expect(writeAuditFailure).toHaveBeenCalledWith(expect.objectContaining({ action: 'update' }), expect.any(Error));
     });
 
     test('应正确序列化 JSON 值', async () => {
@@ -118,6 +123,14 @@ describe('AuditService', () => {
     });
   });
 
+  test('transaction audit failure propagates and leaves connection ownership to the caller', async () => {
+    const error = new Error('audit insert denied');
+    mockConnection.query.mockRejectedValueOnce(error);
+    await expect(AuditService.log({ module: 'finance', action: 'approve' }, mockConnection)).rejects.toBe(error);
+    expect(getConnection).not.toHaveBeenCalled();
+    expect(mockConnection.release).not.toHaveBeenCalled();
+  });
+
   describe('logFromRequest', () => {
     test('应从请求对象提取用户信息', async () => {
       mockConnection.query.mockResolvedValueOnce([{}]);
@@ -127,6 +140,9 @@ describe('AuditService', () => {
         ip: '10.0.0.1',
         headers: { 'user-agent': 'Jest Test' },
         connection: {},
+        requestId: 'server-request',
+        method: 'POST',
+        originalUrl: '/api/materials/100?access_token=private',
       };
 
       await AuditService.logFromRequest(
@@ -141,6 +157,7 @@ describe('AuditService', () => {
       expect(args[0]).toBe(3);  // userId
       expect(args[1]).toBe('testuser');
       expect(args[8]).toBe('10.0.0.1');
+      expect(args.slice(10)).toEqual(['server-request', 'POST', '/api/materials/100']);
     });
   });
 
@@ -172,6 +189,9 @@ describe('AuditService', () => {
       expect(sql).toContain('module = ?');
       expect(sql).toContain('action = ?');
       expect(sql).toContain('user_id = ?');
+      expect(sql).toContain('response_status');
+      expect(sql).toContain('field_diff');
+      expect(sql).toContain('ORDER BY created_at DESC, id DESC');
     });
   });
 });

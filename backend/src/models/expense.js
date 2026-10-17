@@ -956,6 +956,10 @@ const expenseModel = {
       }
       const bankAccount = bankAccounts[0];
 
+      if (String(bankAccount.currency_code || 'CNY').toUpperCase() !== 'CNY') {
+        throw new Error('费用按人民币记账，当前不能使用非人民币账户付款');
+      }
+
       // 检查余额是否足够
       const expenseAmount = normalizePositiveAmount(expense.amount, '费用金额');
       if (parseFloat(bankAccount.current_balance) < expenseAmount) {
@@ -1228,9 +1232,11 @@ const expenseModel = {
    * 取消费用
    */
   async cancelExpense(id) {
+    const connection = await db.pool.getConnection();
     try {
-      const [current] = await db.pool.execute(
-        'SELECT status FROM expenses WHERE id = ? AND deleted_at IS NULL',
+      await connection.beginTransaction();
+      const [current] = await connection.execute(
+        'SELECT status FROM expenses WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
         [id]
       );
       if (!current[0]) {
@@ -1240,17 +1246,22 @@ const expenseModel = {
         throw new Error('已付款的费用无法取消');
       }
       if (current[0].status === 'cancelled') {
+        await connection.commit();
         return { success: true };
       }
 
-      await db.pool.execute(
+      await connection.execute(
         "UPDATE expenses SET status = 'cancelled', updated_at = NOW() WHERE id = ?",
         [id]
       );
+      await connection.commit();
       return { success: true };
     } catch (error) {
+      await connection.rollback();
       logger.error('取消费用失败:', error);
       throw error;
+    } finally {
+      connection.release();
     }
   },
 

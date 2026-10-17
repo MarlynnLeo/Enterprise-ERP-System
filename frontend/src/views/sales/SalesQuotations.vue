@@ -56,23 +56,23 @@
     </FinanceQueryCard>
     <!-- 统计卡片 -->
     <div class="statistics-row">
-      <el-card class="stat-card" shadow="hover" @click="resetStatusFilter">
+      <el-card class="stat-card" shadow="hover" role="button" tabindex="0" :aria-pressed="statusFilter === ''" @click="resetStatusFilter" @keydown.enter.self.prevent="resetStatusFilter" @keydown.space.self.prevent="resetStatusFilter">
         <div class="stat-value">{{ quotationStats.total }}</div>
         <div class="stat-label">全部报价</div>
       </el-card>
-      <el-card class="stat-card" shadow="hover" @click="setStatusFilter('draft')">
+      <el-card class="stat-card" shadow="hover" role="button" tabindex="0" :aria-pressed="statusFilter === 'draft'" @click="setStatusFilter('draft')" @keydown.enter.self.prevent="setStatusFilter('draft')" @keydown.space.self.prevent="setStatusFilter('draft')">
         <div class="stat-value">{{ quotationStats.pending }}</div>
         <div class="stat-label">待确认</div>
       </el-card>
-      <el-card class="stat-card" shadow="hover" @click="setStatusFilter('accepted')">
+      <el-card class="stat-card" shadow="hover" role="button" tabindex="0" :aria-pressed="statusFilter === 'accepted'" @click="setStatusFilter('accepted')" @keydown.enter.self.prevent="setStatusFilter('accepted')" @keydown.space.self.prevent="setStatusFilter('accepted')">
         <div class="stat-value">{{ quotationStats.confirmed }}</div>
         <div class="stat-label">已确认</div>
       </el-card>
-      <el-card class="stat-card" shadow="hover" @click="setStatusFilter('converted')">
+      <el-card class="stat-card" shadow="hover" role="button" tabindex="0" :aria-pressed="statusFilter === 'converted'" @click="setStatusFilter('converted')" @keydown.enter.self.prevent="setStatusFilter('converted')" @keydown.space.self.prevent="setStatusFilter('converted')">
         <div class="stat-value">{{ quotationStats.converted }}</div>
         <div class="stat-label">已转订单</div>
       </el-card>
-      <el-card class="stat-card" shadow="hover" @click="setStatusFilter('expired')">
+      <el-card class="stat-card" shadow="hover" role="button" tabindex="0" :aria-pressed="statusFilter === 'expired'" @click="setStatusFilter('expired')" @keydown.enter.self.prevent="setStatusFilter('expired')" @keydown.space.self.prevent="setStatusFilter('expired')">
         <div class="stat-value">{{ quotationStats.expired }}</div>
         <div class="stat-label">已过期</div>
       </el-card>

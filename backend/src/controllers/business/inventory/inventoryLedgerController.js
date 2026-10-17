@@ -68,6 +68,7 @@ const _insertInventoryLedgerLocal = async (
     businessApprovedById = null,
     business_approved_by = null,
     businessApprovedBy = null,
+    sourceLineKey = null,
   }
 ) => {
   try {
@@ -94,6 +95,7 @@ const _insertInventoryLedgerLocal = async (
       unitCost: unit_cost,
       businessApprovedById: businessApprovedById || business_approved_by_id,
       businessApprovedBy: businessApprovedBy || business_approved_by || operator,
+      sourceLineKey,
       idempotencyKey:
         idempotencyKey ||
         idempotency_key ||

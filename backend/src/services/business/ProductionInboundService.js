@@ -53,7 +53,8 @@ class ProductionInboundService {
       `SELECT id, inbound_no FROM inventory_inbound
        WHERE inspection_id = ?
          AND COALESCE(is_deleted, 0) = 0
-         AND status <> 'cancelled'
+         AND deleted_at IS NULL
+         AND status NOT IN ('cancelled', 'reversed')
        LIMIT 1`,
       [inspection.id]
     );
@@ -66,6 +67,27 @@ class ProductionInboundService {
       };
     }
 
+    await require('./FinalInspectionReleaseService').validate(
+      connection,
+      {
+        inbound_type: 'production',
+        inspection_id: inspection.id,
+        reference_id: inspection.task_id || inspection.reference_id,
+      },
+      [
+        {
+          material_id: inspection.product_id || inspection.material_id,
+          batch_number: inspection.batch_no,
+          quantity: params.qualifiedQuantity ?? inspection.qualified_quantity,
+        },
+      ]
+    );
+    return this._createFinalDraft(connection, params);
+  }
+
+  /** Internal insertion shared by qualified stock and explicitly approved concessions. */
+  static async _createFinalDraft(connection, params) {
+    const inspection = params.inspection;
     const referenceId = Number(
       inspection.reference_id ||
         inspection.task_id ||
@@ -123,7 +145,7 @@ class ProductionInboundService {
     const unitId = task.material_unit_id || null;
     const inboundNo = await CodeGenerators.generateInboundCode(connection);
     const operator = params.operator || inspection.inspector_name || '系统';
-    const remark = params.remark || `检验单 ${inspection.inspection_no} 通过后自动创建`;
+    const remark = params.remark || `检验单 ${inspection.inspection_no} 合格品自动入库`;
 
     const [inboundResult] = await connection.execute(
       `INSERT INTO inventory_inbound (
@@ -173,6 +195,186 @@ class ProductionInboundService {
       inbound_no: inboundNo,
       task_id: taskId,
     };
+  }
+
+  /**
+   * Release an approved final-inspection concession without rewriting its 90/10 verdict.
+   * An editable qualified draft receives the released stock; otherwise create a second
+   * production inbound. Approval and this method must share the caller's transaction.
+   */
+  static async createDraftFromFinalConcession(connection, params = {}) {
+    if (!connection) throw new Error('成品让步入库必须在事务中调用');
+    const [[ncp]] = await connection.query(
+      `SELECT * FROM nonconforming_products
+        WHERE id = ? AND deleted_at IS NULL FOR UPDATE`,
+      [params.ncpId]
+    );
+    if (
+      !ncp ||
+      ncp.concession_status !== 'approved' ||
+      ncp.disposition !== 'use_as_is' ||
+      ncp.status === 'cancelled'
+    ) {
+      throw new Error('成品让步入库必须关联已批准的特采处置单');
+    }
+    const [[inspection]] = await connection.query(
+      `SELECT * FROM quality_inspections
+        WHERE id = ? AND deleted_at IS NULL FOR UPDATE`,
+      [ncp.inspection_id]
+    );
+    if (
+      !inspection ||
+      inspection.inspection_type !== QUALITY_INSPECTION_TYPES.FINAL ||
+      (inspection.reference_type &&
+        inspection.reference_type !== DOCUMENT_REFERENCE_TYPES.PRODUCTION_TASK) ||
+      !['partial', 'failed', 'completed'].includes(inspection.status) ||
+      Number(inspection.product_id || inspection.material_id) !== Number(ncp.material_id) ||
+      !inspection.batch_no ||
+      (ncp.batch_no && ncp.batch_no !== inspection.batch_no)
+    ) {
+      throw new Error('特采处置单与原成品检验的产品、批次或生产任务不匹配');
+    }
+    const {
+      normalizeTerminalInspectionQuantities,
+    } = require('../../utils/quality/inspectionQuantities');
+    if (inspection.qualified_quantity == null || inspection.unqualified_quantity == null) {
+      throw new Error('特采来源成品检验缺少明确的合格与不合格数量');
+    }
+    await require('./FinalInspectionReadinessService').validate(connection, inspection);
+    const quantities = normalizeTerminalInspectionQuantities(inspection, inspection);
+    const quantity = Number(params.quantity);
+    const ncpQuantity = Number(ncp.quantity);
+    const handledQuantity = Number(ncp.handled_quantity || 0);
+    if (
+      !Number.isFinite(quantity) ||
+      quantity <= 0 ||
+      !Number.isFinite(ncpQuantity) ||
+      ncpQuantity <= 0 ||
+      !Number.isFinite(handledQuantity) ||
+      handledQuantity < 0 ||
+      ncpQuantity > quantities.unqualifiedQuantity + 0.0001
+    ) {
+      throw new Error('成品让步入库数量必须有效且不能超过原检验不合格数量');
+    }
+
+    // The generation link makes approval retries idempotent, including merged drafts.
+    const [linked] = await connection.query(
+      `SELECT ib.id, ib.inbound_no FROM document_links dl
+         JOIN inventory_inbound ib ON ib.id = dl.target_id
+        WHERE dl.source_type = 'nonconforming_product' AND dl.source_id = ?
+          AND dl.target_type = 'inventory_inbound' AND dl.link_type = 'generate'
+          AND COALESCE(ib.is_deleted, 0) = 0 AND ib.deleted_at IS NULL
+          AND ib.status NOT IN ('cancelled', 'reversed') FOR UPDATE`,
+      [ncp.id]
+    );
+    if (linked.length) return { ...linked[0], created: false, existed: true };
+    if (quantity > ncpQuantity - handledQuantity + 0.0001) {
+      throw new Error('成品让步入库数量超过该不合格品的剩余处置数量');
+    }
+
+    const [[otherReleases]] = await connection.query(
+      `SELECT COALESCE(SUM(LEAST(quantity, COALESCE(handled_quantity, 0))), 0) AS quantity
+         FROM nonconforming_products
+        WHERE inspection_id = ? AND id <> ? AND deleted_at IS NULL
+          AND disposition = 'use_as_is' AND concession_status = 'approved'
+          AND status IN ('processing', 'completed', 'closed')`,
+      [inspection.id, ncp.id]
+    );
+    const otherQuantity = Number(otherReleases?.quantity || 0);
+    if (
+      !Number.isFinite(otherQuantity) ||
+      otherQuantity < 0 ||
+      otherQuantity + handledQuantity + quantity > quantities.unqualifiedQuantity + 0.0001
+    ) {
+      throw new Error('累计让步放行数量超过原检验不合格数量');
+    }
+    const [inbounds] = await connection.query(
+      `SELECT id, inbound_no, status, inbound_type, reference_type, reference_id, location_id
+         FROM inventory_inbound
+        WHERE inspection_id = ? AND COALESCE(is_deleted, 0) = 0 AND deleted_at IS NULL
+          AND status NOT IN ('cancelled', 'reversed') ORDER BY id FOR UPDATE`,
+      [inspection.id]
+    );
+    const [items] = inbounds.length
+      ? await connection.query(
+          `SELECT id, inbound_id, material_id, quantity, batch_number
+             FROM inventory_inbound_items WHERE inbound_id IN (?) FOR UPDATE`,
+          [inbounds.map((inbound) => inbound.id)]
+        )
+      : [[]];
+    const allocatedQuantity = items.reduce((sum, item) => sum + Number(item.quantity), 0);
+    const releaseLimit = quantities.qualifiedQuantity + otherQuantity + handledQuantity + quantity;
+    if (
+      items.some((item) => !Number.isFinite(Number(item.quantity)) || Number(item.quantity) <= 0) ||
+      !Number.isFinite(allocatedQuantity) ||
+      allocatedQuantity + quantity > releaseLimit + 0.0001
+    ) {
+      throw new Error('累计生产入库数量超过成品合格及批准让步放行数量');
+    }
+    const taskId = Number(inspection.reference_id || inspection.task_id);
+    if (!taskId) throw new Error('成品让步入库缺少关联生产任务');
+    const createdBy = params.createdBy || ncp.concession_approver_id || ncp.created_by;
+    const remark = `检验单 ${inspection.inspection_no}，不合格品 ${ncp.ncp_no} 批准让步接收 ${quantity}`;
+    // Add any unallocated qualified stock as well, allowing a single 100-unit draft
+    // when the original inspection recorded 90 qualified and 10 accepted by concession.
+    const inboundQuantity = Math.max(quantity, releaseLimit - allocatedQuantity);
+    const draft = inbounds.find((inbound) => {
+      const draftItems = items.filter((item) => Number(item.inbound_id) === Number(inbound.id));
+      return (
+        inbound.status === 'draft' &&
+        inbound.inbound_type === INBOUND_TYPE_KEYS.PRODUCTION &&
+        inbound.reference_type === DOCUMENT_REFERENCE_TYPES.PRODUCTION_TASK &&
+        Number(inbound.reference_id) === taskId &&
+        draftItems.length === 1 &&
+        Number(draftItems[0].material_id) === Number(ncp.material_id) &&
+        draftItems[0].batch_number === inspection.batch_no
+      );
+    });
+    let result;
+    if (draft) {
+      const item = items.find((row) => Number(row.inbound_id) === Number(draft.id));
+      await connection.execute(
+        `UPDATE inventory_inbound_items SET quantity = quantity + ?,
+                remark = CONCAT_WS('\n', NULLIF(remark, ''), ?) WHERE id = ?`,
+        [inboundQuantity, remark, item.id]
+      );
+      await connection.execute(
+        `UPDATE inventory_inbound SET remark = CONCAT_WS('\n', NULLIF(remark, ''), ?),
+                updated_at = NOW() WHERE id = ? AND status = 'draft'`,
+        [remark, draft.id]
+      );
+      result = {
+        id: draft.id,
+        inbound_no: draft.inbound_no,
+        created: false,
+        existed: false,
+        merged: true,
+      };
+    } else {
+      result = await this._createFinalDraft(connection, {
+        inspection,
+        qualifiedQuantity: inboundQuantity,
+        operator: params.operator,
+        createdBy,
+        remark,
+      });
+    }
+    const DocumentLinkService = require('./DocumentLinkService');
+    await DocumentLinkService.createLink(
+      {
+        source_type: 'nonconforming_product',
+        source_id: ncp.id,
+        source_code: ncp.ncp_no,
+        target_type: 'inventory_inbound',
+        target_id: result.id,
+        target_code: result.inbound_no,
+        link_type: 'generate',
+        remark,
+        created_by: createdBy,
+      },
+      connection
+    );
+    return { ...result, task_id: taskId, released_quantity: quantity };
   }
 
   static async resolveFinishedGoodsLocationId(connection, preferredId = null) {

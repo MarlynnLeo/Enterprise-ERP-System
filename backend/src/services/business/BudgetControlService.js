@@ -67,12 +67,17 @@ class BudgetControlService {
     amount,
     date,
     connection = null,
-    excludeEntryId = null
+    excludeEntryId = null,
+    { allowZeroAmount = false } = {}
   ) {
     try {
       const conn = connection || db.pool;
       const requestedAmount = Number.parseFloat(amount);
-      if (!Number.isFinite(requestedAmount) || requestedAmount <= 0) {
+      if (
+        !Number.isFinite(requestedAmount) ||
+        requestedAmount < 0 ||
+        (!allowZeroAmount && requestedAmount === 0)
+      ) {
         return {
           available: false,
           reason: '预算占用金额必须大于0',

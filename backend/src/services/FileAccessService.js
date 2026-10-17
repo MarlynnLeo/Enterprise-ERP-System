@@ -60,6 +60,11 @@ const FILE_OBJECT_POLICIES = Object.freeze({
   inventory_check: Object.freeze({ scopePolicy: 'inventory_check' }),
   production_plan: Object.freeze({ scopePolicy: 'production_plan' }),
   production_task: Object.freeze({ scopePolicy: 'production_task' }),
+  anomaly_report: Object.freeze({
+    table: 'anomaly_reports',
+    deletedAtColumn: 'deleted_at',
+    viewPermissions: ['production:anomaly', 'production:anomaly:view'],
+  }),
   quality_inspection: Object.freeze({ scopePolicy: 'quality_inspection' }),
   // Technical communications have recipient-aware visibility rather than a
   // generic department/data-scope rule.  The custom resolver below is shared
@@ -192,6 +197,9 @@ function viewPermissionsForBusinessType(businessType) {
 
 function requiredPermissionsForRecord(record) {
   if (record.business_type) return viewPermissionsForBusinessType(record.business_type);
+  if (record.source === 'anomaly_image') {
+    return ['production:anomaly', 'production:anomaly:create'];
+  }
   if (record.source === 'documents') return DEFAULT_DOCUMENT_PERMISSIONS;
   return DEFAULT_FILE_PERMISSIONS;
 }
@@ -986,6 +994,21 @@ class FileAccessService {
     }
 
     const requiredPermissions = requiredPermissionsForRecord(record);
+    // Pending anomaly photos belong exclusively to the uploader until the
+    // report transaction binds them to an existing anomaly.
+    if (
+      !binding.bound &&
+      record.source === 'anomaly_image' &&
+      Number(record.uploaded_by) !== Number(userId)
+    ) {
+      return {
+        known: true,
+        allowed: false,
+        record,
+        requiredPermissions,
+        reason: 'FILE_OWNER_MISMATCH',
+      };
+    }
     const permissions = Array.isArray(userPermissions)
       ? userPermissions
       : await PermissionService.getUserPermissions(userId);

@@ -305,7 +305,7 @@
                 <div class="task-stats-info">
                   <span>计划数量: <b>{{ taskReportStats.plan_quantity }}</b></span>
                   <el-divider direction="vertical" />
-                  <span>已报工: <b>{{ taskReportStats.reported_quantity }}</b></span>
+                  <span>{{ formData.processId ? '本工序已报工' : '最终产品已报工' }}: <b>{{ taskReportStats.reported_quantity }}</b></span>
                   <el-divider direction="vertical" />
                   <span>剩余: <b class="text-warning">{{ taskReportStats.remaining_quantity }}</b></span>
                   <el-divider direction="vertical" />
@@ -324,7 +324,7 @@
             <el-form-item label="生产工序">
               <el-select
                 v-model="formData.processId"
-                placeholder="选择工序（可选）"
+                placeholder="工序报工请选择工序；任务报工留空，两种方式不能混用"
                 class="w-full"
                 clearable
                 @change="handleProcessChange"
@@ -769,7 +769,7 @@ const viewReportDetail = (record) => {
 }
 
 // 编辑报工
-const handleEditReport = (record) => {
+const handleEditReport = async (record) => {
   const taskId = record.taskId ?? record.taskId
   const taskExists = taskList.value.some(task => String(task.id) === String(taskId))
 
@@ -799,6 +799,14 @@ const handleEditReport = (record) => {
   }
 
   reportModalVisible.value = true
+  try {
+    const response = await productionApi.getTaskProcesses(taskId)
+    if (formData.value.id !== record.id) return
+    processList.value = parseResponseData(response, [])
+  } catch (error) {
+    processList.value = []
+    ElMessage.error(getApiErrorMessage(error, '获取报工工序失败'))
+  }
 }
 
 // 删除报工
@@ -855,7 +863,7 @@ const handleTaskFormChange = async (taskId) => {
       taskReportStats.value = stats
 
       // 设置默认完成数量为剩余数量
-      const remaining = stats.remaining_quantity || selectedTask.quantity || 0
+      const remaining = stats.remaining_quantity ?? selectedTask.quantity ?? 0
       formData.value.completedQuantity = remaining
       formData.value.qualifiedQuantity = remaining
     } catch (error) {
@@ -881,6 +889,14 @@ const handleTaskFormChange = async (taskId) => {
       // 清空工序选择
       formData.value.processId = undefined
       formData.value.processName = ''
+      if (taskReportStats.value.reporting_mode === 'process') {
+        const process = processList.value.find(item => ['pending', 'in_progress'].includes(item.status))
+          || processList.value.find(item => item.id === taskReportStats.value.output_process_id)
+        if (process) {
+          formData.value.processId = process.id
+          await handleProcessChange(process.id)
+        }
+      }
     } catch (error) {
       console.error('获取工序列表失败:', error)
       processList.value = []
@@ -889,10 +905,22 @@ const handleTaskFormChange = async (taskId) => {
 }
 
 // 工序变更处理
-const handleProcessChange = (processId) => {
+const handleProcessChange = async (processId) => {
   const selectedProcess = processList.value.find(p => p.id === processId)
-  if (selectedProcess) {
-    formData.value.processName = selectedProcess.processName
+  formData.value.processName = selectedProcess?.processName || ''
+  const taskId = formData.value.taskId
+  if (!taskId) return
+  try {
+    const response = await productionApi.getTaskReportStats(taskId, { processId: processId ?? '' })
+    if (formData.value.taskId !== taskId || formData.value.processId !== processId) return
+    taskReportStats.value = parseResponseData(response, {})
+    formData.value.plannedQuantity = taskReportStats.value.plan_quantity || 0
+    if (!formData.value.id) {
+      formData.value.completedQuantity = taskReportStats.value.remaining_quantity || 0
+      formData.value.qualifiedQuantity = formData.value.completedQuantity
+    }
+  } catch (error) {
+    ElMessage.error(getApiErrorMessage(error, '获取工序报工额度失败'))
   }
 }
 

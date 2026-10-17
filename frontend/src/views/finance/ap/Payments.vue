@@ -95,7 +95,7 @@
       >
           <template #default="scope">
             
-            <el-button v-permission="'finance:ap:update'"
+            <el-button v-permission="'finance:ap:pay'"
               v-if="scope.row.status === 'normal'"
               type="warning"
               size="small"
@@ -131,7 +131,7 @@
       mode="form"
       width="600px"
     >
-      <el-form :model="paymentForm" :rules="paymentRules" ref="paymentFormRef" label-width="100px">
+      <el-form :model="paymentForm" :rules="paymentRules" ref="paymentFormRef" :disabled="saveLoading" label-width="100px">
         <el-form-item label="付款编号" prop="paymentNumber">
           <el-input v-model="paymentForm.paymentNumber" placeholder="系统自动生成" disabled></el-input>
         </el-form-item>
@@ -146,7 +146,7 @@
             <el-option
               v-for="invoice in invoiceOptions"
               :key="invoice.id"
-              :label="`${invoice.invoiceNumber} - ${invoice.supplierName} - ${formatCurrency(invoice.balance)}`"
+              :label="`${invoice.invoiceNumber} - ${invoice.supplierName} - ${formatCurrency(invoice.balanceAmount ?? invoice.balance)}`"
               :value="invoice.id"
             ></el-option>
           </el-select>
@@ -177,12 +177,11 @@
           <el-input-number v-model="paymentForm.amount" :precision="2" :min="0" :max="paymentForm.balanceValue" class="w-full"></el-input-number>
         </el-form-item>
         <el-form-item label="付款方式" prop="paymentMethod">
-          <el-select v-model="paymentForm.paymentMethod" placeholder="请选择付款方式" class="w-full">
+          <el-select v-model="paymentForm.paymentMethod" placeholder="请选择付款方式" class="w-full" @change="handlePaymentMethodChange">
             <el-option label="现金" value="cash"></el-option>
             <el-option label="银行转账" value="bank_transfer"></el-option>
             <el-option label="支票" value="check"></el-option>
             <el-option label="信用卡" value="credit_card"></el-option>
-            <el-option label="其他" value="other"></el-option>
           </el-select>
         </el-form-item>
         <el-form-item label="备注" prop="notes">
@@ -234,7 +233,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button v-permission="'finance:ap:pay'" type="primary" @click="savePayment" :loading="saveLoading">确认</el-button>
+          <el-button v-permission="'finance:ap:pay'" type="primary" @click="savePayment" :loading="saveLoading" :disabled="invoiceLoading">确认</el-button>
         </span>
       </template>
         </AppDialog>
@@ -310,7 +309,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="voidDialogVisible = false">取消</el-button>
-          <el-button v-permission="'finance:ap:update'" type="danger" @click="confirmVoid" :loading="voidLoading">确认作废</el-button>
+          <el-button v-permission="'finance:ap:pay'" type="danger" @click="confirmVoid" :loading="voidLoading">确认作废</el-button>
         </span>
       </template>
         </AppDialog>
@@ -333,7 +332,7 @@ import { NumberFormatter } from '@/utils/commonHelpers'
 import { formatCurrency, formatLocalDate } from '@/utils/format'
 import PrintDialog from '@/components/common/PrintDialog.vue';
 import { parsePaginatedData, parseListData } from '@/utils/responseParser';
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, reactive, onMounted, onBeforeUnmount, computed } from 'vue';
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
 import { ElMessage } from 'element-plus/es/components/message/index';
 import { InfoFilled, Plus } from '@element-plus/icons-vue';
@@ -367,6 +366,9 @@ const {
 } = useListDetailNavigation(paymentList);
 const invoiceOptions = ref([]);
 const bankAccountOptions = ref([]);
+const invoiceLoading = ref(false);
+const loadedInvoiceId = ref(null);
+let invoiceRequest = 0;
 // 搜索表单
 const searchForm = reactive({
   paymentNumber: '',
@@ -427,7 +429,19 @@ const paymentRules = {
     { required: true, message: '请选择付款日期', trigger: 'change' }
   ],
   amount: [
-    { required: true, message: '请输入付款金额', trigger: 'blur' }
+    { required: true, message: '请输入付款金额', trigger: 'blur' },
+    {
+      validator: (rule, value, callback) => {
+        const amount = Number(value);
+        const balance = Number(paymentForm.balanceValue);
+        if (!Number.isFinite(amount) || !Number.isFinite(balance) || amount <= 0 || amount > balance) {
+          callback(new Error('付款金额须大于 0 且不超过剩余金额'));
+        } else {
+          callback();
+        }
+      },
+      trigger: 'change'
+    }
   ],
   paymentMethod: [
     { required: true, message: '请选择付款方式', trigger: 'change' }
@@ -455,6 +469,11 @@ const getPaymentMethodText = (method) => {
     other: '其他'
   };
   return methodMap[method] || method;
+};
+const handlePaymentMethodChange = () => {
+  if (!['bank_transfer', 'credit_card', 'check'].includes(paymentForm.paymentMethod)) {
+    paymentForm.bankAccountId = null;
+  }
 };
 // 加载付款记录列表
 const loadPayments = async () => {
@@ -509,32 +528,42 @@ const loadBankAccountOptions = async () => {
 };
 // 处理发票选择变化
 const handleInvoiceChange = async () => {
-  if (!paymentForm.invoiceId) {
-    paymentForm.supplierName = '';
-    paymentForm.invoiceAmount = '';
-    paymentForm.paidAmount = '';
-    paymentForm.balance = '';
-    paymentForm.balanceValue = 0;
-    paymentForm.amount = 0;
-    return;
-  }
+  const request = ++invoiceRequest;
+  const invoiceId = paymentForm.invoiceId;
+  loadedInvoiceId.value = null;
+  invoiceLoading.value = Boolean(invoiceId);
+  paymentForm.invoiceNumber = '';
+  paymentForm.supplierName = '';
+  paymentForm.invoiceAmount = '';
+  paymentForm.paidAmount = '';
+  paymentForm.balance = '';
+  paymentForm.balanceValue = 0;
+  paymentForm.amount = 0;
+  if (!invoiceId) return;
 
   try {
-    const response = await financeApi.getAPInvoice(paymentForm.invoiceId);
+    const response = await financeApi.getAPInvoice(invoiceId);
+    if (request !== invoiceRequest || invoiceId !== paymentForm.invoiceId) return;
     const invoice = response.data;
-
-    const balance = invoice.amount - invoice.paidAmount;
+    const amount = Number(invoice.totalAmount ?? invoice.amount);
+    const paidAmount = Number(invoice.paidAmount ?? 0);
+    const balance = Number(invoice.balanceAmount ?? invoice.balance ?? (amount - paidAmount));
+    if (![amount, paidAmount, balance].every(Number.isFinite)) throw new Error('发票金额数据无效');
 
     paymentForm.invoiceNumber = invoice.invoiceNumber;
     paymentForm.supplierName = invoice.supplierName;
-    paymentForm.invoiceAmount = formatCurrency(invoice.amount);
-    paymentForm.paidAmount = formatCurrency(invoice.paidAmount);
+    paymentForm.invoiceAmount = formatCurrency(amount);
+    paymentForm.paidAmount = formatCurrency(paidAmount);
     paymentForm.balance = formatCurrency(balance);
     paymentForm.balanceValue = balance;
     paymentForm.amount = balance; // 默认填充剩余金额
+    loadedInvoiceId.value = invoiceId;
   } catch (error) {
+    if (request !== invoiceRequest) return;
     console.error('获取发票详情失败:', error);
     ElMessage.error('获取发票详情失败');
+  } finally {
+    if (request === invoiceRequest) invoiceLoading.value = false;
   }
 };
 // 搜索付款记录
@@ -605,27 +634,24 @@ const handleVoid = (row) => {
 };
 // 确认作废
 const confirmVoid = async () => {
-  if (!voidFormRef.value) return;
-
-  await voidFormRef.value.validate(async (valid) => {
-    if (valid) {
-      voidLoading.value = true;
-      try {
-        await financeApi.voidPayment(voidForm.id, {
-          void_reason: voidForm.voidReason
-        });
-
-        ElMessage.success('付款记录已成功作废');
-        voidDialogVisible.value = false;
-        loadPayments(); // 刷新列表
-      } catch (error) {
-        console.error('作废付款记录失败:', error);
-        ElMessage.error(getApiErrorMessage(error, '作废付款记录失败'));
-      } finally {
-        voidLoading.value = false;
-      }
-    }
-  });
+  if (!voidFormRef.value || voidLoading.value) return;
+  voidLoading.value = true;
+  const id = voidForm.id;
+  const voidReason = voidForm.voidReason;
+  try {
+    let valid;
+    try { valid = await voidFormRef.value.validate(); } catch { return; }
+    if (!valid) return;
+    await financeApi.voidPayment(id, { voidReason });
+    ElMessage.success('付款记录已成功作废');
+    voidDialogVisible.value = false;
+    loadPayments();
+  } catch (error) {
+    console.error('作废付款记录失败:', error);
+    ElMessage.error(getApiErrorMessage(error, '作废付款记录失败'));
+  } finally {
+    voidLoading.value = false;
+  }
 };
 // 新增付款记录
 const showAddDialog = () => {
@@ -678,50 +704,45 @@ const handlePrint = async (row) => {
 };
 // 保存付款记录
 const savePayment = async () => {
-  if (!paymentFormRef.value) return;
+  if (!paymentFormRef.value || saveLoading.value || invoiceLoading.value) return;
+  if (!loadedInvoiceId.value || loadedInvoiceId.value !== paymentForm.invoiceId) {
+    ElMessage.warning('请重新选择发票并等待详情加载完成');
+    return;
+  }
+  saveLoading.value = true;
 
-  await paymentFormRef.value.validate(async (valid) => {
-    if (valid) {
-      saveLoading.value = true;
-      try {
-        // 准备提交的数据
-        const data = {
-          id: paymentForm.id,
-          paymentNumber: paymentForm.paymentNumber,
-          invoiceId: paymentForm.invoiceId,
-          paymentDate: paymentForm.paymentDate,
-          amount: paymentForm.amount,
-          paymentMethod: paymentForm.paymentMethod,
-          notes: paymentForm.notes,
-          createLedgerEntry: paymentForm.createLedgerEntry,
-          bankAccountId: paymentForm.bankAccountId,
-          referenceNumber: paymentForm.referenceNumber
-        };
+  try {
+    const valid = await paymentFormRef.value.validate().catch(() => false);
+    if (!valid) return;
+    const data = {
+      id: paymentForm.id,
+      paymentNumber: paymentForm.paymentNumber,
+      invoiceId: paymentForm.invoiceId,
+      paymentDate: paymentForm.paymentDate,
+      amount: paymentForm.amount,
+      paymentMethod: paymentForm.paymentMethod,
+      notes: paymentForm.notes,
+      createLedgerEntry: paymentForm.createLedgerEntry,
+      bankAccountId: paymentForm.bankAccountId,
+      referenceNumber: paymentForm.referenceNumber
+    };
 
-        await financeApi.createPayment(data);
-        ElMessage.success('添加成功');
-        dialogVisible.value = false;
-        loadPayments();
-      } catch (error) {
-        console.error('保存付款记录失败:', error);
-        const msg = getApiErrorMessage(error, '保存付款记录失败');
-        // 大额审批阈值拦截时给出明确提示
-        if (
-          error?.response?.data?.code === 'PAYMENT_APPROVAL_REQUIRED' ||
-          /审批阈值|skipApproval|PAYMENT_APPROVAL/i.test(String(msg))
-        ) {
-          ElMessage.error(msg);
-        } else {
-          ElMessage.error(msg);
-        }
-      } finally {
-        saveLoading.value = false;
-      }
-    }
-  });
+    await financeApi.createPayment(data);
+    ElMessage.success('添加成功');
+    dialogVisible.value = false;
+    loadPayments();
+  } catch (error) {
+    console.error('保存付款记录失败:', error);
+    ElMessage.error(getApiErrorMessage(error, '保存付款记录失败'));
+  } finally {
+    saveLoading.value = false;
+  }
 };
 // 重置付款表单
 const resetPaymentForm = () => {
+  invoiceRequest += 1;
+  invoiceLoading.value = false;
+  loadedInvoiceId.value = null;
   paymentForm.id = null;
   paymentForm.paymentNumber = '';
   paymentForm.invoiceId = null;
@@ -757,6 +778,7 @@ const handleCurrentChange = (page) => {
 onMounted(() => {
   loadPayments();
 });
+onBeforeUnmount(() => { invoiceRequest += 1; });
 </script>
 <style scoped>
 .header-card {

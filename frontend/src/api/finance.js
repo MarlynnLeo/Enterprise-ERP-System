@@ -70,6 +70,7 @@ export const financeApi = {
     getBySource: (params) => api.get('/finance/inventory-postings/by-source', { params }),
     get: (id) => api.get(`/finance/inventory-postings/${id}`),
     approve: (id) => api.post(`/finance/inventory-postings/${id}/approve`),
+    batchApprove: (data) => api.post('/finance/inventory-postings/batch-approve', data, { timeout: API_CONFIG.longTimeoutMs }),
     reject: (id, data) => api.post(`/finance/inventory-postings/${id}/reject`, data),
     reverse: (id, data) => api.post(`/finance/inventory-postings/${id}/reverse`, data),
   },
@@ -117,6 +118,8 @@ export const financeApi = {
   },
 
   reports: {
+    getLedger: (type, params) => api.get(`/finance/reports/ledgers/${type}`, { params, timeout: API_CONFIG.longTimeoutMs }),
+    getLedgerOptions: (params) => api.get('/finance/reports/ledger-options', { params }),
     getTrialBalance: (params) => api.get('/finance/gl/trial-balance', { params }),
     getBalanceSheet: (params) => api.get('/finance/reports/balance-sheet', { params }),
     getIncomeStatement: (params) => api.get('/finance/reports/income-statement', { params }),
@@ -470,6 +473,7 @@ export const financeApi = {
   // Fixed assets
   getAssets: (params) => api.get('/finance/assets', { params }),
   getAsset: (id) => api.get(`/finance/assets/${id}`),
+  getAssetCostSources: (params) => api.get('/finance/assets/cost-sources', { params }),
   createAsset: (data) => api.post('/finance/assets', data),
   updateAsset: (id, data) => api.put(`/finance/assets/${id}`, data),
   getAssetCategories: (params) => api.get('/finance/assets/categories', { params }),
@@ -489,6 +493,7 @@ export const financeApi = {
     complete: (id) => api.post(`/finance/assets-inventory/${id}/complete`),
   },
   assetCip: {
+    getDetail: (id) => api.get(`/finance/assets-cip/${id}`),
     getList: (params) => api.get('/finance/assets-cip', { params }),
     create: (data) => api.post('/finance/assets-cip', data),
     update: (id, data) => api.put(`/finance/assets-cip/${id}`, data),

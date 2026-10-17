@@ -4,7 +4,7 @@
  */
 
 const runtime = require('./runtime');
-const { db, logger, accountingConfig, financeConfig } = runtime;
+const { db, logger, accountingConfig, financeConfig, toLocalDateString } = runtime;
 
 module.exports = {
   /**
@@ -166,6 +166,7 @@ module.exports = {
            ga.is_debit,
            ga.account_type,
            ga.id as account_id,
+           ga.opening_balance_date,
            COALESCE(ga.opening_debit, 0) as opening_debit,
            COALESCE(ga.opening_credit, 0) as opening_credit,
            COALESCE(SUM(CASE WHEN e.id IS NOT NULL THEN ei.debit_amount ELSE 0 END), 0) as total_debit,
@@ -177,13 +178,13 @@ module.exports = {
           AND e.entry_date <= ?
           AND e.is_posted = 1
          WHERE ga.id IN (${accountIds.map(() => '?').join(',')})
-         GROUP BY ga.id, ga.is_debit, ga.account_type, ga.opening_debit, ga.opening_credit`,
+         GROUP BY ga.id, ga.is_debit, ga.account_type, ga.opening_debit, ga.opening_credit, ga.opening_balance_date`,
       [reportDate, ...accountIds]
     );
 
     // 计算当期余额
     currentBalances.forEach((row) => {
-      result.current[row.account_id] = this.calculateSignedBalance(row);
+      result.current[row.account_id] = this.calculateSignedBalance(row, reportDate);
     });
 
     // 查询对比期余额
@@ -193,6 +194,7 @@ module.exports = {
              ga.is_debit,
              ga.account_type,
              ga.id as account_id,
+             ga.opening_balance_date,
              COALESCE(ga.opening_debit, 0) as opening_debit,
              COALESCE(ga.opening_credit, 0) as opening_credit,
              COALESCE(SUM(CASE WHEN e.id IS NOT NULL THEN ei.debit_amount ELSE 0 END), 0) as total_debit,
@@ -204,20 +206,26 @@ module.exports = {
             AND e.entry_date <= ?
             AND e.is_posted = 1
            WHERE ga.id IN (${accountIds.map(() => '?').join(',')})
-           GROUP BY ga.id, ga.is_debit, ga.account_type, ga.opening_debit, ga.opening_credit`,
+           GROUP BY ga.id, ga.is_debit, ga.account_type, ga.opening_debit, ga.opening_credit, ga.opening_balance_date`,
         [compareDate, ...accountIds]
       );
 
       compareBalances.forEach((row) => {
-        result.compare[row.account_id] = this.calculateSignedBalance(row);
+        result.compare[row.account_id] = this.calculateSignedBalance(row, compareDate);
       });
     }
 
     return result;
   },
 
-  calculateSignedBalance(row) {
-    const openingNet = parseFloat(row.opening_debit || 0) - parseFloat(row.opening_credit || 0);
+  calculateSignedBalance(row, date = null) {
+    const openingIsEffective =
+      !date ||
+      !row.opening_balance_date ||
+      toLocalDateString(row.opening_balance_date) <= toLocalDateString(date);
+    const openingNet = openingIsEffective
+      ? parseFloat(row.opening_debit || 0) - parseFloat(row.opening_credit || 0)
+      : 0;
     const movementNet = parseFloat(row.total_debit || 0) - parseFloat(row.total_credit || 0);
     const netBalance = openingNet + movementNet;
 
@@ -245,6 +253,7 @@ module.exports = {
         `SELECT
              ga.is_debit,
              ga.account_type,
+             ga.opening_balance_date,
              COALESCE(ga.opening_debit, 0) as opening_debit,
              COALESCE(ga.opening_credit, 0) as opening_credit,
              COALESCE(SUM(CASE WHEN e.id IS NOT NULL THEN ei.debit_amount ELSE 0 END), 0) as total_debit,
@@ -253,13 +262,13 @@ module.exports = {
            LEFT JOIN gl_entry_items ei ON ga.id = ei.account_id
            LEFT JOIN gl_entries e ON ei.entry_id = e.id AND e.entry_date <= ? AND e.is_posted = 1
            WHERE ga.id = ?
-           GROUP BY ga.id, ga.is_debit, ga.account_type, ga.opening_debit, ga.opening_credit`,
+           GROUP BY ga.id, ga.is_debit, ga.account_type, ga.opening_debit, ga.opening_credit, ga.opening_balance_date`,
         [date, accountId]
       );
 
       if (result.length === 0) return 0;
 
-      return this.calculateSignedBalance(result[0]);
+      return this.calculateSignedBalance(result[0], date);
     } catch (error) {
       logger.error('获取科目余额失败:', { accountId, date, error: error.message });
       throw error;

@@ -86,7 +86,8 @@
   }
 
   const submitForm = async () => {
-    if (Number(form.amount) <= 0) return showToast('金额必须大于0')
+    if (submitting.value) return
+    if (!Number.isFinite(Number(form.amount)) || Number(form.amount) <= 0) return showToast('金额必须大于0')
     if (!form.description.trim()) return showToast('请输入交易说明')
 
     submitting.value = true

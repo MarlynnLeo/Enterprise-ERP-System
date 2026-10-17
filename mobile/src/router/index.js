@@ -121,6 +121,7 @@ const ROUTE_PERMISSION_RULES = [
   { pattern: /^\/quality\/templates(\/.*)?$/, permission: 'quality:templates:view' },
   { pattern: /^\/quality\/traceability(\/.*)?$/, permission: 'quality:traceability:view' },
   { pattern: /^\/quality\/nonconformance(\/.*)?$/, permission: 'quality:nonconforming:view' },
+  { pattern: /^\/quality\/rework(\/:id)?$/, permission: 'quality:rework:view' },
   { pattern: /^\/quality\/reports\/.*$/, permission: 'quality:reports:view' },
   { pattern: /^\/quality\/standards(\/.*)?$/, permission: 'quality:aql:view' },
   { pattern: /^\/quality(\/.*)?$/, permission: 'quality' },

@@ -177,7 +177,7 @@
     align-items: center;
     justify-content: center;
     background: rgba(168, 85, 247, 0.1);
-    color: var(--module-purple);
+    color: var(--module-purple-text);
     flex-shrink: 0;
   }
   .hero-info {
@@ -202,15 +202,15 @@
     flex-shrink: 0;
     &.success {
       background: rgba(16, 185, 129, 0.1);
-      color: var(--color-success);
+      color: var(--color-success-text);
     }
     &.warning {
       background: rgba(245, 158, 11, 0.1);
-      color: var(--color-warning);
+      color: var(--color-warning-text);
     }
     &.danger {
       background: rgba(239, 68, 68, 0.1);
-      color: var(--color-danger);
+      color: var(--color-danger-text);
     }
     &.default {
       background: rgba(107, 114, 128, 0.1);
@@ -247,16 +247,16 @@
     color: var(--text-primary);
     font-family: var(--font-ui);
     &.primary {
-      color: var(--color-primary);
+      color: var(--color-primary-text);
     }
     &.success {
-      color: var(--color-success);
+      color: var(--color-success-text);
     }
     &.warning {
-      color: var(--color-warning);
+      color: var(--color-warning-text);
     }
     &.danger {
-      color: var(--color-danger);
+      color: var(--color-danger-text);
     }
   }
 

@@ -58,7 +58,7 @@ describe('mobile incoming inspection source and template contract', () => {
       expect(qualityApi.createIncomingInspection).toHaveBeenCalledOnce()
       expect(qualityApi.createIncomingInspection).toHaveBeenCalledWith(expect.objectContaining({
         inspectionType: 'incoming', sourceType: 'purchase_order', referenceId: 7, referenceNo: 'PO-7',
-        materialId: 5, supplierId: 3, productName: '原料甲', quantity: 10, unit: '件', unitId: 1,
+        materialId: 5, purchaseOrderItemId: 70, supplierId: 3, productName: '原料甲', quantity: 10, unit: '件', unitId: 1,
         templateId: 9, batchNo: 'BATCH-7', isFullInspection: true, status: 'pending'
       }))
       expect(Object.keys(qualityApi.createIncomingInspection.mock.calls[0][0]).some(key => key.includes('_'))).toBe(false)

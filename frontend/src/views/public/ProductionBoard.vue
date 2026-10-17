@@ -850,11 +850,11 @@ onUnmounted(() => {
   color: var(--color-text-regular);
 }
 .step-stat .stat-label {
-  color: var(--color-text-secondary);
+  color: var(--color-text-regular);
 }
 .step-stat .stat-value {
   font-weight: bold;
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   margin-left: 4px;
 }
 .step-arrow {

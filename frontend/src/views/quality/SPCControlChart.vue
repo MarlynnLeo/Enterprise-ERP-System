@@ -10,7 +10,7 @@
 
     <el-row :gutter="16">
       <!-- 左侧：控制计划列表 -->
-      <el-col :span="8">
+      <el-col :xs="24" :md="8" class="spc-plan-column">
         <el-card class="data-card">
 
 
@@ -21,6 +21,9 @@
           <div v-loading="planLoading" class="plan-list">
             <div v-for="plan in plans" :key="plan.id"
               class="plan-item" :class="{ active: selectedPlan?.id === plan.id }"
+              role="button" tabindex="0" :aria-pressed="selectedPlan?.id === plan.id"
+              @keydown.enter.self.prevent="selectPlan(plan)"
+              @keydown.space.self.prevent="selectPlan(plan)"
               @click="selectPlan(plan)">
               <div class="plan-name">{{ plan.planName }}</div>
               <div class="plan-meta">
@@ -31,13 +34,13 @@
                 {{ plan.productName || '-' }} | 数据点: {{ plan.dataCount || 0 }}
               </div>
             </div>
-            <EmptyState v-if="!planLoading && plans.length === 0" description="暂无控制计划" ::image-size="80" />
+            <EmptyState v-if="!planLoading && plans.length === 0" description="暂无控制计划" :image-size="80" />
           </div>
         </el-card>
       </el-col>
 
       <!-- 右侧：控制图 + CPK -->
-      <el-col :span="16">
+      <el-col :xs="24" :md="16">
         <el-card v-if="selectedPlan" class="data-card">
           <template #header>
             <div class="card-header">
@@ -59,37 +62,37 @@
           <div v-loading="chartLoading">
             <!-- CPK 指标卡片 -->
             <el-row :gutter="16" class="cpk-row" v-if="cpkData">
-              <el-col :span="4">
+              <el-col :xs="12" :sm="8" :lg="4">
                 <div class="cpk-card">
                   <div class="cpk-value" :class="cpkClass(cpkData.cpk)">{{ cpkData.cpk ?? 'N/A' }}</div>
                   <div class="cpk-label">CPK</div>
                 </div>
               </el-col>
-              <el-col :span="4">
+              <el-col :xs="12" :sm="8" :lg="4">
                 <div class="cpk-card">
                   <div class="cpk-value">{{ cpkData.cp ?? 'N/A' }}</div>
                   <div class="cpk-label">CP</div>
                 </div>
               </el-col>
-              <el-col :span="4">
+              <el-col :xs="12" :sm="8" :lg="4">
                 <div class="cpk-card">
                   <div class="cpk-value">{{ cpkData.mean ?? 'N/A' }}</div>
                   <div class="cpk-label">均值 (X̄)</div>
                 </div>
               </el-col>
-              <el-col :span="4">
+              <el-col :xs="12" :sm="8" :lg="4">
                 <div class="cpk-card">
                   <div class="cpk-value">{{ cpkData.stddev ?? 'N/A' }}</div>
                   <div class="cpk-label">标准差 (σ)</div>
                 </div>
               </el-col>
-              <el-col :span="4">
+              <el-col :xs="12" :sm="8" :lg="4">
                 <div class="cpk-card">
                   <div class="cpk-value">{{ cpkData.n || 0 }}</div>
                   <div class="cpk-label">样本数</div>
                 </div>
               </el-col>
-              <el-col :span="4">
+              <el-col :xs="12" :sm="8" :lg="4">
                 <div class="cpk-card">
                   <div class="cpk-value" :class="cpkClass(cpkData.cpk)">
                     {{ cpkLevel(cpkData.cpk) }}
@@ -353,7 +356,8 @@ onMounted(fetchPlans);
 
 <style scoped>
 .spc-container { padding: 20px; }
-.card-header { display: flex; justify-content: space-between; align-items: center; }
+.card-header { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: center; }
+.spc-plan-column { margin-bottom: 16px; }
 .plan-list { max-height: 600px; overflow-y: auto; }
 .plan-item { padding: 12px; border: 1px solid var(--color-border-lighter); border-radius: var(--radius-sm); margin-bottom: 8px; cursor: pointer; transition: background-color var(--transition-base), border-color var(--transition-base), color var(--transition-base), box-shadow var(--transition-base), opacity var(--transition-base), transform var(--transition-base); }
 .plan-item:hover { border-color: var(--color-primary); background: var(--color-bg-hover); }

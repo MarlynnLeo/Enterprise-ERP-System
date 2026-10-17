@@ -220,7 +220,9 @@ describe('outsourced receipt status side effects', () => {
 
   test('reversal approval cancels the receipt, reverses its voucher, and reopens a completed processing order', async () => {
     mockConnection.execute
-      .mockResolvedValueOnce([[receipt('completed')]])
+      .mockResolvedValueOnce([[{
+        id: 5, receipt_no: 'WWRK260825005', processing_id: 12, status: 'completed',
+      }]])
       .mockResolvedValueOnce([{ affectedRows: 1 }])
       .mockResolvedValueOnce([[{ id: 12, status: 'completed' }]])
       .mockResolvedValueOnce([[{ incomplete_count: '1' }]])

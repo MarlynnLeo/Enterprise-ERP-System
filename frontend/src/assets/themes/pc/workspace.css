@@ -3,18 +3,20 @@
  */
 
 :root[data-theme="workspace"] {
+  --module-section-gap: 8px;
+  --module-panel-padding: 10px 12px;
   color-scheme: light;
 
   /* 颜色 */
 
-  /* 主色 */
-  --color-primary: #4263EB;
-  --color-primary-light-3: #6A84F0;
-  --color-primary-light-5: #93A6F5;
-  --color-primary-light-7: #BDC9F9;
-  --color-primary-light-8: #D9E1FC;
-  --color-primary-light-9: #EFF4FE;
-  --color-primary-dark-2: #344FC1;
+  /* 主色：纯正经典商务蓝 */
+  --color-primary: #2563EB;
+  --color-primary-light-3: #6692F1;
+  --color-primary-light-5: #92B1F5;
+  --color-primary-light-7: #BED0F9;
+  --color-primary-light-8: #D3E0FB;
+  --color-primary-light-9: #E9EFFD;
+  --color-primary-dark-2: #1E4FBC;
   --color-primary-active: var(--color-primary-dark-2);
   --color-on-primary: #FFFFFF;
 
@@ -65,9 +67,9 @@
 
   /* 背景 */
   --color-bg-base: #FFFFFF;
-  --color-bg-page: #F8FAFC;
+  --color-bg-page: #F4F7FB;
   --color-bg-overlay: rgba(15, 23, 42, 0.45);
-  --color-bg-hover: #F1F5F9;
+  --color-bg-hover: #F0F4FA;
   --color-bg-light: var(--color-bg-page);
   --color-bg-section: var(--color-bg-base);
 
@@ -78,25 +80,25 @@
   --shell-sidebar-active-bg: var(--color-primary-light-9);
   --shell-sidebar-active-text: var(--color-primary);
   --shell-sidebar-indicator-width: 3px;
-  --shell-sidebar-active-shadow: 0 1px 3px color-mix(in srgb, var(--color-primary) 12%, transparent);
+  --shell-sidebar-active-shadow: none;
   --shell-menu-icon-opacity: 0.85;
   --shell-menu-icon-opacity-hover: 1;
 
-  --shell-control-hover-shadow: 0 2px 4px rgba(15, 23, 42, 0.05);
-  --shell-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.04);
-  --shell-shadow-hover: 0 4px 6px -1px rgba(15, 23, 42, 0.08);
+  --shell-control-hover-shadow: none;
+  --shell-shadow: none;
+  --shell-shadow-hover: none;
 
   --erp-table-fixed-header-bg: var(--color-bg-light);
   --erp-table-fixed-striped-bg: #FAFCFE;
   --theme-dialog-header-bg: var(--color-bg-base);
   --theme-dialog-footer-bg: var(--color-bg-page);
-  --theme-dialog-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.06);
+  --theme-dialog-shadow: none;
 
   --theme-feature-card-bg: var(--color-bg-base);
   --theme-feature-card-color: var(--color-text-primary);
   --theme-feature-card-border: var(--color-border-base);
-  --theme-feature-card-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
-  --theme-feature-card-hover-shadow: 0 4px 8px rgba(15, 23, 42, 0.08);
+  --theme-feature-card-shadow: none;
+  --theme-feature-card-hover-shadow: none;
   --theme-feature-card-decor: none;
 
   /* 紧凑间距 */
@@ -128,25 +130,25 @@
   --line-height-base: 1.5;
   --line-height-heading: 1.3;
 
-  /* 圆角 */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
+  /* 圆角：扁平化微圆角 */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
   --radius-round: 999px;
 
-  /* 阴影 */
-  --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
-  --shadow-base: 0 1px 3px 0 rgba(15, 23, 42, 0.06);
-  --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.08);
-  --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.08);
-  --shadow-xl: 0 20px 25px -5px rgba(15, 23, 42, 0.1);
-  --shadow-card: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
-  --shadow-card-hover: 0 2px 6px -1px rgba(15, 23, 42, 0.08);
+  /* 阴影：纯粹扁平化，去除立体与浮层阴影 */
+  --shadow-sm: none;
+  --shadow-base: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+  --shadow-xl: none;
+  --shadow-card: none;
+  --shadow-card-hover: none;
   --shadow-inset: none;
-  --shadow-glow-primary: 0 0 0 2px color-mix(in srgb, var(--color-primary) 20%, transparent);
-  --shadow-glow-success: 0 0 0 2px color-mix(in srgb, var(--color-success) 20%, transparent);
-  --shadow-glow-warning: 0 0 0 2px color-mix(in srgb, var(--color-warning) 20%, transparent);
-  --shadow-glow-danger: 0 0 0 2px color-mix(in srgb, var(--color-danger) 20%, transparent);
+  --shadow-glow-primary: none;
+  --shadow-glow-success: none;
+  --shadow-glow-warning: none;
+  --shadow-glow-danger: none;
 
   --transition-fast: 0.12s;
   --transition-base: 0.2s;
@@ -182,8 +184,8 @@
   --theme-status-warning-color: var(--color-warning-dark);
   --theme-status-danger-color: var(--color-danger-dark);
   --theme-status-info-color: var(--color-info-dark);
-  --workspace-rail-bg: #192238;
-  --workspace-rail-text: #CBD4E8;
+  --workspace-rail-bg: #0284C7;
+  --workspace-rail-text: #FFFFFF;
   --theme-button-primary-image: none;
   --theme-button-primary-hover-image: none;
   --theme-button-success-image: none;
@@ -195,7 +197,7 @@
   --theme-button-info-image: none;
   --theme-button-info-hover-image: none;
   --el-dialog-padding-primary: 14px;
-  --workspace-floating-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  --workspace-floating-shadow: none;
 }
 
 :root[data-theme="workspace"] body {
@@ -210,21 +212,23 @@
 :root[data-theme="workspace"] .el-card {
   border-radius: var(--radius-md) !important;
   border: 1px solid var(--color-border-base) !important;
-  box-shadow: var(--shadow-card) !important;
+  box-shadow: none !important;
   transition: border-color var(--transition-base);
 }
 
 :root[data-theme="workspace"] .el-card:hover {
-  box-shadow: var(--shadow-card-hover) !important;
+  box-shadow: none !important;
   border-color: var(--color-border-dark) !important;
 }
 
 :root[data-theme="workspace"] .module-page:not(.dashboard-page) {
-  gap: 8px !important;
+  /* 区块间距由下面的 margin 统一承担，避免纵向 flex 页面叠加 gap。 */
+  gap: 0 !important;
 }
 
 :root[data-theme="workspace"] .module-page:not(.dashboard-page) > :is(
-  .header-card, .search-card, .action-card, .data-card, .empty-card, .box-card,
+  .header-card, .search-card, .filter-card, .action-card, .data-card, .table-card,
+  .empty-card, .box-card, .history-panel,
   .statistics-row, .stats-row, .stats-cards, .stat-cards, .stats-grid
 ) {
   margin-top: 0 !important;
@@ -232,18 +236,82 @@
 }
 
 :root[data-theme="workspace"] .module-page:not(.dashboard-page) .el-card > .el-card__body {
+  /* 直接表格与组件封装表格共享留白，不能根据 DOM 深度清空内边距。 */
   padding: 10px 12px !important;
 }
 
-/* 表格贴合容器；树、看板、页签和图表沿用卡片内边距。 */
-:root[data-theme="workspace"] .module-page:not(.dashboard-page) .el-card.data-card > .el-card__body:has(> .el-table) {
+/* 嵌在数据面板里的查询卡作为工具栏，避免卡片、背景和留白重复嵌套。 */
+:root[data-theme="workspace"] .module-page:not(.dashboard-page) :is(.data-card, .table-card, .box-card, .history-panel) .finance-query-card {
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+:root[data-theme="workspace"] .module-page:not(.dashboard-page) :is(.data-card, .table-card, .box-card, .history-panel) .el-card.finance-query-card > .el-card__body {
   padding: 0 !important;
 }
 
-:root[data-theme="workspace"] .data-card > .el-card__body > :is(.filter-bar, .search-container, .role-header, .menu-header) {
-  margin: 0 !important;
-  padding: 8px 12px !important;
-  border-bottom: 1px solid var(--color-border-light);
+:root[data-theme="workspace"] .module-page:not(.dashboard-page) :is(.data-card, .table-card, .box-card) > .el-card__body > :is(
+  .filter-bar, .filter-section, .search-container, .role-header, .menu-header,
+  .finance-query-card, .el-form--inline
+),
+:root[data-theme="workspace"] .module-page:not(.dashboard-page) .history-panel > .search-bar {
+  margin: 0 0 8px !important;
+  padding: 0 0 8px !important;
+  border-bottom: 1px solid var(--color-border-light) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+:root[data-theme="workspace"] .module-page:not(.dashboard-page) :is(.data-card, .table-card, .box-card) > .el-card__body > :is(
+  .filter-bar, .filter-section, .search-container, .finance-query-card, .el-form--inline
+) + .el-table {
+  margin-top: 0 !important;
+}
+
+:root[data-theme="workspace"] .module-page:not(.dashboard-page) .data-card > .el-card__body > .el-form--inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+}
+
+:root[data-theme="workspace"] .module-page:not(.dashboard-page) .data-card > .el-card__body > .el-form--inline .el-form-item {
+  margin: 0;
+}
+
+:root[data-theme="workspace"] .module-page:not(.dashboard-page) .data-card > .el-card__body > .el-form--inline .el-select {
+  width: 160px;
+  max-width: 100%;
+}
+
+/* 自建的历史记录/对账面板沿用业务卡片的表面。 */
+:root[data-theme="workspace"] .module-page:not(.dashboard-page) :is(.history-panel, .reconciliation-tabs) {
+  padding: 10px 12px !important;
+  background: var(--color-bg-base) !important;
+  border: 1px solid var(--color-border-base) !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: none !important;
+}
+
+/* 历史表格填满剩余空间，不能在页头之外再占满整页高度而挤出分页。 */
+:root[data-theme="workspace"] .module-page.purchase-history {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+:root[data-theme="workspace"] .purchase-history > .header-card {
+  flex-shrink: 0;
+}
+
+:root[data-theme="workspace"] .purchase-history > .history-panel {
+  flex: 1;
+  min-height: 0;
+  height: auto;
 }
 
 :root[data-theme="workspace"] .el-card > .el-card__header {
@@ -606,8 +674,14 @@
   font-size: var(--font-size-sm);
 }
 
+/* 页内表单不能用局部圆角覆盖经典主题；组合输入保留拼接边缘。 */
+:root[data-theme="workspace"] .el-input:not(.el-input-group) > .el-input__wrapper,
+:root[data-theme="workspace"] .el-date-editor.el-input__wrapper,
+:root[data-theme="workspace"] .el-textarea__inner {
+  border-radius: var(--theme-input-radius);
+}
+
 :root[data-theme="workspace"] .el-select__wrapper {
-  border-radius: var(--radius-sm);
   min-height: var(--el-component-size);
   padding: 2px 8px;
   line-height: 1.5;
@@ -708,11 +782,23 @@
   border-bottom: 1px solid var(--color-border-light);
 }
 
-:root[data-theme="workspace"] .module-page:not(.dashboard-page) :is(.pagination-container, .pagination-wrapper, .table-pagination) {
-  margin-top: 0 !important;
-  padding: 6px 12px !important;
+/* 兼容旧分页类名和未包容器的分页；只给外层加间距，不重复包裹分页控件。 */
+:root[data-theme="workspace"] .module-page:not(.dashboard-page) :is(
+  .pagination-container, .pagination-wrapper, .table-pagination,
+  .pagination-bar, .pagination-end, .pagination
+),
+:root[data-theme="workspace"] .module-page:not(.dashboard-page) .flex-end:has(> .el-pagination),
+:root[data-theme="workspace"] .module-page:not(.dashboard-page) :is(.el-card__body, .el-tab-pane) > .el-pagination {
+  display: flex;
+  justify-content: flex-end;
+  justify-content: safe flex-end;
+  align-items: center;
+  margin: 8px 0 0 !important;
+  padding: 8px 0 0 !important;
   border-top: 1px solid var(--color-border-light);
   background-color: var(--color-bg-base);
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 :root[data-theme="workspace"] .el-pagination {
@@ -727,6 +813,7 @@
   min-width: var(--el-pagination-button-width) !important;
   height: var(--el-pagination-button-height) !important;
   padding: 0 5px;
+  margin: 0 !important;
   border-radius: var(--radius-sm) !important;
   line-height: 1.5 !important;
   background: var(--color-bg-base) !important;
@@ -752,21 +839,28 @@
   font-size: var(--font-size-xs);
 }
 
-:root[data-theme="workspace"] .module-page:not(.dashboard-page) .module-tabs.el-tabs--border-card,
+:root[data-theme="workspace"] .module-page:not(.dashboard-page) .el-tabs--border-card,
 :root[data-theme="workspace"] .module-page:not(.dashboard-page) .module-tabs .inner-card.el-card {
+  background: var(--color-bg-base) !important;
+  border: 1px solid var(--color-border-base) !important;
   border-radius: var(--radius-md) !important;
-  box-shadow: var(--shadow-card) !important;
+  box-shadow: none !important;
 }
 
-:root[data-theme="workspace"] .module-page:not(.dashboard-page) .module-tabs.el-tabs--border-card > .el-tabs__header {
+:root[data-theme="workspace"] .el-pagination .el-pager {
+  display: flex;
+  gap: 6px;
+}
+
+:root[data-theme="workspace"] .module-page:not(.dashboard-page) .el-tabs--border-card > .el-tabs__header {
   padding: 0 8px !important;
   background-color: var(--color-bg-page);
   border-bottom: 1px solid var(--color-border-base);
 }
 
-:root[data-theme="workspace"] .module-page:not(.dashboard-page) .module-tabs.el-tabs--border-card > .el-tabs__content,
+:root[data-theme="workspace"] .module-page:not(.dashboard-page) .el-tabs--border-card > .el-tabs__content,
 :root[data-theme="workspace"] .module-page:not(.dashboard-page) .module-tabs .inner-card.el-card > .el-card__body {
-  padding: 8px !important;
+  padding: 10px 12px !important;
 }
 
 :root[data-theme="workspace"] .module-page:not(.dashboard-page) .module-tabs .inner-card.el-card > .el-card__header {
@@ -780,7 +874,7 @@
   font-size: var(--font-size-sm);
   transition: color var(--transition-base);
 }
-:root[data-theme="workspace"] .module-page:not(.dashboard-page) :is(.ai-tabs, .settings-tabs, .el-tabs--border-card) > .el-tabs__content { padding: 8px !important; }
+:root[data-theme="workspace"] .module-page:not(.dashboard-page) :is(.ai-tabs, .settings-tabs, .el-tabs--border-card) > .el-tabs__content { padding: 10px 12px !important; }
 :root[data-theme="workspace"] .module-page:not(.dashboard-page) .el-tabs__header { margin-bottom: 8px; }
 :root[data-theme="workspace"] .module-page:not(.dashboard-page) .el-tabs__item.is-active { color: var(--color-primary-dark-2) !important; font-weight: 600; }
 

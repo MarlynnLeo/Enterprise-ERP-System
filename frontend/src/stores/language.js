@@ -7,7 +7,7 @@
 
 import { defineStore } from 'pinia'
 import { ref, shallowRef } from 'vue'
-import { getBrowserLanguage } from '@/utils/language'
+import { getPreferredLanguage } from '@/utils/language'
 
 // Chinese is the default locale. Other Element Plus locale bundles are only
 // downloaded when the user selects them.
@@ -31,7 +31,8 @@ const loadElementLocale = async (langCode) => {
 
 export const useLanguageStore = defineStore('language', () => {
   // 当前语言
-  const currentLanguage = ref(localStorage.getItem('language') || 'zh-CN')
+  const currentLanguage = ref(getPreferredLanguage())
+  let languageRequest = 0
 
   // Element Plus 语言配置
   const elementLocale = shallowRef(zhCn)
@@ -54,8 +55,7 @@ export const useLanguageStore = defineStore('language', () => {
 
   // 初始化语言设置
   const initLanguage = () => {
-    const savedLanguage = localStorage.getItem('language')
-    return setLanguage(savedLanguage || getBrowserLanguage())
+    return setLanguage(getPreferredLanguage())
   }
 
   // 设置语言
@@ -63,9 +63,14 @@ export const useLanguageStore = defineStore('language', () => {
     const language = supportedLanguages.find(lang => lang.code === langCode)
     if (!language) return false
 
-    elementLocale.value = await loadElementLocale(langCode)
+    const request = ++languageRequest
+    const loadedLocale = await loadElementLocale(langCode)
+    if (request !== languageRequest) return false
+    elementLocale.value = loadedLocale
     currentLanguage.value = langCode
-    localStorage.setItem('language', langCode)
+    try { localStorage.setItem('language', langCode) } catch {
+      // The active language still works when persistence is unavailable.
+    }
 
     // 更新 HTML lang 属性
     document.documentElement.lang = langCode

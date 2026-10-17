@@ -59,7 +59,7 @@
       </div>
 
       <!-- 操作按钮 -->
-      <div class="action-section" v-if="receipt.status !== 'void' && receipt.status !== '已作废'" v-permission="'finance:ar:update'">
+      <div class="action-section" v-if="receipt.status !== 'void' && receipt.status !== '已作废'" v-permission="'finance:ar:receive'">
         <VanButton round block type="danger" @click="openVoidDialog" :loading="actionLoading">
           作废收款
         </VanButton>
@@ -137,16 +137,18 @@
 
   // 作废收款
   const handleVoid = async () => {
+    if (actionLoading.value || !receipt.value?.id) return
+    const recordId = receipt.value.id
     const reason = voidReason.value.trim()
     if (!reason) {
       showToast('请填写作废原因')
       return
     }
 
+    actionLoading.value = true
     try {
       await showConfirmDialog({ title: '作废确认', message: '确定作废此收款记录？此操作不可撤销。' })
-      actionLoading.value = true
-      await financeApi.voidARReceipt(receipt.value.id, reason)
+      await financeApi.voidARReceipt(recordId, reason)
       showToast('收款已作废')
       showVoidDialog.value = false
       await loadDetail()
@@ -189,7 +191,7 @@
     align-items: center;
     justify-content: center;
     background: rgba(16, 185, 129, 0.1);
-    color: var(--color-success);
+    color: var(--color-success-text);
     flex-shrink: 0;
   }
   .hero-info {
@@ -214,11 +216,11 @@
     flex-shrink: 0;
     &.success {
       background: rgba(16, 185, 129, 0.1);
-      color: var(--color-success);
+      color: var(--color-success-text);
     }
     &.danger {
       background: rgba(239, 68, 68, 0.1);
-      color: var(--color-danger);
+      color: var(--color-danger-text);
     }
   }
   .amount-card {
@@ -250,7 +252,7 @@
     color: var(--text-primary);
     font-family: var(--font-ui);
     &.primary {
-      color: var(--color-primary);
+      color: var(--color-primary-text);
     }
   }
   .info-section {
@@ -282,7 +284,7 @@
   .payment-amount {
     font-size: 0.9375rem;
     font-weight: 700;
-    color: var(--color-success);
+    color: var(--color-success-text);
     font-family: var(--font-ui);
   }
   .notes-text {

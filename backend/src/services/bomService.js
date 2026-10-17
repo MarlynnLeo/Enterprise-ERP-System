@@ -1017,10 +1017,13 @@ const bomService = {
   },
 
   async deleteBom(id) {
+    const connection = await pool.getConnection();
     try {
+      await connection.beginTransaction();
       // 检查 BOM 是否存在及审核状态
-      const [bomInfo] = await pool.query(
-        'SELECT product_id, approved_by FROM bom_masters WHERE id = ? AND deleted_at IS NULL',
+      // 与缓存写入的共享锁互斥：先锁BOM，再更改缓存，直至删除提交。
+      const [bomInfo] = await connection.query(
+        'SELECT product_id, approved_by FROM bom_masters WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
         [id]
       );
       if (!bomInfo || bomInfo.length === 0) {
@@ -1032,7 +1035,7 @@ const bomService = {
       const productId = bomInfo[0].product_id;
 
       // 检查是否被生产计划引用
-      const [plans] = await pool.query(
+      const [plans] = await connection.query(
         'SELECT COUNT(*) as count FROM production_plans WHERE bom_id = ?',
         [id]
       );
@@ -1040,36 +1043,27 @@ const bomService = {
         throw new Error('该BOM已被生产计划引用，不能删除');
       }
 
-      // 使缓存失效
-      try {
-        const BomExplosionService = require('./BomExplosionService');
-        await BomExplosionService.invalidateCache(id);
-      } catch (e) {
-        await DLQService.recordSideEffectFailure('BOM:deleteInvalidateCache', { bomId: id }, e);
-      }
+      // 在软删/引用更新之前沿当前依赖清除祖先缓存；任一步失败一起回滚。
+      const BomExplosionService = require('./BomExplosionService');
+      await BomExplosionService.invalidateCache(id, connection);
 
-      await pool.query('DELETE FROM bom_details WHERE bom_id = ?', [id]);
+      await connection.query('DELETE FROM bom_details WHERE bom_id = ?', [id]);
       // ✅ 软删除BOM主表
-      await softDelete(pool, 'bom_masters', 'id', id);
+      await softDelete(connection, 'bom_masters', 'id', id);
 
       // 更新该产品在其他BOM中的has_sub_bom标记
       if (productId) {
-        try {
-          const BomExplosionService = require('./BomExplosionService');
-          await BomExplosionService.updateHasSubBomFlag(productId);
-        } catch (e) {
-          await DLQService.recordSideEffectFailure(
-            'BOM:deleteUpdateFlag',
-            { productId, bomId: id },
-            e
-          );
-        }
+        await BomExplosionService.updateHasSubBomFlag(productId, connection);
       }
 
+      await connection.commit();
       return true;
     } catch (error) {
+      await connection.rollback();
       logger.error('删除BOM失败:', error);
       throw error;
+    } finally {
+      connection.release();
     }
   },
 

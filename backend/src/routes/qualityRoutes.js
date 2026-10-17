@@ -37,7 +37,18 @@ const ncpController = require('../controllers/business/quality/nonconformingProd
 /**
  * AQL 标准管理
  */
-router.get('/aql-standards', requirePermission('quality:aql:view'), aqlController.getStandards);
+const inspectionReadPermissions = [
+  'quality:inspections:view',
+  'quality:incoming:view',
+  'quality:process:view',
+  'quality:final:view',
+  'quality:first-article:view',
+];
+router.get(
+  '/aql-standards',
+  requirePermission(['quality:aql:view', ...inspectionReadPermissions]),
+  aqlController.getStandards
+);
 router.post(
   '/aql-standards',
   requirePermission('quality:aql:create'),
@@ -53,16 +64,31 @@ router.delete(
   requirePermission('quality:aql:delete'),
   aqlController.deleteStandard
 );
-router.get('/aql-levels', requirePermission('quality:aql:view'), aqlController.getAqlLevels);
+router.get(
+  '/aql-levels',
+  requirePermission(['quality:aql:view', ...inspectionReadPermissions]),
+  aqlController.getAqlLevels
+);
 router.post(
   '/aql-sampling/calculate',
-  requirePermission('quality:inspections:view'),
+  requirePermission(inspectionReadPermissions),
   aqlController.calculateSampling
 );
 
 /**
  * 质量检验相关路由
  */
+
+// Inspection-scoped read-only source lookup; does not grant production permissions.
+router.get(
+  '/inspection-sources/production',
+  (req, res, next) => {
+    const type = req.query.inspectionType;
+    const permission = type === 'final' ? 'quality:final:view' : 'quality:process:view';
+    return requirePermission([permission, 'quality:inspections:view'])(req, res, next);
+  },
+  require('../controllers/business/quality/inspectionSourceController').getProductionSources
+);
 
 // 来料检验
 router.get(
@@ -311,17 +337,17 @@ router.get(
  */
 router.get(
   '/templates/presets',
-  requirePermission('quality:templates:view'),
+  requirePermission(['quality:templates:view', ...inspectionReadPermissions]),
   inspectionTemplateController.getPresetDocxList
 );
 router.get(
   '/templates/parse-preset',
-  requirePermission('quality:templates:view'),
+  requirePermission(['quality:templates:view', ...inspectionReadPermissions]),
   inspectionTemplateController.parsePresetDocx
 );
 router.post(
   '/templates/parse-preset',
-  requirePermission('quality:templates:view'),
+  requirePermission(['quality:templates:view', ...inspectionReadPermissions]),
   inspectionTemplateController.parsePresetDocx
 );
 router.post(
@@ -343,12 +369,12 @@ router.post(
 );
 router.get(
   '/templates',
-  requirePermission('quality:templates:view'),
+  requirePermission(['quality:templates:view', ...inspectionReadPermissions]),
   inspectionTemplateController.getTemplates
 );
 router.get(
   '/templates/reusable-items',
-  requirePermission('quality:templates:view'),
+  requirePermission(['quality:templates:view', ...inspectionReadPermissions]),
   inspectionTemplateController.getReusableItems
 );
 router.post(
@@ -358,7 +384,7 @@ router.post(
 );
 router.get(
   '/templates/:id',
-  requirePermission('quality:templates:view'),
+  requirePermission(['quality:templates:view', ...inspectionReadPermissions]),
   inspectionTemplateController.getTemplate
 );
 router.post(
@@ -447,7 +473,7 @@ router.post(
 router.post(
   '/ncp/:id/concession/approve',
   authenticateToken,
-  requirePermission('quality:nonconforming:update'),
+  requirePermission('quality:nonconforming:approve'),
   ncpController.approveConcession
 );
 

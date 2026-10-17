@@ -440,18 +440,33 @@ module.exports = {
       return null;
     }
 
+    let retained = null;
+    let repairedCount = 0;
     for (const entry of entries) {
+      if (entry.document_type !== '期末WIP结转' && entry.transaction_type !== '期末WIP结转') {
+        throw new BusinessError(
+          'WIP编号与其他来源凭证冲突，请先核对原始凭证',
+          null,
+          'WIP_VOUCHER_SOURCE_CONFLICT',
+          409
+        );
+      }
       const [items] = await connection.execute(
         'SELECT id, entry_id, line_number, account_id, debit_amount, credit_amount, description, cost_center_id, project_id, created_at, updated_at, currency_code, exchange_rate, customer_id, supplier_id, employee_id FROM gl_entry_items WHERE entry_id = ? ORDER BY line_number, id FOR UPDATE',
         [entry.id]
       );
 
-      if (this.isExpectedWIPVoucher(items, totalWIP, wipAccountId, productionCostAccountId)) {
-        return {
+      if (
+        !retained &&
+        Number(entry.is_posted) === 1 &&
+        this.isExpectedWIPVoucher(items, totalWIP, wipAccountId, productionCostAccountId)
+      ) {
+        retained = {
           reused: true,
           entryId: entry.id,
           entryNumber: entry.entry_number,
         };
+        continue;
       }
 
       if (Number(entry.is_posted) === 1 || entry.is_posted === true) {
@@ -508,9 +523,10 @@ module.exports = {
         await connection.execute('DELETE FROM gl_entry_items WHERE entry_id = ?', [entry.id]);
         await connection.execute('DELETE FROM gl_entries WHERE id = ?', [entry.id]);
       }
+      repairedCount += 1;
     }
 
-    return { repaired: true, repairedCount: entries.length };
+    return { ...retained, repaired: repairedCount > 0, repairedCount };
   },
 
   normalizeClassificationValue(value) {

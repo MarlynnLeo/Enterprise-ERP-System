@@ -274,13 +274,21 @@ class PurchaseReceiveInspectionService {
 
   static async generateBatchNo(connection, supplierCode, supplierId) {
     const date = new Date();
+    const [rules] = await connection.query(
+      "SELECT sequence_length FROM coding_rules WHERE business_type = 'batch_number' AND is_active = 1 LIMIT 1"
+    );
+    const configuredLength = Number(rules[0]?.sequence_length);
+    const sequenceLength =
+      Number.isInteger(configuredLength) && configuredLength >= 1 && configuredLength <= 10
+        ? configuredLength
+        : 3;
     const dateStr = `${String(date.getFullYear()).slice(-2)}${String(date.getMonth() + 1).padStart(
       2,
       '0'
     )}${String(date.getDate()).padStart(2, '0')}`;
 
     // 基于已生成批次号取序号数值最大值（而非检验单行数），避免软删除导致计数回退撞号、并发重号
-    const likePrefix = `PUR-${supplierCode}-${dateStr}-`;
+    const likePrefix = `${supplierCode}-${dateStr}`;
     const [rows] = await connection.query(
       `SELECT MAX(CAST(SUBSTRING(batch_no, ?) AS UNSIGNED)) AS max_seq
        FROM quality_inspections
@@ -289,7 +297,7 @@ class PurchaseReceiveInspectionService {
       [likePrefix.length + 1, supplierId, `${likePrefix}%`]
     );
 
-    const serialNo = String((rows[0]?.max_seq || 0) + 1).padStart(3, '0');
+    const serialNo = String(Number(rows[0]?.max_seq || 0) + 1).padStart(sequenceLength, '0');
     return `${likePrefix}${serialNo}`;
   }
 }

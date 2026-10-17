@@ -79,7 +79,7 @@ export const THEME_PRESET_LIST = Object.freeze([
     id: 'workspace',
     name: '经典主题',
     description: '清晰紧凑的表格布局，适合日常业务操作',
-    primaryColor: '#4263EB',
+    primaryColor: '#2563EB',
     mode: 'light',
     icon: 'Briefcase',
     defaultPageSize: 25
@@ -140,6 +140,39 @@ export const getAccessibleTextColor = (backgroundColor) => {
     (Math.min(backgroundLuminance, blackLuminance) + 0.05)
 
   return blackContrast >= whiteContrast ? '#000000' : '#FFFFFF'
+}
+
+// A brand fill and text on a pale surface need different tones. Derive the text
+// against every real theme surface, including the tinted status/selection fill.
+export const getSemanticContrastPalette = (color, surfaceColors = []) => {
+  const rgb = parseHexColor(color) || [64, 158, 255]
+  const toHex = (channels) => `#${channels.map((channel) => Math.round(channel).toString(16).padStart(2, '0')).join('').toUpperCase()}`
+  const mix = (left, right, amount) => left.map((channel, index) => channel + (right[index] - channel) * amount)
+  const contrast = (left, right) => {
+    const a = relativeLuminance(left)
+    const b = relativeLuminance(right)
+    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+  }
+  const surfaces = surfaceColors.map(parseHexColor).filter(Boolean)
+  if (!surfaces.length) surfaces.push([255, 255, 255])
+  const backgrounds = surfaces.flatMap((surface) => [surface, mix(surface, rgb, 0.14)])
+  const minimumContrast = (candidate) => Math.min(...backgrounds.map((background) => contrast(candidate, background)))
+  const black = [0, 0, 0]
+  const white = [255, 255, 255]
+  const target = minimumContrast(black) >= minimumContrast(white) ? black : white
+  let text = rgb
+  // Round each candidate before checking: serialized CSS must meet the target.
+  for (let step = 0; step <= 100 && minimumContrast(text) < 4.6; step++) {
+    text = mix(rgb, target, step / 100).map(Math.round)
+  }
+  const on = getAccessibleTextColor(toHex(rgb))
+  const fillTarget = on === '#000000' ? white : black
+  return {
+    text: toHex(text),
+    on,
+    hover: toHex(mix(rgb, fillTarget, 0.12)),
+    active: toHex(mix(rgb, fillTarget, 0.2))
+  }
 }
 
 const normalizeFontSize = (value) => {

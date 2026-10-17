@@ -19,6 +19,7 @@ const {
 } = require('../../../utils/production/equipmentStatus');
 
 const { pool } = require('../../../config/db');
+const EquipmentRecordLifecycleService = require('../../../services/business/EquipmentRecordLifecycleService');
 
 const handleDatabaseError = (error, res) => handleError(res, error);
 
@@ -45,6 +46,31 @@ const sendPagedEquipmentRecords = (res, rows, total, page, pageSize) => {
 };
 
 const normalizeEquipmentTypeStatus = (status) => (status && status !== 'all' ? status : '');
+
+const updateEquipmentRecord = (kind) => async (req, res) => {
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+    const record = await EquipmentRecordLifecycleService.updateRecord(
+      connection,
+      kind,
+      req.params.id,
+      mapKeysToSnake(req.body || {}),
+      req
+    );
+    await connection.commit();
+    return ResponseHandler.success(res, record, '记录处理成功');
+  } catch (error) {
+    if (connection) await connection.rollback();
+    return handleDatabaseError(error, res);
+  } finally {
+    if (connection) connection.release();
+  }
+};
+
+exports.updateMaintenanceRecord = updateEquipmentRecord('maintenance');
+exports.updateFailureRecord = updateEquipmentRecord('failure');
 
 exports.getEquipmentTypes = async (req, res) => {
   try {
@@ -698,18 +724,8 @@ exports.addMaintenanceRecord = async (req, res) => {
   let connection;
   try {
     const { equipment_id } = req.params;
-    const {
-      maintenance_type,
-      maintenance_date,
-      maintenance_person,
-      maintenance_staff,
-      description,
-      cost,
-      parts_replaced,
-      next_maintenance_date,
-      status,
-      remarks,
-    } = mapKeysToSnake(req.body || {});
+    const input = mapKeysToSnake(req.body || {});
+    const { maintenance_type, maintenance_date, status } = input;
 
     const maintenanceType = normalizeMaintenanceType(maintenance_type);
     const maintenanceStatus = !status || status === 'planned' ? 'pending' : status;
@@ -726,11 +742,20 @@ exports.addMaintenanceRecord = async (req, res) => {
       );
     }
 
+    const prepared = EquipmentRecordLifecycleService.prepareCreation('maintenance', {
+      ...input,
+      maintenance_type: maintenanceType,
+      status: maintenanceStatus,
+    });
+    const { description, cost, completed_date, remarks, parts_replaced, next_maintenance_date } =
+      prepared;
+    const staff = prepared.maintenance_staff || prepared.maintenance_person || null;
+
     connection = await pool.getConnection();
     await connection.beginTransaction();
     // 锁定设备，避免建单与设备归档交错。
     const [existingEquipment] = await connection.query(
-      'SELECT id FROM equipment WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      'SELECT id, status FROM equipment WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
       [equipment_id]
     );
 
@@ -740,25 +765,35 @@ exports.addMaintenanceRecord = async (req, res) => {
     }
 
     // 插入维护记录
+    EquipmentRecordLifecycleService.assertCanStart(existingEquipment[0], maintenanceStatus);
     const [result] = await connection.query(
       `INSERT INTO equipment_maintenance (
         equipment_id, maintenance_type, maintenance_date, maintenance_staff,
-        description, cost, parts_replaced, next_maintenance_date, status, remarks
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        description, cost, parts_replaced, next_maintenance_date, status, remarks, completed_date
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         equipment_id,
         maintenanceType,
         maintenance_date,
-        maintenance_person || maintenance_staff || null,
+        staff,
         description,
         cost,
         parts_replaced,
         next_maintenance_date,
         maintenanceStatus,
         remarks,
+        completed_date || null,
       ]
     );
 
+    await EquipmentRecordLifecycleService.auditRecord(
+      connection,
+      'maintenance',
+      result.insertId,
+      null,
+      { ...prepared, equipment_id, maintenance_staff: staff },
+      req
+    );
     await connection.commit();
     ResponseHandler.success(
       res,
@@ -784,6 +819,7 @@ exports.addMaintenanceRecord = async (req, res) => {
  * 添加设备故障记录
  */
 exports.addFailureRecord = async (req, res) => {
+  let connection;
   try {
     const { equipment_id } = req.params;
     const {
@@ -798,20 +834,29 @@ exports.addFailureRecord = async (req, res) => {
       downtime_hours,
       repair_cost,
       remarks,
-    } = mapKeysToSnake(req.body || {});
+    } = EquipmentRecordLifecycleService.prepareCreation('failure', {
+      ...mapKeysToSnake(req.body || {}),
+      failure_date: req.body?.failure_date || req.body?.failureDate || new Date(),
+      repair_status: req.body?.repair_status || req.body?.repairStatus || 'reported',
+    });
+
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
 
     // 检查设备是否存在
-    const [existingEquipment] = await pool.query(
-      'SELECT id FROM equipment WHERE id = ? AND deleted_at IS NULL',
+    const [existingEquipment] = await connection.query(
+      'SELECT id, status FROM equipment WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
       [equipment_id]
     );
 
     if (existingEquipment.length === 0) {
+      await connection.rollback();
       return ResponseHandler.error(res, '设备不存在', 'NOT_FOUND', 404);
     }
 
     // 插入故障记录
-    const [result] = await pool.query(
+    EquipmentRecordLifecycleService.assertCanStart(existingEquipment[0], repair_status);
+    const [result] = await connection.query(
       `INSERT INTO equipment_failure (
         equipment_id, failure_date, failure_type, description, reported_by,
         repair_status, resolution, resolved_date, resolved_by, downtime_hours, repair_cost, remarks
@@ -832,6 +877,28 @@ exports.addFailureRecord = async (req, res) => {
       ]
     );
 
+    await EquipmentRecordLifecycleService.auditRecord(
+      connection,
+      'failure',
+      result.insertId,
+      null,
+      {
+        equipment_id,
+        failure_date,
+        failure_type,
+        description,
+        reported_by,
+        repair_status,
+        resolution,
+        resolved_date,
+        resolved_by,
+        downtime_hours,
+        repair_cost,
+        remarks,
+      },
+      req
+    );
+    await connection.commit();
     ResponseHandler.success(
       res,
       {
@@ -845,7 +912,10 @@ exports.addFailureRecord = async (req, res) => {
       201
     );
   } catch (error) {
+    if (connection) await connection.rollback();
     handleDatabaseError(error, res);
+  } finally {
+    if (connection) connection.release();
   }
 };
 

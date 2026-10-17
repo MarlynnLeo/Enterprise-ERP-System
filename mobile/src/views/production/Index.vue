@@ -90,6 +90,13 @@
       gradient: 'linear-gradient(135deg, var(--ds-purple) 0%, var(--ds-pink) 100%)'
     },
     {
+      label: '生产过程',
+      path: '/production/process',
+      icon: 'cog',
+      permission: 'production:process',
+      gradient: 'linear-gradient(135deg, var(--color-warning) 0%, var(--color-primary) 100%)'
+    },
+    {
       label: '生产报工',
       path: '/production/report',
       icon: 'document-text',
@@ -138,6 +145,13 @@
       icon: 'clipboard-check',
       permission: 'production:tasks:view',
       badge: 0
+    },
+    {
+      title: '生产过程',
+      desc: '管理生产工序与进度',
+      path: '/production/process',
+      icon: 'cog',
+      permission: 'production:process'
     },
     {
       title: '新建任务',

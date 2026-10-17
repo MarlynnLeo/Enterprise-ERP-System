@@ -507,7 +507,7 @@ const formatOnlineTime = (seconds) => {
 }
 
 .profile-nav-item.active {
-  color: var(--el-color-primary);
+  color: var(--color-primary-text);
   border-color: var(--el-color-primary-light-5);
   background: var(--el-color-primary-light-9);
 }
@@ -532,7 +532,7 @@ const formatOnlineTime = (seconds) => {
 }
 
 .profile-nav-item.active .nav-icon {
-  color: var(--el-color-white);
+  color: var(--color-on-primary, var(--el-color-white));
   background: var(--el-color-primary);
   border-color: var(--el-color-primary);
 }
@@ -610,7 +610,7 @@ const formatOnlineTime = (seconds) => {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  color: var(--el-color-white);
+  color: var(--color-on-primary, var(--el-color-white));
   background: var(--el-color-primary);
   font-size: 21px;
 }

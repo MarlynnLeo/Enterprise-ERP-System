@@ -15,15 +15,17 @@
     >
       <template #right>
         <div v-if="headerActions.length" class="nav-actions">
-          <span
+          <button
+            type="button"
+            :aria-label="action.label || action.action || '操作'"
             v-for="action in headerActions"
             :key="action.action || action.label || action.icon"
             class="nav-action"
             @click="handleHeaderAction(action)"
             v-permission="action.permission || ''"
           >
-            <SvgIcon :name="action.icon || 'plus'" size="1.125rem" />
-          </span>
+            <SvgIcon :name="action.icon || 'plus'" size="1.125rem" aria-hidden="true" />
+          </button>
         </div>
       </template>
     </NavBar>
@@ -528,6 +530,10 @@
   }
 
   .nav-action {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -560,22 +566,22 @@
     font-weight: 800;
     color: var(--text-primary);
     &.bg-blue {
-      color: var(--ds-blue);
+      color: var(--ds-blue-text);
     }
     &.bg-purple {
-      color: var(--ds-purple);
+      color: var(--ds-purple-text);
     }
     &.bg-green {
       color: var(--ds-green-strong);
     }
     &.bg-red {
-      color: var(--ds-red);
+      color: var(--ds-red-text);
     }
     &.bg-yellow {
       color: var(--ds-yellow-strong);
     }
     &.bg-orange {
-      color: var(--ds-orange);
+      color: var(--ds-orange-text);
     }
   }
   .stat-label {
@@ -643,10 +649,10 @@
     &.active {
       background: var(--color-accent-bg, var(--ds-blue-bg));
       border-color: var(--color-accent, var(--ds-blue));
-      color: var(--color-accent, var(--ds-blue));
+      color: var(--color-accent-text, var(--ds-blue));
       .chip-badge {
         background: var(--color-accent, var(--ds-blue));
-        color: var(--color-on-primary);
+        color: var(--color-on-accent);
       }
     }
   }
@@ -738,27 +744,27 @@
     flex-shrink: 0;
     &.accent-blue {
       background: var(--ds-blue-bg);
-      color: var(--ds-blue);
+      color: var(--ds-blue-text);
     }
     &.accent-green {
       background: var(--ds-green-bg);
-      color: var(--ds-green);
+      color: var(--ds-green-text);
     }
     &.accent-yellow {
       background: var(--ds-yellow-bg);
-      color: var(--ds-yellow);
+      color: var(--ds-yellow-text);
     }
     &.accent-red {
       background: var(--ds-red-bg);
-      color: var(--ds-red);
+      color: var(--ds-red-text);
     }
     &.accent-gray {
       background: var(--ds-gray-bg);
-      color: var(--ds-gray);
+      color: var(--ds-gray-text);
     }
     &.accent-purple {
       background: var(--ds-purple-bg);
-      color: var(--ds-purple);
+      color: var(--ds-purple-text);
     }
   }
   .item-title {
@@ -781,7 +787,7 @@
     &.st-pending,
     &.tag-default {
       background: var(--ds-gray-bg);
-      color: var(--ds-gray);
+      color: var(--ds-gray-text);
     }
     &.st-confirmed,
     &.st-allocated,
@@ -790,7 +796,7 @@
     &.st-shipped,
     &.tag-info {
       background: var(--ds-blue-bg);
-      color: var(--ds-blue);
+      color: var(--ds-blue-text);
     }
     &.st-preparing,
     &.st-material_issuing,
@@ -801,24 +807,24 @@
     &.st-processing,
     &.tag-warning {
       background: var(--ds-yellow-bg);
-      color: var(--ds-yellow);
+      color: var(--ds-yellow-text);
     }
     &.st-inspection,
     &.st-warehousing {
       background: var(--ds-purple-bg);
-      color: var(--ds-purple);
+      color: var(--ds-purple-text);
     }
     &.st-completed,
     &.st-delivered,
     &.tag-success,
     &.st-active {
       background: var(--ds-green-bg);
-      color: var(--ds-green);
+      color: var(--ds-green-text);
     }
     &.st-cancelled,
     &.st-inactive {
       background: var(--ds-gray-bg);
-      color: var(--ds-gray);
+      color: var(--ds-gray-text);
     }
     &.st-paused,
     &.st-shortage,
@@ -827,7 +833,7 @@
     &.st-failed,
     &.tag-danger {
       background: var(--ds-red-bg);
-      color: var(--ds-red);
+      color: var(--ds-red-text);
     }
     &.st-approved,
     &.st-posted,
@@ -835,12 +841,12 @@
     &.st-passed,
     &.tag-primary {
       background: var(--ds-blue-bg);
-      color: var(--ds-blue);
+      color: var(--ds-blue-text);
     }
     &.st-voided,
     &.st-closed {
       background: var(--ds-gray-bg);
-      color: var(--ds-gray);
+      color: var(--ds-gray-text);
     }
   }
 

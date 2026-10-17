@@ -5,6 +5,8 @@
  */
 
 const db = require('../config/db');
+const { toCents, fromCents } = require('../utils/finance/settlementMath');
+const { validateBusinessDate } = require('../utils/finance/businessDate');
 const { logger } = require('../utils/logger');
 const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
 const financeModel = require('./finance');
@@ -14,6 +16,7 @@ const { accountingConfig } = require('../config/accountingConfig');
 const { currentDateString } = require('../utils/dateUtils');
 const { resolveActorLabel } = require('../utils/userUtils');
 const { getAssetTypeText, getDepreciationMethodText } = require('../constants/systemConstants');
+const AssetCostSourceService = require('../services/business/AssetCostSourceService');
 
 function mapAssetType(value) {
   return getAssetTypeText(value) || value || '其他';
@@ -128,7 +131,14 @@ const cipModel = {
         'SELECT id, project_code, project_name, budget, accumulated_amount, start_date, estimated_end_date, status, responsible, department, notes, created_at, updated_at FROM cip_projects WHERE id = ?',
         [id]
       );
-      return projects.length > 0 ? projects[0] : null;
+      if (!projects.length) return null;
+      const [costSources] = await db.pool.query(
+        `SELECT a.id, a.gl_entry_item_id, a.amount, a.source_date, a.reconciles_existing, e.entry_number
+           FROM asset_cost_allocations a JOIN gl_entries e ON e.id = a.gl_entry_id
+          WHERE a.target_type = 'cip' AND a.target_id = ? ORDER BY a.id`,
+        [id]
+      );
+      return { ...projects[0], cost_sources: costSources };
     } catch (error) {
       logger.error('获取在建工程详情失败:', error);
       throw error;
@@ -140,6 +150,11 @@ const cipModel = {
    */
   createCipProject: async (data) => {
     try {
+      if (data.status && data.status !== '建设中') {
+        throw Object.assign(new Error('新建工程必须为建设中状态，转固请使用转固操作'), {
+          code: 'VALIDATION_ERROR',
+        });
+      }
       const [result] = await db.pool.query(
         `INSERT INTO cip_projects
          (project_code, project_name, budget, accumulated_amount, start_date, estimated_end_date, status, responsible, department, notes)
@@ -151,7 +166,7 @@ const cipModel = {
           0, // 累计金额只允许由过账推导，禁止客户端写入
           data.start_date || null,
           data.estimated_end_date || null,
-          data.status || '建设中',
+          '建设中',
           data.responsible || null,
           data.department || null,
           data.notes || null,
@@ -169,14 +184,29 @@ const cipModel = {
    * 注意：accumulated_amount 不在白名单内，归集请用 addAccumulatedAmount
    */
   updateCipProject: async (id, data) => {
+    const connection = await db.pool.getConnection();
     try {
+      await connection.beginTransaction();
+      const [[project]] = await connection.query(
+        'SELECT id, project_code, status FROM cip_projects WHERE id = ? FOR UPDATE',
+        [id]
+      );
+      if (!project || project.status !== '建设中')
+        throw Object.assign(new Error('工程不存在或已转固，不能修改'), {
+          code: 'VALIDATION_ERROR',
+        });
+      if (data.project_code !== undefined && data.project_code !== project.project_code)
+        throw Object.assign(new Error('工程编号创建后不能修改'), { code: 'VALIDATION_ERROR' });
+      if (data.status && data.status !== '建设中') {
+        throw Object.assign(new Error('工程状态只能通过转固操作变更'), {
+          code: 'VALIDATION_ERROR',
+        });
+      }
       const ALLOWED_UPDATE_COLUMNS = new Set([
-        'project_code',
         'project_name',
         'budget',
         'start_date',
         'estimated_end_date',
-        'status',
         'responsible',
         'department',
         'notes',
@@ -191,18 +221,30 @@ const cipModel = {
         values.push(data[key]);
       });
 
-      if (fields.length === 0) return true;
+      if (fields.length === 0) {
+        await connection.commit();
+        return true;
+      }
 
       values.push(id);
 
-      const [result] = await db.pool.query(
-        `UPDATE cip_projects SET ${fields.join(', ')} WHERE id = ?`,
+      const [result] = await connection.query(
+        `UPDATE cip_projects SET ${fields.join(', ')} WHERE id = ? AND status = '建设中'`,
         values
       );
+      if (!result.affectedRows) {
+        throw Object.assign(new Error('工程不存在或已转固，不能修改'), {
+          code: 'VALIDATION_ERROR',
+        });
+      }
+      await connection.commit();
       return result.affectedRows > 0;
     } catch (error) {
+      await connection.rollback();
       logger.error('更新在建工程失败:', error);
       throw error;
+    } finally {
+      connection.release();
     }
   },
 
@@ -210,12 +252,14 @@ const cipModel = {
    * 原子归集在建工程成本（服务端专用，不经通用 update 白名单）
    * @param {number} id 工程 ID
    * @param {number} delta 增加金额（必须 > 0）
+   * @param {object} source 已过账借方明细、操作人及历史核对标记
    * @param {object} [connection] 可选外层事务连接
    * @returns {Promise<{ previousAmount: number, newAmount: number }>}
    */
-  addAccumulatedAmount: async (id, delta, connection = null) => {
-    const amount = Number(delta);
-    if (!Number.isFinite(amount) || amount <= 0) {
+  addAccumulatedAmount: async (id, delta, source = {}, connection = null) => {
+    const cents = toCents(delta);
+    const amount = fromCents(cents);
+    if (!Number.isFinite(Number(delta)) || !Number.isSafeInteger(cents) || cents <= 0) {
       throw new Error('归集金额必须大于 0');
     }
 
@@ -229,7 +273,7 @@ const cipModel = {
       }
 
       const [projects] = await conn.query(
-        'SELECT id, status, accumulated_amount FROM cip_projects WHERE id = ? FOR UPDATE',
+        'SELECT id, project_code, status, accumulated_amount FROM cip_projects WHERE id = ? FOR UPDATE',
         [id]
       );
       if (!projects.length) {
@@ -240,22 +284,54 @@ const cipModel = {
       }
 
       const previousAmount = parseFloat(projects[0].accumulated_amount || 0);
-      const [result] = await conn.query(
-        `UPDATE cip_projects
-                 SET accumulated_amount = COALESCE(accumulated_amount, 0) + ?,
-                     updated_at = CURRENT_TIMESTAMP
-                 WHERE id = ? AND status = '建设中'`,
-        [amount, id]
-      );
-      if (!result.affectedRows) {
-        throw new Error('归集成本失败：工程状态已变更');
+      const allocation = await AssetCostSourceService.allocate(conn, {
+        kind: 'cip',
+        targetId: id,
+        targetCode: projects[0].project_code,
+        sourceId: source.source_entry_item_id,
+        amount: delta,
+        actor: source.created_by,
+        reconcilesExisting: source.reconciles_existing === true,
+      });
+      if (allocation.reused) {
+        if (ownConnection) await conn.commit();
+        return {
+          previousAmount,
+          newAmount: previousAmount,
+          allocationId: allocation.id,
+          reused: true,
+        };
+      }
+      if (source.reconciles_existing === true) {
+        const [[totals]] = await conn.query(
+          'SELECT COALESCE(SUM(amount), 0) AS amount FROM asset_cost_allocations WHERE target_type = ? AND target_id = ? FOR UPDATE',
+          ['cip', id]
+        );
+        if (toCents(totals.amount) > toCents(previousAmount))
+          throw Object.assign(new Error('关联历史来源金额不能超过原有累计归集金额'), {
+            code: 'VALIDATION_ERROR',
+          });
+      } else {
+        const [result] = await conn.query(
+          `UPDATE cip_projects
+             SET accumulated_amount = COALESCE(accumulated_amount, 0) + ?,
+                 updated_at = CURRENT_TIMESTAMP
+           WHERE id = ? AND status = '建设中'`,
+          [amount, id]
+        );
+        if (!result.affectedRows) {
+          throw new Error('归集成本失败：工程状态已变更');
+        }
       }
 
-      const newAmount = previousAmount + amount;
+      const newAmount =
+        source.reconciles_existing === true
+          ? previousAmount
+          : fromCents(toCents(previousAmount) + cents);
       if (ownConnection) {
         await conn.commit();
       }
-      return { previousAmount, newAmount };
+      return { previousAmount, newAmount, allocationId: allocation.id, reused: false };
     } catch (error) {
       if (ownConnection && conn) {
         try {
@@ -277,10 +353,12 @@ const cipModel = {
    * 删除在建工程
    */
   deleteCipProject: async (id) => {
+    const connection = await db.pool.getConnection();
     try {
+      await connection.beginTransaction();
       // 检查状态，只有建设中且无发生成本的才允许删除
-      const [project] = await db.pool.query(
-        'SELECT id, project_code, project_name, budget, accumulated_amount, start_date, estimated_end_date, status, responsible, department, notes, created_at, updated_at FROM cip_projects WHERE id = ?',
+      const [project] = await connection.query(
+        'SELECT id, status, accumulated_amount FROM cip_projects WHERE id = ? FOR UPDATE',
         [id]
       );
       if (project.length === 0) throw new Error('在建工程不存在');
@@ -289,11 +367,19 @@ const cipModel = {
         throw new Error('该工程已有发生成本或已转固，不允许删除');
       }
 
-      const [result] = await db.pool.query('DELETE FROM cip_projects WHERE id = ?', [id]);
+      const [result] = await connection.query(
+        "DELETE FROM cip_projects WHERE id = ? AND status = '建设中' AND COALESCE(accumulated_amount, 0) = 0",
+        [id]
+      );
+      if (!result.affectedRows) throw new Error('工程状态或归集成本已变更，不能删除');
+      await connection.commit();
       return result.affectedRows > 0;
     } catch (error) {
+      await connection.rollback();
       logger.error('删除在建工程失败:', error);
       throw error;
+    } finally {
+      connection.release();
     }
   },
 
@@ -313,7 +399,11 @@ const cipModel = {
       if (projects.length === 0) throw new Error('在建工程不存在');
 
       const project = projects[0];
-      if (project.status === '已转固') {
+      const [capitalizations] = await connection.query(
+        'SELECT asset_id FROM cip_capitalizations WHERE project_id = ? FOR UPDATE',
+        [id]
+      );
+      if (project.status !== '建设中' || capitalizations.length) {
         throw new Error('该工程已经转固，不能重复操作');
       }
 
@@ -325,14 +415,36 @@ const cipModel = {
 
       assetData.acquisition_cost = assetCost;
       assetData.current_value = assetCost;
-      const acquisitionDate = assetData.acquisition_date || currentDateString();
-      const usefulLifeMonths = Math.max(1, Number.parseInt(assetData.useful_life, 10) || 5) * 12;
+      const acquisitionDate = validateBusinessDate(
+        assetData.acquisition_date || currentDateString(),
+        '转固日期'
+      );
+      await AssetCostSourceService.assertCipBalance(connection, project, acquisitionDate);
+      const lifeYears = Number(assetData.useful_life ?? 5);
+      if (
+        !Number.isSafeInteger(lifeYears) ||
+        lifeYears <= 0 ||
+        !Number.isSafeInteger(lifeYears * 12)
+      ) {
+        throw Object.assign(new Error('资产使用年限必须为正整数'), { code: 'VALIDATION_ERROR' });
+      }
+      const usefulLifeMonths = lifeYears * 12;
+      const salvageValue = Number(assetData.salvage_value ?? 0);
+      if (
+        !Number.isFinite(salvageValue) ||
+        salvageValue < 0 ||
+        toCents(salvageValue) > toCents(assetCost)
+      ) {
+        throw Object.assign(new Error('资产残值必须介于0和转固成本之间'), {
+          code: 'VALIDATION_ERROR',
+        });
+      }
       const assetType = mapAssetType(assetData.asset_type);
       const depreciationMethod = mapDepreciationMethod(assetData.depreciation_method);
       const operatorName =
         operator.operatorName ||
         String(operator.userId || (await resolveActorLabel(null, operator)));
-      const createdBy = operator.userId || operator;
+      const createdBy = operator.userId || operator.id || null;
 
       // 2. 插入新固定资产 (复用 assetsModel 的构建逻辑，或者直接执行 INSERT)
       // 为保持独立性，自己执行INSERT
@@ -340,8 +452,8 @@ const cipModel = {
         `INSERT INTO fixed_assets
          (asset_code, asset_name, category_id, asset_type, acquisition_date, acquisition_cost,
            salvage_value, current_value, net_value, useful_life, depreciation_method, status,
-           location_id, department_id, custodian, notes)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '在用', ?, ?, ?, ?)`,
+           location_id, department_id, custodian, notes, created_by, audit_status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '在用', ?, ?, ?, ?, ?, 'draft')`,
         [
           assetData.asset_code,
           assetData.asset_name,
@@ -349,7 +461,7 @@ const cipModel = {
           assetType,
           acquisitionDate,
           assetCost,
-          assetData.salvage_value || 0,
+          fromCents(toCents(salvageValue)),
           assetCost,
           assetCost,
           usefulLifeMonths,
@@ -358,6 +470,7 @@ const cipModel = {
           assetData.department_id || null,
           assetData.custodian || null,
           `由在建工程 [${project.project_code}] ${project.project_name} 结转生成。${assetData.notes || ''}`,
+          operatorName,
         ]
       );
 
@@ -376,7 +489,7 @@ const cipModel = {
         ]
       );
 
-      await accountingConfig.loadFromDatabase(db);
+      await accountingConfig.loadFromDatabase({ pool: connection });
       const fixedAssetAccountId = await getRequiredAccountId(
         connection,
         accountingConfig.getAccountCode('FIXED_ASSETS'),
@@ -394,7 +507,9 @@ const cipModel = {
           entry_date: acquisitionDate,
           posting_date: acquisitionDate,
           document_type: '转固单',
-          document_number: `CIP-${project.project_code}`.slice(0, 50),
+          document_number: `CIP-ID-${project.id}`,
+          transaction_type: 'cip_capitalization',
+          transaction_id: project.id,
           period_id: periodId,
           description: `在建工程转固: ${project.project_name} -> ${assetData.asset_name}`,
           created_by: createdBy,
@@ -418,35 +533,54 @@ const cipModel = {
         connection
       );
       const entryNumber = await getEntryNumberById(connection, entryId);
+      await connection.query(
+        'INSERT INTO cip_capitalizations (project_id, asset_id, gl_entry_id, amount, capitalization_date, created_by) VALUES (?, ?, ?, ?, ?, ?)',
+        [project.id, newAssetId, entryId, assetCost, acquisitionDate, createdBy]
+      );
+      const [[assetLine]] = await connection.query(
+        'SELECT id FROM gl_entry_items WHERE entry_id = ? AND account_id = ? AND debit_amount = ? AND credit_amount = 0',
+        [entryId, fixedAssetAccountId, assetCost]
+      );
+      if (!assetLine) throw new Error('转固凭证缺少固定资产借方明细');
+      await connection.query('UPDATE fixed_assets SET acquisition_entry_item_id = ? WHERE id = ?', [
+        assetLine.id,
+        newAssetId,
+      ]);
 
-      await DocumentLinkService.tryAutoLink(
-        DocType.CIP_PROJECT,
-        project.id,
-        project.project_code,
-        DocType.ASSET,
-        newAssetId,
-        assetData.asset_code,
-        createdBy,
+      await DocumentLinkService.createLink(
+        {
+          source_type: DocType.CIP_PROJECT,
+          source_id: project.id,
+          source_code: project.project_code,
+          target_type: DocType.ASSET,
+          target_id: newAssetId,
+          target_code: assetData.asset_code,
+          created_by: createdBy,
+        },
         connection
       );
-      await DocumentLinkService.tryAutoLink(
-        DocType.CIP_PROJECT,
-        project.id,
-        project.project_code,
-        DocType.FINANCE_VOUCHER,
-        entryId,
-        entryNumber,
-        createdBy,
+      await DocumentLinkService.createLink(
+        {
+          source_type: DocType.CIP_PROJECT,
+          source_id: project.id,
+          source_code: project.project_code,
+          target_type: DocType.FINANCE_VOUCHER,
+          target_id: entryId,
+          target_code: entryNumber,
+          created_by: createdBy,
+        },
         connection
       );
-      await DocumentLinkService.tryAutoLink(
-        DocType.ASSET,
-        newAssetId,
-        assetData.asset_code,
-        DocType.FINANCE_VOUCHER,
-        entryId,
-        entryNumber,
-        createdBy,
+      await DocumentLinkService.createLink(
+        {
+          source_type: DocType.ASSET,
+          source_id: newAssetId,
+          source_code: assetData.asset_code,
+          target_type: DocType.FINANCE_VOUCHER,
+          target_id: entryId,
+          target_code: entryNumber,
+          created_by: createdBy,
+        },
         connection
       );
 
@@ -455,8 +589,6 @@ const cipModel = {
         'UPDATE cip_projects SET status = ?, updated_at = NOW() WHERE id = ?',
         ['已转固', id]
       );
-
-      // 如需，5. 这里可补充关联总账的【在建工程转固分录】（借:固定资产，贷:在建工程）
 
       await connection.commit();
       return newAssetId;

@@ -60,13 +60,18 @@ _*.cjs
 # Local full-audit transcripts are reproducible CI output, not source artifacts.
 /full-*.txt
 /full-*.json
-reports/
+/reports/
+backend/reports/
+frontend/reports/
+mobile/reports/
 /_qa_ref_*/
 
 # Local deployment packages and browser automation artifacts.
 *.tar.gz
 .playwright-cli/
 /output/
+frontend/output/
+mobile/output/
 /.codex_artifacts/
 /outputs/
 **/__pycache__/
@@ -85,3 +90,8 @@ excl/
 /*AUDIT*.md
 /*REPAIR*.md
 !/README.md
+
+# Local spreadsheet inspection scripts and one-off UI audit artifacts.
+/*.py
+frontend/*AUDIT*.md
+mobile/theme-audit-before.cjs

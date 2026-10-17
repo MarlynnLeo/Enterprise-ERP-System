@@ -6,6 +6,7 @@
  * real database to find residual data problems.
  */
 
+const { batchWeightedUnitCostSql } = require('../../utils/batchWeightedCostSql');
 const {
   INCOMING_INSPECTION_COUNTED_STATUSES,
   PURCHASE_RECEIPT_COUNTED_STATUSES,
@@ -202,18 +203,17 @@ const consistencyRules = [
       SELECT l.id, l.transaction_no, l.reference_no, l.material_id, l.batch_number,
              l.unit_cost AS outbound_unit_cost,
              (
-               SELECT source.unit_cost
+               SELECT ${batchWeightedUnitCostSql('source')}
                  FROM inventory_ledger source
                 WHERE source.material_id = l.material_id
                   AND source.location_id = l.location_id
                   AND source.batch_number = l.batch_number
                   AND source.quantity > 0
                   AND source.id < l.id
-                ORDER BY source.id DESC
-                LIMIT 1
              ) AS source_unit_cost
         FROM inventory_ledger l
        WHERE l.quantity < -0.000001
+         AND l.reversal_of_ledger_id IS NULL
          AND l.created_at >= ${sqlLiteral(INVENTORY_POSTING_CUTOVER_AT)}
          AND l.batch_number IS NOT NULL
          AND l.batch_number <> ''
@@ -227,26 +227,22 @@ const consistencyRules = [
          )
          AND (
            COALESCE((
-             SELECT source.unit_cost
+             SELECT ${batchWeightedUnitCostSql('source')}
                FROM inventory_ledger source
               WHERE source.material_id = l.material_id
                 AND source.location_id = l.location_id
                 AND source.batch_number = l.batch_number
                 AND source.quantity > 0
                 AND source.id < l.id
-              ORDER BY source.id DESC
-              LIMIT 1
            ), 0) <= 0
            OR ABS(COALESCE(l.unit_cost, 0) - COALESCE((
-             SELECT source.unit_cost
+             SELECT ${batchWeightedUnitCostSql('source')}
                FROM inventory_ledger source
               WHERE source.material_id = l.material_id
                 AND source.location_id = l.location_id
                 AND source.batch_number = l.batch_number
                 AND source.quantity > 0
                 AND source.id < l.id
-              ORDER BY source.id DESC
-              LIMIT 1
            ), 0)) > 0.000001
          )
     `,

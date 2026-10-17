@@ -133,6 +133,7 @@ export default {
         voucherType: '记账凭证',
       },
     },
+
     // 应收账款模块路由
     {
       path: 'ar/invoices',
@@ -335,6 +336,30 @@ export default {
       },
     },
     // 财务报表模块路由
+    {
+      path: 'reports',
+      name: 'finance-reports',
+      redirect: '/finance/reports/balance-sheet',
+      meta: {
+        requiresAuth: true,
+        permission: 'finance:reports:view',
+        title: '财务报表',
+        titleKey: 'menu.reportCenter',
+      },
+    },
+    ...[
+      { type: 'vat', title: '增值税多栏账', titleKey: 'menu.vatLedger' },
+      { type: 'quantity', title: '数量金额明细账', titleKey: 'menu.quantityLedger' },
+      { type: 'general', title: '总分类账', titleKey: 'menu.generalLedger' },
+      { type: 'cash', title: '库存现金日记账', titleKey: 'menu.cashLedger' },
+      { type: 'payable', title: '应付账款明细分类账', titleKey: 'menu.payableLedger' },
+    ].map(({ type, title, titleKey }) => ({
+      path: `reports/ledgers/${type}`,
+      name: `finance-ledger-${type}`,
+      component: () => import('../../views/finance/reports/LedgerReport.vue'),
+      props: { type },
+      meta: { requiresAuth: true, permission: 'finance:reports:view', title, titleKey },
+    })),
     {
       path: 'reports/balance-sheet',
       name: 'balance-sheet',
@@ -635,7 +660,7 @@ export default {
       component: () => import('../../views/finance/settings/FinanceSettings.vue'),
       meta: {
         requiresAuth: true,
-        permission: 'finance:settings:view',
+        permission: ['finance:settings:view', 'finance:automation:view'],
       },
     },
     {

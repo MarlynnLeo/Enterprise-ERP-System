@@ -46,20 +46,20 @@ function toGlAccountApi(row) {
 function fromGlAccountApi(body = {}) {
   const row = {
     id: body.id,
-    account_code: body.accountCode,
-    account_name: body.accountName,
-    account_type: body.accountType,
-    parent_id: body.parentId,
-    is_debit: body.isDebit,
-    is_active: body.isActive,
-    currency_code: body.currencyCode,
+    account_code: body.accountCode ?? body.account_code,
+    account_name: body.accountName ?? body.account_name,
+    account_type: body.accountType ?? body.account_type,
+    parent_id: body.parentId !== undefined ? body.parentId : body.parent_id,
+    is_debit: body.isDebit !== undefined ? body.isDebit : body.is_debit,
+    is_active: body.isActive !== undefined ? body.isActive : body.is_active,
+    currency_code: body.currencyCode ?? body.currency_code,
     description: body.description,
     type: body.type,
-    has_customer: body.hasCustomer,
-    has_supplier: body.hasSupplier,
-    has_employee: body.hasEmployee,
-    has_department: body.hasDepartment,
-    has_project: body.hasProject,
+    has_customer: body.hasCustomer !== undefined ? body.hasCustomer : body.has_customer,
+    has_supplier: body.hasSupplier !== undefined ? body.hasSupplier : body.has_supplier,
+    has_employee: body.hasEmployee !== undefined ? body.hasEmployee : body.has_employee,
+    has_department: body.hasDepartment !== undefined ? body.hasDepartment : body.has_department,
+    has_project: body.hasProject !== undefined ? body.hasProject : body.has_project,
   };
   return Object.fromEntries(Object.entries(row).filter(([, v]) => v !== undefined));
 }

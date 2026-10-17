@@ -1,7 +1,7 @@
 <!--
 /**
  * PersonalInfoCard.vue
- * @description 仪表盘个人信息与天气整合卡片组件
+ * @description 经典主题仪表盘：个人信息与天气整合卡片
  */
 -->
 <template>
@@ -26,45 +26,51 @@
     <div v-else class="combined-content">
       <!-- 左侧：个人信息 -->
       <div class="left-info">
-        <div class="name">{{ userProfile?.realName || $t('page.profile.realName') }}</div>
-        <div class="role-item">
-          <el-icon><Avatar /></el-icon>
-          <span>{{ userProfile?.roleName || userProfile?.role || $t('page.profile.role') }}</span>
+        <div class="user-greeting">
+          <span class="user-name" :title="userProfile?.realName || userProfile?.username">
+            {{ userProfile?.realName || userProfile?.username || $t('page.profile.realName') }}
+          </span>
+          <span class="online-status-dot" title="在线"></span>
         </div>
-        <div class="role-item">
-          <el-icon><Location /></el-icon>
-          <span>{{ userProfile?.departmentName || '未设置' }}</span>
+        <div class="user-tags">
+          <span class="role-badge">
+            <el-icon><Avatar /></el-icon>
+            <span>{{ userProfile?.roleName || userProfile?.role || '系统用户' }}</span>
+          </span>
+          <span class="dept-badge" v-if="userProfile?.departmentName">
+            <el-icon><Location /></el-icon>
+            <span>{{ userProfile.departmentName }}</span>
+          </span>
         </div>
       </div>
-      <!-- 中间：头像特效（与个人中心同源） -->
+
+      <!-- 中间：头像 -->
       <div class="center-avatar">
         <DecorativeAvatarFrame
           :frame="avatarFrameConfig"
           :avatar="userProfile?.avatar || ''"
           :name="userProfile?.realName || userProfile?.username || ''"
-          :size="40"
+          :size="44"
           class="dash-avatar-frame"
         />
       </div>
+
       <!-- 右侧：天气信息 -->
       <div class="right-weather">
-        <div class="weather-header-compact">
-          <el-icon><LocationFilled /></el-icon>
-          <span>{{ weather.city }}</span>
-          <span class="weather-desc-compact">{{ weather.description }}</span>
-          <span class="weather-time">{{ weatherUpdateTime }}</span>
+        <div class="weather-top-row">
+          <span class="weather-city">
+            <el-icon class="loc-icon"><LocationFilled /></el-icon>
+            {{ weather.city || '本地' }}
+          </span>
+          <span class="weather-condition">{{ weather.description || '晴' }}</span>
         </div>
-        <div class="weather-main-compact">
-          <div class="temp-large">{{ weather.temperature }}°C</div>
-          <div class="weather-icon-compact">
+        <div class="weather-main-row">
+          <div class="weather-icon-wrapper">
             <el-icon v-if="weather.weatherCode === 'sunny'" class="weather-icon weather-icon-sunny">
               <Sunny />
             </el-icon>
             <el-icon v-else-if="weather.weatherCode === 'partly-cloudy'" class="weather-icon weather-icon-partly-cloudy">
               <PartlyCloudy />
-            </el-icon>
-            <el-icon v-else-if="weather.weatherCode === 'cloudy'" class="weather-icon weather-icon-cloudy">
-              <Cloudy />
             </el-icon>
             <el-icon v-else-if="weather.weatherCode === 'rainy'" class="weather-icon weather-icon-rainy">
               <Cloudy />
@@ -73,10 +79,15 @@
               <Cloudy />
             </el-icon>
           </div>
-        </div>
-        <div class="weather-details-compact">
-          <span><el-icon class="weather-detail-icon"><WindPower /></el-icon> {{ weather.windSpeed }}km/h</span>
-          <span><el-icon class="weather-detail-icon"><Drizzling /></el-icon> {{ weather.humidity }}%</span>
+          <span class="temp-large">{{ weather.temperature ?? '--' }}°</span>
+          <div class="weather-details-pill">
+            <span class="detail-item" title="风速">
+              <el-icon><WindPower /></el-icon>{{ weather.windSpeed || '0' }}km/h
+            </span>
+            <span class="detail-item" title="湿度">
+              <el-icon><Drizzling /></el-icon>{{ weather.humidity || '0' }}%
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -116,58 +127,38 @@ const props = defineProps({
 const avatarFrameConfig = computed(() =>
   getAvatarFrameConfig(props.userProfile?.avatarFrame)
 )
-const weatherUpdateTime = computed(() => {
-  const value = props.weather.updateTime
-  if (!value) return ''
-  const date = new Date(value)
-  return Number.isNaN(date.getTime())
-    ? value
-    : date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-})
 </script>
 
 <style scoped>
-/* 整合的个人信息与天气卡片 - 统一卡片风格 */
 .combined-info-card {
-  container: personal-info / inline-size;
-  background: var(--theme-feature-card-bg);
-  border-radius: var(--radius-sm);
-  padding: 6px 10px;
+  container-type: inline-size;
+  container-name: personal-info;
+  background: var(--color-bg-base);
+  border-radius: 8px;
+  padding: 10px 14px;
   box-sizing: border-box;
   margin-bottom: 0;
-  height: 72px;
+  min-height: 82px;
+  height: 82px;
   position: relative;
   overflow: hidden;
-  transition: border-color var(--transition-base) ease, box-shadow var(--transition-base) ease, background-color var(--transition-base) ease;
-  border: 1px solid var(--theme-feature-card-border);
+  border: 1px solid var(--color-border-base);
+  border-radius: 4px;
+  box-shadow: none;
+  transition: all var(--transition-base) ease;
 }
-.combined-info-card::before {
-  content: '';
-  position: absolute;
-  top: -50%;
-  right: -50%;
-  width: 200%;
-  height: 200%;
-  background: var(--theme-feature-card-decor);
-  animation: rotate 20s linear infinite;
-}
-@keyframes rotate {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
-}
+
 .combined-info-card:hover {
-  transform: none;
-  border-color: var(--theme-feature-card-border);
+  border-color: color-mix(in srgb, var(--color-primary) 30%, var(--color-border-base));
+  box-shadow: none;
 }
+
 .loading-section {
   height: 100%;
   display: flex;
   align-items: center;
 }
+
 .combined-content {
   position: relative;
   z-index: 1;
@@ -175,151 +166,185 @@ const weatherUpdateTime = computed(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  color: var(--theme-feature-card-color);
+  gap: 12px;
 }
-/* 左侧个人信息 */
+
+/* 左侧：个人信息 */
 .left-info {
-  flex: 1;
+  flex: 1 1 35%;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  justify-content: center;
+  gap: 5px;
   min-width: 0;
-  justify-content: center;
 }
-.left-info .name {
-  font-size: 14px;
-  font-weight: bold;
-  margin-bottom: 2px;
+
+.user-greeting {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.user-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  letter-spacing: -0.01em;
 }
-.left-info .role-item {
+
+.online-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-success);
+  flex-shrink: 0;
+  box-shadow: none;
+}
+
+.user-tags {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 4px;
+  min-width: 0;
+}
+
+.role-badge,
+.dept-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: 4px;
   font-size: 11px;
-  opacity: 0.9;
-}
-.left-info .role-item .el-icon {
-  font-size: 12px;
-}
-.left-info .role-item span {
+  font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 110px;
 }
-/* 中间头像特效 */
+
+.role-badge {
+  background: color-mix(in srgb, var(--color-primary) 8%, var(--color-bg-base));
+  color: var(--color-primary);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 15%, transparent);
+}
+
+.dept-badge {
+  background: var(--color-bg-section);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-light);
+}
+
+/* 中间：头像 */
 .center-avatar {
-  flex: 0 0 auto;
+  flex: 0 0 46px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  align-self: center;
-  z-index: 2;
-  overflow: visible;
 }
+
 .dash-avatar-frame {
   flex-shrink: 0;
 }
-/* 右侧天气信息 */
+
+/* 右侧：天气 */
 .right-weather {
-  flex: 1;
+  flex: 1 1 45%;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  min-width: 0;
   justify-content: center;
+  align-items: flex-end;
+  gap: 4px;
+  min-width: 0;
   text-align: right;
 }
-.weather-header-compact {
+
+.weather-top-row {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 5px;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.weather-city {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-weight: 600;
+  color: var(--color-text-regular);
+}
+
+.loc-icon {
   font-size: 12px;
-  opacity: 0.95;
-  white-space: nowrap;
+  color: var(--color-primary);
 }
-.weather-time {
+
+.weather-condition {
+  padding: 0 4px;
+  background: var(--color-bg-section);
+  border-radius: 3px;
   font-size: 10px;
-  opacity: 0.8;
 }
-.weather-main-compact {
+
+.weather-main-row {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
+  gap: 6px;
 }
+
+.weather-icon-wrapper {
+  display: flex;
+  align-items: center;
+}
+
+.weather-icon {
+  font-size: 20px;
+}
+
+.weather-icon-sunny { color: #F59E0B; }
+.weather-icon-partly-cloudy { color: #FBBF24; }
+.weather-icon-cloudy { color: #94A3B8; }
+.weather-icon-rainy { color: #3B82F6; }
+
 .temp-large {
-  font-size: 18px;
-  font-weight: bold;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
   line-height: 1;
 }
-.weather-icon-compact {
-  display: flex;
+
+.weather-details-pill {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--color-border-light) 60%, var(--color-bg-base));
+  font-size: 9px;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.detail-item {
+  display: inline-flex;
   align-items: center;
-}
-.weather-icon {
-  font-size: 22px;
-}
-.weather-icon-sunny {
-  color: var(--ds-yellow-strong);
-}
-.weather-icon-partly-cloudy {
-  color: var(--ds-yellow-bg);
-}
-.weather-icon-cloudy {
-  color: var(--color-border-lighter);
-}
-.weather-icon-rainy {
-  color: var(--ds-blue-strong);
-}
-.weather-desc-compact {
-  font-size: 12px;
-  opacity: 0.9;
-  font-weight: 500;
-}
-.weather-details-compact {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  font-size: 11px;
-  opacity: 0.85;
+  gap: 2px;
   white-space: nowrap;
 }
-.weather-detail-icon {
-  font-size: 12px;
-}
-/* 窄卡片仍保持同一行，不改变统计卡片的统一高度。 */
-@container personal-info (max-width: 360px) {
-  .combined-content {
-    gap: 6px;
+
+@container personal-info (max-width: 320px) {
+  .user-tags {
+    display: none;
   }
-  .right-weather {
-    flex: 0 0 124px;
-  }
-  .weather-details-compact {
-    gap: 4px;
-    font-size: 10px;
-  }
-}
-@container personal-info (max-width: 280px) {
-  .combined-content {
-    margin-inline: -7px;
-    gap: 4px;
-  }
-  .center-avatar {
-    width: 40px;
-  }
-  .dash-avatar-frame {
-    transform: scale(0.864);
-  }
-  .left-info .name {
-    font-size: 14px;
+  .weather-details-pill {
+    display: none;
   }
 }
 </style>

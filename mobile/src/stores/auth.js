@@ -104,6 +104,7 @@ export const useAuthStore = defineStore('auth', () => {
   // 冷启动会话探测：cookie 可能有效但 user 尚未恢复
   const sessionProbed = ref(false)
   let authGeneration = 0
+  let profileGeneration = 0
   let permissionsGeneration = 0
   let _permissionsPromise = null
 
@@ -166,6 +167,7 @@ export const useAuthStore = defineStore('auth', () => {
   const clearAuthData = () => {
     resetThemeForSession()
     authGeneration++
+    profileGeneration++
     permissionsGeneration++
     _permissionsPromise = null
     token.value = ''
@@ -264,14 +266,18 @@ export const useAuthStore = defineStore('auth', () => {
    */
   const fetchUserProfile = async () => {
     const generation = authGeneration
+    const requestId = ++profileGeneration
+    const isCurrent = () => generation === authGeneration && requestId === profileGeneration
     try {
       const response = await api.get('/auth/profile')
-      if (generation !== authGeneration) return false
+      if (!isCurrent()) return false
       const userData = normalizeUserData(response.data)
 
-      if (userData) {
+      if (userData?.id) {
         if (user.value?.id && String(user.value.id) !== String(userData.id)) {
-          resetThemeForSession()
+          // A shared cookie can change in another tab. Revoke the former
+          // principal's permissions and pending work before adopting it.
+          clearAuthData()
         }
         user.value = userData
         profileLoaded.value = true
@@ -290,7 +296,7 @@ export const useAuthStore = defineStore('auth', () => {
       sessionProbed.value = true
       return false
     } catch {
-      if (generation !== authGeneration) return false
+      if (!isCurrent()) return false
       clearAuthData()
       sessionProbed.value = true
       return false
@@ -422,6 +428,7 @@ export const useAuthStore = defineStore('auth', () => {
     if (Array.isArray(perm)) {
       return perm.some((item) => hasPermission(item))
     }
+    if (typeof perm !== 'string') return false
 
     // 权限未从服务端确认前一律拒绝，避免短暂信任陈旧缓存
     if (!permissionsLoaded.value) {
@@ -455,6 +462,8 @@ export const useAuthStore = defineStore('auth', () => {
    * @returns {boolean}
    */
   const hasChildPermission = (permission) => {
+    if (Array.isArray(permission)) return permission.some(hasChildPermission)
+    if (typeof permission !== 'string' || !permission) return false
     if (!permissionsLoaded.value) {
       return false
     }

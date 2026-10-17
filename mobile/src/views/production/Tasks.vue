@@ -176,6 +176,7 @@
             placeholder="请输入完成数量"
             :rules="[{ required: true, message: '请输入完成数量' }]"
           />
+          <ReportProcessSelector v-if="currentTask" :task-id="currentTask.id" :disabled="submitting" @change="reportScope = $event" />
           <Field
             v-model="reportForm.remarks"
             type="textarea"
@@ -216,6 +217,7 @@
   import { usePagination } from '@/composables/usePagination'
   import { getProductionTaskProgress } from '@/utils/productionTask'
   import { getApiErrorMessage } from '@/utils/errorHandler'
+  import ReportProcessSelector from './components/ReportProcessSelector.vue'
 
   const router = useRouter()
 
@@ -225,6 +227,7 @@
   const showReportDialog = ref(false)
   const currentTask = ref(null)
   const submitting = ref(false)
+  const reportScope = ref({ ready: false, processId: null })
   const reportForm = reactive({ completed_quantity: '', remarks: '' })
 
   // 状态标签（含图标）
@@ -347,6 +350,7 @@
 
   const submitReport = async () => {
     if (submitting.value || !currentTask.value) return
+    if (!reportScope.value.ready) { showToast('请先加载报工工序和额度'); return }
     if (!reportForm.completed_quantity) {
       showToast('请输入完成数量')
       return
@@ -355,6 +359,8 @@
     try {
       await productionApi.reportProductionProgress({
         taskId: currentTask.value.id,
+        processId: reportScope.value.processId,
+        processName: reportScope.value.processName,
         completed_quantity: Number(reportForm.completed_quantity),
         remarks: reportForm.remarks
       })
@@ -407,7 +413,7 @@
       font-weight: 800;
       color: var(--text-primary);
       &.accent {
-        color: var(--color-warning);
+        color: var(--color-warning-text);
       }
       &.success {
         color: var(--ds-green-strong);
@@ -482,7 +488,7 @@
     &.active {
       background: var(--color-accent-bg, rgba(59, 130, 246, 0.1));
       border-color: var(--color-accent, var(--color-primary));
-      color: var(--color-accent, var(--color-primary));
+      color: var(--color-accent-text, var(--color-primary));
       .chip-badge {
         background: var(--color-accent, var(--color-primary));
         color: var(--text-primary);
@@ -590,19 +596,19 @@
     }
     &.status-progress {
       background: rgba(245, 158, 11, 0.12);
-      color: var(--color-warning);
+      color: var(--color-warning-text);
     }
     &.status-inspection {
       background: rgba(168, 85, 247, 0.12);
-      color: var(--module-purple);
+      color: var(--module-purple-text);
     }
     &.status-completed {
       background: rgba(16, 185, 129, 0.12);
-      color: var(--color-success);
+      color: var(--color-success-text);
     }
     &.status-cancelled {
       background: rgba(239, 68, 68, 0.1);
-      color: var(--color-danger);
+      color: var(--color-danger-text);
     }
     &.status-default {
       background: rgba(107, 114, 128, 0.1);
@@ -707,14 +713,14 @@
 
       &.start {
         background: rgba(16, 185, 129, 0.1);
-        color: var(--color-success);
+        color: var(--color-success-text);
         &:active {
           background: rgba(16, 185, 129, 0.2);
         }
       }
       &.report {
         background: rgba(245, 158, 11, 0.1);
-        color: var(--color-warning);
+        color: var(--color-warning-text);
         &:active {
           background: rgba(245, 158, 11, 0.2);
         }

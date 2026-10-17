@@ -235,27 +235,27 @@
     font-weight: 700;
     &.type-assets {
       background: rgba(59, 130, 246, 0.12);
-      color: var(--color-primary);
+      color: var(--color-primary-text);
     }
     &.type-liabilities {
       background: rgba(239, 68, 68, 0.1);
-      color: var(--color-danger);
+      color: var(--color-danger-text);
     }
     &.type-equity {
       background: rgba(139, 92, 246, 0.1);
-      color: var(--ds-purple);
+      color: var(--ds-purple-text);
     }
     &.type-costs {
       background: rgba(245, 158, 11, 0.1);
-      color: var(--color-warning);
+      color: var(--color-warning-text);
     }
     &.type-revenue {
       background: rgba(16, 185, 129, 0.1);
-      color: var(--color-success);
+      color: var(--color-success-text);
     }
     &.type-expenses {
       background: rgba(249, 115, 22, 0.1);
-      color: var(--module-orange);
+      color: var(--module-orange-text);
     }
     &.type-default {
       background: rgba(107, 114, 128, 0.1);
@@ -274,7 +274,7 @@
     font-size: 0.75rem;
     color: var(--text-tertiary);
     &.active {
-      color: var(--color-success);
+      color: var(--color-success-text);
     }
   }
 
@@ -313,13 +313,13 @@
     color: var(--text-primary);
     &.main {
       font-size: 1.375rem;
-      color: var(--color-accent, var(--color-primary));
+      color: var(--color-accent-text, var(--color-primary));
     }
     &.debit {
-      color: var(--color-success);
+      color: var(--color-success-text);
     }
     &.credit {
-      color: var(--color-danger);
+      color: var(--color-danger-text);
     }
   }
 

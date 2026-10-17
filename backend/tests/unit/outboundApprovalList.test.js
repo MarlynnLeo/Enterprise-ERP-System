@@ -66,7 +66,11 @@ function expectLatestMovementJoin(sql) {
   expect(sql).toContain("posting.source_type = 'outbound'");
   expect(sql).toContain("posting.posting_kind = 'movement'");
   expect(sql).toContain('posting.source_id = o.id OR (posting.source_id IS NULL AND posting.source_no = o.outbound_no COLLATE utf8mb4_unicode_ci)');
-  expect(sql).toMatch(/ORDER BY posting\.posting_sequence DESC, posting\.id DESC\s+LIMIT 1/);
+  expect(sql).toContain("posting.source_type = 'outbound_supplement'");
+  expect(sql).toContain('AND NOT EXISTS (');
+  expect(sql).toContain('newer.source_no = posting.source_no');
+  expect(sql).toMatch(/ORDER BY CASE posting\.finance_status/);
+  expect(sql).toMatch(/posting\.posting_sequence DESC, posting\.id DESC\s+LIMIT 1/);
 }
 
 function expectDisplayStatusFilter(sql) {
@@ -84,6 +88,53 @@ describe('outbound approval list, detail and export', () => {
     });
     ScopeGuard.denyUnlessAccess.mockResolvedValue(true);
     assertOutboundSourceAccess.mockResolvedValue(true);
+  });
+
+  test('evaluates parent and supplemental finance status using only each source latest movement', async () => {
+    mockListResults([], 0, []);
+    await getOutboundList({ query: {} }, responseDouble());
+    const sql = db.pool.query.mock.calls[0][0];
+    const financeJoin = sql.slice(sql.indexOf('LEFT JOIN inventory_posting_documents outbound_posting'), sql.indexOf('LEFT JOIN inventory_outbound_items oi'))
+      .replace(/ COLLATE utf8mb4_unicode_ci/g, '');
+    const { DatabaseSync } = require('node:sqlite');
+    const fixture = new DatabaseSync(':memory:');
+    try {
+      fixture.function('CONCAT', (left, right) => `${left}${right}`);
+      fixture.exec(`
+        CREATE TABLE inventory_outbound (id INTEGER, outbound_no TEXT);
+        CREATE TABLE inventory_posting_documents (
+          id INTEGER, source_type TEXT, source_id INTEGER, source_no TEXT,
+          posting_kind TEXT, posting_sequence INTEGER, finance_status TEXT
+        );
+      `);
+      const insertOutbound = fixture.prepare('INSERT INTO inventory_outbound VALUES (?, ?)');
+      const insertPosting = fixture.prepare('INSERT INTO inventory_posting_documents VALUES (?, ?, ?, ?, ?, ?, ?)');
+      let postingId = 0;
+      const cases = [
+        { parent: 'approved', supplements: ['pending'], expected: 'pending' },
+        { parent: 'approved', supplements: ['rejected'], expected: 'rejected' },
+        { parent: 'approved', supplements: ['approved', 'approved'], expected: 'approved' },
+        { parent: 'rejected', supplements: ['pending'], expected: 'pending' },
+        { parent: null, supplements: ['approved'], expected: 'approved' },
+        { parent: 'approved', supplements: ['rejected', 'approved'], resubmit: true, expected: 'approved' },
+        { parent: 'approved', supplements: ['pending'], legacy: true, expected: 'pending' },
+        { parent: 'reversed', supplements: ['approved'], expected: 'reversed' },
+      ];
+      for (const [index, scenario] of cases.entries()) {
+        const id = index + 1;
+        const number = `OUT-SQL-${id}`;
+        insertOutbound.run(id, number);
+        if (scenario.parent) insertPosting.run(++postingId, 'outbound', id, number, 'movement', 1, scenario.parent);
+        for (const [line, status] of scenario.supplements.entries()) {
+          const sourceNo = scenario.legacy ? `${number}-补发` : `${number}-S${scenario.resubmit ? 0 : line}`;
+          insertPosting.run(++postingId, 'outbound_supplement', scenario.legacy ? null : id, sourceNo, 'movement', scenario.resubmit ? line + 1 : 1, status);
+        }
+      }
+      const actual = fixture.prepare(`SELECT o.id, outbound_posting.finance_status FROM inventory_outbound o ${financeJoin} ORDER BY o.id`).all();
+      expect(actual.map(row => row.finance_status)).toEqual(cases.map(row => row.expected));
+    } finally {
+      fixture.close();
+    }
   });
 
   test('preserves business status while displaying and counting each document in one status', async () => {
@@ -195,6 +246,115 @@ describe('outbound approval list, detail and export', () => {
     expectLatestMovementJoin(connection.execute.mock.calls[0][0]);
     expect(connection.commit).toHaveBeenCalledTimes(1);
     expect(connection.release).toHaveBeenCalledTimes(1);
+  });
+
+  test('business mode keeps approved documents in their completed and partial-completed totals', async () => {
+    mockListResults([
+      { id: 1, status: 'completed', finance_status: 'approved' },
+      { id: 2, status: 'completed', finance_status: 'rejected' },
+      { id: 3, status: 'partial_completed', finance_status: 'approved' },
+    ], 3, [
+      { status: 'completed', count: '2' },
+      { status: 'partial_completed', count: '1' },
+    ]);
+    const res = responseDouble();
+
+    await getOutboundList({ query: { statusMode: 'business' } }, res);
+
+    const { list, statistics } = res.json.mock.calls[0][0].data;
+    expect(list).toEqual([
+      expect.objectContaining({ status: 'completed', statusText: '已完成', financeStatus: 'approved' }),
+      expect.objectContaining({ status: 'completed', statusText: '已完成', financeStatus: 'rejected' }),
+      expect.objectContaining({ status: 'partial_completed', statusText: '部分完成', financeStatus: 'approved' }),
+    ]);
+    expect(statistics).toEqual(expect.objectContaining({
+      total: 3, completedCount: 2, partialCompletedCount: 1, approvedCount: 0,
+    }));
+    const statsSql = db.pool.query.mock.calls[2][0];
+    expect(statsSql).toContain('SELECT o.status as status');
+    expect(statsSql).toContain('GROUP BY o.status');
+    expect(statsSql).not.toContain("THEN 'approved'");
+  });
+
+  test('provides the first issued material independently of the production product', async () => {
+    mockListResults([{
+      id: 1,
+      status: 'draft',
+      product_code: 'FINISHED-1',
+      material_code: 'RAW-2',
+      material_name: '螺丝',
+      material_specs: 'M6',
+      first_item_quantity: '0',
+      total_quantity: '14.5',
+      items_count: '2',
+      location_names: '零件仓,原料仓',
+    }], 1, [{ status: 'draft', count: 1 }]);
+    const res = responseDouble();
+
+    await getOutboundList({ query: { statusMode: 'business' } }, res);
+
+    expect(res.json.mock.calls[0][0].data.list[0]).toEqual(expect.objectContaining({
+      productCode: 'FINISHED-1',
+      materialCode: 'RAW-2',
+      materialName: '螺丝',
+      materialSpecs: 'M6',
+      firstItemQuantity: 0,
+      totalQuantity: 14.5,
+      itemsCount: 2,
+      locationName: '零件仓,原料仓',
+      locationNames: '零件仓,原料仓',
+    }));
+    const listSql = db.pool.query.mock.calls[0][0];
+    expect(listSql).toContain('MIN(oi_first.id)');
+    expect(listSql).toContain('oi_first.outbound_id = o.id');
+    expect(listSql).toContain('first_item.material_id = first_material.id');
+    expect(listSql).toContain('MAX(first_item.quantity) as first_item_quantity');
+  });
+
+  test('uses matching document filters for list, total, statistics and exported business status', async () => {
+    const query = {
+      statusMode: 'business',
+      status: 'completed',
+      outboundNo: 'OUT-9',
+      materialName: "螺丝' OR 1=1",
+      locationId: '4',
+      outboundType: 'production',
+      productionGroupId: '8',
+      startDate: '2026-09-01',
+      endDate: '2026-09-29',
+    };
+    mockListResults([{ id: 1, status: 'completed', finance_status: 'approved' }], 1, [
+      { status: 'completed', count: 1 },
+    ]);
+    db.pool.query.mockResolvedValueOnce([[
+      { outbound_no: 'OUT-9', status: 'completed', finance_status: 'approved' },
+    ]]);
+    const listRes = responseDouble();
+    const exportRes = responseDouble();
+
+    await getOutboundList({ query }, listRes);
+    await exportOutbound({ query }, exportRes);
+
+    expect(listRes.status).toHaveBeenCalledWith(200);
+    expect(exportRes.send).toHaveBeenCalledTimes(1);
+    expect(db.pool.query).toHaveBeenCalledTimes(4);
+    for (const [sql, params] of db.pool.query.mock.calls) {
+      expect(sql).toContain('o.outbound_no LIKE ?');
+      expect(sql).toContain('oi_search.outbound_id = o.id');
+      expect(sql).toContain('m_search.name LIKE ? OR m_search.code LIKE ? OR m_search.specs LIKE ?');
+      expect(sql).toContain('oi_location.outbound_id = o.id AND m_location.location_id = ?');
+      expect(sql).toContain('AND (o.status) = ?');
+      expect(sql).toContain('AND p.production_group_id = ?');
+      expect(sql).toContain('AND o.created_by = ?');
+      expect(sql).not.toContain(query.materialName);
+      expect(params).toEqual([
+        '%OUT-9%', "%螺丝' OR 1=1%", "%螺丝' OR 1=1%", "%螺丝' OR 1=1%",
+        '4', 'production', 'completed', '8', '2026-09-01', '2026-09-29', 7,
+      ]);
+    }
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(exportRes.send.mock.calls[0][0]);
+    expect(workbook.getWorksheet('出库单').getCell('C2').value).toBe('已完成');
   });
 
   test('keeps approval metadata read-only in the outbound field contract', () => {

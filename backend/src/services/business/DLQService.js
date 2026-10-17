@@ -92,7 +92,7 @@ class DLQService {
   /**
    * Record an async side effect that failed after its primary transaction.
    */
-  static async recordFailedJob(taskName, payload, error) {
+  static async recordFailedJob(taskName, payload, error, options = {}) {
     let connection;
     try {
       connection = await db.pool.getConnection();
@@ -108,6 +108,10 @@ class DLQService {
         originalTask: taskName,
         payload,
       });
+      // Durable event consumers must not acknowledge success when neither the
+      // side effect nor its retry record exists. Other callers retain their
+      // existing best-effort behaviour unless they explicitly opt in.
+      if (options.throwOnPersistenceFailure === true) throw dbError;
     } finally {
       if (connection) {
         connection.release();
@@ -115,8 +119,8 @@ class DLQService {
     }
   }
 
-  static async recordSideEffectFailure(taskName, payload, error) {
-    await this.recordFailedJob(taskName, payload, error);
+  static async recordSideEffectFailure(taskName, payload, error, options = {}) {
+    await this.recordFailedJob(taskName, payload, error, options);
   }
 
   static normalizeTaskNamePrefixes(taskNamePrefixes = []) {
@@ -178,20 +182,61 @@ class DLQService {
     };
   }
 
-  static async markResolved(id, operator) {
+  static async markResolved(id, operator, { taskNamePrefixes = [] } = {}) {
+    const jobId = Number(id);
+    if (!Number.isSafeInteger(jobId) || jobId <= 0) throw new Error('invalid failed job id');
+    const readParams = [jobId];
+    const readScope = this.buildTaskNamePrefixSql(taskNamePrefixes, readParams);
+    const [[job]] = await db.pool.query(
+      `SELECT id, task_name, payload FROM sys_failed_jobs WHERE id = ?${readScope ? ` AND (${readScope})` : ''}`,
+      readParams
+    );
+    if (!job) return false;
+    const payload = this.parsePayload(job.payload);
+    const eventPayload = job.task_name.startsWith('EventBus:') ? payload.args?.[0] || {} : payload;
+    const inventoryJob = [
+      'EventBus:INVENTORY_POSTING_APPROVED',
+      'Finance:InventoryPostingApproved',
+    ].includes(job.task_name);
+    if (inventoryJob && eventPayload.postingDocumentId) {
+      await require('./InventoryPostingEventClosureService').closeReversedPosting(
+        eventPayload.postingDocumentId
+      );
+    }
+    if (eventPayload.__domainEvent?.id || inventoryJob) {
+      const [unfinished] = await db.pool.query(
+        `SELECT id FROM domain_events WHERE status <> 'processed' AND
+          (id = ? OR (event_name = 'INVENTORY_POSTING_APPROVED'
+             AND JSON_UNQUOTE(JSON_EXTRACT(payload, '$.postingDocumentId')) = ?)) LIMIT 1`,
+        [
+          eventPayload.__domainEvent?.id || 0,
+          inventoryJob ? String(eventPayload.postingDocumentId || '') : '',
+        ]
+      );
+      if (unfinished.length || (inventoryJob && !eventPayload.postingDocumentId)) {
+        const error = new Error(
+          '关联领域事件尚未完成，须先重试成功或验证完整冲销链，不能仅标记失败任务已处理'
+        );
+        error.statusCode = 409;
+        throw error;
+      }
+    }
     const { resolveActorLabel } = require('../../utils/userUtils');
     const resolvedBy =
       operator != null && operator !== '' && operator !== 'system' && operator !== 'SYSTEM'
         ? String(operator)
         : await resolveActorLabel(null);
-    await db.pool.query(
+    const params = [`\n[resolved_by=${resolvedBy}]`, jobId];
+    const prefixSql = this.buildTaskNamePrefixSql(taskNamePrefixes, params);
+    const [result] = await db.pool.query(
       `UPDATE sys_failed_jobs
        SET status = 'resolved',
            resolved_at = NOW(),
            error_message = CONCAT(COALESCE(error_message, ''), ?)
-       WHERE id = ?`,
-      [`\n[resolved_by=${resolvedBy}]`, id]
+       WHERE id = ?${prefixSql ? ` AND (${prefixSql})` : ''}`,
+      params
     );
+    return Number(result.affectedRows || 0) > 0;
   }
 
   static async requeueFailedJobs(ids = []) {
@@ -229,6 +274,8 @@ class DLQService {
       };
     }
 
+    const previousAttempts = Number(job.attempts || 0);
+    const attempts = previousAttempts + 1;
     const [claimResult] = await db.pool.query(
       `UPDATE sys_failed_jobs
        SET status = 'retrying',
@@ -238,8 +285,10 @@ class DLQService {
        WHERE id = ?
          AND status IN ('pending','retrying')
          AND attempts < ?
+         AND attempts = ?
+         AND (next_retry_at IS NULL OR next_retry_at <= NOW())
          AND (locked_at IS NULL OR locked_at < DATE_SUB(NOW(), INTERVAL ? SECOND))`,
-      [job.id, config.maxAttempts, config.lockTimeoutSeconds]
+      [job.id, config.maxAttempts, previousAttempts, config.lockTimeoutSeconds]
     );
 
     if (claimResult.affectedRows === 0) {
@@ -252,11 +301,11 @@ class DLQService {
     const [[claimedJob]] = await db.pool.query(
       `SELECT id, task_name, payload, attempts
        FROM sys_failed_jobs
-       WHERE id = ?`,
-      [job.id]
+       WHERE id = ? AND status = 'retrying' AND attempts = ?`,
+      [job.id, attempts]
     );
+    if (!claimedJob) return { retried: false, reason: 'LOST_CLAIM' };
     const payload = this.parsePayload(claimedJob?.payload);
-    const attempts = Number(claimedJob?.attempts || job.attempts || 1);
 
     try {
       await handler(payload, {
@@ -265,15 +314,18 @@ class DLQService {
         maxAttempts: config.maxAttempts,
       });
 
-      await db.pool.query(
+      const [completion] = await db.pool.query(
         `UPDATE sys_failed_jobs
          SET status = 'resolved',
              locked_at = NULL,
              resolved_at = NOW(),
              updated_at = NOW()
-         WHERE id = ?`,
-        [job.id]
+         WHERE id = ? AND status = 'retrying' AND attempts = ?`,
+        [job.id, attempts]
       );
+      if (!completion.affectedRows) {
+        return { retried: true, resolved: false, reason: 'LOST_CLAIM' };
+      }
 
       logger.info(`[DLQ] Retry resolved job ${job.id} (${job.task_name})`);
       return {
@@ -284,7 +336,7 @@ class DLQService {
       const exhausted = attempts >= config.maxAttempts;
       const nextDelay = this.nextRetryDelaySeconds(attempts, config);
 
-      await db.pool.query(
+      const [failure] = await db.pool.query(
         `UPDATE sys_failed_jobs
          SET status = ?,
              error_message = ?,
@@ -292,11 +344,21 @@ class DLQService {
              next_retry_at = ${exhausted ? 'NULL' : 'DATE_ADD(NOW(), INTERVAL ? SECOND)'},
              locked_at = NULL,
              updated_at = NOW()
-         WHERE id = ?`,
+         WHERE id = ? AND status = 'retrying' AND attempts = ?`,
         exhausted
-          ? ['failed', error.message || String(error), error.stack || '', job.id]
-          : ['pending', error.message || String(error), error.stack || '', nextDelay, job.id]
+          ? ['failed', error.message || String(error), error.stack || '', job.id, attempts]
+          : [
+              'pending',
+              error.message || String(error),
+              error.stack || '',
+              nextDelay,
+              job.id,
+              attempts,
+            ]
       );
+      if (!failure.affectedRows) {
+        return { retried: true, resolved: false, reason: 'LOST_CLAIM' };
+      }
 
       logger.warn(
         `[DLQ] Retry failed for job ${job.id} (${job.task_name}), attempts=${attempts}/${config.maxAttempts}: ${error.message}`
@@ -334,6 +396,21 @@ class DLQService {
     const config = this.getRetryConfig(options);
     const placeholders = registeredTaskNames.map(() => '?').join(',');
 
+    // A crash after claiming the final attempt used to leave a retrying row
+    // permanently excluded by attempts < maxAttempts. Surface it as failed so
+    // it can be inspected and deliberately requeued.
+    const [recovered] = await db.pool.query(
+      `UPDATE sys_failed_jobs
+          SET status = 'failed', locked_at = NULL, next_retry_at = NULL,
+              error_message = COALESCE(error_message, 'Final retry lease expired'),
+              updated_at = NOW()
+        WHERE task_name IN (${placeholders}) AND status = 'retrying' AND attempts >= ?
+          AND (locked_at IS NULL OR locked_at < DATE_SUB(NOW(), INTERVAL ? SECOND))`,
+      [...registeredTaskNames, config.maxAttempts, config.lockTimeoutSeconds]
+    );
+    const recoveredCount = Number(recovered.affectedRows || 0);
+    if (recoveredCount) logger.warn(`[DLQ] Recovered ${recoveredCount} exhausted retry lease(s)`);
+
     const [jobs] = await db.pool.query(
       `SELECT id, task_name, payload, attempts
        FROM sys_failed_jobs
@@ -351,8 +428,8 @@ class DLQService {
       scanned: jobs.length,
       retried: 0,
       resolved: 0,
-      failed: 0,
-      exhausted: 0,
+      failed: recoveredCount,
+      exhausted: recoveredCount,
     };
 
     for (const job of jobs) {

@@ -619,7 +619,7 @@ onMounted(() => {
   margin-bottom: 16px;
 
   .search-action {
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     font-size: 14px;
     padding: 0 8px;
   }
@@ -661,7 +661,7 @@ onMounted(() => {
     margin-bottom: 12px;
 
     .stats-number {
-      color: var(--color-primary);
+      color: var(--color-primary-text);
       font-weight: 600;
     }
   }
@@ -812,7 +812,7 @@ onMounted(() => {
 
 :deep(.highlight) {
   background-color: var(--bg-secondary);
-  color: var(--color-warning);
+  color: var(--color-warning-text);
   padding: 0 2px;
   border-radius: 2px;
 }

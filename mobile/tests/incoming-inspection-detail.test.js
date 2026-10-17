@@ -13,7 +13,7 @@ vi.mock('@/api', () => ({ qualityApi: {
   updateIncomingInspection: vi.fn(), startInspection: vi.fn(),
 } }))
 vi.mock('vant', async importOriginal => ({ ...await importOriginal(), showToast: vi.fn(), showConfirmDialog: vi.fn(async () => {}) }))
-const record = id => ({ id: Number(id), status: 'in_progress', quantity: 100, qualifiedQuantity: 100,
+const record = id => ({ id: Number(id), status: 'in_progress', isFullInspection: true, sampleQuantity: 100, quantity: 100, qualifiedQuantity: 100,
   unqualifiedQuantity: 0, attachments: [], items: [{ id: 7, itemName: '长度', standard: '≥0', type: 'dimension',
     actualValue: 0, measure1: 0, measure2: 10.2, measure3: 10.4, result: 'passed', toleranceLower: 0,
     measurements: [{ sample_no: 1, measured_value: 0 }, { sample_no: 2, measured_value: 10.2 }, { sample_no: 3, measured_value: 10.4 }],

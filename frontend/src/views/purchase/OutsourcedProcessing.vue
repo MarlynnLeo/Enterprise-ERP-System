@@ -245,17 +245,17 @@
           <span class="total-value">{{ formatPrice(viewData.totalAmount) }}</span>
         </div>
         <InventoryApprovalPanel
-          v-if="authStore.canViewInventoryApproval"
+          v-if="Boolean(viewData.id)"
           source-type="outsourced_processing_material"
+          :active="viewDialogVisible && !viewDialogLoading"
           :source-id="viewData.id"
           :source-no="viewData.processingNo"
-          :resubmit-status="['confirmed', 'in_progress'].includes(viewData.status) ? viewData.status : ''"
-          @resubmit="handleResubmitProcessing"
-          @changed="fetchProcessingList"
+          @changed="handleProcessingApprovalChanged"
         />
       </div>
       <template #footer>
         <span class="dialog-footer">
+          <el-button v-if="canResubmitProcessing" type="warning" :loading="resubmittingProcessing" @click="handleResubmitProcessing(viewData.status)">重新提交审核</el-button>
           <el-button @click="viewDialogVisible = false">关闭</el-button>
         </span>
       </template>
@@ -599,7 +599,7 @@ import { getApiErrorMessage } from '@/utils/errorHandler'
 import { handleTableRowView } from '@/utils/tableRowView';
 import { formatLocalDate } from '@/utils/format';
 import { formatDate } from '@/utils/helpers/dateUtils';
-import { ref, reactive, onMounted, onUnmounted, computed } from 'vue';
+import { ref, reactive, onMounted, onUnmounted, onDeactivated, watch, computed } from 'vue';
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { purchaseApi } from '@/api';
@@ -657,6 +657,8 @@ const processingStats = reactive({
 // 查看详情弹窗状态
 const viewDialogVisible = ref(false);
 const viewDialogLoading = ref(false);
+let viewRequestSequence = 0;
+const resubmittingProcessing = ref(false);
 const viewData = reactive({
   id: null,
   processingNo: '',
@@ -836,10 +838,16 @@ const filteredProducts = computed(() => {
 
 // 查看委外加工单详情（纯展示）
 const handleViewProcessing = async (row) => {
+  const id = row.id;
+  if (!id) return;
+  const request = ++viewRequestSequence;
   viewDialogVisible.value = true;
   viewDialogLoading.value = true;
+  Object.keys(viewData).forEach(key => { delete viewData[key]; });
+  Object.assign(viewData, { materials: [], products: [] });
   try {
-    const response = await purchaseApi.outsourcedProcessing.getDetail(row.id);
+    const response = await purchaseApi.outsourcedProcessing.getDetail(id);
+    if (request !== viewRequestSequence || !viewDialogVisible.value) return;
     const data = response.data || {};
     Object.assign(viewData, {
       id: data.id,
@@ -853,27 +861,50 @@ const handleViewProcessing = async (row) => {
       totalAmount: data.totalAmount || 0,
       remarks: data.remarks || '',
       status: data.status || '',
+      financeStatus: data.financeStatus || '',
       materials: data.materials || [],
       products: data.products || []
     });
   } catch (error) {
+    if (request !== viewRequestSequence || !viewDialogVisible.value) return;
     console.error('获取加工单详情失败:', error);
     ElMessage.error('获取加工单详情失败');
   } finally {
-    viewDialogLoading.value = false;
+    if (request === viewRequestSequence) viewDialogLoading.value = false;
   }
 };
 
+watch(viewDialogVisible, visible => { if (!visible) viewRequestSequence += 1; });
+onUnmounted(() => { viewRequestSequence += 1; });
+onDeactivated(() => { viewRequestSequence += 1; viewDialogVisible.value = false; });
+
+const canResubmitProcessing = computed(() =>
+  viewDialogVisible.value && !viewDialogLoading.value && Boolean(viewData.id) &&
+  authStore.hasPermission('purchase:processing:update') && ['confirmed', 'in_progress'].includes(viewData.status) &&
+  viewData.financeStatus === 'rejected'
+);
+
 const handleResubmitProcessing = async (status) => {
-  if (!viewData.id || !status) return;
+  if (!canResubmitProcessing.value || status !== viewData.status || resubmittingProcessing.value) return;
+  const id = viewData.id;
+  resubmittingProcessing.value = true;
   try {
-    await purchaseApi.outsourcedProcessing.updateStatus(viewData.id, status);
+    await purchaseApi.outsourcedProcessing.updateStatus(id, status);
     ElMessage.success('已重新提交财务审核');
+    if (viewData.id === id) viewData.financeStatus = 'pending';
     await fetchProcessingList();
-    await handleViewProcessing({ id: viewData.id });
+    if (viewDialogVisible.value && viewData.id === id) await handleViewProcessing({ id });
   } catch (error) {
     ElMessage.error(getApiErrorMessage(error, '重新提交审核失败'));
+  } finally {
+    resubmittingProcessing.value = false;
   }
+};
+
+const handleProcessingApprovalChanged = async () => {
+  const id = viewData.id;
+  await fetchProcessingList();
+  if (id && viewDialogVisible.value && viewData.id === id) await handleViewProcessing({ id });
 };
 
 // 新建委外加工单
@@ -1228,7 +1259,7 @@ onUnmounted(() => {
 .stat-value {
   font-size: 24px;
   font-weight: bold;
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   margin-bottom: 8px;
 }
 

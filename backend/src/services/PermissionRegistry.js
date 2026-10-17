@@ -48,6 +48,9 @@ function moduleOf(code) {
 function normalizePermissionCode(code) {
   const raw = String(code || '').trim();
   if (!raw) return raw;
+  // Global bypass is derived only from roles.is_super_admin, never a menu or
+  // assignable permission row controlled by ordinary permission administrators.
+  if (raw === '*') throw new Error('全局通配权限为系统保留权限，不允许通过菜单配置');
   const parts = raw.split(':').filter(Boolean);
   if (parts.length < 3) return raw;
   const last = parts[parts.length - 1];

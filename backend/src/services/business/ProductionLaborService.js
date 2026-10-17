@@ -35,11 +35,20 @@ class ProductionLaborService {
   }
 
   /** Resolve only the task's fixed standards and actual execution times. */
-  static async resolveWorkHours(connection, taskId, quantity = null, taskOverride = null) {
+  static async resolveWorkHours(
+    connection,
+    taskId,
+    quantity = null,
+    taskOverride = null,
+    processId = null
+  ) {
     const task = taskOverride || (await this.loadTask(connection, taskId));
     const taskQuantity = Number(task.quantity) || 0;
-    const reportQuantity = quantity == null ? taskQuantity : Number(quantity);
-    if (!Number.isFinite(reportQuantity) || reportQuantity <= 0 || reportQuantity > taskQuantity) {
+    let reportQuantity = quantity == null ? taskQuantity : Number(quantity);
+    if (
+      processId == null &&
+      (!Number.isFinite(reportQuantity) || reportQuantity <= 0 || reportQuantity > taskQuantity)
+    ) {
       throw new BusinessError(
         '报工数量必须大于0且不能超过任务数量',
         null,
@@ -48,11 +57,31 @@ class ProductionLaborService {
       );
     }
     const [processes] = await connection.query(
-      `SELECT id, process_name, standard_hours, status,
+      `SELECT id, process_name, quantity, standard_hours, status,
               GREATEST(0, TIMESTAMPDIFF(SECOND, actual_start_time, actual_end_time)) AS actual_seconds
-       FROM production_processes WHERE task_id = ? AND status <> 'cancelled' ORDER BY sequence, id`,
-      [taskId]
+       FROM production_processes WHERE task_id = ? AND status <> 'cancelled'${processId == null ? '' : ' AND id = ?'} ORDER BY sequence, id`,
+      processId == null ? [taskId] : [taskId, processId]
     );
+    // Actual duration covers this process's workpieces. Non-template processes
+    // may have a different quantity from the finished-product task.
+    const scopeQuantity =
+      processId == null ? taskQuantity : Number(processes[0]?.quantity ?? taskQuantity);
+    if (processId != null) {
+      reportQuantity = quantity == null ? scopeQuantity : Number(quantity);
+      if (
+        !Number.isFinite(reportQuantity) ||
+        reportQuantity <= 0 ||
+        !(scopeQuantity > 0) ||
+        reportQuantity > scopeQuantity
+      ) {
+        throw new BusinessError(
+          '报工数量必须大于0且不能超过工序数量',
+          null,
+          'INVALID_REPORT_QUANTITY',
+          400
+        );
+      }
+    }
     let total = 0;
     let hasStandard = false;
     let hasActual = false;
@@ -62,7 +91,7 @@ class ProductionLaborService {
         total += Number(process.standard_hours) * reportQuantity;
         hasStandard = true;
       } else if (process.status === 'completed' && Number(process.actual_seconds) > 0) {
-        total += (Number(process.actual_seconds) / 3600) * (reportQuantity / taskQuantity);
+        total += (Number(process.actual_seconds) / 3600) * (reportQuantity / scopeQuantity);
         hasActual = true;
       } else {
         missing.push(process.process_name || process.id);
@@ -97,10 +126,31 @@ class ProductionLaborService {
   static async ensureTaskReport(connection, taskId, options = {}) {
     const task = await this.loadTask(connection, taskId);
     const taskQuantity = Number(task.quantity);
-    const targetQuantity = options.quantity == null ? taskQuantity : Number(options.quantity);
-    if (!Number.isFinite(targetQuantity) || targetQuantity <= 0 || targetQuantity > taskQuantity) {
+    let scopeQuantity = taskQuantity;
+    if (options.scoped) {
+      const [[process]] = await connection.query(
+        "SELECT id, quantity FROM production_processes WHERE task_id = ? AND id = ? AND status <> 'cancelled' FOR UPDATE",
+        [taskId, options.processId]
+      );
+      if (!process) {
+        throw new BusinessError(
+          '报工工序不存在或已取消，请先核对',
+          null,
+          'REPORT_QUANTITY_CONFLICT',
+          409
+        );
+      }
+      scopeQuantity = Number(process.quantity ?? taskQuantity);
+    }
+    const targetQuantity = options.quantity == null ? scopeQuantity : Number(options.quantity);
+    if (
+      !Number.isFinite(targetQuantity) ||
+      targetQuantity <= 0 ||
+      !(scopeQuantity > 0) ||
+      targetQuantity > scopeQuantity
+    ) {
       throw new BusinessError(
-        '报工数量必须大于0且不能超过任务数量',
+        `报工数量必须大于0且不能超过${options.scoped ? '工序' : '任务'}数量`,
         null,
         'INVALID_REPORT_QUANTITY',
         400
@@ -108,13 +158,64 @@ class ProductionLaborService {
     }
 
     const [reports] = await connection.query(
-      `SELECT id, work_hours, report_quantity, completed_quantity
+      `SELECT id, process_id, work_hours, report_quantity, completed_quantity
          FROM production_reports
-        WHERE task_id = ?
+        WHERE task_id = ?${options.scoped ? ' AND process_id = ?' : ''}
         ORDER BY id
         FOR UPDATE`,
-      [taskId]
+      options.scoped ? [taskId, options.processId] : [taskId]
     );
+    // Once a task is reported per step, completion fills each step independently.
+    // Summing repeated workpieces across steps would double-count output and hours.
+    if (!options.scoped && reports.some((report) => report.process_id != null)) {
+      if (reports.some((report) => report.process_id == null)) {
+        throw new BusinessError(
+          '任务报工与工序报工不能混用，请先核对工序归属',
+          null,
+          'REPORT_QUANTITY_CONFLICT',
+          409
+        );
+      }
+      const [processes] = await connection.query(
+        "SELECT id, process_name, quantity FROM production_processes WHERE task_id = ? AND status <> 'cancelled' ORDER BY sequence, id FOR UPDATE",
+        [taskId]
+      );
+      if (
+        reports.some(
+          (report) => !processes.some((process) => Number(process.id) === Number(report.process_id))
+        )
+      ) {
+        throw new BusinessError(
+          '已有报工关联无效或已取消的工序，请先核对',
+          null,
+          'REPORT_QUANTITY_CONFLICT',
+          409
+        );
+      }
+      const results = [];
+      for (const process of processes) {
+        results.push(
+          await this.ensureTaskReport(connection, taskId, {
+            ...options,
+            scoped: true,
+            processId: process.id,
+            processName: process.process_name,
+            quantity:
+              targetQuantity === taskQuantity
+                ? Number(process.quantity ?? taskQuantity)
+                : Math.min(targetQuantity, Number(process.quantity ?? taskQuantity)),
+          })
+        );
+      }
+      return {
+        task,
+        created: results.some((result) => result.created),
+        repaired: results.some((result) => result.repaired),
+        reportId: results[results.length - 1]?.reportId,
+        workHours: roundHours(results.reduce((sum, result) => sum + result.workHours, 0)),
+        source: 'process_reports',
+      };
+    }
     let reportedQuantity = 0;
     for (const report of reports) {
       report.quantity = Number(report.completed_quantity ?? report.report_quantity);
@@ -128,9 +229,9 @@ class ProductionLaborService {
       }
       reportedQuantity += report.quantity;
     }
-    if (reportedQuantity > taskQuantity + 0.000001) {
+    if (reportedQuantity > scopeQuantity + 0.000001) {
       throw new BusinessError(
-        '累计报工数量超过任务数量，请先核对报工记录',
+        `累计报工数量超过${options.scoped ? '工序' : '任务'}数量，请先核对报工记录`,
         null,
         'REPORT_QUANTITY_CONFLICT',
         409
@@ -140,7 +241,13 @@ class ProductionLaborService {
     const zeroReports = reports.filter((report) => !(Number(report.work_hours) > 0));
     const resolved =
       remainingQuantity > 0 || zeroReports.length
-        ? await this.resolveWorkHours(connection, taskId, taskQuantity, task)
+        ? await this.resolveWorkHours(
+            connection,
+            taskId,
+            scopeQuantity,
+            task,
+            options.scoped ? options.processId : null
+          )
         : null;
     const result = {
       task,

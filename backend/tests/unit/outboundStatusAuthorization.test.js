@@ -208,6 +208,14 @@ describe('outbound reversal approval guards', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     connection = connectionDouble();
+    connection.execute.mockImplementation(async (sql) => {
+      if (sql.includes('FROM inventory_outbound')) return [[outbound]];
+      if (sql.includes('FROM inventory_posting_documents')) return [[{
+        id: 20, source_type: 'outbound', source_id: 9, source_no: 'OUT-9',
+        posting_kind: 'movement', posting_sequence: 1, finance_status: 'approved',
+      }]];
+      throw new Error(`Unexpected reversal query: ${sql}`);
+    });
     db.pool.getConnection.mockResolvedValue(connection);
     ScopeGuard.denyUnlessAccess.mockResolvedValue(true);
     ScopeGuard.assertAccess.mockResolvedValue(true);
@@ -266,10 +274,10 @@ describe('outbound reversal approval guards', () => {
       id: 9, status: 'completed', financeStatus: 'pending', reversalDocumentId: 21,
     }));
     expect(InventoryPostingService.requestReversal).toHaveBeenCalledWith(
-      20, actor, '撤销出库单 OUT-9',
+      20, actor, '撤销出库单 OUT-9 及全部补发',
       expect.objectContaining({ createReissue: false, force: false, sourceId: 9 }), connection
     );
-    expect(connection.execute).toHaveBeenCalledTimes(1);
+    expect(connection.execute).toHaveBeenCalledTimes(3);
     expect(connection.execute.mock.calls[0][0]).toContain('FOR UPDATE');
     expect(InventoryService.updateStock).not.toHaveBeenCalled();
     expect(connection.commit).toHaveBeenCalledTimes(1);
@@ -277,14 +285,14 @@ describe('outbound reversal approval guards', () => {
 
   test('unapproved documents cannot submit a reversal', async () => {
     connection.execute.mockResolvedValueOnce([[outbound]]);
-    InventoryPostingService.requireApprovedForTransaction.mockRejectedValue(
-      Object.assign(new Error('库存过账尚未审核'), { code: 'INVENTORY_POSTING_NOT_APPROVED', statusCode: 409 })
-    );
+    connection.execute.mockResolvedValueOnce([[outbound]]);
+    connection.execute.mockResolvedValueOnce([[]]);
     const res = responseDouble();
 
     await cancelOutboundReissue(reversalRequest(), res);
 
     expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json.mock.calls[0][0].message).toContain('没有已审核库存');
     expect(InventoryPostingService.requestReversal).not.toHaveBeenCalled();
     expect(connection.rollback).toHaveBeenCalledTimes(1);
     expect(connection.commit).not.toHaveBeenCalled();
@@ -305,7 +313,8 @@ describe('outbound reversal approval guards', () => {
   ])('checks fallback production_task_id for %s even with force=%s', async (taskStatus, force, statusCode) => {
     connection.execute
       .mockResolvedValueOnce([[{ ...outbound, production_task_id: 77 }]])
-      .mockResolvedValueOnce([[{ status: taskStatus, code: 'TASK-77' }]]);
+      .mockResolvedValueOnce([[{ status: taskStatus, code: 'TASK-77' }]])
+      .mockResolvedValueOnce([[]]);
     const res = responseDouble();
 
     await cancelOutboundReissue(reversalRequest({ force }), res);
@@ -328,7 +337,8 @@ describe('outbound reversal approval guards', () => {
   test('a confirmed force request still waits for finance and does not create a replacement', async () => {
     connection.execute
       .mockResolvedValueOnce([[{ ...outbound, production_task_id: 77 }]])
-      .mockResolvedValueOnce([[{ status: 'in_progress', code: 'TASK-77' }]]);
+      .mockResolvedValueOnce([[{ status: 'in_progress', code: 'TASK-77' }]])
+      .mockResolvedValueOnce([[]]);
     const res = responseDouble();
 
     await cancelOutboundReissue(reversalRequest({ force: true }), res);
@@ -340,6 +350,22 @@ describe('outbound reversal approval guards', () => {
       }), connection
     );
     expect(InventoryService.updateStock).not.toHaveBeenCalled();
+  });
+
+  test('returns a business conflict and actionable reason when production returns block reversal', async () => {
+    connection.execute
+      .mockResolvedValueOnce([[{ ...outbound, production_task_id: 77 }]])
+      .mockResolvedValueOnce([[{ id: 77, status: 'material_issued', code: 'TASK-77' }]])
+      .mockResolvedValueOnce([[{ id: 31, inbound_no: 'RETURN-31' }]]);
+    const res = responseDouble();
+    await cancelOutboundReissue(reversalRequest(), res);
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json.mock.calls[0][0]).toEqual(expect.objectContaining({
+      code: 'PRODUCTION_RETURN_BLOCKS_REVERSAL', message: expect.stringContaining('RETURN-31'),
+    }));
+    expect(InventoryPostingService.requestReversal).not.toHaveBeenCalled();
+    expect(connection.commit).not.toHaveBeenCalled();
+    expect(connection.rollback).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -174,7 +174,7 @@
         color: var(--text-secondary);
 
         &.active {
-          color: var(--color-success);
+          color: var(--color-success-text);
         }
 
         .van-icon {

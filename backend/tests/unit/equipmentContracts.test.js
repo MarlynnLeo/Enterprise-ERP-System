@@ -18,7 +18,7 @@ describe('equipment API and canonical storage contract', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     pool.query.mockImplementation(async (sql) => {
-      if (/SELECT id FROM equipment/.test(sql)) return [[{ id: 8 }]];
+      if (/SELECT id(?:, status)? FROM equipment/.test(sql)) return [[{ id: 8 }]];
       if (/INSERT INTO/.test(sql)) return [{ insertId: 31 }];
       if (/COUNT\(\*\)/.test(sql)) return [[{ total: 1 }]];
       return [[]];
@@ -38,7 +38,7 @@ describe('equipment API and canonical storage contract', () => {
     const [sql, values] = pool.query.mock.calls.find(([query]) => /INSERT INTO equipment_maintenance/.test(query));
     expect(sql).toContain('maintenance_staff');
     expect(sql).not.toContain('maintenance_person');
-    expect(values).toEqual([8, 'preventive', '2026-09-18', '技术员', undefined, undefined, undefined, '2026-10-18', 'pending', '复查']);
+    expect(values).toEqual([8, 'preventive', '2026-09-18', '技术员', undefined, undefined, undefined, '2026-10-18', 'pending', '复查', null]);
     expect(connection.commit).toHaveBeenCalledTimes(1);
     expect(connection.query.mock.calls[0][0]).toContain('FOR UPDATE');
   });

@@ -39,6 +39,9 @@
             <span v-else>{{ formatCell(row, column) }}</span>
           </template>
         </el-table-column>
+        <el-table-column v-if="recordKind" label="操作" fixed="right" width="110" class-name="operation-column" header-class-name="operation-column-header">
+          <template #default="{ row }"><el-button link type="primary" @click="openRecord(row)">查看 / 处理</el-button></template>
+        </el-table-column>
       </el-table>
 
       <div class="pagination">
@@ -54,6 +57,7 @@
         />
       </div>
     </el-card>
+    <EquipmentRecordEditor v-if="recordKind" v-model="editorVisible" :record="selectedRecord" :kind="recordKind" @saved="loadData" />
   </div>
 </template>
 
@@ -64,8 +68,10 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { Refresh } from '@element-plus/icons-vue'
 import { equipmentApi } from '@/api'
+import EquipmentRecordEditor from './EquipmentRecordEditor.vue'
 
 const props = defineProps({
+  recordKind: { type: String, default: '' },
   title: {
     type: String,
     required: true
@@ -89,6 +95,9 @@ const props = defineProps({
 })
 
 const loading = ref(false)
+const editorVisible = ref(false)
+const selectedRecord = ref(null)
+const openRecord = row => { selectedRecord.value = row; editorVisible.value = true }
 const rows = ref([])
 const total = ref(0)
 const query = reactive({
@@ -158,9 +167,9 @@ const formatStatus = (status) => {
 }
 
 const getStatusTag = (status) => {
-  const success = ['normal', 'completed', 'pass', 'active']
-  const warning = ['maintenance', 'planned', 'pending', 'in_progress', 'conditional_pass']
-  const danger = ['fail', 'failed', 'repair', 'abnormal', 'scrapped', 'overdue', 'reported']
+  const success = ['normal', 'completed', 'resolved', 'pass', 'active']
+  const warning = ['maintenance', 'planned', 'pending', 'in_progress', 'diagnosing', 'repairing', 'conditional_pass']
+  const danger = ['fail', 'failed', 'repair', 'abnormal', 'scrapped', 'overdue', 'reported', 'unresolved']
   if (success.includes(status)) return 'success'
   if (warning.includes(status)) return 'warning'
   if (danger.includes(status)) return 'danger'

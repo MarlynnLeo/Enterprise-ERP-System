@@ -5,6 +5,8 @@
  * @date 2026-06-11
  */
 
+const BusinessError = require('../../utils/BusinessError');
+
 function requirePositiveInteger(value, fieldName) {
   const parsed = Number.parseInt(value, 10);
   if (!Number.isInteger(parsed) || parsed <= 0 || String(value).trim() !== String(parsed)) {
@@ -79,17 +81,24 @@ function fromCents(cents) {
 }
 
 function normalizeOpeningAmount(value, fieldName) {
-  const amount =
-    value === undefined || value === null || value === '' ? 0 : Number.parseFloat(value);
-  if (!Number.isFinite(amount)) {
+  const raw = value === undefined || value === null || value === '' ? 0 : value;
+  if (
+    !['string', 'number'].includes(typeof raw) ||
+    (typeof raw === 'string' && !raw.trim()) ||
+    !Number.isFinite(Number(raw))
+  ) {
     throw new Error(`${fieldName}必须为有效金额`);
   }
-
-  const cents = Math.round(amount * 100);
-  if (cents < 0) {
+  const Decimal = require('decimal.js');
+  const amount = new Decimal(raw);
+  if (amount.isNegative() && !amount.isZero()) {
     throw new Error(`${fieldName}不能为负数`);
   }
-
+  // 总账金额先按十进制舍入到分，避免 1.005 被浮点运算截成 1.00。
+  const cents = amount.times(100).toDecimalPlaces(0, Decimal.ROUND_HALF_UP).toNumber();
+  if (!Number.isSafeInteger(cents) || cents > 999999999999999) {
+    throw new Error(`${fieldName}超出金额范围`);
+  }
   return fromCents(cents);
 }
 
@@ -117,6 +126,8 @@ function createOpeningBalanceBatchNo() {
 }
 
 async function assertOpeningBalancesEditable(connection) {
+  // 期初设置必须先阻止并发过账和关账，再读取账套是否已启用。
+  await connection.execute('SELECT id FROM gl_periods ORDER BY id FOR UPDATE');
   const [[postedEntries]] = await connection.execute(
     'SELECT COUNT(*) AS count FROM gl_entries WHERE COALESCE(is_posted, 0) = 1'
   );
@@ -159,18 +170,45 @@ async function assertAccountsAvailableForOpeningBalances(connection, accountIds)
 
 async function assertAccountCanBeDeactivated(connection, accountId) {
   const normalizedAccountId = requirePositiveInteger(accountId, 'accountId');
+  await connection.execute('SELECT id FROM gl_accounts WHERE id = ? FOR UPDATE', [
+    normalizedAccountId,
+  ]);
   const [[usage]] = await connection.execute(
     `SELECT
        COALESCE(MAX(ABS(COALESCE(a.opening_debit, 0)) + ABS(COALESCE(a.opening_credit, 0))), 0) AS opening_amount,
        COUNT(ei.id) AS entry_line_count
      FROM gl_accounts a
      LEFT JOIN gl_entry_items ei ON ei.account_id = a.id
-     WHERE a.id = ?`,
+     WHERE a.id = ? FOR UPDATE`,
     [normalizedAccountId]
   );
 
-  if (Number(usage.opening_amount || 0) > 0 || Number(usage.entry_line_count || 0) > 0) {
-    throw new Error('存在期初余额或凭证历史的科目不能停用');
+  const openingAmount = Number(usage?.opening_amount || 0);
+  const entryCount = Number(usage?.entry_line_count || 0);
+
+  if (openingAmount > 0 && entryCount > 0) {
+    throw new BusinessError(
+      `该科目存在期初余额（${openingAmount.toFixed(2)}）且已有凭证记录（${entryCount}笔），无法禁用`,
+      null,
+      'ACCOUNT_HAS_ACTIVITY',
+      400
+    );
+  }
+  if (openingAmount > 0) {
+    throw new BusinessError(
+      `该科目存在期初余额（${openingAmount.toFixed(2)}），无法禁用；如需禁用请先在“期初余额”中清零`,
+      null,
+      'ACCOUNT_HAS_ACTIVITY',
+      400
+    );
+  }
+  if (entryCount > 0) {
+    throw new BusinessError(
+      `该科目已有凭证记录（${entryCount}笔），无法禁用`,
+      null,
+      'ACCOUNT_HAS_ACTIVITY',
+      400
+    );
   }
 }
 

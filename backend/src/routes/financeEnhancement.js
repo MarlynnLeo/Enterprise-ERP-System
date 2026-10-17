@@ -38,6 +38,12 @@ router.get(
   requireInventoryApprovalAccess('view'),
   FinanceEnhancementController.getInventoryPostingApprovalBySource
 );
+router.post(
+  '/inventory-postings/batch-approve',
+  requireInventoryApprovalAccess('approve'),
+  requirePermission('finance:inventory:view'),
+  FinanceEnhancementController.batchApproveInventoryPostings
+);
 router.get(
   '/inventory-postings/:id',
   requireInventoryApprovalAccess('view'),
@@ -401,9 +407,17 @@ router.put(
     try {
       const { id } = req.params;
       const operator = getRequestActorLabel(req);
-      await DLQService.markResolved(id, operator);
+      const resolved = await DLQService.markResolved(id, operator, {
+        taskNamePrefixes: FINANCE_FAILED_JOB_PREFIXES,
+      });
+      if (!resolved) {
+        return ResponseHandler.error(res, '财务失败任务不存在', 'NOT_FOUND', 404);
+      }
       return ResponseHandler.success(res, { id: Number(id) }, '财务自动化失败任务已标记为已处理');
     } catch (error) {
+      if (error.statusCode === 409) {
+        return ResponseHandler.error(res, error.message, 'CONFLICT', 409, error);
+      }
       return ResponseHandler.error(res, '标记财务自动化失败任务失败', 'SERVER_ERROR', 500, error);
     }
   }

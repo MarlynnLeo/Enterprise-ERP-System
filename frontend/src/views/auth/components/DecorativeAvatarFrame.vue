@@ -211,7 +211,8 @@ function onFrameImageError() {
   box-shadow: 0 2px 8px color-mix(in srgb, var(--color-text-primary) 6%, transparent);
 }
 
-/* —— 动画优化：更柔、更慢，不再猛缩放 —— */
+/* Keep motion on transform/opacity so avatar frames reuse their painted
+   image instead of recalculating a drop-shadow on every animation frame. */
 .frame-motion-breath .avatar-frame-image {
   animation: avatarFrameImageBreath 4s ease-in-out infinite;
 }
@@ -224,12 +225,10 @@ function onFrameImageError() {
   0%, 100% {
     transform: scale(1);
     opacity: 0.94;
-    filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--color-text-primary) 12%, transparent));
   }
   50% {
     transform: scale(1.018);
     opacity: 1;
-    filter: drop-shadow(0 3px 10px color-mix(in srgb, var(--color-text-primary) 16%, transparent));
   }
 }
 
@@ -249,4 +248,5 @@ function onFrameImageError() {
 .decorative-avatar-frame[style*='--frame-size: 48px'] .avatar-frame-image {
   filter: drop-shadow(0 1px 3px color-mix(in srgb, var(--color-text-primary) 10%, transparent));
 }
+
 </style>

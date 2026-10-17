@@ -369,6 +369,8 @@ const salesReturnMap = {
     const api = {
       id: row.id,
       returnNo: row.return_no ?? null,
+      financeStatus: row.finance_status ?? null,
+      canResubmitInventory: row.status === 'completed' && row.finance_status === 'rejected',
       returnDate: formatDate(row.return_date),
       orderId: row.order_id ?? null,
       orderNo: row.order_no ?? null,

@@ -9,6 +9,7 @@ const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
 const { financeConfig } = require('../../config/financeConfig');
 const { parsePagination } = require('../../utils/safePagination');
+const BusinessError = require('../../utils/BusinessError');
 const {
   requirePositiveInteger,
   normalizeDateInput,
@@ -127,6 +128,16 @@ module.exports = {
       const { financeConfig } = require('../../config/financeConfig');
       await financeConfig.loadFromDatabase(db);
 
+      if (accountData.parent_id) {
+        const [parents] = await db.pool.execute(
+          'SELECT id, is_active FROM gl_accounts WHERE id = ?',
+          [accountData.parent_id]
+        );
+        if (parents.length && !parents[0].is_active) {
+          throw new BusinessError('所选父级会计科目已停用，不能在其下添加子科目');
+        }
+      }
+
       const [result] = await db.pool.execute(
         'INSERT INTO gl_accounts (account_code, account_name, account_type, parent_id, is_debit, is_active, currency_code, description, has_customer, has_supplier, has_employee, has_department, has_project) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [
@@ -158,15 +169,58 @@ module.exports = {
    * 更新会计科目
    */
   updateAccount: async (id, accountData) => {
+    const connection = await db.pool.getConnection();
     try {
-      if (
-        accountData.is_active === false ||
-        accountData.is_active === 0 ||
-        accountData.is_active === '0'
-      ) {
-        await assertAccountCanBeDeactivated(db.pool, id);
+      await connection.beginTransaction();
+      const [accounts] = await connection.execute(
+        'SELECT * FROM gl_accounts WHERE id = ? FOR UPDATE',
+        [id]
+      );
+      if (!accounts.length) throw new BusinessError('会计科目不存在');
+      const current = accounts[0];
+      accountData = {
+        ...current,
+        ...Object.fromEntries(
+          Object.entries(accountData).filter(([, value]) => value !== undefined)
+        ),
+      };
+      const accountingChanged =
+        accountData.account_type !== current.account_type ||
+        Number(accountData.is_debit) !== Number(current.is_debit) ||
+        String(accountData.currency_code || '') !== String(current.currency_code || '') ||
+        Number(accountData.parent_id || 0) !== Number(current.parent_id || 0);
+      if (accountingChanged) {
+        const [usage] = await connection.execute(
+          'SELECT id FROM gl_entry_items WHERE account_id = ? LIMIT 1 FOR UPDATE',
+          [id]
+        );
+        if (usage.length || Number(current.opening_debit) || Number(current.opening_credit)) {
+          throw new BusinessError(
+            '已有期初余额或凭证历史的科目不能修改类型、借贷方向、币种或上级科目'
+          );
+        }
       }
-      const [result] = await db.pool.execute(
+      if (
+        accountData.parent_id &&
+        Number(accountData.parent_id) !== Number(current.parent_id || 0)
+      ) {
+        const [parents] = await connection.execute(
+          'SELECT id, is_active FROM gl_accounts WHERE id = ?',
+          [accountData.parent_id]
+        );
+        if (parents.length && !parents[0].is_active) {
+          throw new BusinessError('所选上级会计科目已停用，不能挂载到已停用科目下');
+        }
+      }
+      if (
+        Boolean(current.is_active) &&
+        (accountData.is_active === false ||
+          accountData.is_active === 0 ||
+          accountData.is_active === '0')
+      ) {
+        await assertAccountCanBeDeactivated(connection, id);
+      }
+      const [result] = await connection.execute(
         'UPDATE gl_accounts SET account_name = ?, account_type = ?, parent_id = ?, is_debit = ?, is_active = ?, currency_code = ?, description = ?, has_customer = ?, has_supplier = ?, has_employee = ?, has_department = ?, has_project = ? WHERE id = ?',
         [
           accountData.account_name,
@@ -184,10 +238,14 @@ module.exports = {
           id,
         ]
       );
+      await connection.commit();
       return result.affectedRows > 0;
     } catch (error) {
+      await connection.rollback();
       logger.error('更新会计科目失败:', error);
       throw error;
+    } finally {
+      connection.release();
     }
   },
 

@@ -1,7 +1,30 @@
+const { isIPv4 } = require('node:net');
 const { logger } = require('../utils/logger');
 
 const LOCAL_DEV_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
-const PRIVATE_NETWORK_ORIGIN = /^(http|https):\/\/(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/;
+
+function isPrivateNetworkOrigin(origin) {
+  try {
+    const url = new URL(origin);
+    // Validate the actual host, not a prefix that an attacker-owned domain
+    // or URL userinfo can imitate. Origin headers contain no path or credentials.
+    if (
+      !['http:', 'https:'].includes(url.protocol) ||
+      url.origin !== origin ||
+      !isIPv4(url.hostname)
+    ) {
+      return false;
+    }
+    const [first, second] = url.hostname.split('.').map(Number);
+    return (
+      first === 10 ||
+      (first === 192 && second === 168) ||
+      (first === 172 && second >= 16 && second <= 31)
+    );
+  } catch {
+    return false;
+  }
+}
 
 function parseAllowedOrigins(raw = process.env.ALLOWED_ORIGINS || '') {
   return raw
@@ -21,7 +44,7 @@ function isOriginAllowed(origin) {
     if (!origin) return true;
     return (
       allowedOrigins.includes(origin) ||
-      PRIVATE_NETWORK_ORIGIN.test(origin) ||
+      isPrivateNetworkOrigin(origin) ||
       LOCAL_DEV_ORIGIN.test(origin)
     );
   }
@@ -30,7 +53,7 @@ function isOriginAllowed(origin) {
   return (
     allowedOrigins.includes(origin) ||
     LOCAL_DEV_ORIGIN.test(origin) ||
-    PRIVATE_NETWORK_ORIGIN.test(origin)
+    isPrivateNetworkOrigin(origin)
   );
 }
 

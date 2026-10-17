@@ -203,43 +203,13 @@
 
         <!-- 增值税表单 -->
         <template v-if="createForm.returnType === '增值税'">
-          <el-divider content-position="left">增值税数据</el-divider>
-          <el-row :gutter="20">
-            <el-col :span="12">
-              <el-form-item label="销售额">
-                <el-input-number v-model="createForm.salesAmount" :precision="2" :min="0" class="w-full" @change="calcVATPayable" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="销项税额">
-                <el-input-number v-model="createForm.salesOutputTax" :precision="2" :min="0" class="w-full" @change="calcVATPayable" />
-              </el-form-item>
-            </el-col>
-          </el-row>
-          <el-row :gutter="20">
-            <el-col :span="12">
-              <el-form-item label="采购额">
-                <el-input-number v-model="createForm.purchaseAmount" :precision="2" :min="0" class="w-full" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="进项税额">
-                <el-input-number v-model="createForm.purchaseInputTax" :precision="2" :min="0" class="w-full" @change="calcVATPayable" />
-              </el-form-item>
-            </el-col>
-          </el-row>
-          <el-row :gutter="20">
-            <el-col :span="12">
-              <el-form-item label="进项税转出">
-                <el-input-number v-model="createForm.inputTaxDeduction" :precision="2" :min="0" class="w-full" @change="calcVATPayable" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="应纳税额">
-                <el-input-number v-model="createForm.taxPayable" :precision="2" class="w-full" disabled />
-              </el-form-item>
-            </el-col>
-          </el-row>
+          <el-alert title="提交时按已认证销项、本期已抵扣进项和上期留抵自动计算。首次申报或旧版数据衔接时，请填写经税务资料核对的期初留抵；已有连续申报时自动承接上期余额。" type="info" :closable="false" />
+          <el-form-item label="期初留抵">
+            <el-input-number v-model="createForm.openingInputCredit" :precision="2" :min="0" class="w-full" />
+          </el-form-item>
+          <el-form-item label="期初核对依据">
+            <el-input v-model="createForm.openingCreditNote" type="textarea" :maxlength="500" placeholder="首次或旧版衔接必填，例如上期申报表日期及留抵金额；无留抵也需确认。" />
+          </el-form-item>
         </template>
 
         <!-- 企业所得税表单 -->
@@ -357,7 +327,10 @@
           <el-descriptions-item label="销项税额">{{ formatAmount(viewData.salesOutputTax) }}</el-descriptions-item>
           <el-descriptions-item label="采购额">{{ formatAmount(viewData.purchaseAmount) }}</el-descriptions-item>
           <el-descriptions-item label="进项税额">{{ formatAmount(viewData.purchaseInputTax) }}</el-descriptions-item>
-          <el-descriptions-item label="进项税转出">{{ formatAmount(viewData.inputTaxDeduction) }}</el-descriptions-item>
+          <el-descriptions-item label="本期抵扣额">{{ formatAmount(viewData.inputTaxDeduction) }}</el-descriptions-item>
+          <el-descriptions-item label="期初留抵">{{ formatAmount(viewData.openingInputCredit) }}</el-descriptions-item>
+          <el-descriptions-item label="期末留抵">{{ formatAmount(viewData.closingInputCredit) }}</el-descriptions-item>
+          <el-descriptions-item label="留抵核对依据" :span="2">{{ viewData.openingCreditNote || '承接上期申报' }}</el-descriptions-item>
           <el-descriptions-item label="应纳税额">
             <span class="text-danger font-weight-700">{{ formatAmount(viewData.taxPayable) }}</span>
           </el-descriptions-item>
@@ -443,6 +416,8 @@ const createForm = reactive({
   purchaseAmount: 0,
   purchaseInputTax: 0,
   inputTaxDeduction: 0,
+  openingInputCredit: 0,
+  openingCreditNote: '',
   taxPayable: 0,
   // 企业所得税字段
   totalRevenue: 0,
@@ -517,13 +492,6 @@ const getStatusType = (status) => {
   return typeMap[status] || 'info';
 };
 
-// 计算增值税应纳税额
-const calcVATPayable = () => {
-  createForm.taxPayable = Math.max(0,
-    (createForm.salesOutputTax || 0) - (createForm.purchaseInputTax || 0) + (createForm.inputTaxDeduction || 0)
-  );
-};
-
 // 计算企业所得税
 const calcIncomeTax = () => {
   createForm.taxableIncome = Math.max(0,
@@ -539,6 +507,8 @@ const handleTypeChange = () => {
   createForm.purchaseAmount = 0;
   createForm.purchaseInputTax = 0;
   createForm.inputTaxDeduction = 0;
+  createForm.openingInputCredit = 0;
+  createForm.openingCreditNote = '';
   createForm.taxPayable = 0;
   createForm.totalRevenue = 0;
   createForm.totalCost = 0;
@@ -678,7 +648,18 @@ const handleSubmit = async (row) => {
       }
     );
 
+    let opening = {};
+    if (row.returnType === '增值税' && row.openingInputCredit == null) {
+      const { value: amount } = await ElMessageBox.prompt('请按税务资料确认期初留抵金额，无留抵填 0。', '确认历史留抵', {
+        inputPattern: /^\d+(\.\d{1,2})?$/, inputErrorMessage: '请输入非负金额，最多两位小数'
+      });
+      const { value: note } = await ElMessageBox.prompt('请填写上期申报表或首次启用核对依据。', '留抵核对依据', {
+        inputValidator: value => Boolean(value?.trim()) && value.trim().length <= 500 || '请填写 1–500 字核对依据'
+      });
+      opening = { openingInputCredit: Number(amount), openingCreditNote: note.trim() };
+    }
     await financeApi.tax.submitReturn(row.id, {
+      ...opening,
       declarationDate: formatLocalDate(new Date())
     });
 

@@ -38,6 +38,18 @@
 
   /* Enterprise semantic palette. Component styles should reference these tokens. */
   --color-on-primary: #ffffff;
+  --color-primary-text: var(--color-primary);
+  --color-accent-text: var(--color-accent);
+  --color-success-text: var(--color-success);
+  --color-warning-text: var(--color-warning);
+  --color-error-text: var(--color-error);
+  --color-info-text: var(--color-info);
+  --color-danger-text: var(--color-error-text);
+  --color-on-success: #ffffff;
+  --color-on-accent: #ffffff;
+  --color-on-warning: #000000;
+  --color-on-error: #ffffff;
+  --color-on-info: #ffffff;
   --van-button-primary-color: var(--color-on-primary);
   --color-primary-active: color-mix(in srgb, var(--color-primary, #1a73e8) 82%, black);
   --color-accent-bg: var(--color-primary-bg, color-mix(in srgb, var(--color-primary, #1a73e8) 12%, transparent));
@@ -159,10 +171,10 @@
 .text-primary { color: var(--text-primary); }
 .text-secondary { color: var(--text-secondary); }
 .text-tertiary { color: var(--text-tertiary); }
-.text-success { color: var(--color-success); }
-.text-warning { color: var(--color-warning); }
-.text-error { color: var(--color-error); }
-.text-info { color: var(--color-info); }
+.text-success { color: var(--color-success-text); }
+.text-warning { color: var(--color-warning-text); }
+.text-error { color: var(--color-error-text); }
+.text-info { color: var(--color-info-text); }
 
 .bg-primary { background-color: var(--bg-primary); }
 .bg-secondary { background-color: var(--bg-secondary); }
@@ -177,36 +189,3 @@
 .shadow-sm { box-shadow: var(--shadow-sm); }
 .shadow-md { box-shadow: var(--shadow-md); }
 .shadow-lg { box-shadow: var(--shadow-lg); }
-
-/* Cross-theme Vant compatibility tokens. */
-:root,
-:root[data-theme] {
-
-
-  --van-cell-active-color: var(--surface-active);
-  --van-cell-group-background: var(--bg-secondary);
-  --van-cell-group-title-color: var(--text-secondary);
-  --van-cell-label-color: var(--text-tertiary);
-  --van-cell-value-color: var(--text-secondary);
-
-  --van-dialog-header-color: var(--text-primary);
-  --van-dialog-message-text-color: var(--text-secondary);
-  --van-empty-description-color: var(--text-tertiary);
-  --van-field-disabled-text-color: var(--text-disabled);
-  --van-field-input-text-color: var(--text-primary);
-  --van-field-label-color: var(--text-secondary);
-  --van-field-placeholder-text-color: var(--text-tertiary);
-  --van-list-text-color: var(--text-secondary);
-  --van-nav-bar-arrow-size: 20px;
-  --van-nav-bar-text-color: var(--text-secondary);
-  --van-picker-background: var(--bg-secondary);
-  --van-picker-option-text-color: var(--text-secondary);
-  --van-picker-title-text-color: var(--text-primary);
-  --van-pull-refresh-text-color: var(--text-secondary);
-  --van-search-action-text-color: var(--color-primary);
-  --van-tabbar-height: 56px;
-  --van-tabbar-background: var(--bg-secondary);
-  --van-tabbar-item-active-background: transparent;
-  --van-toast-background: rgba(32, 33, 36, 0.9);
-  --van-toast-text-color: #ffffff;
-}

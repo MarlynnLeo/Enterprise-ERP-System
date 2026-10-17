@@ -512,7 +512,7 @@ export function checkDimensionTolerance(item, showMessage = false) {
 }
 
 /**
- * 生成批次号 (规则: PUR-{供应商编码}-{日期YYMMDD}-{序号})
+ * 生成批次号 (规则: {供应商编码}-{日期YYMMDD}{序号}，如 G023-260922003)
  * @param {string} supplierCode - 供应商编码
  * @param {number} supplierId - 供应商ID（用于查询当天检验单数量）
  * @param {Object} qualityApiInstance - 质检API对象
@@ -558,7 +558,7 @@ export async function generateBatchNumber(supplierCode = '', supplierId = null, 
     }
 
     // 4. 组合批次号
-    return `PUR-${supplierCode}-${dateStr}-${serialNo}`
+    return `${supplierCode}-${dateStr}${serialNo}`
   } catch (error) {
     console.error('生成批次号失败:', error)
     throw error

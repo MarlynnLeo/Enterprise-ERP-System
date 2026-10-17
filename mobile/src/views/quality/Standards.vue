@@ -59,12 +59,12 @@
     border-radius: 10px; padding: 12px; margin-bottom: 8px;
   }
   .std-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-  .std-code { font-weight: 600; color: var(--color-primary); font-size: 0.9375rem; }
+  .std-code { font-weight: 600; color: var(--color-primary-text); font-size: 0.9375rem; }
   .std-name { font-size: 0.8125rem; color: var(--text-primary); margin-bottom: 6px; }
   .std-row {
     display: flex; gap: 12px; font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;
     b { color: var(--text-primary); }
   }
-  .ac { color: var(--color-success); font-weight: 600; }
-  .re { color: var(--color-error); font-weight: 600; }
+  .ac { color: var(--color-success-text); font-weight: 600; }
+  .re { color: var(--color-error-text); font-weight: 600; }
 </style>

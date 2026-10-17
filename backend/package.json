@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node --expose-gc src/index.js",
     "start:prod": "NODE_ENV=production node --expose-gc src/index.js",
-    "dev": "nodemon --watch src --watch migrations --watch knexfile.js --ignore logs/** --ignore uploads/** --ignore coverage/** --expose-gc src/index.js",
+    "dev": "node --watch --expose-gc src/index.js",
     "test": "jest --runInBand",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage --runInBand",
@@ -49,9 +49,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "axios": "^1.18.0",
+    "axios": "^1.20.0",
     "bcryptjs": "^2.4.3",
-    "compression": "^1.8.1",
+    "compression": "^1.8.2",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "csrf-csrf": "^4.0.3",
@@ -70,7 +70,7 @@
     "node-cache": "^5.1.2",
     "node-cron": "^4.2.1",
     "prom-client": "^15.1.3",
-    "proxy-addr": "^2.0.7",
+    "proxy-addr": "^2.0.8",
     "rate-limit-redis": "^4.3.1",
     "redis": "^5.8.2",
     "sequelize": "^6.37.7",
@@ -84,25 +84,24 @@
     "eslint": "^10.2.1",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.5.0",
-    "jest": "^29.7.0",
-    "lint-staged": "^15.5.2",
-    "nodemon": "^3.1.11",
+    "jest": "^30.5.2",
+    "lint-staged": "^17.6.0",
     "prettier": "^3.6.2",
     "supertest": "^7.2.2"
   },
   "overrides": {
     "browserslist": "4.28.8",
     "socket.io-parser": "4.2.7",
-    "fast-uri": "3.1.7",
+    "fast-uri": "3.1.8",
     "qs": "6.16.0",
-    "brace-expansion@1.1.16": "1.1.18",
-    "brace-expansion@2.1.2": "2.1.4",
-    "brace-expansion@5.0.7": "5.0.9",
+    "brace-expansion@^1": "1.1.21",
+    "brace-expansion@^2": "2.1.7",
+    "brace-expansion@^5": "5.0.12",
     "@apidevtools/json-schema-ref-parser": {
       "js-yaml": "4.3.2"
     },
     "@istanbuljs/load-nyc-config": {
-      "js-yaml": "5.2.2"
+      "js-yaml": "5.4.1"
     },
     "uuid": "11.1.1",
     "ws": "8.21.0"

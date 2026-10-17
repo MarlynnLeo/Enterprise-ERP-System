@@ -273,7 +273,8 @@ export const inventoryApi = {
     },
 
     // 获取任务领料记录（用于生产退料）
-    getTaskMaterialIssueRecords: (taskId) => api.get(`/inventory/task/${taskId}/material-issues`),
+    getTaskMaterialIssueRecords: (taskId, params) => api.get(`/inventory/task/${taskId}/material-issues`, { params }),
+    getTaskReleaseSources: (taskId) => api.get(`/inventory/task/${taskId}/release-sources`),
 
     // 库存调拨相关API
     getTransferList: (params) => api.get('/inventory/transfer', { params }),

@@ -44,7 +44,7 @@
         </el-timeline-item>
       </el-timeline>
     </div>
-    <EmptyState v-else description="暂无调整历史" ::image-size="100" />
+    <EmptyState v-else description="暂无调整历史" :image-size="100" />
     <template #footer>
       <el-button @click="visible = false">关闭</el-button>
     </template>

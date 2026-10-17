@@ -438,13 +438,13 @@
       font-weight: 800;
       color: var(--text-primary);
       &.accent {
-        color: var(--color-primary);
+        color: var(--color-primary-text);
       }
       &.success {
         color: var(--ds-green-strong);
       }
       &.warn {
-        color: var(--color-danger);
+        color: var(--color-danger-text);
       }
     }
     .stat-label {
@@ -516,7 +516,7 @@
     &.active {
       background: var(--color-accent-bg, rgba(59, 130, 246, 0.1));
       border-color: var(--color-accent, var(--color-primary));
-      color: var(--color-accent, var(--color-primary));
+      color: var(--color-accent-text, var(--color-primary));
       .chip-badge {
         background: var(--color-accent, var(--color-primary));
         color: var(--text-primary);
@@ -628,19 +628,19 @@
 
     &.accent-green {
       background: rgba(16, 185, 129, 0.12);
-      color: var(--color-success);
+      color: var(--color-success-text);
     }
     &.accent-red {
       background: rgba(239, 68, 68, 0.12);
-      color: var(--color-danger);
+      color: var(--color-danger-text);
     }
     &.accent-yellow {
       background: rgba(245, 158, 11, 0.12);
-      color: var(--color-warning);
+      color: var(--color-warning-text);
     }
     &.accent-blue {
       background: rgba(59, 130, 246, 0.12);
-      color: var(--color-primary);
+      color: var(--color-primary-text);
     }
   }
 
@@ -653,11 +653,11 @@
 
     &.tag-danger {
       background: rgba(239, 68, 68, 0.12);
-      color: var(--color-danger);
+      color: var(--color-danger-text);
     }
     &.tag-warning {
       background: rgba(245, 158, 11, 0.12);
-      color: var(--color-warning);
+      color: var(--color-warning-text);
     }
   }
 
@@ -688,11 +688,11 @@
     color: var(--text-primary);
 
     &.highlight {
-      color: var(--color-primary);
+      color: var(--color-primary-text);
       font-weight: 700;
     }
     &.text-warn {
-      color: var(--color-danger);
+      color: var(--color-danger-text);
       font-weight: 700;
     }
   }

@@ -38,7 +38,7 @@
             @click="$emit('navigate', action.path)"
           >
             <div class="quick-icon" :style="{ '--quick-action-bg': action.gradient }">
-              <SvgIcon :name="action.icon" size="1.25rem" />
+              <span class="quick-symbol"><SvgIcon :name="action.icon" size="1.25rem" /></span>
             </div>
             <span class="quick-text">{{ action.label }}</span>
           </div>
@@ -241,6 +241,18 @@
     text-align: center;
   }
 
+  // A neutral inset keeps every icon readable across mixed-color gradients.
+  .quick-symbol {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    color: var(--color-primary-text);
+    background: var(--bg-secondary);
+  }
+
   // ========== 功能模块分组 ==========
   .groups-section {
     display: flex;
@@ -355,27 +367,27 @@
 
     &.accent-blue {
       background: var(--ds-blue-bg);
-      color: var(--ds-blue);
+      color: var(--ds-blue-text);
     }
     &.accent-purple {
       background: var(--ds-purple-bg);
-      color: var(--ds-purple);
+      color: var(--ds-purple-text);
     }
     &.accent-green {
       background: var(--ds-green-bg);
-      color: var(--ds-green);
+      color: var(--ds-green-text);
     }
     &.accent-orange {
       background: var(--ds-orange-bg);
-      color: var(--ds-orange);
+      color: var(--ds-orange-text);
     }
     &.accent-red {
       background: var(--ds-red-bg);
-      color: var(--ds-red);
+      color: var(--ds-red-text);
     }
     &.accent-yellow {
       background: var(--ds-yellow-bg);
-      color: var(--ds-yellow);
+      color: var(--ds-yellow-text);
     }
   }
 
@@ -402,7 +414,7 @@
     padding: 1px 8px;
     border-radius: 10px;
     background: var(--ds-red-bg);
-    color: var(--ds-red);
+    color: var(--ds-red-text);
     font-size: 0.625rem;
     font-weight: 700;
   }
@@ -413,24 +425,24 @@
 
   // ========== 辅助类 ==========
   .text-blue-400 {
-    color: var(--ds-blue);
+    color: var(--ds-blue-text);
   }
   .text-purple-400 {
-    color: var(--ds-purple);
+    color: var(--ds-purple-text);
   }
   .text-green-400 {
-    color: var(--ds-green);
+    color: var(--ds-green-text);
   }
   .text-orange-400 {
-    color: var(--ds-orange);
+    color: var(--ds-orange-text);
   }
   .text-red-400 {
-    color: var(--ds-red);
+    color: var(--ds-red-text);
   }
   .text-yellow-400 {
-    color: var(--ds-yellow);
+    color: var(--ds-yellow-text);
   }
   .text-pink-400 {
-    color: var(--ds-pink);
+    color: var(--ds-pink-text);
   }
 </style>

@@ -7,6 +7,7 @@ const mysql=require('mysql2/promise');
 require('dotenv').config({path:path.join(__dirname,'../.env'),quiet:true});
 const args=process.argv.slice(2);
 const database=args.includes('--database')?args[args.indexOf('--database')+1]:'';
+const outputPath=args.includes('--output')?args[args.indexOf('--output')+1]:null;
 assert.match(database,/^[a-zA-Z0-9_]+$/,'Specify a database explicitly');
 const {consistencyRules}=require('../src/services/business/DataConsistencyRules');
 const checks=consistencyRules.filter(rule=>/^(gl|finance)\./.test(rule.id));
@@ -29,7 +30,7 @@ async function main(){
   report.creditNotes=(await c.query("SELECT 'ar' kind,id,invoice_number,total_amount,balance_amount,source_type FROM ar_invoices WHERE total_amount<0 UNION ALL SELECT 'ap',id,invoice_number,total_amount,balance_amount,source_type FROM ap_invoices WHERE total_amount<0"))[0];
   await c.rollback();
  }finally{await c.end();}
- const out=path.resolve(__dirname,'../logs/finance-audit-20260916_final',`history-${database}.json`);fs.mkdirSync(path.dirname(out),{recursive:true});fs.writeFileSync(out,JSON.stringify(report,null,2));
+ const out=outputPath?path.resolve(outputPath):path.resolve(__dirname,'../logs/finance-audit-20260916_final',`history-${database}.json`);fs.mkdirSync(path.dirname(out),{recursive:true});fs.writeFileSync(out,JSON.stringify(report,null,2));
  console.log(JSON.stringify({database,readOnly:true,checks:report.checks.map(({rows,...r})=>({...r,examples:rows?.slice(0,3)})),counts:report.counts,pendingPostings:report.pendingPostings,financeJobs:report.financeJobs,creditNotes:report.creditNotes,output:out}));
 }
 main().catch(e=>{console.error(e.message);process.exitCode=1;});

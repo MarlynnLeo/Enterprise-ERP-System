@@ -53,6 +53,7 @@
             in_progress: { text: '检验中', color: 'warning' },
             completed: { text: '已完成', color: 'success' },
             passed: { text: '已合格', color: 'success' },
+            partial: { text: '部分合格', color: 'warning' },
             failed: { text: '不合格', color: 'danger' }
           }
         }

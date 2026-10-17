@@ -9,6 +9,7 @@ const { getConnection } = require('../config/db');
 const { logger } = require('../utils/logger');
 const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
 const { serializeAuditPayload } = require('../utils/auditSanitizer');
+const { writeAuditFailure } = require('./system/AuditLogService');
 
 /**
  * 审计操作类型枚举
@@ -66,7 +67,7 @@ class AuditService {
    * @param {string} params.ipAddress - IP地址
    * @param {string} params.userAgent - User Agent
    */
-  static async log(params) {
+  static async log(params, transactionConnection = null) {
     let connection;
     try {
       const {
@@ -80,13 +81,16 @@ class AuditService {
         newValue,
         ipAddress,
         userAgent,
+        requestId,
+        method,
+        path,
       } = params;
 
-      connection = await getConnection();
+      connection = transactionConnection || (await getConnection());
       await connection.query(
         `INSERT INTO audit_logs
-                 (user_id, username, module, action, entity_type, entity_id, old_value, new_value, ip_address, user_agent)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                 (user_id, username, module, action, entity_type, entity_id, old_value, new_value, ip_address, user_agent, request_id, method, path)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           userId || null,
           username || null,
@@ -98,15 +102,37 @@ class AuditService {
           serializeAuditPayload(newValue),
           ipAddress || null,
           userAgent || null,
+          requestId ? String(requestId).slice(0, 50) : null,
+          method || null,
+          path ? String(path).split('?')[0].slice(0, 255) : null,
         ]
       );
 
       logger.debug(`审计日志: ${module}/${action} - ${entityType}:${entityId}`);
     } catch (error) {
-      // 审计失败不应影响业务流程，只记录错误
       logger.error('记录审计日志失败:', error);
+      const fallbackWritten = await writeAuditFailure(
+        {
+          request_id: params.requestId,
+          operator_id: params.userId,
+          operator_name: params.username,
+          module: params.module,
+          action: params.action,
+          entity_type: params.entityType,
+          entity_id: params.entityId,
+          old_payload: params.oldValue,
+          new_payload: params.newValue,
+          ip_address: params.ipAddress,
+          user_agent: params.userAgent,
+          method: params.method,
+          path: params.path,
+          transactional: !!transactionConnection,
+        },
+        error
+      );
+      if (transactionConnection || !fallbackWritten) throw error;
     } finally {
-      if (connection) connection.release();
+      if (connection && !transactionConnection) connection.release();
     }
   }
 
@@ -132,7 +158,7 @@ class AuditService {
     const userId = req.user?.id;
     const username = req.user?.username || req.user?.real_name;
     const ipAddress = req.ip || req.socket?.remoteAddress || req.connection?.remoteAddress;
-    const userAgent = req.headers['user-agent'];
+    const userAgent = req.headers?.['user-agent'];
 
     await this.log({
       userId,
@@ -145,6 +171,9 @@ class AuditService {
       newValue,
       ipAddress,
       userAgent,
+      requestId: req.requestId || req.id || req.headers?.['x-request-id'] || null,
+      method: req.method,
+      path: req.originalUrl || req.url,
     });
   }
 
@@ -221,7 +250,7 @@ class AuditService {
       connection = await getConnection();
 
       const auditSql = appendPaginationSQL(
-        `SELECT id, user_id, username, module, action, method, path, entity_type, entity_id, old_value, new_value, ip_address, user_agent, created_at FROM audit_logs WHERE ${whereClause} ORDER BY created_at DESC`,
+        `SELECT id, request_id, user_id, username, module, action, method, path, entity_type, entity_id, old_value, new_value, field_diff, request_body, response_status, response_body, ip_address, user_agent, created_at FROM audit_logs WHERE ${whereClause} ORDER BY created_at DESC, id DESC`,
         pagination.limit,
         pagination.offset
       );
@@ -309,7 +338,7 @@ class AuditService {
 
       connection = await getConnection();
       const [rows] = await connection.query(
-        `SELECT id, user_id, username, module, action, method, path, entity_type, entity_id, old_value, new_value, ip_address, user_agent, created_at FROM audit_logs WHERE ${whereClause} ORDER BY created_at DESC`,
+        `SELECT id, request_id, user_id, username, module, action, method, path, entity_type, entity_id, old_value, new_value, field_diff, request_body, response_status, response_body, ip_address, user_agent, created_at FROM audit_logs WHERE ${whereClause} ORDER BY created_at DESC, id DESC`,
         params
       );
 

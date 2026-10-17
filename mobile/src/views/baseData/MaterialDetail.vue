@@ -126,6 +126,11 @@
         </div>
       </div>
 
+      <div class="info-section">
+        <h3 class="section-title">图片附件</h3>
+        <MaterialImages :material-id="route.params.id" :editable="canUploadImages" immediate />
+      </div>
+
       <!-- 其他信息 -->
       <div class="info-section">
         <h3 class="section-title">其他信息</h3>
@@ -154,14 +159,18 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { baseDataApi } from '@/api'
 import { showToast } from 'vant'
 import dayjs from 'dayjs'
+import MaterialImages from '@/components/MaterialImages.vue'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const route = useRoute()
+const authStore = useAuthStore()
+const canUploadImages = computed(() => authStore.hasPermission('basedata:materials:update'))
 
 const loading = ref(false)
 const material = ref(null)
@@ -397,17 +406,17 @@ onMounted(() => {
 
 .status-active {
   background: var(--color-success-bg);
-  color: var(--color-success);
+  color: var(--color-success-text);
 }
 
 .status-inactive {
   background: var(--color-info-bg);
-  color: var(--color-info);
+  color: var(--color-info-text);
 }
 
 .status-discontinued {
   background: var(--color-error-bg);
-  color: var(--color-error);
+  color: var(--color-error-text);
 }
 
 .info-section {
@@ -454,26 +463,26 @@ onMounted(() => {
   font-weight: 500;
 
   &.highlight {
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     font-size: 1rem;
     font-weight: 600;
   }
 }
 
 .stock-empty {
-  color: var(--color-error) !important;
+  color: var(--color-error-text) !important;
 }
 
 .stock-low {
-  color: var(--color-warning) !important;
+  color: var(--color-warning-text) !important;
 }
 
 .stock-medium {
-  color: var(--color-info) !important;
+  color: var(--color-info-text) !important;
 }
 
 .stock-good {
-  color: var(--color-success) !important;
+  color: var(--color-success-text) !important;
 }
 </style>
 

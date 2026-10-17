@@ -1,4 +1,4 @@
-/* 经典仪表盘行情使用固定卡片高度，较长的汇率内容在卡片内滚动。 */
+/* 经典仪表盘行情面板样式优化 */
 :where(.dashboard--classic) .price-exchange-panel {
   min-width: 0;
   height: 100%;
@@ -9,192 +9,187 @@
   box-sizing: border-box;
   background: var(--color-bg-base);
   border: 1px solid var(--color-border-base);
-  border-radius: var(--radius-sm);
-  box-shadow: none;
-  container-type: inline-size;
-  container-name: price-panel;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+  transition: all var(--transition-base) ease;
+}
+
+:where(.dashboard--classic) .price-exchange-panel:hover {
+  border-color: color-mix(in srgb, var(--color-primary) 25%, var(--color-border-base));
 }
 
 :where(.dashboard--classic) .price-exchange-panel .chart-header {
-  min-height: 38px;
-  flex-shrink: 0;
-  padding: 4px 10px;
+  min-height: 46px;
+  flex: 0 0 46px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
   border-bottom: 1px solid var(--color-border-lighter);
   box-sizing: border-box;
 }
 
-:where(.dashboard--classic) .price-panel-tabs {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  width: 100%;
+:where(.dashboard--classic) .price-segmented-control {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 6px;
+  background: var(--color-bg-hover);
+  border: 1px solid var(--color-border-lighter);
 }
 
-:where(.dashboard--classic) .price-panel-tabs .tab {
+:where(.dashboard--classic) .segmented-tab {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-height: 28px;
-  padding: 0 6px;
+  padding: 0 12px;
   border: 0;
-  border-radius: 2px;
+  border-radius: 4px;
   background: transparent;
   color: var(--color-text-secondary);
-  font: inherit;
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
+  transition: all var(--transition-fast) ease;
   user-select: none;
 }
 
-:where(.dashboard--classic) .price-panel-tabs .tab:hover,
-:where(.dashboard--classic) .price-panel-tabs .tab.active {
-  color: var(--color-primary);
+:where(.dashboard--classic) .segmented-tab:hover {
+  color: var(--color-text-primary);
 }
 
-:where(.dashboard--classic) .price-panel-tabs .tab.active {
+:where(.dashboard--classic) .segmented-tab.active {
+  background: var(--color-bg-base);
+  color: var(--color-primary);
   font-weight: 600;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
 }
 
-:where(.dashboard--classic) .price-panel-tabs .tab:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-}
-
-:where(.dashboard--classic) .price-refresh-button {
-  width: 28px;
-  height: 28px;
-  margin-left: auto;
-  border-radius: 2px;
+:where(.dashboard--classic) .price-refresh-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border-light);
+  background: var(--color-bg-base);
   color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  transition: all var(--transition-fast) ease;
 }
 
-:where(.dashboard--classic) .price-refresh-button:hover {
+:where(.dashboard--classic) .price-refresh-btn:hover {
+  border-color: var(--color-primary);
   color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent);
+}
+
+:where(.dashboard--classic) .price-refresh-btn.is-loading .el-icon {
+  animation: spin 1s linear infinite;
 }
 
 :where(.dashboard--classic) .price-exchange-panel .price-panel-body {
   min-width: 0;
-  min-height: 0;
   flex: 1;
-  overflow: auto;
-  padding: 0 10px 7px;
+  overflow-y: auto;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
 }
 
 :where(.dashboard--classic) .price-panel-pane {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 :where(.dashboard--classic) .metal-price-cards,
 :where(.dashboard--classic) .exchange-rate-cards {
-  margin: 0;
-  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 :where(.dashboard--classic) .price-card,
 :where(.dashboard--classic) .rate-card {
-  --price-accent: var(--color-primary);
   display: grid;
-  grid-template-columns: minmax(38px, 0.65fr) minmax(98px, 1.35fr) minmax(34px, 0.75fr) auto;
+  grid-template-columns: minmax(70px, 1.2fr) minmax(90px, 1.5fr) minmax(40px, 1fr) 68px;
   align-items: center;
   gap: 8px;
-  min-width: 0;
-  min-height: 44px;
-  padding: 5px 0;
-  border-bottom: 1px solid var(--color-border-lighter);
-  color: var(--color-text-primary);
+  padding: 7px 10px;
+  border-radius: 6px;
+  background: var(--color-bg-section);
+  border: 1px solid var(--color-border-lighter);
   box-sizing: border-box;
+  transition: all var(--transition-fast) ease;
 }
 
-:where(.dashboard--classic) .rate-card {
-  grid-template-columns: minmax(63px, 1fr) minmax(75px, 1.15fr) minmax(34px, 0.75fr) auto;
+:where(.dashboard--classic) .price-card:hover,
+:where(.dashboard--classic) .rate-card:hover {
+  background: color-mix(in srgb, var(--color-primary) 3%, var(--color-bg-base));
+  border-color: color-mix(in srgb, var(--color-primary) 15%, transparent);
 }
-
-:where(.dashboard--classic) .price-card:last-child,
-:where(.dashboard--classic) .rate-card:last-child {
-  border-bottom: 0;
-}
-
-:where(.dashboard--classic) .price-card-gold { --price-accent: var(--color-warning); }
-:where(.dashboard--classic) .price-card-silver { --price-accent: var(--color-text-secondary); }
-:where(.dashboard--classic) .price-card-aluminum { --price-accent: var(--color-primary); }
-:where(.dashboard--classic) .price-card-copper { --price-accent: var(--ds-orange); }
 
 :where(.dashboard--classic) .metal-info {
   display: flex;
   align-items: center;
+  gap: 6px;
   min-width: 0;
-  gap: 5px;
 }
 
-:where(.dashboard--classic) .metal-icon {
-  display: inline-block;
-  width: 5px;
-  height: 5px;
-  flex: 0 0 5px;
+:where(.dashboard--classic) .metal-dot {
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: var(--price-accent);
+  flex-shrink: 0;
 }
+
+:where(.dashboard--classic) .metal-dot-gold { background: #F59E0B; }
+:where(.dashboard--classic) .metal-dot-silver { background: #94A3B8; }
+:where(.dashboard--classic) .metal-dot-aluminum { background: #3B82F6; }
+:where(.dashboard--classic) .metal-dot-copper { background: #EA580C; }
 
 :where(.dashboard--classic) .metal-name,
 :where(.dashboard--classic) .currency-pair {
-  min-width: 0;
-  color: var(--color-text-regular);
-  font-size: 12px;
-  font-weight: 500;
-  overflow-wrap: anywhere;
-}
-
-:where(.dashboard--classic) .price-change,
-:where(.dashboard--classic) .rate-change {
-  font-size: 11px;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
   white-space: nowrap;
-}
-
-:where(.dashboard--classic) .price-change.positive,
-:where(.dashboard--classic) .rate-change.positive {
-  color: var(--color-success);
-}
-
-:where(.dashboard--classic) .price-change.negative,
-:where(.dashboard--classic) .rate-change.negative {
-  color: var(--color-danger);
-}
-
-:where(.dashboard--classic) .price-change.neutral,
-:where(.dashboard--classic) .rate-change.neutral {
-  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 :where(.dashboard--classic) .price-quote,
 :where(.dashboard--classic) .rate-quote {
-  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
 }
 
 :where(.dashboard--classic) .price-value,
 :where(.dashboard--classic) .rate-value {
+  font-size: 14px;
+  font-weight: 700;
   color: var(--color-text-primary);
-  font-size: 15px;
-  font-weight: 600;
   font-variant-numeric: tabular-nums;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
 }
 
 :where(.dashboard--classic) .price-unit,
 :where(.dashboard--classic) .rate-unit {
-  color: var(--color-text-secondary);
   font-size: 10px;
-  line-height: 1.4;
-  overflow-wrap: anywhere;
+  color: var(--color-text-secondary);
 }
 
 :where(.dashboard--classic) .price-trend,
 :where(.dashboard--classic) .rate-trend {
-  min-width: 0;
-  height: 26px;
+  width: 100%;
+  height: 24px;
+  display: flex;
+  align-items: center;
 }
 
 :where(.dashboard--classic) .mini-chart {
@@ -202,63 +197,68 @@
   height: 100%;
 }
 
+:where(.dashboard--classic) .price-change-badge,
+:where(.dashboard--classic) .rate-change-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+:where(.dashboard--classic) .is-up {
+  background: #FEF2F2;
+  color: #DC2626;
+  border: 1px solid #FECACA;
+}
+
+:where(.dashboard--classic) .is-down {
+  background: #ECFDF5;
+  color: #047857;
+  border: 1px solid #A7F3D0;
+}
+
+:where(.dashboard--classic) .is-neutral {
+  background: #F8FAFC;
+  color: #64748B;
+  border: 1px solid #E2E8F0;
+}
+
 :where(.dashboard--classic) .exchange-rate-chart {
-  padding-top: 6px;
-  border-top: 1px solid var(--color-border-lighter);
+  width: 100%;
+  height: 120px;
+  margin-top: 6px;
+  border-radius: 6px;
+  background: var(--color-bg-section);
+  border: 1px solid var(--color-border-lighter);
+  padding: 4px;
+  box-sizing: border-box;
 }
 
 :where(.dashboard--classic) .exchange-rate-chart-canvas {
   width: 100%;
-  height: 110px;
+  height: 100%;
 }
 
 :where(.dashboard--classic) .last-update {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   justify-content: space-between;
-  gap: 2px 6px;
-  padding-top: 5px;
-  border-top: 1px solid var(--color-border-lighter);
+  margin-top: 6px;
+  padding: 4px 6px;
+  font-size: 11px;
   color: var(--color-text-secondary);
+}
+
+:where(.dashboard--classic) .data-source-tag {
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--color-bg-hover);
+  color: var(--color-text-placeholder);
   font-size: 10px;
-  line-height: 1.5;
-}
-
-:where(.dashboard--classic) .data-source {
-  overflow-wrap: anywhere;
-}
-
-/* 兼容页面中的原生宽度表格。 */
-
-@container price-panel (max-width: 340px) {
-  :where(.dashboard--classic) .price-card,
-  :where(.dashboard--classic) .rate-card {
-    gap: 5px;
-  }
-
-  :where(.dashboard--classic) .price-value,
-  :where(.dashboard--classic) .rate-value {
-    font-size: 14px;
-  }
-}
-
-@container price-panel (max-width: 280px) {
-  :where(.dashboard--classic) .price-card,
-  :where(.dashboard--classic) .rate-card {
-    grid-template-columns: minmax(38px, 1fr) minmax(0, 1.7fr) auto;
-    gap: 2px 6px;
-  }
-
-  :where(.dashboard--classic) .price-trend,
-  :where(.dashboard--classic) .rate-trend {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    height: 18px;
-  }
-
-  :where(.dashboard--classic) .price-change,
-  :where(.dashboard--classic) .rate-change {
-    grid-column: 3;
-    grid-row: 1;
-  }
 }

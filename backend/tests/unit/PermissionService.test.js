@@ -79,11 +79,16 @@ describe('PermissionService', () => {
   });
 
   describe('getUserPermissions', () => {
+    beforeEach(() => {
+      pool.execute.mockResolvedValueOnce([[{ status: 1, token_version: 0 }]]);
+    });
+
     test('应从缓存返回权限（命中时）', async () => {
       cacheService.get.mockResolvedValueOnce(['system:users', 'system:roles']);
       const result = await PermissionService.getUserPermissions(1);
       expect(result).toEqual(['system:users', 'system:roles']);
-      expect(pool.execute).not.toHaveBeenCalled();
+      expect(pool.execute).toHaveBeenCalledTimes(1);
+      expect(cacheService.get).toHaveBeenCalledWith('user_permissions:1:v0');
     });
 
     test('缓存未命中时应查询数据库（role_permissions SSOT）', async () => {
@@ -94,7 +99,7 @@ describe('PermissionService', () => {
       pool.execute.mockResolvedValueOnce([[{ id: 2, code: 'editor', name: '编辑' }]]);
       // 从 role_permissions → permissions 获取权限
       pool.execute.mockResolvedValueOnce([
-        [{ permission: 'basedata:materials:view' }, { permission: 'basedata:materials:create' }],
+        [{ role_id: 2, permission: 'basedata:materials:view' }, { role_id: 2, permission: 'basedata:materials:create' }],
       ]);
 
       const result = await PermissionService.getUserPermissions(5);
@@ -125,6 +130,12 @@ describe('PermissionService', () => {
   });
 
   describe('getUserRolePermissions', () => {
+    test('持久化全局通配符不得让普通角色取得超管绕过权限', async () => {
+      pool.execute.mockResolvedValueOnce([[{ id: 3, code: 'custom' }]]);
+      pool.execute.mockResolvedValueOnce([[{ role_id: 3, permission: '*' }, { role_id: 3, permission: 'finance:ar:view' }]]);
+      expect(await PermissionService.getUserRolePermissions(8)).toEqual(['finance:ar:view']);
+    });
+
     test('无角色的用户应返回空权限', async () => {
       pool.execute.mockResolvedValueOnce([[]]);
       const result = await PermissionService.getUserRolePermissions(99);
@@ -133,7 +144,7 @@ describe('PermissionService', () => {
 
     test('应展开权限别名', async () => {
       pool.execute.mockResolvedValueOnce([[{ id: 2, code: 'worker', name: '工人' }]]);
-      pool.execute.mockResolvedValueOnce([[{ permission: 'basedata:bom:view' }]]);
+      pool.execute.mockResolvedValueOnce([[{ role_id: 2, permission: 'basedata:bom:view' }]]);
 
       const result = await PermissionService.getUserRolePermissions(10);
       // 'basedata:bom' -> 'basedata:boms' 别名展开
@@ -186,9 +197,9 @@ describe('PermissionService', () => {
       pool.execute.mockResolvedValueOnce([[{ id: 3, code: 'print_user', name: 'Print User' }]]);
       pool.execute.mockResolvedValueOnce([
         [
-          { permission: 'system:print:add' },
-          { permission: 'system:print:edit' },
-          { permission: 'system:print:template:delete' },
+          { role_id: 3, permission: 'system:print:add' },
+          { role_id: 3, permission: 'system:print:edit' },
+          { role_id: 3, permission: 'system:print:template:delete' },
         ],
       ]);
 
@@ -204,7 +215,7 @@ describe('PermissionService', () => {
 
     test('system:users 与 system:users:view 互通展开（同资源粗/细粒度）', async () => {
       pool.execute.mockResolvedValueOnce([[{ id: 4, code: 'hr', name: 'HR' }]]);
-      pool.execute.mockResolvedValueOnce([[{ permission: 'system:users:view' }]]);
+      pool.execute.mockResolvedValueOnce([[{ role_id: 4, permission: 'system:users:view' }]]);
 
       const result = await PermissionService.getUserRolePermissions(12);
       expect(result).toContain('system:users:view');
@@ -215,7 +226,7 @@ describe('PermissionService', () => {
 
     test('todo:collaborate 单向蕴含用户查看权，但不反向', async () => {
       pool.execute.mockResolvedValueOnce([[{ id: 5, code: 'planner', name: '计划员' }]]);
-      pool.execute.mockResolvedValueOnce([[{ permission: 'todo:collaborate' }]]);
+      pool.execute.mockResolvedValueOnce([[{ role_id: 5, permission: 'todo:collaborate' }]]);
 
       const result = await PermissionService.getUserRolePermissions(13);
       expect(result).toContain('todo:collaborate');

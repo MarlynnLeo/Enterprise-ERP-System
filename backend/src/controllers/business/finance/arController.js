@@ -23,7 +23,10 @@ const {
 } = require('../../../constants/financeConstants');
 const ScopeGuard = require('../../../authorization/ScopeGuard');
 const db = require('../../../config/db');
-const { parseSettlementLine } = require('../../../utils/finance/settlementMath');
+const {
+  parseSettlementLine,
+  normalizeSettlementPaymentMethod,
+} = require('../../../utils/finance/settlementMath');
 const {
   fromInvoiceApi,
   toInvoiceApi,
@@ -557,21 +560,9 @@ const arController = {
         );
       }
 
-      // 支付方式映射：前端英文值 -> 数据库中文ENUM值
-      const paymentMethodMap = {
-        cash: '现金',
-        bank_transfer: '银行转账',
-        check: '支票',
-        credit_card: '电子支付',
-        electronic: '电子支付',
-        other: '其他',
-      };
-
-      // 转换支付方式，如果已经是中文则直接使用
-      let paymentMethod = receiptData.paymentMethod || '银行转账';
-      if (paymentMethodMap[paymentMethod]) {
-        paymentMethod = paymentMethodMap[paymentMethod];
-      }
+      const paymentMethod = normalizeSettlementPaymentMethod(
+        receiptData.paymentMethod || '银行转账'
+      );
 
       if (BANK_BACKED_PAYMENT_METHODS.has(paymentMethod) && !receiptData.bankAccountId) {
         return ResponseHandler.error(
@@ -1074,27 +1065,92 @@ const arController = {
   },
 
   /**
-   * 获取未付清的发票列表（用于创建收款时选择）
+   * 获取可用收款账户（仅返回账户识别信息）
    */
+  getReceiptAccounts: async (req, res) => {
+    try {
+      const keyword = req.query.keyword;
+      if (keyword !== undefined && typeof keyword !== 'string') {
+        return ResponseHandler.validationError(res, '账户搜索条件无效');
+      }
+      const pagination = parsePagination(req.query.page, req.query.pageSize, { maxPageSize: 100 });
+      if (!Number.isSafeInteger(pagination.offset)) {
+        return ResponseHandler.validationError(res, '页码无效');
+      }
+      const result = await BankAccountModel.getBankAccounts({
+        is_active: true,
+        page: pagination.page,
+        pageSize: pagination.pageSize,
+        account_name: keyword?.trim().slice(0, 100) || undefined,
+      });
+      // 收款人只需要识别可用账户，不需取得银行余额或联系人资料。
+      const accounts = result.accounts.map((account) => ({
+        id: account.id,
+        accountName: account.account_name,
+        accountNumber: account.account_number,
+        bankName: account.bank_name,
+        currencyCode: account.currency_code,
+      }));
+      return ResponseHandler.paginated(
+        res,
+        accounts,
+        result.total,
+        pagination.page,
+        pagination.pageSize
+      );
+    } catch (error) {
+      logger.error('获取收款账户失败:', error);
+      return ResponseHandler.error(res, '获取收款账户失败', 'SERVER_ERROR', 500, error);
+    }
+  },
+
+  // 无分页参数时兼容原有 PC 调用，移动端支持搜索和分页。
   getUnpaidInvoices: async (req, res) => {
     try {
       const customerId = req.query.customerId;
-
-      let query = `
-        SELECT id, invoice_number, customer_id, invoice_date, due_date,
-               total_amount, paid_amount, balance_amount, status
-        FROM ar_invoices
-        WHERE balance_amount > 0 AND status IN ('已确认', '部分付款', '已逾期')
-      `;
-
+      const keyword = req.query.keyword;
+      if (keyword !== undefined && typeof keyword !== 'string') {
+        return ResponseHandler.validationError(res, '发票搜索条件无效');
+      }
+      if (
+        customerId !== undefined &&
+        (!/^\d+$/.test(String(customerId)) ||
+          !Number.isSafeInteger(Number(customerId)) ||
+          Number(customerId) <= 0)
+      ) {
+        return ResponseHandler.validationError(res, '客户编号无效');
+      }
+      let from = `FROM ar_invoices i LEFT JOIN customers c ON c.id = i.customer_id
+        WHERE i.balance_amount > 0 AND i.status IN ('已确认', '部分付款', '已逾期')`;
       const params = [];
       if (customerId) {
-        query += ' AND customer_id = ?';
-        params.push(customerId);
+        from += ' AND i.customer_id = ?';
+        params.push(Number(customerId));
       }
-
-      query += ' ORDER BY due_date ASC';
-
+      if (keyword?.trim()) {
+        from += ' AND (i.invoice_number LIKE ? OR c.name LIKE ?)';
+        const pattern = `%${keyword.trim().slice(0, 100)}%`;
+        params.push(pattern, pattern);
+      }
+      let query = `SELECT i.id, i.invoice_number, i.customer_id, c.name AS customer_name,
+        i.invoice_date, i.due_date, i.total_amount, i.paid_amount, i.balance_amount, i.status
+        ${from} ORDER BY i.due_date ASC, i.id ASC`;
+      // 无分页参数时保留 PC 原有的数组合同；手机明确请求分页和总量。
+      const paged =
+        req.query.page !== undefined ||
+        req.query.pageSize !== undefined ||
+        req.query.limit !== undefined;
+      const pagination = parsePagination(req.query.page, req.query.pageSize || req.query.limit, {
+        maxPageSize: 100,
+      });
+      let total;
+      if (paged) {
+        if (!Number.isSafeInteger(pagination.offset))
+          return ResponseHandler.validationError(res, '页码无效');
+        const [[count]] = await db.pool.execute(`SELECT COUNT(*) AS total ${from}`, params);
+        total = Number(count.total);
+        query += ` LIMIT ${pagination.limit} OFFSET ${pagination.offset}`;
+      }
       const [invoices] = await db.pool.execute(query, params);
 
       const mapped = (invoices || []).map((row) => {
@@ -1103,6 +1159,8 @@ const arController = {
         api.balance = api.balanceAmount;
         return api;
       });
+      if (paged)
+        return ResponseHandler.paginated(res, mapped, total, pagination.page, pagination.pageSize);
       return ResponseHandler.success(res, mapped, '获取未付清发票成功');
     } catch (error) {
       logger.error('获取未付清发票失败:', error);

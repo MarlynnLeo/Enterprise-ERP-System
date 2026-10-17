@@ -419,7 +419,8 @@ const fetchData = async () => {
       page: currentPage.value,
       pageSize: pageSize.value,
       keyword: searchKeyword.value,
-      ...searchForm
+      ...searchForm,
+      inspectionId: route.query.inspection_id || undefined
     }
     // 添加日期范围
     if (dateRange.value && dateRange.value.length === 2) {
@@ -562,7 +563,7 @@ const submitDisposition = async () => {
     fetchData()
   } catch (error) {
     console.error('Failed to update disposition:', error)
-    ElMessage.error('处理失败')
+    ElMessage.error(getApiErrorMessage(error, '处理失败'))
   }
 }
 // Handle complete
@@ -582,7 +583,7 @@ const submitComplete = async () => {
     fetchData()
   } catch (error) {
     console.error('Failed to complete handling:', error)
-    ElMessage.error('完成处理失败')
+    ElMessage.error(getApiErrorMessage(error, '完成处理失败'))
   }
 }
 // Concession application

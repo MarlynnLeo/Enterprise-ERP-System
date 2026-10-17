@@ -15,7 +15,7 @@
             <el-radio-button value="day">本月日视图</el-radio-button>
             <el-radio-button value="month">近12月</el-radio-button>
           </el-radio-group>
-          <el-button :icon="Refresh" circle @click="refreshAll" :loading="loading" />
+          <el-button :icon="Refresh" circle @click="refreshAll" :loading="loading" aria-label="刷新生产数据" />
       </template>
     </PageHeader>
 
@@ -88,7 +88,7 @@
               </el-table-column>
               <el-table-column prop="startDate" label="开始日期" width="110" />
             </el-table>
-            <EmptyState v-if="pendingTasks.length === 0" description="暂无待办任务" ::image-size="60" />
+            <EmptyState v-if="pendingTasks.length === 0" description="暂无待办任务" :image-size="60" />
           </div>
         </div>
       </el-col>
@@ -120,7 +120,7 @@
                 </template>
               </el-table-column>
             </el-table>
-            <EmptyState v-if="processRates.length === 0" description="暂无工序数据" ::image-size="60" />
+            <EmptyState v-if="processRates.length === 0" description="暂无工序数据" :image-size="60" />
           </div>
         </div>
       </el-col>
@@ -151,7 +151,7 @@
           ref="ganttChartRef"
           v-loading="ganttLoading"
         ></div>
-        <EmptyState v-if="!ganttLoading && ganttGroups.length === 0" description="暂无排程数据" ::image-size="60" />
+        <EmptyState v-if="!ganttLoading && ganttGroups.length === 0" description="暂无排程数据" :image-size="60" />
       </div>
     </div>
   </div>

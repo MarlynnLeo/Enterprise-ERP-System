@@ -33,7 +33,15 @@ class EventBus extends EventEmitter {
       try {
         const result = listener(...args);
         if (result && typeof result.catch === 'function') {
-          result.catch((error) => this.recordListenerFailure(eventName, args, error));
+          // Await failure persistence before emitAsync reports completion.
+          const recorded = result.catch(async (error) => {
+            await this.recordListenerFailure(eventName, args, error);
+            throw error;
+          });
+          // emit() callers do not await listener return values; emitAsync()
+          // still receives the rejection after persistence completes.
+          void recorded.catch(() => {});
+          return recorded;
         }
         return result;
       } catch (error) {
@@ -45,6 +53,13 @@ class EventBus extends EventEmitter {
 
   async recordListenerFailure(eventName, args, error) {
     logger.error(`[EventBus] listener failed for ${eventName}:`, error);
+    // A transactional outbox event already owns a durable retry record. Creating
+    // an independently retried DLQ row here on every attempt multiplies work.
+    if (
+      Number.isSafeInteger(Number(args?.[0]?.__domainEvent?.id)) &&
+      Number(args[0].__domainEvent.id) > 0
+    )
+      return;
     try {
       const DLQService = require('../services/business/DLQService');
       await DLQService.recordFailedJob(`EventBus:${eventName}`, { eventName, args }, error);

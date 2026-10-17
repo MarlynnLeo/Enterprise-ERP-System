@@ -530,7 +530,7 @@ async function completeLogin() {
   width: 100%;
   height: 48px;
   border-radius: 6px;
-  color: var(--el-color-white) !important;
+  color: var(--color-on-primary, var(--el-color-white)) !important;
   font-size: 16px;
   font-weight: 600;
 }

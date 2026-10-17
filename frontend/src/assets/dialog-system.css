@@ -208,6 +208,47 @@
     width: calc(100vw - 24px) !important;
     max-width: calc(100vw - 24px);
   }
+
+  /* 表单与弹窗一起收窄：桌面栅格改为单列，标签不再挤占输入空间。 */
+  .el-dialog.app-dialog--form .el-form .el-row {
+    margin-inline: 0 !important;
+  }
+
+  .el-dialog.app-dialog--form .el-form .el-row > .el-col {
+    flex-basis: 100%;
+    max-width: 100%;
+    margin-left: 0;
+    padding-inline: 0 !important;
+  }
+
+  .el-dialog.app-dialog--form .el-form-item {
+    flex-direction: column;
+    align-items: stretch;
+    min-width: 0;
+  }
+
+  .el-dialog.app-dialog--form .el-form-item__label {
+    align-self: flex-start;
+    width: auto !important;
+    height: auto !important;
+    padding: 0 !important;
+    margin-bottom: 6px;
+    line-height: 1.5 !important;
+    text-align: left;
+  }
+
+  .el-dialog.app-dialog--form .el-form-item__content {
+    width: 100%;
+    min-width: 0;
+    margin-left: 0 !important;
+  }
+
+  .el-dialog.app-dialog--form .el-form-item__content > :is(
+    .el-input, .el-input-number, .el-select, .el-cascader, .el-date-editor, .el-textarea
+  ) {
+    width: 100%;
+    max-width: 100%;
+  }
 }
 
 /* ---------- 对话框内分节分割线：彻底移除白底框，完美融入弹窗背景 ---------- */

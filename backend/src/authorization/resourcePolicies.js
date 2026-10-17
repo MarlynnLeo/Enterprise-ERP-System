@@ -123,6 +123,7 @@ const RESOURCE_POLICIES = Object.freeze({
     table: 'production_tasks',
     ownerColumn: 'created_by',
     deletedAtColumn: 'deleted_at',
+    // ScopeGuard additionally enforces the current production workshop assignment.
     sharedRead: true,
   }),
   ecn: Object.freeze({

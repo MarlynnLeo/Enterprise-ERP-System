@@ -59,11 +59,13 @@
 
           <div class="item-header">
             <h3 class="item-title">
+              <button type="button" class="communication-open" @click.stop="handleView(item)">
               <!-- 私有标识 -->
               <el-icon v-if="item.visibility === 'private'" color="var(--color-warning)" style="margin-right: 5px;">
                 <Lock />
               </el-icon>
               {{ item.title }}
+              </button>
             </h3>
             <div class="item-meta">
               <el-tag :type="getCategoryType(item.category)" size="small">
@@ -895,6 +897,8 @@ onMounted(async () => {
 
 .item-header {
   display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 12px;
@@ -902,14 +906,27 @@ onMounted(async () => {
 
 .item-title {
   margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: 18px;
   font-weight: 600;
   color: var(--el-text-color-primary);
   flex: 1;
 }
 
+.communication-open {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
 .item-meta {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 

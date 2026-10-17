@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * Accounts.vue
  * @description 前端界面组件文件
@@ -49,18 +49,28 @@
 
     <!-- 表格区域 -->
     <el-card class="data-card">
+      <div class="account-tree-toolbar">
+        <span class="account-tree-hint">点击科目编码前的箭头展开子科目，按一级科目分页</span>
+        <div class="account-tree-actions">
+          <el-button :disabled="loading || !branchKeys.length" @click="expandAll">全部展开</el-button>
+          <el-button :disabled="loading || !expandedRowKeys.length" @click="collapseAll">全部收起</el-button>
+        </div>
+      </div>
       <el-table
         :data="accountList"
         class="w-full"
         row-key="id"
         border
-        :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
+        :tree-props="{ children: 'children' }"
+        :expand-row-keys="expandedRowKeys"
+        :indent="20"
+        @expand-change="handleExpandChange"
         v-loading="loading"
       >
         <template #empty>
           <EmptyState description="暂无会计科目数据" />
         </template>
-        <el-table-column prop="accountCode" label="科目编码" width="120"></el-table-column>
+        <el-table-column prop="accountCode" label="科目编码" min-width="220"></el-table-column>
         <el-table-column prop="accountName" label="科目名称" width="180"></el-table-column>
         <el-table-column prop="accountType" label="科目类型" width="140"></el-table-column>
         <el-table-column label="借/贷方向" width="100">
@@ -88,6 +98,7 @@
         <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <div class="table-actions">
+              <!-- 编辑按钮：仅在禁用（维护状态）时显示 -->
               <el-button
                 v-permission="'finance:accounts:update'"
                 v-if="!scope.row.isActive && canUpdate"
@@ -96,6 +107,8 @@
                 @click="handleEdit(scope.row)">
                 编辑
               </el-button>
+
+              <!-- 状态切换按钮：启用状态显示红色的禁用，禁用状态显示绿色的启用 -->
               <el-popconfirm
                 v-if="canUpdate"
                 :title="scope.row.isActive ? '确定要禁用该会计科目吗？' : '确定要启用该会计科目吗？'"
@@ -111,7 +124,15 @@
                   </el-button>
                 </template>
               </el-popconfirm>
-              <el-button v-permission="'finance:accounts:create'" v-if="canCreate" size="small" @click="addChild(scope.row)">添加子科目</el-button>
+
+              <!-- 添加子科目按钮：仅在启用状态时显示 -->
+              <el-button
+                v-permission="'finance:accounts:create'"
+                v-if="scope.row.isActive && canCreate"
+                size="small"
+                @click="addChild(scope.row)">
+                添加子科目
+              </el-button>
             </div>
           </template>
         </el-table-column>
@@ -145,13 +166,13 @@
     >
       <el-form :model="accountForm" :rules="accountRules" ref="accountFormRef" label-width="100px">
         <el-form-item label="科目编码" prop="accountCode">
-          <el-input v-model="accountForm.account_code" placeholder="请输入科目编码"></el-input>
+          <el-input v-model="accountForm.accountCode" placeholder="请输入科目编码" :disabled="!isAdding"></el-input>
         </el-form-item>
         <el-form-item label="科目名称" prop="accountName">
-          <el-input v-model="accountForm.account_name" placeholder="请输入科目名称"></el-input>
+          <el-input v-model="accountForm.accountName" placeholder="请输入科目名称"></el-input>
         </el-form-item>
         <el-form-item label="科目类型" prop="accountType">
-          <el-select v-model="accountForm.account_type" placeholder="请选择科目类型" class="w-full">
+          <el-select v-model="accountForm.accountType" placeholder="请选择科目类型" class="w-full" @change="handleAccountTypeChange">
             <el-option label="资产" value="资产"></el-option>
             <el-option label="负债" value="负债"></el-option>
             <el-option label="所有者权益" value="所有者权益"></el-option>
@@ -161,7 +182,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="借/贷方向" prop="isDebit">
-          <el-radio-group v-model="accountForm.is_debit">
+          <el-radio-group v-model="accountForm.isDebit">
             <el-radio :value="true">借</el-radio>
             <el-radio :value="false">贷</el-radio>
           </el-radio-group>
@@ -184,11 +205,11 @@
         </el-form-item>
         <el-form-item label="辅助核算">
           <div style="display: flex; gap: 15px; flex-wrap: wrap;">
-            <el-checkbox v-model="accountForm.has_customer" :true-value="1" :false-value="0">客户核算</el-checkbox>
-            <el-checkbox v-model="accountForm.has_supplier" :true-value="1" :false-value="0">供应商核算</el-checkbox>
-            <el-checkbox v-model="accountForm.has_employee" :true-value="1" :false-value="0">员工核算</el-checkbox>
-            <el-checkbox v-model="accountForm.has_department" :true-value="1" :false-value="0">部门核算</el-checkbox>
-            <el-checkbox v-model="accountForm.has_project" :true-value="1" :false-value="0">项目核算</el-checkbox>
+            <el-checkbox v-model="accountForm.hasCustomer">客户核算</el-checkbox>
+            <el-checkbox v-model="accountForm.hasSupplier">供应商核算</el-checkbox>
+            <el-checkbox v-model="accountForm.hasEmployee">员工核算</el-checkbox>
+            <el-checkbox v-model="accountForm.hasDepartment">部门核算</el-checkbox>
+            <el-checkbox v-model="accountForm.hasProject">项目核算</el-checkbox>
           </div>
         </el-form-item>
         <el-form-item label="状态" prop="isActive">
@@ -216,11 +237,13 @@
 <script setup>
 import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { getThemeDefaultPageSize } from '@/utils/themePageSize'
-import { parsePaginatedData, parseListData } from '@/utils/responseParser';
+import { parseListData } from '@/utils/responseParser';
+import { buildAccountTree, filterAccountTree, getAccountBranchKeys } from '@/utils/accountTree';
 
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, nextTick } from 'vue';
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index';
+import { getApiErrorMessage } from '@/utils/errorHandler';
 import { Plus } from '@element-plus/icons-vue';
 import { financeApi } from '@/api';
 import { useAuthStore } from '@/stores/auth'
@@ -237,7 +260,6 @@ const loading = ref(false);
 const saveLoading = ref(false);
 
 // 分页相关
-const total = ref(0);
 const pageSize = ref(getThemeDefaultPageSize(10));
 const currentPage = ref(1);
 
@@ -248,8 +270,9 @@ const isAdding = ref(true);
 const accountFormRef = ref(null);
 
 // 会计科目列表
-const accountList = ref([]);
-const accountOptions = ref([]);
+const accountTree = ref([]);
+const accountOptions = computed(() => accountTree.value);
+const expandedRowKeys = ref([]);
 
 // 搜索表单
 const searchForm = reactive({
@@ -257,100 +280,97 @@ const searchForm = reactive({
   account_name: '',
   account_type: ''
 });
+const appliedSearch = ref({ ...searchForm });
+const hasSearch = computed(() => Object.values(appliedSearch.value).some(value => String(value ?? '').trim()));
+const filteredAccounts = computed(() => filterAccountTree(accountTree.value, appliedSearch.value));
+const total = computed(() => filteredAccounts.value.length);
+const accountList = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value;
+  return filteredAccounts.value.slice(start, start + pageSize.value);
+});
+const branchKeys = computed(() => getAccountBranchKeys(filteredAccounts.value));
 
-// 会计科目表单
-const accountForm = reactive({
+const expandAll = () => { expandedRowKeys.value = [...branchKeys.value]; };
+const collapseAll = () => { expandedRowKeys.value = []; };
+const handleExpandChange = (row, expanded) => {
+  const keys = new Set(expandedRowKeys.value);
+  if (expanded) keys.add(String(row.id));
+  else keys.delete(String(row.id));
+  expandedRowKeys.value = [...keys];
+};
+
+// 会计科目表单初始构造
+const createInitialAccountForm = () => ({
   id: null,
-  account_code: '',
-  account_name: '',
-  account_type: '资产',
+  accountCode: '',
+  accountName: '',
+  accountType: '资产',
   parentId: null,
-  is_debit: true,
+  isDebit: true,
   isActive: true,
   description: '',
-  has_customer: 0,
-  has_supplier: 0,
-  has_employee: 0,
-  has_department: 0,
-  has_project: 0
+  hasCustomer: false,
+  hasSupplier: false,
+  hasEmployee: false,
+  hasDepartment: false,
+  hasProject: false,
 });
+
+// 会计科目表单
+const accountForm = reactive(createInitialAccountForm());
 
 // 表单验证规则
 const accountRules = {
-  account_code: [
+  accountCode: [
     { required: true, message: '请输入科目编码', trigger: 'blur' },
     { min: 1, max: 20, message: '长度在1到20个字符', trigger: 'blur' }
   ],
-  account_name: [
+  accountName: [
     { required: true, message: '请输入科目名称', trigger: 'blur' },
     { min: 1, max: 100, message: '长度在1到100个字符', trigger: 'blur' }
   ],
-  account_type: [
+  accountType: [
     { required: true, message: '请选择科目类型', trigger: 'change' }
   ]
+};
+
+// 切换科目类型时自动推荐借贷方向
+const handleAccountTypeChange = (val) => {
+  if (isAdding.value) {
+    const debitTypes = ['资产', '成本', '费用'];
+    accountForm.isDebit = debitTypes.includes(val);
+  }
 };
 
 // 加载会计科目列表
 const loadAccounts = async () => {
   loading.value = true;
   try {
-    const params = {
-      page: currentPage.value,
-      limit: pageSize.value
-    };
-
-    // 添加搜索条件
-    if (searchForm.account_code) {
-      params.account_code = searchForm.account_code;
-    }
-    if (searchForm.account_name) {
-      params.account_name = searchForm.account_name;
-    }
-    if (searchForm.account_type) {
-      params.account_type = searchForm.account_type;
-    }
-
-    const response = await financeApi.accounts.getList(params);
-
-    // 使用统一的响应解析工具
-    const { list, total: totalCount } = parsePaginatedData(response, {
-      logPrefix: '📋 会计科目列表: ',
-      enableLog: false
-    });
-
-    accountList.value = list;
-    total.value = totalCount;
+    // Fetch the complete chart before grouping; flat pagination splits parents
+    // and children across pages. This endpoint also feeds the parent selector.
+    const response = await financeApi.accounts.getOptions();
+    accountTree.value = buildAccountTree(parseListData(response, { enableLog: false }));
+    currentPage.value = Math.min(currentPage.value, Math.max(1, Math.ceil(total.value / pageSize.value)));
+    if (hasSearch.value) expandAll();
+    else expandedRowKeys.value = expandedRowKeys.value.filter(key => branchKeys.value.includes(key));
   } catch (error) {
     console.error('加载会计科目失败:', error);
     ElMessage.error('加载会计科目失败');
-    accountList.value = [];
-    total.value = 0;
+    accountTree.value = [];
+    expandedRowKeys.value = [];
   } finally {
     loading.value = false;
   }
 };
 
-// 加载会计科目选项（用于级联选择器）
-const loadAccountOptions = async () => {
-  try {
-    const response = await financeApi.accounts.getOptions();
-    // 使用统一的列表数据解析工具
-    const accounts = parseListData(response, { enableLog: false });
-    accountOptions.value = accounts.map(item => ({
-      ...item,
-      fullName: `${item.accountCode} - ${item.accountName}`
-    }));
-  } catch (error) {
-    console.error('加载会计科目选项失败:', error);
-    ElMessage.error('加载会计科目选项失败');
-    accountOptions.value = [];
-  }
-};
-
 // 搜索会计科目
-const searchAccounts = () => {
+const searchAccounts = async () => {
+  appliedSearch.value = { ...searchForm };
   currentPage.value = 1;
-  loadAccounts();
+  if (!accountTree.value.length && !loading.value) await loadAccounts();
+  // Reveal matches together with their ancestor path, even for a leaf-only query.
+  if (hasSearch.value) expandAll();
+  else collapseAll();
 };
 
 // 重置搜索条件
@@ -361,52 +381,86 @@ const resetSearch = () => {
   searchAccounts();
 };
 
+// 重置表单
+const resetAccountForm = () => {
+  Object.assign(accountForm, createInitialAccountForm());
+  if (accountFormRef.value) {
+    accountFormRef.value.clearValidate();
+  }
+};
+
 // 新增会计科目
 const showAddDialog = () => {
   dialogTitle.value = '新增会计科目';
   isAdding.value = true;
   resetAccountForm();
   dialogVisible.value = true;
+  nextTick(() => {
+    accountFormRef.value?.clearValidate();
+  });
 };
 
 // 编辑会计科目
 const handleEdit = (row) => {
+  if (row.isActive) {
+    ElMessage.warning('该科目处于启用在用状态，已锁定禁止编辑；如需修改，请先禁用科目');
+    return;
+  }
   dialogTitle.value = '编辑会计科目';
   isAdding.value = false;
-  Object.keys(accountForm).forEach(key => {
-    accountForm[key] = row[key];
+  resetAccountForm();
+  Object.assign(accountForm, {
+    id: row.id,
+    accountCode: row.accountCode || '',
+    accountName: row.accountName || '',
+    accountType: row.accountType || '资产',
+    parentId: row.parentId || null,
+    isDebit: row.isDebit !== undefined ? Boolean(row.isDebit) : true,
+    isActive: row.isActive !== undefined ? Boolean(row.isActive) : false,
+    description: row.description || '',
+    hasCustomer: Boolean(row.hasCustomer),
+    hasSupplier: Boolean(row.hasSupplier),
+    hasEmployee: Boolean(row.hasEmployee),
+    hasDepartment: Boolean(row.hasDepartment),
+    hasProject: Boolean(row.hasProject),
   });
   dialogVisible.value = true;
+  nextTick(() => {
+    accountFormRef.value?.clearValidate();
+  });
 };
 
 // 添加子科目
 const addChild = (row) => {
+  if (!row.isActive) {
+    ElMessage.warning('已禁用的科目不能添加子科目，请先启用该科目');
+    return;
+  }
   dialogTitle.value = '添加子科目';
   isAdding.value = true;
   resetAccountForm();
   accountForm.parentId = row.id;
+  if (row.accountType) accountForm.accountType = row.accountType;
+  if (row.isDebit !== undefined) accountForm.isDebit = Boolean(row.isDebit);
   dialogVisible.value = true;
+  nextTick(() => {
+    accountFormRef.value?.clearValidate();
+  });
 };
 
 // 切换会计科目状态
-const handleToggleStatus = (row) => {
+const handleToggleStatus = async (row) => {
   const statusText = row.isActive ? '禁用' : '启用';
   const newStatus = !row.isActive;
 
-  ElMessageBox.confirm(`确认要${statusText}该会计科目吗？`, '提示', {
-    confirmButtonText: '确认',
-    cancelButtonText: '取消',
-    type: 'warning'
-  }).then(async () => {
-    try {
-      await financeApi.accounts.updateStatus(row.id, { is_active: newStatus });
-      ElMessage.success(`${statusText}成功`);
-      loadAccounts();
-    } catch (error) {
-      console.error(`${statusText}失败:`, error);
-      ElMessage.error(`${statusText}失败`);
-    }
-  }).catch(() => {});
+  try {
+    await financeApi.accounts.updateStatus(row.id, { is_active: newStatus });
+    ElMessage.success(`${statusText}成功`);
+    loadAccounts();
+  } catch (error) {
+    console.error(`${statusText}失败:`, error);
+    ElMessage.error(getApiErrorMessage(error, `${statusText}失败`));
+  }
 };
 
 // 保存会计科目
@@ -417,21 +471,34 @@ const saveAccount = async () => {
     if (valid) {
       saveLoading.value = true;
       try {
+        const payload = {
+          accountCode: accountForm.accountCode,
+          accountName: accountForm.accountName,
+          accountType: accountForm.accountType,
+          parentId: accountForm.parentId || null,
+          isDebit: accountForm.isDebit,
+          isActive: accountForm.isActive,
+          description: accountForm.description,
+          hasCustomer: accountForm.hasCustomer ? 1 : 0,
+          hasSupplier: accountForm.hasSupplier ? 1 : 0,
+          hasEmployee: accountForm.hasEmployee ? 1 : 0,
+          hasDepartment: accountForm.hasDepartment ? 1 : 0,
+          hasProject: accountForm.hasProject ? 1 : 0,
+        };
         if (accountForm.id) {
           // 更新
-          await financeApi.accounts.update(accountForm.id, accountForm);
+          await financeApi.accounts.update(accountForm.id, payload);
           ElMessage.success('更新成功');
         } else {
           // 新增
-          await financeApi.accounts.create(accountForm);
+          await financeApi.accounts.create(payload);
           ElMessage.success('添加成功');
         }
         dialogVisible.value = false;
         loadAccounts();
-        loadAccountOptions();
       } catch (error) {
         console.error('保存会计科目失败:', error);
-        ElMessage.error('保存会计科目失败');
+        ElMessage.error(getApiErrorMessage(error, '保存会计科目失败'));
       } finally {
         saveLoading.value = false;
       }
@@ -439,46 +506,42 @@ const saveAccount = async () => {
   });
 };
 
-// 重置表单
-const resetAccountForm = () => {
-  Object.keys(accountForm).forEach(key => {
-    if (key === 'is_debit') {
-      accountForm[key] = true;
-    } else if (key === 'is_active') {
-      accountForm[key] = true;
-    } else if (key === 'account_type') {
-      accountForm[key] = '资产';
-    } else if (['has_customer', 'has_supplier', 'has_employee', 'has_department', 'has_project'].includes(key)) {
-      accountForm[key] = 0;
-    } else {
-      accountForm[key] = null;
-    }
-  });
-  // 清除校验
-  if (accountFormRef.value) {
-    accountFormRef.value.resetFields();
-  }
-};
-
 // 分页相关方法
 const handleSizeChange = (size) => {
   pageSize.value = size;
-  loadAccounts();
+  currentPage.value = 1;
 };
 
 const handleCurrentChange = (page) => {
   currentPage.value = page;
-  loadAccounts();
 };
 
 // 页面加载时执行
 onMounted(() => {
   loadAccounts();
-  loadAccountOptions();
 });
 </script>
 
 <style scoped>
+.account-tree-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.account-tree-hint {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.account-tree-actions {
+  display: flex;
+  flex-shrink: 0;
+}
+
 .header-card {
   margin-bottom: 20px;
 }
@@ -493,6 +556,16 @@ onMounted(() => {
   margin: 0;
   font-size: 14px;
   color: var(--color-text-secondary);
+}
+
+.table-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.action-btn-wrapper {
+  display: inline-flex;
 }
 
 </style>

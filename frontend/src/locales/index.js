@@ -9,11 +9,11 @@ import { createI18n } from 'vue-i18n'
 import zhCN from './zhCN'
 import en from './en'
 import ko from './ko'
-import { getBrowserLanguage } from '@/utils/language'
+import { getPreferredLanguage } from '@/utils/language'
 import { compileI18nMessage } from './cspSafeMessageCompiler'
 
 // 从localStorage获取保存的语言，如果没有则使用浏览器语言
-const savedLanguage = localStorage.getItem('language') || getBrowserLanguage()
+const savedLanguage = getPreferredLanguage()
 
 // 抑制 vue-i18n 对安全自定义 messageCompiler 的开发期实验性特性提示
 const originalWarn = console.warn

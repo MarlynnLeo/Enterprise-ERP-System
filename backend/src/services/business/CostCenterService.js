@@ -5,6 +5,25 @@
  */
 
 const db = require('../../config/db');
+const { isTruthyFlag } = require('../../utils/finance/settlementMath');
+
+async function assertNoFinancialUsage(connection, id) {
+  const [rows] = await connection.execute(
+    `SELECT
+       (SELECT COUNT(*) FROM gl_entry_items WHERE cost_center_id = ?) AS entry_count,
+       (SELECT COUNT(*) FROM expenses WHERE cost_center_id = ?) AS expense_count,
+       (SELECT COUNT(*) FROM production_tasks WHERE cost_center_id = ?) AS task_count`,
+    [id, id, id]
+  );
+  const usage = rows[0] || {};
+  if (
+    Number(usage.entry_count) > 0 ||
+    Number(usage.expense_count) > 0 ||
+    Number(usage.task_count) > 0
+  ) {
+    throw new Error('成本中心已有凭证、费用或生产任务，不能删除或变更部门归属');
+  }
+}
 const { logger } = require('../../utils/logger');
 const CostAccountingService = require('./CostAccountingService');
 const { softDelete } = require('../../utils/softDelete');
@@ -195,7 +214,7 @@ class CostCenterService {
           data.department_id || null,
           data.manager || null,
           data.description || null,
-          data.is_active !== false ? 1 : 0,
+          data.is_active === undefined || isTruthyFlag(data.is_active) ? 1 : 0,
         ]
       );
 
@@ -214,7 +233,20 @@ class CostCenterService {
    * @returns {Promise<Object>} 更新结果
    */
   static async update(id, data) {
+    const connection = await db.pool.getConnection();
     try {
+      await connection.beginTransaction();
+      const [rows] = await connection.execute(
+        'SELECT id, department_id FROM cost_centers WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+        [id]
+      );
+      if (!rows.length) throw new Error('成本中心不存在');
+      if (
+        data.department_id !== undefined &&
+        Number(data.department_id || 0) !== Number(rows[0].department_id || 0)
+      ) {
+        await assertNoFinancialUsage(connection, id);
+      }
       const fields = [];
       const params = [];
 
@@ -244,24 +276,29 @@ class CostCenterService {
       }
       if (data.is_active !== undefined) {
         fields.push('is_active = ?');
-        params.push(data.is_active ? 1 : 0);
+        params.push(isTruthyFlag(data.is_active) ? 1 : 0);
       }
 
       if (fields.length === 0) {
+        await connection.commit();
         return { affected: 0 };
       }
 
       params.push(id);
-      const [result] = await db.pool.execute(
+      const [result] = await connection.execute(
         `UPDATE cost_centers SET ${fields.join(', ')} WHERE id = ?`,
         params
       );
+      await connection.commit();
 
       logger.info(`[CostCenter] 更新成本中心 ${id} 成功`);
       return { affected: result.affectedRows };
     } catch (error) {
+      await connection.rollback();
       logger.error('[CostCenter] 更新成本中心失败:', error);
       throw error;
+    } finally {
+      connection.release();
     }
   }
 
@@ -271,9 +308,17 @@ class CostCenterService {
    * @returns {Promise<Object>} 删除结果
    */
   static async delete(id) {
+    const connection = await db.pool.getConnection();
     try {
+      await connection.beginTransaction();
+      const [rows] = await connection.execute(
+        'SELECT id FROM cost_centers WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+        [id]
+      );
+      if (!rows.length) throw new Error('成本中心不存在');
+      await assertNoFinancialUsage(connection, id);
       // 检查是否有子成本中心
-      const [children] = await db.pool.execute(
+      const [children] = await connection.execute(
         'SELECT COUNT(*) as cnt FROM cost_centers WHERE parent_id = ? AND deleted_at IS NULL',
         [id]
       );
@@ -281,23 +326,18 @@ class CostCenterService {
         throw new Error('存在子成本中心，无法删除');
       }
 
-      // 检查是否有关联的生产任务
-      const [tasks] = await db.pool.execute(
-        'SELECT COUNT(*) as cnt FROM production_tasks WHERE cost_center_id = ?',
-        [id]
-      );
-      if (tasks[0].cnt > 0) {
-        throw new Error('存在关联的生产任务，无法删除');
-      }
-
       // ✅ 软删除替代硬删除
-      const affected = await softDelete(db.pool, 'cost_centers', 'id', id);
+      const affected = await softDelete(connection, 'cost_centers', 'id', id);
+      await connection.commit();
 
       logger.info(`[CostCenter] 删除成本中心 ${id} 成功`);
       return { affected };
     } catch (error) {
+      await connection.rollback();
       logger.error('[CostCenter] 删除成本中心失败:', error);
       throw error;
+    } finally {
+      connection.release();
     }
   }
 

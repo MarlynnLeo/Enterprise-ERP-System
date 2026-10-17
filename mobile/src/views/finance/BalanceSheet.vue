@@ -146,7 +146,7 @@
   .date-value {
     font-size: 0.875rem;
     font-weight: 600;
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     cursor: pointer;
     font-family: var(--font-ui);
   }
@@ -175,13 +175,13 @@
     font-weight: 700;
     font-family: var(--font-ui);
     &.primary {
-      color: var(--color-primary);
+      color: var(--color-primary-text);
     }
     &.danger {
-      color: var(--color-danger);
+      color: var(--color-danger-text);
     }
     &.success {
-      color: var(--color-success);
+      color: var(--color-success-text);
     }
   }
 

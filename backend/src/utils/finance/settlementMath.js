@@ -4,7 +4,24 @@
  */
 
 const Precision = require('../precision');
-const { INVOICE_STATUS } = require('../../constants/financeConstants');
+const { INVOICE_STATUS, BANK_BACKED_PAYMENT_METHODS } = require('../../constants/financeConstants');
+
+function normalizeSettlementPaymentMethod(value = '银行转账') {
+  const aliases = {
+    cash: '现金',
+    bank_transfer: '银行转账',
+    check: '支票',
+    credit_card: '电子支付',
+    electronic: '电子支付',
+    wechat: '微信',
+    alipay: '支付宝',
+  };
+  const method = aliases[value] || value;
+  if (method !== '现金' && !BANK_BACKED_PAYMENT_METHODS.has(method)) {
+    throw new Error('请选择现金、银行转账、支票或电子支付方式');
+  }
+  return method;
+}
 
 function toCents(value) {
   return Math.round(Precision.mul(Number(value) || 0, 100));
@@ -53,10 +70,10 @@ function parseSettlementLine(item = {}) {
 }
 
 /**
- * 校验核销额不超过发票余额（允许 1 分取整容差）
+ * 校验核销额不超过发票余额（两者已经统一为分，无需额外取整容差）
  */
 function assertWithinBalance(settlementCents, balanceCents, label = '核销金额') {
-  if (settlementCents > balanceCents + 1) {
+  if (settlementCents > balanceCents) {
     throw new Error(
       `${label} ${fromCents(settlementCents).toFixed(2)} 超过发票余额 ${fromCents(balanceCents).toFixed(2)}`
     );
@@ -132,6 +149,7 @@ function assertInvoiceSettlementsEligible(status, invoiceLabel = '发票') {
 }
 
 module.exports = {
+  normalizeSettlementPaymentMethod,
   toCents,
   fromCents,
   parseSettlementLine,

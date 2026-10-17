@@ -271,8 +271,8 @@ export const useAuthStore = defineStore('auth', () => {
       return loaded
     }
 
-    const generation = authGeneration
-    const requestId = ++profileGeneration
+    let generation = authGeneration
+    let requestId = ++profileGeneration
     const isCurrent = () => generation === authGeneration && requestId === profileGeneration
     const pending = (async () => {
       try {
@@ -280,7 +280,12 @@ export const useAuthStore = defineStore('auth', () => {
         if (!isCurrent()) return false
         if (!response.data?.id) throw new Error('用户资料数据格式不正确')
         if (user.value?.id && String(user.value.id) !== String(response.data.id)) {
-          useThemeStore().resetForSession()
+          // Another tab can replace the shared cookie. Revoke the previous
+          // principal's permissions and outstanding work before adopting it.
+          clearClientSession()
+          generation = authGeneration
+          requestId = profileGeneration
+          _userProfilePromise = pending
         }
         user.value = normalizeUserData(response.data)
         tokenManager.setUser(user.value)

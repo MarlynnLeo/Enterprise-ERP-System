@@ -30,6 +30,159 @@ describe('theme runtime', () => {
     await store.initTheme()
   })
 
+  test.each([
+    ['preset defaults', DEFAULT_THEME_SETTINGS],
+    ['custom color and font', normalizeThemeAppearance({ preset: 'dark', primaryColor: '#AABBCC', fontSize: 18 })]
+  ])('replays the cached account theme without root mutations (%s)', async (_label, settings) => {
+    await store.updateAppearance(settings)
+    const html = document.documentElement
+    const mutations = []
+    const observer = new MutationObserver((records) => mutations.push(...records))
+    observer.observe(html, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] })
+    const setStyle = vi.spyOn(html.style, 'setProperty')
+    const removeStyle = vi.spyOn(html.style, 'removeProperty')
+    const setAttribute = vi.spyOn(html, 'setAttribute')
+    userApi.getTheme.mockResolvedValueOnce({ data: {
+      ...settings, primaryColor: settings.primaryColor.toLowerCase(), fontSize: String(settings.fontSize)
+    } })
+    try {
+      expect(await store.loadThemeForUser(7)).toBe(true)
+      await flushPromises()
+      expect(mutations).toHaveLength(0)
+      expect(setStyle).not.toHaveBeenCalled()
+      expect(removeStyle).not.toHaveBeenCalled()
+      expect(setAttribute).not.toHaveBeenCalled()
+      expect(ensureThemeCss).toHaveBeenLastCalledWith(settings.preset)
+      expect(store.appearance).toEqual(normalizeThemeAppearance(settings))
+      expect(store.isLoaded).toBe(true)
+      expect(store.loadedForUser).toBe(7)
+    } finally {
+      observer.disconnect()
+    }
+  })
+
+  test('applies cached settings to an unthemed document after startup CSS is ready', async () => {
+    localStorage.setItem('theme_settings', JSON.stringify({ preset: 'dark', primaryColor: '#abc', fontSize: 18 }))
+    const html = document.documentElement
+    html.classList.remove('light', 'dark')
+    html.removeAttribute('style')
+    html.removeAttribute('data-theme')
+    setActivePinia(createPinia())
+    store = useThemeStore()
+    const css = deferred()
+    ensureThemeCss.mockReturnValueOnce(css.promise)
+    const startup = store.initTheme()
+    expect(html.hasAttribute('data-theme')).toBe(false)
+    expect(html.style.getPropertyValue('--font-size-base')).toBe('')
+    css.resolve('dark')
+    await startup
+    expect(html.dataset.theme).toBe('dark')
+    expect(html.classList.contains('dark')).toBe(true)
+    expect(html.style.getPropertyValue('--font-size-base')).toBe('18px')
+    expect(html.style.getPropertyValue('--color-primary')).toBe('#AABBCC')
+  })
+
+  test('repairs externally changed theme attributes when the account returns unchanged settings', async () => {
+    const settings = normalizeThemeAppearance({ preset: 'dark', primaryColor: '#123456', fontSize: 18 })
+    await store.updateAppearance(settings)
+    const html = document.documentElement
+    html.classList.remove('dark')
+    html.classList.add('light', 'unrelated-theme-test')
+    html.setAttribute('data-theme', 'workspace')
+    html.style.setProperty('--font-size-base', '12px')
+    html.style.setProperty('--color-primary', settings.primaryColor, 'important')
+    html.style.setProperty('--color-on-success', '#000000', 'important')
+    html.style.setProperty('--unrelated-theme-test', 'retained')
+    userApi.getTheme.mockResolvedValueOnce({ data: settings })
+    try {
+      expect(await store.loadThemeFromServer()).toBe(true)
+      expect(html.dataset.theme).toBe('dark')
+      expect(html.classList.contains('dark')).toBe(true)
+      expect(html.classList.contains('light')).toBe(false)
+      expect(html.classList.contains('unrelated-theme-test')).toBe(true)
+      expect(html.style.getPropertyValue('--font-size-base')).toBe('18px')
+      expect(html.style.getPropertyValue('--color-primary')).toBe(settings.primaryColor)
+      expect(html.style.getPropertyPriority('--color-primary')).toBe('')
+      expect(html.style.getPropertyValue('--color-on-success')).toBe('#FFFFFF')
+      expect(html.style.getPropertyPriority('--color-on-success')).toBe('')
+      expect(html.style.getPropertyValue('--unrelated-theme-test')).toBe('retained')
+    } finally {
+      html.classList.remove('unrelated-theme-test')
+    }
+  })
+
+  test('changes font and custom color without rewriting unchanged palette attributes', async () => {
+    await store.applyPreset('dark')
+    const html = document.documentElement
+    const setAttribute = vi.spyOn(html, 'setAttribute')
+    const toggleClass = vi.spyOn(html.classList, 'toggle')
+    const setStyle = vi.spyOn(html.style, 'setProperty')
+    expect(await store.updateAppearance({ fontSize: 18 })).toBe(true)
+    expect(html.style.getPropertyValue('--font-size-base')).toBe('18px')
+    expect(html.style.getPropertyValue('--el-font-size-base')).toBe('18px')
+    expect(setStyle.mock.calls.map(([key]) => key)).toEqual(['--font-size-base', '--el-font-size-base'])
+    setStyle.mockClear()
+    expect(await store.updateAppearance({ primaryColor: '#123456' })).toBe(true)
+    expect(html.style.getPropertyValue('--color-primary')).toBe('#123456')
+    expect(html.style.getPropertyValue('--el-color-primary')).toBe('#123456')
+    expect(html.style.getPropertyValue('--color-primary-light-9')).toBeTruthy()
+    expect(setStyle.mock.calls.map(([key]) => key)).not.toContain('--font-size-base')
+    expect(setAttribute).not.toHaveBeenCalled()
+    expect(toggleClass).not.toHaveBeenCalled()
+    expect(await store.applyPreset('workspace')).toBe(true)
+    expect(html.dataset.theme).toBe('workspace')
+    expect(html.classList.contains('light')).toBe(true)
+    expect(html.classList.contains('dark')).toBe(false)
+    expect(html.style.getPropertyValue('--color-primary')).toBe('')
+    expect(html.style.getPropertyValue('--color-primary-light-9')).toBe('')
+  })
+
+  test('restores preset ownership of empty inline color declarations', async () => {
+    const html = document.documentElement
+    const emptyProperties = [
+      '--color-primary', '--el-color-primary', '--color-on-primary',
+      '--color-primary-light-9', '--el-color-primary-light-9'
+    ]
+    for (const key of emptyProperties) html.style.setProperty(key, 'empty-declaration')
+    html.style.setProperty('--unrelated-theme-test', 'retained')
+    // jsdom drops whitespace-only declarations; browsers retain them but expose
+    // an empty value. Preserve real declaration membership and emulate that read.
+    const getPropertyValue = html.style.getPropertyValue.bind(html.style)
+    vi.spyOn(html.style, 'getPropertyValue').mockImplementation((key) =>
+      emptyProperties.includes(key) ? '' : getPropertyValue(key)
+    )
+    for (const key of emptyProperties) expect(Array.from(html.style)).toContain(key)
+
+    userApi.getTheme.mockResolvedValueOnce({ data: DEFAULT_THEME_SETTINGS })
+    expect(await store.loadThemeFromServer()).toBe(true)
+    for (const key of emptyProperties) {
+      expect(Array.from(html.style)).not.toContain(key)
+      expect(html.style.getPropertyPriority(key)).toBe('')
+    }
+    expect(html.style.getPropertyValue('--unrelated-theme-test')).toBe('retained')
+    expect(html.dataset.theme).toBe(DEFAULT_THEME_SETTINGS.preset)
+  })
+
+  test('reads all semantic backgrounds before writing their contrast colors', async () => {
+    const html = document.documentElement
+    const textTokens = ['--color-on-success', '--color-on-warning', '--color-on-danger', '--color-on-info']
+    const phases = []
+    const readBackground = vi.fn(() => {
+      phases.push('read')
+      return '#FFFFFF'
+    })
+    vi.spyOn(window, 'getComputedStyle').mockReturnValue({ getPropertyValue: readBackground })
+    const setProperty = html.style.setProperty.bind(html.style)
+    vi.spyOn(html.style, 'setProperty').mockImplementation((key, value, priority) => {
+      if (textTokens.includes(key)) phases.push('write')
+      return setProperty(key, value, priority)
+    })
+    expect(await store.applyPreset('dark')).toBe(true)
+    expect(readBackground).toHaveBeenCalledTimes(8)
+    expect(phases.indexOf('write')).toBeGreaterThan(phases.lastIndexOf('read'))
+    for (const token of textTokens) expect(html.style.getPropertyValue(token)).toBe('#000000')
+  })
+
   test('keeps state and DOM unchanged until CSS loads and ignores an older selection', async () => {
     const first = deferred()
     const second = deferred()

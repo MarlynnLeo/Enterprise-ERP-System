@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest'
-import { resolveMobileDeepLink } from '../src/utils/deepLink.js'
+import { describe, it, expect, vi } from 'vitest'
+import { createRouter, createMemoryHistory } from 'vue-router'
+import { resolveMobileDeepLink, navigateMobileDeepLink } from '../src/utils/deepLink.js'
 
 describe('resolveMobileDeepLink', () => {
   it('resolves core master data and docs', () => {
@@ -35,5 +36,27 @@ describe('resolveMobileDeepLink', () => {
   it('falls back for approval without id', () => {
     expect(resolveMobileDeepLink('approval', null).path).toBe('/workflow/approvals')
     expect(resolveMobileDeepLink('unknown_thing', 1).path).toBe(null)
+  })
+
+  it('translates the default PC task link even when the type is a notification rule', () => {
+    expect(resolveMobileDeepLink('notification_rule:7', 41, { link: '/production/task' }).path)
+      .toBe('/production/tasks/41')
+    expect(resolveMobileDeepLink('notification_rule:7', null, {
+      link: '/production/task?tab=all', linkParams: '{"id":42}'
+    }).path).toBe('/production/tasks/42?tab=all')
+  })
+
+  it('navigates to a registered mobile record and explains unsupported PC paths', async () => {
+    const router = createRouter({ history: createMemoryHistory(), routes: [
+      { path: '/production/tasks/:id', component: {} },
+      { path: '/:pathMatch(.*)*', name: 'NotFound', component: {} }
+    ] })
+    const push = vi.spyOn(router, 'push').mockResolvedValue()
+    const toast = vi.fn()
+    expect(navigateMobileDeepLink(router, toast, 'notification_rule:7', 41, { link: '/production/task' })).toBe(true)
+    expect(push).toHaveBeenCalledWith('/production/tasks/41')
+    expect(navigateMobileDeepLink(router, toast, 'notification_rule:7', 41, { link: '/system/pc-only' })).toBe(false)
+    expect(push).toHaveBeenCalledTimes(1)
+    expect(toast).toHaveBeenCalledWith('移动端暂无对应页面，请在 PC 端查看')
   })
 })

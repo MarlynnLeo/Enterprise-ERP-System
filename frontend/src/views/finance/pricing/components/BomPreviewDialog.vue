@@ -113,7 +113,7 @@
           </div>
         </div>
       </div>
-      <EmptyState v-else description="该产品暂无BOM数据" ::image-size="120" />
+      <EmptyState v-else description="该产品暂无BOM数据" :image-size="120" />
     </div>
     <template #footer>
       <el-button @click="visible = false">关闭</el-button>

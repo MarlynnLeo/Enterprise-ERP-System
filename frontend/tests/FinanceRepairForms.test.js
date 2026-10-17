@@ -103,6 +103,7 @@ describe('采购发票父子表单', () => {
     await clickButton(wrapper, '期初/例外录入')
     const form = wrapper.get('[data-dialog="期初/例外录入采购发票"]')
     await fillField(form, 'supplierId', 9)
+    await fillField(form, 'invoiceDate', '2026-09-16')
     await fillField(form, 'dueDate', '2026-09-30')
     await form.get('[data-column="数量"] input').setValue('3')
     await form.get('[data-column="单价"] input').setValue('100')

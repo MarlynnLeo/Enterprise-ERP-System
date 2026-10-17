@@ -44,7 +44,15 @@ class InventoryService {
   static _isMissingBalanceTableError(error) {
     return (
       error &&
-      (error.code === 'ER_NO_SUCH_TABLE' || /inventory_stock_balances/i.test(error.message || ''))
+      error.code === 'ER_NO_SUCH_TABLE' &&
+      /inventory_stock_balances/i.test(error.sqlMessage || error.message || '')
+    );
+  }
+
+  static _isMissingPostingTableError(error) {
+    return (
+      error?.code === 'ER_NO_SUCH_TABLE' &&
+      /inventory_posting_(lines|documents)/i.test(error.sqlMessage || error.message || '')
     );
   }
 
@@ -321,9 +329,7 @@ class InventoryService {
   static async _getBatchUnitCost({ materialId, locationId, batchNumber }, connection) {
     if (!batchNumber) return 0;
     const [rows] = await connection.execute(
-      `SELECT
-         SUM(CASE WHEN quantity > 0 THEN quantity * COALESCE(NULLIF(unit_cost, 0), NULLIF(total_value / NULLIF(quantity, 0), 0), 0) ELSE 0 END)
-           / NULLIF(SUM(CASE WHEN quantity > 0 THEN quantity ELSE 0 END), 0) AS unit_cost
+      `SELECT ${require('../utils/batchWeightedCostSql').batchWeightedUnitCostSql()} AS unit_cost
        FROM inventory_ledger
        WHERE material_id = ?
          AND location_id = ?
@@ -490,7 +496,8 @@ class InventoryService {
 
       // 在事务中（传入 connection）时自动禁用缓存，避免读到过时数据
       const effectiveUseCache = useCache && !withLock && !connection;
-      const cacheKey = `inventory_${materialId}_${locationId}`;
+      // 财务正式库存与含待过账业务的库存不能复用缓存值。
+      const cacheKey = `inventory_${materialId}_${locationId}${includePending ? '' : '_posted'}`;
       if (effectiveUseCache) {
         const cached = await cacheService.get(cacheKey);
         if (cached !== null) {
@@ -502,7 +509,7 @@ class InventoryService {
         await this._lockStockLocation(materialId, locationId, connection);
       }
 
-      // 优先读 balance 表（写路径已维护）；缺失表或异常时回退 ledger SUM
+      // 只有缺表才兼容旧台账；权限、结构和事务错误必须交给调用方回滚。
       let quantity = null;
       if (this.balanceTableAvailable !== false) {
         try {
@@ -510,7 +517,7 @@ class InventoryService {
             `SELECT COALESCE(SUM(quantity), 0) as current_stock
              FROM inventory_stock_balances
              WHERE material_id = ? AND location_id = ?
-               AND batch_number <> ?`,
+               AND batch_number <> ?${withLock ? ' FOR UPDATE' : ''}`,
             [materialId, locationId, this.LOCATION_LOCK_BATCH]
           );
           quantity = parseFloat(balRows[0].current_stock);
@@ -543,12 +550,12 @@ class InventoryService {
                JOIN inventory_posting_documents d ON d.id = l.posting_document_id
               WHERE l.material_id = ? AND l.location_id = ?
                 AND d.finance_status = 'pending' AND d.posting_kind = 'movement'
-                AND l.posted_quantity IS NULL`,
+                AND l.posted_quantity IS NULL${withLock ? ' FOR UPDATE' : ''}`,
             [materialId, locationId]
           );
           quantity = Precision.add(quantity, Number(pendingRows[0]?.pending_stock || 0));
         } catch (error) {
-          if (!/inventory_posting_(lines|documents)/i.test(error.message || '')) throw error;
+          if (!this._isMissingPostingTableError(error)) throw error;
         }
       }
 
@@ -669,7 +676,7 @@ class InventoryService {
           }
         });
       } catch (error) {
-        if (!/inventory_posting_(lines|documents)/i.test(error.message || '')) throw error;
+        if (!this._isMissingPostingTableError(error)) throw error;
       }
 
       // 补充没有记录的物料-库位组合
@@ -761,6 +768,7 @@ class InventoryService {
     }
 
     const isFormalPosting = internalPostingToken === INTERNAL_POSTING_TOKEN;
+    let frozenPostingValue;
     if (internalPostingToken && !isFormalPosting) {
       throw new Error('非法库存正式过账上下文');
     }
@@ -781,11 +789,19 @@ class InventoryService {
         throw new Error('库存过账单尚未完成财务审核或未锁定');
       }
       const [[postingLine]] = await connection.execute(
-        `SELECT id FROM inventory_posting_lines
+        `SELECT id, signed_quantity, total_value FROM inventory_posting_lines
           WHERE id = ? AND posting_document_id = ? FOR UPDATE`,
         [postingLineId, postingDocumentId]
       );
       if (!postingLine) throw new Error('库存冻结明细与过账单不匹配');
+      frozenPostingValue = Math.abs(Number(postingLine.total_value));
+      if (
+        postingLine.total_value == null ||
+        !Number.isFinite(frozenPostingValue) ||
+        Number(postingLine.signed_quantity) !== Number(quantity)
+      ) {
+        throw new Error('正式过账数量或金额与冻结明细不一致');
+      }
     }
 
     if (!materialId || !locationId) {
@@ -916,6 +932,45 @@ class InventoryService {
       // 6. 验证物料和库位是否存在
       await this._validateMaterialAndLocation(materialId, locationId, connection);
 
+      // 库位总量不能代替指定批次的可用量。库位锁已串行化库存写入，
+      // 锁定读取确保即使事务此前建立过快照，也能看到刚提交的批次变动。
+      if (
+        changeQuantity < 0 &&
+        normalizedBatchInput &&
+        !allowNegativeStock &&
+        !['adjustment', 'correction'].includes(transactionType)
+      ) {
+        const [[batchRow]] = await connection.execute(
+          `SELECT COALESCE(SUM(quantity), 0) AS batch_stock
+             FROM inventory_ledger
+            WHERE material_id = ? AND location_id = ? AND batch_number = ?
+            FOR UPDATE`,
+          [materialId, locationId, normalizedBatchInput]
+        );
+        let batchStock = Number(batchRow?.batch_stock || 0);
+        if (!isFormalPosting) {
+          const [[pendingBatch]] = await connection.execute(
+            `SELECT COALESCE(SUM(l.signed_quantity), 0) AS batch_stock
+               FROM inventory_posting_lines l
+               JOIN inventory_posting_documents d ON d.id = l.posting_document_id
+              WHERE l.material_id = ? AND l.location_id = ? AND l.batch_number = ?
+                AND d.finance_status = 'pending' AND d.posting_kind = 'movement'
+                AND l.posted_quantity IS NULL
+              FOR UPDATE`,
+            [materialId, locationId, normalizedBatchInput]
+          );
+          batchStock = Precision.add(batchStock, Number(pendingBatch?.batch_stock || 0));
+        }
+        if (Precision.add(batchStock, changeQuantity) < 0) {
+          const error = new Error(
+            `物料“${await resolveMaterialLabel()}”批次“${normalizedBatchInput}”库存不足：当前库存 ${batchStock}，需要 ${Math.abs(changeQuantity)}`
+          );
+          error.code = 'INSUFFICIENT_STOCK';
+          error.statusCode = 400;
+          throw error;
+        }
+      }
+
       // FIFO：出库且未指定有效批次 → 按台账先进先出拆批
       let finalBatchNumbers = [];
       if (changeQuantity < 0 && !normalizedBatchInput) {
@@ -993,6 +1048,10 @@ class InventoryService {
         ];
       }
 
+      if (isFormalPosting && finalBatchNumbers.length !== 1) {
+        throw new Error('正式过账必须使用已冻结的单一批次明细，不能重新分配批次');
+      }
+
       // 7. 插入库存台账记录（如果按FIFO拆分，会有多条记录，累积计算 before/after）
       let currentBefore = beforeQuantity;
       let lastLedgerId = null;
@@ -1010,16 +1069,21 @@ class InventoryService {
           idempotencyKey && finalBatchNumbers.length > 1
             ? `${idempotencyKey}:${ledgerBatchNumber || 'EMPTY'}`
             : idempotencyKey;
-        const actualUnitCost = await this._resolveUnitCost(
-          {
-            materialId,
-            locationId,
-            batchNumber: ledgerBatchNumber,
-            referenceNo,
-            referenceType,
-            unitCost,
-          },
-          connection
+        // Freeze the same six decimal places stored in posting lines and ledger.
+        // Otherwise a weighted cost changes value when it is read back for approval.
+        const actualUnitCost = Precision.round(
+          await this._resolveUnitCost(
+            {
+              materialId,
+              locationId,
+              batchNumber: ledgerBatchNumber,
+              referenceNo,
+              referenceType,
+              unitCost,
+            },
+            connection
+          ),
+          6
         );
 
         if (!(Number(actualUnitCost) > 0)) {
@@ -1028,10 +1092,11 @@ class InventoryService {
         }
 
         // 计算流水账总金额
-        const currentTotalValue = Precision.round(
-          Precision.mul(actualUnitCost || 0, Math.abs(batchChangeQty)),
-          6
-        );
+        // Preserve the reviewed amount, including historical rounding residuals
+        // and exact reversal values, instead of recomputing from a rounded cost.
+        const currentTotalValue = isFormalPosting
+          ? frozenPostingValue
+          : Precision.round(Precision.mul(actualUnitCost, Math.abs(batchChangeQty)), 6);
         totalValue = Precision.add(totalValue, currentTotalValue);
 
         if (!isFormalPosting) {
@@ -1334,6 +1399,8 @@ class InventoryService {
       quantity,
       referenceNo,
       referenceType,
+      sourceId = null,
+      sourceLineKey = null,
       operator,
       remark = '',
       unitId = null,
@@ -1354,6 +1421,8 @@ class InventoryService {
         transactionType: 'transfer_out',
         referenceNo,
         referenceType,
+        sourceId,
+        sourceLineKey: sourceLineKey ? `${sourceLineKey}:out` : null,
         operator,
         remark: `${remark} (转出)`,
         unitId,
@@ -1394,6 +1463,8 @@ class InventoryService {
             transactionType: 'transfer_in',
             referenceNo,
             referenceType,
+            sourceId,
+            sourceLineKey: sourceLineKey ? `${sourceLineKey}:in` : null,
             operator,
             remark: `${remark} (转入)`,
             unitId,
@@ -1418,6 +1489,8 @@ class InventoryService {
           transactionType: 'transfer_in',
           referenceNo,
           referenceType,
+          sourceId,
+          sourceLineKey: sourceLineKey ? `${sourceLineKey}:in` : null,
           operator,
           remark: `${remark} (转入)`,
           unitId,
@@ -1616,6 +1689,7 @@ class InventoryService {
       // 清除指定物料和库位的缓存
       const cacheKey = `inventory_${materialId}_${locationId}`;
       await cacheService.delete(cacheKey);
+      await cacheService.delete(`${cacheKey}_posted`);
       logger.debug(`Inventory cache cleared: key=${cacheKey}`);
     } else {
       // 清除该物料的所有缓存

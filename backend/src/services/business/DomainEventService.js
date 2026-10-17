@@ -253,6 +253,7 @@ class DomainEventService {
         typeof EventBus.emitAsync === 'function'
           ? await EventBus.emitAsync(event.event_name, payload)
           : EventBus.emit(event.event_name, payload);
+      if (!hasListener) throw new Error(`No listener registered for ${event.event_name}`);
       await db.pool.execute(
         `UPDATE domain_events
             SET status = ?,
@@ -260,12 +261,13 @@ class DomainEventService {
                 error_message = ?,
                 locked_at = NULL,
                 updated_at = NOW()
-          WHERE id = ?`,
+          WHERE id = ? AND status = 'processing' AND attempts = ?`,
         [
           hasListener ? 'processed' : 'failed',
           hasListener ? 'processed' : 'failed',
           hasListener ? null : `No listener registered for ${event.event_name}`,
           event.id,
+          Number(event.attempts || 0) + 1,
         ]
       );
     } catch (error) {
@@ -273,11 +275,11 @@ class DomainEventService {
         `UPDATE domain_events
             SET status = 'failed',
                 error_message = ?,
-                available_at = DATE_ADD(NOW(), INTERVAL LEAST(POWER(2, GREATEST(attempts, 1)), 3600) SECOND),
+                available_at = DATE_ADD(NOW(), INTERVAL LEAST(POWER(2, LEAST(GREATEST(attempts, 1), 12)), 3600) SECOND),
                 locked_at = NULL,
                 updated_at = NOW()
-          WHERE id = ?`,
-        [error.message || String(error), event.id]
+          WHERE id = ? AND status = 'processing' AND attempts = ?`,
+        [error.message || String(error), event.id, Number(event.attempts || 0) + 1]
       );
       throw error;
     }

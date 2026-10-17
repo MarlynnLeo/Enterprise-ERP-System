@@ -16,83 +16,112 @@ export function cancelIdleTask(id) {
   clearTimeout(id)
 }
 
-function isLowEndDevice() {
-  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false
+const defaultMode = Object.freeze({ lowEnd: false, reducedMotion: false, saveData: false })
+const modeClasses = {
+  lowEnd: 'perf-low-end',
+  reducedMotion: 'perf-reduced-motion',
+  saveData: 'perf-save-data'
+}
+let currentMode = defaultMode
+let initialized = false
+let reducedMotionMedia
+let slowUpdateMedia
+let connection
+let cleanupListeners = []
 
-  // 1. 用户手动强制开启极速性能模式
+function isLowEndDevice() {
   try {
-    if (localStorage.getItem('erp_low_end_mode') === 'true') {
-      return true
-    }
+    if (window.localStorage.getItem('erp_low_end_mode') === 'true') return true
   } catch {}
 
-  const memory = Number(navigator.deviceMemory)
-  const cores = Number(navigator.hardwareConcurrency)
-
-  // 2. CPU / memory indicators are synchronous metadata reads.
-  if (Number.isFinite(cores) && cores <= 4) return true
-  if (Number.isFinite(memory) && memory <= 4) return true
-
-  // Creating a WebGL context here used to synchronously initialize the GPU
-  // driver before Vue mounted. On software-rendered or unstable Windows
-  // clients that can block the browser for seconds, so startup must never
-  // probe graphics hardware.
-  if (window.matchMedia?.('(update: slow)')?.matches) return true
-
-  return false
+  // Metadata only: creating a Canvas/WebGL context here can synchronously
+  // initialize a Windows graphics driver and stall startup for seconds.
+  const hasLimitedCapacity = (value) => {
+    const capacity = Number(value)
+    return Number.isFinite(capacity) && capacity > 0 && capacity <= 4
+  }
+  return hasLimitedCapacity(navigator.hardwareConcurrency)
+    || hasLimitedCapacity(navigator.deviceMemory)
+    || Boolean(slowUpdateMedia?.matches)
 }
 
-function prefersReducedMotion() {
-  if (typeof window === 'undefined' || !window.matchMedia) return false
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+function refreshPerformanceMode() {
+  const saveData = Boolean(connection?.saveData)
+  const next = {
+    lowEnd: isLowEndDevice() || saveData,
+    reducedMotion: Boolean(reducedMotionMedia?.matches),
+    saveData
+  }
+  const root = document.documentElement
+  for (const [key, className] of Object.entries(modeClasses)) {
+    if (root.classList.contains(className) !== next[key]) {
+      root.classList.toggle(className, next[key])
+    }
+  }
+
+  if (Object.keys(modeClasses).every(key => currentMode[key] === next[key])) return
+  currentMode = Object.freeze(next)
 }
 
-function isSaveData() {
-  if (typeof navigator === 'undefined') return false
-  return Boolean(navigator.connection?.saveData)
+function observeMedia(media) {
+  if (media?.addEventListener) {
+    media.addEventListener('change', refreshPerformanceMode)
+    cleanupListeners.push(() => media.removeEventListener('change', refreshPerformanceMode))
+  } else if (media?.addListener) {
+    media.addListener(refreshPerformanceMode)
+    cleanupListeners.push(() => media.removeListener(refreshPerformanceMode))
+  }
 }
 
 /**
- * 初始化全局性能模式 class
- * - perf-low-end：弱化阴影/毛玻璃/多层过渡
- * - perf-reduced-motion：跟随系统减少动画
- * - perf-save-data：省流，不预取次要主题
+ * Single source for CSS, Canvas rendering and optional resource prefetching.
+ * The application owns initialization and teardown. Repeated initialization
+ * refreshes the applied classes without adding listeners or replacing an
+ * unchanged snapshot.
  */
 export function initPerformanceMode() {
-  if (typeof document === 'undefined') return
-  const root = document.documentElement
-  const saveData = isSaveData()
-  const lowEnd = isLowEndDevice() || saveData
-  const reducedMotion = prefersReducedMotion()
-
-  root.classList.toggle('perf-low-end', lowEnd)
-  root.classList.toggle('perf-reduced-motion', reducedMotion)
-  root.classList.toggle('perf-save-data', saveData)
-
-  // 暴露给 themeLoader 等模块
-  if (typeof window !== 'undefined') {
-    window.__ERP_PERF__ = {
-      lowEnd,
-      reducedMotion,
-      saveData
+  if (typeof window === 'undefined' || typeof document === 'undefined') return disposePerformanceMode
+  if (!initialized) {
+    initialized = true
+    reducedMotionMedia = window.matchMedia?.('(prefers-reduced-motion: reduce)')
+    slowUpdateMedia = window.matchMedia?.('(update: slow)')
+    connection = navigator.connection
+    observeMedia(reducedMotionMedia)
+    observeMedia(slowUpdateMedia)
+    if (connection?.addEventListener) {
+      connection.addEventListener('change', refreshPerformanceMode)
+      cleanupListeners.push(() => connection.removeEventListener('change', refreshPerformanceMode))
     }
+    const onStorage = (event) => {
+      if (event.key === 'erp_low_end_mode' || event.key === null) refreshPerformanceMode()
+    }
+    window.addEventListener('storage', onStorage)
+    cleanupListeners.push(() => window.removeEventListener('storage', onStorage))
   }
+  refreshPerformanceMode()
+  return disposePerformanceMode
+}
 
-  if (typeof window !== 'undefined' && window.matchMedia) {
-    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const updateMotionClass = () => {
-      root.classList.toggle('perf-reduced-motion', media.matches)
-    }
-    if (media.addEventListener) {
-      media.addEventListener('change', updateMotionClass)
-    } else if (media.addListener) {
-      media.addListener(updateMotionClass)
-    }
-  }
+export function getPerformanceMode() {
+  return currentMode
+}
+
+/** Release the application-level observers on teardown or hot replacement. */
+export function disposePerformanceMode() {
+  cleanupListeners.forEach(cleanup => cleanup())
+  cleanupListeners = []
+  initialized = false
+  currentMode = defaultMode
+  reducedMotionMedia = undefined
+  slowUpdateMedia = undefined
+  connection = undefined
 }
 
 export function shouldPrefetchThemes() {
-  if (typeof window === 'undefined') return false
-  if (window.__ERP_PERF__?.saveData || window.__ERP_PERF__?.lowEnd) return false
-  return true
+  // Optional work must not revive observers after the application is unmounted.
+  if (!initialized) return false
+  const { lowEnd, saveData } = getPerformanceMode()
+  return !lowEnd && !saveData
 }
+
+if (import.meta.hot) import.meta.hot.dispose(disposePerformanceMode)

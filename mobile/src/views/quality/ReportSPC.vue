@@ -153,7 +153,7 @@
 
   .detail-header {
     display: flex; align-items: center; gap: 6px; padding: 8px 0 12px;
-    font-weight: 600; font-size: 1rem; color: var(--color-primary);
+    font-weight: 600; font-size: 1rem; color: var(--color-primary-text);
   }
 
   .cpk-cards {

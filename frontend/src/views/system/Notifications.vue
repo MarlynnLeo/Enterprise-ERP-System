@@ -232,6 +232,7 @@ import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Bell, Message, InfoFilled, Document, Check, Warning, Link } from '@element-plus/icons-vue'
 import notificationApi from '@/api/notification'
 import { parseResponseData } from '@/utils/responseParser'
+import { resolveNotificationLocation } from '@/utils/notificationNavigation'
 import {
   getNotificationIcon,
   getNotificationColor,
@@ -377,9 +378,10 @@ const handleGotoLink = (notification) => {
 
 // 跳转到通知关联链接
 const gotoNotificationLink = () => {
-  if (currentNotification.value?.link) {
+  const location = resolveNotificationLocation(currentNotification.value)
+  if (location) {
     detailDialogVisible.value = false
-    router.push(currentNotification.value.link)
+    router.push(location)
   }
 }
 

@@ -282,8 +282,10 @@
       <InventoryApprovalPanel
         v-if="detailData?.id || detailData?.scrapNo"
         source-type="scrap_record"
+        :active="detailDialogVisible"
         :source-id="detailData.id"
         :source-no="detailData.scrapNo"
+        @changed="() => { fetchData(); fetchStatistics(); }"
       />
       <template #footer>
         <el-button @click="detailDialogVisible = false">关闭</el-button>

@@ -29,12 +29,20 @@ jest.mock('../../src/services/business/DomainEventService', () => ({
   dispatchSoon: jest.fn(),
 }));
 jest.mock('../../src/services/system/AuditLogService', () => ({ log: jest.fn() }));
+jest.mock('../../src/services/business/InventoryPostingResubmissionService', () => ({
+  resubmit: jest.fn(async () => null),
+}));
+jest.mock('../../src/services/InventoryPostingService', () => ({ getApprovalBySource: jest.fn() }));
+jest.mock('../../src/utils/userHelper', () => ({ getCurrentUserName: jest.fn(async () => 'Inspector') }));
 
 const db = require('../../src/config/db');
 const controller = require('../../src/controllers/business/purchase/purchaseReceiptController');
 const PurchaseOrderQuantityService = require('../../src/services/business/PurchaseOrderQuantityService');
 const InventoryTraceabilityService = require('../../src/services/business/InventoryTraceabilityService');
 const DomainEventService = require('../../src/services/business/DomainEventService');
+const Resubmission = require('../../src/services/business/InventoryPostingResubmissionService');
+const PurchaseOrderStatusService = require('../../src/services/business/PurchaseOrderStatusService');
+const Posting = require('../../src/services/InventoryPostingService');
 
 const response = () => ({ status: jest.fn().mockReturnThis(), json: jest.fn().mockReturnThis() });
 const request = (status = 'completed') => ({
@@ -135,6 +143,7 @@ function receiptConnection({
 describe('purchase receipt completion authorization and transaction boundary', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    Resubmission.resubmit.mockReset().mockResolvedValue(null);
     const line = {
       item: { id: 4, material_id: 3, quantity: 20, price: 20, tax_rate: 0.13, unit_id: 1 },
       reserved: 0,
@@ -155,6 +164,75 @@ describe('purchase receipt completion authorization and transaction boundary', (
       options.connection.state.events += 1;
       return 55;
     });
+  });
+
+  test.each(['rejected', 'invalid'])('source detail stays readable and returns minimal finance status: %s', async (status) => {
+    const connection = { release: jest.fn(), query: jest.fn()
+      .mockResolvedValueOnce([[{ id: 9, receipt_no: 'PR-9', status: 'completed' }]])
+      .mockResolvedValueOnce([[]]) };
+    db.pool.getConnection.mockResolvedValue(connection);
+    if (status === 'invalid') {
+      Posting.getApprovalBySource.mockRejectedValueOnce(Object.assign(new Error('过账批次与冻结快照不一致'), { code: 'SNAPSHOT_INVALID', statusCode: 409 }));
+    } else {
+      Posting.getApprovalBySource.mockResolvedValueOnce({ movement: { finance_status: 'rejected', total_value: 999 }, events: [{ id: 1 }] });
+    }
+    const res = response();
+    await controller.getReceipt(request(), res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    const body = res.json.mock.calls[0][0].data;
+    expect(body.financeStatus).toBe(status);
+    expect(body).not.toHaveProperty('events');
+    expect(body).not.toHaveProperty('movement');
+    if (status === 'invalid') expect(body.financeValidationError).toContain('冻结快照');
+    expect(connection.release).toHaveBeenCalledTimes(1);
+  });
+
+  test('已完成但财务驳回的采购收货重提不再累加上游数量、重写状态或产生完工事件', async () => {
+    const connection = receiptConnection({ status: 'completed' });
+    db.pool.getConnection.mockResolvedValue(connection);
+    Resubmission.resubmit.mockResolvedValue({ documentId: 91, resubmittedFrom: 90, financeStatus: 'pending' });
+    const res = response();
+    await controller.updateReceiptStatus(request(), res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(Resubmission.resubmit).toHaveBeenCalledWith(connection, {
+      sourceType: 'purchase_receipt', sourceId: 9, sourceNo: 'PR-9', actor: { id: 8, label: 'Inspector' },
+    });
+    expect(connection.state).toEqual({ status: 'completed', stock: 0, events: 0 });
+    expect(connection.query.mock.calls.every(([sql]) => /^\s*SELECT/.test(sql))).toBe(true);
+    expect(PurchaseOrderStatusService.syncOrderItemReceivedFromReceipts).not.toHaveBeenCalled();
+    expect(PurchaseOrderStatusService.updateOrderItemWarehousingQuantity).not.toHaveBeenCalled();
+    expect(InventoryTraceabilityService.handlePurchaseReceipt).not.toHaveBeenCalled();
+    expect(DomainEventService.enqueue).not.toHaveBeenCalled();
+    expect(connection.commit).toHaveBeenCalledTimes(1);
+  });
+
+  test('已完成采购单没有可重提驳回时返回冲突且不重放业务操作', async () => {
+    const connection = receiptConnection({ status: 'completed' });
+    db.pool.getConnection.mockResolvedValue(connection);
+    const res = response();
+    await controller.updateReceiptStatus(request(), res);
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(connection.commit).not.toHaveBeenCalled();
+    expect(connection.rollback).toHaveBeenCalledTimes(1);
+    expect(InventoryTraceabilityService.handlePurchaseReceipt).not.toHaveBeenCalled();
+    expect(DomainEventService.enqueue).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    [400, 'VALIDATION_ERROR', '会计期间已关闭'],
+    [409, 'SNAPSHOT_INVALID', '冻结快照与明细不一致'],
+  ])('重提被%s业务校验阻断时保留错误详情并回滚', async (statusCode, code, message) => {
+    const connection = receiptConnection({ status: 'completed' });
+    db.pool.getConnection.mockResolvedValue(connection);
+    Resubmission.resubmit.mockRejectedValue(Object.assign(new Error(message), { statusCode, code }));
+    const res = response();
+    await controller.updateReceiptStatus(request(), res);
+    expect(res.status).toHaveBeenCalledWith(statusCode);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ message }));
+    expect(connection.rollback).toHaveBeenCalledTimes(1);
+    expect(connection.commit).not.toHaveBeenCalled();
+    expect(PurchaseOrderStatusService.updateOrderItemWarehousingQuantity).not.toHaveBeenCalled();
+    expect(InventoryTraceabilityService.handlePurchaseReceipt).not.toHaveBeenCalled();
   });
 
   test.each([

@@ -192,7 +192,7 @@
   .post-btn {
     font-size: 0.8125rem;
     font-weight: 600;
-    color: var(--color-accent, var(--color-primary));
+    color: var(--color-accent-text, var(--color-primary));
     padding: 4px 12px;
     border-radius: 16px;
     background: var(--color-accent-bg, rgba(59, 130, 246, 0.1));
@@ -227,11 +227,11 @@
     font-weight: 700;
     &.posted {
       background: rgba(16, 185, 129, 0.1);
-      color: var(--color-success);
+      color: var(--color-success-text);
     }
     &.draft {
       background: rgba(245, 158, 11, 0.1);
-      color: var(--color-warning);
+      color: var(--color-warning-text);
     }
   }
 
@@ -315,7 +315,7 @@
       height: 22px;
       border-radius: 6px;
       background: var(--color-accent-bg);
-      color: var(--color-accent);
+      color: var(--color-accent-text);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -379,18 +379,18 @@
 
   .item-debit .amt-label {
     background: rgba(16, 185, 129, 0.1);
-    color: var(--color-success);
+    color: var(--color-success-text);
   }
   .item-credit .amt-label {
     background: rgba(239, 68, 68, 0.1);
-    color: var(--color-danger);
+    color: var(--color-danger-text);
   }
 
   .item-debit .amt-value {
-    color: var(--color-success);
+    color: var(--color-success-text);
   }
   .item-credit .amt-value {
-    color: var(--color-danger);
+    color: var(--color-danger-text);
   }
 
   // 信息区

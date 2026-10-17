@@ -13,6 +13,10 @@
 
 const { pool } = require('../../config/db');
 const { logger } = require('../../utils/logger');
+const {
+  assertTaskQualityReleased,
+  getReleasedTaskFirstArticleIds,
+} = require('./ProductionQualityHoldService');
 
 // ===================== 1. 任务状态机 =====================
 /**
@@ -282,7 +286,7 @@ async function promoteTaskToInspection(connection, taskId, options = {}) {
   }
 
   if (requireOpenInspectionClear) {
-    const [openInspections] = await connection.query(
+    let [openInspections] = await connection.query(
       `SELECT id, inspection_no, inspection_type, status
        FROM quality_inspections
        WHERE task_id = ?
@@ -291,6 +295,14 @@ async function promoteTaskToInspection(connection, taskId, options = {}) {
          AND (status IS NULL OR status NOT IN ('passed', 'completed', 'cancelled'))`,
       [taskId]
     );
+    if (openInspections.some((inspection) => inspection.inspection_type === 'first_article')) {
+      const releasedFirstArticles = await getReleasedTaskFirstArticleIds(connection, taskId);
+      openInspections = openInspections.filter(
+        (inspection) =>
+          inspection.inspection_type !== 'first_article' ||
+          !releasedFirstArticles.has(Number(inspection.id))
+      );
+    }
     if (openInspections.length > 0) {
       const err = new Error(
         `任务 ${task.code} 仍有 ${openInspections.length} 个首检/过程检验未关闭，不能进入待检`
@@ -336,7 +348,7 @@ async function promoteTaskToInProgress(connection, taskId) {
   }
 
   const [taskRows] = await connection.query(
-    `SELECT id, code, status, plan_id
+    `SELECT id, code, status, plan_id, pause_reason
      FROM production_tasks
      WHERE id = ? AND deleted_at IS NULL
      FOR UPDATE`,
@@ -347,6 +359,7 @@ async function promoteTaskToInProgress(connection, taskId) {
   }
 
   const task = taskRows[0];
+  await assertTaskQualityReleased(connection, task);
   if (task.status === 'in_progress') {
     return { promoted: false, status: task.status, reason: 'already_in_progress' };
   }
@@ -399,6 +412,12 @@ async function promoteTaskStatus(connection, taskId, targetStatus, options = {})
   }
 
   const task = taskRows[0];
+  if (targetStatus === 'in_progress') {
+    if (Array.isArray(onlyFrom) && onlyFrom.length > 0 && !onlyFrom.includes(task.status)) {
+      return { promoted: false, status: task.status, reason: 'source_not_allowed' };
+    }
+    return promoteTaskToInProgress(connection, taskId);
+  }
   if (task.status === targetStatus) {
     return { promoted: false, status: task.status, reason: 'already' };
   }

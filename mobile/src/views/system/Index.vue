@@ -10,7 +10,7 @@
       <div class="system-info-card">
         <div class="info-header">
           <div class="system-logo">
-            <Icon name="setting-o" size="32" color="#5E7BF6" />
+            <Icon name="setting-o" size="32" color="var(--color-primary-text)" />
           </div>
           <div class="system-details">
             <div class="system-name">现场终端</div>
@@ -23,21 +23,22 @@
         <div class="module-section">
           <div class="section-title">现场可用</div>
           <div class="module-grid">
-            <div
+            <button
               v-for="module in fieldModules"
               :key="module.key"
               class="module-item"
+              type="button"
               @click="navigateTo(module.path)"
             >
-              <div class="module-icon">
+              <span class="module-icon">
                 <Icon :name="module.icon" size="24" :color="module.color" />
-              </div>
-              <div class="module-content">
-                <div class="module-title">{{ module.title }}</div>
-                <div class="module-description">{{ module.description }}</div>
-              </div>
+              </span>
+              <span class="module-content">
+                <strong class="module-title">{{ module.title }}</strong>
+                <span class="module-description">{{ module.description }}</span>
+              </span>
               <Icon name="arrow" size="12" color="var(--text-disabled)" />
-            </div>
+            </button>
           </div>
         </div>
 
@@ -69,7 +70,7 @@ const allFieldModules = [
     description: '系统与业务通知',
     path: '/system/notifications',
     icon: 'bell',
-    color: '#5E7BF6',
+    color: 'var(--color-primary-text)',
     permission: 'system:notifications'
   },
   {
@@ -78,7 +79,7 @@ const allFieldModules = [
     description: '查看组织树（只读）',
     path: '/system/hierarchy',
     icon: 'cluster-o',
-    color: '#07c160',
+    color: 'var(--color-success-text)',
     permission: 'system:departments:view'
   },
   {
@@ -87,7 +88,7 @@ const allFieldModules = [
     description: '待办审批中心',
     path: '/workflow/approvals',
     icon: 'todo-list-o',
-    color: '#ff976a',
+    color: 'var(--color-warning-text)',
     permission: 'system:workflow:use'
   }
 ]
@@ -106,13 +107,13 @@ const navigateTo = (path) => {
 <style scoped>
 .system-page {
   min-height: 100vh;
-  background: var(--bg-page, #f7f8fa);
+  background: var(--bg-primary);
 }
 .content-container {
   padding: 12px 16px 24px;
 }
 .system-info-card {
-  background: var(--bg-card, #fff);
+  background: var(--bg-secondary);
   border-radius: 12px;
   padding: 16px;
   margin-bottom: 16px;
@@ -141,16 +142,20 @@ const navigateTo = (path) => {
   display: flex;
   align-items: center;
   gap: 12px;
-  background: var(--bg-card, #fff);
+  background: var(--bg-secondary);
+  width: 100%;
+  text-align: left;
   border-radius: 10px;
   padding: 14px 12px;
   margin-bottom: 8px;
 }
 .module-title {
+  display: block;
   font-size: 15px;
   font-weight: 600;
 }
 .module-description {
+  display: block;
   font-size: 12px;
   color: var(--text-secondary, #969799);
   margin-top: 2px;

@@ -59,12 +59,19 @@ exports.getProcesses = async (req, res) => {
       params.push(status);
     }
 
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const scopeClause = await ScopeGuard.applyListScope(req, 'production_task', {
+      tableAlias: 'pt',
+      ownerAlias: 'production_process_task_owner_scope',
+      accessMode: 'read',
+    });
+    const whereClause = `WHERE ${conditions.join(' AND ')}${scopeClause.where || ''}`;
+    params.push(...(scopeClause.params || []));
 
     const [total] = await pool.query(
       `SELECT COUNT(*) as count
        FROM production_processes pp
        JOIN production_tasks pt ON pp.task_id = pt.id
+       ${scopeClause.join || ''}
        ${whereClause}`,
       params
     );
@@ -74,6 +81,7 @@ exports.getProcesses = async (req, res) => {
       FROM production_processes pp
       JOIN production_tasks pt ON pp.task_id = pt.id
       LEFT JOIN materials m ON pt.product_id = m.id
+      ${scopeClause.join || ''}
       ${whereClause}
       ORDER BY pp.task_id, pp.sequence
       LIMIT ${safePageSize} OFFSET ${safeOffset}
@@ -336,6 +344,11 @@ exports.deleteProcess = async (req, res) => {
  */
 exports.getProcessCompletionRates = async (req, res) => {
   try {
+    const scopeClause = await ScopeGuard.applyListScope(req, 'production_task', {
+      tableAlias: 'pt',
+      ownerAlias: 'production_process_rates_owner_scope',
+      accessMode: 'read',
+    });
     const query = `
       SELECT
         pp.process_name as processName,
@@ -344,12 +357,14 @@ exports.getProcessCompletionRates = async (req, res) => {
         ROUND(IFNULL(SUM(CASE WHEN pp.status = '${PRODUCTION_STATUS_KEYS.COMPLETED}' THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0) * 100, 0), 2) as completionRate
       FROM production_processes pp
       JOIN production_tasks pt ON pp.task_id = pt.id AND pt.deleted_at IS NULL
+      ${scopeClause.join || ''}
+      WHERE 1 = 1${scopeClause.where || ''}
       GROUP BY pp.process_name
       ORDER BY total DESC
       LIMIT 10
     `;
 
-    const [rates] = await pool.query(query);
+    const [rates] = await pool.query(query, scopeClause.params || []);
     ResponseHandler.success(res, rates, 'Process completion rates loaded');
   } catch (error) {
     logger.error('Failed to get process completion rates', error);

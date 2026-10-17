@@ -44,4 +44,41 @@ describe('cors config', () => {
     expect(isOriginAllowed(undefined)).toBe(false);
     expect(isOriginAllowed('https://any.example.com')).toBe(false);
   });
+
+  describe.each(['production', 'development'])('%s private network origins', (environment) => {
+    beforeEach(() => {
+      process.env.NODE_ENV = environment;
+      process.env.ALLOWED_ORIGINS = 'https://erp.example.com';
+    });
+
+    test.each([
+      'http://192.168.1.251:18081',
+      'https://10.0.0.2',
+      'http://172.16.0.1:8080',
+      'http://172.31.255.254',
+      'http://127.0.0.1:5173',
+      'http://localhost:5173',
+    ])('preserves valid LAN and local origins: %s', (origin) => {
+      expect(isOriginAllowed(origin)).toBe(true);
+    });
+
+    test.each([
+      'https://192.168.evil.example',
+      'https://10.attacker.example',
+      'https://172.16.attacker.example',
+      'https://192.168.1.1.attacker.example',
+      'https://192.168.1.1@attacker.example',
+      'https://user@192.168.1.1',
+      'https://192.168.1.1/path',
+      'https://192.168.1.1?query=1',
+      'https://192.168.1.1#fragment',
+      'https://192.168.999.1',
+      'http://172.15.0.1',
+      'http://172.32.0.1',
+      'http://11.0.0.1',
+      'null',
+    ])('rejects spoofed and invalid origins: %s', (origin) => {
+      expect(isOriginAllowed(origin)).toBe(false);
+    });
+  });
 });

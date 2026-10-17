@@ -235,13 +235,13 @@ const handleAction = (task) => {
 
 .todo-tab:hover,
 .todo-tab:focus-visible {
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   background: color-mix(in srgb, var(--ds-blue) 5%, transparent);
   outline: none;
 }
 
 .todo-tab.active {
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   font-weight: 700;
 }
 

@@ -10,7 +10,7 @@
   <div class="theme-settings">
     <!-- 导航栏 -->
     <div class="nav-bar">
-      <button class="back-btn" @click="goBack">
+      <button type="button" class="back-btn" aria-label="返回" @click="goBack">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
         </svg>
@@ -38,29 +38,31 @@
       </div>
 
       <!-- 主题列表 -->
-      <div class="theme-list">
-        <h2 class="section-title">选择主题</h2>
+      <div class="theme-list" role="group" aria-labelledby="theme-list-title">
+        <h2 id="theme-list-title" class="section-title">选择主题</h2>
 
-        <div
+        <button
           v-for="themeOption in themeOptions"
           :key="themeOption.name"
           class="theme-item"
+          type="button"
+          :aria-pressed="currentThemeName === themeOption.name"
           :class="{ active: currentThemeName === themeOption.name }"
           @click="selectTheme(themeOption.name)"
         >
-          <div class="theme-icon">
+          <span class="theme-icon" aria-hidden="true">
             <VanIcon :name="themeOption.icon || 'brush-o'" size="22px" />
-          </div>
-          <div class="theme-info">
-            <h3 class="theme-name">{{ themeOption.label }}</h3>
-            <p class="theme-desc">{{ themeOption.description }}</p>
-          </div>
-          <div class="theme-check" v-if="currentThemeName === themeOption.name">
+          </span>
+          <span class="theme-info">
+            <strong class="theme-name">{{ themeOption.label }}</strong>
+            <span class="theme-desc">{{ themeOption.description }}</span>
+          </span>
+          <span class="theme-check" v-if="currentThemeName === themeOption.name" aria-hidden="true">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
             </svg>
-          </div>
-        </div>
+          </span>
+        </button>
       </div>
 
       <!-- 主题预览色板 -->
@@ -111,7 +113,7 @@ const colorPalette = computed(() => {
 
   const themeConfig = getTheme(currentThemeName.value)
   return [
-    { name: '主色', value: themeConfig?.preview?.primary || 'var(--color-primary)' },
+    { name: '主色', value: 'var(--color-primary)' },
     { name: '辅色', value: themeConfig?.preview?.accent || 'var(--color-accent)' },
     { name: '背景', value: themeConfig?.preview?.bg || 'var(--bg-primary)' },
   ]
@@ -267,6 +269,8 @@ const goBack = () => {
   align-items: center;
   gap: 1rem;
   min-height: 72px;
+  width: 100%;
+  text-align: left;
   padding: 1rem;
   background: var(--bg-secondary);
   border: 1px solid var(--surface-border, var(--border-subtle));
@@ -291,6 +295,7 @@ const goBack = () => {
 }
 
 .theme-icon {
+  flex-shrink: 0;
   width: 2.5rem;
   height: 2.5rem;
   display: flex;
@@ -298,7 +303,7 @@ const goBack = () => {
   justify-content: center;
   font-size: 1.5rem;
   background: var(--color-primary-bg);
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   border-radius: var(--radius-sm);
 }
 
@@ -307,6 +312,7 @@ const goBack = () => {
   min-width: 0;
 
   .theme-name {
+    display: block;
     font-size: 1rem;
     font-weight: 600;
     color: var(--text-primary);
@@ -314,6 +320,7 @@ const goBack = () => {
   }
 
   .theme-desc {
+    display: block;
     font-size: 0.75rem;
     color: var(--text-secondary);
     margin: 0;
@@ -322,9 +329,10 @@ const goBack = () => {
 }
 
 .theme-check {
+  flex-shrink: 0;
   width: 1.5rem;
   height: 1.5rem;
-  color: var(--color-primary);
+  color: var(--color-primary-text);
 
   svg {
     width: 100%;

@@ -236,8 +236,10 @@
         <InventoryApprovalPanel
           v-if="viewDialog.return?.id || viewDialog.return?.returnNumber || viewDialog.return?.returnNo"
           source-type="purchase_return"
+          :active="viewDialog.show"
           :source-id="viewDialog.return.id"
           :source-no="viewDialog.return.returnNumber || viewDialog.return.returnNo"
+          @changed="loadReturns"
         />
       </div>
       <template #footer>

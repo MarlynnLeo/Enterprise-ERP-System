@@ -72,8 +72,8 @@
   --shell-sidebar-text-muted: rgba(255, 255, 255, 0.85);
   --shell-sidebar-title: var(--color-on-primary, #ffffff);
   --shell-sidebar-hover-bg: color-mix(in srgb, var(--color-primary-light-3) 20%, transparent);
-  --shell-sidebar-active-bg: color-mix(in srgb, var(--color-primary-light-3) 30%, transparent);
-  --shell-sidebar-active-text: var(--color-primary-light-3);
+  --shell-sidebar-active-bg: color-mix(in srgb, var(--color-primary-light-3) 20%, transparent);
+  --shell-sidebar-active-text: var(--shell-sidebar-text);
   --shell-sidebar-accent: var(--color-primary);
   --shell-sidebar-indicator-width: 4px;
 
@@ -167,6 +167,7 @@
   --theme-feature-card-hover-shadow: 0 4px 14px rgba(81, 207, 102, 0.2);
   --theme-feature-card-decor: radial-gradient(circle at 100% 0%, rgba(81, 207, 102, 0.1) 0%, transparent 70%);
   --color-border: var(--color-border-base);
+  --theme-input-hover-border-color: var(--color-primary-light-3);
   --erp-table-header-image: linear-gradient(
     180deg,
     var(--color-bg-hover) 0%,
@@ -187,7 +188,7 @@
 [data-theme="nature"] .app-sidebar {
   background: var(--shell-sidebar-bg) !important;
   border-right: 3px solid var(--shell-border) !important;
-  box-shadow: 4px 0 20px color-mix(in srgb, var(--color-bg-overlay) 20%, transparent) !important;
+  box-shadow: 4px 0 20px color-mix(in srgb, var(--color-bg-overlay) 20%, transparent);
 }
 
 [data-theme="nature"] .logo-container {
@@ -210,7 +211,7 @@
   background: linear-gradient(90deg, var(--color-bg-base) 0%, var(--color-bg-hover) 100%) !important;
   border: 1px solid var(--color-primary-light-3) !important;
   border-radius: var(--radius-md, 6px) !important;
-  box-shadow: var(--shadow-sm) !important;
+  box-shadow: var(--shadow-sm);
   color: var(--color-text-primary) !important;
 }
 
@@ -233,14 +234,3 @@
 [data-theme="nature"] .el-table th.el-table__cell {
   border-bottom: 2px solid var(--color-primary-light-3) !important;
 }
-
-[data-theme="nature"] .el-input__wrapper:hover {
-  border-color: var(--color-primary-light-3) !important;
-  box-shadow: 0 0 0 1px var(--color-primary-light-3) inset !important;
-}
-
-[data-theme="nature"] .el-input__wrapper.is-focus {
-  border-color: var(--color-primary) !important;
-  box-shadow: 0 0 0 1px var(--color-primary) inset !important;
-}
-

@@ -12,7 +12,13 @@ const {
   resolveActorUserId,
   GLService,
   Precision,
+  BusinessError,
 } = require('./runtime');
+
+const WIP_TASK_DATE_FILTER = `DATE(pt.created_at) <= ?
+  AND pt.deleted_at IS NULL AND pt.status <> 'cancelled'
+  AND (pt.status NOT IN ('completed', 'warehoused')
+       OR COALESCE(pt.completed_at, pt.actual_end_date) > ?)`;
 
 module.exports = {
   /**
@@ -325,6 +331,13 @@ module.exports = {
         );
       }
 
+      // Replace this complete snapshot atomically under the period lock. An
+      // upsert alone leaves completed/cancelled tasks in the old task set.
+      await connection.execute(
+        'DELETE FROM wip_snapshots WHERE period_id = ? AND snapshot_date = ?',
+        [actualPeriodId, snapDate]
+      );
+
       // 查询快照日仍在制的任务：快照日之前已创建，且未取消/未入库，或完工日期晚于快照日。
       const [wipTasks] = await connection.execute(
         `
@@ -340,12 +353,7 @@ module.exports = {
             pt.created_at
           FROM production_tasks pt
           LEFT JOIN materials m ON pt.product_id = m.id
-          WHERE DATE(pt.created_at) <= ?
-            AND pt.status <> 'cancelled'
-            AND (
-              pt.status NOT IN ('completed', 'warehoused')
-              OR COALESCE(pt.completed_at, pt.actual_end_date) > ?
-            )
+          WHERE ${WIP_TASK_DATE_FILTER}
           ORDER BY pt.id
         `,
         [snapDate, `${snapDate} 23:59:59`]
@@ -560,28 +568,64 @@ module.exports = {
       await connection.beginTransaction();
       await this.assertOpenPeriod(connection, periodId);
 
-      // 获取该期间的 WIP 汇总
+      const [periodInfo] = await connection.execute(
+        "SELECT DATE_FORMAT(end_date, '%Y-%m-%d') as end_date FROM gl_periods WHERE id = ?",
+        [periodId]
+      );
+      const entryDate = toLocalDateString(periodInfo[0]?.end_date || currentDateString());
+
+      // A monthly closing uses the period-end snapshot, not a sum of all
+      // observations during the month. An empty period-end task set is zero;
+      // it must never fall back to an earlier non-empty snapshot.
       const [wipSummary] = await connection.execute(
         `
           SELECT
+            COUNT(*) as snapshot_count,
             SUM(wip_material_cost) as total_material,
             SUM(wip_labor_cost) as total_labor,
             SUM(wip_overhead_cost) as total_overhead,
             SUM(wip_total_cost) as total_cost
           FROM wip_snapshots
           WHERE period_id = ?
+            AND snapshot_date = (SELECT end_date FROM gl_periods WHERE id = ?)
         `,
-        [periodId]
+        [periodId, periodId]
       );
+
+      if (Number(wipSummary[0]?.snapshot_count || 0) === 0) {
+        // With no snapshot header table, zero rows alone cannot prove that an
+        // empty snapshot was calculated. Verify the period-end task set before
+        // allowing zero to reverse an existing WIP voucher.
+        const [uncalculatedTasks] = await connection.execute(
+          `SELECT pt.id FROM production_tasks pt
+            WHERE ${WIP_TASK_DATE_FILTER}
+            ORDER BY pt.id LIMIT 1 FOR UPDATE`,
+          [entryDate, `${entryDate} 23:59:59`]
+        );
+        if (uncalculatedTasks.length) {
+          throw new BusinessError(
+            '期末仍有在制任务但没有期末WIP快照，请先计算在制品成本',
+            null,
+            'WIP_SNAPSHOT_REQUIRED',
+            409
+          );
+        }
+      } else if (
+        wipSummary[0].total_cost == null ||
+        !Number.isFinite(Number(wipSummary[0].total_cost)) ||
+        Number(wipSummary[0].total_cost) < 0
+      ) {
+        throw new BusinessError(
+          '期末WIP快照金额无效，请重新核对并计算',
+          null,
+          'INVALID_WIP_SNAPSHOT',
+          409
+        );
+      }
 
       const totalWIP = Precision.round2(parseFloat(wipSummary[0]?.total_cost) || 0);
 
       if (totalWIP <= 0) {
-        const [periodInfo] = await connection.execute(
-          "SELECT DATE_FORMAT(end_date, '%Y-%m-%d') as end_date FROM gl_periods WHERE id = ?",
-          [periodId]
-        );
-        const entryDate = toLocalDateString(periodInfo[0]?.end_date || currentDateString());
         const repair = await this.releaseExistingWIPVoucherIfNeeded(
           connection,
           periodId,
@@ -616,13 +660,6 @@ module.exports = {
           '期末在制品科目不能与生产成本科目相同，请检查 WORK_IN_PROCESS/WIP 科目配置'
         );
       }
-
-      // 获取会计期间信息
-      const [periodInfo] = await connection.execute(
-        "SELECT DATE_FORMAT(end_date, '%Y-%m-%d') as end_date FROM gl_periods WHERE id = ?",
-        [periodId]
-      );
-      const entryDate = toLocalDateString(periodInfo[0]?.end_date || currentDateString());
 
       const existingWIPVoucherResult = await this.releaseExistingWIPVoucherIfNeeded(
         connection,

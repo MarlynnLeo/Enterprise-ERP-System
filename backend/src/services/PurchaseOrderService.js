@@ -74,7 +74,7 @@ class PurchaseOrderService {
       throw createBusinessError('采购申请不存在或已被删除', 404);
     }
     const currentStatus = requisitionRows[0].status;
-    if (!['approved', 'completed'].includes(currentStatus)) {
+    if (!['submitted', 'approved', 'completed'].includes(currentStatus)) {
       throw createBusinessError('当前采购申请状态不允许生成采购订单');
     }
 
@@ -131,7 +131,7 @@ class PurchaseOrderService {
       if (orderedQuantity + 0.0001 < requiredQuantity) allOrdered = false;
     }
 
-    const nextStatus = allOrdered ? 'completed' : 'approved';
+    const nextStatus = allOrdered ? 'completed' : 'submitted';
     if (nextStatus !== currentStatus) {
       const [updateResult] = await connection.query(
         `UPDATE purchase_requisitions
@@ -183,8 +183,8 @@ class PurchaseOrderService {
     );
     const requisition = requisitions[0];
     if (!requisition) throw createBusinessError('采购申请不存在', 404);
-    if (!['approved', 'completed'].includes(requisition.status))
-      throw createBusinessError('只能从已批准的采购申请生成订单');
+    if (!['submitted', 'approved', 'completed'].includes(requisition.status))
+      throw createBusinessError('只能从已提交的采购申请生成订单');
     const [requested] = await connection.query(
       'SELECT material_id, material_code, quantity FROM purchase_requisition_items WHERE requisition_id = ? FOR UPDATE',
       [requisitionId]
@@ -237,8 +237,8 @@ class PurchaseOrderService {
       [requisitionId]
     );
     if (!requisitions.length) throw createBusinessError('采购申请不存在', 404);
-    if (!['approved', 'completed'].includes(requisitions[0].status)) {
-      throw createBusinessError('只能修改已批准采购申请关联的订单数量');
+    if (!['submitted', 'approved', 'completed'].includes(requisitions[0].status)) {
+      throw createBusinessError('只能修改已提交采购申请关联的订单数量');
     }
     const [requested] = await connection.query(
       `SELECT id, material_id, quantity FROM purchase_requisition_items

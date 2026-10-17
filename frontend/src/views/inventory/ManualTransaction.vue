@@ -453,8 +453,10 @@
       <InventoryApprovalPanel
         v-if="currentRecord.id || currentRecord.transactionNo"
         source-type="manual_transaction"
+        :active="viewDialogVisible"
         :source-id="currentRecord.id"
         :source-no="currentRecord.transactionNo"
+        @changed="loadTableData"
       />
       </div>
 

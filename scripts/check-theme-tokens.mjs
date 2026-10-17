@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /** Validate preset palettes and shared CSS contracts without binding to duplicated selectors. */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -97,7 +96,7 @@ export function auditThemeTokens() {
       '--el-button-text-color': `var(--color-on-${type})`
     })
     requireRule(compat, `:root[data-theme] .el-button--${type}.is-plain`, {
-      '--el-button-text-color': `var(--color-${type})`,
+      '--el-button-text-color': `var(--color-${type}-text)`,
       '--el-button-hover-text-color': `var(--color-on-${type})`
     })
   }

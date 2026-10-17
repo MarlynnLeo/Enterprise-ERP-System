@@ -13,7 +13,7 @@
 const db = require('../config/db');
 const { logger } = require('../utils/logger');
 const { roundMoney } = require('../utils/money');
-const Precision = require('../utils/precision');
+const { validateBusinessDate } = require('../utils/finance/businessDate');
 const {
   TAX_RELATED_DOCUMENT_TYPES,
   taxRelatedDocumentTypeMatchList,
@@ -41,7 +41,53 @@ function toCents(value) {
   return Math.round(roundMoney(value) * 100);
 }
 
+const SOURCE_DOC_TYPES = new Set([
+  ...taxRelatedDocumentTypeMatchList(TAX_RELATED_DOCUMENT_TYPES.PURCHASE_RECEIPT),
+  ...taxRelatedDocumentTypeMatchList(TAX_RELATED_DOCUMENT_TYPES.SALES_OUTBOUND),
+  ...taxRelatedDocumentTypeMatchList(TAX_RELATED_DOCUMENT_TYPES.PURCHASE_RETURN),
+  ...taxRelatedDocumentTypeMatchList(TAX_RELATED_DOCUMENT_TYPES.SALES_RETURN),
+]);
+
+function assertTaxInvoiceEditable(invoice) {
+  if (invoice.original_tax_invoice_id) throw validationError('红字税票的来源关联不能修改或解除');
+  if (invoice.status !== '未认证' || invoice.gl_entry_id) {
+    throw validationError('已认证、已作废或已入账的发票不能直接修改');
+  }
+}
+
+async function withLockedTaxInvoice(id, connection, operation) {
+  const conn = connection || (await db.pool.getConnection());
+  try {
+    if (!connection) await conn.beginTransaction();
+    const [rows] = await conn.execute('SELECT * FROM tax_invoices WHERE id = ? FOR UPDATE', [id]);
+    if (!rows.length) throw validationError('税务发票不存在');
+    assertTaxInvoiceEditable(rows[0]);
+    const result = await operation(conn, rows[0]);
+    if (!connection) await conn.commit();
+    return result;
+  } catch (error) {
+    if (!connection) await conn.rollback();
+    throw error;
+  } finally {
+    if (!connection) conn.release();
+  }
+}
+
 function validateTaxInvoiceAmounts(invoiceData) {
+  for (const field of ['amount_excluding_tax', 'tax_amount', 'total_amount', 'tax_rate']) {
+    const value = invoiceData[field];
+    if (
+      !['number', 'string'].includes(typeof value) ||
+      String(value).trim() === '' ||
+      !Number.isFinite(Number(value)) ||
+      !Number.isSafeInteger(toCents(value))
+    ) {
+      throw validationError('发票金额和税率必须为有效数字');
+    }
+  }
+  if (Number(invoiceData.tax_rate) < 0 || Number(invoiceData.tax_rate) > 100) {
+    throw validationError('发票税率必须介于0和100之间');
+  }
   const amountExcludingTaxCents = toCents(invoiceData.amount_excluding_tax);
   const taxAmountCents = toCents(invoiceData.tax_amount);
   const totalAmountCents = toCents(invoiceData.total_amount);
@@ -77,9 +123,11 @@ const taxModel = {
    * @returns {Promise<number>} 发票ID
    */
   createTaxInvoice: async (invoiceData, connection = null) => {
-    const conn = connection || db.pool;
+    const ownsTransaction = !connection && invoiceData.status === '已认证';
+    const conn = connection || (ownsTransaction ? await db.pool.getConnection() : db.pool);
 
     try {
+      if (ownsTransaction) await conn.beginTransaction();
       const {
         invoice_type,
         invoice_number,
@@ -96,7 +144,21 @@ const taxModel = {
         remark,
         created_by,
       } = invoiceData;
+      if (!['进项', '销项'].includes(invoice_type)) throw validationError('无效的税务发票类型');
+      if (!['未认证', '已认证'].includes(status)) {
+        throw validationError('新建税票只能为未认证或已认证状态，抵扣须通过抵扣操作');
+      }
+      validateBusinessDate(invoice_date, '开票日期');
       const normalizedAmounts = validateTaxInvoiceAmounts(invoiceData);
+      if (status === '已认证') {
+        const TaxPeriodGuard = require('../services/finance/TaxPeriodGuard');
+        await TaxPeriodGuard.lock(conn);
+        await TaxPeriodGuard.assertMutable(conn, [invoice_date]);
+        await require('../services/business/TaxAccountingService').getCurrentPeriodId(
+          invoice_date,
+          conn
+        );
+      }
 
       const [result] = await conn.execute(
         `
@@ -129,11 +191,15 @@ const taxModel = {
         ]
       );
 
+      if (ownsTransaction) await conn.commit();
       logger.info('税务发票创建成功', { invoiceId: result.insertId, invoice_number });
       return result.insertId;
     } catch (error) {
+      if (ownsTransaction) await conn.rollback();
       logger.error('创建税务发票失败:', error);
       throw error;
+    } finally {
+      if (ownsTransaction) conn.release();
     }
   },
 
@@ -324,34 +390,8 @@ const taxModel = {
    * @param {Object} extraData - 额外数据（如认证日期、抵扣日期）
    * @returns {Promise<boolean>} 是否成功
    */
-  updateTaxInvoiceStatus: async (id, status, extraData = {}) => {
-    try {
-      const { certification_date, deduction_date } = extraData;
-
-      let query = 'UPDATE tax_invoices SET status = ?';
-      const params = [status];
-
-      if (certification_date) {
-        query += ', certification_date = ?';
-        params.push(certification_date);
-      }
-
-      if (deduction_date) {
-        query += ', deduction_date = ?';
-        params.push(deduction_date);
-      }
-
-      query += ' WHERE id = ?';
-      params.push(id);
-
-      const [result] = await db.pool.execute(query, params);
-
-      logger.info('税务发票状态更新成功', { id, status });
-      return result.affectedRows > 0;
-    } catch (error) {
-      logger.error('更新税务发票状态失败:', error);
-      throw error;
-    }
+  updateTaxInvoiceStatus: async () => {
+    throw validationError('税票状态必须通过认证、抵扣或作废事务变更');
   },
 
   /**
@@ -362,12 +402,22 @@ const taxModel = {
    */
   updateTaxInvoiceNumber: async (id, invoiceNumber) => {
     try {
-      const [result] = await db.pool.execute(
-        'UPDATE tax_invoices SET invoice_number = ?, updated_at = NOW() WHERE id = ?',
-        [invoiceNumber, id]
-      );
+      if (
+        typeof invoiceNumber !== 'string' ||
+        !invoiceNumber.trim() ||
+        invoiceNumber.trim().length > 100
+      ) {
+        throw validationError('请输入有效的税票号码');
+      }
+      const changed = await withLockedTaxInvoice(id, null, async (conn) => {
+        const [result] = await conn.execute(
+          'UPDATE tax_invoices SET invoice_number = ?, updated_at = NOW() WHERE id = ?',
+          [invoiceNumber.trim(), id]
+        );
+        return result.affectedRows > 0;
+      });
       logger.info('税务发票号码更新成功', { id, invoiceNumber });
-      return result.affectedRows > 0;
+      return changed;
     } catch (error) {
       logger.error('更新税务发票号码失败:', error);
       throw error;
@@ -393,6 +443,11 @@ const taxModel = {
         purchase_input_tax = 0,
         input_tax_deduction = 0,
         tax_payable = 0,
+        opening_input_credit = null,
+        closing_input_credit = null,
+        opening_credit_note = null,
+        previous_vat_return_id = null,
+        previous_vat_snapshot_version = null,
         total_revenue = 0,
         total_cost = 0,
         total_expense = 0,
@@ -405,28 +460,14 @@ const taxModel = {
         created_by,
       } = returnData;
 
-      /*
-
-      const isPaid = String(status) === '已缴纳';
+      if (status !== '草稿' || Number(tax_paid) !== 0) {
+        throw validationError('新建申报只能为未缴款草稿');
+      }
       const payableAmount = roundMoney(
-        return_type === '增值税'
-          ? tax_payable || 0
-          : income_tax_payable || tax_payable || 0
+        return_type === '增值税' ? tax_payable : income_tax_payable || tax_payable
       );
-      const paidAmount = status === '已缴纳' ? payableAmount : Number(tax_paid || 0);
-      const balanceAmount = status === '已缴纳' ? 0 : Math.max(payableAmount - paidAmount, 0);
-
-      */
-      const isPaid = String(status) === '\u5df2\u7f34\u7eb3';
-      const payableAmount = roundMoney(
-        String(return_type) === '\u589e\u503c\u7a0e'
-          ? tax_payable || 0
-          : income_tax_payable || tax_payable || 0
-      );
-      const paidAmount = isPaid ? payableAmount : roundMoney(tax_paid || 0);
-      const balanceAmount = isPaid
-        ? 0
-        : roundMoney(Math.max(Precision.sub(payableAmount, paidAmount), 0));
+      const paidAmount = 0;
+      const balanceAmount = Math.max(payableAmount, 0);
 
       const [result] = await conn.execute(
         `
@@ -436,8 +477,9 @@ const taxModel = {
           input_tax_deduction, tax_payable, tax_paid, tax_balance,
           total_revenue, total_cost, total_expense, taxable_income,
           income_tax_rate, income_tax_payable,
-          status, remark, created_by
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          status, remark, created_by, opening_input_credit, closing_input_credit,
+          opening_credit_note, previous_vat_return_id, previous_vat_snapshot_version
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
         [
           return_period,
@@ -459,6 +501,11 @@ const taxModel = {
           status,
           remark ?? null,
           created_by,
+          opening_input_credit,
+          closing_input_credit,
+          opening_credit_note,
+          previous_vat_return_id,
+          previous_vat_snapshot_version,
         ]
       );
 
@@ -555,34 +602,8 @@ const taxModel = {
    * @param {Object} extraData - 额外数据（如申报日期、缴纳日期）
    * @returns {Promise<boolean>} 是否成功
    */
-  updateTaxReturnStatus: async (id, status, extraData = {}) => {
-    try {
-      const { declaration_date, payment_date } = extraData;
-
-      let query = 'UPDATE tax_returns SET status = ?';
-      const params = [status];
-
-      if (declaration_date) {
-        query += ', declaration_date = ?';
-        params.push(declaration_date);
-      }
-
-      if (payment_date) {
-        query += ', payment_date = ?';
-        params.push(payment_date);
-      }
-
-      query += ' WHERE id = ?';
-      params.push(id);
-
-      const [result] = await db.pool.execute(query, params);
-
-      logger.info('税务申报状态更新成功', { id, status });
-      return result.affectedRows > 0;
-    } catch (error) {
-      logger.error('更新税务申报状态失败:', error);
-      throw error;
-    }
+  updateTaxReturnStatus: async () => {
+    throw validationError('申报状态必须通过提交、撤回或缴款事务变更');
   },
 
   /**
@@ -594,6 +615,7 @@ const taxModel = {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
+      await require('../services/finance/TaxPeriodGuard').lock(connection);
 
       const [rows] = await connection.execute(
         'SELECT id, status FROM tax_returns WHERE id = ? FOR UPDATE',
@@ -744,8 +766,7 @@ const taxModel = {
    * @returns {Promise<boolean>}
    */
   linkToDocument: async (taxInvoiceId, documentType, documentId, connection = null) => {
-    const conn = connection || db.pool;
-    try {
+    return withLockedTaxInvoice(taxInvoiceId, connection, async (conn, existing) => {
       // 校验单据类型
       if (!['ap_invoice', 'ar_invoice'].includes(documentType)) {
         throw new Error('无效的单据类型，仅支持 ap_invoice 或 ar_invoice');
@@ -753,24 +774,46 @@ const taxModel = {
 
       // 校验目标单据是否存在
       const table = documentType === 'ap_invoice' ? 'ap_invoices' : 'ar_invoices';
-      const [docs] = await conn.execute(`SELECT id FROM ${table} WHERE id = ?`, [documentId]);
+      const partner = documentType === 'ap_invoice' ? 'supplier_id' : 'customer_id';
+      const expectedType = documentType === 'ap_invoice' ? '进项' : '销项';
+      const [docs] = await conn.execute(
+        `SELECT id, ${partner}, source_type, source_id FROM ${table} WHERE id = ?`,
+        [documentId]
+      );
       if (docs.length === 0) {
         throw new Error('关联的单据不存在');
+      }
+      if (
+        existing.invoice_type !== expectedType ||
+        !existing[partner] ||
+        Number(existing[partner]) !== Number(docs[0][partner])
+      ) {
+        throw validationError('税票与关联单据的类型和往来单位必须一致');
       }
 
       // 源业务单据身份不可变：已绑定采购入库/销售出库时禁止改写，
       // 避免幂等键失效导致重复生成税票。AR/AP 关联仅追加备注。
-      const SOURCE_DOC_TYPES = new Set(['采购入库单', '销售出库单']);
-      const [existingRows] = await conn.execute(
-        `SELECT id, related_document_type, related_document_id, remark
-         FROM tax_invoices WHERE id = ?`,
-        [taxInvoiceId]
-      );
-      if (existingRows.length === 0) {
-        throw new Error('税务发票不存在');
-      }
-      const existing = existingRows[0];
       if (SOURCE_DOC_TYPES.has(existing.related_document_type)) {
+        const aliases = taxRelatedDocumentTypeMatchList(existing.related_document_type);
+        const sourceType =
+          docs[0].source_type === 'inbound' ? 'purchase_receipt' : docs[0].source_type;
+        let sameSource =
+          aliases.includes(sourceType) &&
+          Number(docs[0].source_id) === Number(existing.related_document_id);
+        if (
+          sourceType === 'sales_order' &&
+          aliases.includes(TAX_RELATED_DOCUMENT_TYPES.SALES_OUTBOUND)
+        ) {
+          const [outbounds] = await conn.execute(
+            'SELECT order_id FROM sales_outbound WHERE id = ?',
+            [existing.related_document_id]
+          );
+          sameSource =
+            Boolean(outbounds[0]) && Number(outbounds[0].order_id) === Number(docs[0].source_id);
+        }
+        if (!sameSource) {
+          throw validationError('关联发票必须来自税票的同一业务单据');
+        }
         const note = `\n[linked_${documentType}=${documentId}]`;
         if (!(existing.remark || '').includes(note.trim())) {
           await conn.execute(
@@ -797,10 +840,7 @@ const taxModel = {
 
       logger.info('税务发票关联成功', { taxInvoiceId, documentType, documentId });
       return result.affectedRows > 0;
-    } catch (error) {
-      logger.error('关联税务发票失败:', error);
-      throw error;
-    }
+    });
   },
 
   /**
@@ -834,18 +874,17 @@ const taxModel = {
    * @returns {Promise<boolean>}
    */
   unlinkDocument: async (taxInvoiceId, connection = null) => {
-    const conn = connection || db.pool;
-    try {
+    return withLockedTaxInvoice(taxInvoiceId, connection, async (conn, existing) => {
+      if (SOURCE_DOC_TYPES.has(existing.related_document_type)) {
+        throw validationError('自动生成税票的源业务单据关联不能解除');
+      }
       const [result] = await conn.execute(
         'UPDATE tax_invoices SET related_document_type = NULL, related_document_id = NULL WHERE id = ?',
         [taxInvoiceId]
       );
       logger.info('税务发票关联已取消', { taxInvoiceId });
       return result.affectedRows > 0;
-    } catch (error) {
-      logger.error('取消税务发票关联失败:', error);
-      throw error;
-    }
+    });
   },
 
   /**

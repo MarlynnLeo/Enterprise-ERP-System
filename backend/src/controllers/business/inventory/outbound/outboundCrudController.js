@@ -4,7 +4,6 @@
  */
 
 const { ResponseHandler } = require('../../../../utils/responseHandler');
-const { mapKeysToSnake } = require('../../../../utils/fieldMap');
 const { logger } = require('../../../../utils/logger');
 const { parsePagination, appendPaginationSQL } = require('../../../../utils/safePagination');
 const { CodeGenerators } = require('../../../../utils/codeGenerator');
@@ -32,16 +31,31 @@ const { fetchBomItemsForOutbound } = require('./outboundBomController');
 const { resolveActorLabel } = require('../../../../utils/userUtils');
 const { inventoryOutboundMap } = require('../../../../utils/inventory/inventoryFieldMap');
 
-// 每张出库单只关联最新的正常过账，避免历史驳回/冲销记录重复累计或误报已审核。
-// 单号回退只转换外表值的排序规则，保留过账表 source_no 的索引比较。
+// Each source contributes only its latest movement. Pending or rejected
+// supplements keep the whole outbound from being reported as fully approved.
 const OUTBOUND_FINANCE_STATUS_JOIN = `
   LEFT JOIN inventory_posting_documents outbound_posting ON outbound_posting.id = (
     SELECT posting.id
     FROM inventory_posting_documents posting
-    WHERE posting.source_type = 'outbound'
-      AND posting.posting_kind = 'movement'
-      AND (posting.source_id = o.id OR (posting.source_id IS NULL AND posting.source_no = o.outbound_no COLLATE utf8mb4_unicode_ci))
-    ORDER BY posting.posting_sequence DESC, posting.id DESC
+    WHERE posting.posting_kind = 'movement'
+      AND (
+        (posting.source_type = 'outbound'
+          AND (posting.source_id = o.id OR (posting.source_id IS NULL AND posting.source_no = o.outbound_no COLLATE utf8mb4_unicode_ci)))
+        OR (posting.source_type = 'outbound_supplement'
+          AND (posting.source_id = o.id OR (posting.source_id IS NULL AND posting.source_no = CONCAT(o.outbound_no, '-补发') COLLATE utf8mb4_unicode_ci)))
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM inventory_posting_documents newer
+        WHERE newer.source_type = posting.source_type
+          AND newer.source_no = posting.source_no
+          AND newer.posting_kind = 'movement'
+          AND (newer.posting_sequence > posting.posting_sequence
+            OR (newer.posting_sequence = posting.posting_sequence AND newer.id > posting.id))
+      )
+    ORDER BY CASE posting.finance_status
+      WHEN 'pending' THEN 0 WHEN 'rejected' THEN 1 WHEN 'reversed' THEN 2
+      WHEN 'approved' THEN 3 ELSE 4 END,
+      posting.posting_sequence DESC, posting.id DESC
     LIMIT 1
   )
 `;
@@ -70,6 +84,97 @@ const getOutboundDisplayStatusText = (outbound) => {
   return getStatusText(outbound.status);
 };
 
+const OUTBOUND_TYPE_SQL = `CASE
+  WHEN o.outbound_type IS NOT NULL AND o.outbound_type != '' AND o.outbound_type NOT IN ('manual', 'other') THEN o.outbound_type
+  WHEN o.production_task_id IS NOT NULL OR o.reference_type = 'production_task' THEN 'production'
+  WHEN o.sales_order_id IS NOT NULL OR o.reference_type = 'sales_order' THEN 'sales'
+  WHEN o.reference_type = 'outsourced' THEN 'outsourced'
+  ELSE COALESCE(o.outbound_type, 'manual')
+END`;
+
+// The inventory page uses business states like inbound. Existing clients retain
+// their approval-oriented status filter unless they explicitly select this mode.
+const getOutboundStatusSql = (query) =>
+  query.statusMode === 'business' ? 'o.status' : OUTBOUND_DISPLAY_STATUS_SQL;
+
+const buildOutboundFilters = (query) => {
+  const {
+    search = '',
+    outboundNo = '',
+    materialName = '',
+    locationId = '',
+    outboundType = '',
+    status = '',
+    productionPlanId = '',
+    productionGroupId = '',
+    production_plan_id = productionPlanId,
+    production_group_id = productionGroupId,
+    startDate = '',
+    endDate = '',
+  } = query;
+  let whereClause = 'WHERE o.deleted_at IS NULL';
+  const params = [];
+
+  if (search) {
+    whereClause += ` AND o.id IN (
+      SELECT DISTINCT o2.id
+      FROM inventory_outbound o2
+      LEFT JOIN production_tasks pt2 ON o2.reference_type = 'production_task' AND o2.reference_id = pt2.id
+      LEFT JOIN materials p2 ON pt2.product_id = p2.id
+      WHERE o2.outbound_no LIKE ? OR p2.name LIKE ? OR p2.code LIKE ? OR p2.specs LIKE ?
+    )`;
+    params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+  }
+  if (outboundNo) {
+    whereClause += ' AND o.outbound_no LIKE ?';
+    params.push(`%${outboundNo}%`);
+  }
+  // EXISTS filters the document without dropping its other material rows from
+  // the aggregates, so counts and quantities continue to describe the whole document.
+  if (materialName) {
+    whereClause += ` AND EXISTS (
+      SELECT 1 FROM inventory_outbound_items oi_search
+      LEFT JOIN materials m_search ON oi_search.material_id = m_search.id
+      WHERE oi_search.outbound_id = o.id
+        AND (m_search.name LIKE ? OR m_search.code LIKE ? OR m_search.specs LIKE ?)
+    )`;
+    params.push(`%${materialName}%`, `%${materialName}%`, `%${materialName}%`);
+  }
+  if (locationId) {
+    whereClause += ` AND EXISTS (
+      SELECT 1 FROM inventory_outbound_items oi_location
+      JOIN materials m_location ON oi_location.material_id = m_location.id
+      WHERE oi_location.outbound_id = o.id AND m_location.location_id = ?
+    )`;
+    params.push(locationId);
+  }
+  if (outboundType) {
+    whereClause += ` AND (${OUTBOUND_TYPE_SQL}) = ?`;
+    params.push(outboundType);
+  }
+  if (status) {
+    whereClause += ` AND (${getOutboundStatusSql(query)}) = ?`;
+    params.push(status);
+  }
+  if (production_plan_id) {
+    whereClause += ' AND o.reference_id = ? AND o.reference_type = "production_plan"';
+    params.push(production_plan_id);
+  }
+  if (production_group_id) {
+    whereClause += ' AND p.production_group_id = ?';
+    params.push(production_group_id);
+  }
+  if (startDate) {
+    whereClause += ' AND o.outbound_date >= ?';
+    params.push(startDate);
+  }
+  if (endDate) {
+    whereClause += ' AND o.outbound_date <= ?';
+    params.push(endDate);
+  }
+  return { whereClause, params };
+};
+
 const getOutboundList = async (req, res) => {
   try {
     // 确保参数为数字类型
@@ -77,64 +182,14 @@ const getOutboundList = async (req, res) => {
       defaultPageSize: 20,
       maxPageSize: 100,
     });
-    const {
-      search = '',
-      status = '',
-      production_plan_id = '',
-      production_group_id = '',
-      startDate = '',
-      endDate = '',
-    } = req.query;
-
-    // 构建搜索条件 - 只搜索出库单号和产品信息（不搜索物料明细）
-    let whereClause = 'WHERE o.deleted_at IS NULL';
-    const params = [];
+    const filters = buildOutboundFilters(req.query);
+    let whereClause = filters.whereClause;
+    const params = filters.params;
+    const statusSql = getOutboundStatusSql(req.query);
     const scopeClause = await ScopeGuard.applyListScope(req, 'inventory_outbound', {
       tableAlias: 'o',
       ownerAlias: 'outbound_owner_scope',
     });
-
-    if (search) {
-      // 只搜索出库单号、产品编码、产品名称、产品型号规格
-      // 不搜索物料明细，避免返回不相关的出库单
-      whereClause += ` AND o.id IN (
-        SELECT DISTINCT o2.id
-        FROM inventory_outbound o2
-        LEFT JOIN production_tasks pt2 ON o2.reference_type = 'production_task' AND o2.reference_id = pt2.id
-        LEFT JOIN materials p2 ON pt2.product_id = p2.id
-        WHERE o2.outbound_no LIKE ?
-           OR p2.name LIKE ?
-           OR p2.code LIKE ?
-           OR p2.specs LIKE ?
-      )`;
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
-    }
-
-    if (status && status !== '') {
-      whereClause += ` AND (${OUTBOUND_DISPLAY_STATUS_SQL}) = ?`;
-      params.push(status);
-    }
-
-    if (production_plan_id && production_plan_id !== '') {
-      whereClause += ' AND o.reference_id = ? AND o.reference_type = "production_plan"';
-      params.push(production_plan_id);
-    }
-
-    if (production_group_id && production_group_id !== '') {
-      whereClause += ' AND p.production_group_id = ?';
-      params.push(production_group_id);
-    }
-
-    // 添加时间范围筛选
-    if (startDate && startDate !== '') {
-      whereClause += ' AND o.outbound_date >= ?';
-      params.push(startDate);
-    }
-
-    if (endDate && endDate !== '') {
-      whereClause += ' AND o.outbound_date <= ?';
-      params.push(endDate);
-    }
 
     whereClause += scopeClause.where;
     params.push(...scopeClause.params);
@@ -168,19 +223,21 @@ const getOutboundList = async (req, res) => {
         DATE_FORMAT(o.updated_at, '%Y-%m-%d %H:%i:%s') as updated_at,
         COUNT(DISTINCT oi.id) as items_count,
         COALESCE(SUM(oi.quantity), 0) as total_quantity,
+        MAX(first_material.code) as material_code,
+        MAX(first_material.name) as material_name,
+        MAX(first_material.specs) as material_specs,
+        MAX(first_item.quantity) as first_item_quantity,
         CASE WHEN COUNT(DISTINCT mu.id) = 1 THEN MAX(mu.name) ELSE NULL END as item_unit_name,
-        CASE
-          WHEN o.outbound_type IS NOT NULL AND o.outbound_type != '' AND o.outbound_type NOT IN ('manual', 'other') THEN o.outbound_type
-          WHEN o.production_task_id IS NOT NULL OR o.reference_type = 'production_task' THEN 'production'
-          WHEN o.sales_order_id IS NOT NULL OR o.reference_type = 'sales_order' THEN 'sales'
-          WHEN o.reference_type = 'outsourced' THEN 'outsourced'
-          ELSE COALESCE(o.outbound_type, 'manual')
-        END as outbound_type,
+        ${OUTBOUND_TYPE_SQL} as outbound_type,
         o.reference_id,
         o.reference_type
       FROM inventory_outbound o
       ${OUTBOUND_FINANCE_STATUS_JOIN}
       LEFT JOIN inventory_outbound_items oi ON o.id = oi.outbound_id
+      LEFT JOIN inventory_outbound_items first_item ON first_item.id = (
+        SELECT MIN(oi_first.id) FROM inventory_outbound_items oi_first WHERE oi_first.outbound_id = o.id
+      )
+      LEFT JOIN materials first_material ON first_item.material_id = first_material.id
       LEFT JOIN materials m ON oi.material_id = m.id
       LEFT JOIN units mu ON m.unit_id = mu.id
       LEFT JOIN locations l ON m.location_id = l.id
@@ -217,7 +274,7 @@ const getOutboundList = async (req, res) => {
     const total = countResult[0].total;
 
     const statsQuery = `
-      SELECT ${OUTBOUND_DISPLAY_STATUS_SQL} as status, COUNT(DISTINCT o.id) as count
+      SELECT ${statusSql} as status, COUNT(DISTINCT o.id) as count
       FROM inventory_outbound o
       ${OUTBOUND_FINANCE_STATUS_JOIN}
       LEFT JOIN inventory_outbound_items oi ON o.id = oi.outbound_id
@@ -226,7 +283,7 @@ const getOutboundList = async (req, res) => {
       LEFT JOIN materials p ON pt.product_id = p.id
       ${scopeClause.join}
       ${whereClause}
-      GROUP BY ${OUTBOUND_DISPLAY_STATUS_SQL}
+      GROUP BY ${statusSql}
     `;
     const [statsRows] = await db.pool.query(statsQuery, filterParams);
     const statistics = {
@@ -263,6 +320,12 @@ const getOutboundList = async (req, res) => {
       });
       api.operatorName = item.operator_name ?? null;
       api.locationNames = item.location_names ?? null;
+      api.locationName = item.location_names ?? null;
+      api.materialCode = item.material_code ?? null;
+      api.materialName = item.material_name ?? null;
+      api.materialSpecs = item.material_specs ?? null;
+      api.firstItemQuantity =
+        item.first_item_quantity != null ? Number(item.first_item_quantity) : null;
       api.productionGroupNames = item.production_group_names ?? null;
       api.productCode = item.product_code ?? null;
       api.productSpecs = item.product_specs ?? null;
@@ -271,7 +334,10 @@ const getOutboundList = async (req, res) => {
       api.totalQuantity = Number(item.total_quantity) || 0;
       api.itemUnitName = item.item_unit_name ?? null;
       api.createdAtFormatted = item.created_at_formatted ?? null;
-      api.statusText = getOutboundDisplayStatusText(item);
+      api.statusText =
+        req.query.statusMode === 'business'
+          ? getStatusText(item.status)
+          : getOutboundDisplayStatusText(item);
       return api;
     });
 
@@ -292,60 +358,13 @@ const getOutboundList = async (req, res) => {
 
 const exportOutbound = async (req, res) => {
   try {
-    const {
-      search = '',
-      status = '',
-      production_plan_id = '',
-      production_group_id = '',
-      startDate = '',
-      endDate = '',
-    } = req.query;
-
-    let whereClause = 'WHERE o.deleted_at IS NULL';
-    const params = [];
+    const filters = buildOutboundFilters(req.query);
+    let whereClause = filters.whereClause;
+    const params = filters.params;
     const scopeClause = await ScopeGuard.applyListScope(req, 'inventory_outbound', {
       tableAlias: 'o',
       ownerAlias: 'outbound_export_owner_scope',
     });
-
-    if (search) {
-      whereClause += ` AND o.id IN (
-        SELECT DISTINCT o2.id
-        FROM inventory_outbound o2
-        LEFT JOIN production_tasks pt2 ON o2.reference_type = 'production_task' AND o2.reference_id = pt2.id
-        LEFT JOIN materials p2 ON pt2.product_id = p2.id
-        WHERE o2.outbound_no LIKE ?
-           OR p2.name LIKE ?
-           OR p2.code LIKE ?
-           OR p2.specs LIKE ?
-      )`;
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
-    }
-
-    if (status) {
-      whereClause += ` AND (${OUTBOUND_DISPLAY_STATUS_SQL}) = ?`;
-      params.push(status);
-    }
-
-    if (production_plan_id) {
-      whereClause += ' AND o.reference_id = ? AND o.reference_type = "production_plan"';
-      params.push(production_plan_id);
-    }
-
-    if (production_group_id) {
-      whereClause += ' AND p.production_group_id = ?';
-      params.push(production_group_id);
-    }
-
-    if (startDate) {
-      whereClause += ' AND o.outbound_date >= ?';
-      params.push(startDate);
-    }
-
-    if (endDate) {
-      whereClause += ' AND o.outbound_date <= ?';
-      params.push(endDate);
-    }
 
     whereClause += scopeClause.where || '';
     params.push(...(scopeClause.params || []));
@@ -357,13 +376,7 @@ const exportOutbound = async (req, res) => {
         DATE_FORMAT(o.outbound_date, '%Y-%m-%d') as outbound_date,
         o.status,
         outbound_posting.finance_status,
-        CASE
-          WHEN o.outbound_type IS NOT NULL AND o.outbound_type != '' AND o.outbound_type NOT IN ('manual', 'other') THEN o.outbound_type
-          WHEN o.production_task_id IS NOT NULL OR o.reference_type = 'production_task' THEN 'production'
-          WHEN o.sales_order_id IS NOT NULL OR o.reference_type = 'sales_order' THEN 'sales'
-          WHEN o.reference_type = 'outsourced' THEN 'outsourced'
-          ELSE COALESCE(o.outbound_type, 'manual')
-        END as outbound_type,
+        ${OUTBOUND_TYPE_SQL} as outbound_type,
         o.reference_type,
         o.reference_id,
         COALESCE(
@@ -417,7 +430,10 @@ const exportOutbound = async (req, res) => {
     rows.forEach((row) => {
       worksheet.addRow({
         ...row,
-        status_text: getOutboundDisplayStatusText(row),
+        status_text:
+          req.query.statusMode === 'business'
+            ? getStatusText(row.status)
+            : getOutboundDisplayStatusText(row),
       });
     });
 
@@ -626,13 +642,14 @@ const updateOutbound = async (req, res) => {
     if (!Number.isInteger(numericId) || numericId <= 0) {
       return ResponseHandler.error(res, '无效的出库单ID', 'VALIDATION_ERROR', 400);
     }
-    const {
-      outbound_date,
-      status,
-      operator,
-      remark = null,
-      items,
-    } = mapKeysToSnake(req.body || {});
+    const body = req.body || {};
+    const { outbound_date, status, operator, remark, items } = inventoryOutboundMap.fromApi(body);
+    const hasTaskChange =
+      Object.prototype.hasOwnProperty.call(body, 'productionTaskId') ||
+      Object.prototype.hasOwnProperty.call(body, 'production_task_id');
+    const requestedTaskId = Object.prototype.hasOwnProperty.call(body, 'productionTaskId')
+      ? body.productionTaskId
+      : body.production_task_id;
 
     if (
       !(await ScopeGuard.denyUnlessAccess(
@@ -658,7 +675,7 @@ const updateOutbound = async (req, res) => {
 
     // 检查出库单是否存在
     const [checkResult] = await connection.execute(
-      `SELECT status, reference_id, reference_type, production_task_id, source_task_ids
+      `SELECT status, reference_id, reference_type, production_task_id, source_task_ids, outbound_type, remark
          FROM inventory_outbound
         WHERE id = ? AND deleted_at IS NULL
         FOR UPDATE`,
@@ -724,13 +741,56 @@ const updateOutbound = async (req, res) => {
       }
     }
 
+    const originalOutbound = checkResult[0];
+    const nextSource = { ...originalOutbound };
+    if (hasTaskChange) {
+      const taskId = requestedTaskId == null ? null : Number(requestedTaskId);
+      if (taskId !== null && (!Number.isInteger(taskId) || taskId <= 0)) {
+        throw new Error('生产任务ID无效');
+      }
+      const hasOtherSource =
+        originalOutbound.reference_type && originalOutbound.reference_type !== 'production_task';
+      if (hasOtherSource && taskId !== null) {
+        throw new Error('此出库单已有其他业务来源，不能改为生产任务出库');
+      }
+      // A null task from the shared editor must not clear a sales/plan/batch source.
+      if (!hasOtherSource) {
+        nextSource.production_task_id = taskId;
+        nextSource.reference_id = taskId;
+        nextSource.reference_type = taskId ? 'production_task' : null;
+        nextSource.outbound_type = taskId ? 'bom_issue' : 'manual';
+        if (!(await assertOutboundSourceAccess(connection, req, nextSource))) {
+          await connection.rollback();
+          return ResponseHandler.forbidden(res, '无权关联所选生产任务');
+        }
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(body, 'items') && (!items || !items.length)) {
+      throw new Error('出库单至少需要一条合法物料明细');
+    }
+
     // 格式化日期
     const formattedDate = new Date(outbound_date).toISOString().split('T')[0];
 
     // 更新出库单主表（不触发扣库）
     await connection.execute(
-      'UPDATE inventory_outbound SET outbound_date = ?, status = ?, operator = ?, remark = ?, updated_at = NOW() WHERE id = ? AND deleted_at IS NULL',
-      [formattedDate, nextStatus, operator, remark, id]
+      `UPDATE inventory_outbound
+       SET outbound_date = ?, status = ?, operator = ?, remark = ?,
+           production_task_id = ?, reference_id = ?, reference_type = ?, outbound_type = ?,
+           updated_at = NOW()
+       WHERE id = ? AND deleted_at IS NULL`,
+      [
+        formattedDate,
+        nextStatus,
+        operator,
+        remark === undefined ? (originalOutbound.remark ?? null) : remark,
+        nextSource.production_task_id ?? null,
+        nextSource.reference_id ?? null,
+        nextSource.reference_type ?? null,
+        nextSource.outbound_type ?? null,
+        id,
+      ]
     );
 
     // 统一使用状态常量替代硬编码字符串
@@ -750,8 +810,13 @@ const updateOutbound = async (req, res) => {
       // 重新插入明细
       for (const item of items) {
         const materialId = Number(item.material_id);
-        const quantity = parseFloat(item.quantity);
-        if (!materialId || isNaN(quantity) || quantity <= 0) {
+        const quantity = Number(item.quantity);
+        if (
+          !Number.isInteger(materialId) ||
+          materialId <= 0 ||
+          !Number.isFinite(quantity) ||
+          quantity <= 0
+        ) {
           throw new Error('物料信息不完整或数量无效');
         }
 
@@ -773,14 +838,30 @@ const updateOutbound = async (req, res) => {
         }
 
         const itemRemark = item.remark ?? item.remarks ?? null;
+        const { plannedQuantity, actualQuantity } = normalizeIssueQuantities({
+          ...item,
+          actual_quantity: item.actual_quantity ?? quantity,
+        });
+        if (plannedQuantity <= 0 || actualQuantity < 0) {
+          throw new Error('计划数量必须大于0，实发数量不能小于0');
+        }
+        // Recalculate the remainder so stale client shortage fields cannot mark
+        // a zero/partial issue as completed without a stock movement.
+        const shortageQuantity = Math.max(plannedQuantity - actualQuantity, 0);
 
         await connection.execute(
-          'INSERT INTO inventory_outbound_items (outbound_id, material_id, quantity, planned_quantity, actual_quantity, unit_id, remark) VALUES (?, ?, ?, ?, 0, ?, ?)',
+          `INSERT INTO inventory_outbound_items
+             (outbound_id, material_id, quantity, planned_quantity, actual_quantity,
+              shortage_quantity, is_shortage, unit_id, remark)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             id,
             materialId,
             quantity,
-            item.planned_quantity != null ? parseFloat(item.planned_quantity) : quantity,
+            plannedQuantity,
+            actualQuantity,
+            shortageQuantity,
+            shortageQuantity > 0 ? 1 : 0,
             unitId,
             itemRemark,
           ]

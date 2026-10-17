@@ -1,19 +1,19 @@
 <template>
   <div class="rich-text-editor">
     <div class="editor-toolbar" role="toolbar" aria-label="富文本工具栏">
-      <button type="button" class="toolbar-btn strong" title="加粗" @mousedown.prevent="format('bold')">B</button>
-      <button type="button" class="toolbar-btn italic" title="斜体" @mousedown.prevent="format('italic')">I</button>
-      <button type="button" class="toolbar-btn underline" title="下划线" @mousedown.prevent="format('underline')">U</button>
-      <button type="button" class="toolbar-btn strike" title="删除线" @mousedown.prevent="format('strikeThrough')">S</button>
+      <button type="button" class="toolbar-btn strong" title="加粗" @mousedown.prevent @click="format('bold')">B</button>
+      <button type="button" class="toolbar-btn italic" title="斜体" @mousedown.prevent @click="format('italic')">I</button>
+      <button type="button" class="toolbar-btn underline" title="下划线" @mousedown.prevent @click="format('underline')">U</button>
+      <button type="button" class="toolbar-btn strike" title="删除线" @mousedown.prevent @click="format('strikeThrough')">S</button>
       <span class="toolbar-divider"></span>
-      <button type="button" class="toolbar-btn" title="一级标题" @mousedown.prevent="formatBlock('h1')">H1</button>
-      <button type="button" class="toolbar-btn" title="二级标题" @mousedown.prevent="formatBlock('h2')">H2</button>
-      <button type="button" class="toolbar-btn" title="引用" @mousedown.prevent="formatBlock('blockquote')">Quote</button>
+      <button type="button" class="toolbar-btn" title="一级标题" @mousedown.prevent @click="formatBlock('h1')">H1</button>
+      <button type="button" class="toolbar-btn" title="二级标题" @mousedown.prevent @click="formatBlock('h2')">H2</button>
+      <button type="button" class="toolbar-btn" title="引用" @mousedown.prevent @click="formatBlock('blockquote')">Quote</button>
       <span class="toolbar-divider"></span>
-      <button type="button" class="toolbar-btn" title="无序列表" @mousedown.prevent="format('insertUnorderedList')">UL</button>
-      <button type="button" class="toolbar-btn" title="有序列表" @mousedown.prevent="format('insertOrderedList')">OL</button>
-      <button type="button" class="toolbar-btn" title="插入链接" @mousedown.prevent="insertLink">Link</button>
-      <button type="button" class="toolbar-btn" title="清除格式" @mousedown.prevent="format('removeFormat')">Clear</button>
+      <button type="button" class="toolbar-btn" title="无序列表" @mousedown.prevent @click="format('insertUnorderedList')">UL</button>
+      <button type="button" class="toolbar-btn" title="有序列表" @mousedown.prevent @click="format('insertOrderedList')">OL</button>
+      <button type="button" class="toolbar-btn" title="插入链接" @mousedown.prevent @click="insertLink">Link</button>
+      <button type="button" class="toolbar-btn" title="清除格式" @mousedown.prevent @click="format('removeFormat')">Clear</button>
     </div>
 
     <div
@@ -21,11 +21,14 @@
       class="editor-surface"
       contenteditable="true"
       role="textbox"
+      aria-multiline="true"
       :aria-label="placeholder"
       :data-placeholder="placeholder"
       :style="{ minHeight }"
       @input="handleInput"
-      @blur="handleInput"
+      @blur="handleBlur"
+      @mouseup="saveSelection"
+      @keyup="saveSelection"
       @paste="handlePaste"
     ></div>
   </div>
@@ -54,6 +57,27 @@ const emit = defineEmits(['update:modelValue']);
 
 const editorRef = ref(null);
 const lastEmittedValue = ref('');
+let savedSelection = null;
+
+const saveSelection = () => {
+  const selection = window.getSelection();
+  if (!selection?.rangeCount) return;
+  const range = selection.getRangeAt(0);
+  if (editorRef.value?.contains(range.commonAncestorContainer)) {
+    savedSelection = range.cloneRange();
+  }
+};
+
+const focusEditor = () => {
+  const editor = editorRef.value;
+  if (!editor) return;
+  editor.focus();
+  if (savedSelection && editor.contains(savedSelection.commonAncestorContainer)) {
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(savedSelection);
+  }
+};
 
 const sanitizeOptions = {
   ALLOWED_TAGS: [
@@ -125,14 +149,19 @@ const handleInput = () => {
   emitCleanValue();
 };
 
+const handleBlur = () => {
+  saveSelection();
+  handleInput();
+};
+
 const format = (command, value = null) => {
-  editorRef.value?.focus();
+  focusEditor();
   document.execCommand(command, false, value);
   emitCleanValue();
 };
 
 const formatBlock = (tagName) => {
-  editorRef.value?.focus();
+  focusEditor();
   document.execCommand('formatBlock', false, tagName);
   emitCleanValue();
 };
@@ -155,7 +184,7 @@ const insertLink = () => {
   const safeUrl = normalizeUrl(url);
   if (!safeUrl) return;
 
-  editorRef.value?.focus();
+  focusEditor();
   document.execCommand('createLink', false, safeUrl);
   emitCleanValue();
 };
@@ -201,6 +230,11 @@ watch(() => props.modelValue, async (newValue) => {
   padding: 6px;
   border-bottom: 1px solid var(--color-border-base);
   background-color: var(--color-bg-hover);
+}
+
+.rich-text-editor:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
 }
 
 .toolbar-btn {

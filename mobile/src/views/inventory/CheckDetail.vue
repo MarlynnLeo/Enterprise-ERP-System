@@ -74,26 +74,26 @@
         class="material-card"
         :style="{ animationDelay: `${index * 0.05}s` }"
       >
-        <div class="card-accent" :class="getDiffAccent(item.bookQuantity ?? item.book_qty, item.actualQuantity ?? item.actual_qty)"></div>
+        <div class="card-accent" :class="getDiffAccent(item.bookQuantity, item.actualQuantity)"></div>
         <div class="card-body">
           <div class="mat-header">
             <div class="mat-title-area">
               <span class="mat-name">{{ item.materialName || '未知物料' }}</span>
               <span class="mat-code">{{ item.materialCode || '' }}</span>
             </div>
-            <span class="diff-badge" :class="getDiffAccent(item.bookQuantity ?? item.book_qty, item.actualQuantity ?? item.actual_qty)">
-              {{ getDiffText(item.bookQuantity ?? item.book_qty, item.actualQuantity ?? item.actual_qty) }}
+            <span class="diff-badge" :class="getDiffAccent(item.bookQuantity, item.actualQuantity)">
+              {{ getDiffText(item.bookQuantity, item.actualQuantity) }}
             </span>
           </div>
           <div class="mat-details">
             <div class="detail-cell">
               <span class="detail-label">账面数量</span>
-              <span class="detail-value">{{ item.bookQuantity ?? item.book_qty }} {{ item.unitName || '' }}</span>
+              <span class="detail-value">{{ item.bookQuantity ?? '—' }} {{ item.unitName || '' }}</span>
             </div>
             <div class="detail-cell">
               <span class="detail-label">实盘数量</span>
               <span class="detail-value highlight"
-                >{{ item.actualQuantity ?? item.actual_qty }} {{ item.unitName || '' }}</span
+                >{{ item.actualQuantity ?? '未录入' }} {{ item.unitName || '' }}</span
               >
             </div>
           </div>
@@ -143,15 +143,25 @@
       </template>
       <VanButton
         v-if="detail.status === 'in_progress'"
+        type="default"
+        round
+        size="small"
+        @click="router.push(`/inventory/check/${detail.id}/edit`)"
+        style="flex: 1"
+        >录入实盘</VanButton
+      >
+      <VanButton
+        v-if="detail.status === 'in_progress'"
         type="primary"
         round
-        block
+        size="small"
+        style="flex: 1"
         :loading="submitting"
         @click="handleUpdateStatus('pending')"
         >完成盘点</VanButton
       >
       <VanButton
-        v-if="detail.status === 'pending' && hasDifference"
+        v-if="detail.status === 'pending' && hasDifference && quantitiesComplete"
         type="warning"
         round
         block
@@ -160,7 +170,7 @@
         >调整库存</VanButton
       >
       <VanButton
-        v-if="detail.status === 'pending' && !hasDifference"
+        v-if="detail.status === 'pending' && !hasDifference && quantitiesComplete"
         type="success"
         round
         block
@@ -185,6 +195,8 @@
     showConfirmDialog
   } from 'vant'
   import { inventoryApi } from '@/api'
+  import { buildCheckResultItems, checkItemDifference } from '@/utils/inventoryCheck'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
 
   const router = useRouter()
   const route = useRoute()
@@ -192,28 +204,16 @@
   const submitting = ref(false)
   const detail = ref({})
 
-  const totalDifference = computed(() => {
-    if (detail.value.profit_loss !== undefined && detail.value.profit_loss !== null) {
-      return Number(detail.value.profit_loss) || 0
-    }
-
-    return (detail.value.items || []).reduce((sum, item) => {
-      const actual = Number(item.actual_quantity ?? item.actual_qty ?? 0)
-      const system = Number(item.system_quantity ?? item.book_qty ?? 0)
-      return sum + (actual - system)
-    }, 0)
-  })
-
-  const hasDifference = computed(() => Math.abs(totalDifference.value) > 0.000001)
-
-  const buildCheckResultItems = () =>
-    (detail.value.items || []).map((item) => ({
-      id: item.id,
-      materialId: item.materialId,
-      system_quantity: Number(item.system_quantity ?? item.book_qty ?? 0),
-      actual_quantity: Number(item.actual_quantity ?? item.actual_qty ?? 0),
-      remark: item.remark || item.remarks || ''
-    }))
+  const itemDifferences = computed(() => (detail.value.items || []).map(checkItemDifference))
+  const quantitiesComplete = computed(() =>
+    itemDifferences.value.length > 0 && itemDifferences.value.every((value) => value !== null)
+  )
+  const totalDifference = computed(() => quantitiesComplete.value
+    ? itemDifferences.value.reduce((sum, value) => sum + value, 0)
+    : null)
+  const hasDifference = computed(() =>
+    itemDifferences.value.some((value) => value !== null && Math.abs(value) > 0.000001)
+  )
 
   const loadDetail = async () => {
     loading.value = true
@@ -251,49 +251,60 @@
     ({ cycle: '周期盘点', random: '随机盘点', full: '全面盘点', special: '专项盘点' })[t] ||
     t ||
     '—'
-  const getResultText = (v) => (!v ? '无差异' : v > 0 ? `盘盈 +${v}` : `盘亏 ${v}`)
+  const getResultText = (v) => v === null ? '实盘未完成' : !v
+    ? (hasDifference.value ? '存在差异（净差异 0）' : '无差异')
+    : v > 0 ? `盘盈 +${v}` : `盘亏 ${v}`
   const getResultClass = (v) => (!v ? '' : v > 0 ? 'text-profit' : 'text-loss')
   const getDiffText = (book, actual) => {
-    if (book === undefined || actual === undefined) return '0'
-    const d = actual - book
+    const d = checkItemDifference({ bookQuantity: book, actualQuantity: actual })
+    if (d === null) return '实盘未完成'
     return d > 0 ? `+${d}` : `${d}`
   }
   const getDiffAccent = (book, actual) => {
-    if (book === undefined || actual === undefined) return 'accent-neutral'
-    const d = actual - book
+    const d = checkItemDifference({ bookQuantity: book, actualQuantity: actual })
+    if (d === null) return 'accent-neutral'
     return d > 0 ? 'accent-green' : d < 0 ? 'accent-red' : 'accent-neutral'
   }
 
   const handleUpdateStatus = async (newStatus) => {
+    if (submitting.value) return
     try {
+      const resultItems = ['pending', 'completed'].includes(newStatus)
+        ? buildCheckResultItems(detail.value.items) : null
+      if (newStatus === 'completed' && hasDifference.value) {
+        showToast('盘点存在差异，请先调整库存')
+        return
+      }
       await showConfirmDialog({
         title: '确认操作',
         message: `确定要将状态更新为"${getStatusText(newStatus)}"吗？`
       })
       submitting.value = true
       if (newStatus === 'pending') {
-        await inventoryApi.submitCheckResult(detail.value.id, { items: buildCheckResultItems() })
+        await inventoryApi.submitCheckResult(detail.value.id, { items: resultItems })
       } else {
         await inventoryApi.updateCheckStatus(detail.value.id, newStatus)
       }
       showToast('状态更新成功')
       await loadDetail()
     } catch (e) {
-      if (e !== 'cancel') showToast('操作失败')
+      if (e !== 'cancel') showToast(getApiErrorMessage(e, '操作失败'))
     } finally {
       submitting.value = false
     }
   }
 
   const handleAdjust = async () => {
+    if (submitting.value) return
     try {
+      buildCheckResultItems(detail.value.items)
       await showConfirmDialog({ title: '调整库存', message: '确定要根据盘点结果调整库存吗？' })
       submitting.value = true
       await inventoryApi.adjustInventory(detail.value.id)
       showToast('库存调整成功')
       await loadDetail()
     } catch (e) {
-      if (e !== 'cancel') showToast('操作失败')
+      if (e !== 'cancel') showToast(getApiErrorMessage(e, '操作失败'))
     } finally {
       submitting.value = false
     }
@@ -338,15 +349,15 @@
     }
     &.status-progress {
       background: rgba(245, 158, 11, 0.12);
-      color: var(--color-warning);
+      color: var(--color-warning-text);
     }
     &.status-completed {
       background: rgba(16, 185, 129, 0.12);
-      color: var(--color-success);
+      color: var(--color-success-text);
     }
     &.status-cancelled {
       background: rgba(239, 68, 68, 0.1);
-      color: var(--color-danger);
+      color: var(--color-danger-text);
     }
   }
   .status-main {
@@ -371,15 +382,15 @@
     }
     &.status-progress {
       background: rgba(245, 158, 11, 0.12);
-      color: var(--color-warning);
+      color: var(--color-warning-text);
     }
     &.status-completed {
       background: rgba(16, 185, 129, 0.12);
-      color: var(--color-success);
+      color: var(--color-success-text);
     }
     &.status-cancelled {
       background: rgba(239, 68, 68, 0.1);
-      color: var(--color-danger);
+      color: var(--color-danger-text);
     }
   }
   .order-date {
@@ -447,11 +458,11 @@
       font-size: 0.75rem;
     }
     &.text-profit {
-      color: var(--color-success);
+      color: var(--color-success-text);
       font-weight: 700;
     }
     &.text-loss {
-      color: var(--color-danger);
+      color: var(--color-danger-text);
       font-weight: 700;
     }
   }
@@ -533,11 +544,11 @@
     font-family: var(--font-ui);
     &.accent-green {
       background: rgba(16, 185, 129, 0.12);
-      color: var(--color-success);
+      color: var(--color-success-text);
     }
     &.accent-red {
       background: rgba(239, 68, 68, 0.12);
-      color: var(--color-danger);
+      color: var(--color-danger-text);
     }
     &.accent-neutral {
       background: rgba(148, 163, 184, 0.1);
@@ -565,7 +576,7 @@
     font-weight: 500;
     color: var(--text-primary);
     &.highlight {
-      color: var(--color-warning);
+      color: var(--color-warning-text);
       font-weight: 700;
     }
   }

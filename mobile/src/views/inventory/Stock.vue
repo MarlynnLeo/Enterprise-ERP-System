@@ -334,9 +334,9 @@
       font-weight: 500;
     }
     &.active {
-      background: rgba(59, 130, 246, 0.1);
+      background: var(--color-primary-bg);
       border-color: var(--color-primary);
-      color: var(--color-primary);
+      color: var(--color-primary-text);
     }
     &.warehouse-chip {
       gap: 3px;
@@ -420,11 +420,11 @@
     font-family: var(--font-ui);
     &.badge-green {
       background: rgba(16, 185, 129, 0.12);
-      color: var(--color-success);
+      color: var(--color-success-text);
     }
     &.badge-red {
       background: rgba(239, 68, 68, 0.12);
-      color: var(--color-danger);
+      color: var(--color-danger-text);
     }
   }
   .card-meta {
@@ -487,15 +487,15 @@
       font-family: var(--font-ui);
     }
     &.highlight {
-      color: var(--color-primary);
+      color: var(--color-primary-text);
       font-weight: 700;
     }
     &.text-success {
-      color: var(--color-success);
+      color: var(--color-success-text);
       font-weight: 700;
     }
     &.text-danger {
-      color: var(--color-danger);
+      color: var(--color-danger-text);
       font-weight: 700;
     }
   }

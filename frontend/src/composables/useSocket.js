@@ -12,8 +12,7 @@ import { ElNotification } from 'element-plus/es/components/notification/index'
 
 // 全局单例（多个组件共享同一个连接）
 let socketInstance = null
-let connectionRefCount = 0
-let notificationListenerBound = false
+const connectionStates = new Set()
 /** @type {Set<Function>} 未读数刷新回调（多组件共享，避免重复绑定 notification:new） */
 const unreadCountCallbacks = new Set()
 const isDev = import.meta.env.DEV
@@ -31,9 +30,9 @@ function getSocketUrl() {
  * 创建或复用 Socket.IO 连接
  */
 function getOrCreateSocket() {
-  if (socketInstance?.connected || socketInstance?.connecting) {
-    return socketInstance
-  }
+  // Socket.IO retains its manager while connecting or retrying; creating a
+  // replacement here would orphan its transport and notification listeners.
+  if (socketInstance) return socketInstance
 
   const url = getSocketUrl()
   socketInstance = io(url, {
@@ -47,6 +46,20 @@ function getOrCreateSocket() {
     autoConnect: false,
   })
 
+  socketInstance.on('connect', () => {
+    connectionStates.forEach(state => { state.value = true })
+    if (isDev) console.log('[Socket] 已连接')
+  })
+  socketInstance.on('disconnect', (reason) => {
+    connectionStates.forEach(state => { state.value = false })
+    if (isDev) console.log('[Socket] 已断开:', reason)
+  })
+  socketInstance.on('connect_error', (error) => {
+    connectionStates.forEach(state => { state.value = false })
+    if (isDev) console.warn('[Socket] 连接失败:', error.message)
+  })
+  socketInstance.on('notification:new', handleNotification)
+
   return socketInstance
 }
 
@@ -54,6 +67,7 @@ function getOrCreateSocket() {
  * 全局唯一的通知处理器，避免多次 connect 重复弹窗
  */
 function handleNotification(data) {
+  if (!data || typeof data !== 'object') return
   const typeMap = { 0: 'info', 1: 'warning', 2: 'error' }
   ElNotification({
     title: data.title || '新通知',
@@ -96,38 +110,13 @@ export function useSocket(options = {}) {
    * 连接 Socket.IO 服务器
    */
   function connect() {
+    if (socket) return
     socket = getOrCreateSocket()
-    connectionRefCount++
+    connectionStates.add(connected)
 
     if (typeof onUnreadCountChange === 'function') {
-      registeredCallback = onUnreadCountChange
-      unreadCountCallbacks.add(onUnreadCountChange)
-    }
-
-    // 仅首次引用时绑定全局事件（避免 notification:new 重复绑定导致连弹）
-    if (connectionRefCount === 1 || !notificationListenerBound) {
-      if (!socket._erpCoreListenersBound) {
-        socket.on('connect', () => {
-          connected.value = true
-          if (isDev) console.log('[Socket] 已连接')
-        })
-
-        socket.on('disconnect', (reason) => {
-          connected.value = false
-          if (isDev) console.log('[Socket] 已断开:', reason)
-        })
-
-        socket.on('connect_error', (error) => {
-          connected.value = false
-          if (isDev) console.warn('[Socket] 连接失败:', error.message)
-        })
-        socket._erpCoreListenersBound = true
-      }
-
-      if (!notificationListenerBound) {
-        socket.on('notification:new', handleNotification)
-        notificationListenerBound = true
-      }
+      registeredCallback = () => onUnreadCountChange()
+      unreadCountCallbacks.add(registeredCallback)
     }
 
     if (socket.connected) {
@@ -142,25 +131,23 @@ export function useSocket(options = {}) {
    * 断开连接
    */
   function disconnect() {
+    if (!socket) return
+    const releasedSocket = socket
+    socket = null
+    connected.value = false
+    connectionStates.delete(connected)
     if (registeredCallback) {
       unreadCountCallbacks.delete(registeredCallback)
       registeredCallback = null
     }
 
-    if (socket) {
-      connectionRefCount = Math.max(0, connectionRefCount - 1)
-
-      // 所有引用都释放后才真正断开
-      if (connectionRefCount === 0) {
-        if (notificationListenerBound) {
-          socket.off('notification:new', handleNotification)
-          notificationListenerBound = false
-        }
-        if (socket.connected) {
-          socket.disconnect()
-          if (isDev) console.log('[Socket] 所有引用已释放，断开连接')
-        }
-      }
+    // Also close a connecting/retrying manager, so an unmounted account
+    // cannot establish a late connection and continue receiving notifications.
+    if (connectionStates.size === 0) {
+      releasedSocket.removeAllListeners()
+      releasedSocket.disconnect()
+      socketInstance = null
+      if (isDev) console.log('[Socket] 所有引用已释放，断开连接')
     }
   }
 

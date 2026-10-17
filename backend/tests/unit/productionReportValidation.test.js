@@ -26,7 +26,7 @@ jest.mock('../../src/services/business/TaskLifecycleService', () => ({
 const { pool } = require('../../src/config/db');
 const { ResponseHandler } = require('../../src/utils/responseHandler');
 const ScopeGuard = require('../../src/authorization/ScopeGuard');
-const { createReport, updateReport } = require('../../src/controllers/business/production/reportController');
+const { createReport, updateReport, deleteReport } = require('../../src/controllers/business/production/reportController');
 
 describe('production report quantities and authenticated operator', () => {
   let connection;
@@ -162,4 +162,83 @@ describe('production report quantities and authenticated operator', () => {
     expect(reportWrites()).toHaveLength(0);
     expect(connection.commit).not.toHaveBeenCalled();
   });
+
+  test.each([['create', createReport], ['update', updateReport]])(
+    '%s checks reports committed while waiting for the task lock before accepting more output',
+    async (_, action) => {
+      const query = connection.query.getMockImplementation();
+      connection.query.mockImplementation(async (sql, params) => {
+        // Scope reads can establish an older REPEATABLE READ snapshot before
+        // the task lock is acquired. A locking read must see the latest total.
+        if (/SUM\(completed_quantity\)/.test(sql)) {
+          return [[{ total_reported: /FOR UPDATE/.test(sql) ? 95 : 20 }]];
+        }
+        return query(sql, params);
+      });
+
+      await action(makeRequest(validBody()), {});
+
+      expect(ResponseHandler.error.mock.calls[0]?.slice(2, 4)).toEqual(['VALIDATION_ERROR', 400]);
+      expect(reportWrites()).toHaveLength(0);
+      expect(connection.rollback).toHaveBeenCalledTimes(1);
+      expect(connection.commit).not.toHaveBeenCalled();
+    }
+  );
+
+  test('progress uses the current report total after a concurrent report committed', async () => {
+    const query = connection.query.getMockImplementation();
+    let insertedQuantity = 0;
+    connection.query.mockImplementation(async (sql, params) => {
+      if (/INSERT INTO production_reports/.test(sql)) insertedQuantity = 10;
+      if (/SUM\(completed_quantity\)/.test(sql)) {
+        return [[{ total_reported: (/FOR UPDATE/.test(sql) ? 35 : 20) + insertedQuantity }]];
+      }
+      return query(sql, params);
+    });
+
+    await createReport(makeRequest(validBody()), {});
+
+    expect(connection.commit).toHaveBeenCalledTimes(1);
+    const progressWrite = connection.query.mock.calls.find(([sql]) =>
+      /UPDATE production_tasks SET completed_quantity/.test(sql));
+    expect(progressWrite[1]).toEqual([45, 45, 42]);
+  });
+
+  test.each([['update', updateReport], ['delete', deleteReport]])(
+    '%s takes the task lock before locking reports to match concurrent creation',
+    async (_, action) => {
+      const query = connection.query.getMockImplementation();
+      let taskLocked = false;
+      connection.query.mockImplementation(async (sql, params) => {
+        if (/FROM production_tasks/.test(sql) && /FOR UPDATE/.test(sql)) taskLocked = true;
+        if (/FROM production_reports/.test(sql) && /FOR UPDATE/.test(sql) && !taskLocked) {
+          throw new Error('Report locked before its parent task');
+        }
+        return query(sql, params);
+      });
+
+      await action(makeRequest(validBody()), {});
+
+      expect(ResponseHandler.error).not.toHaveBeenCalled();
+      expect(connection.commit).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  test.each([['update', updateReport], ['delete', deleteReport]])(
+    '%s rejects a report deleted by a transaction that held the task lock',
+    async (_, action) => {
+      const query = connection.query.getMockImplementation();
+      connection.query.mockImplementation(async (sql, params) => {
+        if (/FROM production_reports WHERE id =/.test(sql) && /FOR UPDATE/.test(sql)) return [[]];
+        return query(sql, params);
+      });
+
+      await action(makeRequest(validBody()), {});
+
+      expect(ResponseHandler.error.mock.calls[0]?.slice(2, 4)).toEqual(['NOT_FOUND', 404]);
+      expect(connection.query.mock.calls.some(([sql]) => /(?:UPDATE|DELETE FROM) production_reports/.test(sql))).toBe(false);
+      expect(connection.rollback).toHaveBeenCalledTimes(1);
+      expect(connection.commit).not.toHaveBeenCalled();
+    }
+  );
 });

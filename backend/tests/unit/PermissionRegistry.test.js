@@ -28,6 +28,14 @@ function mockConn(handlers) {
 }
 
 describe('PermissionRegistry', () => {
+  test('菜单及权限注册禁止用户配置全局通配符', async () => {
+    const conn = { execute: jest.fn() };
+    expect(() => normalizePermissionCode(' * ')).toThrow('系统保留权限');
+    await expect(ensurePermission(conn, '*')).rejects.toThrow('系统保留权限');
+    await expect(bindMenuPermission(conn, 1, '*', '全权限')).rejects.toThrow('系统保留权限');
+    expect(conn.execute).not.toHaveBeenCalled();
+  });
+
   test('moduleOf 取首段', () => {
     expect(moduleOf('finance:ar:view')).toBe('finance');
     expect(moduleOf('dashboard')).toBe('dashboard');

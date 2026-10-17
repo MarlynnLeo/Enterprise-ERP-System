@@ -61,6 +61,7 @@ function toAssetApi(asset) {
     categoryId: asset.category_id,
     purchaseDate: asset.acquisition_date,
     originalValue,
+    acquisitionEntryItemId: asset.acquisition_entry_item_id || null,
     netValue: calculateAssetNetBookValue(asset),
     accumulatedDepreciation: Number(asset.accumulated_depreciation) || 0,
     impairmentAmount: Number(asset.impairment_amount) || 0,
@@ -84,6 +85,23 @@ function toAssetApi(asset) {
  * 固定资产控制器
  */
 const assetsController = {
+  getCostSources: async (req, res) => {
+    try {
+      const sources = await require('../../../services/business/AssetCostSourceService').list(
+        db.pool,
+        req.query.kind || 'asset',
+        req.query.search || ''
+      );
+      return ResponseHandler.success(res, sources, '获取成本来源成功');
+    } catch (error) {
+      return ResponseHandler.error(
+        res,
+        error.message,
+        error.code || 'SERVER_ERROR',
+        error.statusCode || 500
+      );
+    }
+  },
   /**
    * 获取固定资产列表
    */
@@ -249,6 +267,7 @@ const assetsController = {
         category_id: req.body.categoryId || null,
         acquisition_date: req.body.purchaseDate,
         acquisition_cost: parseFloat(req.body.originalValue),
+        acquisition_entry_item_id: req.body.acquisitionEntryItemId || null,
         depreciation_method: getDepreciationMethodText(req.body.depreciationMethod),
         useful_life: parseInt(req.body.usefulLife) * 12 || 60, // 将年转换为月
         salvage_value:
@@ -387,6 +406,10 @@ const assetsController = {
         asset_type: assetType,
         category_id: req.body.categoryId || existingAsset.category_id,
         acquisition_date: req.body.purchaseDate || existingAsset.acquisition_date,
+        acquisition_entry_item_id:
+          req.body.acquisitionEntryItemId === undefined
+            ? existingAsset.acquisition_entry_item_id
+            : req.body.acquisitionEntryItemId,
         depreciation_method: req.body.depreciationMethod || existingAsset.depreciation_method,
         useful_life: parseInt(req.body.usefulLife) || existingAsset.useful_life,
         salvage_value:
@@ -709,7 +732,7 @@ const assetsController = {
       }
 
       const [assets] = await connection.execute(
-        'SELECT id, status, audit_status, created_by FROM fixed_assets WHERE id = ? FOR UPDATE',
+        'SELECT id, asset_code, acquisition_cost, acquisition_entry_item_id, status, audit_status, created_by FROM fixed_assets WHERE id = ? FOR UPDATE',
         [assetId]
       );
       const asset = assets[0];
@@ -749,8 +772,10 @@ const assetsController = {
              (SELECT COUNT(*) FROM asset_depreciation WHERE asset_id = ?) AS depreciation_count,
              (SELECT COUNT(*) FROM asset_impairments WHERE asset_id = ?) AS impairment_count,
              (SELECT COUNT(*) FROM asset_transfers WHERE asset_id = ?) AS transfer_count,
-             (SELECT COUNT(*) FROM document_links WHERE source_type = 'asset' AND source_id = ? AND target_type = 'finance_voucher') AS voucher_link_count`,
-          [assetId, assetId, assetId, assetId, assetId]
+             (SELECT COUNT(*) FROM document_links WHERE source_type = 'asset' AND source_id = ? AND target_type = 'finance_voucher') AS voucher_link_count,
+             (SELECT COUNT(*) FROM document_links WHERE source_type = 'asset' AND target_type = 'asset' AND (source_id = ? OR target_id = ?)) AS split_link_count,
+             (SELECT COUNT(*) FROM asset_change_logs WHERE asset_id = ? AND change_type IN ('资产拆分', '资产拆入')) AS split_history_count`,
+          [assetId, assetId, assetId, assetId, assetId, assetId, assetId, assetId]
         );
         const usage = usageRows[0] || {};
         const hasFinancialUsage =
@@ -758,19 +783,31 @@ const assetsController = {
           Number(usage.depreciation_count || 0) > 0 ||
           Number(usage.impairment_count || 0) > 0 ||
           Number(usage.transfer_count || 0) > 0 ||
-          Number(usage.voucher_link_count || 0) > 0;
+          Number(usage.voucher_link_count || 0) > 0 ||
+          Number(usage.split_link_count || 0) > 0 ||
+          Number(usage.split_history_count || 0) > 0;
 
         if (hasFinancialUsage) {
           await connection.rollback();
           return ResponseHandler.error(
             res,
-            '资产已发生折旧、减值、调拨或凭证关联，不能反审核',
+            '资产已发生折旧、减值、调拨、拆分或凭证关联，不能反审核',
             'VALIDATION_ERROR',
             400
           );
         }
       }
 
+      if (action === 'approve') {
+        await require('../../../services/business/AssetCostSourceService').allocate(connection, {
+          kind: 'asset',
+          targetId: asset.id,
+          targetCode: asset.asset_code,
+          sourceId: asset.acquisition_entry_item_id,
+          amount: asset.acquisition_cost,
+          actor: getAuthenticatedUserId(req),
+        });
+      }
       const auditStatus = action === 'approve' ? 'approved' : 'draft';
       const auditedBy = action === 'approve' ? currentUserName : null;
       const auditedAt = action === 'approve' ? new Date() : null;
@@ -789,7 +826,13 @@ const assetsController = {
       return ResponseHandler.success(res, { auditStatus, auditedBy, auditedAt }, message);
     } catch (error) {
       await connection.rollback();
-      ResponseHandler.error(res, '审核操作失败', 'SERVER_ERROR', 500, error);
+      ResponseHandler.error(
+        res,
+        error.code === 'VALIDATION_ERROR' ? error.message : '审核操作失败',
+        error.code || 'SERVER_ERROR',
+        error.statusCode || 500,
+        error
+      );
     } finally {
       connection.release();
     }

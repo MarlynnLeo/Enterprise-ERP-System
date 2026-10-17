@@ -281,7 +281,7 @@
     &.active {
       background: var(--color-accent-bg, rgba(59, 130, 246, 0.1));
       border-color: var(--color-accent, var(--color-primary));
-      color: var(--color-accent, var(--color-primary));
+      color: var(--color-accent-text, var(--color-primary));
     }
   }
 
@@ -352,7 +352,7 @@
 
     &.type-material {
       background: rgba(245, 158, 11, 0.12);
-      color: var(--color-warning);
+      color: var(--color-warning-text);
     }
   }
 

@@ -144,7 +144,7 @@
             <el-table-column prop="createdAt" label="时间" width="140" />
           </el-table>
           <div v-if="alerts.length === 0 && !alertsLoading" class="no-alerts">
-            <EmptyState description="暂无成本预警" ::image-size="60" />
+            <EmptyState description="暂无成本预警" :image-size="60" />
           </div>
         </el-card>
       </el-col>

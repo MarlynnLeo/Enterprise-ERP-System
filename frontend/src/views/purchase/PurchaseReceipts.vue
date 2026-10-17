@@ -83,16 +83,27 @@
 
     <!-- 收货单列表 -->
     <el-card class="data-card">
+      <InventoryBatchApproval
+        :selected-rows="selectedApprovalRows"
+        source-type="purchase_receipt"
+        source-no-key="receiptNo"
+        :disabled="loading"
+        @clear="clearApprovalSelection"
+        @changed="handleBatchApprovalChanged"
+      />
       <el-table
+        ref="approvalTableRef"
         v-loading="loading"
         :data="receipts"
+        row-key="id"
         border
         class="table-row-click w-full"
-      
-      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewReceipt(row))">
+        @selection-change="handleApprovalSelectionChange"
+        @row-click="(row, column, event) => column?.type !== 'selection' && handleTableRowView(row, column, event, () => viewReceipt(row))">
         <template #empty>
           <EmptyState description="暂无收货单数据" />
         </template>
+        <el-table-column v-if="canBatchApprove" type="selection" width="48" fixed="left" :selectable="isApprovalSelectable" />
         <el-table-column prop="receiptNo" label="收货单号" min-width="120" show-overflow-tooltip></el-table-column>
         <el-table-column prop="receiptDate" label="收货日期" min-width="110">
           <template #default="scope">
@@ -181,11 +192,21 @@
           <el-descriptions-item label="备注" :span="2">{{ viewDialog.receipt.remarks }}</el-descriptions-item>
         </el-descriptions>
 
+        <el-alert
+          v-if="viewDialog.receipt.financeValidationError && !authStore.canViewInventoryApproval"
+          :title="viewDialog.receipt.financeValidationError"
+          type="error"
+          :closable="false"
+        />
         <InventoryApprovalPanel
+          ref="receiptApprovalRef"
           v-if="viewDialog.receipt?.id || viewDialog.receipt?.receiptNo"
-          source-type="inbound"
+          source-type="purchase_receipt"
+          :active="viewDialog.show"
           :source-id="viewDialog.receipt.id"
           :source-no="viewDialog.receipt.receiptNo"
+          @changed="loadReceipts"
+          @loaded="status => viewDialog.receipt.financeStatus = status"
         />
 
         <el-divider content-position="center">收货物料</el-divider>
@@ -249,6 +270,12 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="viewDialog.show = false">关闭</el-button>
+          <el-button
+            v-if="viewDialog.receipt.status === 'completed' && viewDialog.receipt.financeStatus === 'rejected' && authStore.hasPermission('purchase:receipts:update')"
+            type="warning"
+            :loading="updateStatusLoading"
+            @click="resubmitReceiptApproval"
+          >重新提交财务审核</el-button>
           <el-button v-permission="'purchase:receipts:view'" type="primary" @click="printReceipt" v-if="viewDialog.receipt.id">打印</el-button>
         </span>
       </template>
@@ -320,7 +347,7 @@
                 <el-tag type="success" size="large" class="mr-10">
                   <strong>{{ selectedSupplierName }}</strong>
                 </el-tag>
-                <el-button v-if="!receiptDialog.isEdit && !receiptDialog.form.inspectionId" link @click="selectedSupplierName = null">
+                <el-button v-if="!receiptDialog.isEdit && !receiptDialog.form.inspectionId" link @click="selectedSupplierName = null" aria-label="清除已选供应商">
                   <el-icon><Close /></el-icon>
                 </el-button>
               </div>
@@ -489,13 +516,14 @@ import { formatLocalDate } from '@/utils/format';
 const formatSpecification = (row) => row?.specification || row?.specs || row?.standard || row?.model || row?.spec || '未提供';
 import { parsePaginatedData, parseResponseData } from '@/utils/responseParser';
 import { loadLocationOptions } from '@/utils/optionLoaders';
-import { ref, reactive, onMounted, nextTick, watch, computed } from 'vue';
+import { ref, reactive, onMounted, onBeforeUnmount, onDeactivated, nextTick, watch, computed } from 'vue';
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
 
 import { purchaseApi, qualityApi, baseDataApi } from '@/api';
 
 import { formatCurrency } from '@/utils/helpers/formatters';
 import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { useRoute } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { Plus, Close } from '@element-plus/icons-vue'
@@ -508,6 +536,7 @@ import {
   getQualityStatusColor
 } from '@/constants/systemConstants';
 import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue';
+import InventoryBatchApproval from '@/components/inventory/InventoryBatchApproval.vue';
 import { getApiErrorMessage } from '@/utils/errorHandler'
 
 // 初始化认证存储
@@ -545,8 +574,23 @@ const {
   setCurrentItem: setCurrentViewReceipt
 } = useListDetailNavigation(receipts);
 const loading = ref(false);
+const approvalTableRef = ref(null);
+const selectedApprovalRows = ref([]);
+const canBatchApprove = computed(() => authStore.canViewInventoryApproval && authStore.canApproveInventoryApproval);
+const isApprovalSelectable = row => Boolean(
+  canBatchApprove.value && !loading.value && row?.id && row.status === 'completed' &&
+  (!row.financeStatus || row.financeStatus === 'pending')
+);
+const clearApprovalSelection = () => {
+  selectedApprovalRows.value = [];
+  approvalTableRef.value?.clearSelection?.();
+};
+const handleApprovalSelectionChange = rows => {
+  selectedApprovalRows.value = rows.filter(isApprovalSelectable);
+};
 const submitLoading = ref(false);
 const updateStatusLoading = ref(false);
+const receiptApprovalRef = ref(null);
 const detailLoading = ref(false);
 const totalReceipts = ref(0);
 ;
@@ -630,6 +674,11 @@ const receiptStats = ref({
 });
 // 获取路由对象
 const route = useRoute();
+watch(searchForm, clearApprovalSelection, { deep: true, flush: 'sync' });
+watch(receipts, clearApprovalSelection, { flush: 'sync' });
+watch(canBatchApprove, allowed => { if (!allowed) clearApprovalSelection(); }, { flush: 'sync' });
+onBeforeUnmount(clearApprovalSelection);
+onDeactivated(clearApprovalSelection);
 // 监听分页参数变化
 watch(
   () => [pagination.value.current, pagination.value.size],
@@ -704,6 +753,7 @@ const loadInspections = async () => {
 };
 // 方法：加载收货单列表
 async function loadReceipts() {
+  clearApprovalSelection();
   loading.value = true;
   try {
     const params = {
@@ -735,6 +785,23 @@ async function loadReceipts() {
     receiptStats.value = {};
   } finally {
     loading.value = false;
+  }
+}
+async function handleBatchApprovalChanged() {
+  const currentReceipt = viewDialog.show ? viewDialog.receipt : null;
+  await loadReceipts();
+  if (!currentReceipt?.id || !viewDialog.show || viewDialog.receipt !== currentReceipt) return;
+  try {
+    const response = await purchaseApi.getReceipt(currentReceipt.id);
+    const data = parseResponseData(response, null);
+    if (!viewDialog.show || viewDialog.receipt !== currentReceipt) return;
+    if (!data?.id) throw new Error('未能获取收货单详情');
+    viewDialog.receipt = { ...currentReceipt, ...data, items: data.items || currentReceipt.items || [] };
+    await receiptApprovalRef.value?.refresh?.();
+  } catch (error) {
+    if (viewDialog.show && viewDialog.receipt === currentReceipt) {
+      ElMessage.error('刷新收货单详情失败: ' + getApiErrorMessage(error, '未知错误'));
+    }
   }
 }
 // 方法：加载供应商列表
@@ -1235,6 +1302,29 @@ const submitReceipt = async () => {
   }
 };
 // 直接取消收货单
+const resubmitReceiptApproval = async () => {
+  const receipt = viewDialog.receipt;
+  const canResubmit = () => viewDialog.show && viewDialog.receipt === receipt &&
+    receipt?.id && receipt.status === 'completed' && receipt.financeStatus === 'rejected' &&
+    authStore.hasPermission('purchase:receipts:update');
+  if (updateStatusLoading.value || !canResubmit()) return;
+  updateStatusLoading.value = true;
+  try {
+    await ElMessageBox.confirm(`重新提交收货单 ${receipt.receiptNo} 的财务审核？`, '重新提交财务审核', { type: 'warning' });
+    if (!canResubmit()) return;
+    await purchaseApi.updateReceiptStatus(receipt.id, { status: 'completed' });
+    receipt.financeStatus = 'pending';
+    ElMessage.success('已重新提交财务审核');
+    await handleBatchApprovalChanged();
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error('重新提交失败: ' + getApiErrorMessage(error, '未知错误'));
+    }
+  } finally {
+    updateStatusLoading.value = false;
+  }
+};
+
 const cancelReceipt = async (receipt) => {
   updateStatusLoading.value = true;
   try {

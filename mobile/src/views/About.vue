@@ -99,7 +99,7 @@
   .version-badge {
     font-size: 0.75rem;
     font-weight: 600;
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     background: color-mix(in srgb, var(--color-primary) 10%, transparent);
     padding: 2px 12px;
     border-radius: 99px;

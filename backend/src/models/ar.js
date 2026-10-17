@@ -20,6 +20,7 @@ const {
 const DocumentLinkService = require('../services/business/DocumentLinkService');
 const { DOCUMENT_LINK_TYPES: DocType } = require('../constants/documentLinkTypes');
 const VoucherReversalService = require('../services/finance/VoucherReversalService');
+const SettlementCashService = require('../services/finance/SettlementCashService');
 const { currentDateString, toLocalDateString } = require('../utils/dateUtils');
 const {
   toCents,
@@ -31,6 +32,7 @@ const {
   invoiceStatusAfterSettlement,
   isTruthyFlag,
   assertInvoiceSettlementsEligible,
+  normalizeSettlementPaymentMethod,
 } = require('../utils/finance/settlementMath');
 const { applyNormalizedInvoiceAmounts } = require('../utils/finance/invoiceAmounts');
 const { toInvoiceApi } = require('../utils/finance/invoiceFieldMap');
@@ -1097,6 +1099,10 @@ const arModel = {
    * @param {Object|null} externalConnection 可选外层事务连接（批量收款时复用）
    */
   createReceipt: async (receiptData, receiptItems, externalConnection = null) => {
+    receiptData = {
+      ...receiptData,
+      payment_method: normalizeSettlementPaymentMethod(receiptData.payment_method),
+    };
     const isExternalTransaction = !!externalConnection;
     let connection = externalConnection;
     try {
@@ -1166,6 +1172,9 @@ const arModel = {
         }
 
         const invoice = invoices[0];
+        if (Number(invoice.customer_id) !== Number(receiptData.customer_id)) {
+          throw new Error('收款客户与发票客户不一致');
+        }
         if (
           String(invoice.currency_code || 'CNY').toUpperCase() !== 'CNY' ||
           Math.abs(Number(invoice.exchange_rate || 1) - 1) > 0.000001
@@ -1316,6 +1325,7 @@ const arModel = {
         }
         entryItems.push({
           account_id: glEntry.receivable_account_id,
+          customer_id: receiptData.customer_id,
           debit_amount: 0,
           credit_amount: totalSettlement,
           description: `应收账款减少 - 收款单号: ${receiptData.receipt_number}`,
@@ -1341,6 +1351,20 @@ const arModel = {
             bankTransactionId,
           ]);
         }
+      }
+
+      if (receiptData.payment_method === '现金') {
+        await SettlementCashService.create(connection, {
+          kind: 'ar',
+          settlementId: receiptId,
+          number: receiptData.receipt_number,
+          date: receiptData.receipt_date,
+          amount: totalPaid,
+          counterparty: receiptData.customer_name,
+          userId: receiptData.created_by,
+          entryId: glEntryId,
+          entryNumber: glEntryNumber,
+        });
       }
 
       for (const invoice of linkedInvoices) {
@@ -1657,6 +1681,7 @@ const arModel = {
 
       const receipt = receipts[0];
       let originalBankTransactionId = null;
+      const reversalDate = currentDateString();
       let originalBankTransactionNumber = null;
       let reversalBankTransactionId = null;
       let reversalBankTransactionNumber = null;
@@ -1719,7 +1744,11 @@ const arModel = {
       }
 
       // 5. 如果有银行交易记录，创建冲销交易
-      if (receipt.bank_account_id && BANK_BACKED_PAYMENT_METHODS.has(receipt.payment_method)) {
+      if (
+        toCents(receipt.total_amount) !== 0 &&
+        receipt.bank_account_id &&
+        BANK_BACKED_PAYMENT_METHODS.has(receipt.payment_method)
+      ) {
         try {
           // 获取原银行交易记录
           const [bankTxs] = await connection.execute(
@@ -1741,7 +1770,6 @@ const arModel = {
             throw new Error('关联银行流水已对账，请先取消对账后再作废收款');
           }
 
-          const reversalDate = currentDateString();
           originalBankTransactionId = originalTx.id;
           originalBankTransactionNumber = originalTx.transaction_number;
           reversalBankTransactionNumber = `${receipt.receipt_number}-VOID`;
@@ -1794,13 +1822,27 @@ const arModel = {
           documentType: DOCUMENT_TYPES.COLLECTION,
           voidedBy,
           reason: `冲销收款凭证 - 原因: ${voidData.void_reason}`,
+          entryDate: reversalDate,
         });
         for (const item of reversed) {
-          reversalEntries.push({ entryId: item.entryId, entryNumber: item.entryNumber });
+          reversalEntries.push(item);
         }
       } catch (err) {
         logger.error(`[作废收款] 冲销GL凭证失败: ${err.message}`);
         throw new Error(`冲销GL凭证失败: ${err.message}`, { cause: err });
+      }
+
+      if (receipt.payment_method === '现金') {
+        await SettlementCashService.reverse(connection, {
+          kind: 'ar',
+          settlementId: receiptId,
+          number: receipt.receipt_number,
+          date: reversalDate,
+          amount: receipt.total_amount,
+          userId: voidedBy,
+          reason: voidData.void_reason,
+          reversalEntries,
+        });
       }
 
       for (const reversalEntry of reversalEntries) {

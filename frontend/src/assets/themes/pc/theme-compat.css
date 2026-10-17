@@ -286,7 +286,7 @@
 }
 
 [data-theme] .el-loading-spinner .circular {
-  color: var(--color-primary) !important;
+  color: var(--color-primary-text) !important;
 }
 
 [data-theme] .el-loading-spinner .path,
@@ -336,6 +336,24 @@
   --erp-table-header-image: none;
 }
 
+:root[data-theme] {
+  --color-primary-text: color-mix(in srgb, var(--color-primary) 35%, var(--color-text-primary));
+  --color-primary-hover-fill: var(--color-primary);
+  --color-primary-active-fill: var(--color-primary);
+  --color-success-text: color-mix(in srgb, var(--color-success) 35%, var(--color-text-primary));
+  --color-success-hover-fill: var(--color-success);
+  --color-success-active-fill: var(--color-success);
+  --color-warning-text: color-mix(in srgb, var(--color-warning) 35%, var(--color-text-primary));
+  --color-warning-hover-fill: var(--color-warning);
+  --color-warning-active-fill: var(--color-warning);
+  --color-danger-text: color-mix(in srgb, var(--color-danger) 35%, var(--color-text-primary));
+  --color-danger-hover-fill: var(--color-danger);
+  --color-danger-active-fill: var(--color-danger);
+  --color-info-text: color-mix(in srgb, var(--color-info) 35%, var(--color-text-primary));
+  --color-info-hover-fill: var(--color-info);
+  --color-info-active-fill: var(--color-info);
+}
+
 /* Theme status tokens only. Buttons/cards/page surfaces stay page-owned. */
 :root[data-theme] {
   --theme-status-radius: 999px;
@@ -345,19 +363,19 @@
   --theme-status-shadow: none;
   --theme-status-dot-size: 6px;
   --theme-status-primary-bg: color-mix(in srgb, var(--color-primary) 12%, var(--color-bg-base));
-  --theme-status-primary-color: var(--color-primary);
+  --theme-status-primary-color: var(--color-primary-text);
   --theme-status-primary-border: color-mix(in srgb, var(--color-primary) 24%, transparent);
   --theme-status-success-bg: color-mix(in srgb, var(--color-success) 12%, var(--color-bg-base));
-  --theme-status-success-color: var(--color-success);
+  --theme-status-success-color: var(--color-success-text);
   --theme-status-success-border: color-mix(in srgb, var(--color-success) 26%, transparent);
   --theme-status-warning-bg: color-mix(in srgb, var(--color-warning) 14%, var(--color-bg-base));
-  --theme-status-warning-color: var(--color-warning);
+  --theme-status-warning-color: var(--color-warning-text);
   --theme-status-warning-border: color-mix(in srgb, var(--color-warning) 28%, transparent);
   --theme-status-danger-bg: color-mix(in srgb, var(--color-danger) 12%, var(--color-bg-base));
-  --theme-status-danger-color: var(--color-danger);
+  --theme-status-danger-color: var(--color-danger-text);
   --theme-status-danger-border: color-mix(in srgb, var(--color-danger) 26%, transparent);
   --theme-status-info-bg: color-mix(in srgb, var(--color-info) 12%, var(--color-bg-base));
-  --theme-status-info-color: var(--color-text-secondary);
+  --theme-status-info-color: var(--color-info-text);
   --theme-status-info-border: color-mix(in srgb, var(--color-info) 24%, transparent);
 }
 
@@ -420,7 +438,7 @@
   --theme-status-radius: 999px;
   --theme-status-padding: 3px 10px;
   --theme-status-font-weight: 600;
-  --theme-status-primary-color: var(--color-primary-dark-2);
+  --theme-status-primary-color: var(--color-primary-text);
   --theme-status-primary-border: color-mix(in srgb, var(--color-primary) 24%, transparent);
   --theme-status-shadow: none;
 }
@@ -658,12 +676,14 @@
   --el-button-text-color: var(--color-text-regular);
   --el-button-bg-color: var(--color-bg-base);
   --el-button-border-color: var(--color-border-base);
-  --el-button-hover-text-color: var(--color-primary);
+  --el-button-hover-text-color: var(--color-primary-text);
   --el-button-hover-bg-color: var(--color-primary-light-9);
   --el-button-hover-border-color: var(--color-primary-light-7);
-  --el-button-active-text-color: var(--color-primary);
+  --el-button-active-text-color: var(--color-primary-text);
   --el-button-active-bg-color: var(--color-primary-light-9);
   --el-button-active-border-color: var(--color-primary);
+  --el-button-hover-link-text-color: var(--color-primary-text);
+  --el-button-active-color: var(--color-primary-text);
   --el-button-disabled-text-color: var(--color-text-placeholder);
   --el-button-disabled-bg-color: var(--color-bg-base);
   --el-button-disabled-border-color: var(--color-border-lighter);
@@ -677,25 +697,25 @@
   --el-button-border-color: var(--color-primary);
   --el-button-text-color: var(--color-on-primary);
   --el-button-hover-text-color: var(--color-on-primary);
-  --el-button-hover-bg-color: var(--color-primary);
-  --el-button-hover-border-color: var(--color-primary-dark-2, var(--color-primary));
+  --el-button-hover-bg-color: var(--color-primary-hover-fill);
+  --el-button-hover-border-color: var(--color-primary-hover-fill);
   --el-button-active-text-color: var(--color-on-primary);
-  --el-button-active-bg-color: var(--color-primary-dark-2, var(--color-primary));
-  --el-button-active-border-color: var(--color-primary-dark-2, var(--color-primary));
+  --el-button-active-bg-color: var(--color-primary-active-fill);
+  --el-button-active-border-color: var(--color-primary-active-fill);
   --el-button-disabled-text-color: color-mix(in srgb, var(--color-on-primary) 70%, var(--color-primary));
   --el-button-disabled-bg-color: color-mix(in srgb, var(--color-primary) 50%, var(--color-bg-base));
   --el-button-disabled-border-color: var(--el-button-disabled-bg-color);
-  --theme-button-image: var(--theme-button-primary-image, linear-gradient(135deg, var(--color-primary), var(--color-primary-dark-2, var(--color-primary))));
-  --theme-button-hover-image: var(--theme-button-primary-hover-image, linear-gradient(135deg, var(--color-primary-dark-2, var(--color-primary)), var(--color-primary)));
+  --theme-button-image: var(--theme-button-primary-image, linear-gradient(135deg, var(--color-primary), var(--color-primary-hover-fill)));
+  --theme-button-hover-image: var(--theme-button-primary-hover-image, linear-gradient(135deg, var(--color-primary-hover-fill), var(--color-primary)));
   --theme-button-active-image: none;
 }
 
 :root[data-theme] .el-button--primary.is-plain {
-  --el-button-text-color: var(--color-primary);
+  --el-button-text-color: var(--color-primary-text);
   --el-button-bg-color: var(--color-primary-light-9);
   --el-button-border-color: color-mix(in srgb, var(--color-primary) 50%, var(--color-bg-base));
   --el-button-hover-text-color: var(--color-on-primary);
-  --el-button-hover-bg-color: var(--color-primary);
+  --el-button-hover-bg-color: var(--color-primary-hover-fill);
   --el-button-hover-border-color: var(--color-primary);
   --el-button-disabled-text-color: color-mix(in srgb, var(--color-primary) 50%, var(--color-bg-base));
   --el-button-disabled-bg-color: var(--color-primary-light-9);
@@ -704,9 +724,11 @@
 
 :root[data-theme] .el-button--primary.is-link,
 :root[data-theme] .el-button--primary.is-text {
-  --el-button-text-color: var(--color-primary);
-  --el-button-hover-text-color: var(--color-primary);
-  --el-button-active-text-color: var(--color-primary-dark-2, var(--color-primary));
+  --el-button-hover-link-text-color: var(--color-primary-text);
+  --el-button-active-color: var(--color-primary-text);
+  --el-button-text-color: var(--color-primary-text);
+  --el-button-hover-text-color: var(--color-primary-text);
+  --el-button-active-text-color: var(--color-primary-text);
   --el-button-disabled-text-color: color-mix(in srgb, var(--color-primary) 50%, var(--color-bg-base));
 }
 
@@ -715,25 +737,25 @@
   --el-button-border-color: var(--color-success);
   --el-button-text-color: var(--color-on-success);
   --el-button-hover-text-color: var(--color-on-success);
-  --el-button-hover-bg-color: var(--color-success);
-  --el-button-hover-border-color: var(--color-success-dark, var(--color-success));
+  --el-button-hover-bg-color: var(--color-success-hover-fill);
+  --el-button-hover-border-color: var(--color-success-hover-fill);
   --el-button-active-text-color: var(--color-on-success);
-  --el-button-active-bg-color: var(--color-success-dark, var(--color-success));
-  --el-button-active-border-color: var(--color-success-dark, var(--color-success));
+  --el-button-active-bg-color: var(--color-success-active-fill);
+  --el-button-active-border-color: var(--color-success-active-fill);
   --el-button-disabled-text-color: color-mix(in srgb, var(--color-on-success) 70%, var(--color-success));
   --el-button-disabled-bg-color: color-mix(in srgb, var(--color-success) 50%, var(--color-bg-base));
   --el-button-disabled-border-color: var(--el-button-disabled-bg-color);
-  --theme-button-image: var(--theme-button-success-image, linear-gradient(135deg, var(--color-success), var(--color-success-dark, var(--color-success))));
-  --theme-button-hover-image: var(--theme-button-success-hover-image, linear-gradient(135deg, var(--color-success-dark, var(--color-success)), var(--color-success)));
+  --theme-button-image: var(--theme-button-success-image, linear-gradient(135deg, var(--color-success), var(--color-success-hover-fill)));
+  --theme-button-hover-image: var(--theme-button-success-hover-image, linear-gradient(135deg, var(--color-success-hover-fill), var(--color-success)));
   --theme-button-active-image: none;
 }
 
 :root[data-theme] .el-button--success.is-plain {
-  --el-button-text-color: var(--color-success);
+  --el-button-text-color: var(--color-success-text);
   --el-button-bg-color: var(--color-success-light);
   --el-button-border-color: color-mix(in srgb, var(--color-success) 50%, var(--color-bg-base));
   --el-button-hover-text-color: var(--color-on-success);
-  --el-button-hover-bg-color: var(--color-success);
+  --el-button-hover-bg-color: var(--color-success-hover-fill);
   --el-button-hover-border-color: var(--color-success);
   --el-button-disabled-text-color: color-mix(in srgb, var(--color-success) 50%, var(--color-bg-base));
   --el-button-disabled-bg-color: var(--color-success-light);
@@ -742,9 +764,11 @@
 
 :root[data-theme] .el-button--success.is-link,
 :root[data-theme] .el-button--success.is-text {
-  --el-button-text-color: var(--color-success);
-  --el-button-hover-text-color: var(--color-success);
-  --el-button-active-text-color: var(--color-success-dark, var(--color-success));
+  --el-button-hover-link-text-color: var(--color-success-text);
+  --el-button-active-color: var(--color-success-text);
+  --el-button-text-color: var(--color-success-text);
+  --el-button-hover-text-color: var(--color-success-text);
+  --el-button-active-text-color: var(--color-success-text);
   --el-button-disabled-text-color: color-mix(in srgb, var(--color-success) 50%, var(--color-bg-base));
 }
 
@@ -753,25 +777,25 @@
   --el-button-border-color: var(--color-warning);
   --el-button-text-color: var(--color-on-warning);
   --el-button-hover-text-color: var(--color-on-warning);
-  --el-button-hover-bg-color: var(--color-warning);
-  --el-button-hover-border-color: var(--color-warning-dark, var(--color-warning));
+  --el-button-hover-bg-color: var(--color-warning-hover-fill);
+  --el-button-hover-border-color: var(--color-warning-hover-fill);
   --el-button-active-text-color: var(--color-on-warning);
-  --el-button-active-bg-color: var(--color-warning-dark, var(--color-warning));
-  --el-button-active-border-color: var(--color-warning-dark, var(--color-warning));
+  --el-button-active-bg-color: var(--color-warning-active-fill);
+  --el-button-active-border-color: var(--color-warning-active-fill);
   --el-button-disabled-text-color: color-mix(in srgb, var(--color-on-warning) 70%, var(--color-warning));
   --el-button-disabled-bg-color: color-mix(in srgb, var(--color-warning) 50%, var(--color-bg-base));
   --el-button-disabled-border-color: var(--el-button-disabled-bg-color);
-  --theme-button-image: var(--theme-button-warning-image, linear-gradient(135deg, var(--color-warning), var(--color-warning-dark, var(--color-warning))));
-  --theme-button-hover-image: var(--theme-button-warning-hover-image, linear-gradient(135deg, var(--color-warning-dark, var(--color-warning)), var(--color-warning)));
+  --theme-button-image: var(--theme-button-warning-image, linear-gradient(135deg, var(--color-warning), var(--color-warning-hover-fill)));
+  --theme-button-hover-image: var(--theme-button-warning-hover-image, linear-gradient(135deg, var(--color-warning-hover-fill), var(--color-warning)));
   --theme-button-active-image: none;
 }
 
 :root[data-theme] .el-button--warning.is-plain {
-  --el-button-text-color: var(--color-warning);
+  --el-button-text-color: var(--color-warning-text);
   --el-button-bg-color: var(--color-warning-light);
   --el-button-border-color: color-mix(in srgb, var(--color-warning) 50%, var(--color-bg-base));
   --el-button-hover-text-color: var(--color-on-warning);
-  --el-button-hover-bg-color: var(--color-warning);
+  --el-button-hover-bg-color: var(--color-warning-hover-fill);
   --el-button-hover-border-color: var(--color-warning);
   --el-button-disabled-text-color: color-mix(in srgb, var(--color-warning) 50%, var(--color-bg-base));
   --el-button-disabled-bg-color: var(--color-warning-light);
@@ -780,9 +804,11 @@
 
 :root[data-theme] .el-button--warning.is-link,
 :root[data-theme] .el-button--warning.is-text {
-  --el-button-text-color: var(--color-warning);
-  --el-button-hover-text-color: var(--color-warning);
-  --el-button-active-text-color: var(--color-warning-dark, var(--color-warning));
+  --el-button-hover-link-text-color: var(--color-warning-text);
+  --el-button-active-color: var(--color-warning-text);
+  --el-button-text-color: var(--color-warning-text);
+  --el-button-hover-text-color: var(--color-warning-text);
+  --el-button-active-text-color: var(--color-warning-text);
   --el-button-disabled-text-color: color-mix(in srgb, var(--color-warning) 50%, var(--color-bg-base));
 }
 
@@ -791,25 +817,25 @@
   --el-button-border-color: var(--color-danger);
   --el-button-text-color: var(--color-on-danger);
   --el-button-hover-text-color: var(--color-on-danger);
-  --el-button-hover-bg-color: var(--color-danger);
-  --el-button-hover-border-color: var(--color-danger-dark, var(--color-danger));
+  --el-button-hover-bg-color: var(--color-danger-hover-fill);
+  --el-button-hover-border-color: var(--color-danger-hover-fill);
   --el-button-active-text-color: var(--color-on-danger);
-  --el-button-active-bg-color: var(--color-danger-dark, var(--color-danger));
-  --el-button-active-border-color: var(--color-danger-dark, var(--color-danger));
+  --el-button-active-bg-color: var(--color-danger-active-fill);
+  --el-button-active-border-color: var(--color-danger-active-fill);
   --el-button-disabled-text-color: color-mix(in srgb, var(--color-on-danger) 70%, var(--color-danger));
   --el-button-disabled-bg-color: color-mix(in srgb, var(--color-danger) 50%, var(--color-bg-base));
   --el-button-disabled-border-color: var(--el-button-disabled-bg-color);
-  --theme-button-image: var(--theme-button-danger-image, linear-gradient(135deg, var(--color-danger), var(--color-danger-dark, var(--color-danger))));
-  --theme-button-hover-image: var(--theme-button-danger-hover-image, linear-gradient(135deg, var(--color-danger-dark, var(--color-danger)), var(--color-danger)));
+  --theme-button-image: var(--theme-button-danger-image, linear-gradient(135deg, var(--color-danger), var(--color-danger-hover-fill)));
+  --theme-button-hover-image: var(--theme-button-danger-hover-image, linear-gradient(135deg, var(--color-danger-hover-fill), var(--color-danger)));
   --theme-button-active-image: none;
 }
 
 :root[data-theme] .el-button--danger.is-plain {
-  --el-button-text-color: var(--color-danger);
+  --el-button-text-color: var(--color-danger-text);
   --el-button-bg-color: var(--color-danger-light);
   --el-button-border-color: color-mix(in srgb, var(--color-danger) 50%, var(--color-bg-base));
   --el-button-hover-text-color: var(--color-on-danger);
-  --el-button-hover-bg-color: var(--color-danger);
+  --el-button-hover-bg-color: var(--color-danger-hover-fill);
   --el-button-hover-border-color: var(--color-danger);
   --el-button-disabled-text-color: color-mix(in srgb, var(--color-danger) 50%, var(--color-bg-base));
   --el-button-disabled-bg-color: var(--color-danger-light);
@@ -818,9 +844,11 @@
 
 :root[data-theme] .el-button--danger.is-link,
 :root[data-theme] .el-button--danger.is-text {
-  --el-button-text-color: var(--color-danger);
-  --el-button-hover-text-color: var(--color-danger);
-  --el-button-active-text-color: var(--color-danger-dark, var(--color-danger));
+  --el-button-hover-link-text-color: var(--color-danger-text);
+  --el-button-active-color: var(--color-danger-text);
+  --el-button-text-color: var(--color-danger-text);
+  --el-button-hover-text-color: var(--color-danger-text);
+  --el-button-active-text-color: var(--color-danger-text);
   --el-button-disabled-text-color: color-mix(in srgb, var(--color-danger) 50%, var(--color-bg-base));
 }
 
@@ -829,25 +857,25 @@
   --el-button-border-color: var(--color-info);
   --el-button-text-color: var(--color-on-info);
   --el-button-hover-text-color: var(--color-on-info);
-  --el-button-hover-bg-color: var(--color-info);
-  --el-button-hover-border-color: var(--color-info-dark, var(--color-info));
+  --el-button-hover-bg-color: var(--color-info-hover-fill);
+  --el-button-hover-border-color: var(--color-info-hover-fill);
   --el-button-active-text-color: var(--color-on-info);
-  --el-button-active-bg-color: var(--color-info-dark, var(--color-info));
-  --el-button-active-border-color: var(--color-info-dark, var(--color-info));
+  --el-button-active-bg-color: var(--color-info-active-fill);
+  --el-button-active-border-color: var(--color-info-active-fill);
   --el-button-disabled-text-color: color-mix(in srgb, var(--color-on-info) 70%, var(--color-info));
   --el-button-disabled-bg-color: color-mix(in srgb, var(--color-info) 50%, var(--color-bg-base));
   --el-button-disabled-border-color: var(--el-button-disabled-bg-color);
-  --theme-button-image: var(--theme-button-info-image, linear-gradient(135deg, var(--color-info), var(--color-info-dark, var(--color-info))));
-  --theme-button-hover-image: var(--theme-button-info-hover-image, linear-gradient(135deg, var(--color-info-dark, var(--color-info)), var(--color-info)));
+  --theme-button-image: var(--theme-button-info-image, linear-gradient(135deg, var(--color-info), var(--color-info-hover-fill)));
+  --theme-button-hover-image: var(--theme-button-info-hover-image, linear-gradient(135deg, var(--color-info-hover-fill), var(--color-info)));
   --theme-button-active-image: none;
 }
 
 :root[data-theme] .el-button--info.is-plain {
-  --el-button-text-color: var(--color-info);
+  --el-button-text-color: var(--color-info-text);
   --el-button-bg-color: var(--color-info-light);
   --el-button-border-color: color-mix(in srgb, var(--color-info) 50%, var(--color-bg-base));
   --el-button-hover-text-color: var(--color-on-info);
-  --el-button-hover-bg-color: var(--color-info);
+  --el-button-hover-bg-color: var(--color-info-hover-fill);
   --el-button-hover-border-color: var(--color-info);
   --el-button-disabled-text-color: color-mix(in srgb, var(--color-info) 50%, var(--color-bg-base));
   --el-button-disabled-bg-color: var(--color-info-light);
@@ -856,9 +884,11 @@
 
 :root[data-theme] .el-button--info.is-link,
 :root[data-theme] .el-button--info.is-text {
-  --el-button-text-color: var(--color-info);
-  --el-button-hover-text-color: var(--color-info);
-  --el-button-active-text-color: var(--color-info-dark, var(--color-info));
+  --el-button-hover-link-text-color: var(--color-info-text);
+  --el-button-active-color: var(--color-info-text);
+  --el-button-text-color: var(--color-info-text);
+  --el-button-hover-text-color: var(--color-info-text);
+  --el-button-active-text-color: var(--color-info-text);
   --el-button-disabled-text-color: color-mix(in srgb, var(--color-info) 50%, var(--color-bg-base));
 }
 
@@ -911,12 +941,12 @@
   border-color: var(--color-border-base);
 }
 
-[data-theme] .el-select-dropdown__item {
+[data-theme] .el-select-dropdown__item:not(.is-disabled) {
   color: var(--color-text-primary);
 }
 
-[data-theme] .el-select-dropdown__item.hover,
-[data-theme] .el-select-dropdown__item:hover {
+[data-theme] .el-select-dropdown__item.hover:not(.is-disabled),
+[data-theme] .el-select-dropdown__item:not(.is-disabled):hover {
   background-color: var(--color-bg-hover);
 }
 
@@ -936,7 +966,7 @@
 }
 
 [data-theme] .el-pager li:hover {
-  color: var(--color-primary);
+  color: var(--color-primary-text);
 }
 
 [data-theme] .el-pager li.is-active {
@@ -951,12 +981,12 @@
   border-bottom-color: var(--color-border-base);
 }
 
-[data-theme] .el-tabs__item {
+[data-theme] .el-tabs__item:not(.is-disabled) {
   color: var(--color-text-regular);
 }
 
-[data-theme] .el-tabs__item.is-active {
-  color: var(--color-primary);
+[data-theme] .el-tabs__item.is-active:not(.is-disabled) {
+  color: var(--color-primary-text);
 }
 
 [data-theme] .el-tabs__active-bar {
@@ -974,35 +1004,35 @@
    Checkbox / Radio / Switch — 所有主题通用兜底
    使用 --color-on-primary 确保选中态文字在任何主色上可见
    ====================================================== */
-[data-theme] .el-checkbox__input.is-checked .el-checkbox__inner {
+[data-theme] .el-checkbox__input.is-checked:not(.is-disabled) .el-checkbox__inner {
   background-color: var(--color-primary);
   border-color: var(--color-primary);
 }
 
-[data-theme] .el-checkbox__input.is-checked .el-checkbox__inner::after {
+[data-theme] .el-checkbox__input.is-checked:not(.is-disabled) .el-checkbox__inner::after {
   border-color: var(--color-on-primary);
 }
 
-[data-theme] .el-checkbox__input.is-indeterminate .el-checkbox__inner {
+[data-theme] .el-checkbox__input.is-indeterminate:not(.is-disabled) .el-checkbox__inner {
   background-color: var(--color-primary);
   border-color: var(--color-primary);
 }
 
-[data-theme] .el-checkbox__input.is-indeterminate .el-checkbox__inner::before {
+[data-theme] .el-checkbox__input.is-indeterminate:not(.is-disabled) .el-checkbox__inner::before {
   background-color: var(--color-on-primary);
 }
 
-[data-theme] .el-radio__input.is-checked .el-radio__inner {
+[data-theme] .el-radio__input.is-checked:not(.is-disabled) .el-radio__inner {
   background-color: var(--color-primary);
   border-color: var(--color-primary);
 }
 
-[data-theme] .el-radio__input.is-checked .el-radio__inner::after {
+[data-theme] .el-radio__input.is-checked:not(.is-disabled) .el-radio__inner::after {
   background-color: var(--color-on-primary);
 }
 
 /* Radio-button active state */
-[data-theme] .el-radio-button__original-radio:checked + .el-radio-button__inner {
+[data-theme] .el-radio-button__original-radio:checked:not(:disabled) + .el-radio-button__inner {
   background-color: var(--color-primary);
   border-color: var(--color-primary);
   color: var(--color-on-primary);
@@ -1010,7 +1040,7 @@
 }
 
 /* Switch */
-[data-theme] .el-switch.is-checked .el-switch__core {
+[data-theme] .el-switch.is-checked:not(.is-disabled) .el-switch__core {
   background-color: var(--color-primary);
   border-color: var(--color-primary);
 }
@@ -1186,7 +1216,7 @@
 
 [data-theme] .el-dropdown-menu__item:not(.is-disabled):hover {
   background-color: var(--color-bg-hover);
-  color: var(--color-primary);
+  color: var(--color-primary-text);
 }
 
 /* ======================================================
@@ -1214,18 +1244,4 @@
 
 [data-theme] .el-alert__description {
   color: var(--color-text-regular);
-}
-
-/* Layered important declarations outrank unlayered component overrides. */
-@layer accessibility {
-  @media (prefers-reduced-motion: reduce) {
-    [data-theme] *,
-    [data-theme] *::before,
-    [data-theme] *::after {
-      scroll-behavior: auto !important;
-      animation-duration: 0.01ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
-    }
-  }
 }

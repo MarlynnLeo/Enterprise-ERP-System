@@ -68,11 +68,11 @@
         <div class="stat-label">配料中</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value">{{ taskStats.material_issued || 0 }}</div>
+        <div class="stat-value">{{ taskStats.materialIssued || 0 }}</div>
         <div class="stat-label">已发料</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value">{{ taskStats.in_progress || 0 }}</div>
+        <div class="stat-value">{{ taskStats.inProgress || 0 }}</div>
         <div class="stat-label">生产中</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
@@ -271,6 +271,15 @@
               v-permission="'production:process:view'"
             >
               指导书
+            </el-button>
+            <el-button
+              size="small"
+              type="danger"
+              plain
+              @click="router.push({ path: '/production/anomaly', query: { taskId: scope.row.id } })"
+              v-permission="'production:anomaly:create'"
+            >
+              上报异常
             </el-button>
           </template>
         </el-table-column>
@@ -799,7 +808,7 @@
               </template>
             </el-table-column>
           </el-table>
-          <EmptyState v-else description="该任务无BOM数据" ::image-size="40" />
+          <EmptyState v-else description="该任务无BOM数据" :image-size="40" />
           <div v-if="returnItems.length > 0" class="return-hint">
             已选择 {{ returnItems.length }} 种物料退料
           </div>
@@ -915,8 +924,8 @@ const taskStats = ref({
   total: 0,
   pending: 0,
   preparing: 0,
-  material_issued: 0,
-  in_progress: 0,
+  materialIssued: 0,
+  inProgress: 0,
   completed: 0,
   cancelled: 0
 })
@@ -1382,13 +1391,13 @@ const fetchTaskList = async () => {
 
     total.value = response.data?.total || tasks.length
 
-    // 使用后端返回的统计数据（统一使用下划线命名）
+    // 统计字段遵循 API 的 camelCase，任务状态值仍使用下划线枚举
     taskStats.value = response.data.statistics || {
       total: 0,
       pending: 0,
       preparing: 0,
-      material_issued: 0,
-      in_progress: 0,
+      materialIssued: 0,
+      inProgress: 0,
       completed: 0,
       cancelled: 0
     }

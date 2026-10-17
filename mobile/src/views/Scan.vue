@@ -46,15 +46,17 @@
       <!-- 扫码类型选择 -->
       <div class="type-selector-section">
         <div class="type-tabs">
-          <div
+          <button
             v-for="type in scanTypes"
             :key="type.value"
+            type="button"
             :class="['type-tab', { active: selectedType === type.value }]"
+            :aria-label="type.label"
+            :aria-pressed="selectedType === type.value"
             @click="selectType(type.value)"
           >
-            <Icon :name="type.icon" size="1.25rem" />
-            <span>{{ type.label }}</span>
-          </div>
+            <Icon :name="type.icon" size="1.25rem" aria-hidden="true" />
+          </button>
         </div>
       </div>
 
@@ -352,7 +354,7 @@
       { value: 'location', label: '库位', icon: 'location-marker' },
       { value: 'order', label: '订单', icon: 'document-text' },
       { value: 'product', label: '产品', icon: 'shopping-bag' },
-      { value: 'inspection', label: inspectionLabel.value, icon: 'clipboard-check' },
+      { value: 'inspection', label: inspectionLabel.value, icon: 'beaker' },
       { value: 'assembly', label: '装配防错', icon: 'shield-check' }
     ]
     return types
@@ -1030,9 +1032,8 @@
 
   .type-tab {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 0.5rem;
+    justify-content: center;
     padding: 0.75rem 0.5rem;
     border-radius: 0.75rem;
     background: var(--bg-secondary);
@@ -1188,13 +1189,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--color-success);
+    color: var(--color-success-text);
   }
 
   .success-text {
     font-size: 1rem;
     font-weight: 600;
-    color: var(--color-success);
+    color: var(--color-success-text);
   }
 
   .result-content {
@@ -1303,7 +1304,7 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     flex-shrink: 0;
   }
   .add-hint {

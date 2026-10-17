@@ -263,19 +263,19 @@
     }
     &.status-pending {
       background: rgba(245, 158, 11, 0.12);
-      color: var(--color-warning);
+      color: var(--color-warning-text);
     }
     &.status-approved {
       background: rgba(59, 130, 246, 0.12);
-      color: var(--color-primary);
+      color: var(--color-primary-text);
     }
     &.status-completed {
       background: rgba(16, 185, 129, 0.12);
-      color: var(--color-success);
+      color: var(--color-success-text);
     }
     &.status-cancelled {
       background: rgba(239, 68, 68, 0.1);
-      color: var(--color-danger);
+      color: var(--color-danger-text);
     }
   }
   .status-main {
@@ -300,19 +300,19 @@
     }
     &.status-pending {
       background: rgba(245, 158, 11, 0.12);
-      color: var(--color-warning);
+      color: var(--color-warning-text);
     }
     &.status-approved {
       background: rgba(59, 130, 246, 0.12);
-      color: var(--color-primary);
+      color: var(--color-primary-text);
     }
     &.status-completed {
       background: rgba(16, 185, 129, 0.12);
-      color: var(--color-success);
+      color: var(--color-success-text);
     }
     &.status-cancelled {
       background: rgba(239, 68, 68, 0.1);
-      color: var(--color-danger);
+      color: var(--color-danger-text);
     }
   }
   .order-date {
@@ -354,10 +354,10 @@
     font-size: 0.9375rem;
     font-weight: 700;
     &.from {
-      color: var(--color-danger);
+      color: var(--color-danger-text);
     }
     &.to {
-      color: var(--color-success);
+      color: var(--color-success-text);
     }
   }
   .route-arrow {
@@ -481,7 +481,7 @@
   .material-qty {
     font-size: 0.875rem;
     font-weight: 800;
-    color: var(--module-purple);
+    color: var(--module-purple-text);
     flex-shrink: 0;
     font-family: var(--font-ui);
     .qty-unit {

@@ -11,11 +11,11 @@
 
   /* 主色系 - 蓝色系（深色模式优化） */
   --color-primary: #60A5FA;
-  --color-primary-light-3: #93C5FD;
-  --color-primary-light-5: #BFDBFE;
-  --color-primary-light-7: #DBEAFE;
-  --color-primary-light-8: #E0F2FE;
-  --color-primary-light-9: #EFF6FF;
+  --color-primary-light-3: #4B7BC0;
+  --color-primary-light-5: #3D6090;
+  --color-primary-light-7: #2F4460;
+  --color-primary-light-8: #283B4D;
+  --color-primary-light-9: #213040;
   --color-primary-dark-2: #2563EB;
 
   /* 功能色（深色模式优化） */
@@ -186,7 +186,7 @@
 [data-theme="dark"] .app-sidebar {
   background: var(--shell-sidebar-bg) !important;
   border-right: 1px solid var(--shell-border) !important;
-  box-shadow: 2px 0 10px color-mix(in srgb, var(--ds-black, #000) 50%, transparent) !important;
+  box-shadow: 2px 0 10px color-mix(in srgb, var(--ds-black, #000) 50%, transparent);
 }
 
 [data-theme="dark"] .logo-container {
@@ -207,7 +207,7 @@
   background: var(--color-bg-page) !important;
   border: 1px solid var(--color-border-extra-light) !important;
   border-radius: var(--radius-md, 4px) !important;
-  box-shadow: var(--shadow-sm) !important;
+  box-shadow: var(--shadow-sm);
 }
 
 /*

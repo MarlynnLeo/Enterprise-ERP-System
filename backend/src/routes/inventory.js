@@ -10,6 +10,7 @@ const express = require('express');
 const router = express.Router();
 const inventoryStockController = require('../controllers/business/inventory/inventoryStockController');
 const inventoryInboundController = require('../controllers/business/inventory/inventoryInboundController');
+const inventoryReleaseSourceController = require('../controllers/business/inventory/inventoryReleaseSourceController');
 const inventoryOutboundController = require('../controllers/business/inventory/inventoryOutboundController');
 const inventoryTransferController = require('../controllers/business/inventory/inventoryTransferController');
 const inventoryCheckController = require('../controllers/business/inventory/inventoryCheckController');
@@ -291,6 +292,13 @@ router.put(
 );
 
 // 生产退料相关路由
+router.get(
+  '/task/:taskId/release-sources',
+  authenticateToken,
+  requirePermission(['inventory:inbound:create', 'inventory:inbound:update']),
+  inventoryReleaseSourceController.getTaskReleaseSources
+);
+
 router.get(
   '/task/:taskId/material-issues',
   authenticateToken,

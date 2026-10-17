@@ -106,15 +106,22 @@ const inventoryController = {
         return ResponseHandler.error(res, '无效的盘点状态', 'VALIDATION_ERROR', 400);
       }
 
-      await assetInventoryModel.updateInventoryItem(itemId, {
-        actual_quantity: parseInt(actual_quantity),
-        status,
-        notes,
-      });
+      await assetInventoryModel.updateInventoryItem(
+        itemId,
+        {
+          actual_quantity,
+          status,
+          notes,
+        },
+        id
+      );
 
       return ResponseHandler.success(res, { itemId }, '更新盘点记录成功');
     } catch (error) {
       logger.error('更新盘点记录失败:', error);
+      if (error.code === 'VALIDATION_ERROR') {
+        return ResponseHandler.error(res, error.message, error.code, 400);
+      }
       ResponseHandler.error(res, '更新盘点记录失败', 'SERVER_ERROR', 500, error);
     }
   },
@@ -135,7 +142,7 @@ const inventoryController = {
       return ResponseHandler.success(res, result, '盘点完成');
     } catch (error) {
       logger.error('盘点完成操作失败:', error);
-      if (error.message.includes('存在未确认实盘数量的资产明细')) {
+      if (error.code === 'VALIDATION_ERROR') {
         return ResponseHandler.error(res, error.message, 'VALIDATION_ERROR', 400);
       }
       ResponseHandler.error(res, '盘点完成操作失败', 'SERVER_ERROR', 500, error);

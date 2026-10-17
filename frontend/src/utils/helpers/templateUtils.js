@@ -8,6 +8,8 @@
 import { PREVIEW_DATA } from '../../constants/printConstants';
 import { getCssTokenValue } from '@/utils/designTokens';
 import { getAppFontFamily } from '@/utils/typography';
+import { normalizePrintData } from '@/services/printService';
+import { renderPrintTemplate } from '@/utils/cspSafePrintRenderer';
 
 const templateTokens = {
   heading: getCssTokenValue('textPrimary'),
@@ -31,100 +33,16 @@ export function getPreviewData(templateType) {
  * @returns {string} 处理后的内容
  */
 export function processTemplate(content, data) {
-  if (!content || !data) {
-    return content || '';
-  }
-
-  let processedContent = content;
-
-  // 替换基本变量
-  Object.keys(data).forEach(key => {
-    if (key !== 'items' && data[key] !== undefined) {
-      const regex = new RegExp(`{{${key}}}`, 'g');
-      processedContent = processedContent.replace(regex, String(data[key]));
-    }
-  });
-
-  // 处理循环项（如items）
-  if (data.items && Array.isArray(data.items)) {
-    processedContent = processItemsLoop(processedContent, data.items);
-  }
-
-  return processedContent;
+  return renderPrintTemplate(normalizePreviewTemplateSyntax(content), normalizePrintData(data || {}));
 }
 
-/**
- * 处理items循环
- * @param {string} content 模板内容
- * @param {array} items 项目数组
- * @returns {string} 处理后的内容
- */
-function processItemsLoop(content, items) {
-  // 支持多种循环格式：{{#items}}...{{/items}}、{{#each items}}...{{/each}}、{{#each}}...{{/each}}
-  let itemStart = -1;
-  let itemEnd = -1;
-  let loopStartTag = '';
-  let loopEndTag = '{{/each}}';
-
-  // 尝试匹配 {{#items}}...{{/items}}
-  itemStart = content.indexOf('{{#items}}');
-  if (itemStart !== -1) {
-    itemEnd = content.indexOf('{{/items}}', itemStart);
-    loopStartTag = '{{#items}}';
-    loopEndTag = '{{/items}}';
-  }
-
-  // 如果没找到，尝试匹配 {{#each items}}...{{/each}}
-  if (itemStart === -1) {
-    const match = content.match(/{{#each\s+items}}([\s\S]*?){{\/each}}/);
-    if (match) {
-      itemStart = content.indexOf(match[0]);
-      itemEnd = itemStart + match[0].length - '{{/each}}'.length;
-      loopStartTag = match[0].substring(0, match[0].indexOf(match[1]));
-      loopEndTag = '{{/each}}';
-    }
-  }
-
-  // 如果还是没找到，尝试匹配 {{#each}}...{{/each}}
-  if (itemStart === -1) {
-    itemStart = content.indexOf('{{#each}}');
-    if (itemStart !== -1) {
-      itemEnd = content.indexOf('{{/each}}', itemStart);
-      loopStartTag = '{{#each}}';
-      loopEndTag = '{{/each}}';
-    }
-  }
-
-  if (itemStart === -1 || itemEnd === -1) {
-    return content;
-  }
-
-  const itemTemplate = content.substring(itemStart + loopStartTag.length, itemEnd);
-  let itemsHtml = '';
-
-  items.forEach((item, index) => {
-    let itemHtml = itemTemplate;
-
-    // 替换序号
-    itemHtml = itemHtml.replace(/{{@index}}/g, index + 1);
-    itemHtml = itemHtml.replace(/{{index}}/g, index + 1);
-
-    // 替换item中的所有属性
-    Object.keys(item).forEach(key => {
-      // 支持 {{property}} 和 {{item.property}} 两种格式
-      const regex1 = new RegExp(`{{${key}}}`, 'g');
-      const regex2 = new RegExp(`{{item\\.${key}}}`, 'g');
-      const value = item[key] !== undefined && item[key] !== null ? String(item[key]) : '';
-      itemHtml = itemHtml.replace(regex1, value);
-      itemHtml = itemHtml.replace(regex2, value);
-    });
-
-    itemsHtml += itemHtml;
-  });
-
-  // 替换整个循环部分
-  const fullLoopContent = content.substring(itemStart, itemEnd + loopEndTag.length);
-  return content.replace(fullLoopContent, itemsHtml);
+// 兼容早期编辑器插入的循环语法，弹窗预览与实时预览保持一致。
+export function normalizePreviewTemplateSyntax(content) {
+  return String(content || '')
+    .replace(/{{#items}}/g, '{{#each items}}')
+    .replace(/{{\/items}}/g, '{{/each}}')
+    .replace(/{{#each\s*}}/g, '{{#each items}}')
+    .replace(/{{\s*item\.([^{}]+?)\s*}}/g, '{{this.$1}}');
 }
 
 /**
@@ -137,7 +55,7 @@ export function previewTemplate(template) {
     return '';
   }
 
-  const previewData = getPreviewData(template.template_type);
+  const previewData = getPreviewData(template.template_type ?? template.templateType);
   return processTemplate(template.content, previewData);
 }
 

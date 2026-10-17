@@ -312,7 +312,7 @@
         color: var(--text-secondary);
       }
       &.accent {
-        color: var(--color-primary);
+        color: var(--color-primary-text);
       }
       &.success {
         color: var(--ds-green-strong);
@@ -378,7 +378,7 @@
     &.active {
       background: rgba(59, 130, 246, 0.1);
       border-color: var(--color-primary);
-      color: var(--color-primary);
+      color: var(--color-primary-text);
       .chip-badge {
         background: var(--color-primary);
         color: var(--text-primary);
@@ -465,19 +465,19 @@
     }
     &.status-pending {
       background: rgba(245, 158, 11, 0.12);
-      color: var(--color-warning);
+      color: var(--color-warning-text);
     }
     &.status-approved {
       background: rgba(59, 130, 246, 0.12);
-      color: var(--color-primary);
+      color: var(--color-primary-text);
     }
     &.status-completed {
       background: rgba(16, 185, 129, 0.12);
-      color: var(--color-success);
+      color: var(--color-success-text);
     }
     &.status-cancelled {
       background: rgba(239, 68, 68, 0.1);
-      color: var(--color-danger);
+      color: var(--color-danger-text);
     }
   }
   .order-qty {
@@ -499,7 +499,7 @@
     .route-to {
       font-size: 0.8125rem;
       font-weight: 600;
-      color: var(--color-primary);
+      color: var(--color-primary-text);
     }
   }
 
@@ -541,11 +541,11 @@
       cursor: pointer;
       &.confirm {
         background: rgba(59, 130, 246, 0.1);
-        color: var(--color-primary);
+        color: var(--color-primary-text);
       }
       &.complete {
         background: rgba(16, 185, 129, 0.1);
-        color: var(--color-success);
+        color: var(--color-success-text);
       }
     }
   }

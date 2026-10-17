@@ -5,16 +5,22 @@
  */
 -->
 <template>
-  <UniversalListPage :config="pageConfig" :api-function="loadMaintenance" />
+  <UniversalListPage :key="listVersion" :config="pageConfig" :api-function="loadMaintenance" @item-click="openRecord" />
+  <RecordEditor v-model:show="editorVisible" :record="selectedRecord" kind="maintenance" @saved="listVersion++" />
 </template>
 
 <script setup>
-  import { computed } from 'vue'
+  import { computed, ref } from 'vue'
   import { useRouter } from 'vue-router'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
   import { equipmentApi } from '@/api'
+  import RecordEditor from './RecordEditor.vue'
 
   const router = useRouter()
+  const selectedRecord = ref(null)
+  const editorVisible = ref(false)
+  const listVersion = ref(0)
+  const openRecord = record => { selectedRecord.value = record; editorVisible.value = true }
 
   const pageConfig = computed(() => ({
     title: '保养计划',
@@ -37,6 +43,7 @@
       details: [
         { label: '保养日期', field: 'maintenanceDate', type: 'date' },
         { label: '保养人', field: 'maintenancePerson' },
+        { label: '完成日期', field: 'completedDate', type: 'date' },
         { label: '下次保养', field: 'nextMaintenanceDate', type: 'date' }
       ],
 

@@ -10,11 +10,21 @@
  * @returns {'zh-CN' | 'ko' | 'en'} 语言代码
  */
 export function getBrowserLanguage() {
-  const language = navigator.language || navigator.userLanguage
+  const language = String(navigator.language || navigator.userLanguage || '').toLowerCase()
   if (language.includes('zh')) {
     return 'zh-CN'
   } else if (language.includes('ko')) {
     return 'ko'
   }
   return 'en'
+}
+
+export function getPreferredLanguage() {
+  try {
+    const saved = localStorage.getItem('language')
+    if (['zh-CN', 'en', 'ko'].includes(saved)) return saved
+  } catch {
+    // Storage can be disabled by browser privacy settings.
+  }
+  return getBrowserLanguage()
 }

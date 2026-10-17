@@ -212,7 +212,7 @@
 
     &.active {
       background-color: rgba(99, 102, 241, 0.1);
-      color: var(--color-primary);
+      color: var(--color-primary-text);
       border: 1px solid #bae6fd;
     }
 

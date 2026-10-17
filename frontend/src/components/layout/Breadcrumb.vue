@@ -37,6 +37,11 @@ const breadcrumbs = computed(() => {
   // 构建面包屑
   pathArray.forEach((segment, index) => {
     path += `/${segment}`
+    // Ledger routes are direct children of the financial report directory.
+    if (path === '/finance/reports/ledgers') {
+      prevSegment = segment
+      return
+    }
     // 传递前一个路径片段作为上下文
     const title = index === pathArray.length - 1 && route.meta.title
       ? route.meta.title
@@ -55,6 +60,10 @@ const breadcrumbs = computed(() => {
 
 // 根据路径获取标题，考虑前一级路径
 const getTitleByPath = (path, prevPath = '') => {
+  if (path === 'reports' && prevPath === 'finance') {
+    return t('menu.reportCenter')
+  }
+
   if (path === 'outbound') {
     if (prevPath === 'sales') {
       return t('menu.salesOutbound')

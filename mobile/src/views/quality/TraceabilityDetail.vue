@@ -356,7 +356,7 @@
 
     &.badge-material {
       background: rgba(245, 158, 11, 0.12);
-      color: var(--color-warning);
+      color: var(--color-warning-text);
     }
   }
 
@@ -386,7 +386,7 @@
       color: var(--text-primary);
 
       &.highlight {
-        color: var(--color-accent);
+        color: var(--color-accent-text);
       }
     }
   }
@@ -417,7 +417,7 @@
     .section-count {
       margin-left: auto;
       background: var(--color-accent-bg);
-      color: var(--color-accent);
+      color: var(--color-accent-text);
       font-size: 0.6875rem;
       font-weight: 600;
       padding: 1px 8px;
@@ -452,7 +452,7 @@
       .bom-qty {
         font-size: 0.8125rem;
         font-weight: 600;
-        color: var(--color-accent);
+        color: var(--color-accent-text);
       }
     }
 
@@ -538,17 +538,17 @@
 
     &.step-in {
       background: var(--color-success-bg);
-      color: var(--color-success);
+      color: var(--color-success-text);
     }
 
     &.step-out {
       background: var(--color-error-bg);
-      color: var(--color-error);
+      color: var(--color-error-text);
     }
 
     &.step-neutral {
       background: var(--color-info-bg);
-      color: var(--color-info);
+      color: var(--color-info-text);
     }
   }
 
@@ -599,12 +599,12 @@
 
         &.tx-in {
           background: var(--color-success-bg);
-          color: var(--color-success);
+          color: var(--color-success-text);
         }
 
         &.tx-out {
           background: var(--color-error-bg);
-          color: var(--color-error);
+          color: var(--color-error-text);
         }
       }
 
@@ -614,10 +614,10 @@
         font-family: var(--font-ui);
 
         &.qty-positive {
-          color: var(--color-success);
+          color: var(--color-success-text);
         }
         &.qty-negative {
-          color: var(--color-error);
+          color: var(--color-error-text);
         }
       }
     }
