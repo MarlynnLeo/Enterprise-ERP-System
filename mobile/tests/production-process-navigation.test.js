@@ -26,7 +26,8 @@ async function openProduction(permissions) {
   auth.hasPermission.mockImplementation(permission => permissions.includes('*') || permissions.includes(permission))
   auth.hasChildPermission.mockImplementation(permission => permissions.some(code => code.startsWith(`${permission}:`)))
   wrapper = mount(ProductionIndex, {
-    global: { stubs: { NavBar: true, SvgIcon: true } }
+    // Script-setup imports are stubbed by Vant's runtime component name.
+    global: { stubs: { VanNavBar: true, SvgIcon: true } }
   })
   await flushPromises()
 }
@@ -35,9 +36,28 @@ beforeEach(() => {
   vi.clearAllMocks()
   productionApi.getDashboardStatistics.mockResolvedValue({ data: {} })
 })
-afterEach(() => wrapper?.unmount())
+afterEach(() => {
+  wrapper?.unmount()
+  wrapper = undefined
+})
 
 describe('production process navigation', () => {
+  test('does not leave layout timers after the navigation page unmounts', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      await openProduction(['production:process:view'])
+      wrapper.unmount()
+      wrapper = undefined
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      wrapper?.unmount()
+      wrapper = undefined
+      // Drain any leaked callback while jsdom still exists, including on failure.
+      await vi.runOnlyPendingTimersAsync()
+      vi.useRealTimers()
+    }
+  })
+
   test.each(['production:process', 'production:process:view', 'production:process:update', '*'])(
     'opens production processes from both menu entries for %s', async permission => {
       await openProduction([permission])
