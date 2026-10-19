@@ -7,6 +7,8 @@
  */
 
 const { normalizeTaxRate, roundMoney } = require('../../utils/money');
+const { pickLineMetadata, singleMaterialMetadata } = require('./voucherLineMetadata');
+const { resolveSameVoucherCurrency } = require('./invoiceVoucherLines');
 
 /** 分录角色（唯一约定，前后端共用语义） */
 const ENTRY_ROLES = Object.freeze({
@@ -218,6 +220,7 @@ function normalizeLineItem(raw = {}, source = {}) {
     product_name: name,
     material_code: raw.material_code || null,
     description: raw.description || null,
+    unit_name: raw.unit_name ?? raw.unitName ?? null,
     quantity,
     unit_price: unitPrice,
     price: unitPrice,
@@ -238,6 +241,7 @@ function normalizeEntryLine(raw = {}) {
     // 辅助核算维度（应付/GR-IR 写供应商；应收写客户）
     supplier_id: toPositiveInt(raw.supplier_id) || null,
     customer_id: toPositiveInt(raw.customer_id) || null,
+    ...pickLineMetadata(raw),
     editable: raw.editable !== false,
   };
 }
@@ -378,6 +382,7 @@ function normalizeOverridesMap(rawOverrides) {
       taxRate: normalized.taxRate,
       taxAmount: normalized.taxAmount,
       items: normalized.items,
+      entryLines: normalized.entryLines,
       accounts: normalized.accounts,
     });
   }
@@ -433,6 +438,7 @@ function resolveMergedPayload(rawOverrides, ids = []) {
       taxRate: merged.taxRate,
       taxAmount: taxMap.get(row.id),
       items: row.items.length ? row.items : undefined,
+      entryLines: merged.entryLines,
       accounts: merged.accounts,
     });
   }
@@ -518,6 +524,10 @@ function formatPartyLabel(partyNames = []) {
  */
 function mergeDraftsIntoVoucher(businessType, readyDrafts, isAp) {
   if (!readyDrafts.length) return null;
+  const currency = resolveSameVoucherCurrency(readyDrafts);
+  if (currency.currency_code === 'USD' && readyDrafts.length > 1) {
+    throw new Error('美元来源请逐单生成凭证，以保留原单核销金额');
+  }
 
   if (readyDrafts.length === 1) {
     const only = readyDrafts[0];
@@ -541,7 +551,10 @@ function mergeDraftsIntoVoucher(businessType, readyDrafts, isAp) {
 
   const docNos = readyDrafts.map((d) => d.docNo).filter(Boolean);
   const partyNames = [...new Set(readyDrafts.map((d) => d.partyName).filter(Boolean))];
-  const partyIds = [...new Set(readyDrafts.map((d) => d.partyId).filter(Boolean))];
+  const partyIds = [...new Set(readyDrafts.map((d) => Number(d.partyId)).filter(Boolean))];
+  if (partyIds.length > 1) {
+    throw new Error('不同往来单位的业务单据请分别生成凭证，避免辅助账串户');
+  }
 
   const items = readyDrafts.flatMap((draft) =>
     (draft.items || []).map((it) =>
@@ -578,6 +591,20 @@ function mergeDraftsIntoVoucher(businessType, readyDrafts, isAp) {
         });
       }
       const acc = roleMap.get(role);
+      for (const field of [
+        'account_id',
+        'department_id',
+        'cost_center_id',
+        'employee_id',
+        'employee_source',
+        'project_id',
+        'project_name',
+        'settlement_method',
+      ]) {
+        if ((acc[field] ?? null) !== (line[field] ?? null)) {
+          throw new Error('不同科目或辅助核算的业务单据请分别生成凭证');
+        }
+      }
       acc.debit_amount = money(acc.debit_amount + toNumber(line.debit_amount, 0));
       acc.credit_amount = money(acc.credit_amount + toNumber(line.credit_amount, 0));
     }
@@ -596,6 +623,13 @@ function mergeDraftsIntoVoucher(businessType, readyDrafts, isAp) {
       description: `${stripSingleDocSuffix(line.description || role)}（合并 ${docsLabel}）`,
       editable: true,
     };
+    delete withParty.quantity;
+    delete withParty.unit_name;
+    delete withParty.unit_price;
+    delete withParty.invoice_number;
+    if (role === ENTRY_ROLES.COST || role === ENTRY_ROLES.INCOME) {
+      Object.assign(withParty, singleMaterialMetadata(items));
+    }
     if (isAp && singlePartyId) {
       // 应付/GR-IR 行挂供应商；进项税一般不强制
       if (role === ENTRY_ROLES.PAYABLE || role === ENTRY_ROLES.COST) {
@@ -634,6 +668,8 @@ function mergeDraftsIntoVoucher(businessType, readyDrafts, isAp) {
     id: readyDrafts[0].id,
     businessType,
     isMerged: true,
+    currencyCode: currency.currency_code,
+    exchangeRate: currency.exchange_rate,
     docNo: docNos.join('、'),
     sourceIds: readyDrafts.map((d) => d.id),
     sourceDocs: readyDrafts.map((d) => ({
@@ -683,6 +719,7 @@ function canonicalizeGenerateOverrides(raw) {
     taxRate: row.taxRate,
     taxAmount: row.taxAmount,
     items: row.items,
+    entryLines: row.entryLines,
     accounts: row.accounts,
   };
 }

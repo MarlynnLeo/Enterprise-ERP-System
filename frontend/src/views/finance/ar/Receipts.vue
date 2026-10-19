@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * Receipts.vue
  * @description 前端界面组件文件
@@ -8,6 +8,7 @@
 -->
 <template>
   <div class="module-page receipts-container">
+    <SettlementRecoveryDialog v-model="settlementRecoveryVisible" kind="receipt" :request="settlementRequest" @resolved="loadReceipts" />
     <PageHeader title="收款管理" subtitle="从应收发票发起收款，手工录入仅用于例外收款">
       <template #actions>
 <el-button v-permission="'finance:ar:receive'" type="info" plain :icon="Plus" @click="showAddDialog">例外收款录入</el-button>
@@ -98,7 +99,12 @@
         </el-table-column>
         <el-table-column prop="totalAmount" label="收款金额" width="130">
           <template #default="scope">
-            {{ formatCurrency(scope.row.totalAmount) }}
+            {{ formatSettlementAmount(scope.row.totalAmount, scope.row) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="本位金额 (CNY)" width="160">
+          <template #default="scope">
+            {{ formatSettlementAmount(scope.row.baseAmount ?? (settlementCurrency(scope.row) === 'CNY' ? (scope.row.totalAmount ?? scope.row.amount) : null)) }}
           </template>
         </el-table-column>
         <el-table-column label="状态" width="100">
@@ -124,7 +130,7 @@
               size="small"
               @click="handleVoid(scope.row)"
             >作废</el-button>
-            <el-button v-permission="'finance:ar:view'" type="success" size="small" @click="handlePrint(scope.row)">打印</el-button>
+            <el-button v-permission="'finance:ar:view'" v-if="settlementCurrency(scope.row) === 'CNY'" type="success" size="small" @click="handlePrint(scope.row)">打印</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -150,6 +156,7 @@
     <!-- 添加/编辑对话框 -->
     <AppDialog
       v-model="dialogVisible"
+      :show-close="!saveLoading" :close-on-press-escape="!saveLoading" :close-on-click-modal="!saveLoading"
       :title="dialogTitle"
       mode="form"
       width="600px"
@@ -169,7 +176,7 @@
             <el-option
               v-for="invoice in invoiceOptions"
               :key="invoice.id"
-              :label="`${invoice.invoiceNumber} - ${invoice.customerName} - ${formatCurrency(invoice.balance)}`"
+              :label="`${invoice.invoiceNumber} - ${invoice.customerName} - ${formatSettlementAmount(invoice.balance, invoice)}`"
               :value="invoice.id"
             ></el-option>
           </el-select>
@@ -190,7 +197,7 @@
         <el-form-item label="发票金额">
           <el-input v-model="receiptForm.invoiceAmount" disabled></el-input>
         </el-form-item>
-        <el-form-item label="已付金额">
+        <el-form-item label="已收金额">
           <el-input v-model="receiptForm.paidAmount" disabled></el-input>
         </el-form-item>
         <el-form-item label="剩余金额">
@@ -199,23 +206,25 @@
         <el-form-item label="收款金额" prop="amount">
           <el-input-number v-model="receiptForm.amount" :precision="2" :min="0" :max="receiptForm.balanceValue" class="w-full"></el-input-number>
         </el-form-item>
+        <SettlementCurrencyInfo :form="receiptForm" :retry-notice="settlementRetryNotice" />
         <el-form-item label="收款方式" prop="paymentMethod">
           <el-select v-model="receiptForm.paymentMethod" placeholder="请选择收款方式" class="w-full" @change="handlePaymentMethodChange">
-            <el-option label="现金" value="cash"></el-option>
+            <el-option v-if="settlementCurrency(receiptForm) === 'CNY'" label="现金" value="cash"></el-option>
             <el-option label="银行转账" value="bank_transfer"></el-option>
             <el-option label="支票" value="check"></el-option>
             <el-option label="信用卡" value="credit_card"></el-option>
           </el-select>
         </el-form-item>
         <el-form-item label="收款账户" prop="bankAccountId" v-if="showBankAccountField">
-          <el-select v-model="receiptForm.bankAccountId" placeholder="选择收款账户" filterable class="w-full">
+          <el-select v-model="receiptForm.bankAccountId" :loading="bankAccountsLoading" placeholder="选择收款账户" filterable class="w-full">
             <el-option
-              v-for="account in bankAccounts"
+              v-for="account in matchingSettlementBanks(bankAccounts, receiptForm)"
               :key="account.id"
-              :label="`${account.accountName} (${account.accountNumber})`"
+              :label="`${account.accountName} (${account.accountNumber}) · ${settlementCurrency(account)}`"
               :value="account.id"
             ></el-option>
           </el-select>
+          <BankAccountFeedback :loading="bankAccountsLoading" :error="bankAccountsError" :accounts="bankAccounts" :currency="receiptForm" @retry="loadBankAccounts" />
           <div class="form-tip"><el-icon class="icon-inline text-primary"><InfoFilled /></el-icon> 选择后将自动创建银行交易记录并更新账户余额</div>
         </el-form-item>
         <el-form-item label="备注" prop="notes">
@@ -229,7 +238,7 @@
       </el-form>
       <template #footer>
         <span class="dialog-footer">
-          <el-button @click="dialogVisible = false">取消</el-button>
+          <el-button :disabled="saveLoading" @click="dialogVisible = false">取消</el-button>
           <el-button v-permission="'finance:ar:receive'" type="primary" @click="saveReceipt" :loading="saveLoading" :disabled="invoiceLoading">确认</el-button>
         </span>
       </template>
@@ -256,7 +265,10 @@
           </el-link>
           <span v-else>-</span>
         </el-descriptions-item>
-        <el-descriptions-item label="收款金额">{{ formatCurrency(detailData.totalAmount) }}</el-descriptions-item>
+        <el-descriptions-item label="收款金额">{{ formatSettlementAmount(detailData.totalAmount, detailData) }}</el-descriptions-item>
+        <el-descriptions-item label="币种">{{ settlementCurrency(detailData) }}</el-descriptions-item>
+        <el-descriptions-item v-if="settlementCurrency(detailData) !== 'CNY'" label="确认汇率">{{ detailData.exchangeRate }}</el-descriptions-item>
+        <el-descriptions-item label="本位金额 (CNY)">{{ formatSettlementAmount(detailData.baseAmount ?? (settlementCurrency(detailData) === 'CNY' ? detailData.totalAmount : null)) }}</el-descriptions-item>
         <el-descriptions-item label="收款方式">{{ detailData.paymentMethod }}</el-descriptions-item>
         <el-descriptions-item label="银行账户">{{ detailData.bankAccountName || '-' }}</el-descriptions-item>
         <el-descriptions-item label="备注" :span="2">{{ detailData.notes || '-' }}</el-descriptions-item>
@@ -273,6 +285,7 @@
     <!-- 作废对话框 -->
     <AppDialog
       v-model="voidDialogVisible"
+      :show-close="!voidLoading" :close-on-press-escape="!voidLoading" :close-on-click-modal="!voidLoading"
       title="作废收款记录"
       mode="form"
       width="500px"
@@ -293,7 +306,7 @@
         </div>
       </el-alert>
 
-      <el-form :model="voidForm" :rules="voidRules" ref="voidFormRef" label-width="100px">
+      <el-form :disabled="voidLoading" :model="voidForm" :rules="voidRules" ref="voidFormRef" label-width="100px">
         <el-form-item label="收款编号">
           <el-input v-model="voidForm.receiptNumber" disabled></el-input>
         </el-form-item>
@@ -314,7 +327,7 @@
 
       <template #footer>
         <span class="dialog-footer">
-          <el-button @click="voidDialogVisible = false">取消</el-button>
+          <el-button :disabled="voidLoading" @click="voidDialogVisible = false">取消</el-button>
           <el-button v-permission="'finance:ar:receive'" type="danger" @click="confirmVoid" :loading="voidLoading">确认作废</el-button>
         </span>
       </template>
@@ -330,13 +343,19 @@
 </template>
 
 <script setup>
+import BankAccountFeedback from '../components/BankAccountFeedback.vue'
+import { loadSettlementBankAccounts } from '../components/loadSettlementBankAccounts'
+import SettlementCurrencyInfo from '../components/SettlementCurrencyInfo.vue'
+import { useSettlementRequest } from '../components/useSettlementRequest';
+import SettlementRecoveryDialog from '../components/SettlementRecoveryDialog.vue';
+import { formatSettlementAmount, matchingSettlementBanks, settlementCurrency, settlementCurrencyFields, settlementValidationError } from '../components/settlementCurrency'
 import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { getApiErrorMessage } from '@/utils/errorHandler'
 import { getCommonStatusText, getCommonStatusColor } from '@/constants/systemConstants'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { DateFormatter, NumberFormatter } from '@/utils/commonHelpers'
-import { formatCurrency, formatLocalDate } from '@/utils/format'
+import { formatLocalDate } from '@/utils/format'
 
 import PrintDialog from '@/components/common/PrintDialog.vue';
 
@@ -374,6 +393,9 @@ const showAdvancedSearch = ref(false);
 // 数据加载状态
 const loading = ref(false);
 const saveLoading = ref(false);
+const settlementRequest = useSettlementRequest('receipt');
+const settlementRecoveryVisible = ref(false);
+const { retryNotice: settlementRetryNotice } = settlementRequest;
 
 // 分页相关
 const total = ref(0);
@@ -396,6 +418,8 @@ const {
 } = useListDetailNavigation(receiptList);
 const invoiceOptions = ref([]);
 const bankAccounts = ref([]);
+const bankAccountsLoading = ref(false);
+const bankAccountsError = ref('');
 const invoiceLoading = ref(false);
 const loadedInvoiceId = ref(null);
 let invoiceRequest = 0;
@@ -440,6 +464,8 @@ const voidRules = {
 
 // 收款表单
 const receiptForm = reactive({
+  currencyCode: 'CNY',
+  exchangeRate: 1,
   id: null,
   receiptNumber: '',
   invoiceId: null,
@@ -535,19 +561,18 @@ const loadReceipts = async () => {
 
 // 加载银行账户列表
 const loadBankAccounts = async () => {
+  if (bankAccountsLoading.value) return;
+  bankAccountsLoading.value = true;
+  bankAccountsError.value = '';
   try {
-    const response = await financeApi.getBankAccounts();
-    const accounts = parseListData(response, { enableLog: false });
-    bankAccounts.value = accounts.map(acc => ({
-      id: acc.id,
-      accountName: acc.accountName,
-      accountNumber: acc.accountNumber,
-      currentBalance: acc.currentBalance
-    }));
+    bankAccounts.value = await loadSettlementBankAccounts(financeApi);
   } catch (error) {
     console.error('加载银行账户失败:', error);
     ElMessage.warning('加载银行账户失败，部分功能可能受限');
     bankAccounts.value = [];
+    bankAccountsError.value = getApiErrorMessage(error, '银行账户加载失败，请重试');
+  } finally {
+    bankAccountsLoading.value = false;
   }
 };
 
@@ -563,6 +588,7 @@ const loadInvoiceOptions = async () => {
       const paidAmount = parseFloat(invoice.paidAmount ?? 0);
       const balance = parseFloat(invoice.balanceAmount ?? invoice.balance ?? (amount - paidAmount));
       return {
+        ...invoice,
         id: invoice.id,
         invoiceNumber: invoice.invoiceNumber,
         customerName: invoice.customerName,
@@ -592,6 +618,7 @@ const handleInvoiceChange = async () => {
   receiptForm.balance = '';
   receiptForm.balanceValue = 0;
   receiptForm.amount = 0;
+  Object.assign(receiptForm, { currencyCode: 'CNY', exchangeRate: 1, bankAccountId: null });
   if (!invoiceId) return;
 
   try {
@@ -604,11 +631,13 @@ const handleInvoiceChange = async () => {
     const balance = Number(invoice.balanceAmount ?? invoice.balance ?? (amount - paidAmount));
     if (![amount, paidAmount, balance].every(Number.isFinite)) throw new Error('发票金额数据无效');
 
+    Object.assign(receiptForm, settlementCurrencyFields(invoice));
+    receiptForm.paymentMethod = 'bank_transfer';
     receiptForm.invoiceNumber = invoice.invoiceNumber;
     receiptForm.customerName = invoice.customerName;
-    receiptForm.invoiceAmount = formatCurrency(amount);
-    receiptForm.paidAmount = formatCurrency(paidAmount);
-    receiptForm.balance = formatCurrency(balance);
+    receiptForm.invoiceAmount = formatSettlementAmount(amount, receiptForm);
+    receiptForm.paidAmount = formatSettlementAmount(paidAmount, receiptForm);
+    receiptForm.balance = formatSettlementAmount(balance, receiptForm);
     receiptForm.balanceValue = balance;
     receiptForm.amount = balance; // 默认填充剩余金额
     loadedInvoiceId.value = invoiceId;
@@ -687,10 +716,11 @@ const receiptViewNavigation = computed(() => ({
 
 // 作废收款记录
 const handleVoid = (row) => {
+  if (voidLoading.value) return;
   // 重置作废表单
   voidForm.id = row.id;
   voidForm.receiptNumber = row.receiptNumber;
-  voidForm.amount = formatCurrency(row.totalAmount);
+  voidForm.amount = formatSettlementAmount(row.totalAmount, row);
   voidForm.voidReason = '';
 
   // 清除校验
@@ -746,6 +776,12 @@ const jumpToInvoiceFromDetail = () => {
 
 // 新增收款记录
 const showAddDialog = async () => {
+  if (saveLoading.value) return;
+  const retryPayload = settlementRequest.begin();
+  if (retryPayload) {
+    settlementRecoveryVisible.value = true;
+    return;
+  }
   dialogTitle.value = '例外收款录入';
   resetReceiptForm();
 
@@ -813,6 +849,8 @@ const saveReceipt = async () => {
     ElMessage.warning('请重新选择发票并等待详情加载完成');
     return;
   }
+  const settlementError = settlementValidationError(receiptForm, bankAccounts.value);
+  if (settlementError) { ElMessage.warning(settlementError); return; }
   saveLoading.value = true;
 
   try {
@@ -824,12 +862,14 @@ const saveReceipt = async () => {
       invoiceId: receiptForm.invoiceId,
       receiptDate: receiptForm.receiptDate,
       amount: receiptForm.amount,
+      currencyCode: receiptForm.currencyCode,
+      exchangeRate: receiptForm.exchangeRate,
       paymentMethod: receiptForm.paymentMethod,
       bankAccountId: receiptForm.bankAccountId,
       notes: receiptForm.notes
     };
 
-    await financeApi.createReceipt(data);
+    await settlementRequest.submit(data, financeApi.createReceipt, receiptForm, bankAccounts.value);
     ElMessage.success('添加成功');
     dialogVisible.value = false;
     loadReceipts();
@@ -857,6 +897,7 @@ const resetReceiptForm = () => {
   receiptForm.balanceValue = 0;
   receiptForm.receiptDate = formatLocalDate(new Date());
   receiptForm.amount = 0;
+  Object.assign(receiptForm, { currencyCode: 'CNY', exchangeRate: 1, bankAccountId: null });
   receiptForm.paymentMethod = 'bank_transfer';
   receiptForm.bankAccountId = null;  // 新增：重置银行账户
   receiptForm.notes = '';
@@ -880,6 +921,8 @@ const handleCurrentChange = (page) => {
 
 // 页面加载时执行
 onMounted(() => {
+  try { settlementRecoveryVisible.value = Boolean(settlementRequest.restore()); }
+  catch (error) { ElMessage.error(getApiErrorMessage(error, '读取待核对登记失败')); }
   loadBankAccounts();  // 预加载银行账户列表
   // 检查URL参数是否有发票编号过滤
   const invoiceNumber = route.query.invoiceNumber;

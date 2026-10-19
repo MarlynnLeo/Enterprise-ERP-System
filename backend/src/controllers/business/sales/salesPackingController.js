@@ -421,24 +421,34 @@ async function generateProductionAndPurchasePlans(
   insufficientItems,
   userInfo
 ) {
+  // Every caller owns a transaction. A savepoint also protects callers that
+  // keep the order after a planning error: no partial plan or requisition may
+  // escape when that outer transaction subsequently commits.
+  await connection.query('SAVEPOINT sales_follow_up_documents');
   try {
     userInfo = userInfo || {};
-    // 首先查询销售订单号和合同编码
-    let salesOrderNo = salesOrderId; // 默认使用ID
-    let contractCode = ''; // 合同编码
-    try {
-      const [orderRows] = await connection.execute(
-        'SELECT order_no, contract_code FROM sales_orders WHERE id = ? AND deleted_at IS NULL',
-        [salesOrderId]
+    // Serialize retries for this order before testing for existing documents.
+    const [orderRows] = await connection.execute(
+      'SELECT order_no, contract_code FROM sales_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      [salesOrderId]
+    );
+    if (!orderRows.length) throw new Error('销售订单不存在，不能生成备货单据');
+    const salesOrderNo = orderRows[0].order_no;
+    const contractCode = orderRows[0].contract_code || '';
+    const linkDocument = (targetType, targetId, targetCode) =>
+      DocumentLinkService.createLink(
+        {
+          source_type: DocType.SALES_ORDER,
+          source_id: salesOrderId,
+          source_code: salesOrderNo,
+          target_type: targetType,
+          target_id: targetId,
+          target_code: targetCode,
+          link_type: 'generate',
+          created_by: userInfo.id || userInfo.userId || null,
+        },
+        connection
       );
-      if (orderRows && orderRows.length > 0) {
-        salesOrderNo = orderRows[0].order_no;
-        contractCode = orderRows[0].contract_code || '';
-      }
-    } catch (queryError) {
-      logger.error('查询销售订单信息失败:', queryError);
-      // 继续使用ID作为备用
-    }
 
     // 分离自产和外购物料
     const internalMaterials = insufficientItems.filter((item) => item.source_type === 'internal');
@@ -469,6 +479,22 @@ async function generateProductionAndPurchasePlans(
             );
             if (existingPlans.length > 0) {
               const existing = existingPlans[0];
+              const [requirements] = await connection.execute(
+                'SELECT id FROM production_plan_materials WHERE plan_id = ? LIMIT 1',
+                [existing.id]
+              );
+              if (!requirements.length) {
+                if (existing.status !== 'draft') {
+                  throw new Error(`生产计划 ${existing.code} 缺少物料需求，不能继续备货`);
+                }
+                await calculateAndInsertMaterialsForPlan(
+                  connection,
+                  existing.id,
+                  material_id,
+                  existing.quantity
+                );
+              }
+              await linkDocument(DocType.PRODUCTION_PLAN, existing.id, existing.code);
               logger.info(
                 `  ⏭️  跳过物料 ${material_name}: 已有生产计划 ${existing.code}（数量: ${existing.quantity}，状态: ${existing.status}）`
               );
@@ -524,16 +550,7 @@ async function generateProductionAndPurchasePlans(
             logger.info(
               `  ✅ 生产计划创建成功: ${planNo} (物料: ${material_name}, 数量: ${shortage}，已计算物料需求)`
             );
-            await DocumentLinkService.tryAutoLink(
-              DocType.SALES_ORDER,
-              salesOrderId,
-              salesOrderNo,
-              DocType.PRODUCTION_PLAN,
-              planId,
-              planNo,
-              userInfo.id || userInfo.userId || null,
-              connection
-            );
+            await linkDocument(DocType.PRODUCTION_PLAN, planId, planNo);
             createdCount++;
           } catch (planError) {
             logger.error(
@@ -694,16 +711,7 @@ async function generateProductionAndPurchasePlans(
             );
           }
 
-          await DocumentLinkService.tryAutoLink(
-            DocType.SALES_ORDER,
-            salesOrderId,
-            salesOrderNo,
-            DocType.PURCHASE_REQUISITION,
-            requisitionId,
-            reqNo,
-            userInfo.id || userInfo.userId || null,
-            connection
-          );
+          await linkDocument(DocType.PURCHASE_REQUISITION, requisitionId, reqNo);
           logger.info(
             `Purchase requisition created: requisitionNo=${reqNo}, itemCount=${filteredMaterials.length}`
           );
@@ -717,7 +725,10 @@ async function generateProductionAndPurchasePlans(
     logger.info(
       `Sales order production plan and purchase requisition generation completed: salesOrderId=${salesOrderId}`
     );
+    await connection.query('RELEASE SAVEPOINT sales_follow_up_documents');
   } catch (error) {
+    await connection.query('ROLLBACK TO SAVEPOINT sales_follow_up_documents');
+    await connection.query('RELEASE SAVEPOINT sales_follow_up_documents');
     logger.error('生成生产计划和采购申请失败:', error);
     throw error;
   }

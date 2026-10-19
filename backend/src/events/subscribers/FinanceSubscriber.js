@@ -444,7 +444,6 @@ class FinanceSubscriber {
   async handleInventoryPostingApproved(payload) {
     const sourceNo = String(payload?.sourceNo || '').trim();
     if (!sourceNo) return;
-    const db = require('../../config/db');
     const posting = payload?.postingDocumentId
       ? await InventoryPostingService.get(payload.postingDocumentId)
       : null;
@@ -474,9 +473,6 @@ class FinanceSubscriber {
       return;
     }
 
-    const sourceType = String(posting.source_type || payload?.sourceType || '').trim();
-    const financeActorId = posting.finance_approved_by || posting.business_approved_by_id || null;
-
     // 调拨的两条库存流水已经在同一库存过账事务内完成，不能落入通用
     // InventoryCostService，否则会错误生成销售成本/普通库存成本凭证。
     if (
@@ -486,6 +482,26 @@ class FinanceSubscriber {
       logger.info(`[FinanceSubscriber] 调拨过账已完成，跳过损益类成本凭证: ${sourceNo}`);
       return;
     }
+
+    // Complete this source's AP/tax/cost work before scanning other sales
+    // orders. A broken reservation on an unrelated order must not starve this
+    // posting's financial integration. Each financial branch is idempotent.
+    await this.replayApprovedInventoryFinance(posting, payload);
+
+    // Warehouse completion freezes a posting; only finance approval makes its
+    // stock available. Reservation failures still reach the original durable
+    // event retry mechanism; retries preserve the completed financial work.
+    if (posting.lines.some((line) => Number(line.signed_quantity) > 0)) {
+      const SalesOrderStatusService = require('../../services/business/SalesOrderStatusService');
+      await SalesOrderStatusService.checkAndReleasePendingOrders(null, { throwOnError: true });
+    }
+  }
+
+  async replayApprovedInventoryFinance(posting, payload) {
+    const db = require('../../config/db');
+    const sourceNo = String(payload?.sourceNo || '').trim();
+    const sourceType = String(posting.source_type || payload?.sourceType || '').trim();
+    const financeActorId = posting.finance_approved_by || posting.business_approved_by_id || null;
 
     if (sourceType === 'sales_outbound') {
       const [salesOutbound] = await db.pool.execute(

@@ -36,15 +36,19 @@
           </div>
         </div>
 
+        <div v-if="report.summary.isBalanced === false" class="balance-warning" role="alert">
+          资产负债表不平衡，差额 ¥{{ fm(report.summary.balanceDifference) }}。请核对账务数据。
+        </div>
+
         <!-- 报表明细 -->
         <div class="section-card" v-for="section in report.sections || []" :key="section.title">
           <div class="section-title">{{ section.title }}</div>
-          <div class="section-item" v-for="item in section.items || []" :key="item.account_code">
+          <div class="section-item" v-for="item in section.items || []" :key="item.id || item.accountCode">
             <span class="item-name" :class="{ indent: item.level > 1, bold: item.isTotal }">
               {{ item.accountName }}
             </span>
             <span class="item-amount" :class="{ bold: item.isTotal }"
-              >¥{{ fm(item.balance || item.amount) }}</span
+              >¥{{ fm(item.amount) }}</span
             >
           </div>
           <div class="section-total" v-if="section.total !== undefined">
@@ -55,7 +59,9 @@
 
         <Empty v-if="!report.sections || report.sections.length === 0" description="暂无报表数据" />
       </template>
-      <Empty v-else description="加载失败，请稍后重试" />
+      <Empty v-else :description="errorMessage || '加载失败，请稍后重试'">
+        <Button type="primary" plain @click="loadReport">重新加载报表</Button>
+      </Empty>
     </div>
 
     <Popup v-model:show="showDatePicker" position="bottom" round>
@@ -70,9 +76,12 @@
 </template>
 
 <script setup>
-  import { ref, onMounted } from 'vue'
-  import { NavBar, Loading, Empty, Popup, DatePicker } from 'vant'
+  import { ref, onMounted, onBeforeUnmount } from 'vue'
+  import { NavBar, Loading, Empty, Popup, DatePicker, Button } from 'vant'
   import { financeApi } from '@/api'
+  import { extractApiData } from '@/utils/apiHelper'
+  import { normalizeBalanceSheet } from '@/utils/financeReports'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
   import dayjs from 'dayjs'
 
   const reportDate = ref(dayjs().format('YYYY-MM-DD'))
@@ -85,25 +94,31 @@
   const showDatePicker = ref(false)
   const loading = ref(true)
   const report = ref(null)
+  const errorMessage = ref('')
+  let requestSequence = 0
 
   const fm = (v) => {
     const n = Number(v)
-    return isNaN(n)
-      ? '0.00'
+    return v == null || !Number.isFinite(n)
+      ? '—'
       : n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   }
 
   const loadReport = async () => {
+    const sequence = ++requestSequence
     loading.value = true
+    report.value = null
+    errorMessage.value = ''
     try {
       const res = await financeApi.getBalanceSheet({ reportDate: reportDate.value })
-      const d = res.data || res
-      report.value = d.data || d
+      if (sequence !== requestSequence) return
+      report.value = normalizeBalanceSheet(extractApiData(res))
     } catch (e) {
+      if (sequence !== requestSequence) return
       console.error('加载资产负债表失败:', e)
-      report.value = null
+      errorMessage.value = getApiErrorMessage(e, '加载失败，请稍后重试')
     } finally {
-      loading.value = false
+      if (sequence === requestSequence) loading.value = false
     }
   }
 
@@ -115,6 +130,7 @@
   }
 
   onMounted(loadReport)
+  onBeforeUnmount(() => { requestSequence++ })
 </script>
 
 <style lang="scss" scoped>
@@ -191,6 +207,14 @@
     padding: 16px;
     border: 1px solid var(--surface-border, var(--border-subtle));
   }
+  .balance-warning {
+    padding: 12px 16px;
+    border-radius: 12px;
+    color: var(--color-danger-text);
+    background: var(--ds-red-bg);
+    font-size: 0.8125rem;
+    line-height: 1.6;
+  }
   .section-title {
     font-size: 0.875rem;
     font-weight: 700;
@@ -241,5 +265,17 @@
     gap: 12px;
     padding-top: 30vh;
     color: var(--text-tertiary);
+  }
+
+  @media (max-width: 360px) {
+    .metrics-card {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    .metric {
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+    }
   }
 </style>

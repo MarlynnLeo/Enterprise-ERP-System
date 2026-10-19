@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * InvoiceFormDialog.vue
  * @description 新增/编辑发票表单对话框
@@ -7,14 +7,14 @@
  */
 -->
 <template>
-  <AppDialog
+  <AppDialog :show-close="!saveLoading" :close-on-press-escape="!saveLoading" :close-on-click-modal="!saveLoading"
     :model-value="modelValue"
     @update:model-value="$emit('update:modelValue', $event)"
     :title="title"
     mode="form"
     width="700px"
   >
-    <el-form :model="editableForm" :rules="invoiceRules" ref="invoiceFormRef" label-width="110px">
+    <el-form :disabled="saveLoading" :model="editableForm" :rules="invoiceRules" ref="invoiceFormRef" label-width="110px">
       <!-- 第一行：发票编号 + 客户（这里客户用下拉，但因为很重要所以放第一行） -->
       <el-row :gutter="20">
         <el-col :span="12">
@@ -64,6 +64,7 @@
         </el-col>
       </el-row>
 
+      <InvoiceCurrencyFields :form="editableForm" />
       <!-- 发票明细项 -->
       <div class="invoice-items">
         <h3 class="section-title-sm">发票明细</h3>
@@ -98,7 +99,7 @@
             </el-table-column>
             <el-table-column label="金额" width="100">
               <template #default="scope">
-                {{ formatCurrency(scope.row.amount) }}
+                {{ formatSettlementAmount(scope.row.amount, editableForm) }}
               </template>
             </el-table-column>
             <el-table-column label="操作" min-width="60" :resizable="false" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
@@ -139,15 +140,15 @@
             <div class="flex-col pt-4">
               <div class="flex-between text-md">
                 <span>小计：</span>
-                <span>{{ formatCurrency(calculateSubtotal()) }}</span>
+                <span>{{ formatSettlementAmount(calculateSubtotal(), editableForm) }}</span>
               </div>
               <div class="flex-between text-md">
                 <span>税额：</span>
-                <span>{{ formatCurrency(calculateTax()) }}</span>
+                <span>{{ formatSettlementAmount(calculateTax(), editableForm) }}</span>
               </div>
               <div class="total-line-primary">
                 <span>总计：</span>
-                <span>{{ formatCurrency(calculateTotal()) }}</span>
+                <span>{{ formatSettlementAmount(calculateTotal(), editableForm) }}</span>
               </div>
             </div>
           </el-col>
@@ -165,7 +166,7 @@
     </el-form>
     <template #footer>
       <span class="dialog-footer">
-        <el-button @click="$emit('update:modelValue', false)">取消</el-button>
+        <el-button :disabled="saveLoading" @click="$emit('update:modelValue', false)">取消</el-button>
         <el-button v-permission="editableForm.id ? 'finance:ar:update' : 'finance:ar:create'" type="primary" @click="$emit('save')" :loading="saveLoading">确认</el-button>
       </span>
     </template>
@@ -173,8 +174,10 @@
 </template>
 
 <script setup>
+import InvoiceCurrencyFields from '../../components/InvoiceCurrencyFields.vue'
+import { invoiceCurrencyRules } from '../../components/invoiceCurrency'
 import { computed, ref } from 'vue'
-import { formatCurrency } from '@/utils/format'
+import { formatSettlementAmount } from '../../components/settlementCurrency'
 import { useFinanceStore } from '@/stores/finance'
 import { storeToRefs } from 'pinia'
 
@@ -217,6 +220,7 @@ const invoiceFormRef = ref(null)
 
 // 表单验证规则
 const invoiceRules = {
+  ...invoiceCurrencyRules(() => editableForm.value),
   customerId: [
     { required: true, message: '请选择客户', trigger: 'change' }
   ],
@@ -267,7 +271,7 @@ const handleProductChange = (item) => {
   if (item.productId) {
     const selectedProduct = props.productOptions.find(p => p.id === item.productId)
     if (selectedProduct) {
-      item.unitPrice = selectedProduct.price || 0
+      item.unitPrice = editableForm.value.currencyCode === 'USD' ? 0 : selectedProduct.price || 0
       item.description = selectedProduct.description || ''
       calculateItemAmount(item)
     }

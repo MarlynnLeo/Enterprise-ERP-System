@@ -689,6 +689,7 @@ import {
 import { searchMaterials } from '@/utils/searchConfig'
 import { parseListData, parsePaginatedData, parseResponseData } from '@/utils/responseParser'
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
+import { usePageRequestScope } from '@/composables/usePageRequestScope'
 import { loadLocationOptions } from '@/utils/optionLoaders'
 import printService from '@/services/printService'
 import TableRowActions from '@/components/common/TableRowActions.vue'
@@ -698,6 +699,11 @@ const route = useRoute()
 // 权限store
 const authStore = useAuthStore()
 const dictionaryStore = useDictionaryStore()
+let productionReturnHandled = false
+const pageRequests = usePageRequestScope({
+  onResume: () => initializePage(),
+  onLeave: () => { loading.value = false; materialLoading.value = false }
+})
 const getCurrentUserDisplayName = () => {
   const currentUser = authStore.user || tokenManager.getUser()
   return currentUser?.realName || currentUser?.name || currentUser?.username || ''
@@ -876,12 +882,17 @@ const getInboundTypeText = (type) => getInventoryInboundTypeText(type) || type |
 const getInboundTypeTagType = (type) => getInventoryInboundTypeColor(type) || 'info'
 // 加载仓库列表
 const loadLocations = async () => {
+  const isCurrent = pageRequests.start('locations')
+  if (!isCurrent()) return
   try {
-    locations.value = await loadLocationOptions();
+    const options = await loadLocationOptions();
+    if (!isCurrent()) return
+    locations.value = options;
     if (locations.value.length === 0) {
       ElMessage.warning('未找到可用的仓库，请先在基础数据中添加仓库');
     }
   } catch (error) {
+    if (!isCurrent()) return
     console.error('加载仓库数据失败:', error);
     ElMessage.error('加载仓库数据失败: ' + (getApiErrorMessage(error, '未知错误')));
     locations.value = [];
@@ -889,6 +900,8 @@ const loadLocations = async () => {
 };
 // 加载物料列表
 const loadMaterials = async () => {
+  const isCurrent = pageRequests.start('materials')
+  if (!isCurrent()) return
   try {
     materialLoading.value = true
     const params = {
@@ -898,23 +911,29 @@ const loadMaterials = async () => {
       code: materialSearchForm.code
     }
     const response = await baseDataApi.getMaterials(params)
+    if (!isCurrent()) return
     const { list, total } = parsePaginatedData(response)
     materialTableData.value = list
     materialTotal.value = total
   } catch (error) {
+    if (!isCurrent()) return
     console.error('加载物料数据失败:', error)
     ElMessage.error('加载物料数据失败')
   } finally {
-    materialLoading.value = false
+    if (isCurrent()) materialLoading.value = false
   }
 }
 // 加载单位数据
 const loadUnits = async () => {
+  const isCurrent = pageRequests.start('units')
+  if (!isCurrent()) return []
   try {
     const response = await baseDataApi.getUnits({ status: 1 }); // 只获取启用的单位
+    if (!isCurrent()) return []
     units.value = parseListData(response, { enableLog: false });
     return units.value;
   } catch (error) {
+    if (!isCurrent()) return []
     console.error('加载单位数据失败:', error);
     ElMessage.error('加载单位数据失败');
     return [];
@@ -922,6 +941,8 @@ const loadUnits = async () => {
 };
 // 加载入库单列表
 const loadInbounds = async () => {
+  const isCurrent = pageRequests.start('list')
+  if (!isCurrent()) return
   clearInboundSelection()
   loading.value = true;
   try {
@@ -936,17 +957,19 @@ const loadInbounds = async () => {
       endDate: searchForm.dateRange && searchForm.dateRange[1] ? searchForm.dateRange[1] : ''
     };
     const response = await inventoryApi.getInboundList(params);
+    if (!isCurrent()) return
     const { list, total } = parsePaginatedData(response);
     tableData.value = list;
     pagination.total = Math.max(total, 0);
-    updateStats();
+    updateStats(isCurrent);
   } catch (error) {
+    if (!isCurrent()) return
     console.error('加载入库单失败:', error);
     ElMessage.error('加载入库单失败');
     tableData.value = [];
     pagination.total = 0;
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 };
 // 搜索处理
@@ -1724,7 +1747,10 @@ const resetSearch = () => {
   loadInbounds();
 };
 // 更新统计数据 - 从服务端获取真实统计
-const updateStats = async () => {
+const updateStats = async (isListCurrent = () => true) => {
+  const isLatestStats = pageRequests.start('statistics')
+  const isCurrent = () => isListCurrent() && isLatestStats()
+  if (!isCurrent()) return
   try {
     const params = {
       materialName: searchForm.materialName || undefined,
@@ -1737,6 +1763,7 @@ const updateStats = async () => {
       params.endDate = searchForm.dateRange[1];
     }
     const response = await inventoryApi.getInboundStatistics(params);
+    if (!isCurrent()) return
     const stats = parseResponseData(response, {});
     inboundStats.total = Number(stats.total) || 0;
     inboundStats.draftCount = Number(stats.draftCount) || 0;
@@ -1744,22 +1771,34 @@ const updateStats = async () => {
     inboundStats.completedCount = Number(stats.completedCount) || 0;
     inboundStats.cancelledCount = Number(stats.cancelledCount) || 0;
   } catch (error) {
+    if (!isCurrent()) return
     console.error('获取统计数据失败:', error);
     // 失败时使用当前分页的数据作为fallback
     inboundStats.total = pagination.total;
   }
 };
-onMounted(async () => {
-  await dictionaryStore.fetchDictionary()
-  await loadLocations();
-  loadMaterials();
-  loadUnits();
-  loadInbounds();
-  // 检查是否从生产工序页面跳转过来（退料操作）
-  if (route.query.action === 'return' && route.query.taskId) {
-    await handleReturnFromProduction(route.query.taskId, route.query.taskCode)
+const initializePage = async () => {
+  const isCurrent = pageRequests.start('initialize')
+  if (!isCurrent()) return
+  try {
+    await dictionaryStore.fetchDictionary()
+    if (!isCurrent()) return
+    await loadLocations();
+    if (!isCurrent()) return
+    await Promise.all([loadMaterials(), loadUnits(), loadInbounds()]);
+    if (!isCurrent()) return
+    // 检查是否从生产工序页面跳转过来（退料操作）
+    if (!productionReturnHandled && route.query.action === 'return' && route.query.taskId) {
+      productionReturnHandled = true
+      await handleReturnFromProduction(route.query.taskId, route.query.taskCode)
+    }
+  } catch (error) {
+    if (!isCurrent()) return
+    console.error('页面初始化失败:', error)
+    ElMessage.error('页面初始化失败')
   }
-});
+};
+onMounted(initializePage);
 // 处理从生产工序页面跳转过来的退料
 const handleReturnFromProduction = async (taskId, taskCode) => {
   // 打开新建对话框

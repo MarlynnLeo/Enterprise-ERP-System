@@ -34,7 +34,7 @@
         </el-form-item>
       </template>
       <template #advanced>
-        <el-form-item label="记账日期">
+        <el-form-item label="凭证日期">
           <el-date-picker
             v-model="searchForm.dateRange"
             type="daterange"
@@ -80,146 +80,85 @@
     <!-- 统计信息 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value">{{ statistics.total || 0 }}</div>
-        <div class="stat-label">总凭证数</div>
+        <div class="stat-value">{{ loading || listError ? '—' : statistics.total || 0 }}</div>
+        <div class="stat-label">查询凭证数</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value">{{ statistics.posted || 0 }}</div>
+        <div class="stat-value">{{ loading || listError ? '—' : statistics.posted || 0 }}</div>
         <div class="stat-label">已过账</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value">{{ statistics.unposted || 0 }}</div>
+        <div class="stat-value">{{ loading || listError ? '—' : statistics.unposted || 0 }}</div>
         <div class="stat-label">未过账</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value">{{ formatCurrency(statistics.totalAmount) }}</div>
-        <div class="stat-label">总金额</div>
+        <div class="stat-value voucher-stat-amount">{{ loading || listError ? '—' : formatJournalAmount(statistics.totalAmount) || '0.00' }}</div>
+        <div class="stat-label" title="按当前查询条件累计借方金额，含符合条件的未过账凭证，不代表账户余额">查询借方累计（CNY）</div>
       </el-card>
     </div>
 
-    <!-- 表格区域 -->
-    <el-card class="data-card">
+    <!-- 凭证序时簿：每条分录直接显示在主表中 -->
+    <el-card class="data-card journal-card">
+      <div class="journal-toolbar">
+        <div class="journal-heading">
+          <strong>凭证序时簿</strong>
+          <span class="journal-hint">单击选中分录，双击查看凭证</span>
+        </div>
+        <div class="journal-actions">
+          <el-button size="small" :icon="View" :disabled="!selectedEntry || loading" @click="viewEntry(selectedEntry)" v-permission="'finance:entries:view'">查看凭证</el-button>
+          <el-button size="small" :icon="Check" :loading="entryAction === 'post'" :disabled="!selectedEntry || loading || !!entryAction || selectedEntry.isPosted || selectedEntry.isReversed" @click="postEntry(selectedEntry)" v-permission="'finance:entries:approve'">过账</el-button>
+          <el-button size="small" :icon="RefreshLeft" :title="reversalUnavailableReason(selectedEntry)" :disabled="!selectedEntry || loading || !!entryAction || !canReverseEntry(selectedEntry)" @click="reverseEntry(selectedEntry)" v-permission="'finance:entries:approve'">冲销</el-button>
+          <el-button size="small" :icon="Delete" :loading="entryAction === 'delete'" :disabled="!selectedEntry || loading || !!entryAction || selectedEntry.isPosted || selectedEntry.isReversed" @click="deleteEntry(selectedEntry)" v-permission="'finance:entries:delete'">删除</el-button>
+          <el-button size="small" :icon="Refresh" :disabled="loading" @click="loadEntries">刷新</el-button>
+        </div>
+      </div>
+      <div class="journal-selection" aria-live="polite">
+        <template v-if="selectedEntry">
+          <span>已选凭证：<strong>{{ selectedEntry.entryNumber }}</strong></span>
+          <span>{{ voucherStatus(selectedEntry) }}</span>
+          <span v-if="selectedEntry.isPosted && !isManualVoucher(selectedEntry)" class="journal-hint">业务撤销请回原单办理</span>
+        </template>
+        <span v-else>请选择分录后操作凭证</span>
+        <span class="journal-count">本页 {{ entriesList.length }} 张凭证 · {{ journalItemCount }} 条分录</span>
+      </div>
+      <el-alert v-if="listError" :title="listError" type="error" :closable="false" show-icon>
+        <el-button link type="primary" @click="loadEntries">重新加载</el-button>
+      </el-alert>
       <el-table
-        :data="entriesList"
-        class="table-row-click w-full"
-        row-key="id"
+        ref="journalTable"
+        :data="journalRows"
+        class="journal-table w-full"
+        row-key="rowKey"
         border
+        size="small"
+        highlight-current-row
+        :row-class-name="({ row }) => row.firstLine ? 'voucher-first-line' : 'voucher-continuation'"
+        scrollbar-always-on
         v-loading="loading"
-        @expand-change="handleExpandChange"
-        @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewEntry(row))"
+        @row-click="selectJournalRow"
+        @row-dblclick="row => viewEntry(row.entry)"
       >
-        <el-table-column type="expand">
-          <template #default="props">
-            <div class="expanded-row">
-              <div class="expanded-row-header">
-                <h4>凭证明细</h4>
-                <span class="expanded-row-description">{{ props.row.description }}</span>
-              </div>
-              <el-table :data="props.row.items || []" border class="w-full inner-table">
-                <el-table-column prop="accountCode" label="科目编码" width="120"></el-table-column>
-                <el-table-column prop="accountName" label="科目名称" width="180"></el-table-column>
-                <el-table-column prop="debitAmount" label="借方金额" width="150">
-                  <template #default="scope">
-                    <span class="text-success" v-if="scope.row.debitAmount > 0">{{ scope.row.debitAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
-                    <span class="text-danger" v-else-if="scope.row.debitAmount < 0">{{ scope.row.debitAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
-                    <span v-else>-</span>
-                  </template>
-                </el-table-column>
-                <el-table-column prop="creditAmount" label="贷方金额" width="150">
-                  <template #default="scope">
-                    <span class="text-danger" v-if="scope.row.creditAmount > 0">{{ scope.row.creditAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
-                    <span class="text-success" v-else-if="scope.row.creditAmount < 0">{{ scope.row.creditAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
-                    <span v-else>-</span>
-                  </template>
-                </el-table-column>
-                <el-table-column prop="description" label="描述" show-overflow-tooltip></el-table-column>
-              </el-table>
-              <div class="expanded-row-footer">
-                <div class="total-item">
-                  <span class="label">借方合计：</span>
-                  <span class="value debit">{{ (props.row.expandedTotalDebit || props.row.totalDebit || 0).toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
-                </div>
-                <div class="total-item">
-                  <span class="label">贷方合计：</span>
-                  <span class="value credit">{{ (props.row.expandedTotalCredit || props.row.totalCredit || 0).toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
-                </div>
-              </div>
-            </div>
-          </template>
+        <el-table-column
+          v-for="column in JOURNAL_COLUMNS"
+          :key="column.prop"
+          :prop="column.prop"
+          :label="column.label"
+          :width="column.width"
+          :align="column.numeric ? 'right' : 'left'"
+          header-align="center"
+          :class-name="column.header ? 'voucher-header-cell' : ''"
+          show-overflow-tooltip
+        >
+          <template #default="{ row }">{{ journalCellValue(row, column) }}</template>
         </el-table-column>
-        <el-table-column prop="entryNumber" label="凭证编号" width="160" show-overflow-tooltip></el-table-column>
-        <el-table-column prop="entryDate" label="记账日期" width="100"></el-table-column>
-        <el-table-column prop="postingDate" label="过账日期" width="100"></el-table-column>
-        <el-table-column prop="documentType" label="单据类型" width="90" show-overflow-tooltip></el-table-column>
-        <el-table-column prop="documentNumber" label="单据编号" width="160" show-overflow-tooltip></el-table-column>
-        <el-table-column prop="periodName" label="会计期间" width="110" show-overflow-tooltip></el-table-column>
-        <el-table-column label="借方合计" width="120">
-          <template #default="scope">
-            <span class="debit" v-if="scope.row.totalDebit">{{ scope.row.totalDebit.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
-            <span v-else>-</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="贷方合计" width="120">
-          <template #default="scope">
-            <span class="credit" v-if="scope.row.totalCredit">{{ scope.row.totalCredit.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
-            <span v-else>-</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="状态" width="100">
-          <template #default="scope">
-            <el-tag :type="scope.row.isPosted ? 'success' : 'info'">
-              {{ scope.row.isPosted ? '已过账' : '未过账' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="冲销状态" width="100">
-          <template #default="scope">
-            <el-tag :type="scope.row.isReversed ? 'warning' : ''" v-if="scope.row.isReversed">
-              已冲销
-            </el-tag>
-            <el-tag type="info" v-else-if="scope.row.isReversalEntry">
-              冲销凭证
-            </el-tag>
-            <span v-else>-</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="createdBy" label="创建人" width="120" show-overflow-tooltip></el-table-column>
-        <el-table-column prop="description" label="描述" min-width="150" show-overflow-tooltip></el-table-column>
-        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
-      >
-          <template #default="scope">
-            <div class="table-actions">
-              
-              <el-button
-                v-if="!scope.row.isPosted && !scope.row.isReversed"
-                type="success"
-                size="small"
-                @click="postEntry(scope.row)"
-                v-permission="'finance:entries:approve'"
-              >
-                <el-icon><Check /></el-icon> 过账
-              </el-button>
-              <el-button
-                v-if="canReverseEntry(scope.row)"
-                type="warning"
-                size="small"
-                @click="reverseEntry(scope.row)"
-                v-permission="'finance:entries:update'"
-              >
-                <el-icon><RefreshLeft /></el-icon> 冲销
-              </el-button>
-              <el-button v-permission="'finance:entries:delete'"
-                v-if="!scope.row.isPosted"
-                type="danger"
-                size="small"
-                @click="deleteEntry(scope.row)"
-              >
-                <el-icon><Delete /></el-icon> 删除
-              </el-button>
-            </div>
-          </template>
-        </el-table-column>
+        <template #empty>{{ listError ? '凭证数据加载失败，请重试' : '暂无符合条件的凭证' }}</template>
       </el-table>
+      <div class="journal-totals">
+        <span>本页合计（CNY）</span>
+        <span>借方 <strong>{{ formatJournalAmount(journalTotals.debit) || '0.00' }}</strong></span>
+        <span>贷方 <strong>{{ formatJournalAmount(journalTotals.credit) || '0.00' }}</strong></span>
+        <span class="journal-pagination-note">按凭证分页，分录完整显示</span>
+      </div>
 
       <!-- 分页 -->
       <div class="pagination-container">
@@ -244,72 +183,24 @@
       v-model="detailDialogVisible"
       title="凭证明细"
       mode="view"
-      content-width="wide"
+      width="1000px"
+      :loading="detailLoading"
     >
       <template #header>
         <div class="dialog-header">
           <span class="dialog-title">凭证明细</span>
-          <el-button v-permission="'finance:entries:view'" type="primary" size="small" @click="handlePrint" :icon="Printer">打印凭证</el-button>
+          <el-button v-permission="'finance:entries:view'" type="primary" size="small" :disabled="printLoading || detailLoading || !!detailError || !currentEntry.id" @click="handlePrint" :icon="Printer">打印凭证</el-button>
         </div>
       </template>
-      <div class="print-area">
-      <div class="entry-detail-header">
-        <div class="detail-item">
-          <span class="label">凭证编号：</span>
-          <span class="value">{{ currentEntry.entryNumber }}</span>
-        </div>
-        <div class="detail-item">
-          <span class="label">记账日期：</span>
-          <span class="value">{{ currentEntry.entryDate }}</span>
-        </div>
-        <div class="detail-item">
-          <span class="label">单据类型：</span>
-          <span class="value">{{ currentEntry.documentType }}</span>
-        </div>
-        <div class="detail-item">
-          <span class="label">状态：</span>
-          <el-tag :type="currentEntry.isPosted ? 'success' : 'info'" size="small">
-            {{ currentEntry.isPosted ? '已过账' : '未过账' }}
-          </el-tag>
-        </div>
-      </div>
-
-      <div class="entry-description">
-        <span class="label">描述：</span>
-        <span class="value">{{ currentEntry.description }}</span>
-      </div>
-
-      <el-table :data="currentEntryItems" border class="w-full mt-md">
-        <el-table-column prop="accountCode" label="科目编码" width="120"></el-table-column>
-        <el-table-column prop="accountName" label="科目名称" width="180"></el-table-column>
-        <el-table-column prop="debitAmount" label="借方金额" width="150">
-          <template #default="scope">
-            <span class="text-success" v-if="scope.row.debitAmount > 0">{{ scope.row.debitAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
-            <span class="text-danger" v-else-if="scope.row.debitAmount < 0">{{ scope.row.debitAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
-            <span v-else>-</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="creditAmount" label="贷方金额" width="150">
-          <template #default="scope">
-            <span class="text-danger" v-if="scope.row.creditAmount > 0">{{ scope.row.creditAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
-            <span class="text-success" v-else-if="scope.row.creditAmount < 0">{{ scope.row.creditAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
-            <span v-else>-</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="description" label="描述" show-overflow-tooltip></el-table-column>
-      </el-table>
-
-      <div class="entry-totals">
-        <div class="total-item">
-          <span class="label">借方合计：</span>
-          <span class="value debit">{{ totalDebit.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
-        </div>
-        <div class="total-item">
-          <span class="label">贷方合计：</span>
-          <span class="value credit">{{ totalCredit.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
-        </div>
-      </div>
-      </div>
+      <el-alert v-if="detailError" :title="detailError" type="error" :closable="false" show-icon>
+        <el-button link type="primary" @click="retryEntryDetail">重新加载凭证</el-button>
+      </el-alert>
+      <EntryVoucherSheet
+        v-else-if="currentEntry.id"
+        :entry="currentEntry"
+        :items="currentEntryItems"
+        @open-entry="id => loadEntryDetail({ id })"
+      />
     </AppDialog>
 
     <!-- 冲销凭证对话框 -->
@@ -319,15 +210,17 @@
       mode="form"
       width="560px"
       :close-on-click-modal="false"
+      :close-on-press-escape="!reverseSubmitting"
+      :show-close="!reverseSubmitting"
     >
       <el-descriptions :column="2" border class="reversal-summary" v-if="reversingEntry">
         <el-descriptions-item label="原凭证">{{ reversingEntry.entryNumber }}</el-descriptions-item>
         <el-descriptions-item label="原期间">{{ reversingEntry.periodName }}</el-descriptions-item>
         <el-descriptions-item label="原日期">{{ reversingEntry.entryDate }}</el-descriptions-item>
-        <el-descriptions-item label="原金额">{{ formatCurrency(reversingEntry.totalDebit) }}</el-descriptions-item>
+        <el-descriptions-item label="原金额（CNY）">{{ formatJournalAmount(reversingEntry.totalDebit) }}</el-descriptions-item>
       </el-descriptions>
 
-      <el-form :model="reversalForm" label-width="100px" class="reversal-form">
+      <el-form :model="reversalForm" :disabled="reverseSubmitting" label-width="100px" class="reversal-form">
         <el-form-item label="冲销日期" required>
           <el-date-picker
             v-model="reversalForm.entry_date"
@@ -383,7 +276,7 @@
       />
 
       <template #footer>
-        <el-button @click="reverseDialogVisible = false">取消</el-button>
+        <el-button :disabled="reverseSubmitting" @click="reverseDialogVisible = false">取消</el-button>
         <el-button
           type="warning"
           :loading="reverseSubmitting"
@@ -407,17 +300,18 @@
 <script setup>
 import { PAGE_SIZE_OPTIONS } from '@/config/pagination'
 import { getThemeDefaultPageSize } from '@/utils/themePageSize'
-import { handleTableRowView } from '@/utils/tableRowView'
+import { JOURNAL_COLUMNS, buildJournalRows, journalCellValue, formatJournalAmount } from './entries/journalGrid'
+import { voucherStatus, postingMethodLabel, reversalUnavailableReason, isManualVoucher, normalizeVoucherPeriod, isOpenVoucherPeriod } from './entries/voucherPresentation'
+import { appendVoucherPrintAudit } from './entries/voucherPrintAudit'
 // Vue核心和路由
-import { ref, reactive, computed, onMounted, watch } from 'vue';
+import { ref, reactive, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { formatDate } from '@/utils/helpers/dateUtils'
-import { formatCurrency } from '@/utils/format'
 import { useRoute } from 'vue-router';
 
 // Element Plus
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index';
-import { Plus, Printer, Check, RefreshLeft, Delete } from '@element-plus/icons-vue';
+import { Plus, Printer, Check, RefreshLeft, Delete, View, Refresh } from '@element-plus/icons-vue';
 
 // Pinia Stores
 import { useFinanceStore } from '@/stores/finance';
@@ -427,6 +321,7 @@ import { storeToRefs } from 'pinia';
 import { financeApi } from '@/api';
 import printService from '@/services/printService'
 import EntryFormDialog from './entries/EntryFormDialog.vue'
+import EntryVoucherSheet from './entries/EntryVoucherSheet.vue'
 import { getApiErrorMessage } from '@/utils/errorHandler'
 
 // Props定义
@@ -463,6 +358,17 @@ const currentPage = ref(1);
 
 // 凭证列表
 const entriesList = ref([]);
+const journalTable = ref(null);
+const listError = ref('');
+const selectedRowKey = ref('');
+const journalRows = computed(() => buildJournalRows(entriesList.value));
+const journalItemCount = computed(() => journalRows.value.filter(row => row.hasItem).length);
+const selectedEntry = computed(() => journalRows.value.find(row => row.rowKey === selectedRowKey.value)?.entry || null);
+const journalTotals = computed(() => entriesList.value.reduce((totals, entry) => ({
+  debit: totals.debit + (Number(entry.totalDebit) || 0),
+  credit: totals.credit + (Number(entry.totalCredit) || 0),
+}), { debit: 0, credit: 0 }));
+const selectJournalRow = row => { selectedRowKey.value = row.rowKey; };
 
 // 统计数据
 const statistics = reactive({
@@ -477,6 +383,13 @@ const detailDialogVisible = ref(false);
 const currentEntry = ref({});
 const currentEntryItems = ref([]);
 const openedRouteEntryId = ref('');
+const detailLoading = ref(false);
+const printLoading = ref(false);
+const detailError = ref('');
+let detailRequest = null;
+let detailSequence = 0;
+let listSequence = 0;
+let disposed = false;
 const reverseDialogVisible = ref(false);
 const reverseSubmitting = ref(false);
 const reversingEntry = ref(null);
@@ -489,6 +402,7 @@ const reversalForm = reactive({
 
 // 录入凭证对话框（业务多选生成 + 手工录入）
 const entryDialogVisible = ref(false);
+const entryAction = ref('');
 
 const defaultVoucherWord = computed(() => {
   const type = props.fixedType || route.query.type || '';
@@ -513,13 +427,16 @@ const handleEntryDialogSuccess = async () => {
 
 // 打印凭证
 const handlePrint = async () => {
-  if (!currentEntry.value?.id) {
+  if (printLoading.value) return;
+  if (detailLoading.value || detailError.value || !currentEntry.value?.id) {
     ElMessage.warning('凭证数据未就绪');
     return;
   }
 
+  printLoading.value = true;
   try {
     const entry = currentEntry.value
+    const items = currentEntryItems.value
     const html = await printService.generateByDefaultTemplate('finance', 'gl_voucher', {
       entry_number: entry.entryNumber || entry.technicalId || '',
       document_no: entry.entryNumber || entry.technicalId || '',
@@ -528,36 +445,46 @@ const handlePrint = async () => {
       document_type: entry.documentType || '',
       document_number: entry.documentNumber || '',
       period_name: entry.periodName || '',
-      status: entry.isPosted ? '已过账' : '未过账',
+      status: voucherStatus(entry),
+      base_currency: 'CNY',
+      attachment_count: entry.attachmentCount ?? '',
+      approved_by: entry.approverName || '',
+      posted_by: entry.postedBy || '',
+      posted_at: entry.postedAt || '',
+      posting_method: postingMethodLabel(entry.postingMethod),
       description: entry.description || '',
-      total_debit: formatCurrency(totalDebit.value),
-      total_credit: formatCurrency(totalCredit.value),
+      total_debit: formatJournalAmount(totalDebit.value) || '0.00',
+      total_credit: formatJournalAmount(totalCredit.value) || '0.00',
       created_by: entry.createdBy || '',
       print_time: new Date().toLocaleString(),
-      items: currentEntryItems.value.map((item, index) => ({
+      items: items.map((item, index) => ({
         index: index + 1,
         account_code: item.accountCode || '',
         account_name: item.accountName || '',
         description: item.description || '',
-        debit_amount: item.debitAmount ? formatCurrency(item.debitAmount) : '-',
-        credit_amount: item.creditAmount ? formatCurrency(item.creditAmount) : '-'
+        debit_amount: formatJournalAmount(item.debitAmount) || '-',
+        credit_amount: formatJournalAmount(item.creditAmount) || '-',
+        currency_code: item.currencyCode || '',
+        exchange_rate: item.exchangeRate,
+        foreign_amount: item.foreignAmount,
       }))
     })
-    printService.previewDocument(html)
-    ElMessage.success('打印预览已打开')
+    await printService.previewDocument(appendVoucherPrintAudit(html, entry, items))
   } catch (error) {
     console.error('打印凭证失败:', error)
     ElMessage.error('打印凭证失败')
+  } finally {
+    printLoading.value = false;
   }
 };
 
 // 计算借贷方合计
 const totalDebit = computed(() => {
-  return currentEntryItems.value.reduce((sum, item) => sum + (item.debitAmount || 0), 0);
+  return currentEntryItems.value.reduce((sum, item) => sum + (Number(item.debitAmount) || 0), 0);
 });
 
 const totalCredit = computed(() => {
-  return currentEntryItems.value.reduce((sum, item) => sum + (item.creditAmount || 0), 0);
+  return currentEntryItems.value.reduce((sum, item) => sum + (Number(item.creditAmount) || 0), 0);
 });
 
 // 会计期间列表
@@ -570,13 +497,8 @@ const toLocalDateString = (date = new Date()) => {
   return `${year}-${month}-${day}`;
 };
 
-const getPeriodStart = (period) => (period?.startDate || period?.startDate || '').slice(0, 10);
-const getPeriodEnd = (period) => (period?.endDate || period?.endDate || '').slice(0, 10);
-
-const isClosedPeriod = (period) => {
-  const closed = period?.isClosed ?? period?.is_closed;
-  return closed === true || closed === 1 || closed === '1';
-};
+const getPeriodStart = period => (period?.startDate || '').slice(0, 10);
+const getPeriodEnd = period => (period?.endDate || '').slice(0, 10);
 
 const isDateInPeriod = (date, period) => {
   const start = getPeriodStart(period);
@@ -584,7 +506,7 @@ const isDateInPeriod = (date, period) => {
   return Boolean(date && start && end && date >= start && date <= end);
 };
 
-const openPeriods = computed(() => periods.value.filter(period => !isClosedPeriod(period)));
+const openPeriods = computed(() => periods.value.filter(isOpenVoucherPeriod));
 
 const selectedReversalPeriod = computed(() => {
   return periods.value.find(period => String(period.id) === String(reversalForm.period_id)) || null;
@@ -604,6 +526,7 @@ const canSubmitReversal = computed(() => {
     && reversalForm.entry_date
     && reversalForm.posting_date
     && reversalForm.period_id
+    && isOpenVoucherPeriod(selectedReversalPeriod.value)
     && !reversalPeriodMismatch.value
     && !reverseSubmitting.value
   );
@@ -622,22 +545,17 @@ const toBooleanFlag = (value) => value === true || value === 1 || value === '1';
 
 const isReversedEntry = (entry) => {
   return toBooleanFlag(entry.isReversed)
-    || toBooleanFlag(entry.isReversed)
     || entry.status === 'reversed'
-    || Boolean(entry.reversal_entry_id);
+    || Boolean(entry.reversalEntryId);
 };
 
 const isReversalEntry = (entry) => {
-  return toBooleanFlag(entry.is_reversal_entry)
-    || toBooleanFlag(entry.isReversalEntry)
-    || Boolean(entry.reversal_of_entry_id)
+  return toBooleanFlag(entry.isReversalEntry)
     || Boolean(entry.reversalOfEntryId);
 };
 
 const canReverseEntry = (entry) => {
-  return toBooleanFlag(entry.isPosted)
-    && !isReversedEntry(entry)
-    && !isReversalEntry(entry);
+  return !reversalUnavailableReason(entry);
 };
 
 // 搜索表单
@@ -660,6 +578,8 @@ const DOCUMENT_TYPE_LABELS = {
   profit_loss_transfer: '损益结转',
   year_end_transfer: '年度结转',
   sales_outbound: '销售出库',
+  outsourced_issue: '委外发料',
+  outsourced_receipt: '委外入库',
   production_cost_transfer: '生产成本结转',
   inventory_reclass: '库存重分类',
 };
@@ -667,6 +587,16 @@ const DOCUMENT_TYPE_LABELS = {
 // API 已 camel（toGlEntryApi）
 const normalizeEntryRow = (entry) => ({
   id: entry.id,
+  voucherWord: entry.voucherWord,
+  voucherNumber: entry.voucherNumber,
+  attachmentCount: entry.attachmentCount ?? null,
+  approvalComment: entry.approvalComment || '',
+  items: Array.isArray(entry.items) ? entry.items : [],
+  approverName: entry.approverName || '',
+  postedBy: entry.postedBy || '',
+  postedAt: entry.postedAt || '',
+  approvedAt: entry.approvedAt || '',
+  postingMethod: entry.postingMethod || '',
   entryNumber: entry.entryNumber
     || (entry.voucherWord && entry.voucherNumber
       ? `${entry.voucherWord}-${entry.voucherNumber}`
@@ -675,6 +605,10 @@ const normalizeEntryRow = (entry) => ({
   entryDate: formatDate(entry.entryDate),
   postingDate: formatDate(entry.postingDate),
   documentType: DOCUMENT_TYPE_LABELS[entry.documentType] || entry.documentType,
+  rawDocumentType: entry.documentType,
+  transactionType: entry.transactionType,
+  transactionId: entry.transactionId,
+  hasBusinessLinks: entry.hasBusinessLinks,
   documentNumber: entry.documentNumber,
   periodId: entry.periodId,
   periodName: entry.periodName || '未命名会计期间',
@@ -683,19 +617,59 @@ const normalizeEntryRow = (entry) => ({
   isReversed: isReversedEntry(entry),
   isReversalEntry: isReversalEntry(entry),
   reversalOfEntryId: entry.reversalOfEntryId,
+  reversalEntryId: entry.reversalEntryId,
   createdBy: entry.creatorName || entry.createdBy,
   description: entry.description || '-',
   totalDebit: entry.totalDebit ?? 0,
   totalCredit: entry.totalCredit ?? 0
 });
 
+// Older servers return headers only. Fetch missing lines through the existing
+// detail endpoint, with bounded concurrency and no mutation of cached responses.
+const ensureEntryItems = async (entries, isCurrent) => {
+  if (entries.some(entry => entry.items != null && !Array.isArray(entry.items))) {
+    throw new Error('凭证明细数据不完整，请重新加载');
+  }
+  const rows = entries.map(entry => ({ ...entry }));
+  const missing = rows.filter(entry => entry.items == null);
+  let nextIndex = 0;
+  let failed = false;
+  const loadNext = async () => {
+    while (isCurrent() && !failed && nextIndex < missing.length) {
+      const entry = missing[nextIndex++];
+      try {
+        if (!Number.isSafeInteger(Number(entry.id)) || Number(entry.id) <= 0) {
+          throw new Error('凭证编号无效，请重新加载');
+        }
+        const response = await financeApi.getEntryItems(entry.id);
+        if (!isCurrent()) return;
+        if (!Array.isArray(response.data)) {
+          throw new Error('凭证明细数据不完整，请重新加载');
+        }
+        entry.items = response.data;
+      } catch (error) {
+        failed = true;
+        throw error;
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(4, missing.length) }, loadNext));
+  return rows;
+};
+
 // 加载凭证列表
 const loadEntries = async () => {
+  const sequence = ++listSequence;
+  const isCurrent = () => !disposed && sequence === listSequence;
   loading.value = true;
+  listError.value = '';
+  selectedRowKey.value = '';
+  journalTable.value?.setCurrentRow?.();
   try {
     const params = {
       page: currentPage.value,
-      pageSize: pageSize.value
+      pageSize: pageSize.value,
+      includeItems: true
     };
 
     // 添加筛选条件（HTTP camel）
@@ -735,10 +709,13 @@ const loadEntries = async () => {
     }
 
     const response = await financeApi.getEntries(params);
+    if (disposed || sequence !== listSequence) return;
     // 根据后端返回的实际数据结构调整
     if (response.data.entries && Array.isArray(response.data.entries)) {
+      const entries = await ensureEntryItems(response.data.entries, isCurrent);
+      if (!isCurrent()) return;
       // 提取基本数据
-      entriesList.value = response.data.entries.map(normalizeEntryRow);
+      entriesList.value = entries.map(normalizeEntryRow);
 
       // 设置分页信息
       if (response.data.pagination) {
@@ -750,8 +727,8 @@ const loadEntries = async () => {
 
       // 使用后端返回的统计数据（真实总量）
       calculateStatistics(response.data.statistics);
-      await openRouteEntryDetail();
     } else {
+      listError.value = '凭证列表数据不完整，请重新加载';
       ElMessage.warning('返回的数据格式不正确');
       entriesList.value = [];
       total.value = 0;
@@ -762,6 +739,8 @@ const loadEntries = async () => {
       statistics.totalAmount = 0;
     }
   } catch (error) {
+    if (disposed || sequence !== listSequence) return;
+    listError.value = getApiErrorMessage(error, '加载凭证列表失败，请重试');
     console.error('加载凭证列表失败:', error);
     ElMessage.error('加载凭证列表失败');
     entriesList.value = [];
@@ -772,7 +751,7 @@ const loadEntries = async () => {
     statistics.unposted = 0;
     statistics.totalAmount = 0;
   } finally {
-    loading.value = false;
+    if (!disposed && sequence === listSequence) loading.value = false;
   }
 };
 
@@ -812,59 +791,74 @@ const resetSearch = () => {
   searchEntries();
 };
 
-// 查看凭证详情
-const viewEntry = async (row) => {
+// A single request owns the header and items, including route changes and retries.
+const loadEntryDetail = async (request) => {
+  const sequence = ++detailSequence;
+  const isCurrent = () => !disposed && sequence === detailSequence;
+  detailRequest = request;
+  detailLoading.value = true;
+  detailError.value = '';
+  currentEntry.value = {};
+  currentEntryItems.value = [];
+  detailDialogVisible.value = true;
   try {
-    const response = await financeApi.getEntryItems(row.id);
-    currentEntry.value = row;
-    // 确保获取到的数据能正确映射到前端需要的属性
-    if (Array.isArray(response.data)) {
-      currentEntryItems.value = response.data;
-    } else {
-      console.error('获取到的凭证明细数据格式不正确:', response.data);
-      currentEntryItems.value = [];
-      ElMessage.warning('获取到的凭证明细数据格式不正确');
+    if (!Number.isSafeInteger(Number(request.id)) || Number(request.id) <= 0) {
+      throw new Error('凭证编号无效，请重新选择凭证');
     }
-    detailDialogVisible.value = true;
+    const response = await financeApi.getEntry(request.id);
+    if (!isCurrent()) return;
+    const data = response.data?.entry ?? response.data;
+    if (String(data?.id) !== String(request.id)) throw new Error('凭证详情数据不完整，请重新加载');
+    const entry = normalizeEntryRow(data);
+    let items = data.items;
+    if (items == null) {
+      const legacy = await financeApi.getEntryItems(entry.id);
+      if (!isCurrent()) return;
+      items = legacy.data;
+    }
+    if (!Array.isArray(items)) throw new Error('凭证明细数据不完整，请重新加载');
+    currentEntry.value = entry;
+    currentEntryItems.value = items;
+    if (request.routeId && String(route.query.entryId) === request.routeId) {
+      openedRouteEntryId.value = request.routeId;
+    }
   } catch (error) {
+    if (!isCurrent()) return;
     console.error('加载凭证明细失败:', error);
-    ElMessage.error('加载凭证明细失败');
+    detailError.value = getApiErrorMessage(error, '加载凭证明细失败，请重试');
+  } finally {
+    if (isCurrent()) detailLoading.value = false;
   }
 };
 
-const openRouteEntryDetail = async () => {
+const viewEntry = row => loadEntryDetail({ id: row.id, row });
+const retryEntryDetail = () => { if (detailRequest && !detailLoading.value) return loadEntryDetail(detailRequest); };
+
+const openRouteEntryDetail = () => {
   const entryId = route.query.entryId;
   if (!entryId || openedRouteEntryId.value === String(entryId)) return;
-
-  try {
-    let entry = entriesList.value.find(item => String(item.id) === String(entryId));
-    if (!entry) {
-      const response = await financeApi.getEntry(entryId);
-      entry = normalizeEntryRow(response.data);
-    }
-    openedRouteEntryId.value = String(entryId);
-    await viewEntry(entry);
-  } catch (error) {
-    console.error('打开路由指定凭证失败:', error);
-  }
+  const row = entriesList.value.find(item => String(item.id) === String(entryId));
+  return loadEntryDetail({ id: entryId, row, routeId: String(entryId) });
 };
 
 // 过账凭证
-const postEntry = (row) => {
-  ElMessageBox.confirm('确认要过账该凭证吗？过账后将无法修改或删除。', '确认过账', {
-    confirmButtonText: '确认',
-    cancelButtonText: '取消',
-    type: 'warning'
-  }).then(async () => {
-    try {
-      await financeApi.postEntry(row.id);
-      ElMessage.success('过账成功');
-      loadEntries();
-    } catch (error) {
-      console.error('过账凭证失败:', error);
+const postEntry = async (row) => {
+  if (!row || row.isPosted || row.isReversed || entryAction.value) return;
+  entryAction.value = 'post';
+  try {
+    await ElMessageBox.confirm('确认要过账该凭证吗？过账后将无法修改或删除。', '确认过账', {
+      confirmButtonText: '确认', cancelButtonText: '取消', type: 'warning'
+    });
+    await financeApi.postEntry(row.id);
+    ElMessage.success('过账成功');
+    await loadEntries();
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
       ElMessage.error(getApiErrorMessage(error, '过账凭证失败'));
     }
-  }).catch(() => {});
+  } finally {
+    entryAction.value = '';
+  }
 };
 
 const chooseDefaultReversalPeriod = (row) => {
@@ -899,14 +893,14 @@ const resetReversalForm = (row) => {
 
 // 冲销凭证
 const reverseEntry = async (row) => {
+  if (entryAction.value || reverseSubmitting.value) return;
+  entryAction.value = 'reverse';
   try {
     if (!canReverseEntry(row)) {
-      ElMessage.warning(row.isReversalEntry ? '冲销凭证不能再次冲销' : '该凭证当前状态不允许冲销');
+      ElMessage.warning(reversalUnavailableReason(row));
       return;
     }
-    if (periods.value.length === 0) {
-      await loadPeriods();
-    }
+    if (!await loadPeriods()) return;
     if (openPeriods.value.length === 0) {
       ElMessage.error('没有可用的开放会计期间，无法冲销凭证');
       return;
@@ -918,6 +912,8 @@ const reverseEntry = async (row) => {
   } catch (error) {
     console.error('准备冲销凭证失败:', error);
     ElMessage.error(getApiErrorMessage(error, '准备冲销凭证失败'));
+  } finally {
+    entryAction.value = '';
   }
 };
 
@@ -981,46 +977,22 @@ const submitReverseEntry = async () => {
 };
 
 // 删除凭证
-const deleteEntry = (row) => {
-  ElMessageBox.confirm('确认要删除该凭证吗？此操作不可逆。', '警告', {
-    confirmButtonText: '确认',
-    cancelButtonText: '取消',
-    type: 'warning'
-  }).then(async () => {
-    try {
-      await financeApi.deleteEntry(row.id);
-      ElMessage.success('删除成功');
-      loadEntries();
-    } catch (error) {
-      console.error('删除凭证失败:', error);
-      ElMessage.error('删除凭证失败');
+const deleteEntry = async (row) => {
+  if (!row || row.isPosted || row.isReversed || entryAction.value) return;
+  entryAction.value = 'delete';
+  try {
+    await ElMessageBox.confirm('确认要删除该凭证吗？此操作不可逆。', '警告', {
+      confirmButtonText: '确认', cancelButtonText: '取消', type: 'warning'
+    });
+    await financeApi.deleteEntry(row.id);
+    ElMessage.success('删除成功');
+    await loadEntries();
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(getApiErrorMessage(error, '删除凭证失败'));
     }
-  }).catch(() => {});
-};
-
-// 处理展开行事件，加载凭证明细
-const handleExpandChange = async (row, expandedRows) => {
-  // 如果行被展开，且还没有加载过明细数据
-  if (expandedRows.includes(row) && !row.items) {
-    try {
-      const response = await financeApi.getEntryItems(row.id);
-      if (Array.isArray(response.data)) {
-        // 为当前行添加明细数据
-        row.items = response.data;
-
-        // 计算并添加展开行的借贷方合计
-        row.expandedTotalDebit = response.data.reduce((sum, item) => sum + (item.debitAmount || 0), 0);
-        row.expandedTotalCredit = response.data.reduce((sum, item) => sum + (item.creditAmount || 0), 0);
-      } else {
-        console.error('获取到的凭证明细数据格式不正确:', response.data);
-        row.items = [];
-        ElMessage.warning('获取到的凭证明细数据格式不正确');
-      }
-    } catch (error) {
-      console.error(`加载凭证${row.id}明细失败:`, error);
-      row.items = [];
-      ElMessage.error(`加载凭证明细失败：${getApiErrorMessage(error, '请稍后重试')}`);
-    }
+  } finally {
+    entryAction.value = '';
   }
 };
 
@@ -1028,42 +1000,24 @@ const handleExpandChange = async (row, expandedRows) => {
 const loadPeriods = async () => {
   try {
     const response = await financeApi.periods.getList();
-    if (Array.isArray(response.data)) {
-      periods.value = response.data.map(period => ({
-        id: period.id,
-        periodName: period.period_name,
-        period_name: period.period_name,
-        fiscalYear: period.fiscal_year,
-        startDate: period.startDate,
-        start_date: period.startDate,
-        endDate: period.endDate,
-        end_date: period.endDate,
-        isClosed: period.is_closed,
-        is_closed: period.is_closed
-      }));
-    } else if (response.data.periods) {
-      periods.value = response.data.periods.map(period => ({
-        id: period.id,
-        periodName: period.period_name,
-        period_name: period.period_name,
-        fiscalYear: period.fiscal_year,
-        startDate: period.startDate,
-        start_date: period.startDate,
-        endDate: period.endDate,
-        end_date: period.endDate,
-        isClosed: period.is_closed,
-        is_closed: period.is_closed
-      }));
-    }
+    if (disposed) return;
+    const rows = Array.isArray(response.data) ? response.data : response.data?.periods;
+    if (!Array.isArray(rows)) throw new Error('会计期间数据不完整，请重新加载');
+    periods.value = rows.map(normalizeVoucherPeriod);
+    return true;
   } catch (error) {
+    if (disposed) return;
     console.error('加载会计期间失败:', error);
+    periods.value = [];
     ElMessage.error('加载会计期间失败');
+    return false;
   }
 };
 
 // 分页相关方法
 const handleSizeChange = (size) => {
   pageSize.value = size;
+  currentPage.value = 1;
   loadEntries();
 };
 
@@ -1083,6 +1037,21 @@ watch(() => [props.fixedType, route.query.type], () => {
   currentPage.value = 1;
   loadEntries();
 }, { immediate: true });
+
+watch(() => route.query.entryId, (entryId, previousId) => {
+  openedRouteEntryId.value = '';
+  if (entryId) openRouteEntryDetail();
+  else if (previousId) detailDialogVisible.value = false;
+}, { immediate: true });
+
+watch(detailDialogVisible, visible => {
+  if (!visible) {
+    detailSequence++;
+    detailLoading.value = false;
+  }
+}, { flush: 'sync' });
+
+onBeforeUnmount(() => { disposed = true; listSequence++; detailSequence++; });
 </script>
 
 <style scoped>
@@ -1102,93 +1071,97 @@ watch(() => [props.fixedType, route.query.type], () => {
   color: var(--color-text-secondary);
 }
 
-.entry-detail-header {
+/* 只在序时簿内使用紧凑网格，不影响凭证明细弹窗。 */
+.entries-container .journal-toolbar,
+.journal-heading,
+.journal-actions,
+.journal-selection,
+.journal-totals {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
-  margin-bottom: var(--spacing-lg);
+  gap: 10px;
 }
 
-.detail-item {
-  margin-right: 30px;
+.entries-container .journal-toolbar {
+  justify-content: space-between;
   margin-bottom: 10px;
 }
 
-.entry-description {
-  margin-bottom: var(--spacing-lg);
+.journal-heading strong {
+  font-size: 15px;
+  color: var(--color-text-primary);
 }
 
-.entry-totals {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: var(--spacing-lg);
+.journal-hint,
+.journal-selection,
+.journal-pagination-note {
+  font-size: 12px;
+  color: var(--color-text-secondary);
 }
 
-.total-item {
-  margin-left: 30px;
+.journal-actions {
+  gap: 6px;
 }
 
-.debit {
-  color: var(--color-success);
-  font-weight: bold;
+.journal-actions :deep(.el-button + .el-button) {
+  margin-left: 0;
 }
 
-.credit {
-  color: var(--color-danger);
-  font-weight: bold;
+.journal-selection {
+  min-height: 24px;
+  margin-bottom: 6px;
 }
 
-.label {
-  font-weight: bold;
-  margin-right: 8px;
+.journal-count,
+.journal-pagination-note {
+  margin-left: auto;
 }
 
-/* 展开行样式 */
-.expanded-row {
-  padding: 20px;
-  background-color: var(--color-bg-hover);
+.entries-container :deep(.journal-table.el-table) {
+  border-radius: 0;
+  font-variant-numeric: tabular-nums;
+  --erp-table-fixed-current-bg: var(--color-primary);
 }
 
-.expanded-row-header {
-  display: flex;
-  align-items: center;
-  margin-bottom: 15px;
+.entries-container :deep(.journal-table .el-table__header th.el-table__cell) {
+  padding: 4px 0 !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  color: var(--color-text-primary) !important;
 }
 
-.expanded-row-header h4 {
-  margin: 0;
-  margin-right: 20px;
-  color: var(--color-primary);
+.entries-container :deep(.journal-table .el-table__body td.el-table__cell) {
+  padding: 1px 0 !important;
+  font-size: 12px !important;
+  color: var(--color-primary-text, var(--color-primary)) !important;
+  transition: none !important;
 }
 
-.expanded-row-description {
-  color: var(--color-text-regular);
-  font-style: italic;
+.entries-container :deep(.journal-table .cell) {
+  padding: 0 6px;
+  line-height: 21px;
 }
 
-.inner-table {
-  margin-bottom: 15px;
-  box-shadow: 0 1px 3px color-mix(in srgb, var(--ds-black) 10%, transparent);
+.entries-container :deep(.journal-table .el-table__row) {
+  cursor: pointer;
 }
 
-.expanded-row-footer {
-  display: flex;
-  justify-content: flex-end;
-  padding-top: 15px;
-  border-top: 1px dashed var(--color-border-base);
+.entries-container :deep(.journal-table .el-table__body tr.current-row > td.el-table__cell) {
+  background: var(--color-primary) !important;
+  color: var(--color-on-primary) !important;
 }
 
-.expanded-row-footer .total-item {
-  margin-left: 30px;
+.journal-totals {
+  padding: 10px 0;
+  font-size: 12px;
+  border-bottom: 1px solid var(--color-border-light);
 }
 
-.expanded-row-footer .total-item .label {
-  font-size: 14px;
+.journal-totals strong {
+  margin-left: 6px;
+  font-variant-numeric: tabular-nums;
 }
-
-.expanded-row-footer .total-item .value {
-  font-size: 16px;
-}
-
 
 :deep(.el-table__cell) {
   overflow: hidden;
@@ -1222,18 +1195,10 @@ watch(() => [props.fixedType, route.query.type], () => {
   margin-bottom: 18px;
 }
 
+.voucher-stat-amount { font-size: clamp(18px, 2vw, 28px); overflow-wrap: anywhere; }
+
 .reversal-form {
   margin-top: 8px;
 }
 
-/* 打印区域样式 */
-.print-area {
-  padding: 10px;
-}
-
-@media print {
-  .print-area {
-    padding: 0;
-  }
-}
 </style>

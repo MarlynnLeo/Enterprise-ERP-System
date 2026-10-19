@@ -525,13 +525,12 @@ class BankTransactionModel {
 
       const scopeClause = filters.scopeClause || { join: '', where: '', params: [] };
 
-      const fromClause = `
-        FROM bank_transactions t
+      const displayJoins = `
         LEFT JOIN bank_accounts b ON t.bank_account_id = b.id
         LEFT JOIN ar_invoices ar_inv ON t.related_invoice_id = ar_inv.id AND t.related_invoice_type = 'AR'
         LEFT JOIN ap_invoices ap_inv ON t.related_invoice_id = ap_inv.id AND t.related_invoice_type = 'AP'
-        ${scopeClause.join || ''}
       `;
+      const fromClause = `FROM bank_transactions t ${scopeClause.join || ''}`;
 
       let whereClause = 'WHERE 1=1';
       const params = [];
@@ -613,6 +612,16 @@ class BankTransactionModel {
       }
 
       const offset = noPagination ? 0 : (pageInt - 1) * pageSizeInt;
+      // 统计只读取主单和权限关系；分页后才补齐账户、应收/应付发票展示字段。
+      // 导出保留完整筛选结果，不套用分页。
+      const dataFromClause = noPagination
+        ? `FROM bank_transactions t ${displayJoins} ${scopeClause.join || ''} ${whereClause}`
+        : `FROM (
+            SELECT t.id ${fromClause} ${whereClause}
+            ORDER BY t.transaction_date DESC, t.id DESC LIMIT ${pageSizeInt} OFFSET ${offset}
+          ) page_transaction
+          JOIN bank_transactions t ON t.id = page_transaction.id
+          ${displayJoins}`;
       const dataQuery = `
         SELECT t.*,
                b.account_name,
@@ -623,10 +632,8 @@ class BankTransactionModel {
                  ELSE NULL
                END as related_invoice_number,
                t.category as transaction_category
-        ${fromClause}
-        ${whereClause}
-        ORDER BY t.transaction_date DESC, t.id DESC
-        ${noPagination ? '' : `LIMIT ${pageSizeInt} OFFSET ${offset}`}`;
+        ${dataFromClause}
+        ORDER BY t.transaction_date DESC, t.id DESC`;
 
       const [transactions] = await db.pool.query(dataQuery, params);
 

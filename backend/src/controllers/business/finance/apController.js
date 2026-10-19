@@ -8,6 +8,7 @@
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const { logger } = require('../../../utils/logger');
+const { summarizeCurrencyGroups } = require('../../../services/finance/partyCurrencySummary');
 
 const apModel = require('../../../models/ap');
 const db = require('../../../config/db');
@@ -231,6 +232,9 @@ const apController = {
       return ResponseHandler.success(res, { id: invoiceId }, '发票创建成功', 201);
     } catch (error) {
       logger.error('创建应付账款发票失败:', error);
+      if (error.code === 'VALIDATION_ERROR') {
+        return ResponseHandler.error(res, error.message, 'VALIDATION_ERROR', 400);
+      }
       return ResponseHandler.error(res, '创建应付账款发票失败', 'SERVER_ERROR', 500, error);
     }
   },
@@ -336,6 +340,8 @@ const apController = {
           'supplierId',
           'invoiceDate',
           'dueDate',
+          'currencyCode',
+          'exchangeRate',
           'items',
         ];
         const hasFinancialField = financialFields.some((field) => invoiceData[field] !== undefined);
@@ -352,6 +358,7 @@ const apController = {
           id: invoiceId,
           supplier_invoice_number: invoiceData.supplierInvoiceNumber ?? null,
           notes: invoiceData.notes,
+          updated_by: getAuthenticatedUserId(req),
         });
 
         if (success) {
@@ -371,6 +378,8 @@ const apController = {
       const formattedData = {
         ...fromInvoiceApi(invoiceData, 'ap'),
         id: invoiceId,
+        created_by: undefined,
+        updated_by: getAuthenticatedUserId(req),
       };
       const total = Number(formattedData.total_amount);
       const hasItems = Array.isArray(formattedData.items) && formattedData.items.length > 0;
@@ -470,6 +479,7 @@ const apController = {
    * 付款记录引用应付账款发票，但不直接在应付账款模块中处理付款
    */
   createPayment: async (req, res) => {
+    let settlementRequest = null;
     try {
       const paymentData = req.body;
 
@@ -503,6 +513,19 @@ const apController = {
       }
 
       // 查询发票信息，确保发票存在并获取供应商ID和金额信息
+      settlementRequest = await require('../../../services/finance/SettlementRequestService').begin(
+        req,
+        'ap',
+        line
+      );
+      if (settlementRequest?.replay) {
+        await settlementRequest.commit();
+        return ResponseHandler.success(
+          res,
+          settlementRequest.replay,
+          '该付款请求已处理，返回原记录'
+        );
+      }
       const invoice = await apModel.getInvoiceById(paymentData.invoiceId);
 
       if (!invoice) {
@@ -572,6 +595,8 @@ const apController = {
         supplier_name: invoice.supplierName,
         payment_date: paymentData.paymentDate || currentDateString(),
         total_amount: line.cashAmount,
+        currency_code: paymentData.currencyCode ?? invoice.currencyCode,
+        exchange_rate: paymentData.exchangeRate,
         payment_method: paymentMethod,
         reference_number: paymentData.referenceNumber || null,
         bank_account_id: paymentData.bankAccountId || null,
@@ -582,6 +607,7 @@ const apController = {
           paymentData.skipApproval === true &&
           (await PermissionService.isAdmin(getAuthenticatedUserId(req))),
         ...ScopeGuard.stampOwner(req, 'ap_payment'),
+        ...(settlementRequest?.fields || {}),
       };
 
       // 构建付款明细项数组
@@ -594,7 +620,14 @@ const apController = {
       ];
 
       // 调用模型方法创建付款记录；模型在同一事务中维护发票、资金流水和会计凭证
-      const paymentId = await apModel.createPayment(completePaymentData, paymentItems);
+      const paymentId = settlementRequest
+        ? await apModel.createPayment(
+            completePaymentData,
+            paymentItems,
+            settlementRequest.connection
+          )
+        : await apModel.createPayment(completePaymentData, paymentItems);
+      if (settlementRequest) await settlementRequest.commit();
 
       ResponseHandler.success(
         res,
@@ -614,13 +647,35 @@ const apController = {
       );
     } catch (error) {
       logger.error('创建付款记录失败:', error);
+      let responseError = error;
+      if (settlementRequest && error.code === 'ER_DUP_ENTRY') {
+        try {
+          const replay = await settlementRequest.resolveDuplicate(error);
+          if (replay) return ResponseHandler.success(res, replay, '该付款请求已处理，返回原记录');
+        } catch (conflict) {
+          responseError = conflict;
+        }
+      }
+      if (settlementRequest) {
+        const failedRequest = settlementRequest;
+        settlementRequest = null;
+        try {
+          await failedRequest.close();
+        } catch (uncertain) {
+          responseError = uncertain;
+        }
+      }
       return ResponseHandler.error(
         res,
-        error.message || '创建付款记录失败',
-        'VALIDATION_ERROR',
-        400,
-        error
+        responseError.message || '创建付款记录失败',
+        ['IDEMPOTENCY_CONFLICT', 'SETTLEMENT_RESULT_UNKNOWN'].includes(responseError.code)
+          ? responseError.code
+          : 'VALIDATION_ERROR',
+        responseError.statusCode || 400,
+        responseError
       );
+    } finally {
+      if (settlementRequest) await settlementRequest.close();
     }
   },
 
@@ -776,6 +831,7 @@ const apController = {
             s.contact_person AS contactPerson,
             s.contact_phone AS contactPhone,
             s.email,
+            UPPER(COALESCE(NULLIF(TRIM(i.currency_code), ''), 'CNY')) AS currencyCode,
             COUNT(i.id) AS invoiceCount,
             COALESCE(SUM(i.total_amount), 0) AS totalAmount,
             COALESCE(SUM(i.paid_amount), 0) AS paidAmount,
@@ -784,7 +840,7 @@ const apController = {
           LEFT JOIN ap_invoices i ON s.id = i.supplier_id
             AND i.status IN ('已确认', '部分付款')
           WHERE s.id = ?
-          GROUP BY s.id, s.name, s.contact_person, s.contact_phone, s.email
+          GROUP BY s.id, s.name, s.contact_person, s.contact_phone, s.email, currencyCode
         `,
           [supplierId]
         );
@@ -804,10 +860,13 @@ const apController = {
             total_amount AS totalAmount,
             paid_amount AS paidAmount,
             balance_amount AS balance,
+            UPPER(COALESCE(NULLIF(TRIM(currency_code), ''), 'CNY')) AS currencyCode,
+            exchange_rate AS exchangeRate,
             status,
             DATEDIFF(CURDATE(), due_date) AS overdueDays
           FROM ap_invoices
           WHERE supplier_id = ? AND balance_amount > 0
+            AND status IN ('已确认', '部分付款')
           ORDER BY due_date ASC
         `,
           [supplierId]
@@ -820,10 +879,7 @@ const apController = {
           contactPerson: supplierData[0].contactPerson,
           contactPhone: supplierData[0].contactPhone,
           email: supplierData[0].email,
-          invoiceCount: parseInt(supplierData[0].invoiceCount || 0),
-          totalAmount: parseFloat(supplierData[0].totalAmount || 0),
-          paidAmount: parseFloat(supplierData[0].paidAmount || 0),
-          balance: parseFloat(supplierData[0].balance || 0),
+          ...summarizeCurrencyGroups(supplierData),
           invoices: invoices.map((inv) => ({
             id: inv.id,
             invoiceNumber: inv.invoiceNumber,
@@ -832,6 +888,9 @@ const apController = {
             totalAmount: parseFloat(inv.totalAmount || 0),
             paidAmount: parseFloat(inv.paidAmount || 0),
             balance: parseFloat(inv.balance || 0),
+            currencyCode: inv.currencyCode,
+            exchangeRate: inv.exchangeRate == null ? null : Number(inv.exchangeRate),
+            amountBasis: 'original',
             status: inv.status,
             overdueDays: parseInt(inv.overdueDays || 0),
             isOverdue: parseInt(inv.overdueDays || 0) > 0,
@@ -1086,9 +1145,13 @@ const apController = {
           invoice: {
             id: invoice.id,
             invoiceNumber: invoice.invoiceNumber,
-            amount: parseFloat(invoice.amount),
-            paidAmount: parseFloat(invoice.paidAmount),
-            balance: parseFloat(invoice.balance),
+            amount: invoice.totalAmount,
+            totalAmount: invoice.totalAmount,
+            paidAmount: invoice.paidAmount,
+            balance: invoice.balanceAmount,
+            balanceAmount: invoice.balanceAmount,
+            currencyCode: invoice.currencyCode,
+            exchangeRate: invoice.exchangeRate,
           },
         },
         '获取发票付款记录成功'
@@ -1117,6 +1180,8 @@ const apController = {
             total_amount: inv.amount ?? inv.totalAmount ?? inv.total_amount,
             paid_amount: inv.paidAmount ?? inv.paid_amount,
             balance_amount: inv.balance ?? inv.balanceAmount ?? inv.balance_amount,
+            currency_code: inv.currencyCode ?? inv.currency_code,
+            exchange_rate: inv.exchangeRate ?? inv.exchange_rate,
             status: inv.status,
           },
           'ap'

@@ -403,6 +403,7 @@ class SalaryService {
           debit_amount: gross,
           credit_amount: 0,
           employee_id: salary.employee_id,
+          employee_source: 'hr',
           description: `工资费用-${salary.employee_name || salary.employee_id}`,
         },
         {
@@ -410,6 +411,7 @@ class SalaryService {
           debit_amount: 0,
           credit_amount: gross,
           employee_id: salary.employee_id,
+          employee_source: 'hr',
           description: `应付职工薪酬-${salary.employee_name || salary.employee_id}`,
         },
       ];

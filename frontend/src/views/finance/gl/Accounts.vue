@@ -242,7 +242,6 @@ import { buildAccountTree, filterAccountTree, getAccountBranchKeys } from '@/uti
 
 import { ref, reactive, computed, onMounted, nextTick } from 'vue';
 import { ElMessage } from 'element-plus/es/components/message/index'
-import { ElMessageBox } from 'element-plus/es/components/message-box/index';
 import { getApiErrorMessage } from '@/utils/errorHandler';
 import { Plus } from '@element-plus/icons-vue';
 import { financeApi } from '@/api';

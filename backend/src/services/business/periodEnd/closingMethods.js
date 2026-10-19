@@ -6,6 +6,7 @@
 const runtime = require('./runtime');
 const { logger, db, financeModel, DOCUMENT_TYPE_MAPPING, accountingConfig, resolveActorUserId } =
   runtime;
+const { loadProfitLossAccountCategories } = require('../../../utils/finance/profitLossAccounts');
 
 module.exports = {
   /**
@@ -37,7 +38,11 @@ module.exports = {
         [periodId, DOCUMENT_TYPE_MAPPING.PROFIT_LOSS_TRANSFER]
       );
 
-      await accountingConfig.loadFromDatabase(db);
+      const accountCategories = await loadProfitLossAccountCategories(
+        connection,
+        accountingConfig,
+        db
+      );
       const currentYearProfitCode = accountingConfig.getAccountCode('CURRENT_YEAR_PROFIT');
       let profitAccounts = [];
       if (currentYearProfitCode) {
@@ -67,7 +72,6 @@ module.exports = {
           JOIN gl_entries e ON ei.entry_id = e.id
           WHERE e.period_id = ?
             AND e.is_posted = true
-            AND a.is_active = true
             AND a.account_type IN ('收入', '费用', '成本', 'revenue', 'expense', 'cost')
           GROUP BY a.id, a.account_code, a.account_name, a.account_type
           HAVING ABS(closing_amount) >= 0.01
@@ -76,24 +80,28 @@ module.exports = {
         [periodId]
       );
 
-      const closingItems = closingRows.map((row) => {
-        const signedAmount = this.roundMoney(row.closing_amount);
-        const isIncome = ['收入', 'revenue'].includes(row.account_type);
-        return {
-          ...row,
-          total_debit: this.roundMoney(row.total_debit),
-          total_credit: this.roundMoney(row.total_credit),
-          raw_closing_amount: signedAmount,
-          closing_amount: Math.abs(signedAmount),
-          closing_direction: isIncome
-            ? signedAmount >= 0
-              ? '借方'
-              : '贷方'
-            : signedAmount >= 0
-              ? '贷方'
-              : '借方',
-        };
-      });
+      const closingItems = closingRows
+        .filter((row) =>
+          ['income', 'cost', 'expense'].includes(accountCategories.get(Number(row.id)))
+        )
+        .map((row) => {
+          const signedAmount = this.roundMoney(row.closing_amount);
+          const isIncome = ['收入', 'revenue'].includes(row.account_type);
+          return {
+            ...row,
+            total_debit: this.roundMoney(row.total_debit),
+            total_credit: this.roundMoney(row.total_credit),
+            raw_closing_amount: signedAmount,
+            closing_amount: Math.abs(signedAmount),
+            closing_direction: isIncome
+              ? signedAmount >= 0
+                ? '借方'
+                : '贷方'
+              : signedAmount >= 0
+                ? '贷方'
+                : '借方',
+          };
+        });
 
       const totalIncome = this.roundMoney(
         closingItems
@@ -395,6 +403,11 @@ module.exports = {
    * @returns {Object} 结转结果
    */
   async transferProfitAndLoss(connection, periodId, period, createdBy = null) {
+    const accountCategories = await loadProfitLossAccountCategories(
+      connection,
+      accountingConfig,
+      db
+    );
     // 获取收入类科目余额
     const [incomeAccounts] = await connection.execute(
       `SELECT a.id, a.account_code, a.account_name,
@@ -425,20 +438,8 @@ module.exports = {
     );
 
     // 计算本期损益
-    const incomeStatementCostCodes = new Set(await this.getIncomeStatementCostCodes());
-    const nonProfitLossCostCodes = new Set(
-      [
-        accountingConfig.getAccountCode('PRODUCTION_COST'),
-        accountingConfig.getAccountCode('MANUFACTURING_EXPENSE'),
-        '4101',
-        '5001',
-        '5101',
-      ].filter(Boolean)
-    );
-    const profitLossExpenseAccounts = expenseAccounts.filter(
-      (account) =>
-        incomeStatementCostCodes.has(account.account_code) ||
-        !nonProfitLossCostCodes.has(account.account_code)
+    const profitLossExpenseAccounts = expenseAccounts.filter((account) =>
+      ['cost', 'expense'].includes(accountCategories.get(Number(account.id)))
     );
 
     const totalIncome = incomeAccounts.reduce((sum, acc) => sum + parseFloat(acc.balance), 0);

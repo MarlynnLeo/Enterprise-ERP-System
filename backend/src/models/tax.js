@@ -222,7 +222,7 @@ const taxModel = {
         offset = 0,
       } = filters;
 
-      let query = `
+      const selectSql = `
         SELECT
           ti.*,
           s.name AS supplier_name,
@@ -248,7 +248,8 @@ const taxModel = {
             WHEN ti.related_document_type IN (${SALES_OUTBOUND_TYPES_SQL}) THEN so.status
             ELSE NULL
           END AS linked_document_status
-        FROM tax_invoices ti
+      `;
+      const displayJoins = `
         LEFT JOIN suppliers s ON ti.supplier_id = s.id
         LEFT JOIN customers c ON ti.customer_id = c.id
         LEFT JOIN users u ON ti.created_by = u.id
@@ -256,58 +257,66 @@ const taxModel = {
         LEFT JOIN ar_invoices ar ON ti.related_document_type = 'ar_invoice' AND ti.related_document_id = ar.id
         LEFT JOIN purchase_receipts pr ON ti.related_document_type IN (${PURCHASE_RECEIPT_TYPES_SQL}) AND ti.related_document_id = pr.id
         LEFT JOIN sales_outbound so ON ti.related_document_type IN (${SALES_OUTBOUND_TYPES_SQL}) AND ti.related_document_id = so.id
-        WHERE 1=1
       `;
 
+      let whereClause = 'WHERE 1=1';
       const params = [];
 
       if (invoice_type) {
-        query += ' AND ti.invoice_type = ?';
+        whereClause += ' AND ti.invoice_type = ?';
         params.push(invoice_type);
       }
 
       if (status) {
-        query += ' AND ti.status = ?';
+        whereClause += ' AND ti.status = ?';
         params.push(status);
       }
 
       if (invoice_number) {
-        query += ' AND ti.invoice_number LIKE ?';
+        whereClause += ' AND ti.invoice_number LIKE ?';
         params.push(`%${invoice_number}%`);
       }
 
       if (start_date) {
-        query += ' AND ti.invoice_date >= ?';
+        whereClause += ' AND ti.invoice_date >= ?';
         params.push(start_date);
       }
 
       if (end_date) {
-        query += ' AND ti.invoice_date <= ?';
+        whereClause += ' AND ti.invoice_date <= ?';
         params.push(end_date);
       }
 
       if (supplier_id) {
-        query += ' AND ti.supplier_id = ?';
+        whereClause += ' AND ti.supplier_id = ?';
         params.push(supplier_id);
       }
 
       if (customer_id) {
-        query += ' AND ti.customer_id = ?';
+        whereClause += ' AND ti.customer_id = ?';
         params.push(customer_id);
       }
 
       // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
       const limitNum = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 100);
       const offsetNum = Math.max(parseInt(offset, 10) || 0, 0);
+      // 汇总仅依赖税票主表；展示用关联不参与数量或税额计算。
       const [[summary]] = await db.pool.execute(
         `SELECT COUNT(*) AS total,
                 COALESCE(SUM(ti.status = '未认证'), 0) AS pending,
                 COALESCE(SUM(CASE WHEN ti.invoice_type = '进项' AND ti.status <> '已作废' THEN ti.tax_amount ELSE 0 END), 0) AS input_tax,
                 COALESCE(SUM(CASE WHEN ti.invoice_type = '销项' AND ti.status <> '已作废' THEN ti.tax_amount ELSE 0 END), 0) AS output_tax
-         ${query.slice(query.indexOf('FROM tax_invoices ti'))}`,
+         FROM tax_invoices ti ${whereClause}`,
         params
       );
-      query += ` ORDER BY ti.invoice_date DESC, ti.id DESC LIMIT ${limitNum} OFFSET ${offsetNum}`;
+      const query = `${selectSql}
+        FROM (
+          SELECT ti.id FROM tax_invoices ti ${whereClause}
+          ORDER BY ti.invoice_date DESC, ti.id DESC LIMIT ${limitNum} OFFSET ${offsetNum}
+        ) page_invoice
+        JOIN tax_invoices ti ON ti.id = page_invoice.id
+        ${displayJoins}
+        ORDER BY ti.invoice_date DESC, ti.id DESC`;
 
       const [invoices] = await db.pool.execute(query, params);
       return { list: invoices, total: Number(summary.total), stats: summary };

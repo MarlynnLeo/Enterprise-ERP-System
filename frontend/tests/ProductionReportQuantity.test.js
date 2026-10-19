@@ -14,6 +14,7 @@ vi.mock('@/api/production', () => ({ productionApi: {
     { id: 2, sequence: 2, quantity: 100, processName: '末道', status: 'in_progress' },
   ] })),
   getTaskReportStats: vi.fn(),
+  createProductionReport: vi.fn(async () => ({ data: { id: 101 } })),
 } }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ user: { username: 'operator' }, hasPermission: () => true }) }))
 vi.mock('@/composables/useFormKeyboardNav', () => ({ useFormKeyboardNav: () => ({}) }))
@@ -22,7 +23,7 @@ vi.mock('element-plus/es/components/message/style/css', () => ({}))
 vi.mock('element-plus/es/components/message-box/index', () => ({ ElMessageBox: {} }))
 vi.mock('@/services/printService', () => ({ default: {} }))
 let wrapper
-afterEach(() => wrapper?.unmount())
+afterEach(() => { wrapper?.unmount(); vi.clearAllMocks() })
 async function mountReport() {
   const source = readFileSync(resolve(process.cwd(), 'src/views/production/ProductionReport.vue'), 'utf8')
   const stubs = Object.fromEntries([...source.matchAll(/<((?:el-|[A-Z])[\w-]+)/g)].map(match => [match[1], true]))
@@ -32,9 +33,9 @@ async function mountReport() {
 }
 test('selects the next process and loads its own remaining quantity', async () => {
   productionApi.getTaskReportStats.mockImplementation(async (_, params) => ({ data: {
-    reporting_mode: 'process', output_process_id: 2, plan_quantity: 100,
-    reported_quantity: params?.processId === 1 ? 100 : 0,
-    remaining_quantity: params?.processId === 1 ? 0 : 100,
+    reportingMode: 'process', outputProcessId: 2, planQuantity: 100,
+    reportedQuantity: params?.processId === 1 ? 100 : 0,
+    remainingQuantity: params?.processId === 1 ? 0 : 100,
   } }))
   await mountReport()
   await wrapper.vm.handleTaskFormChange(42)
@@ -45,8 +46,24 @@ test('selects the next process and loads its own remaining quantity', async () =
   expect(wrapper.vm.formData.completedQuantity).toBe(0)
 })
 test('zero task remainder stays zero instead of resetting to the plan quantity', async () => {
-  productionApi.getTaskReportStats.mockResolvedValue({ data: { reporting_mode: 'task', plan_quantity: 100, remaining_quantity: 0, reported_quantity: 100 } })
+  productionApi.getTaskReportStats.mockResolvedValue({ data: { reportingMode: 'task', planQuantity: 100, remainingQuantity: 0, reportedQuantity: 100 } })
   await mountReport()
   await wrapper.vm.handleTaskFormChange(42)
   expect(wrapper.vm.formData.completedQuantity).toBe(0)
+})
+
+test('the HTTP camelCase statistics allow the first process report to be submitted', async () => {
+  productionApi.getTaskReportStats.mockResolvedValue({ data: {
+    reportingMode: 'task', planQuantity: 100, remainingQuantity: 100, reportedQuantity: 0,
+  } })
+  await mountReport()
+  await wrapper.vm.handleTaskFormChange(42)
+  wrapper.vm.formData.processId = 2
+  await wrapper.vm.handleProcessChange(2)
+  expect(wrapper.vm.formData).toMatchObject({ plannedQuantity: 100, completedQuantity: 100, qualifiedQuantity: 100 })
+  wrapper.vm.formRef = { validate: vi.fn().mockResolvedValue(true) }
+  await wrapper.vm.handleReportSubmit()
+  expect(productionApi.createProductionReport).toHaveBeenCalledWith(expect.objectContaining({
+    task_id: 42, process_id: 2, completed_quantity: 100, qualified_quantity: 100,
+  }))
 })

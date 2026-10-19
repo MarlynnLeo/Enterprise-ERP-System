@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 const apiMocks = vi.hoisted(() => ({
   getOutsourcedSupplierOptions: vi.fn(),
@@ -52,6 +52,8 @@ import {
   clearOptionLoaderCache,
   loadUserListOptions,
   loadCustomerOptions,
+  loadMaterialOptions,
+  loadSupplierOptions,
   loadCustomerPageOptions,
   loadMaterialPageOptions,
   searchMaterialPageOptions,
@@ -64,6 +66,7 @@ import {
 } from '@/utils/optionLoaders'
 import { baseDataApi } from '@/api/baseData'
 import { systemApi } from '@/api/system'
+import { setRequestCacheUserId } from '@/utils/requestOptimizer'
 
 const paginatedResponse = (list) => ({
   data: {
@@ -72,6 +75,184 @@ const paginatedResponse = (list) => ({
     page: 1,
     pageSize: 100,
   },
+})
+
+const deferred = () => {
+  let resolve, reject
+  const promise = new Promise((res, rej) => { resolve = res; reject = rej })
+  return { promise, resolve, reject }
+}
+
+const optionRows = (start, length) => Array.from({ length }, (_, index) => ({
+  id: start + index, name: `选项-${start + index}`, price: '123.4500', costPrice: '98.7654',
+}))
+
+describe('bounded full option pagination and cache ownership', () => {
+  beforeEach(() => {
+    clearOptionLoaderCache()
+    vi.resetAllMocks()
+    delete window.__erpUserId
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    delete window.__erpUserId
+    clearOptionLoaderCache()
+  })
+
+  test('loads all pages with at most three concurrent requests and preserves row order and prices', async () => {
+    vi.useFakeTimers()
+    let active = 0, peak = 0
+    const completed = []
+    baseDataApi.getMaterials.mockImplementation(({ page, pageSize }) => {
+      active++
+      peak = Math.max(peak, active)
+      return new Promise(resolve => setTimeout(() => {
+        active--
+        completed.push(page)
+        resolve({ data: { list: optionRows((page - 1) * pageSize + 1, pageSize), total: 1000, page, pageSize } })
+      }, page === 1 ? 80 : (5 - (page % 3)) * 10))
+    })
+    const first = loadMaterialOptions(), second = loadMaterialOptions()
+    await vi.runAllTimersAsync()
+    const [rows, concurrent] = await Promise.all([first, second])
+    expect(peak).toBe(3)
+    expect(baseDataApi.getMaterials).toHaveBeenCalledTimes(10)
+    expect(completed.slice(0, 4)).toEqual([1, 2, 4, 3])
+    expect(rows.map(row => row.id)).toEqual(Array.from({ length: 1000 }, (_, index) => index + 1))
+    expect(rows.every(row => row.price === '123.4500' && row.costPrice === '98.7654')).toBe(true)
+    expect(concurrent).toEqual(rows)
+    expect(await loadMaterialOptions()).toEqual(rows)
+    expect(baseDataApi.getMaterials).toHaveBeenCalledTimes(10)
+  })
+
+  test('honors a smaller server page size and nested numeric-string totals', async () => {
+    baseDataApi.getCustomers.mockImplementation(({ page }) => Promise.resolve({ data: {
+      data: optionRows((page - 1) * 20 + 1, page === 3 ? 5 : 20),
+      pagination: { page, pageSize: '20', total: '45' },
+    } }))
+    const rows = await loadCustomerOptions({ status: 0 })
+    expect(rows.map(row => row.id)).toEqual(Array.from({ length: 45 }, (_, index) => index + 1))
+    expect(baseDataApi.getCustomers.mock.calls.map(([params]) => params)).toEqual([
+      { status: 0, page: 1, pageSize: 100 }, { status: 0, page: 2, pageSize: 20 }, { status: 0, page: 3, pageSize: 20 },
+    ])
+  })
+
+  test('falls back to sequential probes when a full first page has no total', async () => {
+    baseDataApi.getSuppliers.mockImplementation(({ page }) => Promise.resolve({ data: {
+      list: optionRows((page - 1) * 100 + 1, page === 3 ? 15 : 100),
+    } }))
+    const rows = await loadSupplierOptions()
+    expect(rows).toHaveLength(215)
+    expect(baseDataApi.getSuppliers.mock.calls.map(([params]) => params.page)).toEqual([1, 2, 3])
+  })
+
+  test('stops unknown-total endpoints that repeat the same page', async () => {
+    baseDataApi.getCustomers.mockResolvedValue({ data: optionRows(1, 100) })
+    expect(await loadCustomerOptions()).toHaveLength(100)
+    expect(baseDataApi.getCustomers).toHaveBeenCalledTimes(2)
+  })
+
+  test('keeps the existing fifty-page safety limit when total is absent', async () => {
+    baseDataApi.getCustomers.mockImplementation(({ page }) => Promise.resolve({ data: optionRows((page - 1) * 100 + 1, 100) }))
+    expect(await loadCustomerOptions()).toHaveLength(5000)
+    expect(baseDataApi.getCustomers).toHaveBeenCalledTimes(50)
+  })
+
+  test('keeps the existing fifty-page safety limit when total exceeds it', async () => {
+    baseDataApi.getCustomers.mockImplementation(({ page }) => Promise.resolve({ data: {
+      list: optionRows((page - 1) * 100 + 1, 100), total: 12000,
+    } }))
+    expect(await loadCustomerOptions()).toHaveLength(5000)
+    expect(baseDataApi.getCustomers).toHaveBeenCalledTimes(50)
+  })
+
+  test('deduplicates overlapping ids in page order while retaining rows without an id', async () => {
+    baseDataApi.getCustomers
+      .mockResolvedValueOnce({ data: { list: [{ id: 1, price: '20.00' }, { name: 'first anonymous' }], total: 4, pageSize: 2 } })
+      .mockResolvedValueOnce({ data: { list: [{ id: '1', price: '99.00' }, { name: 'second anonymous' }], total: 4, pageSize: 2 } })
+    expect(await loadCustomerOptions()).toEqual([
+      { id: 1, price: '20.00' }, { name: 'first anonymous' }, { name: 'second anonymous' },
+    ])
+  })
+
+  test('does not continue scheduling pages after an observed short page', async () => {
+    baseDataApi.getCustomers.mockImplementation(({ page }) => Promise.resolve({ data: {
+      list: optionRows((page - 1) * 100 + 1, page === 2 ? 5 : 100), total: 1000,
+    } }))
+    expect(await loadCustomerOptions()).toHaveLength(105)
+    expect(baseDataApi.getCustomers.mock.calls.map(([params]) => params.page)).toEqual([1, 2, 3, 4])
+  })
+
+  test('does not cache a partial list if a concurrent page fails, and allows a complete retry', async () => {
+    let fail = true
+    baseDataApi.getCustomers.mockImplementation(({ page }) => page === 3 && fail
+      ? Promise.reject(new Error('page failed'))
+      : Promise.resolve({ data: { list: optionRows((page - 1) * 100 + 1, 100), total: 400 } }))
+    await expect(loadCustomerOptions()).rejects.toThrow('page failed')
+    fail = false
+    expect(await loadCustomerOptions()).toHaveLength(400)
+    expect(baseDataApi.getCustomers).toHaveBeenCalledTimes(8)
+  })
+
+  test('an invalidated pending load cannot repopulate the cache or clear its replacement', async () => {
+    const old = deferred(), current = deferred()
+    systemApi.getUsersList.mockReturnValueOnce(old.promise).mockReturnValueOnce(current.promise)
+    const first = loadUserListOptions()
+    window.dispatchEvent(new Event('erp:api-mutated'))
+    const replacement = loadUserListOptions()
+    old.resolve({ data: [{ id: 1 }] })
+    expect(await first).toEqual([{ id: 1 }])
+    const joined = loadUserListOptions()
+    expect(systemApi.getUsersList).toHaveBeenCalledTimes(2)
+    current.resolve({ data: [{ id: 2 }] })
+    expect(await replacement).toEqual([{ id: 2 }])
+    expect(await joined).toEqual([{ id: 2 }])
+    expect(await loadUserListOptions()).toEqual([{ id: 2 }])
+  })
+
+  test('keeps prices from different accounts in separate caches', async () => {
+    window.__erpUserId = 1
+    baseDataApi.getCustomers.mockResolvedValueOnce(paginatedResponse([{ id: 1, price: 10 }]))
+      .mockResolvedValueOnce(paginatedResponse([{ id: 1, price: 20 }]))
+    expect((await loadCustomerOptions())[0].price).toBe(10)
+    window.__erpUserId = 2
+    expect((await loadCustomerOptions())[0].price).toBe(20)
+    expect(baseDataApi.getCustomers).toHaveBeenCalledTimes(2)
+  })
+
+  test('rejects a previous-account load before scheduling more pages under the new session', async () => {
+    const old = deferred()
+    window.__erpUserId = 1
+    baseDataApi.getCustomers.mockReturnValueOnce(old.promise)
+    const first = loadCustomerOptions()
+    window.__erpUserId = 2
+    old.resolve({ data: { list: optionRows(1, 100), total: 1000 } })
+    await expect(first).rejects.toThrow('登录状态已变更')
+    expect(baseDataApi.getCustomers).toHaveBeenCalledTimes(1)
+  })
+
+  test('invalidates completed and pending options even when a new session uses the same account', async () => {
+    const old = deferred()
+    const dispatch = vi.spyOn(window, 'dispatchEvent')
+    setRequestCacheUserId(1)
+    systemApi.getUsersList.mockResolvedValueOnce({ data: [{ id: 1 }] }).mockReturnValueOnce(old.promise)
+      .mockResolvedValueOnce({ data: [{ id: 2 }] })
+    await loadUserListOptions()
+    const first = loadUserListOptions({ roleCodes: 'warehouse' })
+    setRequestCacheUserId(1)
+    expect(await loadUserListOptions()).toEqual([{ id: 2 }])
+    old.resolve({ data: [{ id: 1 }] })
+    await expect(first).rejects.toThrow('登录状态已变更')
+    expect(dispatch.mock.calls.filter(([event]) => event.type === 'erp:session-changed')).toHaveLength(2)
+  })
+
+  test('does not collide when filter values contain cache-key separators', async () => {
+    systemApi.getUsersList.mockResolvedValueOnce({ data: [{ id: 1 }] }).mockResolvedValueOnce({ data: [{ id: 2 }] })
+    expect(await loadUserListOptions({ a: 'b|c:d' })).toEqual([{ id: 1 }])
+    expect(await loadUserListOptions({ a: 'b', c: 'd' })).toEqual([{ id: 2 }])
+    expect(systemApi.getUsersList).toHaveBeenCalledTimes(2)
+  })
 })
 
 describe('user list option filters', () => {

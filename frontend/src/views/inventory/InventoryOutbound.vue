@@ -733,6 +733,7 @@ import {
 } from '@/constants/systemConstants'
 import TableRowActions from '@/components/common/TableRowActions.vue'
 import { useDictionaryStore } from '@/stores/dictionary'
+import { usePageRequestScope } from '@/composables/usePageRequestScope'
 import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue'
 import InventoryBatchApproval from '@/components/inventory/InventoryBatchApproval.vue'
 import { getOutboundDisplayStatus as resolveOutboundDisplayStatus } from '@/utils/inventory/outboundDisplayStatus'
@@ -760,6 +761,10 @@ export default {
   setup() {
     const authStore = useAuthStore()
     const dictionaryStore = useDictionaryStore()
+    const pageRequests = usePageRequestScope({
+      onResume: () => initializePage(),
+      onLeave: () => { loading.value = false }
+    })
     const BATCH_MATERIAL_QUERY_LIMIT = 100
     const BATCH_STOCK_QUERY_LIMIT = 50
     const chunkArray = (items, size) => {
@@ -982,9 +987,12 @@ export default {
 
     // 加载生产任务列表
     const loadProductionPlans = async () => {
+      const isCurrent = pageRequests.start('productionPlans')
+      if (!isCurrent()) return
       try {
         // 只获取待处理状态的生产任务，避免重复引用
         const res = await productionApi.getProductionTasks({ status: ['pending'] })
+        if (!isCurrent()) return
 
         // 使用统一解析器
         const tasks = parseListData(res, { enableLog: false })
@@ -1002,6 +1010,7 @@ export default {
             taskId: task.id // 保存任务ID用于后续引用
           }))
       } catch (error) {
+        if (!isCurrent()) return
         productionPlanOptions.value = []
         if (error.response?.status !== 403) {
           console.error('加载生产任务失败:', error)
@@ -1154,6 +1163,8 @@ export default {
 
     // 获取出库单列表
     const fetchOutboundList = async () => {
+      const isCurrent = pageRequests.start('list')
+      if (!isCurrent()) return
       clearSelection()
       loading.value = true
       try {
@@ -1175,6 +1186,7 @@ export default {
         }
 
         const res = await inventoryApi.getOutboundList(params)
+        if (!isCurrent()) return
 
         // 使用统一解析器处理分页数据
         const { list, total: totalCount, statistics } = parsePaginatedData(res, { enableLog: false })
@@ -1185,13 +1197,14 @@ export default {
         // 更新统计数据
         updateStats(statistics)
       } catch (error) {
+        if (!isCurrent()) return
         console.error('获取出库单列表失败:', error)
         ElMessage.error('获取出库单列表失败')
         // 确保出错时也有默认值
         outboundList.value = []
         total.value = 0
       } finally {
-        loading.value = false
+        if (isCurrent()) loading.value = false
       }
     }
 
@@ -1199,7 +1212,10 @@ export default {
     // 在打开对话框时加载生产计划
     const handleAdd = async () => {
       if (submitting.value || !authStore.hasPermission('inventory:outbound:create')) return
+      const isCurrent = pageRequests.start('create')
+      if (!isCurrent()) return
       await loadProductionPlans() // 加载生产计划列表
+      if (!isCurrent()) return
       resetForm()                 // 重置表单数据
       dialogType.value = 'add'    // 设置对话框类型为新增
       dialogVisible.value = true  // 显示对话框
@@ -1973,8 +1989,11 @@ export default {
 
     // 加载生产组列表
     const loadProductionGroups = async () => {
+      const isCurrent = pageRequests.start('productionGroups')
+      if (!isCurrent()) return
       try {
         const res = await systemApi.getDepartments({ status: 1 })
+        if (!isCurrent()) return
 
         // 使用统一解析器
         const groups = parseListData(res, { enableLog: false })
@@ -1982,6 +2001,7 @@ export default {
         // 过滤掉 id 为 undefined 或 null 的项
         productionGroupList.value = groups.filter(g => g && (g.id !== undefined && g.id !== null))
       } catch (error) {
+        if (!isCurrent()) return
         console.error('加载生产组列表失败:', error)
         productionGroupList.value = []
         // 不显示错误消息，因为这不是关键功能
@@ -1989,28 +2009,36 @@ export default {
     }
 
     const loadLocations = async () => {
+      const isCurrent = pageRequests.start('locations')
+      if (!isCurrent()) return
       try {
-        locations.value = await loadLocationOptions()
+        const options = await loadLocationOptions()
+        if (isCurrent()) locations.value = options
       } catch (error) {
+        if (!isCurrent()) return
         ElMessage.error(getApiErrorMessage(error, '加载仓库失败'))
       }
     }
 
     // 在页面加载时初始化数据
-    onMounted(async () => {
-      await dictionaryStore.fetchDictionary()
+    const initializePage = async () => {
+      const isCurrent = pageRequests.start('initialize')
+      if (!isCurrent()) return
       try {
+        await dictionaryStore.fetchDictionary()
+        if (!isCurrent()) return
         await Promise.all([
           fetchOutboundList(),  // 获取出库单列表
-          loadProductionPlans(), // 获取生产计划列表
           loadProductionGroups(), // 获取生产组列表
           loadLocations()
         ])
       } catch (error) {
+        if (!isCurrent()) return
         console.error('初始化数据失败:', error)
         ElMessage.error('初始化数据失败')
       }
-    })
+    }
+    onMounted(initializePage)
 
     // 处理打印
     const handlePrint = async (row) => {

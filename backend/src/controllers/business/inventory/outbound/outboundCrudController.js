@@ -172,7 +172,7 @@ const buildOutboundFilters = (query) => {
     whereClause += ' AND o.outbound_date <= ?';
     params.push(endDate);
   }
-  return { whereClause, params };
+  return { whereClause, params, requiresProductionJoin: Boolean(production_group_id) };
 };
 
 const getOutboundList = async (req, res) => {
@@ -194,9 +194,26 @@ const getOutboundList = async (req, res) => {
     whereClause += scopeClause.where;
     params.push(...scopeClause.params);
 
-    // 获取出库单主表数据（包含操作人信息和生产组信息）
-    const listQuery = appendPaginationSQL(
-      `
+    // 筛选只连接实际使用的主表关系；物料/库位筛选已有 EXISTS，不需要扩展明细行。
+    const productionFilterJoin = filters.requiresProductionJoin
+      ? `LEFT JOIN production_tasks pt ON pt.id = COALESCE(o.production_task_id, CASE WHEN o.reference_type = 'production_task' THEN o.reference_id ELSE NULL END)
+           LEFT JOIN materials p ON pt.product_id = p.id`
+      : '';
+    const financeFilterJoin =
+      req.query.status && req.query.statusMode !== 'business' ? OUTBOUND_FINANCE_STATUS_JOIN : '';
+    const pageQuery = appendPaginationSQL(
+      `SELECT o.* FROM inventory_outbound o
+       ${financeFilterJoin}
+       ${productionFilterJoin}
+       ${scopeClause.join}
+       ${whereClause}
+       ORDER BY o.created_at DESC, o.id DESC`,
+      pagination.limit,
+      pagination.offset
+    );
+
+    // 主单分页后才读取完整明细及展示用财审状态，汇总规模随页大小而非历史总量增长。
+    const listQuery = `
       SELECT
         o.id,
         o.outbound_no,
@@ -231,7 +248,7 @@ const getOutboundList = async (req, res) => {
         ${OUTBOUND_TYPE_SQL} as outbound_type,
         o.reference_id,
         o.reference_type
-      FROM inventory_outbound o
+      FROM (${pageQuery}) o
       ${OUTBOUND_FINANCE_STATUS_JOIN}
       LEFT JOIN inventory_outbound_items oi ON o.id = oi.outbound_id
       LEFT JOIN inventory_outbound_items first_item ON first_item.id = (
@@ -244,28 +261,20 @@ const getOutboundList = async (req, res) => {
       LEFT JOIN production_tasks pt ON pt.id = COALESCE(o.production_task_id, CASE WHEN o.reference_type = 'production_task' THEN o.reference_id ELSE NULL END)
       LEFT JOIN materials p ON pt.product_id = p.id
       LEFT JOIN departments pg ON p.production_group_id = pg.id AND pg.status = 1
-      ${scopeClause.join}
-      ${whereClause}
-      GROUP BY o.id, o.outbound_no, o.outbound_date, o.status, outbound_posting.finance_status, o.operator, o.remark, o.created_at, o.updated_at, o.reference_id, o.reference_type, p.code, p.specs, pt.quantity, pg.name
-      ORDER BY o.created_at DESC
-    `,
-      pagination.limit,
-      pagination.offset
-    );
+      GROUP BY o.id, o.outbound_no, o.outbound_date, o.status, outbound_posting.finance_status, o.operator, o.remark, o.created_at, o.updated_at, o.reference_id, o.reference_type, o.outbound_type, o.production_task_id, o.sales_order_id, p.code, p.specs, pt.quantity, pg.name
+      ORDER BY o.created_at DESC, o.id DESC
+    `;
 
-    // LIMIT/OFFSET 使用参数化查询；count 查询不包含分页参数
+    // 分页由安全分页工具生成；统计复用原始筛选及权限参数。
     const filterParams = [...params];
     const [outbounds] = await db.pool.query(listQuery, params);
 
-    // 获取总数 - 需要包含生产组筛选所需的JOIN
+    // 总数不依赖展示明细，也不在无财审状态筛选时读取过账历史。
     const countQuery = `
       SELECT COUNT(DISTINCT o.id) as total
       FROM inventory_outbound o
-      ${OUTBOUND_FINANCE_STATUS_JOIN}
-      LEFT JOIN inventory_outbound_items oi ON o.id = oi.outbound_id
-      LEFT JOIN materials m ON oi.material_id = m.id
-      LEFT JOIN production_tasks pt ON pt.id = COALESCE(o.production_task_id, CASE WHEN o.reference_type = 'production_task' THEN o.reference_id ELSE NULL END)
-      LEFT JOIN materials p ON pt.product_id = p.id
+      ${financeFilterJoin}
+      ${productionFilterJoin}
       ${scopeClause.join}
       ${whereClause}
     `;
@@ -276,11 +285,8 @@ const getOutboundList = async (req, res) => {
     const statsQuery = `
       SELECT ${statusSql} as status, COUNT(DISTINCT o.id) as count
       FROM inventory_outbound o
-      ${OUTBOUND_FINANCE_STATUS_JOIN}
-      LEFT JOIN inventory_outbound_items oi ON o.id = oi.outbound_id
-      LEFT JOIN materials m ON oi.material_id = m.id
-      LEFT JOIN production_tasks pt ON pt.id = COALESCE(o.production_task_id, CASE WHEN o.reference_type = 'production_task' THEN o.reference_id ELSE NULL END)
-      LEFT JOIN materials p ON pt.product_id = p.id
+      ${req.query.statusMode === 'business' ? '' : OUTBOUND_FINANCE_STATUS_JOIN}
+      ${productionFilterJoin}
       ${scopeClause.join}
       ${whereClause}
       GROUP BY ${statusSql}

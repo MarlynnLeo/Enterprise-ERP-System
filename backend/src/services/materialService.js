@@ -28,7 +28,7 @@ const materialService = {
         filters,
       });
 
-      let sql = `
+      const selectSql = `
         SELECT
           m.id, m.code, m.name, m.specs, m.status, m.remark,
           m.category_id, m.product_category_id, m.unit_id,
@@ -59,7 +59,8 @@ const materialService = {
             SELECT 1 FROM bom_masters bm WHERE bm.product_id = m.id AND bm.status = 1
           ) THEN 1 ELSE 0 END as has_bom,
           (SELECT MAX(bm.id) FROM bom_masters bm WHERE bm.product_id = m.id AND bm.status = 1) as bom_id
-        FROM materials m
+      `;
+      const joinsSql = `
         LEFT JOIN categories c ON m.category_id = c.id
         LEFT JOIN categories pc ON m.product_category_id = pc.id
         LEFT JOIN units u ON m.unit_id = u.id
@@ -139,8 +140,9 @@ const materialService = {
       // ✅ 软删除过滤
       whereConditions.unshift('m.deleted_at IS NULL');
 
-      // 组合WHERE子句
-      sql += ' WHERE ' + whereConditions.join(' AND ');
+      const whereSql = ' WHERE ' + whereConditions.join(' AND ');
+      // 数字编码优先，从 1xxxx 起按编码升序；id 保证跨页排序稳定。
+      const orderSql = ` ORDER BY CASE WHEN m.code REGEXP '^[0-9]' THEN 0 ELSE 1 END, m.code ASC, m.id ASC`;
 
       // 获取总数
       const countSql = `
@@ -153,19 +155,23 @@ const materialService = {
 
       logger.debug('Material query total count', { total });
 
-      // 添加排序和分页      // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入SQL
-      // 数字编码优先，从 1xxxx 起按编码升序
-      sql += ` ORDER BY CASE WHEN m.code REGEXP '^[0-9]' THEN 0 ELSE 1 END, m.code ASC, m.id ASC`;
-      if (!noPagination) {
-        sql += ` LIMIT ${Number(validPageSize)} OFFSET ${Number(offset)}`;
-      }
+      // 先在主表筛选、排序并取得本页 ID，再关联字典和计算库存/BOM。
+      // LIMIT 使派生表不会被合并，避免所有匹配物料先做关联再分页。
+      // 导出保持完整结果，不套用列表分页。
+      const fromSql = noPagination
+        ? `FROM materials m ${joinsSql} ${whereSql}`
+        : `FROM (
+            SELECT m.id FROM materials m ${whereSql} ${orderSql}
+            LIMIT ${Number(validPageSize)} OFFSET ${Number(offset)}
+          ) page_material
+          JOIN materials m ON m.id = page_material.id
+          ${joinsSql}`;
+      const sql = `${selectSql} ${fromSql} ${orderSql}`;
 
       logger.debug('Executing material query');
       const [data] = await pool.query(sql, params);
 
       logger.debug('的查询结果:', data.length, '条记录');
-
-      // BOM信息已在主查询的LEFT JOIN中获取，无需额外处理
 
       return {
         data,

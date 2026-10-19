@@ -23,11 +23,12 @@ class SalesOutboundValuationService {
       `SELECT i.id, i.outbound_id, i.product_id AS material_id, i.quantity,
               COALESCE(i.source_order_id, o.order_id) AS source_order_id,
               o.order_id AS header_order_id, m.name AS material_name,
-              m.code AS material_code, m.specs,
+              m.code AS material_code, m.specs, u.name AS unit_name,
               COALESCE(i.price, ordered.unit_price, m.price,0) AS unit_price,
               COALESCE(ordered.tax_percent,0) AS tax_percent
          FROM sales_outbound_items i JOIN sales_outbound o ON o.id=i.outbound_id
          LEFT JOIN materials m ON m.id=i.product_id
+         LEFT JOIN units u ON u.id=i.unit_id
          LEFT JOIN (${ORDER_LINE_VALUATION_SQL}) ordered
            ON ordered.order_id=COALESCE(i.source_order_id,o.order_id) AND ordered.material_id=i.product_id
         WHERE i.outbound_id IN (?) ORDER BY i.id`,

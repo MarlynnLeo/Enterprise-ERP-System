@@ -10,7 +10,7 @@
   <div class="detail-page">
     <NavBar title="凭证详情" left-arrow @click-left="$router.go(-1)">
       <template #right>
-        <div v-if="entry && !entry.is_posted" v-permission="'finance:entries:approve'" class="post-btn" @click="handlePost">过账</div>
+        <div v-if="canPost" v-permission="'finance:entries:approve'" class="post-btn" @click="handlePost">过账</div>
       </template>
     </NavBar>
 
@@ -18,15 +18,15 @@
       <!-- 凭证头 -->
       <div class="entry-hero">
         <div class="hero-row">
-          <span class="entry-number">{{ entry.entry_number || '—' }}</span>
-          <span class="entry-status" :class="entry.is_posted ? 'posted' : 'draft'">
-            {{ entry.is_posted ? '已过账' : '草稿' }}
+          <span class="entry-number">{{ entry.entryNumber || entry.technicalId || '—' }}</span>
+          <span class="entry-status" :class="entry.isPosted ? 'posted' : 'draft'">
+            {{ statusText }}
           </span>
         </div>
         <div class="hero-desc">{{ entry.description || '无摘要' }}</div>
         <div class="hero-meta">
-          <span><VanIcon name="calendar-o" /> {{ formatDate(entry.entry_date) }}</span>
-          <span><VanIcon name="contact-o" /> {{ entry.created_by || '—' }}</span>
+          <span><VanIcon name="calendar-o" /> {{ formatDate(entry.entryDate) }}</span>
+          <span><VanIcon name="contact-o" /> {{ entry.creatorName || entry.createdBy || '—' }}</span>
         </div>
       </div>
 
@@ -34,11 +34,11 @@
       <div class="amount-summary">
         <div class="amount-card debit-bg">
           <span class="amount-label">借方合计</span>
-          <span class="amount-value">¥{{ formatMoney(entry.total_debit || 0) }}</span>
+          <span class="amount-value">¥{{ formatMoney(entry.totalDebit) }}</span>
         </div>
         <div class="amount-card credit-bg">
           <span class="amount-label">贷方合计</span>
-          <span class="amount-value">¥{{ formatMoney(entry.total_credit || 0) }}</span>
+          <span class="amount-value">¥{{ formatMoney(entry.totalCredit) }}</span>
         </div>
       </div>
 
@@ -80,11 +80,11 @@
         <div class="info-grid">
           <div class="info-item">
             <span class="info-label">凭证类型</span>
-            <span class="info-value">{{ entry.document_type || '记账凭证' }}</span>
+            <span class="info-value">{{ entry.documentType || '记账凭证' }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">过账日期</span>
-            <span class="info-value">{{ formatDate(entry.posting_date) }}</span>
+            <span class="info-value">{{ formatDate(entry.postingDate) }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">会计期间</span>
@@ -102,24 +102,35 @@
       <Loading size="24px" />
       <span>加载中...</span>
     </div>
-    <Empty v-else description="凭证不存在或加载失败" />
+    <Empty v-else :description="errorMessage || '凭证不存在或加载失败'">
+      <Button type="primary" plain @click="loadEntry">重新加载凭证</Button>
+    </Empty>
   </div>
 </template>
 
 <script setup>
-  import { ref, onMounted } from 'vue'
+  import { computed, ref, watch, onBeforeUnmount } from 'vue'
   import { useRoute } from 'vue-router'
-  import { NavBar, Loading, Empty, showToast, showConfirmDialog } from 'vant'
+  import { NavBar, Loading, Empty, Button, Icon as VanIcon, showToast, showConfirmDialog } from 'vant'
   import { financeApi, default as api } from '@/api'
+  import { extractApiData } from '@/utils/apiHelper'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
   import dayjs from 'dayjs'
 
   const route = useRoute()
   const entry = ref(null)
   const items = ref([])
   const loading = ref(true)
+  const posting = ref(false)
+  const errorMessage = ref('')
+  let requestSequence = 0
+  let actionSequence = 0
+  let disposed = false
+  const canPost = computed(() => entry.value?.isPosted === false && !entry.value?.isReversed && !loading.value && !posting.value)
+  const statusText = computed(() => entry.value?.isReversed ? '已冲销' : entry.value?.isPosted ? '已过账' : '草稿')
 
   const formatMoney = (amount) => {
-    if (!amount) return '0.00'
+    if (amount == null || !Number.isFinite(Number(amount))) return '—'
     return Number(amount).toLocaleString('zh-CN', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
@@ -132,47 +143,67 @@
   }
 
   const loadEntry = async () => {
+    const sequence = ++requestSequence
+    const id = route.params.id
+    const isCurrent = () => !disposed && sequence === requestSequence
     loading.value = true
+    entry.value = null
+    items.value = []
+    errorMessage.value = ''
     try {
-      const id = route.params.id
-      // 加载凭证主信息
-      const response = await financeApi.getEntry(id)
-      const respData = response.data || response
-      entry.value = respData.data?.entry || respData.entry || respData.data || respData
-
-      // 加载分录明细
-      try {
-        const itemsResp = await api.get(`/finance/entries/${id}/items`)
-        const itemsData = itemsResp.data || itemsResp
-        items.value = itemsData.data || itemsData || []
-      } catch (e) {
-        console.warn('加载分录明细失败:', e)
+      if (!Number.isSafeInteger(Number(id)) || Number(id) <= 0) throw new Error('凭证编号无效')
+      const [response, itemsResp] = await Promise.all([
+        financeApi.getEntry(id),
+        api.get(`/finance/entries/${id}/items`)
+      ])
+      if (!isCurrent()) return
+      const data = extractApiData(response)
+      const loadedEntry = data.entry ?? data
+      const loadedItems = extractApiData(itemsResp, [])
+      if (String(loadedEntry?.id) !== String(id) || !Array.isArray(loadedItems)) {
+        throw new Error('凭证数据不完整，请重新加载')
       }
+      entry.value = loadedEntry
+      items.value = loadedItems
     } catch (error) {
+      if (!isCurrent()) return
       console.error('加载凭证详情失败:', error)
-      showToast('加载失败')
+      errorMessage.value = getApiErrorMessage(error, '凭证加载失败，请重试')
     } finally {
-      loading.value = false
+      if (isCurrent()) loading.value = false
     }
   }
 
   const handlePost = async () => {
+    if (!canPost.value) return
+    const id = entry.value.id
+    const sequence = ++actionSequence
+    const isCurrent = () => !disposed && sequence === actionSequence && String(route.params.id) === String(id)
+    posting.value = true
     try {
       await showConfirmDialog({ title: '确认过账', message: '过账后凭证将无法修改，确认过账？' })
-      await financeApi.approveEntry(route.params.id)
+      if (!isCurrent()) return
+      await financeApi.approveEntry(id)
+      if (!isCurrent()) return
       showToast('过账成功')
-      loadEntry()
+      await loadEntry()
     } catch (e) {
-      if (e !== 'cancel') {
+      if (isCurrent() && e !== 'cancel' && e !== 'close') {
         console.error('过账失败:', e)
-        showToast('过账失败')
+        showToast(getApiErrorMessage(e, '过账失败'))
       }
+    } finally {
+      if (isCurrent()) posting.value = false
     }
   }
 
-  onMounted(() => {
+  watch(() => route.params.id, () => {
+    actionSequence++
+    posting.value = false
     loadEntry()
-  })
+  }, { immediate: true })
+
+  onBeforeUnmount(() => { disposed = true; requestSequence++; actionSequence++ })
 </script>
 
 <style lang="scss" scoped>

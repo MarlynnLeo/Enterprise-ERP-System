@@ -719,7 +719,19 @@ async function processExchangeInventory(connection, exchangeId, operator) {
 }
 
 // 根据物料来源自动生成后续单据（使用统一的新函数）
-async function autoGenerateFollowUpDocuments(salesOrderId, items, userInfo) {
+async function autoGenerateFollowUpDocuments(salesOrderId, items, userInfo = {}, outcome = {}) {
+  // Keep the status-string return contract used by existing callers. HTTP
+  // callers can pass an outcome object to distinguish a real shortage from a
+  // failed attempt to create its downstream documents.
+  outcome.status = 'completed';
+  const failed = (error) => {
+    Object.assign(outcome, {
+      status: 'failed',
+      code: 'FOLLOW_UP_GENERATION_FAILED',
+      message: `订单已保存，但备货处理失败：${error.message || '请检查生产/采购配置后重试'}`,
+    });
+    return 'shortage';
+  };
   try {
     logger.debug('Generating sales order follow-up documents', {
       salesOrderId,
@@ -751,7 +763,7 @@ async function autoGenerateFollowUpDocuments(salesOrderId, items, userInfo) {
         );
         if (orderRows.length === 0) {
           await connection.rollback();
-          return 'shortage';
+          return failed(new Error('销售订单不存在，无法预留库存'));
         }
         const order = orderRows[0];
         const reservationResult = await InventoryReservationService.reserveInventoryForOrder(
@@ -766,7 +778,7 @@ async function autoGenerateFollowUpDocuments(salesOrderId, items, userInfo) {
       } catch (reservationError) {
         await connection.rollback();
         logger.error('库存充足但预留失败:', reservationError);
-        return 'shortage';
+        return failed(reservationError);
       } finally {
         connection.release();
       }
@@ -779,12 +791,14 @@ async function autoGenerateFollowUpDocuments(salesOrderId, items, userInfo) {
     // 使用统一的生成函数（支持用户信息、合同编码、批量编号生成）
     const connection = await db.pool.getConnection();
     try {
+      await connection.beginTransaction();
       await generateProductionAndPurchasePlans(
         connection,
         salesOrderId,
         insufficientItems,
         userInfo
       );
+      await connection.commit();
 
       // 根据物料来源类型决定状态
       const hasInternal = materialsBySource.internal.length > 0;
@@ -796,12 +810,15 @@ async function autoGenerateFollowUpDocuments(salesOrderId, items, userInfo) {
         return 'in_procurement'; // 需要采购
       }
       return 'ready_to_ship';
+    } catch (generationError) {
+      await connection.rollback();
+      throw generationError;
     } finally {
       connection.release();
     }
   } catch (error) {
     logger.error('自动生成后续单据失败:', error);
-    return 'shortage';
+    return failed(error);
   }
 }
 
@@ -893,9 +910,12 @@ async function getMaterialsBySourceWithInventoryCheck(items) {
             );
           }
         }
+      } else {
+        throw new Error(`订单物料 ${item.material_id} 不存在，无法生成备货单据`);
       }
     } catch (error) {
       logger.error(`获取物料信息失败，物料ID: ${item.material_id} `, error);
+      throw error;
     }
   }
 

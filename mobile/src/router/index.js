@@ -205,9 +205,11 @@ router.beforeEach(async (to) => {
 
   const authStore = useAuthStore()
   let isAuthenticated = authStore.isAuthenticated
+  let sessionProbeAttempted = false
 
   // 如果有登录标记但用户数据为空（浏览器重启后），尝试用 cookie 恢复会话
   if (isAuthenticated && !authStore.profileLoaded) {
+    sessionProbeAttempted = true
     isAuthenticated = await authStore.fetchUserProfile()
     if (!isAuthenticated) {
       // cookie 已过期，清除本地登录标记
@@ -216,7 +218,7 @@ router.beforeEach(async (to) => {
   }
 
   // 如果仍未认证，再尝试一次 fetchUserProfile（可能是新标签打开）
-  if (!isAuthenticated && !to.meta.allowGuest) {
+  if (!isAuthenticated && !to.meta.allowGuest && !sessionProbeAttempted) {
     isAuthenticated = await authStore.fetchUserProfile()
   }
 

@@ -1,20 +1,22 @@
 <!--
   EntryFormDialog.vue
   会计凭证录入对话框：支持从业务单据批量生成 + 手工分录
-  多选业务单据默认合并为 1 张会计凭证（各单仍分别开票）
+  多选业务单据合并应收/应付凭证，销售成本按出库单独立结转。
 -->
 <template>
   <AppDialog
     :model-value="modelValue"
     mode="form"
     :title="dialogTitle"
-    width="960px"
+    width="1100px"
     :close-on-click-modal="false"
+    :close-on-press-escape="!submitting"
+    :show-close="!submitting"
     destroy-on-close
-    @update:model-value="emit('update:modelValue', $event)"
+    @update:model-value="handleDialogVisibility"
     @closed="handleClosed"
   >
-    <el-tabs v-model="activeTab" class="entry-tabs">
+    <el-tabs v-model="activeTab" class="entry-tabs" :inert="submitting">
       <!-- 从业务单据生成 -->
       <el-tab-pane label="从业务单据生成" name="business">
         <el-alert
@@ -22,7 +24,7 @@
           :closable="false"
           show-icon
           class="mb-3"
-          title="专业路径：采购应付取「采购入库单」（按入库量），销售应收取「销售出库单」（按交货量）。多选时默认合并为 1 张凭证（各单据仍分别生成发票）。请先「预览凭证」核对/修改金额后再确认生成。"
+          title="采购应付取「采购入库单」，销售应收取「销售出库单」。人民币单据可多选合并应收或应付凭证，各单仍分别开票；美元单据仅支持逐单生成。销售成本按每张出库单独立结转。请先预览并核对金额。"
         />
 
         <el-form label-width="90px" class="mb-2">
@@ -57,6 +59,7 @@
           已选 <strong>{{ selectedOrders.length }}</strong> 张
           <el-button link type="primary" @click="clearSelection">清空</el-button>
         </div>
+        <el-alert v-if="unsupportedUsdMerge" type="warning" :closable="false" show-icon class="mb-3" :title="usdMergeMessage" />
 
         <el-table
           ref="orderTableRef"
@@ -93,7 +96,7 @@
           <el-table-column prop="docDate" label="日期" width="110" />
           <el-table-column prop="totalAmount" label="金额" width="120" align="right">
             <template #default="{ row }">
-              {{ formatCurrency(row.totalAmount || 0) }}
+              {{ formatBusinessAmount(row.totalAmount, row.currencyCode) }}
             </template>
           </el-table-column>
           <el-table-column prop="status" label="状态" width="100">
@@ -122,187 +125,61 @@
 
       <!-- 手工录入 -->
       <el-tab-pane label="手工录入" name="manual">
+        <div v-if="manualOptionsError" class="manual-options-error" role="alert">
+          <span>{{ manualOptionsError }}</span>
+          <el-button type="primary" link :loading="manualOptionsLoading" @click="loadManualOptions({ force: true })">重新加载选项</el-button>
+        </div>
         <el-form ref="formRef" :model="entryForm" :rules="rules" label-width="90px">
           <el-row :gutter="16">
-            <el-col :span="8">
-              <el-form-item label="记账日期" prop="entryDate">
-                <el-date-picker
-                  v-model="entryForm.entryDate"
-                  type="date"
-                  value-format="YYYY-MM-DD"
-                  class="w-full"
-                />
-              </el-form-item>
-            </el-col>
-            <el-col :span="8">
-              <el-form-item label="凭证字" prop="voucherWord">
-                <el-select v-model="entryForm.voucherWord" class="w-full">
-                  <el-option label="记" value="记" />
-                  <el-option label="收" value="收" />
-                  <el-option label="付" value="付" />
-                  <el-option label="转" value="转" />
-                </el-select>
-              </el-form-item>
-            </el-col>
-            <el-col :span="8">
-              <el-form-item label="附单据数" prop="documentNumber">
-                <el-input-number v-model="entryForm.documentNumber" :min="0" class="w-full" />
-              </el-form-item>
-            </el-col>
+            <el-col :span="8"><el-form-item label="记账日期" prop="entryDate"><el-date-picker v-model="entryForm.entryDate" type="date" value-format="YYYY-MM-DD" class="w-full" /></el-form-item></el-col>
+            <el-col :span="8"><el-form-item label="凭证字" prop="voucherWord"><el-select v-model="entryForm.voucherWord" class="w-full"><el-option v-for="word in ['记', '收', '付', '转']" :key="word" :label="word" :value="word" /></el-select></el-form-item></el-col>
+            <el-col :span="8"><el-form-item label="附单据数" prop="attachmentCount"><VoucherNumberInput v-model="entryForm.attachmentCount" :min="0" :precision="0" placeholder="未填写" class="w-full" /></el-form-item></el-col>
           </el-row>
-          <el-form-item label="摘要" prop="description">
-            <el-input v-model="entryForm.description" placeholder="凭证摘要" />
-          </el-form-item>
+          <el-form-item label="业务票据号" prop="documentNumber"><el-input v-model="entryForm.documentNumber" maxlength="100" placeholder="业务单据编号（选填）" /></el-form-item>
+          <el-form-item label="摘要" prop="description"><el-input v-model="entryForm.description" maxlength="200" placeholder="凭证摘要" /></el-form-item>
         </el-form>
-
-        <div class="items-header">
-          <span>凭证明细</span>
-          <el-button type="success" size="small" plain @click="addItem">添加明细行</el-button>
-        </div>
-
-        <el-table :data="entryForm.items" border class="w-full" max-height="320">
-          <el-table-column label="摘要" width="160">
-            <template #default="{ row }">
-              <el-input v-model="row.description" placeholder="明细摘要" size="small" />
-            </template>
-          </el-table-column>
-          <el-table-column label="会计科目" min-width="220">
-            <template #default="{ row, $index }">
-              <el-cascader
-                v-model="row.accountId"
-                :options="accountOptions"
-                :props="{ checkStrictly: true, value: 'id', label: 'fullName', emitPath: false }"
-                placeholder="请选择科目"
-                filterable
-                size="small"
-                class="w-full"
-                @change="(val) => handleAccountChange(val, $index)"
-              />
-              <div
-                v-if="row._accountAux && Object.values(row._accountAux).some(Boolean)"
-                class="aux-area"
-              >
-                <el-select
-                  v-if="row._accountAux.hasCustomer"
-                  v-model="row.customerId"
-                  placeholder="客户"
-                  size="small"
-                  class="aux-item"
-                >
-                  <el-option
-                    v-for="c in customerOptions"
-                    :key="c.id"
-                    :label="c.customerName || c.name"
-                    :value="c.id"
-                  />
-                </el-select>
-                <el-select
-                  v-if="row._accountAux.hasSupplier"
-                  v-model="row.supplierId"
-                  placeholder="供应商"
-                  size="small"
-                  class="aux-item"
-                >
-                  <el-option
-                    v-for="s in supplierOptions"
-                    :key="s.id"
-                    :label="s.supplierName || s.name"
-                    :value="s.id"
-                  />
-                </el-select>
-                <el-select
-                  v-if="row._accountAux.hasEmployee"
-                  v-model="row.employeeId"
-                  placeholder="员工"
-                  size="small"
-                  class="aux-item"
-                >
-                  <el-option
-                    v-for="u in userOptions"
-                    :key="u.id"
-                    :label="u.username || u.realName"
-                    :value="u.id"
-                  />
-                </el-select>
-                <el-select
-                  v-if="row._accountAux.hasDepartment"
-                  v-model="row.costCenterId"
-                  placeholder="部门"
-                  size="small"
-                  class="aux-item"
-                >
-                  <el-option
-                    v-for="d in departmentOptions"
-                    :key="d.id"
-                    :label="d.departmentName || d.name"
-                    :value="d.id"
-                  />
-                </el-select>
-              </div>
-            </template>
-          </el-table-column>
-          <el-table-column label="借方" width="130">
-            <template #default="{ row }">
-              <el-input-number
-                v-model="row.debitAmount"
-                :precision="2"
-                :min="0"
-                :controls="false"
-                size="small"
-                class="w-full"
-                @change="() => (row.creditAmount = row.debitAmount > 0 ? 0 : row.creditAmount)"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column label="贷方" width="130">
-            <template #default="{ row }">
-              <el-input-number
-                v-model="row.creditAmount"
-                :precision="2"
-                :min="0"
-                :controls="false"
-                size="small"
-                class="w-full"
-                @change="() => (row.debitAmount = row.creditAmount > 0 ? 0 : row.debitAmount)"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="70" align="center" class-name="operation-column" header-class-name="operation-column-header">
-            <template #default="{ $index }">
-              <el-button
-                type="danger"
-                size="small"
-                :disabled="entryForm.items.length <= 2"
-                @click="removeItem($index)"
-              >
-                删
-              </el-button>
-            </template>
-          </el-table-column>
+        <div class="items-header"><span>凭证明细 · 借贷金额均为人民币（CNY）</span><el-button type="success" size="small" plain @click="addItem">添加明细行</el-button></div>
+        <el-table :data="entryForm.items" border class="w-full manual-entry-table" v-loading="manualOptionsLoading" :row-class-name="({ row }) => entryForm.items.indexOf(row) === selectedManualIndex ? 'manual-selected-line' : ''" @row-click="selectManualRow">
+          <el-table-column label="摘要" min-width="170"><template #default="{ row }"><el-input v-model="row.description" maxlength="200" placeholder="明细摘要" size="small" /></template></el-table-column>
+          <el-table-column label="会计科目" min-width="240"><template #default="{ row, $index }"><el-cascader v-model="row.accountId" :options="accountOptions" :props="{ checkStrictly: true, value: 'id', label: 'fullName', emitPath: false }" :disabled="!optionsLoaded" placeholder="请选择科目" filterable size="small" class="w-full" @change="value => handleAccountChange(value, $index)" /></template></el-table-column>
+          <el-table-column label="借方" width="140"><template #default="{ row }"><VoucherNumberInput v-model="row.debitAmount" :precision="2" :min="0" :controls="false" size="small" class="w-full" @change="() => (row.creditAmount = row.debitAmount > 0 ? 0 : row.creditAmount)" /></template></el-table-column>
+          <el-table-column label="贷方" width="140"><template #default="{ row }"><VoucherNumberInput v-model="row.creditAmount" :precision="2" :min="0" :controls="false" size="small" class="w-full" @change="() => (row.debitAmount = row.creditAmount > 0 ? 0 : row.debitAmount)" /></template></el-table-column>
+          <el-table-column label="操作" width="125" align="center" class-name="operation-column" header-class-name="operation-column-header"><template #default="{ $index }"><div class="manual-row-actions"><el-button size="small" link type="primary" @click="selectedManualIndex = $index">辅助</el-button><el-button type="danger" size="small" link :disabled="entryForm.items.length <= 2" @click.stop="removeItem($index)">删除</el-button></div></template></el-table-column>
         </el-table>
-
-        <div class="totals-row">
-          <span>借方合计：{{ formatCurrency(totalDebit) }}</span>
-          <span>贷方合计：{{ formatCurrency(totalCredit) }}</span>
-          <span :class="isBalanced ? 'ok' : 'bad'">
-            {{
-              isBalanced
-                ? '借贷平衡'
-                : `差额 ${formatCurrency(Math.abs(totalDebit - totalCredit))}`
-            }}
-          </span>
-        </div>
+        <div class="totals-row"><span>借方合计：{{ formatCurrency(totalDebit) }}</span><span>贷方合计：{{ formatCurrency(totalCredit) }}</span><span :class="isBalanced ? 'ok' : 'bad'">{{ isBalanced ? '借贷平衡' : `差额 ${formatCurrency(Math.abs(totalDebit - totalCredit))}` }}</span></div>
+        <section v-if="selectedManualItem" class="manual-line-details" aria-label="分录辅助信息">
+          <div class="manual-detail-heading"><strong>第 {{ selectedManualIndex + 1 }} 行辅助信息</strong><span>{{ selectedManualAccount?.fullName || '请先选择会计科目' }}</span></div>
+          <p v-if="selectedManualAccount?.currencyCode === 'USD'" class="manual-currency-note">所选科目原币为 USD，币种固定为美元。请填写美元金额及实际汇率，借贷金额仍以人民币填列。</p>
+          <el-form ref="manualAuxFormRef" :model="selectedManualItem" :rules="manualAuxRules" :validate-on-rule-change="false" label-position="top" class="manual-aux-grid" :disabled="!optionsLoaded">
+            <el-form-item label="部门" prop="departmentId"><el-select v-model="selectedManualItem.departmentId" filterable clearable class="w-full" placeholder="选择部门"><el-option v-for="option in departmentOptions" :key="option.id" :label="option.departmentName || option.name" :value="option.id" /></el-select></el-form-item>
+            <el-form-item label="成本中心" prop="costCenterId"><el-select v-model="selectedManualItem.costCenterId" filterable clearable class="w-full" placeholder="选择成本中心"><el-option v-for="option in costCenterOptions" :key="option.id" :label="option.name || option.costCenterName" :value="option.id" /></el-select></el-form-item>
+            <el-form-item label="员工" prop="employeeId"><el-select v-model="selectedManualItem.employeeId" filterable clearable class="w-full" placeholder="选择员工"><el-option v-for="option in userOptions" :key="option.id" :label="option.realName || option.username" :value="option.id" /></el-select></el-form-item>
+            <el-form-item label="客户" prop="customerId"><el-select v-model="selectedManualItem.customerId" filterable clearable class="w-full" placeholder="选择客户"><el-option v-for="option in customerOptions" :key="option.id" :label="option.customerName || option.name" :value="option.id" /></el-select></el-form-item>
+            <el-form-item label="供应商" prop="supplierId"><el-select v-model="selectedManualItem.supplierId" filterable clearable class="w-full" placeholder="选择供应商"><el-option v-for="option in supplierOptions" :key="option.id" :label="option.supplierName || option.name" :value="option.id" /></el-select></el-form-item>
+            <el-form-item label="项目名称" prop="projectName"><el-input v-model="selectedManualItem.projectName" maxlength="200" placeholder="填写项目名称" /></el-form-item>
+            <el-form-item label="币种" prop="currencyCode"><el-select v-model="selectedManualItem.currencyCode" :disabled="selectedManualAccount?.currencyCode === 'USD'" class="w-full" @change="handleManualCurrencyChange"><el-option label="人民币（CNY）" value="CNY" /><el-option label="美元（USD）" value="USD" /></el-select></el-form-item>
+            <el-form-item :label="selectedManualItem.currencyCode === 'USD' ? '汇率（1 USD = x CNY）' : '人民币汇率'" prop="exchangeRate"><VoucherNumberInput v-model="selectedManualItem.exchangeRate" :disabled="selectedManualItem.currencyCode === 'CNY'" :precision="8" :min="0.00000001" :controls="false" placeholder="填写实际采用的汇率" class="w-full" /></el-form-item>
+            <el-form-item label="外币金额（USD）" prop="foreignAmount"><VoucherNumberInput v-model="selectedManualItem.foreignAmount" :disabled="selectedManualItem.currencyCode !== 'USD'" :precision="2" :min="0.01" :controls="false" placeholder="填写美元金额" class="w-full" /></el-form-item>
+            <el-form-item label="数量" prop="quantity"><VoucherNumberInput v-model="selectedManualItem.quantity" :precision="6" :min="0" :controls="false" class="w-full" /></el-form-item>
+            <el-form-item label="单位" prop="unitName"><el-input v-model="selectedManualItem.unitName" maxlength="50" placeholder="如：个、箱" /></el-form-item>
+            <el-form-item label="单价" prop="unitPrice"><VoucherNumberInput v-model="selectedManualItem.unitPrice" :precision="6" :min="0" :controls="false" class="w-full" /></el-form-item>
+            <el-form-item label="结算方式" prop="settlementMethod"><el-input v-model="selectedManualItem.settlementMethod" maxlength="50" placeholder="填写结算方式" /></el-form-item>
+            <el-form-item label="发票号" prop="invoiceNumber"><el-input v-model="selectedManualItem.invoiceNumber" maxlength="100" placeholder="填写发票号" /></el-form-item>
+          </el-form>
+          <p v-if="selectedManualItem.currencyCode === 'USD'" class="manual-currency-note">人民币借方或贷方金额 = 美元金额 × 汇率，保留两位小数。请在上方填写对应人民币金额。</p>
+        </section>
       </el-tab-pane>
     </el-tabs>
 
     <template #footer>
-      <el-button @click="emit('update:modelValue', false)">取消</el-button>
+      <el-button v-if="batchResult" :disabled="submitting" @click="batchResultVisible = true">查看上次生成结果</el-button>
+      <el-button :disabled="submitting" @click="handleDialogVisibility(false)">取消</el-button>
       <template v-if="activeTab === 'business'">
         <el-button
           type="primary"
           plain
           :loading="previewLoading"
-          :disabled="!selectedOrders.length"
+          :disabled="!selectedOrders.length || unsupportedUsdMerge || submitting"
           @click="openPreview"
         >
           预览凭证（{{ selectedOrders.length }}）
@@ -310,13 +187,13 @@
         <el-button
           type="primary"
           :loading="submitting"
-          :disabled="!selectedOrders.length"
+          :disabled="!selectedOrders.length || unsupportedUsdMerge || previewLoading"
           @click="submitBusinessGenerate"
         >
-          直接生成（合并 1 张）
+          {{ directGenerateLabel }}
         </el-button>
       </template>
-      <el-button v-else type="primary" :loading="submitting" @click="submitManualEntry">
+      <el-button v-else type="primary" :loading="submitting" :disabled="manualOptionsLoading || !optionsLoaded" @click="submitManualEntry">
         保存凭证
       </el-button>
     </template>
@@ -324,12 +201,15 @@
 
   <!-- 合并凭证预览（可编辑） -->
   <AppDialog
-    v-model="previewVisible"
+    :model-value="previewVisible"
     mode="form"
     :title="previewDialogTitle"
     width="1100px"
     :close-on-click-modal="false"
+    :close-on-press-escape="!submitting"
+    :show-close="!submitting"
     destroy-on-close
+    @update:model-value="handlePreviewVisibility"
     @closed="handlePreviewClosed"
   >
     <el-alert
@@ -340,7 +220,7 @@
       :title="previewHint"
     />
 
-    <div v-loading="previewLoading" class="preview-body">
+    <div v-loading="previewLoading" class="preview-body" :inert="submitting">
       <template v-if="previewVouchers.length">
         <el-tabs v-model="activePreviewKey" type="card" class="preview-tabs">
           <el-tab-pane
@@ -363,6 +243,7 @@
             </div>
 
             <template v-else>
+              <p class="manual-currency-note">币种：{{ voucher.currencyCode || 'CNY' }}<template v-if="voucher.currencyCode === 'USD'"> · 汇率：1 USD = {{ voucher.exchangeRate }} CNY；本预览为美元原币金额，生成后总账按该汇率折合人民币。</template></p>
               <el-form label-width="90px" class="mb-2 preview-header-form">
                 <el-row :gutter="12">
                   <el-col :span="8">
@@ -425,7 +306,7 @@
                       size="small"
                       class="merge-doc-tag"
                     >
-                      {{ doc.docNo }} · {{ formatCurrency(doc.totalAmount || 0) }}
+                      {{ doc.docNo }} · {{ formatBusinessAmount(doc.totalAmount, doc.currencyCode || voucher.currencyCode) }}
                     </el-tag>
                   </div>
                 </el-form-item>
@@ -478,7 +359,7 @@
                 </el-table-column>
                 <el-table-column label="金额(未税)" width="120" align="right">
                   <template #default="{ row }">
-                    {{ formatCurrency(row.amount || 0) }}
+                    {{ formatBusinessAmount(row.amount, voucher.currencyCode) }}
                   </template>
                 </el-table-column>
               </el-table>
@@ -487,7 +368,7 @@
                 <el-col :span="8">
                   <div class="amount-box">
                     <span class="lbl">未税合计</span>
-                    <strong>{{ formatCurrency(voucher.subtotal) }}</strong>
+                    <strong>{{ formatBusinessAmount(voucher.subtotal, voucher.currencyCode) }}</strong>
                   </div>
                 </el-col>
                 <el-col :span="8">
@@ -507,7 +388,7 @@
                 <el-col :span="8">
                   <div class="amount-box">
                     <span class="lbl">价税合计</span>
-                    <strong class="total">{{ formatCurrency(voucher.totalAmount) }}</strong>
+                    <strong class="total">{{ formatBusinessAmount(voucher.totalAmount, voucher.currencyCode) }}</strong>
                   </div>
                 </el-col>
               </el-row>
@@ -518,7 +399,7 @@
                   {{
                     isPreviewBalanced(voucher)
                       ? '借贷平衡'
-                      : `差额 ${formatCurrency(Math.abs(previewDebit(voucher) - previewCredit(voucher)))}`
+                      : `差额 ${formatBusinessAmount(Math.abs(previewDebit(voucher) - previewCredit(voucher)), voucher.currencyCode)}`
                   }}
                 </span>
               </div>
@@ -589,29 +470,32 @@
     </div>
 
     <template #footer>
-      <el-button @click="previewVisible = false">返回修改选择</el-button>
+      <el-button :disabled="submitting" @click="handlePreviewVisibility(false)">返回修改选择</el-button>
       <el-button
         type="primary"
         :loading="submitting"
-        :disabled="!previewReadyCount"
+        :disabled="!previewReadyCount || previewLoading || unsupportedUsdMerge"
         @click="confirmPreviewGenerate"
       >
-        确认生成合并凭证
+        确认生成凭证
       </el-button>
     </template>
   </AppDialog>
+  <BatchResultDialog v-model="batchResultVisible" :result="batchResult" />
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, nextTick } from 'vue'
+import { ref, reactive, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import AppDialog from '@/components/ui/AppDialog.vue'
-import { financeApi, salesApi, purchaseApi } from '@/api'
+import VoucherNumberInput from './VoucherNumberInput.vue'
+import BatchResultDialog from './BatchResultDialog.vue'
+import { financeApi } from '@/api'
 import { formatCurrency, formatLocalDate } from '@/utils/format'
-import { parsePaginatedData, parseListData, parseResponseData } from '@/utils/responseParser'
-import { loadDepartmentOptions, loadUserListOptions } from '@/utils/optionLoaders'
+import { parsePaginatedData, parseResponseData } from '@/utils/responseParser'
 import { getApiErrorMessage } from '@/utils/errorHandler'
+import { accountAuxiliary, createManualItem, prepareAccountOptions, manualEntryError, manualEntryPayload } from './manualEntry'
 
 const ORDER_STATUS_MAP = Object.freeze({
   completed: '已完成',
@@ -621,6 +505,9 @@ const ORDER_STATUS_MAP = Object.freeze({
   draft: '草稿',
 })
 const formatOrderStatus = (status) => ORDER_STATUS_MAP[status] || status || '-'
+const formatBusinessAmount = (value, currency = 'CNY') => new Intl.NumberFormat('zh-CN', {
+  style: 'currency', currency: currency === 'USD' ? 'USD' : 'CNY',
+}).format(Number(value) || 0)
 
 /**
  * 专业 ERP 主路径（对话框仅展示这两类）：
@@ -683,6 +570,8 @@ const emit = defineEmits(['update:modelValue', 'success'])
 const activeTab = ref('business')
 const businessType = ref('purchase_receipt')
 const submitting = ref(false)
+const batchResult = ref(null)
+const batchResultVisible = ref(false)
 const previewLoading = ref(false)
 const previewVisible = ref(false)
 const previewVouchers = ref([])
@@ -697,21 +586,25 @@ const currentBusinessMeta = computed(
 const dialogTitle = computed(() =>
   activeTab.value === 'business' ? '从业务单据生成凭证' : '手工录入凭证'
 )
+const recognitionVoucherLabel = computed(() => businessType.value === 'sales_outbound' ? '应收凭证' : '应付凭证')
+const salesCostHint = computed(() => businessType.value === 'sales_outbound'
+  ? '销售成本将按每张出库单另行生成或复用独立凭证。' : '')
 const previewDialogTitle = computed(() => {
   const ready = previewVouchers.value.find((v) => !v.skipped && !v.error)
   if (ready?.isMerged && ready.sourceIds?.length > 1) {
-    return `合并凭证预览（${ready.sourceIds.length} 张单据 → 1 张凭证）`
+    return `合并${recognitionVoucherLabel.value}预览（${ready.sourceIds.length} 张单据 → 1 张）`
   }
-  if (ready) return '凭证预览（1 张）'
+  if (ready) return `${recognitionVoucherLabel.value}预览（1 张）`
   return '凭证预览'
 })
 const previewHint = computed(() => {
+  if (unsupportedUsdMerge.value) return usdMergeMessage
   const label = currentBusinessMeta.value.confirmLabel
   const n = selectedOrders.value.length
   if (n > 1) {
-    return `已选 ${n} 张${label}：将合并生成 1 张会计凭证（各单据仍分别开票）。请核对合并后的明细与分录，金额不对可直接修改后再确认生成。`
+    return `已选 ${n} 张${label}：将合并生成 1 张${recognitionVoucherLabel.value}（各单仍分别开票）。${salesCostHint.value}请核对明细与分录，修改后再确认生成。`
   }
-  return `已选 1 张${label}：请核对明细与分录，金额不对可直接修改后再确认生成。`
+  return `已选 1 张${label}：请核对明细与分录，修改后再确认生成。${selectedOrders.value.some(row => row.currencyCode === 'USD') ? '美元来源仅支持逐单生成。' : ''}${salesCostHint.value}`
 })
 const previewReadyCount = computed(
   () => previewVouchers.value.filter((v) => !v.skipped && !v.error).length
@@ -725,6 +618,14 @@ const orderPageSize = ref(10)
 const orderTotal = ref(0)
 const selectedOrders = ref([])
 const orderTableRef = ref(null)
+const usdMergeMessage = '美元来源请逐单生成凭证，以保留原单核销金额；请仅选择一张美元单据。'
+const unsupportedUsdMerge = computed(() => selectedOrders.value.length > 1 && selectedOrders.value.some(row => row.currencyCode === 'USD'))
+const directGenerateLabel = computed(() => unsupportedUsdMerge.value
+  ? '美元单据请逐单生成'
+  : selectedOrders.value.length > 1 ? '直接生成（合并 1 张）' : '直接生成凭证')
+let orderSequence = 0
+let previewSequence = 0
+let dialogSequence = 0
 
 const formRef = ref(null)
 const accountOptions = ref([])
@@ -733,28 +634,44 @@ const customerOptions = ref([])
 const supplierOptions = ref([])
 const userOptions = ref([])
 const departmentOptions = ref([])
+const costCenterOptions = ref([])
 const optionsLoaded = ref(false)
-
-const createEmptyItem = () => ({
-  description: '',
-  accountId: null,
-  debitAmount: 0,
-  creditAmount: 0,
-  customerId: null,
-  supplierId: null,
-  employeeId: null,
-  costCenterId: null,
-  projectId: null,
-  _accountAux: null,
-})
+const manualOptionsLoading = ref(false)
+const manualOptionsError = ref('')
+const selectedManualIndex = ref(0)
+const manualAuxFormRef = ref(null)
+let optionsSequence = 0
+let optionsPromise = null
+let disposed = false
 
 const entryForm = reactive({
   entryDate: formatLocalDate(new Date()),
   voucherWord: '记',
-  documentNumber: 0,
+  attachmentCount: null,
+  documentNumber: '',
   description: '',
-  items: [createEmptyItem(), createEmptyItem()],
+  items: [createManualItem(), createManualItem()],
 })
+const selectedManualItem = computed(() => entryForm.items[selectedManualIndex.value] || null)
+const selectedManualAccount = computed(() => flatAccounts.value.find(account => String(account.id) === String(selectedManualItem.value?.accountId)))
+const manualAuxRules = computed(() => {
+  const aux = selectedManualItem.value?._accountAux || {}
+  const usd = selectedManualItem.value?.currencyCode === 'USD'
+  return Object.fromEntries([
+    ['departmentId', aux.hasDepartment, '请选择部门'],
+    ['employeeId', aux.hasEmployee, '请选择员工'],
+    ['customerId', aux.hasCustomer, '请选择客户'],
+    ['supplierId', aux.hasSupplier, '请选择供应商'],
+    ['projectName', aux.hasProject, '请填写项目名称'],
+    ['exchangeRate', usd, '请填写美元汇率'],
+    ['foreignAmount', usd, '请填写美元金额'],
+  ].map(([field, required, message]) => [field, [{ type: 'any', required: Boolean(required), message, trigger: 'change' }]]))
+})
+watch([selectedManualItem, selectedManualAccount], async () => {
+  await nextTick()
+  manualAuxFormRef.value?.clearValidate()
+})
+
 
 const rules = {
   entryDate: [{ required: true, message: '请选择记账日期', trigger: 'change' }],
@@ -780,6 +697,8 @@ function sumField(rows, field) {
 }
 
 function resetBusinessState() {
+  orderSequence++
+  orderLoading.value = false
   orderList.value = []
   orderKeyword.value = ''
   orderPage.value = 1
@@ -789,6 +708,7 @@ function resetBusinessState() {
 }
 
 function resetPreviewState() {
+  previewSequence++
   previewVouchers.value = []
   activePreviewKey.value = ''
   previewLoading.value = false
@@ -797,23 +717,35 @@ function resetPreviewState() {
 function resetManualForm() {
   entryForm.entryDate = formatLocalDate(new Date())
   entryForm.voucherWord = props.defaultVoucherWord || '记'
-  entryForm.documentNumber = 0
+  entryForm.attachmentCount = null
+  entryForm.documentNumber = ''
   entryForm.description = ''
-  entryForm.items = [createEmptyItem(), createEmptyItem()]
+  entryForm.items = [createManualItem(), createManualItem()]
+  selectedManualIndex.value = 0
 }
 
 function handleClosed() {
+  if (props.modelValue) return
   resetBusinessState()
   resetManualForm()
   resetPreviewState()
   previewVisible.value = false
   activeTab.value = 'business'
   businessType.value = 'purchase_receipt'
-  submitting.value = false
 }
 
 function handlePreviewClosed() {
-  previewLoading.value = false
+  if (!previewVisible.value) resetPreviewState()
+}
+
+function handleDialogVisibility(visible) {
+  if (!submitting.value) emit('update:modelValue', visible)
+}
+
+function handlePreviewVisibility(visible) {
+  if (submitting.value) return
+  previewVisible.value = visible
+  if (!visible) resetPreviewState()
 }
 
 function voucherTabLabel(voucher, index) {
@@ -958,19 +890,30 @@ function normalizePreviewVoucher(raw, index) {
 }
 
 async function openPreview() {
+  if (submitting.value || previewLoading.value || !props.modelValue) return
   if (!selectedOrders.value.length) {
     ElMessage.warning('请先勾选业务单据')
     return
   }
+  if (unsupportedUsdMerge.value) {
+    ElMessage.warning(usdMergeMessage)
+    return
+  }
+  const sequence = ++previewSequence
+  const session = dialogSequence
+  const request = { businessType: businessType.value, ids: selectedOrders.value.map(row => row.id), merge: true }
+  const current = () => !disposed && props.modelValue && previewVisible.value &&
+    sequence === previewSequence && session === dialogSequence
+  previewVouchers.value = []
+  activePreviewKey.value = ''
   previewLoading.value = true
   previewVisible.value = true
   try {
-    await loadManualOptions()
-    const response = await financeApi.integration.batchPreviewFromOrders({
-      businessType: businessType.value,
-      ids: selectedOrders.value.map((r) => r.id),
-      merge: true,
-    })
+    const optionsReady = await loadManualOptions()
+    if (!current()) return
+    if (!optionsReady) throw new Error(manualOptionsError.value || '凭证选项尚未加载，请重试')
+    const response = await financeApi.integration.batchPreviewFromOrders(request)
+    if (!current()) return
     const data = parseResponseData(response, {}) || {}
     const list = Array.isArray(data.vouchers) ? data.vouchers : []
     previewVouchers.value = list.map((v, i) => normalizePreviewVoucher(v, i))
@@ -980,14 +923,15 @@ async function openPreview() {
     if (!previewReadyCount.value) {
       ElMessage.warning(getApiErrorMessage(data, '所选单据均无法生成（可能已存在凭证或预览失败）'))
     } else {
-      ElMessage.success(data.message || '合并凭证预览已就绪，请核对后确认')
+      ElMessage.success(data.message || '凭证预览已就绪，请核对后确认')
     }
   } catch (error) {
+    if (!current()) return
     console.error(error)
     ElMessage.error(getApiErrorMessage(error, '预览失败'))
     previewVisible.value = false
   } finally {
-    previewLoading.value = false
+    if (sequence === previewSequence) previewLoading.value = false
   }
 }
 
@@ -1018,6 +962,8 @@ function buildOverridesFromPreview() {
         taxAmount: v.taxAmount,
         subtotal: v.subtotal,
         totalAmount: v.totalAmount,
+        currencyCode: v.currencyCode || 'CNY',
+        exchangeRate: v.exchangeRate,
         items: (v.items || []).map((it) => {
           const quantity = Number(it.quantity) || 0
           const unitPrice = Number(it.unitPrice) || 0
@@ -1034,6 +980,7 @@ function buildOverridesFromPreview() {
             description: it.description || null,
             quantity,
             unit_price: unitPrice,
+            unit_name: it.unitName ?? it.unit_name ?? null,
             price: unitPrice,
             amount: Number(it.amount) || round2(quantity * unitPrice),
           }
@@ -1046,6 +993,17 @@ function buildOverridesFromPreview() {
           credit_amount: Number(line.creditAmount) || 0,
           supplier_id: line.supplierId || null,
           customer_id: line.customerId || null,
+          department_id: line.departmentId ?? line.department_id ?? null,
+          cost_center_id: line.costCenterId ?? line.cost_center_id ?? null,
+          employee_id: line.employeeId ?? line.employee_id ?? null,
+          employee_source: line.employeeSource ?? line.employee_source ?? null,
+          project_id: line.projectId ?? line.project_id ?? null,
+          project_name: line.projectName ?? line.project_name ?? null,
+          quantity: line.quantity ?? null,
+          unit_name: line.unitName ?? line.unit_name ?? null,
+          unit_price: line.unitPrice ?? line.unit_price ?? null,
+          settlement_method: line.settlementMethod ?? line.settlement_method ?? null,
+          invoice_number: line.invoiceNumber ?? line.invoice_number ?? null,
         })),
         accounts: {
           ...(v.accounts || {}),
@@ -1065,7 +1023,7 @@ function showBatchResultMessage(response, data) {
     (data.merge
       ? `合并完成：发票成功 ${successCount}，已存在 ${skippedCount}，失败 ${failedCount}${
           entryNo ? `；凭证 ${entryNo}` : ''
-        }`
+        }；新增成本凭证 ${data.costVoucherCount || 0} 张`
       : `批量完成：成功 ${successCount}，已存在 ${skippedCount}，失败 ${failedCount}`)
 
   if (failedCount > 0 && successCount === 0 && skippedCount === 0) ElMessage.error(msg)
@@ -1073,61 +1031,74 @@ function showBatchResultMessage(response, data) {
   else ElMessage.success(msg)
 }
 
+function rememberBatchResult(response, data, context) {
+  batchResult.value = { ...data, businessType: context.businessType, sourceDocs: context.sourceDocs }
+  batchResultVisible.value = true
+  showBatchResultMessage(response, data)
+}
+
 async function confirmPreviewGenerate() {
-  const ready = previewVouchers.value.filter((v) => !v.skipped && !v.error)
-  if (!ready.length) {
-    ElMessage.warning('没有可生成的凭证')
-    return
-  }
-  const unbalanced = ready.filter((v) => !isPreviewBalanced(v))
-  if (unbalanced.length) {
-    ElMessage.error(
-      `有 ${unbalanced.length} 张凭证借贷不平，请修正后再生成${unbalanced[0].docNo ? `（如 ${unbalanced[0].docNo}）` : ''}`
-    )
-    activePreviewKey.value = unbalanced[0]._key
-    return
-  }
-  const zeroAmount = ready.filter((v) => !(Number(v.totalAmount) > 0))
-  if (zeroAmount.length) {
-    ElMessage.error(`有 ${zeroAmount.length} 张凭证金额为 0，请修正后再生成`)
-    activePreviewKey.value = zeroAmount[0]._key
-    return
-  }
-
-  const sourceIds = [
-    ...new Set(
-      ready.flatMap((v) =>
-        v.sourceIds?.length ? v.sourceIds : v.id != null ? [v.id] : []
-      )
-    ),
-  ]
-  const sourceCount = sourceIds.length || ready.length
-
-  try {
-    await ElMessageBox.confirm(
-      sourceCount > 1
-        ? `确认将 ${sourceCount} 张业务单据合并生成 1 张会计凭证吗？\n（各单据仍会分别生成发票，总账合并为一张）`
-        : `确认生成 1 张凭证吗？`,
-      '确认生成',
-      { type: 'warning', confirmButtonText: '确认生成', cancelButtonText: '再检查一下' }
-    )
-  } catch {
-    return
-  }
-
+  if (submitting.value || previewLoading.value || !props.modelValue || !previewVisible.value) return
   submitting.value = true
+  const session = dialogSequence
+  const current = () => !disposed && props.modelValue && session === dialogSequence
   try {
-    const overrides = buildOverridesFromPreview()
-    const response = await financeApi.integration.batchGenerateFromOrders({
-      businessType: businessType.value,
-      ids: sourceIds,
-      merge: true,
-      overrides,
-    })
+    if (unsupportedUsdMerge.value) {
+      ElMessage.warning(usdMergeMessage)
+      return
+    }
+    const ready = previewVouchers.value.filter((v) => !v.skipped && !v.error)
+    if (!ready.length) {
+      ElMessage.warning('没有可生成的凭证')
+      return
+    }
+    const unbalanced = ready.filter((v) => !isPreviewBalanced(v))
+    if (unbalanced.length) {
+      ElMessage.error(
+        `有 ${unbalanced.length} 张凭证借贷不平，请修正后再生成${unbalanced[0].docNo ? `（如 ${unbalanced[0].docNo}）` : ''}`
+      )
+      activePreviewKey.value = unbalanced[0]._key
+      return
+    }
+    const zeroAmount = ready.filter((v) => !(Number(v.totalAmount) > 0))
+    if (zeroAmount.length) {
+      ElMessage.error(`有 ${zeroAmount.length} 张凭证金额为 0，请修正后再生成`)
+      activePreviewKey.value = zeroAmount[0]._key
+      return
+    }
+
+    const sourceIds = [
+      ...new Set(
+        ready.flatMap((v) =>
+          v.sourceIds?.length ? v.sourceIds : v.id != null ? [v.id] : []
+        )
+      ),
+    ]
+    const sourceCount = sourceIds.length || ready.length
+    const request = { businessType: businessType.value, ids: sourceIds, merge: true, overrides: buildOverridesFromPreview() }
+    const context = { businessType: request.businessType, sourceDocs: selectedOrders.value.map(row => ({ ...row })) }
+
+    try {
+      await ElMessageBox.confirm(
+        sourceCount > 1
+          ? `确认将 ${sourceCount} 张业务单据合并生成 1 张${recognitionVoucherLabel.value}吗？\n各单据仍分别开票。${salesCostHint.value}`
+          : `确认生成 1 张${recognitionVoucherLabel.value}吗？${salesCostHint.value}`,
+        '确认生成',
+        { type: 'warning', confirmButtonText: '确认生成', cancelButtonText: '再检查一下' }
+      )
+    } catch {
+      return
+    }
+
+    if (!current()) return
+    const response = await financeApi.integration.batchGenerateFromOrders(request)
     const data = response?.data || response || {}
-    showBatchResultMessage(response, data)
-    previewVisible.value = false
-    emit('update:modelValue', false)
+    if (disposed) return
+    rememberBatchResult(response, data, context)
+    if (current()) {
+      previewVisible.value = false
+      emit('update:modelValue', false)
+    }
     emit('success', data)
   } catch (error) {
     console.error(error)
@@ -1139,29 +1110,36 @@ async function confirmPreviewGenerate() {
 }
 
 async function loadOrders() {
+  if (!props.modelValue || disposed) return
+  const sequence = ++orderSequence
+  const type = businessType.value
+  const params = { page: orderPage.value, pageSize: orderPageSize.value, keyword: orderKeyword.value || undefined }
+  const meta = currentBusinessMeta.value
+  const current = () => !disposed && props.modelValue && sequence === orderSequence &&
+    type === businessType.value && params.keyword === (orderKeyword.value || undefined) && params.page === orderPage.value
   orderLoading.value = true
   try {
-    const params = {
-      page: orderPage.value,
-      pageSize: orderPageSize.value,
-      keyword: orderKeyword.value || undefined,
-    }
-    const meta = currentBusinessMeta.value
     const response = await meta.fetch(params)
+    if (!current()) return
     const result = parsePaginatedData(response, { enableLog: false })
     orderList.value = result.list || []
     orderTotal.value = result.total || orderList.value.length
   } catch (error) {
+    if (!current()) return
     console.error(error)
     ElMessage.error(getApiErrorMessage(error, '加载单据失败'))
     orderList.value = []
     orderTotal.value = 0
   } finally {
-    orderLoading.value = false
+    if (sequence === orderSequence) orderLoading.value = false
   }
 }
 
 function handleBusinessTypeChange() {
+  resetPreviewState()
+  previewVisible.value = false
+  orderList.value = []
+  orderTotal.value = 0
   orderPage.value = 1
   selectedOrders.value = []
   nextTick(() => orderTableRef.value?.clearSelection?.())
@@ -1174,51 +1152,61 @@ function handleOrderPageChange(page) {
 }
 
 function handleSelectionChange(rows) {
+  if (JSON.stringify((rows || []).map(row => row.id)) !== JSON.stringify(selectedOrders.value.map(row => row.id))) {
+    resetPreviewState()
+    previewVisible.value = false
+  }
   selectedOrders.value = rows || []
 }
 
 function clearSelection() {
-  selectedOrders.value = []
+  handleSelectionChange([])
   orderTableRef.value?.clearSelection?.()
 }
 
 async function submitBusinessGenerate() {
-  if (!selectedOrders.value.length) {
-    ElMessage.warning('请先勾选业务单据')
-    return
-  }
-  const label = currentBusinessMeta.value.confirmLabel
-  const n = selectedOrders.value.length
-  try {
-    await ElMessageBox.confirm(
-      n > 1
-        ? `将把选中的 ${n} 张${label}合并生成 1 张会计凭证（各单仍分别开票）。\n建议先点「预览凭证」核对金额。是否仍直接生成？`
-        : `确认根据选中的 1 张${label}生成凭证吗？`,
-      '确认直接生成',
-      {
-        type: 'warning',
-        confirmButtonText: '直接生成',
-        cancelButtonText: '去预览',
-        distinguishCancelAndClose: true,
-      }
-    )
-  } catch (action) {
-    if (action === 'cancel') {
-      await openPreview()
-    }
-    return
-  }
-
+  if (submitting.value || previewLoading.value || !props.modelValue) return
   submitting.value = true
+  const session = dialogSequence
+  const current = () => !disposed && props.modelValue && session === dialogSequence
+  let goPreview = false
   try {
-    const response = await financeApi.integration.batchGenerateFromOrders({
-      businessType: businessType.value,
-      ids: selectedOrders.value.map((r) => r.id),
-      merge: true,
-    })
+    if (!selectedOrders.value.length) {
+      ElMessage.warning('请先勾选业务单据')
+      return
+    }
+    if (unsupportedUsdMerge.value) {
+      ElMessage.warning(usdMergeMessage)
+      return
+    }
+    const label = currentBusinessMeta.value.confirmLabel
+    const n = selectedOrders.value.length
+    const request = { businessType: businessType.value, ids: selectedOrders.value.map(row => row.id), merge: true }
+    const context = { businessType: request.businessType, sourceDocs: selectedOrders.value.map(row => ({ ...row })) }
+    try {
+      await ElMessageBox.confirm(
+        n > 1
+          ? `将把选中的 ${n} 张${label}合并生成 1 张${recognitionVoucherLabel.value}（各单仍分别开票）。${salesCostHint.value}\n建议先预览核对金额。是否仍直接生成？`
+          : `确认根据选中的 1 张${label}生成${recognitionVoucherLabel.value}吗？${salesCostHint.value}`,
+        '确认直接生成',
+        {
+          type: 'warning',
+          confirmButtonText: '直接生成',
+          cancelButtonText: '去预览',
+          distinguishCancelAndClose: true,
+        }
+      )
+    } catch (action) {
+      goPreview = action === 'cancel' && current()
+      return
+    }
+
+    if (!current()) return
+    const response = await financeApi.integration.batchGenerateFromOrders(request)
     const data = response?.data || response || {}
-    showBatchResultMessage(response, data)
-    emit('update:modelValue', false)
+    if (disposed) return
+    rememberBatchResult(response, data, context)
+    if (current()) emit('update:modelValue', false)
     emit('success', data)
   } catch (error) {
     console.error(error)
@@ -1226,149 +1214,122 @@ async function submitBusinessGenerate() {
     ElMessage.error(msg)
   } finally {
     submitting.value = false
+    if (goPreview) await openPreview()
   }
 }
 
-function flattenAccounts(accounts, result = []) {
-  accounts.forEach((acc) => {
-    result.push(acc)
-    if (acc.children?.length) flattenAccounts(acc.children, result)
-  })
-  return result
+function invalidateManualOptions() {
+  optionsSequence++
+  optionsPromise = null
+  optionsLoaded.value = false
+  manualOptionsLoading.value = false
+  manualOptionsError.value = ''
+  accountOptions.value = []
+  flatAccounts.value = []
+  customerOptions.value = []
+  supplierOptions.value = []
+  departmentOptions.value = []
+  costCenterOptions.value = []
+  userOptions.value = []
 }
 
-async function loadManualOptions() {
-  if (optionsLoaded.value) return
-  try {
-    const accRes = await financeApi.accounts.getOptions()
-    const accounts = parseListData(accRes, { enableLog: false })
-    const allAccounts = flattenAccounts(accounts)
-    const byId = new Map(allAccounts.map(account => [Number(account.id), account]))
-    const enabled = (account, visited = new Set()) => {
-      if (!account || !Number(account.isActive) || visited.has(Number(account.id))) return false
-      visited.add(Number(account.id))
-      return !account.parentId || enabled(byId.get(Number(account.parentId)), visited)
-    }
-    const processAccounts = (list) =>
-      list.filter(item => enabled(item)).map((item) => {
-        const processed = {
-          ...item,
-          fullName: `${item.accountCode} - ${item.accountName}`,
-        }
-        if (item.children?.length) {
-          processed.children = processAccounts(item.children)
-        }
-        return processed
-      })
-    accountOptions.value = processAccounts(accounts)
-    flatAccounts.value = flattenAccounts(accountOptions.value)
-
+async function loadManualOptions({ force = false } = {}) {
+  if (!force && optionsLoaded.value) return true
+  if (!force && optionsPromise) return optionsPromise
+  const sequence = ++optionsSequence
+  const current = () => !disposed && props.modelValue && sequence === optionsSequence
+  optionsLoaded.value = false
+  manualOptionsLoading.value = true
+  manualOptionsError.value = ''
+  const pending = (async () => {
     try {
-      const custRes = await salesApi.getCustomers().catch(() => ({ data: [] }))
-      customerOptions.value = parseResponseData(custRes, [])
-    } catch {
-      /* ignore */
+      const response = await financeApi.getEntryOptions()
+      if (!current()) return false
+      const data = parseResponseData(response, {})
+      if (!['accounts', 'customers', 'suppliers', 'departments', 'costCenters', 'employees'].every(key => Array.isArray(data?.[key]))) {
+        throw new Error('凭证选项数据不完整，请重新加载')
+      }
+      const accounts = prepareAccountOptions(data.accounts)
+      accountOptions.value = accounts.tree
+      flatAccounts.value = accounts.flat
+      customerOptions.value = data.customers
+      supplierOptions.value = data.suppliers
+      departmentOptions.value = data.departments
+      costCenterOptions.value = data.costCenters
+      userOptions.value = data.employees
+      for (const item of entryForm.items) item._accountAux = accountAuxiliary(accounts.flat.find(account => String(account.id) === String(item.accountId)))
+      optionsLoaded.value = true
+      return true
+    } catch (error) {
+      if (!current()) return false
+      manualOptionsError.value = getApiErrorMessage(error, '加载凭证选项失败，请重试')
+      return false
+    } finally {
+      if (current()) {
+        manualOptionsLoading.value = false
+        optionsPromise = null
+      }
     }
-    try {
-      userOptions.value = await loadUserListOptions()
-    } catch {
-      /* ignore */
-    }
-    try {
-      departmentOptions.value = await loadDepartmentOptions()
-    } catch {
-      /* ignore */
-    }
-    try {
-      const suppRes = await purchaseApi.getSuppliers().catch(() => ({ data: [] }))
-      supplierOptions.value = parseResponseData(suppRes, [])
-    } catch {
-      /* ignore */
-    }
-    optionsLoaded.value = true
-  } catch (err) {
-    console.error(err)
-    ElMessage.error('加载科目选项失败')
-  }
+  })()
+  optionsPromise = pending
+  return pending
 }
 
 function handleAccountChange(accountId, index) {
-  const account = flatAccounts.value.find((a) => Number(a.id) === Number(accountId))
-  if (!account) return
-  entryForm.items[index]._accountAux = {
-    hasCustomer: Boolean(account.hasCustomer),
-    hasSupplier: Boolean(account.hasSupplier),
-    hasEmployee: Boolean(account.hasEmployee),
-    hasDepartment: Boolean(account.hasDepartment),
-    hasProject: Boolean(account.hasProject),
+  const item = entryForm.items[index]
+  if (!item) return
+  selectedManualIndex.value = index
+  const account = flatAccounts.value.find(candidate => String(candidate.id) === String(accountId))
+  item._accountAux = accountAuxiliary(account)
+  if (account?.currencyCode === 'USD' && item.currencyCode !== 'USD') {
+    item.currencyCode = 'USD'
+    item.exchangeRate = null
+    item.foreignAmount = null
   }
-  if (!account.hasCustomer) entryForm.items[index].customerId = null
-  if (!account.hasSupplier) entryForm.items[index].supplierId = null
-  if (!account.hasEmployee) entryForm.items[index].employeeId = null
-  if (!account.hasDepartment) entryForm.items[index].costCenterId = null
-  if (!account.hasProject) entryForm.items[index].projectId = null
+}
+
+function handleManualCurrencyChange(currency) {
+  if (!selectedManualItem.value) return
+  selectedManualItem.value.exchangeRate = currency === 'CNY' ? 1 : null
+  selectedManualItem.value.foreignAmount = null
+}
+
+function selectManualRow(row) {
+  const index = entryForm.items.indexOf(row)
+  if (index >= 0) selectedManualIndex.value = index
 }
 
 function addItem() {
-  entryForm.items.push(createEmptyItem())
+  entryForm.items.push(createManualItem())
+  selectedManualIndex.value = entryForm.items.length - 1
 }
 
 function removeItem(index) {
-  if (entryForm.items.length > 2) entryForm.items.splice(index, 1)
+  if (entryForm.items.length <= 2) return
+  entryForm.items.splice(index, 1)
+  selectedManualIndex.value = Math.min(selectedManualIndex.value, entryForm.items.length - 1)
 }
 
 async function submitManualEntry() {
-  if (submitting.value || !formRef.value) return
+  if (submitting.value || !props.modelValue || !formRef.value || !optionsLoaded.value || manualOptionsLoading.value) return
+  submitting.value = true
+  const session = dialogSequence
+  const current = () => !disposed && props.modelValue && session === dialogSequence
   try {
     if (!(await formRef.value.validate().catch(() => false))) return
-  } catch {
-    return
-  }
-  if (!isBalanced.value) {
-    ElMessage.error('凭证借贷不平，无法保存')
-    return
-  }
-
-  if (entryForm.items.some(item => (Number(item.debitAmount) > 0 || Number(item.creditAmount) > 0) && !item.accountId)) {
-    ElMessage.warning('有金额的明细必须选择会计科目')
-    return
-  }
-
-  const items = entryForm.items
-    .filter((i) => i.accountId && (i.debitAmount > 0 || i.creditAmount > 0))
-    .map((i) => ({
-      accountId: i.accountId,
-      description: i.description || entryForm.description,
-      debitAmount: i.debitAmount,
-      creditAmount: i.creditAmount,
-      customerId: i.customerId,
-      supplierId: i.supplierId,
-      employeeId: i.employeeId,
-      costCenterId: i.costCenterId,
-      projectId: i.projectId,
-    }))
-
-  if (!items.length) {
-    ElMessage.warning('请至少录入一行有效明细')
-    return
-  }
-
-  submitting.value = true
-  try {
-    await financeApi.createEntry({
-      entryDate: entryForm.entryDate,
-      postingDate: entryForm.entryDate,
-      voucherWord: entryForm.voucherWord,
-      documentNumber: entryForm.documentNumber,
-      description: entryForm.description,
-      items,
-    })
+    if (!current()) return
+    const error = manualEntryError(entryForm, flatAccounts.value)
+    if (error) {
+      ElMessage.warning(error)
+      return
+    }
+    const response = await financeApi.createEntry(manualEntryPayload(entryForm))
+    if (disposed) return
     ElMessage.success('凭证录入成功')
-    emit('update:modelValue', false)
-    emit('success')
-  } catch (err) {
-    console.error(err)
-    ElMessage.error(getApiErrorMessage(err, '凭证保存失败'))
+    if (current()) emit('update:modelValue', false)
+    emit('success', response?.data)
+  } catch (error) {
+    ElMessage.error(getApiErrorMessage(error, '凭证保存失败'))
   } finally {
     submitting.value = false
   }
@@ -1377,6 +1338,12 @@ async function submitManualEntry() {
 watch(
   () => props.modelValue,
   async (visible) => {
+    dialogSequence++
+    orderSequence++
+    orderLoading.value = false
+    resetPreviewState()
+    previewVisible.value = false
+    invalidateManualOptions()
     if (!visible) return
     resetBusinessState()
     resetManualForm()
@@ -1391,16 +1358,19 @@ watch(
         : 'purchase_receipt'
       await loadOrders()
     }
-  }
+  },
+  { immediate: true }
 )
 
 watch(activeTab, async (tab) => {
+  if (!props.modelValue) return
   if (tab === 'manual') {
     await loadManualOptions()
   } else if (tab === 'business' && !orderList.value.length) {
     await loadOrders()
   }
 })
+onBeforeUnmount(() => { disposed = true; orderSequence++; previewSequence++; invalidateManualOptions() })
 </script>
 
 <style scoped>
@@ -1442,15 +1412,16 @@ watch(activeTab, async (tab) => {
   margin: 8px 0 10px;
   font-weight: 600;
 }
-.aux-area {
-  margin-top: 4px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-.aux-item {
-  width: 120px;
-}
+.manual-line-details { margin-top: 16px; padding: 16px; border: 1px solid var(--color-border-light); background: var(--color-bg-base); }
+.manual-detail-heading { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
+.manual-detail-heading span, .manual-currency-note { font-size: 12px; color: var(--color-text-secondary); }
+.manual-aux-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 20px; }
+.manual-aux-grid :deep(.el-form-item) { min-width: 0; }
+.manual-row-actions { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.manual-row-actions :deep(.el-button + .el-button) { margin-left: 0; }
+.manual-options-error { display: flex; align-items: center; gap: 12px; color: var(--color-danger); margin-bottom: 12px; }
+.manual-entry-table :deep(.manual-selected-line > td.el-table__cell) { background: var(--color-primary-light-9, var(--color-bg-section)); }
+@media (max-width: 760px) { .manual-aux-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .totals-row { flex-wrap: wrap; gap: 8px 16px; } }
 .totals-row {
   display: flex;
   gap: 24px;

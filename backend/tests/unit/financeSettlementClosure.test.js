@@ -228,6 +228,7 @@ describe.each(['ar', 'ap'])('%s settlement ledger closure', (kind) => {
     const [, items] = financeModel.createEntry.mock.calls[0];
     expect(items.some((item) => item.account_id === 1001)).toBe(true);
     expect(items.some((item) => item.account_id === 1002)).toBe(false);
+    expect(items.every(item => item.settlement_method === '现金' && item.invoice_number === 'INV-11')).toBe(true);
   });
 
   test.each(['other', '其他', 'invalid-method'])(
@@ -254,6 +255,7 @@ describe.each(['ar', 'ap'])('%s settlement ledger closure', (kind) => {
     ]);
     expect(financeModel.createEntry).toHaveBeenCalledTimes(1);
     const [, items, connection] = financeModel.createEntry.mock.calls[0];
+    expect(items.every(item => item.settlement_method === '现金' && item.invoice_number === 'INV-11')).toBe(true);
     const partyAccount = kind === 'ar' ? 1122 : 2202;
     expect(items.find((item) => item.account_id === partyAccount)).toEqual(
       expect.objectContaining({

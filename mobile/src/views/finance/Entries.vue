@@ -26,11 +26,11 @@
     // 筛选标签
     filterTabs: [
       { label: '全部', value: 'all' },
-      { label: '草稿', value: 'draft' },
-      { label: '待审核', value: 'pending' },
-      { label: '已审核', value: 'approved' },
-      { label: '已驳回', value: 'rejected' }
+      { label: '草稿', value: false },
+      { label: '已过账', value: true }
     ],
+    filterField: 'isPosted',
+    filterParam: 'isPosted',
 
     // 字段映射
     fields: {
@@ -57,6 +57,7 @@
             approved: { text: '已审核', color: 'success' },
             rejected: { text: '已驳回', color: 'danger' },
             posted: { text: '已过账', color: 'success' },
+            reversed: { text: '已冲销', color: 'default' },
             voided: { text: '已作废', color: 'default' }
           }
         }
@@ -72,12 +73,7 @@
 
   // 加载凭证数据
   const loadEntries = async (params) => {
-    // 处理状态筛选
-    const apiParams = { ...params }
-    if (!params.status || params.status === 'all') {
-      delete apiParams.status
-    }
-    return await financeApi.getEntries(apiParams)
+    return await financeApi.getEntries(params)
   }
 
   // 处理项目点击

@@ -441,6 +441,7 @@ import { getThemeDefaultPageSize } from '@/utils/themePageSize'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { parsePaginatedData, parseListData } from '@/utils/responseParser';
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
+import { usePageRequestScope } from '@/composables/usePageRequestScope';
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { getApiErrorMessage } from '@/utils/errorHandler'
@@ -459,6 +460,15 @@ import TableRowActions from '@/components/common/TableRowActions.vue';
 import InventoryApprovalPanel from '@/components/inventory/InventoryApprovalPanel.vue';
 // 权限store
 const authStore = useAuthStore();
+const pageRequests = usePageRequestScope({
+  onResume: () => initializePage(),
+  onLeave: () => {
+    debouncedSearchMaterials.cancel();
+    loading.value = false;
+    loadingMaterials.value = false;
+    checkDialogLoading.value = false;
+  }
+});
 // 权限计算属性
 // 状态选项（使用统一常量）
 const statusOptions = INVENTORY_CHECK_STATUS_OPTIONS;
@@ -620,14 +630,19 @@ const checkViewNavigation = computed(() => ({
 }));
 // 编辑盘点单
 const editCheck = async (id) => {
+  const isCurrent = pageRequests.start('editor');
+  if (!isCurrent()) return;
   dialogType.value = 'edit';
   checkDialogVisible.value = true;
   checkDialogLoading.value = true;
   try {
     await fetchMaterials();
+    if (!isCurrent()) return;
     await fetchWarehouses();
+    if (!isCurrent()) return;
 
     const response = await inventoryApi.getCheckDetail(id);
+    if (!isCurrent()) return;
     const checkData = response.data;
 
     // 重置表单
@@ -661,11 +676,12 @@ const editCheck = async (id) => {
       selectionType.value = 'auto';
     }
   } catch (error) {
+    if (!isCurrent()) return;
     console.error('获取盘点单详情失败:', error);
     ElMessage.error('获取盘点单详情失败');
     checkDialogVisible.value = false;
   } finally {
-    checkDialogLoading.value = false;
+    if (isCurrent()) checkDialogLoading.value = false;
   }
 };
 // 更新盘点单状态
@@ -734,6 +750,8 @@ const handleCurrentChange = async (current) => {
 };
 // 打开新建盘点单对话框
 const openCheckDialog = async () => {
+  const isCurrent = pageRequests.start('editor');
+  if (!isCurrent()) return;
   dialogType.value = 'create';
   resetCheckForm();
   selectionType.value = 'manual';
@@ -743,12 +761,14 @@ const openCheckDialog = async () => {
   try {
     checkDialogLoading.value = true;
     await fetchMaterials();
+    if (!isCurrent()) return;
     await fetchWarehouses();
   } catch (error) {
+    if (!isCurrent()) return;
     console.error('加载基础数据失败:', error);
     ElMessage.error('加载基础数据失败');
   } finally {
-    checkDialogLoading.value = false;
+    if (isCurrent()) checkDialogLoading.value = false;
   }
 };
 // 重置盘点单表单
@@ -1027,22 +1047,23 @@ const confirmAdjustInventory = async () => {
 };
 // ====== 物料搜索相关 (开始) ======
 const loadingMaterials = ref(false);
-let currentSearchId = 0;
 // 防抖函数
-import { debounce } from '@/utils/commonHelpers'
+import { debounce } from 'lodash-es';
 const searchProducts = async (query) => {
-  const searchId = ++currentSearchId;
+  const isCurrent = pageRequests.start('materials');
+  if (!isCurrent()) return;
   loadingMaterials.value = true;
   try {
     const results = await searchMaterials(query);
-    if (searchId === currentSearchId) {
+    if (isCurrent()) {
       materialOptions.value = results.map(mapMaterialData);
     }
   } catch (error) {
+    if (!isCurrent()) return;
     console.error('搜索物料失败:', error);
-    if (searchId === currentSearchId) materialOptions.value = [];
+    materialOptions.value = [];
   } finally {
-    if (searchId === currentSearchId) loadingMaterials.value = false;
+    if (isCurrent()) loadingMaterials.value = false;
   }
 };
 const debouncedSearchMaterials = debounce(searchProducts, SEARCH_CONFIG.SEARCH_DEBOUNCE_DELAY || 300);
@@ -1058,16 +1079,22 @@ const fetchMaterials = async () => {
 // ====== 物料搜索相关 (结束) ======
 // 获取仓库列表
 const fetchWarehouses = async () => {
+  const isCurrent = pageRequests.start('warehouses');
+  if (!isCurrent()) return;
   try {
     const response = await inventoryApi.getWarehouseLocations();
+    if (!isCurrent()) return;
     warehouseOptions.value = parseListData(response, { enableLog: false });
   } catch (error) {
+    if (!isCurrent()) return;
     console.error('获取仓库列表失败:', error);
     warehouseOptions.value = [];
   }
 };
 // 加载盘点单列表
 const loadCheckList = async () => {
+  const isCurrent = pageRequests.start('list');
+  if (!isCurrent()) return;
   loading.value = true;
   try {
     // 构建检索参数
@@ -1089,37 +1116,44 @@ const loadCheckList = async () => {
     try {
       // 尝试调用API获取数据
       const response = await inventoryApi.getCheckList(params);
+      if (!isCurrent()) return;
       // 使用统一解析器处理分页数据
       const { list, total } = parsePaginatedData(response, { enableLog: false });
       checkList.value = list;
       pagination.total = Number(total);
     } catch (apiError) {
+      if (!isCurrent()) return;
       console.error('调用API失败:', apiError);
       checkList.value = [];
       pagination.total = 0;
     }
   } catch (error) {
+    if (!isCurrent()) return;
     console.error('获取盘点单列表失败:', error);
     ElMessage.error('获取盘点单列表失败');
     checkList.value = [];
     pagination.total = 0;
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 };
 // 加载盘点单统计数据
 const loadCheckStats = async () => {
+  const isCurrent = pageRequests.start('statistics');
+  if (!isCurrent()) return;
   try {
     // 检查inventoryApi是否存在且包含getCheckStatistics方法
     if (inventoryApi && typeof inventoryApi.getCheckStatistics === 'function') {
       // 尝试调用API获取统计数据
       try {
         const response = await inventoryApi.getCheckStatistics();
+        if (!isCurrent()) return;
         if (response && response.data) {
           checkStats.value = response.data;
           return;
         }
       } catch (apiError) {
+        if (!isCurrent()) return;
         console.error('获取盘点单统计数据API错误:', apiError);
         // API错误，继续使用本地计算的统计数据
       }
@@ -1148,6 +1182,7 @@ const loadCheckStats = async () => {
       profitLossAmount
     };
   } catch (error) {
+    if (!isCurrent()) return;
     console.error('获取盘点单统计数据失败:', error);
 
     // 设置默认值确保UI不会崩溃
@@ -1161,24 +1196,21 @@ const loadCheckStats = async () => {
   }
 };
 // 页面加载完成后执行
-onMounted(async () => {
+const initializePage = async () => {
+  const isCurrent = pageRequests.start('initialize');
+  if (!isCurrent()) return;
   try {
-    loading.value = true;
-
-    // 加载基础数据
-    await fetchMaterials();
-    await fetchWarehouses();
-
-    // 加载盘点单列表
+    // 物料和仓库仅在打开新建/编辑弹窗时加载。
     await loadCheckList();
+    if (!isCurrent()) return;
     await loadCheckStats();
   } catch (error) {
+    if (!isCurrent()) return;
     console.error('页面初始化失败:', error);
     ElMessage.error('页面初始化失败');
-  } finally {
-    loading.value = false;
   }
-});
+};
+onMounted(initializePage);
 </script>
 <style scoped>
 .header-card {

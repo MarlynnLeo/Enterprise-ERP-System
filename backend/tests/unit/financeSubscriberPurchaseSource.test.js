@@ -1,6 +1,7 @@
 /* global afterEach, beforeEach, describe, expect, jest, test */
 jest.mock('../../src/config/db', () => ({ pool: { execute: jest.fn() } }));
 jest.mock('../../src/events/EventBus', () => ({ on: jest.fn() }));
+jest.mock('../../src/services/business/SalesOrderStatusService', () => ({ checkAndReleasePendingOrders: jest.fn() }));
 jest.mock('../../src/services/business/DLQService', () => ({ registerHandler: jest.fn(), recordSideEffectFailure: jest.fn() }));
 jest.mock('../../src/services/InventoryPostingService', () => ({
   STATUS: { APPROVED: 'approved' }, get: jest.fn(), getApprovalBySource: jest.fn(),
@@ -14,6 +15,7 @@ jest.mock('../../src/utils/logger', () => ({ logger: { info: jest.fn(), warn: je
 const db = require('../../src/config/db');
 const Posting = require('../../src/services/InventoryPostingService');
 const Finance = require('../../src/services/external/FinanceIntegrationService');
+const SalesStatus = require('../../src/services/business/SalesOrderStatusService');
 const { hashSnapshot } = require('../../src/utils/inventoryPostingSnapshot');
 const subscriber = require('../../src/events/subscribers/FinanceSubscriber');
 
@@ -60,6 +62,7 @@ describe('finance purchase event source evidence', () => {
     jest.spyOn(subscriber, 'taxInvoiceExistsByRelatedDocument').mockResolvedValue(false);
     Finance.generateAPInvoiceFromPurchaseReceipt.mockReset().mockResolvedValue({ invoiceId: 1 });
     Finance.generateInputTaxInvoiceFromPurchaseReceipt.mockReset().mockResolvedValue({ invoiceId: 2 });
+    SalesStatus.checkAndReleasePendingOrders.mockReset().mockResolvedValue(undefined);
   });
 
   afterEach(() => jest.restoreAllMocks());
@@ -119,5 +122,23 @@ describe('finance purchase event source evidence', () => {
     expect(Finance.generateAPInvoiceFromPurchaseReceipt).not.toHaveBeenCalled();
     expect(Finance.generateInputTaxInvoiceFromPurchaseReceipt).not.toHaveBeenCalled();
     expect(Posting.findApprovedForTransaction).not.toHaveBeenCalled();
+  });
+
+  test('an unrelated sales reservation failure cannot block purchase AP, tax or cost and remains retryable', async () => {
+    const payload = { postingDocumentId: 70, sourceNo: 'SHARED-12', __domainEvent: { id: 35 } };
+    SalesStatus.checkAndReleasePendingOrders.mockRejectedValueOnce(new Error('old order reservation failed'));
+    await expect(subscriber.handleInventoryPostingApproved(payload)).rejects.toThrow('old order reservation failed');
+    expect(Finance.generateAPInvoiceFromPurchaseReceipt).toHaveBeenCalledTimes(1);
+    expect(Finance.generateInputTaxInvoiceFromPurchaseReceipt).toHaveBeenCalledTimes(1);
+    expect(replay).toHaveBeenCalledTimes(1);
+    expect(replay.mock.invocationCallOrder[0]).toBeLessThan(SalesStatus.checkAndReleasePendingOrders.mock.invocationCallOrder[0]);
+
+    // The persisted AP/tax documents are found on the domain-event retry.
+    subscriber.existsBySource.mockResolvedValue(true);
+    subscriber.taxInvoiceExistsByRelatedDocument.mockResolvedValue(true);
+    await expect(subscriber.handleInventoryPostingApproved(payload)).resolves.toBeUndefined();
+    expect(Finance.generateAPInvoiceFromPurchaseReceipt).toHaveBeenCalledTimes(1);
+    expect(Finance.generateInputTaxInvoiceFromPurchaseReceipt).toHaveBeenCalledTimes(1);
+    expect(SalesStatus.checkAndReleasePendingOrders).toHaveBeenCalledTimes(2);
   });
 });

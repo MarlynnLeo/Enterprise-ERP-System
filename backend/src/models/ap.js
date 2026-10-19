@@ -37,8 +37,14 @@ const {
   normalizeSettlementPaymentMethod,
 } = require('../utils/finance/settlementMath');
 const { applyNormalizedInvoiceAmounts } = require('../utils/finance/invoiceAmounts');
-const { toInvoiceApi } = require('../utils/finance/invoiceFieldMap');
+const { toInvoiceApi, toInvoiceSettlementHistoryApi } = require('../utils/finance/invoiceFieldMap');
 const { resolveActorUserId } = require('../utils/userUtils');
+const {
+  resolveVoucherCurrency,
+  resolveInvoiceUpdateCurrency,
+  assertInvoiceCurrencyUnchanged,
+} = require('../services/finance/invoiceVoucherLines');
+const { groupPartyCurrencySummaries } = require('../services/finance/partyCurrencySummary');
 
 const resolveInvoiceItemAmount = (item) =>
   item.amount !== undefined && item.amount !== null
@@ -328,12 +334,11 @@ const createInvoiceConfirmationEntry = async (connection, invoice, createdBy = n
     });
   }
   const splitTax = canSplitTax;
-  const currency = invoice.currency_code || financeConfig.get('invoice.defaultCurrency', 'CNY');
-  const rate = invoice.exchange_rate || 1;
+  const { currency_code: currency, exchange_rate: rate } = resolveVoucherCurrency(invoice);
   const isCn = amountPolicy.isCreditNote;
 
   const supplierId = invoice.supplier_id ? Number(invoice.supplier_id) : null;
-  const items = splitTax
+  let items = splitTax
     ? [
         {
           account_id: purchaseCostAccountId,
@@ -383,6 +388,20 @@ const createInvoiceConfirmationEntry = async (connection, invoice, createdBy = n
         },
       ];
 
+  const {
+    prepareInvoiceVoucherLines,
+    loadInvoiceLineMetadata,
+  } = require('../services/finance/invoiceVoucherLines');
+  const invoiceMetadata = await loadInvoiceLineMetadata(connection, invoice, 'ap');
+  items = prepareInvoiceVoucherLines(items, invoiceMetadata, {
+    quantityAccountId: purchaseCostAccountId,
+    roleByAccount: {
+      [purchaseCostAccountId]: 'cost',
+      [payableAccountId]: 'payable',
+      [inputTaxAccountId]: 'tax',
+    },
+  });
+
   const entryId = await financeModel.createEntry(
     {
       entry_date: invoice.invoice_date,
@@ -396,7 +415,8 @@ const createInvoiceConfirmationEntry = async (connection, invoice, createdBy = n
       is_posted: 1,
     },
     items,
-    connection
+    connection,
+    { allowFxRoundingAdjustment: true }
   );
 
   const entryNumber = await linkDocumentToVoucher(
@@ -454,6 +474,7 @@ const apModel = {
       }
 
       // 服务端权威重算未税/税额/价税合计
+      Object.assign(invoiceData, resolveVoucherCurrency(invoiceData));
       applyNormalizedInvoiceAmounts(invoiceData);
 
       // 计算余额 - 确保使用正确的字段名
@@ -495,8 +516,8 @@ const apModel = {
           0, // 初始已付金额为0
           balanceAmount,
 
-          invoiceData.currency_code || financeConfig.get('invoice.defaultCurrency', 'CNY'),
-          invoiceData.exchange_rate || financeConfig.get('invoice.defaultExchangeRate', 1),
+          invoiceData.currency_code,
+          invoiceData.exchange_rate,
           invoiceData.status || '草稿',
           invoiceData.terms ?? null,
           invoiceData.notes ?? null,
@@ -729,7 +750,7 @@ const apModel = {
               DATE_FORMAT(a.due_date, '%Y-%m-%d') AS due_date,
               a.total_amount, a.amount_excluding_tax, a.tax_amount, a.tax_rate,
               a.paid_amount, a.balance_amount, a.terms, a.source_type, a.source_id,
-              a.status, a.approved_by, a.approved_at,
+              a.status, a.currency_code, a.exchange_rate, a.approved_by, a.approved_at, a.created_by, a.updated_by,
               COALESCE(NULLIF(TRIM(approver.real_name), ''), approver.username) AS approved_by_name,
               DATE_FORMAT(a.created_at, '%Y-%m-%d') AS created_at,
               COALESCE(po_direct.id, pr.order_id, po_from_receipt.id) AS related_order_id,
@@ -893,7 +914,7 @@ const apModel = {
       const [currentInvoice] = await connection.execute(
         `SELECT id, status, invoice_number, supplier_id, invoice_date, due_date,
                 total_amount, amount_excluding_tax, tax_amount, tax_rate,
-                paid_amount, balance_amount, terms, notes
+                paid_amount, balance_amount, currency_code, exchange_rate, terms, notes
          FROM ap_invoices
          WHERE id = ?
          FOR UPDATE`,
@@ -905,6 +926,7 @@ const apModel = {
 
       const current = currentInvoice[0];
       if (current.status !== INVOICE_STATUS.DRAFT) {
+        assertInvoiceCurrencyUnchanged(invoiceData, current);
         const hasFinancialChange =
           (invoiceData.total_amount !== undefined &&
             Math.abs(
@@ -928,15 +950,22 @@ const apModel = {
           `UPDATE ap_invoices
            SET supplier_invoice_number = COALESCE(?, supplier_invoice_number),
                notes = ?,
+               updated_by = COALESCE(?, updated_by),
                updated_at = NOW()
            WHERE id = ?`,
-          [invoiceData.supplier_invoice_number || null, invoiceData.notes ?? null, invoiceData.id]
+          [
+            invoiceData.supplier_invoice_number || null,
+            invoiceData.notes ?? null,
+            invoiceData.updated_by ?? null,
+            invoiceData.id,
+          ]
         );
 
         await connection.commit();
         return true;
       }
 
+      Object.assign(invoiceData, resolveInvoiceUpdateCurrency(invoiceData, current));
       if (invoiceData.items?.length) invoiceData.tax_amount = undefined;
       applyNormalizedInvoiceAmounts(invoiceData);
       const amountPolicy = normalizeInvoiceAmountPolicy(invoiceData);
@@ -948,7 +977,8 @@ const apModel = {
         `UPDATE ap_invoices
          SET invoice_number = ?, supplier_invoice_number = ?, supplier_id = ?, invoice_date = ?,
              due_date = ?, total_amount = ?, amount_excluding_tax = ?, tax_amount = ?, tax_rate = ?,
-             balance_amount = ?, terms = ?, notes = ?, updated_at = NOW()
+             balance_amount = ?, currency_code = ?, exchange_rate = ?, terms = ?, notes = ?,
+             updated_by = COALESCE(?, updated_by), updated_at = NOW()
          WHERE id = ?`,
         [
           invoiceData.invoice_number,
@@ -961,8 +991,11 @@ const apModel = {
           invoiceData.tax_amount ?? null,
           invoiceData.tax_rate ?? null,
           fromCents(toCents(invoiceData.total_amount) - toCents(current.paid_amount)),
+          invoiceData.currency_code,
+          invoiceData.exchange_rate,
           invoiceData.terms ?? null,
           invoiceData.notes || null,
+          invoiceData.updated_by ?? null,
           invoiceData.id,
         ]
       );
@@ -1062,6 +1095,12 @@ const apModel = {
         await connection.beginTransaction();
       }
 
+      const {
+        prepareSettlementCurrency,
+        buildUsdSettlementLines,
+      } = require('../services/finance/settlementCurrency');
+      const fx = await prepareSettlementCurrency(connection, 'ap', paymentData, paymentItems);
+
       // 大额付款审批钩子
       const PaymentApprovalGuard = require('../services/finance/PaymentApprovalGuard');
       const payAmount = Array.isArray(paymentItems)
@@ -1070,7 +1109,7 @@ const apModel = {
       const paymentApproval = paymentData.is_refund
         ? { approvalId: null }
         : await PaymentApprovalGuard.assertPayable({
-            amount: payAmount,
+            amount: fx.currencyCode === 'USD' ? Number(fx.baseAmount) : payAmount,
             approvalId: paymentData.approval_id || paymentData.approvalId,
             approvalNo: paymentData.approval_no || paymentData.approvalNo,
             supplierId: paymentData.supplier_id,
@@ -1092,8 +1131,8 @@ const apModel = {
       const [result] = await connection.execute(
         `INSERT INTO ap_payments
         (payment_number, supplier_id, payment_date, total_amount,
-         payment_method, reference_number, bank_account_id, notes, created_by, approval_id, refund_request_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         payment_method, reference_number, bank_account_id, notes, created_by, approval_id, refund_request_id, idempotency_key, idempotency_hash, currency_code, exchange_rate, base_amount)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           paymentData.payment_number,
           paymentData.supplier_id,
@@ -1106,6 +1145,11 @@ const apModel = {
           paymentData.created_by || null,
           approvalId,
           paymentData.refund_request_id || null,
+          paymentData.idempotency_key ?? null,
+          paymentData.idempotency_hash ?? null,
+          fx.currencyCode,
+          fx.exchangeRate,
+          fx.baseAmount,
         ]
       );
 
@@ -1133,26 +1177,9 @@ const apModel = {
       let totalSettlementCents = 0;
       let totalDiscountCents = 0;
       for (const item of sortedPaymentItems) {
-        const [invoices] = await connection.execute(
-          'SELECT id, invoice_number, supplier_invoice_number, supplier_id, invoice_date, due_date, total_amount, amount_excluding_tax, tax_amount, tax_rate, paid_amount, balance_amount, currency_code, exchange_rate, status, terms, notes, created_at, updated_at, source_type, source_id, created_by, updated_by FROM ap_invoices WHERE id = ? FOR UPDATE',
-          [item.invoice_id]
-        );
-
-        if (invoices.length === 0) {
-          throw new Error('发票不存在或已被删除');
-        }
-
-        const invoice = invoices[0];
+        const invoice = fx.invoices.get(Number(item.invoice_id));
         if (Number(invoice.supplier_id) !== Number(paymentData.supplier_id)) {
-          throw new Error('付款供应商与发票供应商不一致');
-        }
-        if (
-          String(invoice.currency_code || 'CNY').toUpperCase() !== 'CNY' ||
-          Math.abs(Number(invoice.exchange_rate || 1) - 1) > 0.000001
-        ) {
-          throw new Error(
-            `发票 ${invoice.invoice_number} 为非人民币业务，当前未启用本位币换算，不能核销`
-          );
+          throw new Error('收付款往来单位与发票不一致');
         }
         linkedInvoices.push({ id: invoice.id, invoice_number: invoice.invoice_number });
         assertInvoiceSettlementsEligible(invoice.status, `发票 ${invoice.invoice_number}`);
@@ -1175,8 +1202,14 @@ const apModel = {
           );
 
         await connection.execute(
-          'INSERT INTO ap_payment_items (payment_id, invoice_id, amount, discount_amount) VALUES (?, ?, ?, ?)',
-          [paymentId, item.invoice_id, line.cashAmount, line.discountAmount]
+          'INSERT INTO ap_payment_items (payment_id, invoice_id, amount, discount_amount, base_settlement_amount) VALUES (?, ?, ?, ?, ?)',
+          [
+            paymentId,
+            item.invoice_id,
+            line.cashAmount,
+            line.discountAmount,
+            fx.allocations.get(Number(item.invoice_id))?.baseAmount ?? line.settlementAmount,
+          ]
         );
 
         const paidAmountCents = toCents(invoice.paid_amount) + line.settlementCents;
@@ -1215,9 +1248,9 @@ const apModel = {
         }
 
         const bankAccount = bankAccounts[0];
-        if (String(bankAccount.currency_code || 'CNY').toUpperCase() !== 'CNY') {
+        if (String(bankAccount.currency_code || 'CNY').toUpperCase() !== fx.currencyCode) {
           throw new Error(
-            `银行账户 "${bankAccount.account_name}" 不是人民币账户，当前不能用于付款`
+            `银行账户 "${bankAccount.account_name}" 币种与发票币种不一致，不能用于付款`
           );
         }
         if (!isTruthyFlag(bankAccount.is_active)) {
@@ -1275,7 +1308,7 @@ const apModel = {
         };
 
         // 付款分录：借应付(核销额) = 贷银行(实付) + 贷财务费用(折扣冲减)
-        const entryItems = [
+        let entryItems = [
           {
             account_id: glEntry.payable_account_id,
             supplier_id: paymentData.supplier_id,
@@ -1308,6 +1341,20 @@ const apModel = {
           });
         }
 
+        if (fx.currencyCode === 'USD') {
+          entryItems = buildUsdSettlementLines(fx, {
+            kind: 'ap',
+            bankAccountId: glEntry.bank_account_id,
+            paymentMethod: paymentData.payment_method,
+          });
+        } else {
+          entryItems = entryItems.map((item) => ({
+            ...item,
+            settlement_method: paymentData.payment_method,
+            invoice_number: linkedInvoices.length === 1 ? linkedInvoices[0].invoice_number : null,
+          }));
+        }
+
         // Refunds reverse the settlement direction; GL line amounts stay positive.
         for (const item of entryItems) {
           if (item.debit_amount < 0 || item.credit_amount < 0) {
@@ -1316,7 +1363,9 @@ const apModel = {
         }
 
         // 创建会计分录
-        glEntryId = await financeModel.createEntry(entryData, entryItems, connection);
+        glEntryId = await financeModel.createEntry(entryData, entryItems, connection, {
+          allowFxRoundingAdjustment: fx.currencyCode === 'USD',
+        });
         const [createdEntries] = await connection.execute(
           'SELECT entry_number FROM gl_entries WHERE id = ?',
           [glEntryId]
@@ -1435,7 +1484,7 @@ const apModel = {
       const [payments] = await db.pool.execute(
         `SELECT p.id, p.payment_number, p.supplier_id,
                 DATE_FORMAT(p.payment_date, '%Y-%m-%d') as payment_date,
-                p.total_amount, p.payment_method, p.reference_number,
+                p.total_amount, p.currency_code, p.exchange_rate, p.base_amount, p.payment_method, p.reference_number,
                 p.bank_account_id, p.notes, p.status,
                 DATE_FORMAT(p.voided_at, '%Y-%m-%d %H:%i:%s') as voided_at,
                 p.voided_by, p.void_reason,
@@ -1492,7 +1541,7 @@ const apModel = {
       let query = `
         SELECT p.id, p.payment_number, p.supplier_id,
                DATE_FORMAT(p.payment_date, '%Y-%m-%d') as payment_date,
-               p.total_amount, p.payment_method, p.reference_number,
+               p.total_amount, p.currency_code, p.exchange_rate, p.base_amount, p.payment_method, p.reference_number,
                p.bank_account_id, p.notes, p.status,
                DATE_FORMAT(p.created_at, '%Y-%m-%d') as created_at,
                s.name as supplier_name,
@@ -2010,7 +2059,7 @@ const apModel = {
               ROUND(a.total_amount, 2) as amount,
               ROUND(a.paid_amount, 2) as paidAmount,
               ROUND(a.balance_amount, 2) as balance,
-              a.status
+              a.currency_code AS currencyCode, a.exchange_rate AS exchangeRate, a.status
        FROM ap_invoices a
        LEFT JOIN suppliers s ON a.supplier_id = s.id
        WHERE a.status IN ('已确认', '部分付款', '已逾期')
@@ -2035,36 +2084,43 @@ const apModel = {
   getInvoicePayments: async (invoiceId) => {
     // 通过付款项表查询与发票关联的所有付款记录
     const [payments] = await db.pool.execute(
-      `SELECT p.id, p.payment_number as paymentNumber,
+      `SELECT p.id, pi.id AS itemId, pi.invoice_id AS invoiceId, p.payment_number as paymentNumber,
               DATE_FORMAT(p.payment_date, '%Y-%m-%d') as paymentDate,
               p.payment_method as paymentMethod,
               pi.amount, pi.discount_amount as discountAmount,
-              p.notes, DATE_FORMAT(p.created_at, '%Y-%m-%d') as createdAt
+              pi.base_settlement_amount AS baseSettlementAmount,
+              p.currency_code AS currencyCode, p.exchange_rate AS exchangeRate, p.base_amount AS baseAmount,
+              p.notes, p.reference_number AS referenceNumber, p.status,
+              p.voided_by AS voidedBy, p.void_reason AS voidReason,
+              DATE_FORMAT(p.voided_at, '%Y-%m-%d %H:%i:%s') AS voidedAt,
+              COALESCE(u.real_name, u.username) AS voidedByName,
+              DATE_FORMAT(p.created_at, '%Y-%m-%d %H:%i:%s') as createdAt
        FROM ap_payment_items pi
        JOIN ap_payments p ON pi.payment_id = p.id
+       LEFT JOIN users u ON u.id = p.voided_by
        WHERE pi.invoice_id = ?
-       ORDER BY p.payment_date DESC, p.id DESC`,
+       ORDER BY p.payment_date DESC, p.id DESC, pi.id DESC`,
       [invoiceId]
     );
 
     // 转换金额为数字类型
-    const formattedPayments = payments.map((payment) => ({
-      ...payment,
-      amount: parseFloat(payment.amount),
-      discountAmount: parseFloat(payment.discountAmount || 0),
-      // 转换付款方式为前端可读显示
-      paymentMethodDisplay: (() => {
-        const methodMap = {
-          现金: '现金',
-          银行转账: '银行转账',
-          支票: '支票',
-          信用卡: '信用卡',
-          微信: '微信',
-          支付宝: '支付宝',
-        };
-        return methodMap[payment.paymentMethod] || payment.paymentMethod;
-      })(),
-    }));
+    const formattedPayments = payments.map((row) => {
+      const payment = toInvoiceSettlementHistoryApi(row, 'ap');
+      return {
+        ...payment,
+        paymentMethodDisplay: (() => {
+          const methodMap = {
+            现金: '现金',
+            银行转账: '银行转账',
+            支票: '支票',
+            信用卡: '信用卡',
+            微信: '微信',
+            支付宝: '支付宝',
+          };
+          return methodMap[payment.paymentMethod] || payment.paymentMethod;
+        })(),
+      };
+    });
 
     return formattedPayments;
   },
@@ -2126,6 +2182,7 @@ const apModel = {
         s.name AS supplierName,
         s.contact_person AS contactPerson,
         s.contact_phone AS contactPhone,
+        UPPER(COALESCE(NULLIF(TRIM(i.currency_code), ''), 'CNY')) AS currencyCode,
         COUNT(i.id) AS invoiceCount,
         COALESCE(SUM(i.total_amount), 0) AS totalAmount,
         COALESCE(SUM(i.paid_amount), 0) AS paidAmount,
@@ -2135,23 +2192,11 @@ const apModel = {
       LEFT JOIN ap_invoices i ON s.id = i.supplier_id
         AND i.status IN ('已确认', '部分付款')
       WHERE s.status = 1 ${whereClause}
-      GROUP BY s.id, s.name, s.contact_person, s.contact_phone
-      HAVING balance > 0
-      ORDER BY balance DESC`,
+      GROUP BY s.id, s.name, s.contact_person, s.contact_phone, currencyCode`,
       params
     );
 
-    return payables.map((item) => ({
-      supplierId: item.supplierId,
-      supplierName: item.supplierName,
-      contactPerson: item.contactPerson,
-      contactPhone: item.contactPhone,
-      invoiceCount: parseInt(item.invoiceCount || 0),
-      totalAmount: parseFloat(item.totalAmount || 0),
-      paidAmount: parseFloat(item.paidAmount || 0),
-      balance: parseFloat(item.balance || 0),
-      lastInvoiceDate: item.lastInvoiceDate,
-    }));
+    return groupPartyCurrencySummaries(payables, 'supplier');
   },
 
   /**

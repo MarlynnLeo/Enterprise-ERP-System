@@ -515,12 +515,16 @@ module.exports = {
 
       let totalBeginBalance = 0;
       let totalEndBalance = 0;
+      const balances = await this.getBatchAccountBalances(
+        connection,
+        accounts.map((account) => account.id),
+        endDate,
+        beginDate
+      );
 
       for (const account of accounts) {
-        const beginBalance = await this.getAccountBalanceAtDate(connection, account.id, beginDate);
-        const endBalance = await this.getAccountBalanceAtDate(connection, account.id, endDate);
-        totalBeginBalance += beginBalance;
-        totalEndBalance += endBalance;
+        totalBeginBalance += balances.compare[account.id] || 0;
+        totalEndBalance += balances.current[account.id] || 0;
       }
 
       return {
@@ -583,14 +587,17 @@ module.exports = {
         return 0;
       }
 
-      let totalChange = 0;
-      for (const account of accounts) {
-        const beginBalance = await this.getAccountBalanceAtDate(connection, account.id, beginDate);
-        const endBalance = await this.getAccountBalanceAtDate(connection, account.id, endDate);
-        totalChange += endBalance - beginBalance;
-      }
-
-      return totalChange;
+      const balances = await this.getBatchAccountBalances(
+        connection,
+        accounts.map((account) => account.id),
+        endDate,
+        beginDate
+      );
+      return accounts.reduce(
+        (total, account) =>
+          total + ((balances.current[account.id] || 0) - (balances.compare[account.id] || 0)),
+        0
+      );
     } catch (error) {
       logger.error('获取科目变动失败:', { accountCodes, error: error.message });
       throw error;
@@ -631,13 +638,13 @@ module.exports = {
         [...accountCodes.map((code) => `${code}%`), date]
       );
 
-      let totalCash = 0;
-      for (const account of accounts) {
-        const balance = await this.getAccountBalanceAtDate(connection, account.id, date);
-        totalCash += balance;
-      }
-
-      return totalCash;
+      const balances = await this.getBatchAccountBalances(
+        connection,
+        accounts.map((account) => account.id),
+        date,
+        null
+      );
+      return accounts.reduce((total, account) => total + (balances.current[account.id] || 0), 0);
     } catch (error) {
       logger.error('获取现金余额失败:', error);
       throw error;

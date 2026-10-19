@@ -11,7 +11,7 @@ vi.mock('@/stores/dictionary', () => ({ useDictionaryStore: () => ({ getOptions:
 vi.mock('@/api', () => ({ financeApi: { settings: state.settings } }))
 vi.mock('vue-router', () => ({ useRoute: () => ({ query: state.query }) }))
 vi.mock('element-plus/es/components/message/index', () => ({ ElMessage: { success: vi.fn(), warning: vi.fn(), error: state.error } }))
-vi.mock('@/views/finance/settings/AutomationTab.vue', () => ({ default: { template: '<p data-automation>自动化内容</p>' } }))
+vi.mock('@/views/finance/settings/AutomationTab.vue', () => ({ __esModule: true, default: { template: '<p data-automation>自动化内容</p>' } }))
 let wrapper
 beforeEach(() => {
   state.permissions = []; state.query = reactive({ tab: 'automation' })

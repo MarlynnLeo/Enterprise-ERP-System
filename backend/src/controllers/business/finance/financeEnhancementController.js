@@ -242,10 +242,11 @@ class FinanceEnhancementController {
         req.body?.overrides || null,
         { merge: req.body?.merge }
       );
+      const recognitionLabel = businessType === 'sales_outbound' ? '应收' : '应付';
       const voucherHint = data.merge
         ? data.mergedEntry
-          ? `（合并为 1 张凭证 ${data.mergedEntry.entryNumber || data.mergedEntry.entryId}）`
-          : '（合并模式）'
+          ? `（合并${recognitionLabel}凭证 1 张 ${data.mergedEntry.entryNumber || data.mergedEntry.entryId}，新增成本凭证 ${data.costVoucherCount || 0} 张，共新增 ${data.voucherCount} 张凭证）`
+          : `（本次未新增${recognitionLabel}凭证，新增成本凭证 ${data.costVoucherCount || 0} 张）`
         : `（共 ${data.successCount} 张独立凭证）`;
       return ResponseHandler.success(
         res,

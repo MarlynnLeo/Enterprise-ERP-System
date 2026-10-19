@@ -14,7 +14,7 @@ const db = require('../../../config/db');
 const InventoryService = require('../../../services/InventoryService');
 const businessConfig = require('../../../config/businessConfig');
 const { CodeGenerators } = require('../../../utils/codeGenerator');
-const { parsePagination } = require('../../../utils/safePagination');
+const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 
 // 统一库存查询子查询（基于 inventory_ledger 单表架构聚合计算当前库存）
 const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity, MAX(created_at) as updated_at FROM inventory_ledger GROUP BY material_id, location_id)`;
@@ -158,7 +158,14 @@ const getInboundList = async (req, res) => {
       params
     );
 
-    // 获取分页数据 - 优化查询，添加物料信息
+    // 先筛选并分页主单，明细汇总只读取本页单据，避免扫描全部历史明细。
+    const pageQuery = appendPaginationSQL(
+      `SELECT i.* FROM inventory_inbound i
+       ${scopeClause.join} ${whereClause}
+       ORDER BY i.created_at DESC, i.id DESC`,
+      pageSizeNum,
+      offset
+    );
     const query = `
       SELECT
         i.id,
@@ -183,37 +190,24 @@ const getInboundList = async (req, res) => {
         i.remark,
         DATE_FORMAT(i.created_at, '%Y-%m-%d %H:%i:%s') as created_at,
         DATE_FORMAT(i.updated_at, '%Y-%m-%d %H:%i:%s') as updated_at,
-        COALESCE(stats.items_count, 0) as items_count,
-        COALESCE(stats.total_quantity, 0) as total_quantity,
-        first_item.material_code,
-        first_item.material_name,
-        first_item.material_specs,
-        first_item.first_item_quantity
-       FROM inventory_inbound i
+        COUNT(ii.id) as items_count,
+        COALESCE(SUM(ii.quantity), 0) as total_quantity,
+        first_material.code as material_code,
+        first_material.name as material_name,
+        first_material.specs as material_specs,
+        first_item.quantity as first_item_quantity
+       FROM (${pageQuery}) i
        LEFT JOIN locations l ON i.location_id = l.id
-       LEFT JOIN (
-         SELECT
-           inbound_id,
-           COUNT(*) as items_count,
-           COALESCE(SUM(quantity), 0) as total_quantity
-         FROM inventory_inbound_items
-         GROUP BY inbound_id
-       ) stats ON i.id = stats.inbound_id
-       LEFT JOIN (
-         SELECT
-           ii.inbound_id,
-           m.code as material_code,
-           m.name as material_name,
-           m.specs as material_specs,
-           ii.quantity as first_item_quantity,
-           ROW_NUMBER() OVER (PARTITION BY ii.inbound_id ORDER BY ii.id ASC) as rn
-         FROM inventory_inbound_items ii
-         LEFT JOIN materials m ON ii.material_id = m.id
-       ) first_item ON i.id = first_item.inbound_id AND first_item.rn = 1
-       ${scopeClause.join}
-       ${whereClause}
-       ORDER BY i.created_at DESC
-       LIMIT ${pageSizeNum} OFFSET ${offset}
+       LEFT JOIN inventory_inbound_items ii ON ii.inbound_id = i.id
+       LEFT JOIN inventory_inbound_items first_item ON first_item.id = (
+         SELECT MIN(ii_first.id) FROM inventory_inbound_items ii_first WHERE ii_first.inbound_id = i.id
+       )
+       LEFT JOIN materials first_material ON first_item.material_id = first_material.id
+       GROUP BY i.id, i.inbound_no, i.inbound_date, i.inbound_type, i.reference_type,
+         i.reference_id, i.reference_no, i.location_id, l.name, i.status, i.operator,
+         i.remark, i.created_at, i.updated_at, first_material.code, first_material.name,
+         first_material.specs, first_item.quantity
+       ORDER BY i.created_at DESC, i.id DESC
     `;
 
     const [rows] = await connection.execute(query, params);
@@ -426,7 +420,9 @@ const createInbound = async (req, res) => {
     const mapped = inventoryInboundMap.fromApi(req.body || {});
     const inbound_date = mapped.inbound_date;
     const warehouseId = mapped.location_id ?? mapped.warehouse_id;
-    const operator = mapped.operator;
+    // Operator is an audit identity, never a client-supplied display field.
+    const operator = getRequestActorLabel(req);
+    mapped.operator = operator;
     const remark = mapped.remark ?? null;
     const items = mapped.items || [];
     const inbound_type = mapped.inbound_type || 'other';

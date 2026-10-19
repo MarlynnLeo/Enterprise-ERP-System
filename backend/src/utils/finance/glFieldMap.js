@@ -14,6 +14,14 @@ function toBool(v) {
   return Boolean(v);
 }
 
+// Audit instants are not accounting dates. Preserve the stored time and never
+// infer a timezone for MySQL date strings or truncate them to YYYY-MM-DD.
+function auditTimestamp(value) {
+  if (value == null || value === '') return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.toISOString();
+  return String(value);
+}
+
 /** 会计科目 */
 function toGlAccountApi(row) {
   if (row == null) return null;
@@ -95,9 +103,30 @@ function toGlEntryItemApi(item = {}) {
     debitAmount: toNumber(item.debit_amount ?? item.debitAmount, 0),
     creditAmount: toNumber(item.credit_amount ?? item.creditAmount, 0),
     currencyCode: item.currency_code ?? item.currencyCode ?? null,
-    exchangeRate: toNumber(item.exchange_rate ?? item.exchangeRate, 1),
+    exchangeRate: toNumber(item.exchange_rate ?? item.exchangeRate, null),
+    foreignAmount: toNumber(item.foreign_amount ?? item.foreignAmount, null),
+    baseRoundingAdjustment: toNumber(
+      item.base_rounding_adjustment ?? item.baseRoundingAdjustment,
+      0
+    ),
+    quantity: toNumber(item.quantity, null),
+    unitName: item.unit_name ?? item.unitName ?? null,
+    unitPrice: toNumber(item.unit_price ?? item.unitPrice, null),
+    settlementMethod: item.settlement_method ?? item.settlementMethod ?? null,
+    invoiceNumber: item.invoice_number ?? item.invoiceNumber ?? null,
     costCenterId: item.cost_center_id ?? item.costCenterId ?? null,
+    costCenterName: item.cost_center_name ?? item.costCenterName ?? null,
+    departmentId: item.department_id ?? item.departmentId ?? null,
+    departmentName: item.department_name ?? item.departmentName ?? null,
+    customerId: item.customer_id ?? item.customerId ?? null,
+    customerName: item.customer_name ?? item.customerName ?? null,
+    supplierId: item.supplier_id ?? item.supplierId ?? null,
+    supplierName: item.supplier_name ?? item.supplierName ?? null,
+    employeeId: item.employee_id ?? item.employeeId ?? null,
+    employeeSource: item.employee_source ?? item.employeeSource ?? null,
+    employeeName: item.employee_name ?? item.employeeName ?? null,
     projectId: item.project_id ?? item.projectId ?? null,
+    projectName: item.project_name ?? item.projectName ?? null,
     description: item.description ?? null,
   };
 }
@@ -123,6 +152,11 @@ function toGlEntryApi(row) {
     postingDate: formatDate(row.posting_date ?? row.postingDate),
     documentType: row.document_type ?? row.documentType ?? null,
     documentNumber: row.document_number ?? row.documentNumber ?? null,
+    attachmentCount: toNumber(row.attachment_count ?? row.attachmentCount, null),
+    approvalComment: row.approval_comment ?? row.approvalComment ?? null,
+    transactionType: row.transaction_type ?? row.transactionType ?? null,
+    transactionId: row.transaction_id ?? row.transactionId ?? null,
+    hasBusinessLinks: toBool(row.has_business_links ?? row.hasBusinessLinks),
     periodId: row.period_id ?? row.periodId ?? null,
     periodName: row.period_name ?? row.periodName ?? null,
     fiscalYear: row.fiscal_year ?? row.fiscalYear ?? null,
@@ -140,7 +174,14 @@ function toGlEntryApi(row) {
       0
     ),
     createdBy: row.created_by ?? row.createdBy ?? null,
-    creatorName: row.creator_name ?? row.creator_username ?? row.creatorName ?? null,
+    creatorName: row.creator_name || row.creator_username || row.creatorName || null,
+    approvedBy: row.approved_by ?? row.approvedBy ?? null,
+    approverName: row.approver_name || row.approver_username || row.approverName || null,
+    approvedAt: auditTimestamp(row.approved_at ?? row.approvedAt),
+    postedById: toNumber(row.posted_by ?? row.postedById, null),
+    postedBy: row.poster_name || row.poster_username || row.postedBy || null,
+    postedAt: auditTimestamp(row.posted_at ?? row.postedAt),
+    postingMethod: row.posting_method ?? row.postingMethod ?? null,
     createdAt: formatDate(row.created_at ?? row.createdAt),
     updatedAt: formatDate(row.updated_at ?? row.updatedAt),
     status: row.status ?? (toBool(row.is_posted ?? row.isPosted) ? 'posted' : 'draft'),
@@ -154,6 +195,12 @@ function toGlEntryApi(row) {
 
 function fromGlEntryListQuery(query = {}) {
   const filters = {};
+  if (typeof query.search === 'string' && query.search.trim()) {
+    filters.search = query.search.trim();
+  }
+  if (query.includeItems === true || query.includeItems === 'true') {
+    filters.include_items = true;
+  }
   if (query.entryNumber) {
     filters.entry_number = query.entryNumber;
   }

@@ -256,12 +256,12 @@ function fromInvoiceListQuery(query = {}, kind = 'ap') {
   if (query.status) filters.status = query.status;
   if (query.startDate) filters.start_date = query.startDate;
   if (query.endDate) filters.end_date = query.endDate;
+  if (typeof query.keyword === 'string' && query.keyword.trim()) {
+    filters.keyword = query.keyword.trim();
+  }
 
   if (kind === 'ap') {
     if ([true, 'true', 1, '1'].includes(query.payableOnly)) filters.payable_only = true;
-    if (typeof query.keyword === 'string' && query.keyword.trim()) {
-      filters.keyword = query.keyword.trim();
-    }
     if (query.supplierId) filters.supplier_id = query.supplierId;
     if (query.supplierName) filters.supplier_name = query.supplierName;
     if (query.supplierInvoiceNumber) {
@@ -291,6 +291,48 @@ function toPaymentItemApi(item = {}) {
     invoiceNumber: item.invoice_number ?? item.invoiceNumber ?? null,
     amount: toNumber(item.amount, 0),
     discountAmount: toNumber(item.discount_amount ?? item.discountAmount, 0),
+    baseSettlementAmount: toNumber(item.base_settlement_amount ?? item.baseSettlementAmount, null),
+  };
+}
+
+/** One invoice's allocation within a receipt/payment, including void evidence. */
+function toInvoiceSettlementHistoryApi(row = {}, kind = 'ap') {
+  const amount = toNumber(row.amount, 0);
+  const discountAmount = toNumber(row.discount_amount ?? row.discountAmount, 0);
+  const paymentDate = formatDate(
+    row.payment_date ?? row.paymentDate ?? row.receipt_date ?? row.receiptDate
+  );
+  return {
+    id: row.id,
+    itemId: row.item_id ?? row.itemId ?? (kind === 'ar' ? row.id : null),
+    invoiceId: row.invoice_id ?? row.invoiceId ?? null,
+    ...(kind === 'ar'
+      ? {
+          receiptId: row.receipt_id ?? row.receiptId ?? null,
+          receiptNumber: row.receipt_number ?? row.receiptNumber ?? null,
+          receiptDate: paymentDate,
+        }
+      : {
+          paymentId: row.payment_id ?? row.paymentId ?? row.id,
+          paymentNumber: row.payment_number ?? row.paymentNumber ?? null,
+        }),
+    paymentDate,
+    paymentMethod: row.payment_method ?? row.paymentMethod ?? null,
+    referenceNumber: row.reference_number ?? row.referenceNumber ?? null,
+    amount,
+    discountAmount,
+    settlementAmount: roundMoney(amount + discountAmount),
+    currencyCode: row.currency_code ?? row.currencyCode ?? null,
+    exchangeRate: toNumber(row.exchange_rate ?? row.exchangeRate, null),
+    baseSettlementAmount: toNumber(row.base_settlement_amount ?? row.baseSettlementAmount, null),
+    baseAmount: toNumber(row.base_amount ?? row.baseAmount, null),
+    status: row.status ?? null,
+    voidedAt: row.voided_at ?? row.voidedAt ?? null,
+    voidedBy: row.voided_by ?? row.voidedBy ?? null,
+    voidedByName: row.voided_by_name ?? row.voidedByName ?? null,
+    voidReason: row.void_reason ?? row.voidReason ?? null,
+    notes: row.notes ?? null,
+    createdAt: row.created_at ?? row.createdAt ?? null,
   };
 }
 
@@ -306,6 +348,9 @@ function toPaymentApi(row) {
     // 列表/详情统一 amount；兼容 totalAmount
     amount: toNumber(row.total_amount ?? row.amount ?? row.totalAmount, 0),
     totalAmount: toNumber(row.total_amount ?? row.amount ?? row.totalAmount, 0),
+    currencyCode: row.currency_code ?? row.currencyCode ?? null,
+    exchangeRate: toNumber(row.exchange_rate ?? row.exchangeRate, null),
+    baseAmount: toNumber(row.base_amount ?? row.baseAmount, null),
     paymentMethod: row.payment_method ?? row.paymentMethod ?? null,
     referenceNumber: row.reference_number ?? row.referenceNumber ?? null,
     bankAccountId: row.bank_account_id ?? row.bankAccountId ?? null,
@@ -346,6 +391,7 @@ function toReceiptItemApi(item = {}) {
     invoiceNumber: item.invoice_number ?? item.invoiceNumber ?? null,
     amount: toNumber(item.amount, 0),
     discountAmount: toNumber(item.discount_amount ?? item.discountAmount, 0),
+    baseSettlementAmount: toNumber(item.base_settlement_amount ?? item.baseSettlementAmount, null),
   };
 }
 
@@ -360,6 +406,9 @@ function toReceiptApi(row) {
     receiptDate: formatDate(row.receipt_date ?? row.receiptDate),
     amount: toNumber(row.total_amount ?? row.amount ?? row.totalAmount, 0),
     totalAmount: toNumber(row.total_amount ?? row.amount ?? row.totalAmount, 0),
+    currencyCode: row.currency_code ?? row.currencyCode ?? null,
+    exchangeRate: toNumber(row.exchange_rate ?? row.exchangeRate, null),
+    baseAmount: toNumber(row.base_amount ?? row.baseAmount, null),
     paymentMethod: row.payment_method ?? row.paymentMethod ?? null,
     referenceNumber: row.reference_number ?? row.referenceNumber ?? null,
     bankAccountId: row.bank_account_id ?? row.bankAccountId ?? null,
@@ -403,6 +452,7 @@ module.exports = {
   fromInvoiceListQuery,
   toPaymentApi,
   toPaymentItemApi,
+  toInvoiceSettlementHistoryApi,
   fromPaymentListQuery,
   toReceiptApi,
   toReceiptItemApi,

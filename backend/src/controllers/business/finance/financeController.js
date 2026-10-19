@@ -16,7 +16,6 @@ const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const { accountingConfig } = require('../../../config/accountingConfig');
 const { currentDateString } = require('../../../utils/dateUtils');
 const OpeningBalanceService = require('../../../services/business/OpeningBalanceService');
-const { financeConfig } = require('../../../config/financeConfig');
 const { safeParseId } = require('../../../utils/safeParseId');
 const BusinessError = require('../../../utils/BusinessError');
 const ScopeGuard = require('../../../authorization/ScopeGuard');
@@ -403,6 +402,16 @@ const financeController = {
 
   // ===== 会计分录相关方法 =====
 
+  getEntryOptions: async (_req, res) => {
+    try {
+      const { getEntryOptions } = require('../../../services/finance/EntryOptionsService');
+      ResponseHandler.success(res, await getEntryOptions(), '获取凭证录入选项成功');
+    } catch (error) {
+      logger.error('获取凭证录入选项失败:', error);
+      ResponseHandler.error(res, '获取凭证录入选项失败，请重试', 'SERVER_ERROR', 500);
+    }
+  },
+
   /**
    * 创建会计分录
    */
@@ -413,6 +422,7 @@ const financeController = {
         posting_date,
         document_type,
         document_number,
+        attachment_count,
         period_id,
         description,
         items,
@@ -556,12 +566,15 @@ const financeController = {
           posting_date: posting_date || entry_date,
           document_type: document_type || '记账凭证',
           document_number,
+          attachment_count,
           period_id: resolvedPeriodId,
           description,
           created_by: resolvedCreatedBy,
           voucher_word,
         },
-        items
+        items,
+        null,
+        { requireManualAccountCurrency: true }
       );
 
       ResponseHandler.success(
@@ -675,9 +688,6 @@ const financeController = {
           : !accountIsActive
             ? '会计科目未启用'
             : null;
-        if (!api.currencyCode) {
-          api.currencyCode = financeConfig.get('invoice.defaultCurrency', 'CNY');
-        }
         return api;
       });
 

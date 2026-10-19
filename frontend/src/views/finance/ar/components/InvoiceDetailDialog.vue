@@ -19,20 +19,22 @@
       <el-descriptions-item label="客户名称">{{ invoice.customerName }}</el-descriptions-item>
       <el-descriptions-item label="开票日期">{{ invoice.invoiceDate }}</el-descriptions-item>
       <el-descriptions-item label="到期日期">{{ invoice.dueDate }}</el-descriptions-item>
+      <el-descriptions-item label="币种">{{ settlementCurrency(invoice) }}</el-descriptions-item>
+      <el-descriptions-item v-if="settlementCurrency(invoice) !== 'CNY'" label="确认汇率">{{ invoice.exchangeRate ?? '未确认' }}</el-descriptions-item>
       <el-descriptions-item label="未税金额">{{
-        formatCurrency(invoice.amountExcludingTax)
+        formatSettlementAmount(invoice.amountExcludingTax, invoice)
       }}</el-descriptions-item>
       <el-descriptions-item label="税额">{{
-        formatCurrency(invoice.taxAmount)
+        formatSettlementAmount(invoice.taxAmount, invoice)
       }}</el-descriptions-item>
       <el-descriptions-item label="价税合计">{{
-        formatCurrency(invoice.totalAmount)
+        formatSettlementAmount(invoice.totalAmount, invoice)
       }}</el-descriptions-item>
       <el-descriptions-item label="已收金额">{{
-        formatCurrency(invoice.paidAmount)
+        formatSettlementAmount(invoice.paidAmount, invoice)
       }}</el-descriptions-item>
       <el-descriptions-item label="剩余金额">{{
-        formatCurrency(invoice.balanceAmount)
+        formatSettlementAmount(invoice.balanceAmount, invoice)
       }}</el-descriptions-item>
       <el-descriptions-item label="状态">
         <el-tag :type="getStatusType(invoice)">{{ getStatusText(invoice) }}</el-tag>
@@ -66,21 +68,23 @@
       <el-table-column prop="quantity" label="数量" width="100" />
       <el-table-column prop="unitPrice" label="单价" width="110">
         <template #default="scope">
-          {{ formatCurrency(scope.row.unitPrice) }}
+          {{ formatSettlementAmount(scope.row.unitPrice, invoice) }}
         </template>
       </el-table-column>
       <el-table-column prop="amount" label="金额" width="110">
         <template #default="scope">
-          {{ formatCurrency(scope.row.amount) }}
+          {{ formatSettlementAmount(scope.row.amount, invoice) }}
         </template>
       </el-table-column>
     </el-table>
     <EmptyState v-else description="暂无明细项" :image-size="72" />
 
+    <InvoiceSettlementHistory kind="ar" :invoice="invoice" :records="invoice.payments || []" :loading="historyLoading" :error="historyError" @retry="$emit('retry-history')" />
+
     <template #footer>
       <span class="dialog-footer">
         <el-button @click="$emit('update:modelValue', false)">关闭</el-button>
-        <el-button v-permission="'finance:ar:view'" type="success" @click="$emit('print')"
+        <el-button v-if="settlementCurrency(invoice) === 'CNY'" v-permission="'finance:ar:view'" type="success" @click="$emit('print')"
           >打印</el-button
         >
       </span>
@@ -89,9 +93,12 @@
 </template>
 
 <script setup>
-import { formatCurrency } from '@/utils/format';
+import InvoiceSettlementHistory from '../../components/InvoiceSettlementHistory.vue';
+import { formatSettlementAmount, settlementCurrency } from '../../components/settlementCurrency';
 
 defineProps({
+  historyLoading: Boolean,
+  historyError: String,
   modelValue: {
     type: Boolean,
     default: false,
@@ -110,5 +117,5 @@ defineProps({
   },
 });
 
-defineEmits(['update:modelValue', 'print']);
+defineEmits(['update:modelValue', 'print', 'retry-history']);
 </script>

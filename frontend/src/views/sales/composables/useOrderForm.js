@@ -527,15 +527,24 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
 
       let orderSaved = false
       try {
+        let response
         if (dialogType.value === 'edit') {
-          await salesApi.updateOrder(form.id, postData)
-          ElMessage.success('订单更新成功')
+          response = await salesApi.updateOrder(form.id, postData)
           orderSaved = true
         } else {
-          await salesApi.createOrder(postData)
-          ElMessage.success('订单创建成功')
+          response = await salesApi.createOrder(postData)
           if (updateParamsCallback) updateParamsCallback({ page: 1 })
           orderSaved = true
+        }
+        const followUp = response?.data?.followUp || response?.followUp
+        if (followUp?.status === 'failed') {
+          ElMessage.warning({
+            message: followUp.message || '订单已保存，但生产/采购单据生成失败，请检查配置后重新备货',
+            duration: 8000,
+            showClose: true
+          })
+        } else {
+          ElMessage.success(dialogType.value === 'edit' ? '订单更新成功' : '订单创建成功')
         }
         dialogVisible.value = false
       } catch (error) {

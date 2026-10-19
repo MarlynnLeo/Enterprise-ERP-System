@@ -6,6 +6,10 @@
  */
 
 const { body, param, query } = require('express-validator');
+const {
+  normalizeEntryMetadata,
+  normalizeEntryItems,
+} = require('../../utils/finance/entryDataIntegrity');
 
 /**
  * 创建会计分录验证
@@ -21,7 +25,19 @@ const createEntryValidation = [
 
   body('description').optional().isLength({ max: 500 }).withMessage('摘要不能超过500个字符'),
 
-  body('items').isArray({ min: 2 }).withMessage('分录明细至少需要两行（一借一贷）'),
+  body('items')
+    .isArray({ min: 2 })
+    .withMessage('分录明细至少需要两行（一借一贷）')
+    .bail()
+    .custom((items) => {
+      normalizeEntryItems(items);
+      return true;
+    }),
+
+  body().custom((value) => {
+    normalizeEntryMetadata(value);
+    return true;
+  }),
 
   body('items.*.account_id').isInt({ min: 1 }).withMessage('科目ID必须是正整数'),
 

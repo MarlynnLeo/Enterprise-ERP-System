@@ -992,7 +992,15 @@ const handleConvert = (row) => {
     try {
       const response = await salesApi.convertQuotationToOrder(row.id)
       const order = response.data || response
-      ElMessage.success(`报价单 ${row.quotationNo} 已成功转为销售订单`)
+      if (order.followUp?.status === 'failed') {
+        ElMessage.warning({
+          message: order.followUp.message || '订单已生成，但备货处理失败，请检查配置后重新备货',
+          duration: 8000,
+          showClose: true
+        })
+      } else {
+        ElMessage.success(`报价单 ${row.quotationNo} 已成功转为销售订单`)
+      }
       await fetchData()
       if (order.orderId) router.push(`/sales/orders?id=${order.orderId}`)
     } catch (error) {

@@ -30,6 +30,9 @@ frontend/node_modules/
 backend/node_modules/
 coverage/
 docs/
+!/docs/
+/docs/*
+!/docs/finance-voucher-data.md
 
 backend/backups/
 # 忽略 scripts 目录下所有文件，但保留目录本身和特定脚本
@@ -37,6 +40,7 @@ backend/scripts/*
 !backend/scripts/audit-*.js
 !backend/scripts/run-data-consistency-audit.js
 !backend/scripts/repair-inventory-ledger-costs.js
+!backend/scripts/repair-gl-voucher-metadata.js
 !backend/scripts/repair-bom-sub-references.js
 !backend/scripts/restore-backup.js
 !backend/scripts/databaseScriptConfig.js

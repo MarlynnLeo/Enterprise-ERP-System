@@ -176,10 +176,13 @@ describe('outbound approval list, detail and export', () => {
       cancelledCount: 1,
       approvedCount: 10,
     });
-    for (const [sql, params] of db.pool.query.mock.calls) {
-      expectLatestMovementJoin(sql);
+    for (const [, params] of db.pool.query.mock.calls) {
       expect(params).toEqual([7]);
     }
+    expectLatestMovementJoin(db.pool.query.mock.calls[0][0]);
+    expectLatestMovementJoin(db.pool.query.mock.calls[2][0]);
+    expect(db.pool.query.mock.calls[1][0]).not.toContain('inventory_posting_documents');
+    expect(db.pool.query.mock.calls[1][0]).not.toContain('inventory_outbound_items');
     expect(Object.entries(data.statistics).filter(([key]) => key !== 'total')
       .reduce((sum, [, count]) => sum + count, 0)).toBe(data.total);
     expect(db.pool.query.mock.calls[2][0]).toMatch(/GROUP BY CASE\s+WHEN o\.status IN \('completed', 'partial_completed'\) AND outbound_posting\.finance_status = 'approved' THEN 'approved'\s+ELSE o\.status\s+END/);

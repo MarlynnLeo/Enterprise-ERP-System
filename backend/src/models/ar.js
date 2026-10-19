@@ -35,8 +35,14 @@ const {
   normalizeSettlementPaymentMethod,
 } = require('../utils/finance/settlementMath');
 const { applyNormalizedInvoiceAmounts } = require('../utils/finance/invoiceAmounts');
-const { toInvoiceApi } = require('../utils/finance/invoiceFieldMap');
+const { toInvoiceApi, toInvoiceSettlementHistoryApi } = require('../utils/finance/invoiceFieldMap');
 const { resolveActorUserId } = require('../utils/userUtils');
+const {
+  resolveVoucherCurrency,
+  resolveInvoiceUpdateCurrency,
+  assertInvoiceCurrencyUnchanged,
+} = require('../services/finance/invoiceVoucherLines');
+const { groupPartyCurrencySummaries } = require('../services/finance/partyCurrencySummary');
 
 const resolveInvoiceItemAmount = (item) =>
   item.amount !== undefined && item.amount !== null
@@ -290,12 +296,11 @@ const createInvoiceConfirmationEntry = async (connection, invoice, createdBy = n
     });
   }
   const splitTax = canSplitTax;
-  const currency = invoice.currency_code || financeConfig.get('invoice.defaultCurrency', 'CNY');
-  const rate = invoice.exchange_rate || 1;
+  const { currency_code: currency, exchange_rate: rate } = resolveVoucherCurrency(invoice);
   const isCn = amountPolicy.isCreditNote;
 
   const customerId = invoice.customer_id ? Number(invoice.customer_id) : null;
-  const items = splitTax
+  let items = splitTax
     ? [
         {
           account_id: receivableAccountId,
@@ -343,6 +348,20 @@ const createInvoiceConfirmationEntry = async (connection, invoice, createdBy = n
         },
       ];
 
+  const {
+    prepareInvoiceVoucherLines,
+    loadInvoiceLineMetadata,
+  } = require('../services/finance/invoiceVoucherLines');
+  const invoiceMetadata = await loadInvoiceLineMetadata(connection, invoice, 'ar');
+  items = prepareInvoiceVoucherLines(items, invoiceMetadata, {
+    quantityAccountId: incomeAccountId,
+    roleByAccount: {
+      [receivableAccountId]: 'receivable',
+      [incomeAccountId]: 'income',
+      [outputTaxAccountId]: 'tax',
+    },
+  });
+
   const entryId = await financeModel.createEntry(
     {
       entry_date: invoice.invoice_date,
@@ -356,7 +375,8 @@ const createInvoiceConfirmationEntry = async (connection, invoice, createdBy = n
       is_posted: 1,
     },
     items,
-    connection
+    connection,
+    { allowFxRoundingAdjustment: true }
   );
 
   const entryNumber = await linkDocumentToVoucher(
@@ -414,6 +434,7 @@ const arModel = {
       }
 
       // 服务端权威重算未税/税额/价税合计，不信任前端 total_amount
+      Object.assign(invoiceData, resolveVoucherCurrency(invoiceData));
       applyNormalizedInvoiceAmounts(invoiceData);
 
       // 计算余额
@@ -453,8 +474,8 @@ const arModel = {
           invoiceData.tax_rate ?? null,
           0, // 初始已付金额为0
           balanceAmount,
-          invoiceData.currency_code || financeConfig.get('invoice.defaultCurrency', 'CNY'),
-          invoiceData.exchange_rate || 1,
+          invoiceData.currency_code,
+          invoiceData.exchange_rate,
           invoiceData.status || '草稿',
           invoiceData.terms || null,
           invoiceData.notes || null,
@@ -561,8 +582,9 @@ const arModel = {
                DATE_FORMAT(a.due_date, '%Y-%m-%d') as due_date,
                a.total_amount, a.amount_excluding_tax, a.tax_amount, a.tax_rate,
                a.paid_amount, a.balance_amount,
-               a.status, a.currency_code, a.terms, a.customer_invoice_number,
+               a.status, a.currency_code, a.exchange_rate, a.terms, a.customer_invoice_number,
                a.source_type, a.source_id, a.approved_by, a.approved_at,
+               a.created_by, a.updated_by,
                COALESCE(NULLIF(TRIM(approver.real_name), ''), approver.username) AS approved_by_name,
                COALESCE(so_direct.id, so_from_outbound.id) AS related_order_id,
                COALESCE(so_direct.order_no, so_from_outbound.order_no) AS related_order_no
@@ -581,6 +603,12 @@ const arModel = {
       const params = [];
 
       // 添加过滤条件
+      if (filters.keyword) {
+        query +=
+          ' AND (a.invoice_number LIKE ? OR a.customer_invoice_number LIKE ? OR c.name LIKE ?)';
+        const keyword = `%${filters.keyword}%`;
+        params.push(keyword, keyword, keyword);
+      }
       if (filters.invoice_number) {
         query += ' AND a.invoice_number LIKE ?';
         params.push(`%${filters.invoice_number}%`);
@@ -638,6 +666,12 @@ const arModel = {
         WHERE 1=1
       `;
       const countParams = [];
+      if (filters.keyword) {
+        countQuery +=
+          ' AND (a.invoice_number LIKE ? OR a.customer_invoice_number LIKE ? OR c.name LIKE ?)';
+        const keyword = `%${filters.keyword}%`;
+        countParams.push(keyword, keyword, keyword);
+      }
       if (filters.invoice_number) {
         countQuery += ' AND a.invoice_number LIKE ?';
         countParams.push(`%${filters.invoice_number}%`);
@@ -712,9 +746,10 @@ const arModel = {
                 a.paid_amount, a.balance_amount,
                 a.status, a.currency_code, a.exchange_rate, a.terms, a.notes,
                 a.customer_invoice_number, a.source_type, a.source_id,
-                a.approved_by, a.approved_at,
+                a.approved_by, a.approved_at, a.created_by, a.updated_by,
                 COALESCE(NULLIF(TRIM(approver.real_name), ''), approver.username) as approved_by_name,
-                DATE_FORMAT(a.created_at, '%Y-%m-%d') as created_at
+                DATE_FORMAT(a.created_at, '%Y-%m-%d') as created_at,
+                DATE_FORMAT(a.updated_at, '%Y-%m-%d') as updated_at
          FROM ar_invoices a
          LEFT JOIN customers c ON a.customer_id = c.id
          LEFT JOIN users approver ON approver.id = a.approved_by
@@ -891,7 +926,7 @@ const arModel = {
       const [existing] = await connection.execute(
         `SELECT id, status, invoice_number, customer_id, invoice_date, due_date,
                 total_amount, amount_excluding_tax, tax_amount, tax_rate,
-                paid_amount, balance_amount, terms, notes
+                paid_amount, balance_amount, currency_code, exchange_rate, terms, notes
          FROM ar_invoices
          WHERE id = ?
          FOR UPDATE`,
@@ -903,6 +938,7 @@ const arModel = {
 
       const currentInvoice = existing[0];
       if (currentInvoice.status !== INVOICE_STATUS.DRAFT) {
+        assertInvoiceCurrencyUnchanged(invoiceData, currentInvoice);
         const requestedTotal = invoiceData.total_amount;
         const hasFinancialChange =
           (requestedTotal !== undefined &&
@@ -929,9 +965,15 @@ const arModel = {
           `UPDATE ar_invoices
            SET customer_invoice_number = COALESCE(?, customer_invoice_number),
                notes = ?,
+               updated_by = COALESCE(?, updated_by),
                updated_at = NOW()
            WHERE id = ?`,
-          [invoiceData.customer_invoice_number || null, invoiceData.notes ?? null, invoiceData.id]
+          [
+            invoiceData.customer_invoice_number || null,
+            invoiceData.notes ?? null,
+            invoiceData.updated_by ?? null,
+            invoiceData.id,
+          ]
         );
 
         await connection.commit();
@@ -945,6 +987,7 @@ const arModel = {
       }
 
       const paidAmount = parseFloat(currentInvoice.paid_amount || 0);
+      Object.assign(invoiceData, resolveInvoiceUpdateCurrency(invoiceData, currentInvoice));
       if (invoiceData.items?.length) invoiceData.tax_amount = undefined;
       applyNormalizedInvoiceAmounts(invoiceData);
       const amountPolicy = normalizeInvoiceAmountPolicy(invoiceData);
@@ -965,8 +1008,11 @@ const arModel = {
           tax_amount = ?,
           tax_rate = ?,
           balance_amount = ?,
+          currency_code = ?,
+          exchange_rate = ?,
           terms = ?,
           notes = ?,
+          updated_by = COALESCE(?, updated_by),
           updated_at = NOW()
         WHERE id = ?`,
         [
@@ -980,8 +1026,11 @@ const arModel = {
           invoiceData.tax_amount ?? null,
           invoiceData.tax_rate ?? null,
           balanceAmount,
+          invoiceData.currency_code,
+          invoiceData.exchange_rate,
           invoiceData.terms ?? null,
           invoiceData.notes || null,
+          invoiceData.updated_by ?? null,
           invoiceData.id,
         ]
       );
@@ -1111,6 +1160,12 @@ const arModel = {
         await connection.beginTransaction();
       }
 
+      const {
+        prepareSettlementCurrency,
+        buildUsdSettlementLines,
+      } = require('../services/finance/settlementCurrency');
+      const fx = await prepareSettlementCurrency(connection, 'ar', receiptData, receiptItems);
+
       if (
         BANK_BACKED_PAYMENT_METHODS.has(receiptData.payment_method) &&
         !receiptData.bank_account_id
@@ -1122,8 +1177,8 @@ const arModel = {
       const [result] = await connection.execute(
         `INSERT INTO ar_receipts
         (receipt_number, customer_id, receipt_date, total_amount,
-         payment_method, reference_number, bank_account_id, notes, created_by, refund_request_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         payment_method, reference_number, bank_account_id, notes, created_by, refund_request_id, idempotency_key, idempotency_hash, currency_code, exchange_rate, base_amount)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           receiptData.receipt_number,
           receiptData.customer_id,
@@ -1135,6 +1190,11 @@ const arModel = {
           receiptData.notes || null,
           receiptData.created_by || null,
           receiptData.refund_request_id || null,
+          receiptData.idempotency_key ?? null,
+          receiptData.idempotency_hash ?? null,
+          fx.currencyCode,
+          fx.exchangeRate,
+          fx.baseAmount,
         ]
       );
 
@@ -1162,26 +1222,9 @@ const arModel = {
       let totalSettlementCents = 0;
       let totalDiscountCents = 0;
       for (const item of sortedReceiptItems) {
-        const [invoices] = await connection.execute(
-          'SELECT id, invoice_number, customer_invoice_number, customer_id, invoice_date, due_date, total_amount, amount_excluding_tax, tax_amount, tax_rate, paid_amount, balance_amount, currency_code, exchange_rate, status, terms, notes, source_type, source_id, created_by, updated_by, created_at, updated_at FROM ar_invoices WHERE id = ? FOR UPDATE',
-          [item.invoice_id]
-        );
-
-        if (invoices.length === 0) {
-          throw new Error('发票不存在或已被删除');
-        }
-
-        const invoice = invoices[0];
+        const invoice = fx.invoices.get(Number(item.invoice_id));
         if (Number(invoice.customer_id) !== Number(receiptData.customer_id)) {
-          throw new Error('收款客户与发票客户不一致');
-        }
-        if (
-          String(invoice.currency_code || 'CNY').toUpperCase() !== 'CNY' ||
-          Math.abs(Number(invoice.exchange_rate || 1) - 1) > 0.000001
-        ) {
-          throw new Error(
-            `发票 ${invoice.invoice_number} 为非人民币业务，当前未启用本位币换算，不能核销`
-          );
+          throw new Error('收付款往来单位与发票不一致');
         }
         linkedInvoices.push({ id: invoice.id, invoice_number: invoice.invoice_number });
         assertInvoiceSettlementsEligible(invoice.status, `发票 ${invoice.invoice_number}`);
@@ -1197,8 +1240,14 @@ const arModel = {
           );
 
         await connection.execute(
-          'INSERT INTO ar_receipt_items (receipt_id, invoice_id, amount, discount_amount) VALUES (?, ?, ?, ?)',
-          [receiptId, item.invoice_id, line.cashAmount, line.discountAmount]
+          'INSERT INTO ar_receipt_items (receipt_id, invoice_id, amount, discount_amount, base_settlement_amount) VALUES (?, ?, ?, ?, ?)',
+          [
+            receiptId,
+            item.invoice_id,
+            line.cashAmount,
+            line.discountAmount,
+            fx.allocations.get(Number(item.invoice_id))?.baseAmount ?? line.settlementAmount,
+          ]
         );
 
         const paidAmountCents = toCents(invoice.paid_amount) + line.settlementCents;
@@ -1237,9 +1286,9 @@ const arModel = {
         }
 
         const bankAccount = bankAccounts[0];
-        if (String(bankAccount.currency_code || 'CNY').toUpperCase() !== 'CNY') {
+        if (String(bankAccount.currency_code || 'CNY').toUpperCase() !== fx.currencyCode) {
           throw new Error(
-            `银行账户 "${bankAccount.account_name}" 不是人民币账户，当前不能用于收款`
+            `银行账户 "${bankAccount.account_name}" 币种与发票币种不一致，不能用于收款`
           );
         }
         if (!isTruthyFlag(bankAccount.is_active)) {
@@ -1299,7 +1348,7 @@ const arModel = {
         };
 
         // 收款分录：借银行(实收) + 借财务费用(折扣) = 贷应收账款(核销额)
-        const entryItems = [];
+        let entryItems = [];
         if (totalCashCents !== 0) {
           entryItems.push({
             account_id: glEntry.bank_account_id,
@@ -1331,6 +1380,20 @@ const arModel = {
           description: `应收账款减少 - 收款单号: ${receiptData.receipt_number}`,
         });
 
+        if (fx.currencyCode === 'USD') {
+          entryItems = buildUsdSettlementLines(fx, {
+            kind: 'ar',
+            bankAccountId: glEntry.bank_account_id,
+            paymentMethod: receiptData.payment_method,
+          });
+        } else {
+          entryItems = entryItems.map((item) => ({
+            ...item,
+            settlement_method: receiptData.payment_method,
+            invoice_number: linkedInvoices.length === 1 ? linkedInvoices[0].invoice_number : null,
+          }));
+        }
+
         // Refunds reverse the settlement direction; GL line amounts stay positive.
         for (const item of entryItems) {
           if (item.debit_amount < 0 || item.credit_amount < 0) {
@@ -1339,7 +1402,9 @@ const arModel = {
         }
 
         // 创建会计分录
-        glEntryId = await financeModel.createEntry(entryData, entryItems, connection);
+        glEntryId = await financeModel.createEntry(entryData, entryItems, connection, {
+          allowFxRoundingAdjustment: fx.currencyCode === 'USD',
+        });
         const [createdEntries] = await connection.execute(
           'SELECT entry_number FROM gl_entries WHERE id = ?',
           [glEntryId]
@@ -2046,16 +2111,21 @@ const arModel = {
         const [paymentResults] = await connection.execute(
           `SELECT rp.id, rp.receipt_id, rp.invoice_id, rp.amount, rp.discount_amount,
                   r.receipt_number, DATE_FORMAT(r.receipt_date, '%Y-%m-%d') as payment_date,
-                  r.payment_method, r.reference_number
+                  r.payment_method, r.reference_number,
+                  rp.base_settlement_amount, r.currency_code, r.exchange_rate, r.base_amount,
+                  r.status, r.voided_by, r.void_reason, r.notes,
+                  DATE_FORMAT(r.voided_at, '%Y-%m-%d %H:%i:%s') AS voided_at,
+                  DATE_FORMAT(r.created_at, '%Y-%m-%d %H:%i:%s') AS created_at,
+                  COALESCE(u.real_name, u.username) AS voided_by_name
            FROM ar_receipt_items rp
            LEFT JOIN ar_receipts r ON rp.receipt_id = r.id
+           LEFT JOIN users u ON u.id = r.voided_by
            WHERE rp.invoice_id = ?
-           ORDER BY r.receipt_date DESC
-           LIMIT 20`,
+           ORDER BY r.receipt_date DESC, r.id DESC, rp.id DESC`,
           [invoiceId]
         );
 
-        payments = paymentResults || [];
+        payments = (paymentResults || []).map((row) => toInvoiceSettlementHistoryApi(row, 'ar'));
       } catch (queryError) {
         logger.error('查询发票支付记录失败:', queryError);
         throw queryError;
@@ -2114,8 +2184,7 @@ const arModel = {
            FROM ar_invoice_items i
            LEFT JOIN materials m ON i.product_id = m.id
            WHERE i.invoice_id = ?
-           ORDER BY i.id
-           LIMIT 50`,
+           ORDER BY i.id`,
           [invoiceId]
         );
 
@@ -2217,6 +2286,7 @@ const arModel = {
         c.name AS customerName,
         c.contact_person AS contactPerson,
         c.contact_phone AS contactPhone,
+        UPPER(COALESCE(NULLIF(TRIM(i.currency_code), ''), 'CNY')) AS currencyCode,
         COUNT(i.id) AS invoiceCount,
         COALESCE(SUM(i.total_amount), 0) AS totalAmount,
         COALESCE(SUM(i.paid_amount), 0) AS paidAmount,
@@ -2226,23 +2296,11 @@ const arModel = {
       LEFT JOIN ar_invoices i ON c.id = i.customer_id
         AND i.status NOT IN ('已付款', '已取消', '草稿', 'void')
       WHERE c.status = 'active' ${whereClause}
-      GROUP BY c.id, c.name, c.contact_person, c.contact_phone
-      HAVING balance > 0
-      ORDER BY balance DESC`,
+      GROUP BY c.id, c.name, c.contact_person, c.contact_phone, currencyCode`,
       params
     );
 
-    return receivables.map((item) => ({
-      customerId: item.customerId,
-      customerName: item.customerName,
-      contactPerson: item.contactPerson,
-      contactPhone: item.contactPhone,
-      invoiceCount: parseInt(item.invoiceCount || 0),
-      totalAmount: parseFloat(item.totalAmount || 0),
-      paidAmount: parseFloat(item.paidAmount || 0),
-      balance: parseFloat(item.balance || 0),
-      lastInvoiceDate: item.lastInvoiceDate,
-    }));
+    return groupPartyCurrencySummaries(receivables, 'customer');
   },
 
   /**

@@ -76,9 +76,18 @@ export function useOrderActions(fetchDataCallback, tableData) {
           { confirmButtonText: '继续确认', cancelButtonText: '取消', type: 'warning' }
         )
       }
-      await salesApi.updateOrderStatus(row.id, { newStatus: 'confirmed' })
-      patchRow(row.id, { status: 'confirmed' })
-      ElMessage.success('订单已确认')
+      const response = await salesApi.updateOrderStatus(row.id, { newStatus: 'confirmed' })
+      const result = response?.data || response || {}
+      patchRow(row.id, { status: result.status || 'confirmed' })
+      if (result.followUp?.status === 'failed') {
+        ElMessage.warning({
+          message: result.followUp.message || '订单已保存，但生产/采购单据生成失败，请检查配置后重新备货',
+          duration: 8000,
+          showClose: true,
+        })
+      } else {
+        ElMessage.success('订单已确认')
+      }
       await refreshList()
     } catch (error) {
       if (error === 'cancel' || String(error).includes('cancel')) return
@@ -129,11 +138,11 @@ export function useOrderActions(fetchDataCallback, tableData) {
     if (actionLoadingId.value) return
     actionLoadingId.value = row.id
     try {
-      const orderDetail = await salesApi.getOrder(row.id)
+      const orderDetail = await salesApi.getOrderUnshippedItems(row.id)
       const orderData = orderDetail.data || orderDetail
       const items = orderData.items || []
       if (items.length === 0) {
-        ElMessage.warning('订单没有物料明细，无法发货')
+        ElMessage.warning('订单已无待发货物料，请刷新列表')
         return
       }
       const outboundData = {
@@ -141,7 +150,14 @@ export function useOrderActions(fetchDataCallback, tableData) {
         deliveryDate: formatLocalDate(new Date()),
         status: 'draft',
         remarks: `从销售订单 ${row.orderNo} 创建`,
-        items: items.map((item) => ({ productId: item.materialId, quantity: item.quantity })),
+        items: items.map((item) => ({
+          productId: item.materialId,
+          quantity: Number(item.remainingQuantity ?? item.quantity),
+          sourceOrderId: row.id,
+          sourceOrderNo: row.orderNo,
+          unitId: item.unitId,
+          unitPrice: item.unitPrice,
+        })),
       }
       await salesApi.createOutbound(outboundData)
       // 立即更新本地，让发货按钮即时消失，避免用户重复点击

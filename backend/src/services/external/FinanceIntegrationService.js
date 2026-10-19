@@ -10,6 +10,15 @@ const DocumentLinkService = require('../business/DocumentLinkService');
 const InventoryPostingService = require('../InventoryPostingService');
 const SalesReturnValuationService = require('../business/SalesReturnValuationService');
 const SalesOutboundValuationService = require('../business/SalesOutboundValuationService');
+const {
+  pickLineMetadata,
+  pickCommonLineMetadata,
+  resolveCommonLineMetadata,
+} = require('../finance/voucherLineMetadata');
+const {
+  resolveVoucherCurrency,
+  resolveSameVoucherCurrency,
+} = require('../finance/invoiceVoucherLines');
 const { DOCUMENT_LINK_TYPES: DocType } = require('../../constants/documentLinkTypes');
 const { logger } = require('../../utils/logger');
 const {
@@ -807,7 +816,39 @@ class FinanceIntegrationService {
       );
 
       // 若仍存在按整单 SO 开的旧票（历史路径），跳过自动按出库开票，避免双重应收
-      const orderList = Array.isArray(salesOrders) ? salesOrders.filter((o) => o?.id) : [];
+      let orderList = Array.isArray(salesOrders) ? salesOrders.filter((o) => o?.id) : [];
+      const itemRows = await SalesOutboundValuationService.getItems(connection, [outboundId]);
+
+      if (!itemRows.length) {
+        await connection.rollback();
+        throw new Error(`出库单 ${outboundData.outbound_no || '该出库单'} 无明细，不能生成应收`);
+      }
+
+      // 使用实际出库成交价和各来源订单明细税率。
+      const orderIds = [
+        ...new Set(
+          itemRows
+            .map((r) => Number(r.source_order_id || r.header_order_id))
+            .filter((id) => Number.isInteger(id) && id > 0)
+        ),
+      ];
+      if (orderIds.length === 0 && orderList.length) {
+        orderList.forEach((o) => orderIds.push(Number(o.id)));
+      }
+      if (!orderIds.length) throw new Error('销售出库缺少来源订单，不能确定客户、币种和汇率');
+
+      if (orderIds.length) {
+        const [sourceOrders] = await connection.execute(
+          `SELECT so.*, c.name AS customer_name FROM sales_orders so
+           LEFT JOIN customers c ON c.id = so.customer_id
+           WHERE so.id IN (${orderIds.map(() => '?').join(',')}) AND so.deleted_at IS NULL`,
+          orderIds
+        );
+        if (sourceOrders.length !== new Set(orderIds).size) {
+          throw new Error('销售出库的来源订单不完整，不能确定客户、币种和汇率');
+        }
+        orderList = sourceOrders;
+      }
       for (const order of orderList) {
         const legacy = await this.findExistingInvoiceBySource(
           connection,
@@ -835,23 +876,15 @@ class FinanceIntegrationService {
         }
       }
 
-      const itemRows = await SalesOutboundValuationService.getItems(connection, [outboundId]);
-
-      if (!itemRows.length) {
-        await connection.rollback();
-        throw new Error(`出库单 ${outboundData.outbound_no || '该出库单'} 无明细，不能生成应收`);
-      }
-
-      // 使用实际出库成交价和各来源订单明细税率。
-      const orderIds = [
-        ...new Set(
-          itemRows
-            .map((r) => Number(r.source_order_id || r.header_order_id))
-            .filter((id) => Number.isInteger(id) && id > 0)
-        ),
+      const sourceCurrency = resolveSameVoucherCurrency(orderList);
+      const commonMetadata = resolveCommonLineMetadata(orderList);
+      const sourceCustomers = [
+        ...new Set(orderList.map((order) => Number(order.customer_id)).filter(Boolean)),
       ];
-      if (orderIds.length === 0 && orderList.length) {
-        orderList.forEach((o) => orderIds.push(Number(o.id)));
+      if (sourceCustomers.length > 1)
+        throw new Error('同一出库单存在不同客户，请按客户分别生成应收');
+      if (!sourceCustomers.length || orderList.some((order) => !Number(order.customer_id))) {
+        throw new Error('销售来源订单缺少客户信息，不能生成应收凭证');
       }
 
       const valued = SalesOutboundValuationService.summarize(itemRows);
@@ -877,6 +910,7 @@ class FinanceIntegrationService {
           product_name: row.material_name || row.material_code || '未命名物料',
           description: `销售出库 ${outboundData.outbound_no || outboundId} ${row.material_name || row.material_code || ''}`,
           quantity: qty,
+          unit_name: row.unit_name || null,
           unit_price: unitPrice,
           amount: lineCents / 100,
           tax_rate: row.tax_percent,
@@ -914,6 +948,7 @@ class FinanceIntegrationService {
               '手工调整行',
             description: raw.description || `销售出库 ${outboundData.outbound_no || outboundId}`,
             quantity: qty,
+            unit_name: raw.unit_name ?? raw.unitName ?? null,
             unit_price: unitPrice,
             amount: lineCents / 100,
           });
@@ -955,8 +990,9 @@ class FinanceIntegrationService {
         financeConfig.get('system.defaultCreator', null)
       );
 
-      const customerId = outboundData.customer_id || primaryOrder?.customer_id || null;
-      const customerName = outboundData.customer_name || primaryOrder?.customer_name || null;
+      const customerId =
+        sourceCustomers[0] || outboundData.customer_id || primaryOrder?.customer_id || null;
+      const customerName = primaryOrder?.customer_name || outboundData.customer_name || null;
       const paymentTermDays = await this.resolvePartyPaymentTermDays(connection, {
         customerId,
         orderTerms: primaryOrder?.payment_terms || null,
@@ -989,10 +1025,7 @@ class FinanceIntegrationService {
         subtotal: subtotalAmount,
         tax_amount: taxAmount,
         tax_rate: taxRate,
-        currency_code:
-          primaryOrder?.currency || financeConfig.get('invoice.defaultCurrency', 'CNY'),
-        exchange_rate:
-          primaryOrder?.exchange_rate || financeConfig.get('invoice.defaultExchangeRate', 1.0),
+        ...sourceCurrency,
         status: '已确认',
         terms: this.formatPaymentTermsText(paymentTermDays),
         notes: overrides?.notes || overrides?.description || defaultNotes,
@@ -1003,12 +1036,14 @@ class FinanceIntegrationService {
         // 合并凭证：发票仍创建，跳过单票总账，由上层写一张合并分录
         skip_gl_entry: options.skipGlEntry === true,
         gl_entry: {
+          ...commonMetadata,
           period_id: currentPeriod?.id ?? null,
           receivable_account_id:
             overrides?.accounts?.receivableAccountId || accountIds.ACCOUNTS_RECEIVABLE,
           income_account_id: overrides?.accounts?.incomeAccountId || accountIds.SALES_REVENUE,
           output_tax_account_id: outputTaxAccountId,
           created_by: createdBy,
+          entry_lines: overrides?.entryLines || [],
         },
         items: invoiceItems,
       };
@@ -1030,7 +1065,21 @@ class FinanceIntegrationService {
       }
 
       if (!isExternalConn) await connection.commit();
-      return { invoiceId, invoiceNumber, amount: totalAmount, source: 'sales_outbound' };
+      return {
+        invoiceId,
+        invoiceNumber,
+        amount: totalAmount,
+        source: 'sales_outbound',
+        currencyCode: sourceCurrency.currency_code,
+        exchangeRate: sourceCurrency.exchange_rate,
+        voucherSource: {
+          partyId: customerId,
+          items: invoiceItems,
+          subtotal: subtotalAmount,
+          taxAmount,
+          commonMetadata,
+        },
+      };
     } catch (error) {
       if (!isExternalConn) await connection.rollback();
       throw error;
@@ -1187,9 +1236,10 @@ class FinanceIntegrationService {
 
       const [orderItems] = await connection.execute(
         `SELECT soi.material_id, soi.quantity, soi.unit_price,
-                m.name as material_name, m.code as material_code, m.specs as specs
+                m.name as material_name, m.code as material_code, m.specs as specs, u.name AS unit_name
          FROM sales_order_items soi
          LEFT JOIN materials m ON soi.material_id = m.id
+         LEFT JOIN units u ON u.id = soi.unit_id
          WHERE soi.order_id = ?`,
         [salesOrder.id]
       );
@@ -1235,9 +1285,7 @@ class FinanceIntegrationService {
         subtotal: subtotalAmount,
         tax_amount: taxAmount,
         tax_rate: salesOrder.tax_rate ?? null,
-        currency_code: salesOrder.currency || financeConfig.get('invoice.defaultCurrency', 'CNY'),
-        exchange_rate:
-          salesOrder.exchange_rate || financeConfig.get('invoice.defaultExchangeRate', 1.0),
+        ...resolveVoucherCurrency(salesOrder),
         status: '已确认',
         terms: this.formatPaymentTermsText(paymentTermDays),
         notes: options.force
@@ -1248,6 +1296,7 @@ class FinanceIntegrationService {
         customer_name: salesOrder.customer_name || null,
         created_by: createdBy,
         gl_entry: {
+          ...pickLineMetadata(salesOrder),
           period_id: currentPeriod?.id ?? null,
           receivable_account_id: receivableAccountId,
           income_account_id: incomeAccountId,
@@ -1263,6 +1312,7 @@ class FinanceIntegrationService {
           product_name: item.material_name || item.material_code || '未命名物料',
           description: `销售商品 ${item.material_name || item.material_code}`,
           quantity: qty,
+          unit_name: item.unit_name || null,
           price: unitPrice,
           unit_price: unitPrice,
           amount: Math.round(qty * unitPrice * 100) / 100,
@@ -1357,19 +1407,24 @@ class FinanceIntegrationService {
 
       let customerId = salesReturn.customer_id;
       let customerName = salesReturn.customer_name;
-      if (!customerId && salesReturn.order_id) {
+      let sourceOrder = null;
+      if (salesReturn.order_id) {
         const [orderRows] = await connection.execute(
-          `SELECT so.customer_id, c.name AS customer_name
+          `SELECT so.*, c.name AS customer_name
            FROM sales_orders so
            LEFT JOIN customers c ON so.customer_id = c.id
            WHERE so.id = ?`,
           [salesReturn.order_id]
         );
         if (orderRows.length > 0) {
+          sourceOrder = orderRows[0];
           customerId = orderRows[0].customer_id;
           customerName = orderRows[0].customer_name || customerName;
+        } else {
+          throw new Error('销售退货来源订单不存在，无法确定原单币种和汇率');
         }
       }
+      const sourceCurrency = resolveVoucherCurrency(sourceOrder || salesReturn);
       if (!customerId) {
         await connection.rollback();
         throw new Error(
@@ -1422,8 +1477,7 @@ class FinanceIntegrationService {
           returnAmounts.subtotal > 0
             ? normalizeTaxRate(returnAmounts.taxAmount / returnAmounts.subtotal)
             : 0,
-        currency_code: financeConfig.get('invoice.defaultCurrency', 'CNY'),
-        exchange_rate: 1.0,
+        ...sourceCurrency,
         status: '已确认',
         notes: `【红字发票】销售退货单 ${salesReturn.return_no} 冲减`,
         source_type: DocType.SALES_RETURN,
@@ -1593,12 +1647,13 @@ class FinanceIntegrationService {
                   NULLIF(m.cost_price, 0),
                   0
                 ) AS unit_price,
-                m.name as material_name, m.code as material_code, m.specs as specs
+                m.name as material_name, m.code as material_code, m.specs as specs, u.name AS unit_name
          FROM purchase_receipt_items pri
          LEFT JOIN purchase_receipts pr ON pri.receipt_id = pr.id
          LEFT JOIN purchase_orders po ON pr.order_id = po.id
          LEFT JOIN purchase_order_items poi ON poi.id = pri.order_item_id AND po.id = poi.order_id
          LEFT JOIN materials m ON pri.material_id = m.id
+         LEFT JOIN units u ON u.id = pri.unit_id
          WHERE pri.receipt_id = ?`,
         [purchaseReceipt.id]
       );
@@ -1620,6 +1675,7 @@ class FinanceIntegrationService {
           return {
             material_id: raw.material_id || raw.product_id || null,
             quantity: qty,
+            unit_name: raw.unit_name ?? raw.unitName ?? null,
             price: unitPrice,
             unit_price: unitPrice,
             material_name: raw.material_name || raw.product_name || raw.material_code || null,
@@ -1695,7 +1751,7 @@ class FinanceIntegrationService {
         subtotal: subtotalAmount,
         tax_amount: taxAmount,
         tax_rate: taxRate,
-        currency_code: financeConfig.get('invoice.defaultCurrency', 'CNY'),
+        currency_code: 'CNY',
         exchange_rate: 1.0,
         status: '已确认',
         terms: this.formatPaymentTermsText(paymentTermDays),
@@ -1709,11 +1765,13 @@ class FinanceIntegrationService {
         created_by: createdBy,
         skip_gl_entry: options.skipGlEntry === true,
         gl_entry: {
+          ...pickLineMetadata(purchaseReceipt),
           period_id: currentPeriod?.id ?? null,
           payable_account_id: overrides?.accounts?.payableAccountId || payableAccountId,
           purchase_cost_account_id: overrides?.accounts?.costAccountId || purchaseCostAccountId,
           input_tax_account_id: inputTaxAccountId,
           created_by: createdBy,
+          entry_lines: overrides?.entryLines || [],
         },
         items: receiptItems.map((item) => {
           const unitPrice = resolveUnitPrice(item);
@@ -1723,6 +1781,7 @@ class FinanceIntegrationService {
             material_name: item.material_name || item.material_code || '未命名物料',
             description: item.description || `采购物资 ${item.material_name || item.material_code}`,
             quantity: qty,
+            unit_name: item.unit_name || null,
             price: unitPrice,
             unit_price: unitPrice,
             amount: Math.round(qty * unitPrice * 100) / 100,
@@ -1746,7 +1805,20 @@ class FinanceIntegrationService {
         [purchaseReceipt.id]
       );
       if (!isExternalConn) await connection.commit();
-      return { invoiceId, invoiceNumber, amount: totalAmount };
+      return {
+        invoiceId,
+        invoiceNumber,
+        amount: totalAmount,
+        currencyCode: 'CNY',
+        exchangeRate: 1,
+        voucherSource: {
+          partyId: invoiceData.supplier_id,
+          items: invoiceData.items,
+          subtotal: subtotalAmount,
+          taxAmount,
+          commonMetadata: pickCommonLineMetadata(purchaseReceipt),
+        },
+      };
     } catch (error) {
       if (!isExternalConn) await connection.rollback();
       throw error;
@@ -1980,7 +2052,7 @@ class FinanceIntegrationService {
         subtotal: subtotalAmount,
         tax_amount: taxAmount,
         tax_rate: taxRate,
-        currency_code: financeConfig.get('invoice.defaultCurrency', 'CNY'),
+        currency_code: 'CNY',
         exchange_rate: 1.0,
         status: '已确认',
         terms: this.formatPaymentTermsText(paymentTermDays),
@@ -2169,7 +2241,7 @@ class FinanceIntegrationService {
         amount_excluding_tax: -amounts.subtotal,
         tax_amount: -amounts.taxAmount,
         tax_rate: amounts.subtotal ? amounts.taxAmount / amounts.subtotal : 0,
-        currency_code: financeConfig.get('invoice.defaultCurrency', 'CNY'),
+        currency_code: 'CNY',
         exchange_rate: 1.0,
         status: '已确认',
         notes: `【红字发票】采购退货单 ${purchaseReturn.return_no} 冲减`,

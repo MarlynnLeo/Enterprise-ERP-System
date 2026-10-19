@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { API_CONFIG, normalizeApiRequestUrl } from '@/config/app';
 import { applyRequestOptimizer, clearAllRequestCaches } from '@/utils/requestOptimizer';
+import { requestWithRetry } from '@/utils/requestRetry';
 import { getApiErrorMessage } from '@/utils/errorHandler';
 import { ElMessage } from 'element-plus/es/components/message/index';
 import 'element-plus/es/components/message/style/css';
@@ -505,26 +506,14 @@ const setupInterceptors = (apiInstance) => {
 };
 applyRequestOptimizer(api, axios, {
     defaultCacheTtl: API_CONFIG.getCacheTtlMs,
-    maxCacheSize: API_CONFIG.maxRequestCacheSize
+    maxCacheSize: API_CONFIG.maxRequestCacheSize,
+    executeAdapter: (adapter, config) => requestWithRetry(adapter, config, axios, assertRequestSession)
 });
 applyRequestOptimizer(fastApi, axios, {
     defaultCacheTtl: API_CONFIG.getCacheTtlMs,
-    maxCacheSize: API_CONFIG.maxRequestCacheSize
+    maxCacheSize: API_CONFIG.maxRequestCacheSize,
+    executeAdapter: (adapter, config) => requestWithRetry(adapter, config, axios, assertRequestSession)
 });
 setupInterceptors(api);
 setupInterceptors(fastApi);
-// 请求重试拦截器（仅对网络错误和 5xx 服务端错误重试，排除认证相关的 4xx）
-api.interceptors.response.use(undefined, async (err) => {
-    const config = err.config;
-    const status = err.response?.status;
-    const method = (config?.method || 'get').toLowerCase();
-    const isIdempotent = method === 'get' || method === 'head';
-    // 不重试：无配置/超限/非幂等方法（避免重复提交）/认证权限类 4xx
-    if (!config || !config.retry || config.retryCount >= config.retry || !isIdempotent || (status && status >= 400 && status < 500)) {
-        return Promise.reject(err);
-    }
-    config.retryCount = (config.retryCount || 0) + 1;
-    await new Promise(resolve => setTimeout(resolve, config.retryDelay || API_CONFIG.retryDelayMs));
-    return api(config);
-});
 export default api;

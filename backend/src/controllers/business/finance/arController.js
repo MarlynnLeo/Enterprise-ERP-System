@@ -9,8 +9,8 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const { logger } = require('../../../utils/logger');
 const { parsePagination } = require('../../../utils/safePagination');
+const { summarizeCurrencyGroups } = require('../../../services/finance/partyCurrencySummary');
 
-const { financeConfig } = require('../../../config/financeConfig');
 const arModel = require('../../../models/ar');
 const BankAccountModel = require('../../../models/cash/Account');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
@@ -167,7 +167,6 @@ const arController = {
       const modelData = {
         ...mapped,
         status: INVOICE_STATUS.DRAFT,
-        currency_code: mapped.currency_code || financeConfig.get('invoice.defaultCurrency', 'CNY'),
         ...ScopeGuard.stampOwner(req, 'ar_invoice'),
       };
 
@@ -200,6 +199,9 @@ const arController = {
       );
     } catch (error) {
       logger.error('创建应收账款发票失败:', error);
+      if (error.code === 'VALIDATION_ERROR') {
+        return ResponseHandler.error(res, error.message, 'VALIDATION_ERROR', 400);
+      }
       return ResponseHandler.error(res, '创建应收账款发票失败', 'SERVER_ERROR', 500, error);
     }
   },
@@ -295,25 +297,8 @@ const arController = {
         return ResponseHandler.error(res, '未找到指定的发票', 'NOT_FOUND', 404);
       }
 
-      // 发票编辑格式化 - 确保所有金额字段是数字类型
-      const formattedInvoice = {
-        ...invoice,
-        total_amount: parseFloat(invoice.total_amount || 0),
-        paid_amount: parseFloat(invoice.paid_amount || 0),
-        balance_amount: parseFloat(invoice.balance_amount || 0),
-        items: (invoice.items || []).map((item) => {
-          const unitPrice = parseFloat(item.unit_price ?? item.unitPrice ?? item.price ?? 0) || 0;
-          return {
-            ...item,
-            quantity: parseFloat(item.quantity || 0),
-            price: unitPrice,
-            unit_price: unitPrice,
-            amount: parseFloat(item.amount || 0),
-          };
-        }),
-      };
-
-      return ResponseHandler.success(res, formattedInvoice, '获取发票编辑数据成功');
+      // The model already returns numeric camelCase fields via toInvoiceApi.
+      return ResponseHandler.success(res, invoice, '获取发票编辑数据成功');
     } catch (error) {
       logger.error('获取发票编辑数据失败:', error);
       return ResponseHandler.error(res, '获取发票编辑数据失败', 'SERVER_ERROR', 500, error);
@@ -361,6 +346,8 @@ const arController = {
           'customerId',
           'invoiceDate',
           'dueDate',
+          'currencyCode',
+          'exchangeRate',
           'items',
         ];
         const hasFinancialField = financialFields.some((field) => invoiceData[field] !== undefined);
@@ -377,6 +364,7 @@ const arController = {
           id: invoiceId,
           customer_invoice_number: invoiceData.customerInvoiceNumber ?? null,
           notes: invoiceData.notes,
+          updated_by: getAuthenticatedUserId(req),
         });
 
         if (success) {
@@ -388,6 +376,8 @@ const arController = {
       const formattedData = {
         ...fromInvoiceApi(invoiceData, 'ar'),
         id: invoiceId,
+        created_by: undefined,
+        updated_by: getAuthenticatedUserId(req),
       };
       const total = Number(formattedData.total_amount);
       const hasItems = Array.isArray(formattedData.items) && formattedData.items.length > 0;
@@ -404,6 +394,9 @@ const arController = {
       }
     } catch (error) {
       logger.error('更新应收账款发票失败:', error);
+      if (error.code === 'VALIDATION_ERROR') {
+        return ResponseHandler.error(res, error.message, 'VALIDATION_ERROR', 400);
+      }
       return ResponseHandler.error(
         res,
         error.message || '更新应收账款发票失败',
@@ -487,6 +480,7 @@ const arController = {
    * 创建收款记录
    */
   createReceipt: async (req, res) => {
+    let settlementRequest = null;
     try {
       const receiptData = req.body;
 
@@ -519,6 +513,19 @@ const arController = {
         return;
       }
 
+      settlementRequest = await require('../../../services/finance/SettlementRequestService').begin(
+        req,
+        'ar',
+        line
+      );
+      if (settlementRequest?.replay) {
+        await settlementRequest.commit();
+        return ResponseHandler.success(
+          res,
+          settlementRequest.replay,
+          '该收款请求已处理，返回原记录'
+        );
+      }
       const invoice = await arModel.getInvoiceById(receiptData.invoiceId);
       if (!invoice) {
         return ResponseHandler.error(res, '应收发票不存在', 'NOT_FOUND', 404);
@@ -598,11 +605,14 @@ const arController = {
         customer_name: invoice.customerName || '未知客户',
         receipt_date: receiptData.receiptDate,
         total_amount: amount,
+        currency_code: receiptData.currencyCode ?? invoice.currencyCode,
+        exchange_rate: receiptData.exchangeRate,
         payment_method: paymentMethod,
         reference_number: receiptData.referenceNumber || null,
         bank_account_id: receiptData.bankAccountId || null,
         notes: receiptData.notes || '',
         ...ScopeGuard.stampOwner(req, 'ar_receipt'),
+        ...(settlementRequest?.fields || {}),
       };
 
       // 准备收款明细
@@ -615,7 +625,10 @@ const arController = {
       ];
 
       // 调用模型方法创建收款记录；模型在同一事务中维护发票、资金流水和会计凭证
-      const receiptId = await arModel.createReceipt(modelData, receiptItems);
+      const receiptId = settlementRequest
+        ? await arModel.createReceipt(modelData, receiptItems, settlementRequest.connection)
+        : await arModel.createReceipt(modelData, receiptItems);
+      if (settlementRequest) await settlementRequest.commit();
 
       return ResponseHandler.success(
         res,
@@ -635,13 +648,35 @@ const arController = {
       );
     } catch (error) {
       logger.error('创建收款记录失败:', error);
+      let responseError = error;
+      if (settlementRequest && error.code === 'ER_DUP_ENTRY') {
+        try {
+          const replay = await settlementRequest.resolveDuplicate(error);
+          if (replay) return ResponseHandler.success(res, replay, '该收款请求已处理，返回原记录');
+        } catch (conflict) {
+          responseError = conflict;
+        }
+      }
+      if (settlementRequest) {
+        const failedRequest = settlementRequest;
+        settlementRequest = null;
+        try {
+          await failedRequest.close();
+        } catch (uncertain) {
+          responseError = uncertain;
+        }
+      }
       return ResponseHandler.error(
         res,
-        error.message || '创建收款记录失败',
-        'VALIDATION_ERROR',
-        400,
-        error
+        responseError.message || '创建收款记录失败',
+        ['IDEMPOTENCY_CONFLICT', 'SETTLEMENT_RESULT_UNKNOWN'].includes(responseError.code)
+          ? responseError.code
+          : 'VALIDATION_ERROR',
+        responseError.statusCode || 400,
+        responseError
       );
+    } finally {
+      if (settlementRequest) await settlementRequest.close();
     }
   },
 
@@ -736,6 +771,7 @@ const arController = {
             c.contact_person AS contactPerson,
             c.contact_phone AS contactPhone,
             c.email,
+            UPPER(COALESCE(NULLIF(TRIM(i.currency_code), ''), 'CNY')) AS currencyCode,
             COUNT(i.id) AS invoiceCount,
             COALESCE(SUM(i.total_amount), 0) AS totalAmount,
             COALESCE(SUM(i.paid_amount), 0) AS paidAmount,
@@ -744,7 +780,7 @@ const arController = {
           LEFT JOIN ar_invoices i ON c.id = i.customer_id
             AND i.status NOT IN ('已付款', '已取消', '草稿', 'void')
           WHERE c.id = ?
-          GROUP BY c.id, c.name, c.contact_person, c.contact_phone, c.email
+          GROUP BY c.id, c.name, c.contact_person, c.contact_phone, c.email, currencyCode
         `,
           [customerId]
         );
@@ -764,10 +800,13 @@ const arController = {
             total_amount AS totalAmount,
             paid_amount AS paidAmount,
             balance_amount AS balance,
+            UPPER(COALESCE(NULLIF(TRIM(currency_code), ''), 'CNY')) AS currencyCode,
+            exchange_rate AS exchangeRate,
             status,
             DATEDIFF(CURDATE(), due_date) AS overdueDays
           FROM ar_invoices
           WHERE customer_id = ? AND balance_amount > 0
+            AND status NOT IN ('已付款', '已取消', '草稿', 'void')
           ORDER BY due_date ASC
         `,
           [customerId]
@@ -780,10 +819,7 @@ const arController = {
           contactPerson: customerData[0].contactPerson,
           contactPhone: customerData[0].contactPhone,
           email: customerData[0].email,
-          invoiceCount: parseInt(customerData[0].invoiceCount || 0),
-          totalAmount: parseFloat(customerData[0].totalAmount || 0),
-          paidAmount: parseFloat(customerData[0].paidAmount || 0),
-          balance: parseFloat(customerData[0].balance || 0),
+          ...summarizeCurrencyGroups(customerData),
           invoices: invoices.map((inv) => ({
             id: inv.id,
             invoiceNumber: inv.invoiceNumber,
@@ -792,6 +828,9 @@ const arController = {
             totalAmount: parseFloat(inv.totalAmount || 0),
             paidAmount: parseFloat(inv.paidAmount || 0),
             balance: parseFloat(inv.balance || 0),
+            currencyCode: inv.currencyCode,
+            exchangeRate: inv.exchangeRate == null ? null : Number(inv.exchangeRate),
+            amountBasis: 'original',
             status: inv.status,
             overdueDays: parseInt(inv.overdueDays || 0),
             isOverdue: parseInt(inv.overdueDays || 0) > 0,
@@ -1133,7 +1172,7 @@ const arController = {
         params.push(pattern, pattern);
       }
       let query = `SELECT i.id, i.invoice_number, i.customer_id, c.name AS customer_name,
-        i.invoice_date, i.due_date, i.total_amount, i.paid_amount, i.balance_amount, i.status
+        i.invoice_date, i.due_date, i.total_amount, i.paid_amount, i.balance_amount, i.currency_code, i.exchange_rate, i.status
         ${from} ORDER BY i.due_date ASC, i.id ASC`;
       // 无分页参数时保留 PC 原有的数组合同；手机明确请求分页和总量。
       const paged =

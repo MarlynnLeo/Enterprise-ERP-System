@@ -277,6 +277,7 @@
   }
 
   const onSubmit = async () => {
+    if (submitting.value) return
     if (form.items.some((item) => !item.materialId || !item.quantity)) {
       showToast('物料明细填写不完整')
       return
@@ -295,7 +296,6 @@
         referenceNo: form.referenceNo || null,
         remarks: form.remarks,
         status: 'draft',
-        operator: '',
         inboundDate: new Date().toISOString().slice(0, 10),
         items: form.items.map((i) => ({
           materialId: parseInt(i.materialId, 10),

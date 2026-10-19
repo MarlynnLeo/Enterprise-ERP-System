@@ -236,7 +236,7 @@ module.exports = {
           usageParams.push(compareStartDate, compareEndDate);
         }
 
-        const accountFilter = await this.buildPeriodAccountFilter(accountType);
+        const accountFilter = await this.buildPeriodAccountFilter(accountType, connection);
         const [accounts] = await connection.execute(
           `SELECT id, account_code as code, account_name as name, account_type as type, is_debit
              FROM gl_accounts
@@ -251,29 +251,26 @@ module.exports = {
         );
 
         const accountAmounts = [];
+        const periodAmounts = await this.getBatchAccountPeriodAmounts(
+          connection,
+          accounts.map((account) => account.id),
+          startDate,
+          endDate,
+          compareStartDate,
+          compareEndDate,
+          { includeClosingEntries }
+        );
 
         for (const account of accounts) {
-          // 计算当期发生额（传入is_debit避免N+1查询）
-          const currentAmount = await this.getAccountPeriodAmount(
-            connection,
-            account.id,
-            startDate,
-            endDate,
-            account.is_debit,
-            { includeClosingEntries }
-          );
-          let compareAmount = null;
-
-          if (compareStartDate && compareEndDate) {
-            compareAmount = await this.getAccountPeriodAmount(
-              connection,
-              account.id,
-              compareStartDate,
-              compareEndDate,
-              account.is_debit,
-              { includeClosingEntries }
-            );
-          }
+          const amounts = periodAmounts.get(Number(account.id));
+          const direction = account.is_debit ? 1 : -1;
+          const currentAmount = amounts?.currentNet ? amounts.currentNet * direction : 0;
+          const compareAmount =
+            compareStartDate && compareEndDate
+              ? amounts?.compareNet
+                ? amounts.compareNet * direction
+                : 0
+              : null;
 
           accountAmounts.push({
             id: account.id,
@@ -311,6 +308,55 @@ module.exports = {
       logger.error('计算期间发生额失败:', error);
       throw error;
     }
+  },
+
+  /** Batch current and comparison movements on the caller's connection. */
+  async getBatchAccountPeriodAmounts(
+    connection,
+    accountIds,
+    startDate,
+    endDate,
+    compareStartDate = null,
+    compareEndDate = null,
+    { includeClosingEntries = false } = {}
+  ) {
+    if (!accountIds.length) return new Map();
+    const compare = Boolean(compareStartDate && compareEndDate);
+    const comparisonSelect = compare
+      ? `COALESCE(SUM(CASE WHEN e.entry_date BETWEEN ? AND ?
+           THEN COALESCE(ei.debit_amount, 0) - COALESCE(ei.credit_amount, 0) ELSE 0 END), 0)`
+      : '0';
+    const [rows] = await connection.execute(
+      `SELECT ei.account_id,
+              COALESCE(SUM(CASE WHEN e.entry_date BETWEEN ? AND ?
+                THEN COALESCE(ei.debit_amount, 0) - COALESCE(ei.credit_amount, 0) ELSE 0 END), 0) AS current_net,
+              ${comparisonSelect} AS compare_net
+         FROM gl_entry_items ei
+         JOIN gl_entries e ON ei.entry_id = e.id
+        WHERE ei.account_id IN (${accountIds.map(() => '?').join(',')})
+          AND e.is_posted = 1
+          AND (e.entry_date BETWEEN ? AND ?${compare ? ' OR e.entry_date BETWEEN ? AND ?' : ''})
+          ${includeClosingEntries ? '' : "AND COALESCE(e.document_type, '') NOT IN ('profit_loss_transfer', 'year_end_transfer')"}
+        GROUP BY ei.account_id`,
+      [
+        startDate,
+        endDate,
+        ...(compare ? [compareStartDate, compareEndDate] : []),
+        ...accountIds,
+        startDate,
+        endDate,
+        ...(compare ? [compareStartDate, compareEndDate] : []),
+      ]
+    );
+    return new Map(
+      rows.map((row) => [
+        Number(row.account_id),
+        {
+          currentNet: Number(row.current_net || 0),
+          compareNet: Number(row.compare_net || 0),
+        },
+      ])
+    );
   },
 
   /**

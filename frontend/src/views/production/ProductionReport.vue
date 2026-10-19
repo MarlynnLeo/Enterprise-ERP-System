@@ -303,15 +303,15 @@
             <el-alert type="info" :closable="false" class="task-stats-alert">
               <template #title>
                 <div class="task-stats-info">
-                  <span>计划数量: <b>{{ taskReportStats.plan_quantity }}</b></span>
+                  <span>计划数量: <b>{{ taskReportStats.planQuantity }}</b></span>
                   <el-divider direction="vertical" />
-                  <span>{{ formData.processId ? '本工序已报工' : '最终产品已报工' }}: <b>{{ taskReportStats.reported_quantity }}</b></span>
+                  <span>{{ formData.processId ? '本工序已报工' : '最终产品已报工' }}: <b>{{ taskReportStats.reportedQuantity }}</b></span>
                   <el-divider direction="vertical" />
-                  <span>剩余: <b class="text-warning">{{ taskReportStats.remaining_quantity }}</b></span>
+                  <span>剩余: <b class="text-warning">{{ taskReportStats.remainingQuantity }}</b></span>
                   <el-divider direction="vertical" />
-                  <span>完成率: <b>{{ taskReportStats.completion_rate }}</b></span>
+                  <span>完成率: <b>{{ taskReportStats.completionRate }}</b></span>
                   <el-divider direction="vertical" />
-                  <span>合格率: <b>{{ taskReportStats.qualification_rate }}</b></span>
+                  <span>合格率: <b>{{ taskReportStats.qualificationRate }}</b></span>
                 </div>
               </template>
             </el-alert>
@@ -498,14 +498,14 @@ const reportStats = ref({
 
 // 任务报工统计信息
 const taskReportStats = ref({
-  plan_quantity: 0,
-  reported_quantity: 0,
-  remaining_quantity: 0,
-  qualified_quantity: 0,
-  defective_quantity: 0,
-  report_count: 0,
-  completion_rate: '0%',
-  qualification_rate: '0%'
+  planQuantity: 0,
+  reportedQuantity: 0,
+  remainingQuantity: 0,
+  qualifiedQuantity: 0,
+  defectiveQuantity: 0,
+  reportCount: 0,
+  completionRate: '0%',
+  qualificationRate: '0%'
 })
 
 // 表单相关
@@ -863,7 +863,7 @@ const handleTaskFormChange = async (taskId) => {
       taskReportStats.value = stats
 
       // 设置默认完成数量为剩余数量
-      const remaining = stats.remaining_quantity ?? selectedTask.quantity ?? 0
+      const remaining = stats.remainingQuantity ?? selectedTask.quantity ?? 0
       formData.value.completedQuantity = remaining
       formData.value.qualifiedQuantity = remaining
     } catch (error) {
@@ -871,14 +871,14 @@ const handleTaskFormChange = async (taskId) => {
       formData.value.completedQuantity = selectedTask.quantity || 0
       formData.value.qualifiedQuantity = selectedTask.quantity || 0
       taskReportStats.value = {
-        plan_quantity: selectedTask.quantity || 0,
-        reported_quantity: 0,
-        remaining_quantity: selectedTask.quantity || 0,
-        qualified_quantity: 0,
-        defective_quantity: 0,
-        report_count: 0,
-        completion_rate: '0%',
-        qualification_rate: '0%'
+        planQuantity: selectedTask.quantity || 0,
+        reportedQuantity: 0,
+        remainingQuantity: selectedTask.quantity || 0,
+        qualifiedQuantity: 0,
+        defectiveQuantity: 0,
+        reportCount: 0,
+        completionRate: '0%',
+        qualificationRate: '0%'
       }
     }
 
@@ -889,9 +889,9 @@ const handleTaskFormChange = async (taskId) => {
       // 清空工序选择
       formData.value.processId = undefined
       formData.value.processName = ''
-      if (taskReportStats.value.reporting_mode === 'process') {
+      if (taskReportStats.value.reportingMode === 'process') {
         const process = processList.value.find(item => ['pending', 'in_progress'].includes(item.status))
-          || processList.value.find(item => item.id === taskReportStats.value.output_process_id)
+          || processList.value.find(item => item.id === taskReportStats.value.outputProcessId)
         if (process) {
           formData.value.processId = process.id
           await handleProcessChange(process.id)
@@ -914,9 +914,9 @@ const handleProcessChange = async (processId) => {
     const response = await productionApi.getTaskReportStats(taskId, { processId: processId ?? '' })
     if (formData.value.taskId !== taskId || formData.value.processId !== processId) return
     taskReportStats.value = parseResponseData(response, {})
-    formData.value.plannedQuantity = taskReportStats.value.plan_quantity || 0
+    formData.value.plannedQuantity = taskReportStats.value.planQuantity || 0
     if (!formData.value.id) {
-      formData.value.completedQuantity = taskReportStats.value.remaining_quantity || 0
+      formData.value.completedQuantity = taskReportStats.value.remainingQuantity || 0
       formData.value.qualifiedQuantity = formData.value.completedQuantity
     }
   } catch (error) {

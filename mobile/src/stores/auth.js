@@ -106,6 +106,7 @@ export const useAuthStore = defineStore('auth', () => {
   let authGeneration = 0
   let profileGeneration = 0
   let permissionsGeneration = 0
+  let _profilePromise = null
   let _permissionsPromise = null
 
   // ==================== 计算属性 ====================
@@ -169,6 +170,7 @@ export const useAuthStore = defineStore('auth', () => {
     authGeneration++
     profileGeneration++
     permissionsGeneration++
+    _profilePromise = null
     _permissionsPromise = null
     token.value = ''
     user.value = null
@@ -262,44 +264,54 @@ export const useAuthStore = defineStore('auth', () => {
 
   /**
    * 获取用户信息
+   * @param {boolean} force - 强制重新探测，忽略同会话内正在进行的请求
    * @returns {Promise<boolean>} 是否成功
    */
-  const fetchUserProfile = async () => {
+  const fetchUserProfile = async (force = false) => {
+    if (_profilePromise && !force) return _profilePromise
     const generation = authGeneration
     const requestId = ++profileGeneration
     const isCurrent = () => generation === authGeneration && requestId === profileGeneration
-    try {
-      const response = await api.get('/auth/profile')
-      if (!isCurrent()) return false
-      const userData = normalizeUserData(response.data)
+    const pending = (async () => {
+      try {
+        const response = await api.get('/auth/profile')
+        if (!isCurrent()) return false
+        const userData = normalizeUserData(response.data)
 
-      if (userData?.id) {
-        if (user.value?.id && String(user.value.id) !== String(userData.id)) {
-          // A shared cookie can change in another tab. Revoke the former
-          // principal's permissions and pending work before adopting it.
-          clearAuthData()
+        if (userData?.id) {
+          if (user.value?.id && String(user.value.id) !== String(userData.id)) {
+            // A shared cookie can change in another tab. Revoke the former
+            // principal's permissions and pending work before adopting it.
+            clearAuthData()
+          }
+          user.value = userData
+          profileLoaded.value = true
+          sessionProbed.value = true
+          safeSaveJSON(STORAGE_KEYS.USER, userData, sessionStorage)
+          safeSaveJSON(
+            STORAGE_KEYS.USER,
+            { id: userData.id, username: userData.username },
+            localStorage
+          )
+          sessionStorage.setItem(STORAGE_KEYS.IS_LOGGED_IN, 'true')
+          localStorage.setItem(STORAGE_KEYS.IS_LOGGED_IN, 'true')
+          return true
         }
-        user.value = userData
-        profileLoaded.value = true
+        clearAuthData()
         sessionProbed.value = true
-        safeSaveJSON(STORAGE_KEYS.USER, userData, sessionStorage)
-        safeSaveJSON(
-          STORAGE_KEYS.USER,
-          { id: userData.id, username: userData.username },
-          localStorage
-        )
-        sessionStorage.setItem(STORAGE_KEYS.IS_LOGGED_IN, 'true')
-        localStorage.setItem(STORAGE_KEYS.IS_LOGGED_IN, 'true')
-        return true
+        return false
+      } catch {
+        if (!isCurrent()) return false
+        clearAuthData()
+        sessionProbed.value = true
+        return false
       }
-      clearAuthData()
-      sessionProbed.value = true
-      return false
-    } catch {
-      if (!isCurrent()) return false
-      clearAuthData()
-      sessionProbed.value = true
-      return false
+    })()
+    _profilePromise = pending
+    try {
+      return await pending
+    } finally {
+      if (_profilePromise === pending) _profilePromise = null
     }
   }
 

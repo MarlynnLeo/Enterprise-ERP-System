@@ -790,16 +790,27 @@ exports.convertQuotationToOrder = async (req, res) => {
     await conn.commit();
 
     // 与手工销售订单使用同一备货、预留和后续计划流程。
+    const followUp = {};
     try {
       const { autoGenerateFollowUpDocuments } = require('./salesExchangeController');
       const SalesDao = require('../../../database/salesDao');
-      const nextStatus = await autoGenerateFollowUpDocuments(orderId, orderAmounts.items, {
-        ...req.user,
-        id: getAuthenticatedUserId(req),
-      });
+      const nextStatus = await autoGenerateFollowUpDocuments(
+        orderId,
+        orderAmounts.items,
+        {
+          ...req.user,
+          id: getAuthenticatedUserId(req),
+        },
+        followUp
+      );
       if (nextStatus) await SalesDao.updateSalesOrderStatus(orderId, nextStatus);
     } catch (error) {
       logger.error('报价转换后的订单备货失败，订单保留草稿供重试:', error);
+      Object.assign(followUp, {
+        status: 'failed',
+        code: 'FOLLOW_UP_GENERATION_FAILED',
+        message: `订单已生成，但备货处理失败：${error.message}`,
+      });
     }
 
     return ResponseHandler.success(res, {
@@ -807,6 +818,7 @@ exports.convertQuotationToOrder = async (req, res) => {
       quotation_id: id,
       order_id: orderId,
       order_no: orderData.order_no,
+      followUp,
     });
   } catch (error) {
     await conn.rollback();

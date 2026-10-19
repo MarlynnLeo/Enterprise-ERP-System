@@ -44,6 +44,14 @@
         show-icon
         class="mb-4"
       />
+      <el-alert
+        v-if="hasOpeningAdjustments"
+        title="本期启用的期初余额单独列示，不计入凭证发生额；期末余额包含该启用金额。"
+        type="info"
+        :closable="false"
+        show-icon
+        class="mb-4"
+      />
 
       <div class="table-container">
         <el-table
@@ -79,6 +87,15 @@
               <template #default="{ row }">
                 {{ formatAmountOrEmpty(row.openingCreditAmount) }}
               </template>
+            </el-table-column>
+          </el-table-column>
+
+          <el-table-column v-if="hasOpeningAdjustments" label="本期启用期初余额">
+            <el-table-column prop="openingAdjustmentDebit" label="借方" width="150">
+              <template #default="{ row }">{{ formatAmountOrEmpty(row.openingAdjustmentDebit) }}</template>
+            </el-table-column>
+            <el-table-column prop="openingAdjustmentCredit" label="贷方" width="150">
+              <template #default="{ row }">{{ formatAmountOrEmpty(row.openingAdjustmentCredit) }}</template>
             </el-table-column>
           </el-table-column>
 
@@ -119,7 +136,7 @@
 
 <script setup>
 import { getApiErrorMessage } from '@/utils/errorHandler'
-import { onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { Download } from '@element-plus/icons-vue'
 import { financeApi } from '@/api'
@@ -132,6 +149,11 @@ const tableData = ref([])
 const periods = ref([])
 const filters = ref({ period_id: '' })
 const summary = ref(null)
+const loadedPeriod = ref(null)
+let querySequence = 0
+const hasOpeningAdjustments = computed(() => tableData.value.some(row =>
+  row.openingAdjustmentDebit > 0 || row.openingAdjustmentCredit > 0
+))
 
 const toNumber = value => Number.parseFloat(value) || 0
 const formatMoney = value => formatCurrency(value, '¥')
@@ -144,18 +166,22 @@ const normalizeTrialBalanceRows = rows => rows
 
     return {
       ...row,
-      opening_debit_amount: openingDebit > 0 ? openingDebit : 0,
-      opening_credit_amount: openingDebit < 0 ? Math.abs(openingDebit) : 0,
-      total_debit: toNumber(row.totalDebit),
-      total_credit: toNumber(row.totalCredit),
-      debit_balance: toNumber(row.debitBalance),
-      credit_balance: toNumber(row.creditBalance)
+      openingDebitAmount: openingDebit > 0 ? openingDebit : 0,
+      openingCreditAmount: openingDebit < 0 ? Math.abs(openingDebit) : 0,
+      openingAdjustmentDebit: toNumber(row.openingAdjustmentDebit),
+      openingAdjustmentCredit: toNumber(row.openingAdjustmentCredit),
+      totalDebit: toNumber(row.totalDebit),
+      totalCredit: toNumber(row.totalCredit),
+      debitBalance: toNumber(row.debitBalance),
+      creditBalance: toNumber(row.creditBalance)
     }
   })
   .filter(row => {
     const values = [
       row.openingDebitAmount,
       row.openingCreditAmount,
+      row.openingAdjustmentDebit,
+      row.openingAdjustmentCredit,
       row.totalDebit,
       row.totalCredit,
       row.debitBalance,
@@ -219,29 +245,40 @@ const fetchPeriods = async () => {
 const fetchData = async () => {
   if (!filters.value.period_id) return
 
+  const sequence = ++querySequence
+  const periodId = filters.value.period_id
+  const period = periods.value.find(item => String(item.id) === String(periodId))
   loading.value = true
   try {
-    const res = await financeApi.reports.getTrialBalance(filters.value)
+    const res = await financeApi.reports.getTrialBalance({ period_id: periodId })
+    if (sequence !== querySequence) return
     const data = parseDataObject(res, { enableLog: false }) || {}
 
     tableData.value = normalizeTrialBalanceRows(data.trialBalance || data.list || [])
+    loadedPeriod.value = period ? { ...period } : null
     summary.value = {
       ...(data.summary || {}),
       isBalanced: Boolean(data.isBalanced)
     }
   } catch (error) {
+    if (sequence !== querySequence) return
     console.error('获取试算平衡失败:', error)
     ElMessage.error(getApiErrorMessage(error, '获取数据失败'))
   } finally {
-    loading.value = false
+    if (sequence === querySequence) loading.value = false
   }
 }
 
 const resetFilters = () => {
+  querySequence++
+  loading.value = false
   filters.value.period_id = ''
   tableData.value = []
   summary.value = null
+  loadedPeriod.value = null
 }
+
+onBeforeUnmount(() => { querySequence++ })
 
 const sumBy = (data, property) => data.reduce((total, row) => total + toNumber(row[property]), 0)
 
@@ -255,12 +292,14 @@ const getSummaries = ({ columns, data }) => {
     }
 
     const totalFields = [
-      'opening_debit_amount',
-      'opening_credit_amount',
-      'total_debit',
-      'total_credit',
-      'debit_balance',
-      'credit_balance'
+      'openingDebitAmount',
+      'openingCreditAmount',
+      'openingAdjustmentDebit',
+      'openingAdjustmentCredit',
+      'totalDebit',
+      'totalCredit',
+      'debitBalance',
+      'creditBalance'
     ]
 
     sums[index] = totalFields.includes(column.property) ? formatMoney(sumBy(data, column.property)) : ''
@@ -275,14 +314,14 @@ const exportData = async () => {
     return
   }
 
+  const exportRows = tableData.value.map(row => ({ ...row }))
+  const includeAdjustments = hasOpeningAdjustments.value
+  const periodName = periodLabel(loadedPeriod.value) || '未指定期间'
   try {
     const ExcelJS = await loadExcelJS()
     const workbook = new ExcelJS.Workbook()
     const worksheet = workbook.addWorksheet('试算平衡')
-    const currentPeriod = periods.value.find(period => period.id === filters.value.period_id)
-    const periodName = periodLabel(currentPeriod) || '未指定期间'
-
-    worksheet.mergeCells('A1:J1')
+    worksheet.mergeCells(includeAdjustments ? 'A1:L1' : 'A1:J1')
     const titleCell = worksheet.getCell('A1')
     titleCell.value = `试算平衡（${periodName}）`
     titleCell.font = { size: 16, bold: true }
@@ -295,13 +334,14 @@ const exportData = async () => {
       '余额方向',
       '期初借方',
       '期初贷方',
+      ...(includeAdjustments ? ['本期启用借方', '本期启用贷方'] : []),
       '本期借方',
       '本期贷方',
       '期末借方',
       '期末贷方'
     ])
 
-    tableData.value.forEach(row => {
+    exportRows.forEach(row => {
       worksheet.addRow([
         row.accountCode,
         row.accountName,
@@ -309,6 +349,7 @@ const exportData = async () => {
         row.isDebit ? '借' : '贷',
         row.openingDebitAmount || '',
         row.openingCreditAmount || '',
+        ...(includeAdjustments ? [row.openingAdjustmentDebit || '', row.openingAdjustmentCredit || ''] : []),
         row.totalDebit || '',
         row.totalCredit || '',
         row.debitBalance || '',
@@ -321,12 +362,13 @@ const exportData = async () => {
       '',
       '',
       '',
-      sumBy(tableData.value, 'opening_debit_amount'),
-      sumBy(tableData.value, 'opening_credit_amount'),
-      sumBy(tableData.value, 'total_debit'),
-      sumBy(tableData.value, 'total_credit'),
-      sumBy(tableData.value, 'debit_balance'),
-      sumBy(tableData.value, 'credit_balance')
+      sumBy(exportRows, 'openingDebitAmount'),
+      sumBy(exportRows, 'openingCreditAmount'),
+      ...(includeAdjustments ? [sumBy(exportRows, 'openingAdjustmentDebit'), sumBy(exportRows, 'openingAdjustmentCredit')] : []),
+      sumBy(exportRows, 'totalDebit'),
+      sumBy(exportRows, 'totalCredit'),
+      sumBy(exportRows, 'debitBalance'),
+      sumBy(exportRows, 'creditBalance')
     ])
 
     worksheet.columns.forEach((column, index) => {

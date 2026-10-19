@@ -29,9 +29,10 @@
     searchPlaceholder: '搜索客户或发票号',
     filterTabs: [
       { label: '全部', value: 'all' },
-      { label: '待收款', value: 'pending' },
-      { label: '已收款', value: 'paid' },
-      { label: '逾期', value: 'overdue' }
+      { label: '待收款', value: '已确认' },
+      { label: '部分收款', value: '部分付款' },
+      { label: '已收款', value: '已付款' },
+      { label: '逾期', value: '已逾期' }
     ],
     fields: {
       id: 'id',
@@ -61,7 +62,9 @@
   }))
 
   const loadInvoices = async (params) => {
-    const response = await financeApi.getARInvoices(params)
+    const { search, ...query } = params
+    if (search?.trim()) query.keyword = search.trim()
+    const response = await financeApi.getARInvoices(query)
     return response
   }
 

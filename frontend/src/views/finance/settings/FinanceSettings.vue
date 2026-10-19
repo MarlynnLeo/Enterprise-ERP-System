@@ -264,7 +264,7 @@
         </el-row>
       </el-tab-pane>
       <!-- 自动化任务 -->
-      <el-tab-pane label="自动化任务" name="automation" v-if="canViewAutomation">
+      <el-tab-pane label="自动化任务" name="automation" v-if="canViewAutomation" lazy>
         <AutomationTab />
       </el-tab-pane>
     </el-tabs>
@@ -273,14 +273,14 @@
 
 <script setup>
 import { useDictionaryStore } from '@/stores/dictionary'
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, computed, watch, defineAsyncComponent } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Plus, Delete } from '@element-plus/icons-vue'
 import { financeApi } from '@/api'
-import AutomationTab from './AutomationTab.vue'
+const AutomationTab = defineAsyncComponent(() => import('./AutomationTab.vue'))
 
 const dictStore = useDictionaryStore()
 

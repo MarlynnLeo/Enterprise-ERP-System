@@ -24,6 +24,19 @@ class RedLetterTaxService {
       !['已确认', '部分付款', '已付款', '已逾期'].includes(invoice.status)
     )
       throw new Error('请选择已确认的退货红字发票');
+    if (
+      String(invoice.currency_code || 'CNY')
+        .trim()
+        .toUpperCase() !== 'CNY'
+    ) {
+      throw Object.assign(
+        new Error('美元等外币红字发票转人民币税票暂不支持，请先完成经确认的税务本位币换算'),
+        {
+          code: 'UNSUPPORTED_TAX_CURRENCY',
+          statusCode: 400,
+        }
+      );
+    }
     const [returns] = await connection.execute(
       `SELECT * FROM ${kind === 'ar' ? 'sales_returns' : 'purchase_returns'} WHERE id = ?`,
       [invoice.source_id]

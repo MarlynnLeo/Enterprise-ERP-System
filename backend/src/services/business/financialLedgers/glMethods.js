@@ -97,9 +97,30 @@ function buildGlReport(type, filters, scopes, data, codes) {
   const months = monthList(filters);
   const taxKeys = [...VAT_COLUMNS.map((column) => column.key), 'unclassifiedTax'];
   const emptyTax = () => (type === 'vat' ? Object.fromEntries(taxKeys.map((key) => [key, 0])) : {});
-  for (const scope of scopes) {
+  // Partition each source once, keeping its original order in every scope.
+  // A scope can include parent and child accounts; overlapping scopes must
+  // each receive a row, but a duplicate account inside one scope must not.
+  const sourcesByScope = scopes.map(() => ({ beforeYear: [], entries: [] }));
+  const scopesByAccount = new Map();
+  scopes.forEach((scope, index) => {
+    for (const id of new Set(scope.accounts.map((account) => Number(account.id)))) {
+      if (!scopesByAccount.has(id)) scopesByAccount.set(id, []);
+      scopesByAccount.get(id).push(sourcesByScope[index]);
+    }
+  });
+  const assignSource = (entry, key) => {
+    for (const source of scopesByAccount.get(Number(entry.account_id)) || []) {
+      source[key].push(entry);
+    }
+  };
+  for (const entry of data.beforeYear) assignSource(entry, 'beforeYear');
+  for (const entry of data.beforePeriod || []) {
+    assignSource({ ...entry, date: filters.yearStartDate }, 'entries');
+  }
+  for (const entry of data.entries) assignSource(entry, 'entries');
+
+  for (const [scopeIndex, scope] of scopes.entries()) {
     const byId = new Map(scope.accounts.map((account) => [Number(account.id), account]));
-    const ids = new Set(byId.keys());
     const openingAccounts = scope.accounts.filter(
       (account) =>
         (!account.opening_balance_date ||
@@ -130,47 +151,41 @@ function buildGlReport(type, filters, scopes, data, codes) {
       if (!openingWarnings.has(firstDate)) openingWarnings.set(firstDate, new Set());
       openingWarnings.get(firstDate).add(scope.account.account_code);
     }
-    const sourceEntries = [
-      ...(data.beforePeriod || []).map((entry) => ({ ...entry, date: filters.yearStartDate })),
-      ...data.entries,
-    ];
-    const scopeEntries = sourceEntries
-      .filter((entry) => ids.has(Number(entry.account_id)))
-      .map((entry) => {
-        const account = byId.get(Number(entry.account_id));
-        const row = {
-          ...entry,
-          date: dateString(entry.date),
-          debit: Number(entry.debit || 0),
-          credit: Number(entry.credit || 0),
-          accountCode: account.account_code,
-          accountName: account.account_name,
-          supplierName:
-            entry.supplier_name || (entry.supplier_id ? '供应商资料已移除' : '未指定供应商'),
-          entryId: Number(entry.entry_id),
-          voucherNumber:
-            entry.voucher_number != null
-              ? `${entry.voucher_word || '记'}-${entry.voucher_number}`
-              : entry.entry_number,
-          ...emptyTax(),
-        };
-        if (type === 'vat') {
-          const column = vatColumnFor(account, codes);
-          if (column)
-            row[column.key] = Precision.sub(
-              row[column.side],
-              row[column.side === 'debit' ? 'credit' : 'debit']
-            );
-          else {
-            row.unclassifiedTax = Precision.sub(row.debit, row.credit);
-            warnings.push(
-              `科目 ${account.account_code} ${account.account_name} 列入“其他明细（借减贷）”，未自动归入标准税额栏。`
-            );
-          }
+    const scopeEntries = sourcesByScope[scopeIndex].entries.map((entry) => {
+      const account = byId.get(Number(entry.account_id));
+      const row = {
+        ...entry,
+        date: dateString(entry.date),
+        debit: Number(entry.debit || 0),
+        credit: Number(entry.credit || 0),
+        accountCode: account.account_code,
+        accountName: account.account_name,
+        supplierName:
+          entry.supplier_name || (entry.supplier_id ? '供应商资料已移除' : '未指定供应商'),
+        entryId: Number(entry.entry_id),
+        voucherNumber:
+          entry.voucher_number != null
+            ? `${entry.voucher_word || '记'}-${entry.voucher_number}`
+            : entry.entry_number,
+        ...emptyTax(),
+      };
+      if (type === 'vat') {
+        const column = vatColumnFor(account, codes);
+        if (column)
+          row[column.key] = Precision.sub(
+            row[column.side],
+            row[column.side === 'debit' ? 'credit' : 'debit']
+          );
+        else {
+          row.unclassifiedTax = Precision.sub(row.debit, row.credit);
+          warnings.push(
+            `科目 ${account.account_code} ${account.account_name} 列入“其他明细（借减贷）”，未自动归入标准税额栏。`
+          );
         }
-        return row;
-      });
-    const prior = data.beforeYear.filter((entry) => ids.has(Number(entry.account_id)));
+      }
+      return row;
+    });
+    const prior = sourcesByScope[scopeIndex].beforeYear;
     const beforeStart = scopeEntries.filter((entry) => entry.date < filters.startDate);
     let balance = missingSupplierOpening
       ? null

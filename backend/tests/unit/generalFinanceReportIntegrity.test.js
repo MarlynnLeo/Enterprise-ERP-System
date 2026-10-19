@@ -100,9 +100,7 @@ describe('finance reports preserve business activity across closing', () => {
         totalBalance: type === '负债' ? 0 : 90,
         totalCompareBalance: 0,
       })),
-      calculatePeriodAmount: jest.fn(async (_type, _start, _end, _cs, _ce, options) => ({
-        totalAmount: options?.includeClosingEntries ? 0 : 90,
-      })),
+      calculateBalanceSheetAdjustments: jest.fn(async () => ({ profit: 0, compareProfit: null, production: [] })),
       getReportAccountGroups: jest.fn().mockResolvedValue({}),
       formatReportInfo: (value) => value,
       formatAccountsForReport: (value) => value,

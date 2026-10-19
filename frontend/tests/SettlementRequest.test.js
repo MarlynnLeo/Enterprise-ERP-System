@@ -1,0 +1,97 @@
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
+import { useSettlementRequest } from '@/views/finance/components/useSettlementRequest'
+
+const payload = { invoiceId: 7, amount: 0.02, currencyCode: 'USD', exchangeRate: '6.66666667', bankAccountId: 3 }
+beforeEach(() => { window.__erpUserId = 17; sessionStorage.clear() })
+afterEach(() => { delete window.__erpUserId; sessionStorage.clear() })
+describe('收付款幂等请求生命周期', () => {
+  test.each([undefined, 500, 503])('未知结果或%s错误仅原样重放，恢复后返回原记录', async status => {
+    const request = useSettlementRequest()
+    request.begin()
+    const error = status ? { response: { status } } : new Error('timeout')
+    const send = vi.fn().mockRejectedValueOnce(error).mockResolvedValue({ data: { id: 9, replayed: true } })
+    await expect(request.submit(payload, send)).rejects.toBe(error)
+    expect(request.retryNotice.value).toContain('结果尚未确认')
+    await expect(request.submit({ ...payload, amount: 0.01 }, send)).rejects.toThrow('不能更改内容后重发')
+    expect(send).toHaveBeenCalledOnce()
+    await expect(request.submit(payload, send)).resolves.toEqual({ data: { id: 9, replayed: true } })
+    expect(send.mock.calls[1]).toEqual(send.mock.calls[0])
+    expect(send.mock.calls[0][1].headers['Idempotency-Key']).toMatch(/^[\da-f-]{36}$/i)
+    expect(request.retryNotice.value).toBe('')
+  })
+  test('明确400失败原样重试沿用编号，纠正内容才使用新编号', async () => {
+    const request = useSettlementRequest(); request.begin()
+    const send = vi.fn().mockRejectedValueOnce({ response: { status: 400 } }).mockRejectedValueOnce({ response: { status: 400 } }).mockResolvedValue({ data: { id: 10 } })
+    await request.submit(payload, send).catch(() => {})
+    await request.submit(payload, send).catch(() => {})
+    expect(send.mock.calls[1][1]).toEqual(send.mock.calls[0][1])
+    await request.submit({ ...payload, amount: 0.01 }, send)
+    expect(send.mock.calls[2][1]).not.toEqual(send.mock.calls[1][1])
+  })
+  test('409冲突显示核对记录说明，不自动更换编号或重发', async () => {
+    const request = useSettlementRequest(); request.begin()
+    const send = vi.fn().mockRejectedValue({ response: { status: 409, data: { code: 'IDEMPOTENCY_CONFLICT' } } })
+    await request.submit(payload, send).catch(() => {})
+    expect(request.retryNotice.value).toContain('请求内容发生冲突')
+    await expect(request.submit({ ...payload, bankAccountId: 4 }, send)).rejects.toThrow('不能更改内容后重发')
+    expect(send).toHaveBeenCalledOnce()
+  })
+  test('未知结果重新打开恢复原内容，成功后新表单才生成新编号', async () => {
+    const request = useSettlementRequest(); request.begin()
+    const send = vi.fn().mockRejectedValueOnce(new Error('timeout')).mockResolvedValue({ data: {} })
+    await request.submit(payload, send).catch(() => {})
+    expect(request.begin()).toEqual(payload)
+    expect(request.retryNotice.value).toContain('结果尚未确认')
+    await request.submit(payload, send)
+    expect(send.mock.calls[1]).toEqual(send.mock.calls[0])
+    expect(request.begin()).toBeNull()
+    expect(request.retryNotice.value).toBe('')
+    await request.submit({ ...payload, amount: 1 }, send)
+    expect(send.mock.calls[2][1]).not.toEqual(send.mock.calls[0][1])
+  })
+  test('刷新后的新实例恢复原编号与原内容，成功后删除恢复记录', async () => {
+    const request = useSettlementRequest('receipt'); request.begin()
+    const send = vi.fn().mockRejectedValueOnce(new Error('timeout')).mockResolvedValue({ data: { id: 9, replayed: true } })
+    await request.submit(payload, send, { invoiceNumber: 'AR-7', customerName: '测试客户' }, [{ id: 3, accountName: '美元账户' }]).catch(() => {})
+    const refreshed = useSettlementRequest('receipt')
+    expect(refreshed.restore().summary).toEqual(expect.objectContaining({ invoiceNumber: 'AR-7', partnerName: '测试客户', bankAccountName: '美元账户' }))
+    await refreshed.replay(send)
+    expect(send.mock.calls[1]).toEqual(send.mock.calls[0])
+    expect(useSettlementRequest('receipt').restore()).toBeNull()
+    expect(sessionStorage.length).toBe(0)
+  })
+  test('不同登录用户与收付类型互相隔离，换用户后不能重放原请求', async () => {
+    const request = useSettlementRequest('receipt'); request.begin()
+    const send = vi.fn().mockRejectedValue(new Error('timeout'))
+    await request.submit(payload, send).catch(() => {})
+    expect(useSettlementRequest('payment').restore()).toBeNull()
+    window.__erpUserId = 18
+    expect(useSettlementRequest('receipt').restore()).toBeNull()
+    await expect(request.replay(send)).rejects.toThrow('登录用户已变化')
+    expect(send).toHaveBeenCalledOnce()
+    window.__erpUserId = 17
+    expect(useSettlementRequest('receipt').restore().payload).toEqual(payload)
+  })
+  test('写入恢复记录失败时不发送财务请求', async () => {
+    const request = useSettlementRequest(); request.begin()
+    const blocked = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('QuotaExceeded') })
+    const send = vi.fn()
+    await expect(request.submit(payload, send)).rejects.toThrow('本次尚未发送')
+    expect(send).not.toHaveBeenCalled()
+    blocked.mockRestore()
+  })
+  test('换用户后的旧成功响应不能删除新用户的未确认登记', async () => {
+    const request = useSettlementRequest('receipt'); request.begin()
+    let finishOld
+    const oldSend = vi.fn().mockImplementation(() => new Promise(resolve => { finishOld = resolve }))
+    const oldResult = request.submit(payload, oldSend)
+    window.__erpUserId = 18
+    request.begin()
+    await request.submit({ ...payload, invoiceId: 8 }, vi.fn().mockRejectedValue(new Error('timeout'))).catch(() => {})
+    finishOld({ data: { id: 91 } })
+    await expect(oldResult).rejects.toThrow('登录用户已变化')
+    expect(useSettlementRequest('receipt').restore().payload.invoiceId).toBe(8)
+    window.__erpUserId = 17
+    expect(useSettlementRequest('receipt').restore()).toBeNull()
+  })
+})

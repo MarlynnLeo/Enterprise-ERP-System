@@ -43,4 +43,17 @@ describe('AP payable invoice search and pagination', () => {
     expect(await apModel.getInvoices(fromInvoiceListQuery({ payableOnly: true }, 'ap'))).toEqual({ data: [], total: 0, page: 1, pageSize: 20 });
     expect(db.pool.query).not.toHaveBeenCalled();
   });
+
+  test('invoice list selects and maps the stored USD currency and eight-digit rate for payment forms', async () => {
+    db.pool.query.mockImplementation(async sql => {
+      const row = { id: 21, invoice_number: 'AP-21', total_amount: 0.03, paid_amount: 0.01, balance_amount: 0.02 };
+      if (sql.includes('a.currency_code')) row.currency_code = 'USD';
+      if (sql.includes('a.exchange_rate')) row.exchange_rate = '6.50000001';
+      if (sql.includes('a.created_by')) row.created_by = 75;
+      if (sql.includes('a.updated_by')) row.updated_by = 76;
+      return [[row]];
+    });
+    const result = await apModel.getInvoices();
+    expect(result.data).toEqual([expect.objectContaining({ currencyCode: 'USD', exchangeRate: 6.50000001, totalAmount: 0.03, paidAmount: 0.01, balanceAmount: 0.02, createdBy: 75, updatedBy: 76 })]);
+  });
 });

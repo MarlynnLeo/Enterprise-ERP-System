@@ -63,6 +63,11 @@ export const setRequestCacheUserId = (userId) => {
   }
   // 切换用户后立即清空，防止串数据
   clearAllRequestCaches()
+  // A new cookie session may belong to the same user. Invalidate higher-level
+  // option caches on every session confirmation/reset, not only ID changes.
+  if (typeof window.dispatchEvent === 'function') {
+    window.dispatchEvent(new Event('erp:session-changed'))
+  }
 }
 
 const stableSerialize = (value) => {
@@ -111,10 +116,12 @@ export const applyRequestOptimizer = (apiInstance, axios, options = {}) => {
   const {
     defaultCacheTtl = 1500,
     maxCacheSize = 200,
+    executeAdapter = (adapter, config) => adapter(config),
   } = options
 
   const inflightRequests = new Map()
   const responseCache = new Map()
+  const originalAdapters = new WeakMap()
   let cacheGeneration = 0
 
   const clearCache = () => {
@@ -186,22 +193,30 @@ export const applyRequestOptimizer = (apiInstance, axios, options = {}) => {
   }
 
   apiInstance.interceptors.request.use((config) => {
-    if (!shouldOptimize(config)) return config
+    const selectedAdapter = config.adapter || apiInstance.defaults.adapter || axios.defaults.adapter
+    // Authentication refresh can replay response.config. Unwrap our previous
+    // adapter so retries/deduplication are not recursively nested on each replay.
+    const originalAdapter = originalAdapters.get(selectedAdapter) || (axios.getAdapter
+      ? axios.getAdapter(selectedAdapter)
+      : selectedAdapter)
+    const setAdapter = (adapter) => {
+      originalAdapters.set(adapter, originalAdapter)
+      config.adapter = adapter
+      return config
+    }
+    const request = (adapterConfig) => executeAdapter(originalAdapter, adapterConfig)
+
+    if (!shouldOptimize(config)) return setAdapter(request)
 
     const key = getRequestKey(config)
     const cacheTtl = getCacheTtl(config)
     const cachedResponse = cacheTtl > 0 ? getCacheEntry(key) : null
 
     if (cachedResponse) {
-      config.adapter = async (adapterConfig) => cloneResponse(cachedResponse, adapterConfig, { source: 'cache' })
-      return config
+      return setAdapter(async (adapterConfig) => cloneResponse(cachedResponse, adapterConfig, { source: 'cache' }))
     }
 
-    const originalAdapter = axios.getAdapter
-      ? axios.getAdapter(config.adapter || apiInstance.defaults.adapter || axios.defaults.adapter)
-      : (config.adapter || apiInstance.defaults.adapter || axios.defaults.adapter)
-
-    config.adapter = async (adapterConfig) => {
+    return setAdapter(async (adapterConfig) => {
       const running = inflightRequests.get(key)
       if (running) {
         const response = await running
@@ -209,7 +224,7 @@ export const applyRequestOptimizer = (apiInstance, axios, options = {}) => {
       }
 
       const requestGeneration = cacheGeneration
-      const requestPromise = originalAdapter(adapterConfig)
+      const requestPromise = request(adapterConfig)
         .then((response) => {
           // A read started before a mutation/session change can still finish,
           // but must not repopulate the cache with its older snapshot.
@@ -231,9 +246,7 @@ export const applyRequestOptimizer = (apiInstance, axios, options = {}) => {
       // defensive snapshot above, so cloning the same large list a second time
       // only blocks the main thread during page navigation.
       return cloneResponse(response, adapterConfig, { source: 'network' }, { copyData: false })
-    }
-
-    return config
+    })
   })
 
   apiInstance.interceptors.response.use(

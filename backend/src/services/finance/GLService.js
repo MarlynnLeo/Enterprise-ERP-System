@@ -9,15 +9,18 @@ const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
 const crypto = require('crypto');
 const BusinessError = require('../../utils/BusinessError');
-const { financeConfig } = require('../../config/financeConfig');
+const { assertManualAccountCurrency } = require('../../utils/finance/manualAccountCurrency');
 const {
   currentDateString,
   normalizeDateInput,
   isClosedFlag,
   isDateWithinPeriod,
-  requirePositiveInteger,
-  normalizeOpeningAmount,
 } = require('../../models/finance/helpers');
+const {
+  normalizeEntryMetadata,
+  normalizeEntryItems,
+  assertEntryAuxiliaries,
+} = require('../../utils/finance/entryDataIntegrity');
 
 function shouldPostEntry(entryData) {
   return (
@@ -121,12 +124,12 @@ class GLService {
    * @param {Object} connection - 数据库连接（可选，用于事务复用）
    * @returns {Promise<number>} 分录ID
    */
-  static async createEntry(entryData, items, connection = null) {
+  static async createEntry(entryData, items, connection = null, options = {}) {
     // 自动重试机制 (最多3次)
     let retries = 3;
     while (retries > 0) {
       try {
-        return await this._createEntryInternal(entryData, items, connection);
+        return await this._createEntryInternal(entryData, items, connection, options);
       } catch (error) {
         // 如果是死锁错误，且还有重试次数，则等待随机时间后重试
         if (error.code === 'ER_LOCK_DEADLOCK' && retries > 1 && !connection) {
@@ -146,7 +149,7 @@ class GLService {
    * 内部创建会计分录方法
    * @private
    */
-  static async _createEntryInternal(entryData, items, connection = null) {
+  static async _createEntryInternal(entryData, items, connection = null, options = {}) {
     // 1. 数据完整性基本校验
     if (!Array.isArray(items) || items.length === 0) {
       throw new BusinessError('分录明细不能为空');
@@ -180,87 +183,9 @@ class GLService {
         await conn.beginTransaction();
       }
 
-      // 2. 分录明细校验与借贷平衡校验 (精确到分)
-      const normalizedItems = items.map((item, index) => {
-        if (!item || typeof item !== 'object' || Array.isArray(item)) {
-          throw new BusinessError(`第${index + 1}行分录格式无效`);
-        }
-        let accountId;
-        let costCenterId = null;
-        let debitCents;
-        let creditCents;
-        try {
-          accountId = requirePositiveInteger(item.account_id, `第${index + 1}行分录科目`);
-          if (
-            item.cost_center_id !== undefined &&
-            item.cost_center_id !== null &&
-            item.cost_center_id !== '' &&
-            item.cost_center_id !== 0
-          ) {
-            costCenterId = requirePositiveInteger(item.cost_center_id, `第${index + 1}行成本中心`);
-          }
-          debitCents = Math.round(
-            normalizeOpeningAmount(item.debit_amount, `第${index + 1}行借方金额`) * 100
-          );
-          creditCents = Math.round(
-            normalizeOpeningAmount(item.credit_amount, `第${index + 1}行贷方金额`) * 100
-          );
-        } catch (error) {
-          throw new BusinessError(error.message);
-        }
-        if (debitCents > 0 && creditCents > 0) {
-          throw new BusinessError(`第${index + 1}行不能同时填写借方和贷方金额`);
-        }
-        if (debitCents === 0 && creditCents === 0) {
-          throw new BusinessError(`第${index + 1}行借方和贷方金额不能同时为0`);
-        }
-
-        const currencyCode = String(
-          item.currency_code || financeConfig.get('invoice.defaultCurrency', 'CNY')
-        ).toUpperCase();
-        const exchangeRate = Number(item.exchange_rate ?? 1);
-        if (currencyCode !== 'CNY') {
-          throw new BusinessError(
-            `第${index + 1}行币种 ${currencyCode} 暂未启用本位币换算，禁止直接写入总账以免报表错计`
-          );
-        }
-        if (
-          !Number.isFinite(exchangeRate) ||
-          exchangeRate <= 0 ||
-          Math.abs(exchangeRate - 1) > 0.000001
-        ) {
-          throw new BusinessError(`第${index + 1}行人民币汇率必须为1`);
-        }
-
-        return {
-          ...item,
-          account_id: accountId,
-          cost_center_id: costCenterId,
-          debit_amount: debitCents / 100,
-          credit_amount: creditCents / 100,
-          currency_code: currencyCode,
-          exchange_rate: exchangeRate,
-        };
-      });
-
-      const totalDebit = normalizedItems.reduce(
-        (sum, item) => sum + Math.round((parseFloat(item.debit_amount) || 0) * 100),
-        0
-      );
-      const totalCredit = normalizedItems.reduce(
-        (sum, item) => sum + Math.round((parseFloat(item.credit_amount) || 0) * 100),
-        0
-      );
-
-      // 分录入账必须精确借贷平衡。金额已经转为分，不能保留 0.01 的尾差进总账。
-      if (!Number.isSafeInteger(totalDebit) || !Number.isSafeInteger(totalCredit)) {
-        throw new BusinessError('凭证合计超出金额范围');
-      }
-      if (totalDebit !== totalCredit) {
-        const debit = totalDebit / 100;
-        const credit = totalCredit / 100;
-        throw new BusinessError(`借贷不平衡: 借方 ${debit.toFixed(2)}, 贷方 ${credit.toFixed(2)}`);
-      }
+      // Validate source currency, base amounts and auxiliary metadata together.
+      const normalizedItems = normalizeEntryItems(items, options);
+      const metadata = normalizeEntryMetadata(entryData);
 
       const accountIds = [...new Set(normalizedItems.map((item) => item.account_id))];
 
@@ -339,7 +264,8 @@ class GLService {
 
       const accountPlaceholders = accountIds.map(() => '?').join(',');
       const [activeAccounts] = await conn.query(
-        `SELECT id FROM gl_accounts WHERE id IN (${accountPlaceholders}) AND is_active = 1 LOCK IN SHARE MODE`,
+        `SELECT id, account_code, currency_code, has_customer, has_supplier, has_employee, has_department, has_project
+         FROM gl_accounts WHERE id IN (${accountPlaceholders}) AND is_active = 1 LOCK IN SHARE MODE`,
         accountIds
       );
       const activeAccountIds = new Set(activeAccounts.map((account) => Number(account.id)));
@@ -348,20 +274,12 @@ class GLService {
         throw new Error('会计科目不存在或未启用，请检查科目配置');
       }
 
-      const costCenterIds = [
-        ...new Set(normalizedItems.map((item) => item.cost_center_id).filter(Boolean)),
-      ].sort((a, b) => a - b);
-      if (costCenterIds.length) {
-        const [costCenters] = await conn.query(
-          `SELECT id FROM cost_centers WHERE id IN (${costCenterIds.map(() => '?').join(',')})
-           AND deleted_at IS NULL AND (is_active = 1 OR is_active IS NULL)
-           ORDER BY id LOCK IN SHARE MODE`,
-          costCenterIds
-        );
-        if (costCenters.length !== costCenterIds.length) {
-          throw new BusinessError('成本中心不存在或已停用，请刷新后重新选择');
-        }
+      // Only the HTTP manual-entry boundary enables this server-owned policy.
+      // Automatic GL and controlled reversals preserve their original amounts.
+      if (options.requireManualAccountCurrency === true) {
+        assertManualAccountCurrency(normalizedItems, activeAccounts);
       }
+      await assertEntryAuxiliaries(conn, normalizedItems, activeAccounts, options);
 
       // 5. 凭证字号：禁止对 gl_entries 做 MAX...FOR UPDATE（间隙锁会拖死合并长事务）
       const voucherWord = entryData.voucher_word || '记';
@@ -393,8 +311,9 @@ class GLService {
                 INSERT INTO gl_entries
                 (entry_number, entry_date, posting_date, period_id, document_type, document_number,
                  description, created_by, transaction_type, transaction_id, voucher_word,
-                 voucher_number, status, is_posted, posted_by, posted_at, posting_method, approved_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 voucher_number, status, is_posted, posted_by, posted_at, posting_method, approved_at,
+                 attachment_count, approval_comment)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `,
         [
           entryNumber,
@@ -415,6 +334,8 @@ class GLService {
           postedAt,
           postingMethod,
           entryData.approved_at || null,
+          metadata.attachment_count,
+          metadata.approval_comment,
         ]
       );
 
@@ -435,10 +356,21 @@ class GLService {
         item.supplier_id || null,
         item.employee_id || null,
         item.description || null,
+        item.department_id,
+        item.quantity,
+        item.unit_name,
+        item.unit_price,
+        item.foreign_amount,
+        item.settlement_method,
+        item.invoice_number,
+        item.project_name,
+        item.employee_source,
+        item.base_rounding_adjustment,
       ]);
       await conn.query(
         `INSERT INTO gl_entry_items
-         (entry_id, line_number, account_id, debit_amount, credit_amount, currency_code, exchange_rate, cost_center_id, project_id, customer_id, supplier_id, employee_id, description)
+         (entry_id, line_number, account_id, debit_amount, credit_amount, currency_code, exchange_rate, cost_center_id, project_id, customer_id, supplier_id, employee_id, description,
+          department_id, quantity, unit_name, unit_price, foreign_amount, settlement_method, invoice_number, project_name, employee_source, base_rounding_adjustment)
          VALUES ?`,
         [itemValues]
       );

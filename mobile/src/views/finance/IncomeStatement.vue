@@ -41,13 +41,13 @@
           <div
             class="section-item"
             v-for="item in section.items || []"
-            :key="item.accountCode"
+            :key="item.id || item.accountCode"
           >
             <span class="item-name" :class="{ indent: item.level > 1, bold: item.isTotal }">
               {{ item.accountName }}
             </span>
             <span class="item-amount" :class="{ bold: item.isTotal }"
-              >¥{{ fm(item.amount || item.balance) }}</span
+              >¥{{ fm(item.amount) }}</span
             >
           </div>
           <div class="section-total" v-if="section.total !== undefined">
@@ -58,15 +58,20 @@
 
         <Empty v-if="!report.sections || report.sections.length === 0" description="暂无报表数据" />
       </template>
-      <Empty v-else description="加载失败，请稍后重试" />
+      <Empty v-else :description="errorMessage || '加载失败，请稍后重试'">
+        <Button type="primary" plain @click="loadReport">重新加载报表</Button>
+      </Empty>
     </div>
   </div>
 </template>
 
 <script setup>
-  import { ref, onMounted } from 'vue'
-  import { NavBar, Loading, Empty } from 'vant'
+  import { ref, onMounted, onBeforeUnmount } from 'vue'
+  import { NavBar, Loading, Empty, Button } from 'vant'
   import { financeApi } from '@/api'
+  import { extractApiData } from '@/utils/apiHelper'
+  import { normalizeIncomeStatement } from '@/utils/financeReports'
+  import { getApiErrorMessage } from '@/utils/errorHandler'
   import dayjs from 'dayjs'
 
   const now = dayjs()
@@ -74,32 +79,39 @@
   const endDate = ref(now.format('YYYY-MM-DD'))
   const loading = ref(true)
   const report = ref(null)
+  const errorMessage = ref('')
+  let requestSequence = 0
 
   const fm = (v) => {
     const n = Number(v)
-    return isNaN(n)
-      ? '0.00'
+    return v == null || !Number.isFinite(n)
+      ? '—'
       : n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   }
 
   const loadReport = async () => {
+    const sequence = ++requestSequence
     loading.value = true
+    report.value = null
+    errorMessage.value = ''
     try {
       const res = await financeApi.getIncomeStatement({
         startDate: startDate.value,
         endDate: endDate.value
       })
-      const d = res.data || res
-      report.value = d.data || d
+      if (sequence !== requestSequence) return
+      report.value = normalizeIncomeStatement(extractApiData(res))
     } catch (e) {
+      if (sequence !== requestSequence) return
       console.error('加载利润表失败:', e)
-      report.value = null
+      errorMessage.value = getApiErrorMessage(e, '加载失败，请稍后重试')
     } finally {
-      loading.value = false
+      if (sequence === requestSequence) loading.value = false
     }
   }
 
   onMounted(loadReport)
+  onBeforeUnmount(() => { requestSequence++ })
 </script>
 
 <style lang="scss" scoped>
@@ -223,5 +235,17 @@
     gap: 12px;
     padding-top: 30vh;
     color: var(--text-tertiary);
+  }
+
+  @media (max-width: 360px) {
+    .metrics-card {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    .metric {
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+    }
   }
 </style>

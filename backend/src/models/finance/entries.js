@@ -10,12 +10,16 @@ const db = require('../../config/db');
 const { financeConfig } = require('../../config/financeConfig');
 const { parsePagination } = require('../../utils/safePagination');
 const BusinessError = require('../../utils/BusinessError');
+const { sumMoney } = require('../../utils/money');
+const {
+  assertManualAccountCurrency,
+  isManualVoucherSource,
+} = require('../../utils/finance/manualAccountCurrency');
 const {
   normalizeDateInput,
   isClosedFlag,
   isDateWithinPeriod,
   getEntryPostingDiagnostics,
-  assertEntryCanBePosted,
   resolveOpenPeriodForDates,
 } = require('./helpers');
 
@@ -26,14 +30,90 @@ function getSelf() {
   return _self;
 }
 
+function entryListFilter(filters) {
+  const scope = filters.scopeClause || { join: '', where: '', params: [] };
+  const conditions = ['1=1'];
+  const params = [];
+  if (filters.entry_number) {
+    conditions.push('e.entry_number LIKE ?');
+    params.push(`%${filters.entry_number}%`);
+  }
+  if (filters.search) {
+    // Match the number shown by toGlEntryApi as well as the technical ID and summary.
+    conditions.push(`(e.entry_number LIKE ? OR
+      (CASE WHEN e.voucher_word <> '' AND e.voucher_number <> 0
+        THEN CONCAT(e.voucher_word, '-', e.voucher_number)
+        ELSE e.entry_number END) LIKE ? OR e.description LIKE ?)`);
+    const keyword = `%${filters.search}%`;
+    params.push(keyword, keyword, keyword);
+  }
+  if (filters.start_date && filters.end_date) {
+    conditions.push('e.entry_date BETWEEN ? AND ?');
+    params.push(filters.start_date, filters.end_date);
+  } else if (filters.start_date) {
+    conditions.push('e.entry_date >= ?');
+    params.push(filters.start_date);
+  } else if (filters.end_date) {
+    conditions.push('e.entry_date <= ?');
+    params.push(filters.end_date);
+  }
+  for (const key of ['document_type', 'voucher_word']) {
+    if (filters[key]) {
+      conditions.push(`e.${key} = ?`);
+      params.push(filters[key]);
+    }
+  }
+  if (filters.period_id) {
+    conditions.push('e.period_id = ?');
+    params.push(parseInt(filters.period_id));
+  }
+  if (filters.is_posted !== undefined) {
+    conditions.push('e.is_posted = ?');
+    params.push(filters.is_posted ? 1 : 0);
+  }
+  if (scope.where) params.push(...(scope.params || []));
+  return {
+    join: scope.join || '',
+    where: `WHERE ${conditions.join(' AND ')}${scope.where || ''}`,
+    params,
+  };
+}
+
+function entryItemsQuery(placeholders) {
+  return `
+    SELECT ei.*,
+           a.account_code,
+           a.account_name,
+           a.is_active AS account_is_active,
+           cc.name AS cost_center_name,
+           COALESCE(ei.department_id, cc.department_id) AS department_id,
+           d.name AS department_name,
+           c.name AS customer_name,
+           s.name AS supplier_name,
+           CASE WHEN ei.employee_source = 'user' THEN COALESCE(NULLIF(employee.real_name, ''), employee.username)
+                WHEN ei.employee_source = 'hr' THEN hr_employee.name
+                ELSE NULL END AS employee_name
+      FROM gl_entry_items ei
+      LEFT JOIN gl_accounts a ON ei.account_id = a.id
+      LEFT JOIN cost_centers cc ON ei.cost_center_id = cc.id
+      LEFT JOIN departments d ON COALESCE(ei.department_id, cc.department_id) = d.id
+      LEFT JOIN customers c ON ei.customer_id = c.id
+      LEFT JOIN suppliers s ON ei.supplier_id = s.id
+      LEFT JOIN users employee ON ei.employee_source = 'user' AND ei.employee_id = employee.id
+      LEFT JOIN hr_employees hr_employee ON ei.employee_source = 'hr' AND ei.employee_id = hr_employee.id
+     WHERE ei.entry_id IN (${placeholders})
+     ORDER BY ei.entry_id, ei.line_number, ei.id
+  `;
+}
+
 module.exports = {
   /**
    * 创建会计分录（包含明细）
    * 兼容入口，内部统一委托 GLService.createEntry() 执行。
    */
-  createEntry: async (entryData, entryItems, connection = null) => {
+  createEntry: async (entryData, entryItems, connection = null, options = {}) => {
     const GLService = require('../../services/finance/GLService');
-    return await GLService.createEntry(entryData, entryItems, connection);
+    return await GLService.createEntry(entryData, entryItems, connection, options);
   },
 
   /**
@@ -44,6 +124,18 @@ module.exports = {
       const [entries] = await db.pool.execute(
         `SELECT
           e.*,
+          p.period_name,
+          p.fiscal_year,
+          creator.real_name AS creator_name,
+          creator.username AS creator_username,
+          approver.real_name AS approver_name,
+          approver.username AS approver_username,
+          poster.real_name AS poster_name,
+          poster.username AS poster_username,
+          (EXISTS(SELECT 1 FROM document_links link
+             WHERE link.target_type = 'finance_voucher' AND link.target_id = e.id)
+           OR EXISTS(SELECT 1 FROM document_links link
+             WHERE link.source_type = 'finance_voucher' AND link.source_id = e.id)) AS has_business_links,
           EXISTS(
             SELECT 1
             FROM gl_entries source_entry
@@ -56,6 +148,12 @@ module.exports = {
             LIMIT 1
           ) AS reversal_of_entry_id
          FROM gl_entries e
+         LEFT JOIN gl_periods p ON e.period_id = p.id
+         LEFT JOIN users creator ON e.created_by = creator.id
+         LEFT JOIN users approver ON approver.id = CASE
+           WHEN e.approved_by REGEXP '^[0-9]+$' THEN CAST(e.approved_by AS UNSIGNED)
+           ELSE NULL END
+         LEFT JOIN users poster ON poster.id = e.posted_by
          WHERE e.id = ?
          LIMIT 1`,
         [id]
@@ -64,11 +162,10 @@ module.exports = {
 
       const entry = entries[0];
 
-      const [items] = await db.pool.execute(
-        'SELECT id, entry_id, line_number, account_id, debit_amount, credit_amount, description, cost_center_id, project_id, created_at, updated_at, currency_code, exchange_rate, customer_id, supplier_id, employee_id FROM gl_entry_items WHERE entry_id = ?',
-        [id]
-      );
+      const [items] = await db.pool.execute(entryItemsQuery('?'), [id]);
       entry.items = items;
+      entry.total_debit = sumMoney(items.map((item) => item.debit_amount));
+      entry.total_credit = sumMoney(items.map((item) => item.credit_amount));
 
       return entry;
     } catch (error) {
@@ -84,220 +181,117 @@ module.exports = {
     let connection;
     try {
       connection = await db.pool.getConnection();
-
-      const scopeClause = filters.scopeClause || { join: '', where: '', params: [] };
-
-      let query = `
-        SELECT
-          e.*,
-          p.period_name,
-          p.fiscal_year,
-          u.real_name as creator_name,
-          u.username as creator_username,
-          EXISTS(
-            SELECT 1
-            FROM gl_entries source_entry
-            WHERE source_entry.reversal_entry_id = e.id
-          ) AS is_reversal_entry,
-          (
-            SELECT source_entry.id
-            FROM gl_entries source_entry
-            WHERE source_entry.reversal_entry_id = e.id
-            LIMIT 1
-          ) AS reversal_of_entry_id,
-          COALESCE(entry_totals.total_debit, 0) as total_debit,
-          COALESCE(entry_totals.total_credit, 0) as total_credit
-        FROM gl_entries e
-        LEFT JOIN gl_periods p ON e.period_id = p.id
-        LEFT JOIN users u ON e.created_by = u.id
-        LEFT JOIN (
-          SELECT
-            entry_id,
-            SUM(debit_amount) as total_debit,
-            SUM(credit_amount) as total_credit
-          FROM gl_entry_items
-          GROUP BY entry_id
-        ) entry_totals ON entry_totals.entry_id = e.id
-        ${scopeClause.join || ''}
-        WHERE 1=1
-      `;
-      const params = [];
-
-      if (filters.entry_number) {
-        query += ' AND e.entry_number LIKE ?';
-        params.push(`%${filters.entry_number}%`);
-      }
-
-      if (filters.start_date && filters.end_date) {
-        query += ' AND e.entry_date BETWEEN ? AND ?';
-        params.push(filters.start_date, filters.end_date);
-      } else if (filters.start_date) {
-        query += ' AND e.entry_date >= ?';
-        params.push(filters.start_date);
-      } else if (filters.end_date) {
-        query += ' AND e.entry_date <= ?';
-        params.push(filters.end_date);
-      }
-
-      if (filters.document_type) {
-        query += ' AND e.document_type = ?';
-        params.push(filters.document_type);
-      }
-
-      if (filters.voucher_word) {
-        query += ' AND e.voucher_word = ?';
-        params.push(filters.voucher_word);
-      }
-
-      if (filters.period_id) {
-        query += ' AND e.period_id = ?';
-        params.push(parseInt(filters.period_id));
-      }
-
-      if (filters.is_posted !== undefined) {
-        query += ' AND e.is_posted = ?';
-        params.push(filters.is_posted ? 1 : 0);
-      }
-
-      if (scopeClause.where) {
-        query += scopeClause.where;
-        params.push(...(scopeClause.params || []));
-      }
-
+      const filter = entryListFilter(filters);
       const pagination = parsePagination(page, pageSize, {
         defaultPageSize: 20,
         maxPageSize: 100,
       });
       const limit = pagination.limit;
       const offset = pagination.offset;
-      query += ` ORDER BY e.created_at DESC LIMIT ${limit} OFFSET ${offset}`;
 
-      const [entries] = await connection.execute(query, params);
+      // Page the headers before reading voucher lines or reverse-entry metadata.
+      const [entries] = await connection.execute(
+        `
+        SELECT
+          e.*,
+          p.period_name,
+          p.fiscal_year,
+          u.real_name as creator_name,
+          u.username as creator_username
+        FROM gl_entries e
+        LEFT JOIN gl_periods p ON e.period_id = p.id
+        LEFT JOIN users u ON e.created_by = u.id
+        ${filter.join}
+        ${filter.where}
+        ORDER BY e.created_at DESC, e.id DESC LIMIT ${limit} OFFSET ${offset}
+      `,
+        filter.params
+      );
 
-      let countQuery = `SELECT COUNT(*) as total FROM gl_entries e ${scopeClause.join || ''} WHERE 1=1`;
-      const countParams = [];
+      if (entries.length) {
+        const ids = entries.map((entry) => entry.id);
+        const placeholders = ids.map(() => '?').join(',');
+        const [details] = await connection.execute(
+          `
+          SELECT page.id,
+                 COALESCE(amounts.total_debit, 0) AS total_debit,
+                 COALESCE(amounts.total_credit, 0) AS total_credit,
+                 CASE WHEN reversal.source_id IS NULL THEN 0 ELSE 1 END AS is_reversal_entry,
+                 reversal.source_id AS reversal_of_entry_id,
+                 approver.real_name AS approver_name,
+                 approver.username AS approver_username,
+                 poster.real_name AS poster_name,
+                 poster.username AS poster_username,
+                 (EXISTS(SELECT 1 FROM document_links link
+                    WHERE link.target_type = 'finance_voucher' AND link.target_id = page.id)
+                  OR EXISTS(SELECT 1 FROM document_links link
+                    WHERE link.source_type = 'finance_voucher' AND link.source_id = page.id)) AS has_business_links
+            FROM gl_entries page
+            LEFT JOIN users approver ON approver.id = CASE
+              WHEN page.approved_by REGEXP '^[0-9]+$'
+              THEN CAST(page.approved_by AS UNSIGNED)
+              ELSE NULL
+            END
+            LEFT JOIN users poster ON poster.id = page.posted_by
+            LEFT JOIN (
+              SELECT entry_id, SUM(debit_amount) AS total_debit, SUM(credit_amount) AS total_credit
+                FROM gl_entry_items
+               WHERE entry_id IN (${placeholders})
+               GROUP BY entry_id
+            ) amounts ON amounts.entry_id = page.id
+            LEFT JOIN (
+              SELECT reversal_entry_id, MIN(id) AS source_id
+                FROM gl_entries
+               WHERE reversal_entry_id IN (${placeholders})
+               GROUP BY reversal_entry_id
+            ) reversal ON reversal.reversal_entry_id = page.id
+           WHERE page.id IN (${placeholders})
+        `,
+          [...ids, ...ids, ...ids]
+        );
+        const byId = new Map(details.map((detail) => [Number(detail.id), detail]));
+        for (const entry of entries) {
+          const detail = byId.get(Number(entry.id));
+          entry.total_debit = detail?.total_debit ?? 0;
+          entry.total_credit = detail?.total_credit ?? 0;
+          entry.is_reversal_entry = detail?.is_reversal_entry ?? 0;
+          entry.reversal_of_entry_id = detail?.reversal_of_entry_id ?? null;
+          entry.approver_name = detail?.approver_name ?? null;
+          entry.approver_username = detail?.approver_username ?? null;
+          entry.poster_name = detail?.poster_name ?? null;
+          entry.poster_username = detail?.poster_username ?? null;
+          entry.has_business_links = detail?.has_business_links ?? 0;
+        }
 
-      if (filters.entry_number) {
-        countQuery += ' AND e.entry_number LIKE ?';
-        countParams.push(`%${filters.entry_number}%`);
-      }
-
-      if (filters.start_date && filters.end_date) {
-        countQuery += ' AND e.entry_date BETWEEN ? AND ?';
-        countParams.push(filters.start_date, filters.end_date);
-      } else if (filters.start_date) {
-        countQuery += ' AND e.entry_date >= ?';
-        countParams.push(filters.start_date);
-      } else if (filters.end_date) {
-        countQuery += ' AND e.entry_date <= ?';
-        countParams.push(filters.end_date);
-      }
-
-      if (filters.document_type) {
-        countQuery += ' AND e.document_type = ?';
-        countParams.push(filters.document_type);
-      }
-
-      if (filters.voucher_word) {
-        countQuery += ' AND e.voucher_word = ?';
-        countParams.push(filters.voucher_word);
-      }
-
-      if (filters.period_id) {
-        countQuery += ' AND e.period_id = ?';
-        countParams.push(parseInt(filters.period_id));
-      }
-
-      if (filters.is_posted !== undefined) {
-        countQuery += ' AND e.is_posted = ?';
-        countParams.push(filters.is_posted ? 1 : 0);
-      }
-
-      if (scopeClause.where) {
-        countQuery += scopeClause.where;
-        countParams.push(...(scopeClause.params || []));
-      }
-
-      const [countResult] = await connection.execute(countQuery, countParams);
-      const total = countResult[0].total;
-
-      // 统计与列表同过滤（含 DataScope）
-      let statsQuery = `SELECT
-        SUM(CASE WHEN e.is_posted = 1 THEN 1 ELSE 0 END) as posted_count,
-        SUM(CASE WHEN e.is_posted = 0 THEN 1 ELSE 0 END) as unposted_count,
-        COALESCE((SELECT SUM(ei.debit_amount) FROM gl_entry_items ei
-          INNER JOIN gl_entries se ON ei.entry_id = se.id WHERE 1=1`;
-      const statsParams = [];
-
-      if (filters.entry_number) {
-        statsQuery += ' AND se.entry_number LIKE ?';
-        statsParams.push(`%${filters.entry_number}%`);
-      }
-      if (filters.start_date && filters.end_date) {
-        statsQuery += ' AND se.entry_date BETWEEN ? AND ?';
-        statsParams.push(filters.start_date, filters.end_date);
-      } else if (filters.start_date) {
-        statsQuery += ' AND se.entry_date >= ?';
-        statsParams.push(filters.start_date);
-      } else if (filters.end_date) {
-        statsQuery += ' AND se.entry_date <= ?';
-        statsParams.push(filters.end_date);
-      }
-      if (filters.document_type) {
-        statsQuery += ' AND se.document_type = ?';
-        statsParams.push(filters.document_type);
-      }
-      if (filters.voucher_word) {
-        statsQuery += ' AND se.voucher_word = ?';
-        statsParams.push(filters.voucher_word);
-      }
-      if (filters.period_id) {
-        statsQuery += ' AND se.period_id = ?';
-        statsParams.push(parseInt(filters.period_id));
-      }
-      if (filters.is_posted !== undefined) {
-        statsQuery += ' AND se.is_posted = ?';
-        statsParams.push(filters.is_posted ? 1 : 0);
+        if (filters.include_items === true) {
+          // Reuse the already scoped page IDs; never fan out one request per voucher.
+          const [items] = await connection.execute(entryItemsQuery(placeholders), ids);
+          const itemsByEntry = new Map(entries.map((entry) => [Number(entry.id), []]));
+          for (const item of items) {
+            itemsByEntry.get(Number(item.entry_id))?.push(item);
+          }
+          for (const entry of entries) {
+            entry.items = itemsByEntry.get(Number(entry.id));
+          }
+        }
       }
 
-      statsQuery += `), 0) as total_amount FROM gl_entries e ${scopeClause.join || ''} WHERE 1=1`;
-
-      if (filters.entry_number) {
-        statsQuery += ' AND e.entry_number LIKE ?';
-        statsParams.push(`%${filters.entry_number}%`);
-      }
-      if (filters.start_date && filters.end_date) {
-        statsQuery += ' AND e.entry_date BETWEEN ? AND ?';
-        statsParams.push(filters.start_date, filters.end_date);
-      } else if (filters.start_date) {
-        statsQuery += ' AND e.entry_date >= ?';
-        statsParams.push(filters.start_date);
-      } else if (filters.end_date) {
-        statsQuery += ' AND e.entry_date <= ?';
-        statsParams.push(filters.end_date);
-      }
-      if (filters.document_type) {
-        statsQuery += ' AND e.document_type = ?';
-        statsParams.push(filters.document_type);
-      }
-      if (filters.voucher_word) {
-        statsQuery += ' AND e.voucher_word = ?';
-        statsParams.push(filters.voucher_word);
-      }
-      if (filters.period_id) {
-        statsQuery += ' AND e.period_id = ?';
-        statsParams.push(parseInt(filters.period_id));
-      }
-      if (filters.is_posted !== undefined) {
-        statsQuery += ' AND e.is_posted = ?';
-        statsParams.push(filters.is_posted ? 1 : 0);
-      }
-      if (scopeClause.where) {
-        statsQuery += scopeClause.where;
-        statsParams.push(...(scopeClause.params || []));
-      }
-
-      const [statsResult] = await connection.execute(statsQuery, statsParams);
+      // Counts and amount share the exact list filters and scope. Count headers
+      // once even when a voucher has many lines; totals cover every matching page.
+      const [statsResult] = await connection.execute(
+        `
+        SELECT COUNT(DISTINCT e.id) AS total,
+               COUNT(DISTINCT CASE WHEN e.is_posted = 1 THEN e.id END) AS posted_count,
+               COUNT(DISTINCT CASE WHEN e.is_posted = 0 THEN e.id END) AS unposted_count,
+               COALESCE(SUM(ei.debit_amount), 0) AS total_amount
+          FROM gl_entries e
+          ${filter.join}
+          LEFT JOIN gl_entry_items ei ON ei.entry_id = e.id
+          ${filter.where}
+      `,
+        filter.params
+      );
+      const total = Number(statsResult[0].total) || 0;
 
       const result = {
         entries,
@@ -328,24 +322,7 @@ module.exports = {
    */
   getEntryItems: async (entryId) => {
     try {
-      const [items] = await db.pool.execute(
-        `
-        SELECT
-          ei.*,
-          a.account_code,
-          a.account_name,
-          a.is_active AS account_is_active
-        FROM
-          gl_entry_items ei
-        LEFT JOIN
-          gl_accounts a ON ei.account_id = a.id
-        WHERE
-          ei.entry_id = ?
-        ORDER BY
-          ei.line_number, ei.id
-      `,
-        [entryId]
-      );
+      const [items] = await db.pool.execute(entryItemsQuery('?'), [entryId]);
 
       return items;
     } catch (error) {
@@ -429,7 +406,10 @@ module.exports = {
 
       const [entries] = await connection.execute(
         `SELECT e.id, e.is_posted, e.is_reversed, e.entry_date, e.posting_date, e.period_id,
-                e.created_by, p.is_closed, p.is_locked, p.period_name, p.start_date, p.end_date
+                e.created_by, e.document_type, e.transaction_type, e.transaction_id, e.posting_method,
+                (EXISTS(SELECT 1 FROM document_links link WHERE link.source_type = 'finance_voucher' AND link.source_id = e.id)
+                 OR EXISTS(SELECT 1 FROM document_links link WHERE link.target_type = 'finance_voucher' AND link.target_id = e.id)) AS has_business_links,
+                p.is_closed, p.is_locked, p.period_name, p.start_date, p.end_date
          FROM gl_entries e
          LEFT JOIN gl_periods p ON e.period_id = p.id
          WHERE e.id = ?
@@ -506,7 +486,37 @@ module.exports = {
         throw new BusinessError(`不能在已锁定的会计期间 [${entry.period_name}] 过账凭证`);
       }
 
-      await assertEntryCanBePosted(connection, id);
+      // Re-read the stored voucher under the posting lock. Draft-time checks
+      // cannot establish that its currency evidence and masters are still valid.
+      const [storedItems] = await connection.execute(
+        `SELECT ei.*, a.id AS active_account_id, a.account_code, a.currency_code AS account_currency_code,
+                a.has_customer, a.has_supplier, a.has_employee, a.has_department, a.has_project
+         FROM gl_entry_items ei
+         LEFT JOIN gl_accounts a ON a.id = ei.account_id AND a.is_active = 1
+         WHERE ei.entry_id = ?
+         ORDER BY ei.line_number, ei.id
+         FOR UPDATE`,
+        [id]
+      );
+      if (storedItems.some((item) => !item.active_account_id)) {
+        throw new BusinessError('会计科目不存在或未启用，请修复凭证后再过账');
+      }
+      const {
+        normalizeEntryItems,
+        assertEntryAuxiliaries,
+      } = require('../../utils/finance/entryDataIntegrity');
+      const normalizedItems = normalizeEntryItems(storedItems, {
+        // Only a trusted source document can have saved this explicit residual;
+        // the HTTP entry endpoint cannot enable that write option.
+        allowFxRoundingAdjustment: true,
+      });
+      const accounts = storedItems.map((item) => ({
+        ...item,
+        id: item.account_id,
+        currency_code: item.account_currency_code,
+      }));
+      if (isManualVoucherSource(entry)) assertManualAccountCurrency(normalizedItems, accounts);
+      await assertEntryAuxiliaries(connection, normalizedItems, accounts);
 
       const [result] = await connection.execute(
         `UPDATE gl_entries
@@ -548,10 +558,9 @@ module.exports = {
         await conn.beginTransaction();
       }
 
-      const [entries] = await conn.execute(
-        'SELECT id, entry_number, entry_date, posting_date, document_type, document_number, active_document_number, period_id, is_posted, is_reversed, reversal_entry_id, description, created_by, approved_by, created_at, updated_at, voucher_word, voucher_number, status, transaction_type, transaction_id FROM gl_entries WHERE id = ? FOR UPDATE',
-        [id]
-      );
+      const [entries] = await conn.execute('SELECT * FROM gl_entries WHERE id = ? FOR UPDATE', [
+        id,
+      ]);
       if (entries.length === 0) {
         throw new Error('找不到要冲销的分录');
       }
@@ -616,7 +625,7 @@ module.exports = {
       );
 
       const [items] = await conn.execute(
-        'SELECT id, entry_id, line_number, account_id, debit_amount, credit_amount, description, cost_center_id, project_id, created_at, updated_at, currency_code, exchange_rate, customer_id, supplier_id, employee_id FROM gl_entry_items WHERE entry_id = ? FOR UPDATE',
+        'SELECT * FROM gl_entry_items WHERE entry_id = ? ORDER BY line_number, id FOR UPDATE',
         [id]
       );
 
@@ -668,6 +677,7 @@ module.exports = {
           description: `冲销分录 ${originalEntry.entry_number}: ${reversalData.description || ''}`,
           created_by: actorId,
           voucher_word: voucherWord,
+          attachment_count: originalEntry.attachment_count,
           status: 'posted',
           is_posted: 1,
         },
@@ -682,9 +692,20 @@ module.exports = {
           customer_id: item.customer_id,
           supplier_id: item.supplier_id,
           employee_id: item.employee_id,
+          employee_source: item.employee_source,
+          department_id: item.department_id,
+          project_name: item.project_name,
+          quantity: item.quantity,
+          unit_name: item.unit_name,
+          unit_price: item.unit_price,
+          foreign_amount: item.foreign_amount,
+          base_rounding_adjustment: item.base_rounding_adjustment,
+          settlement_method: item.settlement_method,
+          invoice_number: item.invoice_number,
           description: `冲销明细: ${item.description || ''}`,
         })),
-        conn
+        conn,
+        { allowHistoricalAuxiliaries: true, allowFxRoundingAdjustment: true }
       );
 
       await conn.execute(

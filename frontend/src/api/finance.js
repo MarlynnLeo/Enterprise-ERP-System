@@ -83,6 +83,7 @@ export const financeApi = {
   getPayablesAging: (params) => api.get('/finance/ap/aging', { params }),
   // 会计分录列表
   getEntries: (params) => api.get('/finance/entries', { params }),
+  getEntryOptions: () => api.get('/finance/entries/options'),
   // 会计分录详情
   getEntry: (id) => api.get(`/finance/entries/${id}`),
   getEntryItems: (id) => api.get(`/finance/entries/${id}/items`),
@@ -240,7 +241,7 @@ export const financeApi = {
   // 收款记录
   getReceipts: (params) => api.get('/finance/ar/receipts', { params }),
   getReceipt: (id) => api.get(`/finance/ar/receipts/${id}`),
-  createReceipt: (data) => api.post('/finance/ar/receipts', data),
+  createReceipt: (data, config) => api.post('/finance/ar/receipts', data, config),
   createCreditNoteRefund: (kind, data) => api.post(`/finance/${kind}/refunds`, data),
   voidReceipt: (id, data) => api.post(`/finance/ar/receipts/${id}/void`, data),
   generateReceiptNumber: () => api.get('/finance/ar/receipts/generate-number'),
@@ -249,7 +250,7 @@ export const financeApi = {
   // 付款记录
   getPayments: (params) => api.get('/finance/ap/payments', { params }),
   getPayment: (id) => api.get(`/finance/ap/payments/${id}`),
-  createPayment: (data) => api.post('/finance/ap/payments', data),
+  createPayment: (data, config) => api.post('/finance/ap/payments', data, config),
   voidPayment: (id, data) => api.post(`/finance/ap/payments/${id}/void`, data),
 
   tax: {

@@ -321,5 +321,10 @@
   "20261015000031_asset_capitalization_sources.js": "ddaceddeae2dafc08b5a444f393e1ac0a0380b7bd5686224b80dfabf712988e3",
   "20261016000001_add_finance_report_center.js": "da65a8fbec6c7176b49342adbff699d185f97081fd3b4e2339985d08f0536d94",
   "20261016000040_ensure_purchase_batch_number_rule.js": "2dca7c565d45d7a686123bcd2d1fb27e2cff31b5d1ebb2ceeb61102248822d24",
-  "20261016000100_nest_finance_ledger_menus.js": "47bf9d1fd912247ec7d7adf6e933fa696361ffb57f7018cf08cd9642be1a9271"
+  "20261016000100_nest_finance_ledger_menus.js": "47bf9d1fd912247ec7d7adf6e933fa696361ffb57f7018cf08cd9642be1a9271",
+  "20261017000100_complete_audit_log_payload_columns.js": "292510271dd645007700ad803afb99bb48cb812a82381bab5873678ecda11b97",
+  "20261017000200_complete_gl_voucher_fields.js": "ab4f6841e3d0487db00e5cbeecefe2c7389a488c84b585d411d77ad77f2f846e",
+  "20261017000300_add_settlement_currency_evidence.js": "a37e4278cd54fb7aff09453cd91d0212368c720bcd78a2d0e7bac28236181404",
+  "20261017000400_preserve_invoice_exchange_rate_precision.js": "6c293a460d34a855fd0f024307c3fbd58a140442873b42db6efc8708f3619c9c",
+  "20261017000500_add_settlement_request_evidence.js": "845bb93a8e96eaef71e0b188be3aaa1b756187430ff12f7570e5fdf07d751e26"
 }

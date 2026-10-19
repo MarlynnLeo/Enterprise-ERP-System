@@ -5,6 +5,7 @@
  */
 
 const { logger, db, globalConfigManager, Precision } = require('./runtime');
+const { calculateProcessEfficiency } = require('../../../utils/productionEfficiency');
 
 module.exports = {
   /**
@@ -130,10 +131,12 @@ module.exports = {
             pp.id,
             pp.process_name,
             pp.standard_hours,
+            COALESCE(pp.quantity, pt.quantity) AS quantity,
             TIMESTAMPDIFF(SECOND, pp.actual_start_time, pp.actual_end_time) / 3600 as actual_hours,
             pp.efficiency_rate,
             pp.status
           FROM production_processes pp
+          JOIN production_tasks pt ON pt.id = pp.task_id AND pt.deleted_at IS NULL
           WHERE pp.task_id = ?
           ORDER BY pp.id
         `,
@@ -151,16 +154,18 @@ module.exports = {
       // 计算汇总数据
       let totalStandardHours = 0;
       let totalActualHours = 0;
+      let comparableProcessCount = 0;
       const processDetails = [];
 
       for (const proc of processes) {
-        const standardHours = parseFloat(proc.standard_hours) || 0;
-        const actualHours = parseFloat(proc.actual_hours) || 0;
-        const hoursVariance = actualHours - standardHours;
-        const efficiencyRate = standardHours > 0 ? actualHours / standardHours : 0;
+        const { standardHours, actualHours, hoursVariance, efficiencyRate, comparable } =
+          calculateProcessEfficiency(proc);
 
-        totalStandardHours += standardHours;
-        totalActualHours += actualHours;
+        if (comparable) {
+          totalStandardHours = Precision.add(totalStandardHours, standardHours);
+          totalActualHours = Precision.add(totalActualHours, actualHours);
+          comparableProcessCount += 1;
+        }
 
         processDetails.push({
           processId: proc.id,
@@ -168,18 +173,11 @@ module.exports = {
           standardHours,
           actualHours,
           hoursVariance,
-          efficiencyRate: Math.round(efficiencyRate * 100) / 100,
-          favorable: hoursVariance <= 0,
+          efficiencyRate: comparable ? Precision.round(efficiencyRate, 6) : null,
+          favorable: comparable ? hoursVariance <= 0 : null,
+          comparable,
           status: proc.status,
         });
-
-        // 更新工序的效率率
-        if (standardHours > 0) {
-          await connection.execute(
-            'UPDATE production_processes SET efficiency_rate = ? WHERE id = ?',
-            [Math.round(efficiencyRate * 100) / 100, proc.id]
-          );
-        }
       }
 
       // 从全局配置统一读取人工费率，严禁硬编码
@@ -187,10 +185,10 @@ module.exports = {
       const laborRate = costConfig.laborRate;
 
       // 计算效率差异金额
-      const hoursVariance = totalActualHours - totalStandardHours;
-      const efficiencyVarianceAmount = hoursVariance * laborRate;
+      const hoursVariance = Precision.sub(totalActualHours, totalStandardHours);
+      const efficiencyVarianceAmount = Precision.mul(hoursVariance, laborRate);
       const overallEfficiencyRate =
-        totalStandardHours > 0 ? totalActualHours / totalStandardHours : 0;
+        totalStandardHours > 0 ? Precision.div(totalActualHours, totalStandardHours) : null;
 
       return {
         taskId,
@@ -198,11 +196,14 @@ module.exports = {
         summary: {
           totalStandardHours: Math.round(totalStandardHours * 100) / 100,
           totalActualHours: Math.round(totalActualHours * 100) / 100,
-          hoursVariance: Math.round(hoursVariance * 100) / 100,
-          efficiencyRate: Math.round(overallEfficiencyRate * 100) / 100,
-          efficiencyVarianceAmount: Math.round(efficiencyVarianceAmount * 100) / 100,
+          hoursVariance: comparableProcessCount ? Precision.round(hoursVariance, 2) : null,
+          efficiencyRate: comparableProcessCount ? Precision.round(overallEfficiencyRate, 6) : null,
+          efficiencyVarianceAmount: comparableProcessCount
+            ? Precision.round(efficiencyVarianceAmount, 2)
+            : null,
           laborRate,
-          favorable: hoursVariance <= 0,
+          favorable: comparableProcessCount ? hoursVariance <= 0 : null,
+          comparableProcessCount,
         },
         processDetails,
       };

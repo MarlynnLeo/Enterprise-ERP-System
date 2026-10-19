@@ -7,6 +7,7 @@
 const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
 const { parsePagination, appendPaginationSQL } = require('../../utils/safePagination');
+const { calculateProcessEfficiency } = require('../../utils/productionEfficiency');
 
 class CostLedgerService {
   /**
@@ -314,6 +315,7 @@ class CostLedgerService {
                 SELECT
                     process_name,
                     standard_hours,
+                    quantity,
                     TIMESTAMPDIFF(SECOND, actual_start_time, actual_end_time) / 3600 as actual_hours,
                     efficiency_rate,
                     status
@@ -358,7 +360,18 @@ class CostLedgerService {
           unit_cost: task.quantity > 0 ? task.actual_cost / task.quantity : 0,
         },
         materials,
-        processes,
+        processes: processes.map((process) => {
+          const efficiency = calculateProcessEfficiency({
+            ...process,
+            quantity: process.quantity ?? task.quantity,
+          });
+          return {
+            ...process,
+            standard_hours: efficiency.standardHours,
+            actual_hours: efficiency.actualHours,
+            efficiency_rate: efficiency.efficiencyRate,
+          };
+        }),
         vouchers,
       };
     } catch (error) {

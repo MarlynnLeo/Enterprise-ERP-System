@@ -5,6 +5,10 @@
 
 const runtime = require('./runtime');
 const { db, logger, accountingConfig, financeConfig, toLocalDateString } = runtime;
+const {
+  profitLossAccountRules,
+  loadProfitLossAccountCategories,
+} = require('../../../utils/finance/profitLossAccounts');
 
 module.exports = {
   /**
@@ -277,31 +281,68 @@ module.exports = {
 
   async getIncomeStatementCostCodes() {
     await accountingConfig.loadFromDatabase(db);
-    return [
-      accountingConfig.getAccountCode('SALES_COST'),
-      accountingConfig.getAccountCode('COST_OF_GOODS_SOLD'),
-      accountingConfig.getAccountCode('OTHER_COST'),
-      '6401',
-      '6402',
-    ].filter(Boolean);
+    return profitLossAccountRules(accountingConfig).costCodes;
   },
 
-  async buildPeriodAccountFilter(accountType) {
-    const costCodes = [...new Set(await this.getIncomeStatementCostCodes())];
-    if (accountType === '成本') {
+  /**
+   * A balance sheet carries all unclosed balances, including the opening trial
+   * balance of a midyear adoption. Period movements belong to the income
+   * statement; resetting those movements at January would lose unclosed profit.
+   * Closing entries remain included so transferred profit is not counted twice.
+   */
+  async calculateBalanceSheetAdjustments(reportDate, compareDate = null) {
+    const connection = await db.pool.getConnection();
+    try {
+      const categories = await loadProfitLossAccountCategories(connection, accountingConfig, db);
+      const ids = [...categories].filter(([, category]) => category).map(([id]) => id);
+      if (!ids.length) return { profit: 0, compareProfit: compareDate ? 0 : null, production: [] };
+      const [accounts] = await connection.execute(
+        `SELECT id, account_code AS code, account_name AS name, account_type AS type,
+                parent_id, is_debit, currency_code
+           FROM gl_accounts WHERE id IN (${ids.map(() => '?').join(',')}) ORDER BY account_code`,
+        ids
+      );
+      const balances = await this.batchCalculateAccountBalances(
+        connection,
+        accounts,
+        reportDate,
+        compareDate
+      );
+      let profit = 0;
+      let compareProfit = compareDate ? 0 : null;
+      const production = [];
+      for (const balance of balances) {
+        const category = categories.get(Number(balance.id));
+        if (category === 'production') {
+          // Asset-typed production accounts already belong to the normal asset
+          // branch and are intentionally not returned by the P&L classifier.
+          production.push({ ...balance, type: '资产', isProductionAsset: true });
+        } else {
+          const sign = category === 'income' ? 1 : -1;
+          profit += sign * balance.currentBalance;
+          if (compareDate) compareProfit += sign * balance.compareBalance;
+        }
+      }
       return {
-        whereSql: `account_code IN (${costCodes.map(() => '?').join(',')})`,
-        params: costCodes,
+        profit: this.roundAmount(profit),
+        compareProfit: compareDate ? this.roundAmount(compareProfit) : null,
+        production,
       };
+    } finally {
+      connection.release();
     }
+  },
 
-    if (accountType === '费用') {
-      return {
-        whereSql: `account_type = ? AND account_code NOT IN (${costCodes
-          .map(() => '?')
-          .join(',')})`,
-        params: [accountType, ...costCodes],
-      };
+  async buildPeriodAccountFilter(accountType, connection = db.pool) {
+    const category = { 收入: 'income', 成本: 'cost', 费用: 'expense' }[accountType];
+    if (category) {
+      const categories = await loadProfitLossAccountCategories(connection, accountingConfig, db);
+      const ids = [...categories].filter(([, value]) => value === category).map(([id]) => id);
+      // Each id selects only its own voucher lines. Descendants are separate
+      // members of the same category, never an additional parent rollup.
+      return ids.length
+        ? { whereSql: `id IN (${ids.map(() => '?').join(',')})`, params: ids }
+        : { whereSql: '1 = 0', params: [] };
     }
 
     return {

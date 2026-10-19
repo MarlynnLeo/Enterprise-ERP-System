@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node --expose-gc src/index.js",
     "start:prod": "NODE_ENV=production node --expose-gc src/index.js",
-    "dev": "node --watch --expose-gc src/index.js",
+    "dev": "node --expose-gc src/index.js",
+    "dev:watch": "node --watch --expose-gc src/index.js",
     "test": "jest --runInBand",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage --runInBand",

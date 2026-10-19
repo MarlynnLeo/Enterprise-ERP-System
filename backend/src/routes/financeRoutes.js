@@ -227,6 +227,11 @@ router.post(
 // 2. 会计分录管理
 router.get('/entries', requirePermission('finance:entries:view'), financeController.getEntries);
 router.get(
+  '/entries/options',
+  requirePermission(['finance:entries:create', 'finance:entries:view']),
+  financeController.getEntryOptions
+);
+router.get(
   '/entries/:id',
   requirePermission('finance:entries:view'),
   financeController.getEntryById

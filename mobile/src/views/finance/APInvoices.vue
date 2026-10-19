@@ -41,7 +41,7 @@
       subtitle: (item) => `${item.invoiceNumber || ''} · ${item.invoiceDate || ''}`,
       icon: 'receipt',
       details: [
-        { label: '发票金额', field: 'amount', prefix: '¥', format: 'money' },
+        { label: '发票金额', field: 'totalAmount', prefix: '¥', format: 'money' },
         { label: '已付金额', field: 'paidAmount', prefix: '¥', format: 'money' },
         { label: '到期日', field: 'dueDate', format: 'date' }
       ],
@@ -60,12 +60,14 @@
   }))
 
   const loadInvoices = async (params) => {
+    const { search, ...query } = params
+    if (search?.trim()) query.keyword = search.trim()
     // 如果 URL 携带了有效的 supplierId 参数，注入到请求中
-    const supplierId = route.query.supplierId || route.query.supplierId
+    const supplierId = route.query.supplierId
     if (supplierId && supplierId !== 'undefined') {
-      params.supplierId = supplierId
+      query.supplierId = supplierId
     }
-    const response = await financeApi.getAPInvoices(params)
+    const response = await financeApi.getAPInvoices(query)
     return response
   }
 

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import Invoices from '@/views/finance/ar/Invoices.vue'
 
 const mocks = vi.hoisted(() => ({
-  api: Object.fromEntries(['getARInvoices', 'generateARInvoiceNumber', 'createARInvoice', 'createReceipt', 'getBankAccounts'].map(name => [name, vi.fn()])),
+  api: Object.fromEntries(['getARInvoices', 'getARInvoice', 'updateARInvoice', 'generateARInvoiceNumber', 'createARInvoice', 'createReceipt', 'getBankAccounts'].map(name => [name, vi.fn()])),
   customers: vi.fn(), products: vi.fn(),
   message: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },
 }))
@@ -14,7 +14,7 @@ vi.mock('@/api', () => ({ financeApi: { settings: { getOptions: async () => ({ d
 vi.mock('@/api/finance', () => ({ financeApi: mocks.api }))
 vi.mock('@/api/sales', () => ({ salesApi: {} }))
 vi.mock('@/utils/optionLoaders', () => ({ searchCustomerPageOptions: mocks.customers, searchMaterialPageOptions: mocks.products }))
-vi.mock('vue-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
+vi.mock('vue-router', () => ({ useRouter: () => ({ push: vi.fn() }), useRoute: () => ({ query: {} }) }))
 vi.mock('@/services/printService', () => ({ default: {} }))
 vi.mock('element-plus/es/components/message/index', () => ({ ElMessage: mocks.message }))
 vi.mock('element-plus/es/components/message/style/css', () => ({}))
@@ -84,8 +84,11 @@ const stubs = {
   InvoiceDetailDialog: true, RelatedOrderDialog: true, EmptyState: true,
 }
 const product = { id: 501, code: 'PRODUCT-501', name: '搜索到的商品', price: 100 }
+const settlementRequestOptions = { headers: { 'Idempotency-Key': expect.any(String) } }
 let wrapper
 beforeEach(() => {
+  window.__erpUserId = 8
+  sessionStorage.clear()
   Object.values(mocks.api).forEach(mock => mock.mockReset())
   mocks.customers.mockReset().mockResolvedValue([{ id: 9, name: '测试客户' }])
   mocks.products.mockReset().mockResolvedValue([product])
@@ -95,7 +98,7 @@ beforeEach(() => {
   mocks.api.createReceipt.mockResolvedValue({ data: { id: 9 } })
   mocks.api.getBankAccounts.mockResolvedValue({ data: [{ id: 3, accountName: '测试银行', accountNumber: 'TEST-3' }] })
 })
-afterEach(() => wrapper?.unmount())
+afterEach(() => { wrapper?.unmount(); delete window.__erpUserId; sessionStorage.clear() })
 const open = async () => {
   wrapper = mount(Invoices, { global: {
     plugins: [createPinia()], stubs,
@@ -113,7 +116,7 @@ const fillInvoice = async ({ dueDate = true } = {}) => {
   await click('新增发票')
   const form = wrapper.get('[data-dialog="新增销售发票"]')
   await form.findAll('select')[0].setValue('9')
-  await form.findAll('select')[1].setValue('501')
+  await form.get('[data-column="商品/服务"] select').setValue('501')
   await form.get('[placeholder="数量"]').setValue('2')
   if (dueDate) await form.get('[placeholder="选择到期日期"]').setValue('2026-09-30')
   return form
@@ -141,6 +144,44 @@ describe('应收发票与收款弹窗的页面提交', () => {
     expect(wrapper.find('[data-dialog="新增销售发票"]').exists()).toBe(true)
   })
 
+  test('美元销售发票要求显式汇率，明细与总额保留原币', async () => {
+    await open()
+    const form = await fillInvoice()
+    const currency = form.findAll('label').find(label => label.find('span').text() === '币种')
+    await currency.get('select').setValue('USD')
+    const rate = form.get('[placeholder="1 USD 对应的人民币金额"]')
+    expect(rate.element.value).toBe('')
+    expect(form.get('[placeholder="单价"]').element.value).toBe('0')
+    await form.get('[placeholder="单价"]').setValue('100')
+    await click('确认', form)
+    expect(mocks.api.createARInvoice).not.toHaveBeenCalled()
+    expect(mocks.api.generateARInvoiceNumber).not.toHaveBeenCalled()
+    await rate.setValue('7.123456789')
+    await click('确认', form)
+    expect(mocks.api.createARInvoice).not.toHaveBeenCalled()
+    await rate.setValue('7.12345678')
+    expect(form.text()).toContain('US$226.00')
+    await click('确认', form)
+    expect(mocks.api.createARInvoice).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      totalAmount: 226, currencyCode: 'USD', exchangeRate: '7.12345678'
+    }))
+  })
+
+  test('编辑美元销售草稿保留币种和八位汇率', async () => {
+    const draft = { id: 7, invoiceNumber: 'AR-USD-7', customerId: 9, customerName: '美元客户', status: '草稿',
+      invoiceDate: '2026-10-17', dueDate: '2026-10-31', currencyCode: 'USD', exchangeRate: '7.12345678',
+      taxRate: 0.13, items: [{ id: 1, productId: 501, quantity: 2, unitPrice: 100, amount: 200 }] }
+    mocks.api.getARInvoices.mockResolvedValue({ data: { list: [draft], total: 1 } })
+    mocks.api.getARInvoice.mockResolvedValue({ data: draft })
+    mocks.api.updateARInvoice.mockResolvedValue({ data: {} })
+    await open(); await click('编辑')
+    const form = wrapper.get('[data-dialog="编辑销售发票"]')
+    expect(form.get('[placeholder="1 USD 对应的人民币金额"]').element.value).toBe('7.12345678')
+    expect(form.text()).toContain('US$226.00')
+    await click('确认', form)
+    expect(mocks.api.updateARInvoice).toHaveBeenCalledExactlyOnceWith(7, expect.objectContaining({ currencyCode: 'USD', exchangeRate: '7.12345678', totalAmount: 226 }))
+  })
+
   test('收款校验银行账户后提交并关闭弹窗', async () => {
     await open()
     await click('收款')
@@ -149,8 +190,32 @@ describe('应收发票与收款弹窗的页面提交', () => {
     expect(mocks.api.createReceipt).not.toHaveBeenCalled()
     await form.findAll('select')[1].setValue('3')
     await click('确认', form)
-    expect(mocks.api.createReceipt).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ invoiceId: 7, amount: 200, bankAccountId: 3, paymentMethod: 'bank_transfer' }))
+    expect(mocks.api.createReceipt).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ invoiceId: 7, amount: 200, bankAccountId: 3, paymentMethod: 'bank_transfer' }), settlementRequestOptions)
     expect(wrapper.find('[data-dialog="记录收款"]').exists()).toBe(false)
+  })
+
+  test('美元发票收款沿用确认汇率并只提供美元账户', async () => {
+    mocks.api.getARInvoices.mockResolvedValue({ data: { list: [{
+      id: 7, invoiceNumber: 'AR-USD-7', customerName: '美元客户', status: '已确认',
+      totalAmount: 100, paidAmount: 20, balanceAmount: 80, currencyCode: 'USD', exchangeRate: '7.20'
+    }], total: 1 } })
+    mocks.api.getBankAccounts.mockResolvedValue({ data: [
+      { id: 3, accountName: '人民币户', currencyCode: 'CNY' },
+      { id: 4, accountName: '美元户', currencyCode: 'USD' }
+    ] })
+    await open()
+    expect(wrapper.get('[data-column="价税合计"]').text()).toContain('US$100.00')
+    await click('收款')
+    const form = wrapper.get('[data-dialog="记录收款"]')
+    expect(form.text()).toContain('1 USD = 7.20 CNY')
+    expect(form.text()).toContain('¥576.00 CNY')
+    expect(form.find('option[value="cash"]').exists()).toBe(false)
+    expect(form.find('option[value="3"]').exists()).toBe(false)
+    await form.findAll('select')[1].setValue('4')
+    await click('确认', form)
+    expect(mocks.api.createReceipt).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      amount: 80, currencyCode: 'USD', exchangeRate: '7.20', bankAccountId: 4
+    }), settlementRequestOptions)
   })
 
   test('商品远程搜索较慢的旧响应不会覆盖新查询', async () => {

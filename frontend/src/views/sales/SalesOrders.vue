@@ -599,9 +599,15 @@
         <h4>导入结果</h4>
         <el-alert
           :title="`成功：${importResult.success || 0} 条，失败：${importResult.failed || 0} 条`"
-          :type="(importResult.failed || 0) > 0 ? 'warning' : 'success'"
+          :type="(importResult.failed || 0) > 0 || importResult.warnings?.length ? 'warning' : 'success'"
           :closable="false"
         />
+        <div v-if="importResult.warnings?.length" class="error-details">
+          <h5>订单已保存，以下备货问题需要处理：</h5>
+          <ul>
+            <li v-for="(warning, index) in importResult.warnings" :key="index">{{ warning }}</li>
+          </ul>
+        </div>
         <div v-if="(importResult.failed || 0) > 0 && importResult.errors" class="error-details">
           <h5>失败详情：</h5>
           <ul>

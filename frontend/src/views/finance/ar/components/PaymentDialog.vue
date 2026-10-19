@@ -7,14 +7,14 @@
  */
 -->
 <template>
-  <AppDialog
+  <AppDialog :show-close="!saveLoading" :close-on-press-escape="!saveLoading" :close-on-click-modal="!saveLoading"
     :model-value="modelValue"
     @update:model-value="$emit('update:modelValue', $event)"
     title="记录收款"
     mode="form"
     width="500px"
   >
-    <el-form :model="editableForm" :rules="paymentRules" ref="paymentFormRef" label-width="100px">
+    <el-form :disabled="saveLoading" :model="editableForm" :rules="paymentRules" ref="paymentFormRef" label-width="100px">
       <el-form-item label="发票编号">
         <el-input v-model="editableForm.invoiceNumber" disabled></el-input>
       </el-form-item>
@@ -24,7 +24,7 @@
       <el-form-item label="发票金额">
         <el-input v-model="editableForm.totalAmount" disabled></el-input>
       </el-form-item>
-      <el-form-item label="已付金额">
+      <el-form-item label="已收金额">
         <el-input v-model="editableForm.paidAmount" disabled></el-input>
       </el-form-item>
       <el-form-item label="剩余金额">
@@ -43,24 +43,26 @@
       <el-form-item label="收款金额" prop="amount">
         <el-input-number v-model="editableForm.amount" :precision="2" :min="0" :max="editableForm.balanceValue" class="w-full"></el-input-number>
       </el-form-item>
+      <SettlementCurrencyInfo :form="editableForm" :retry-notice="retryNotice" />
       <el-form-item label="收款方式" prop="paymentMethod">
         <el-select v-model="editableForm.paymentMethod" placeholder="请选择收款方式" class="w-full" @change="handlePaymentMethodChange">
-          <el-option label="现金" value="cash"></el-option>
+          <el-option v-if="settlementCurrency(editableForm) === 'CNY'" label="现金" value="cash"></el-option>
           <el-option label="银行转账" value="bank_transfer"></el-option>
           <el-option label="支票" value="check"></el-option>
           <el-option label="信用卡" value="credit_card"></el-option>
-          <el-option label="其他" value="other"></el-option>
+          <el-option v-if="settlementCurrency(editableForm) === 'CNY'" label="其他" value="other"></el-option>
         </el-select>
       </el-form-item>
       <el-form-item label="收款账户" prop="bankAccountId" v-if="showBankAccountField">
-        <el-select v-model="editableForm.bankAccountId" placeholder="选择收款账户" filterable class="w-full">
+        <el-select v-model="editableForm.bankAccountId" :loading="bankAccountsLoading" placeholder="选择收款账户" filterable class="w-full">
           <el-option
-            v-for="account in bankAccounts"
+            v-for="account in matchingSettlementBanks(bankAccounts, editableForm)"
             :key="account.id"
-            :label="`${account.accountName} (${account.accountNumber})`"
+            :label="`${account.accountName} (${account.accountNumber}) · ${settlementCurrency(account)}`"
             :value="account.id"
           ></el-option>
         </el-select>
+        <BankAccountFeedback :loading="bankAccountsLoading" :error="bankAccountsError" :accounts="bankAccounts" :currency="editableForm" @retry="$emit('retry-bank-accounts')" />
         <div class="form-tip"><el-icon class="icon-inline text-primary"><InfoFilled /></el-icon> 选择后将自动创建银行交易记录并更新账户余额</div>
       </el-form-item>
       <el-form-item label="备注" prop="notes">
@@ -74,7 +76,7 @@
     </el-form>
     <template #footer>
       <span class="dialog-footer">
-        <el-button @click="$emit('update:modelValue', false)">取消</el-button>
+        <el-button :disabled="saveLoading" @click="$emit('update:modelValue', false)">取消</el-button>
         <el-button v-permission="'finance:ar:receive'" type="primary" @click="$emit('save')" :loading="saveLoading">确认</el-button>
       </span>
     </template>
@@ -82,8 +84,11 @@
 </template>
 
 <script setup>
+import BankAccountFeedback from '../../components/BankAccountFeedback.vue'
 import { computed, ref } from 'vue'
 import { InfoFilled } from '@element-plus/icons-vue'
+import SettlementCurrencyInfo from '../../components/SettlementCurrencyInfo.vue'
+import { matchingSettlementBanks, settlementCurrency } from '../../components/settlementCurrency'
 
 const props = defineProps({
   modelValue: {
@@ -98,13 +103,16 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
+  bankAccountsLoading: Boolean,
+  bankAccountsError: String,
+  retryNotice: String,
   saveLoading: {
     type: Boolean,
     default: false
   }
 })
 
-defineEmits(['update:modelValue', 'save'])
+defineEmits(['update:modelValue', 'save', 'retry-bank-accounts'])
 
 const editableForm = computed(() => props.form)
 const paymentFormRef = ref(null)

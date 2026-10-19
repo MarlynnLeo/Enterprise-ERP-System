@@ -498,6 +498,7 @@ exports.getSalesOrder = async (req, res) => {
 
 exports.updateOrderStatus = async (req, res) => {
   const connection = await db.pool.getConnection();
+  let followUp;
   try {
     await connection.beginTransaction();
 
@@ -741,6 +742,11 @@ exports.updateOrderStatus = async (req, res) => {
           } catch (planError) {
             logger.error('自动生成生产计划/采购申请失败:', planError);
             finalStatus = STATUS.SALES_ORDER.SHORTAGE;
+            followUp = {
+              status: 'failed',
+              code: 'FOLLOW_UP_GENERATION_FAILED',
+              message: `备货处理失败：${planError.message}，请处理后重试`,
+            };
           }
         } else {
           // 库存充足，可以直接发货
@@ -864,7 +870,9 @@ exports.updateOrderStatus = async (req, res) => {
     await connection.commit();
     await desensitizeDataForUser(updatedOrder[0], req.user, 'view', req.userPermissions);
     const { salesOrderMap } = require('../../../utils/sales/salesFieldMap');
-    return ResponseHandler.success(res, salesOrderMap.toApi(updatedOrder[0]));
+    const payload = salesOrderMap.toApi(updatedOrder[0]);
+    if (followUp) payload.followUp = followUp;
+    return ResponseHandler.success(res, payload);
   } catch (error) {
     await connection.rollback();
     logger.error('更新订单状态时出错:', error);
@@ -1026,7 +1034,14 @@ exports.createSalesOrder = async (req, res) => {
       // 根据物料来源自动生成后续单据，并获取建议的订单状态
       // 使用统一的生成函数，传入用户信息
       const userInfo = getAuthenticatedUserInfo(req);
-      const suggestedStatus = await autoGenerateFollowUpDocuments(result.id, items, userInfo);
+      const followUp = {};
+      const suggestedStatus = await autoGenerateFollowUpDocuments(
+        result.id,
+        items,
+        userInfo,
+        followUp
+      );
+      result.followUp = followUp;
 
       // 如果有建议的状态且与当前状态不同，则更新订单状态
       if (suggestedStatus && suggestedStatus !== result.status) {
@@ -1035,7 +1050,12 @@ exports.createSalesOrder = async (req, res) => {
       }
 
       await desensitizeDataForUser(result, req.user, 'view', req.userPermissions);
-      ResponseHandler.success(res, result, '创建成功', 201);
+      ResponseHandler.success(
+        res,
+        result,
+        followUp.status === 'failed' ? followUp.message : '创建成功',
+        201
+      );
     } catch (error) {
       logger.error('数据库操作错误:', error);
       ResponseHandler.error(
@@ -1201,7 +1221,9 @@ exports.updateSalesOrder = async (req, res) => {
         logger.info(`编辑订单 ${id}，重新核对库存及后续单据`);
         const userInfo = getAuthenticatedUserInfo(req);
 
-        const suggestedStatus = await autoGenerateFollowUpDocuments(id, items, userInfo);
+        const followUp = {};
+        const suggestedStatus = await autoGenerateFollowUpDocuments(id, items, userInfo, followUp);
+        updatedOrder.followUp = followUp;
         if (suggestedStatus && suggestedStatus !== updatedOrder.status) {
           await SalesDao.updateSalesOrderStatus(id, suggestedStatus);
           updatedOrder.status = suggestedStatus;
@@ -1211,12 +1233,21 @@ exports.updateSalesOrder = async (req, res) => {
       } catch (planError) {
         logger.error('重新生成生产/采购计划失败:', planError);
         updatedOrder.status = 'shortage';
+        updatedOrder.followUp = {
+          status: 'failed',
+          code: 'FOLLOW_UP_GENERATION_FAILED',
+          message: `订单已保存，但备货处理失败：${planError.message}`,
+        };
         await SalesDao.updateSalesOrderStatus(id, 'shortage');
       }
     }
 
     await desensitizeDataForUser(updatedOrder, req.user, 'view', req.userPermissions);
-    ResponseHandler.success(res, updatedOrder, '订单更新成功');
+    ResponseHandler.success(
+      res,
+      updatedOrder,
+      updatedOrder.followUp?.status === 'failed' ? updatedOrder.followUp.message : '订单更新成功'
+    );
   } catch (error) {
     if (connection && transactionStarted) {
       await connection.rollback().catch(() => {});
@@ -1744,6 +1775,7 @@ exports.importOrders = async (req, res) => {
     let successCount = 0;
     let errorCount = 0;
     const errors = [];
+    const warnings = [];
 
     try {
       await connection.beginTransaction();
@@ -2107,7 +2139,8 @@ exports.importOrders = async (req, res) => {
                 }
               } catch (planError) {
                 logger.error('自动生成生产计划/采购申请失败:', planError);
-                finalStatus = 'in_production'; // 默认设为生产中
+                finalStatus = 'shortage';
+                warnings.push(`订单 ${orderNo} 已导入，但备货处理失败：${planError.message}`);
               }
             } else {
               // 库存充足，可以直接发货
@@ -2146,6 +2179,7 @@ exports.importOrders = async (req, res) => {
           successCount,
           errorCount,
           errors: errors.slice(0, 10), // 只返回前10个错误
+          warnings,
         },
         `导入完成，成功${successCount} 条，失败${errorCount} 条`
       );

@@ -87,7 +87,7 @@ export function useOrderImportExport(fetchDataCallback, searchQuery, statusFilte
       const formData = new FormData()
       formData.append('file', importFile)
       const response = await salesApi.importOrders(formData)
-      // 后端经过 unwrapResponse 解包后，response.data = { successCount, errorCount, errors }
+      // 订单导入成功与后续备货失败分别呈现，不能引导用户重复导入已保存订单。
       // 前端模板使用 success / failed 字段，这里做映射转换
       const raw = response.data || {}
       importResult.value = {
@@ -95,10 +95,19 @@ export function useOrderImportExport(fetchDataCallback, searchQuery, statusFilte
         failed: raw.errorCount || raw.failed || 0,
         errors: (raw.errors || []).map((item) => (
           typeof item === 'string' ? getApiErrorMessage(item, '导入失败') : item
-        ))
+        )),
+        warnings: Array.isArray(raw.warnings) ? raw.warnings : []
       }
       if (importResult.value.success > 0) {
-        ElMessage.success(`成功导入 ${importResult.value.success} 条订单数据`)
+        if (importResult.value.warnings.length) {
+          ElMessage.warning({
+            message: `已导入 ${importResult.value.success} 条订单数据，${importResult.value.warnings.length} 个订单备货失败，请查看详情后重新备货`,
+            duration: 8000,
+            showClose: true
+          })
+        } else {
+          ElMessage.success(`成功导入 ${importResult.value.success} 条订单数据`)
+        }
         if (fetchDataCallback) fetchDataCallback()
       }
       if (importResult.value.failed > 0) {

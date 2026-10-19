@@ -33,6 +33,55 @@ describe('materialService', () => {
     jest.clearAllMocks();
   });
 
+  describe('getAllMaterials pagination', () => {
+    test('filters and limits material IDs before loading dictionary, stock and BOM data', async () => {
+      const rows = [{ id: 5, stock_quantity: 12, has_bom: 1, bom_id: 8 }];
+      pool.query.mockResolvedValueOnce([[{ total: 230 }]]).mockResolvedValueOnce([rows]);
+
+      const result = await materialService.getAllMaterials(2, 20, {
+        search: ' bolt ', category_id: '7', material_type: 'steel', status: '1',
+      });
+      const [countSql, countParams] = pool.query.mock.calls[0];
+      const [listSql, listParams] = pool.query.mock.calls[1];
+      expect(countParams).toEqual(['%bolt%', '%bolt%', '%bolt%', '%bolt%', 7, 'steel', 1]);
+      expect(listParams).toEqual(countParams);
+      expect(countSql).not.toContain('JOIN');
+      expect(listSql).toMatch(/SELECT m\.id FROM materials m\s+WHERE m\.deleted_at IS NULL/);
+      expect(listSql.indexOf('LIMIT 20 OFFSET 20')).toBeLessThan(listSql.indexOf('LEFT JOIN categories'));
+      expect(listSql).toContain('JOIN materials m ON m.id = page_material.id');
+      expect(listSql).toContain('m.location_id IS NULL OR il.location_id = m.location_id');
+      expect(listSql).toContain('m.code ASC, m.id ASC');
+      expect(result).toEqual({ data: rows, pagination: { total: 230, page: 2, pageSize: 20, totalPages: 12 } });
+      expect(pool.query).toHaveBeenCalledTimes(2);
+    });
+
+    test('export still reads the entire filtered set without a page limit', async () => {
+      pool.query.mockResolvedValueOnce([[{ total: 101 }]]).mockResolvedValueOnce([Array(101).fill({ id: 1 })]);
+      const result = await materialService.getAllMaterials(1, null, { status: 0, code: 'M' });
+      const [sql, params] = pool.query.mock.calls[1];
+      expect(sql).not.toContain('LIMIT');
+      expect(sql).not.toContain('page_material');
+      expect(sql).toContain('m.deleted_at IS NULL');
+      expect(params).toEqual(['%M%', 0]);
+      expect(result.data).toHaveLength(101);
+      expect(result.pagination).toEqual({ total: 101, page: 1, pageSize: 101, totalPages: 1 });
+    });
+
+    test('out-of-range pages preserve the count and return an empty page', async () => {
+      pool.query.mockResolvedValueOnce([[{ total: 12 }]]).mockResolvedValueOnce([[]]);
+      const result = await materialService.getAllMaterials(10, 20);
+      expect(result).toEqual({ data: [], pagination: { total: 12, page: 10, pageSize: 20, totalPages: 1 } });
+      expect(pool.query.mock.calls[1][0]).toContain('LIMIT 20 OFFSET 180');
+    });
+
+    test('public list page sizes stay capped at 100', async () => {
+      pool.query.mockResolvedValueOnce([[{ total: 500 }]]).mockResolvedValueOnce([[]]);
+      const result = await materialService.getAllMaterials(1, 10000);
+      expect(result.pagination.pageSize).toBe(100);
+      expect(pool.query.mock.calls[1][0]).toContain('LIMIT 100 OFFSET 0');
+    });
+  });
+
   describe('getMaterialById', () => {
     test('应返回物料详情', async () => {
       const mockMaterial = { id: 1, code: 'M001', name: '铝合金板' };

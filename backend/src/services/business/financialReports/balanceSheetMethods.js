@@ -25,51 +25,28 @@ module.exports = {
       logger.info('开始生成资产负债表', { reportDate, compareDate, unit });
 
       // 并行计算各类科目余额（性能优化）
-      const [assets, liabilities, equity] = await Promise.all([
+      const [assets, liabilities, equity, adjustments] = await Promise.all([
         this.calculateAccountBalance('资产', reportDate, compareDate),
         this.calculateAccountBalance('负债', reportDate, compareDate),
         this.calculateAccountBalance('所有者权益', reportDate, compareDate),
+        this.calculateBalanceSheetAdjustments(reportDate, compareDate),
       ]);
 
-      // 计算本年利润（从年初到报表日期的收入-成本-费用）
-      const yearStart = `${reportDate.substring(0, 4)}-01-01`;
-      let currentYearProfit = 0;
-      let compareYearProfit = null;
-
-      try {
-        const [income, cost, expenses] = await Promise.all([
-          this.calculatePeriodAmount('收入', yearStart, reportDate, null, null, {
-            includeClosingEntries: true,
-          }),
-          this.calculatePeriodAmount('成本', yearStart, reportDate, null, null, {
-            includeClosingEntries: true,
-          }),
-          this.calculatePeriodAmount('费用', yearStart, reportDate, null, null, {
-            includeClosingEntries: true,
-          }),
-        ]);
-        currentYearProfit = income.totalAmount - cost.totalAmount - expenses.totalAmount;
-
-        // 如果有对比日期，计算对比期的本年利润
-        if (compareDate) {
-          const compareYearStart = `${compareDate.substring(0, 4)}-01-01`;
-          const [compareIncome, compareCost, compareExpenses] = await Promise.all([
-            this.calculatePeriodAmount('收入', compareYearStart, compareDate, null, null, {
-              includeClosingEntries: true,
-            }),
-            this.calculatePeriodAmount('成本', compareYearStart, compareDate, null, null, {
-              includeClosingEntries: true,
-            }),
-            this.calculatePeriodAmount('费用', compareYearStart, compareDate, null, null, {
-              includeClosingEntries: true,
-            }),
-          ]);
-          compareYearProfit =
-            compareIncome.totalAmount - compareCost.totalAmount - compareExpenses.totalAmount;
-        }
-      } catch (err) {
-        throw new Error(`计算未结转利润失败: ${err.message}`, { cause: err });
-      }
+      // Include balances still held in production/overhead accounts as stock,
+      // even when their chart type is cost/expense rather than asset.
+      assets.accounts.push(...adjustments.production);
+      assets.totalBalance += adjustments.production.reduce(
+        (sum, account) => sum + account.currentBalance,
+        0
+      );
+      if (compareDate)
+        assets.totalCompareBalance += adjustments.production.reduce(
+          (sum, account) => sum + account.compareBalance,
+          0
+        );
+      assets.accountCount = assets.accounts.length;
+      const currentYearProfit = adjustments.profit;
+      const compareYearProfit = adjustments.compareProfit;
 
       // 计算总额（所有者权益需要加上本年利润）
       const assetsTotal = this.roundAmount(assets.totalBalance / unit);
@@ -96,7 +73,7 @@ module.exports = {
       equityAccountsWithProfit.push({
         id: 'current-year-profit',
         code: 'CYP',
-        name: '本年未结转利润',
+        name: '未结转利润',
         type: '所有者权益',
         currentBalance: currentYearProfit,
         compareBalance: compareYearProfit,
@@ -114,6 +91,7 @@ module.exports = {
           equityTotal,
           equityBeforeProfit,
           currentYearProfit: currentYearProfitAmount,
+          unclosedProfit: currentYearProfitAmount,
           liabilitiesAndEquityTotal,
           isBalanced,
           balanceDifference: this.roundAmount(balanceDifference),
@@ -205,7 +183,10 @@ module.exports = {
             : null,
       };
 
-      if (this.codeMatchesConfiguredPrefixes(asset.code, accountGroups.currentAssets)) {
+      if (
+        asset.isProductionAsset ||
+        this.codeMatchesConfiguredPrefixes(asset.code, accountGroups.currentAssets)
+      ) {
         categories.currentAssets.items.push(item);
         categories.currentAssets.total += amount;
       } else {

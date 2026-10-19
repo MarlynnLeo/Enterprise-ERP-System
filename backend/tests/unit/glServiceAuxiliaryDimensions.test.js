@@ -38,6 +38,9 @@ describe('GLService auxiliary dimensions', () => {
         if (sql.includes('FROM cost_centers')) {
           return [[{ id: 11 }]];
         }
+        if (sql.includes('FROM customers')) return [[{ id: 33 }]];
+        if (sql.includes('FROM suppliers')) return [[{ id: 44 }]];
+        if (sql.includes('FROM users')) return [[{ id: 55 }]];
         if (sql.includes('INSERT INTO gl_entry_items')) {
           insertedItemSql = sql;
           insertedItemValues = params[0];
@@ -66,6 +69,7 @@ describe('GLService auxiliary dimensions', () => {
           customer_id: 33,
           supplier_id: 44,
           employee_id: 55,
+          employee_source: 'user',
           description: 'dimension debit',
         },
         {
@@ -82,7 +86,7 @@ describe('GLService auxiliary dimensions', () => {
     expect(insertedItemSql).toContain(
       'cost_center_id, project_id, customer_id, supplier_id, employee_id, description'
     );
-    expect(insertedItemValues[0]).toEqual([
+    expect(insertedItemValues[0].slice(0, 13)).toEqual([
       42,
       1,
       6001,
@@ -96,6 +100,9 @@ describe('GLService auxiliary dimensions', () => {
       44,
       55,
       'dimension debit',
+    ]);
+    expect(insertedItemValues[0].slice(13)).toEqual([
+      null, null, null, null, null, null, null, null, 'user', '0.00',
     ]);
   });
 });

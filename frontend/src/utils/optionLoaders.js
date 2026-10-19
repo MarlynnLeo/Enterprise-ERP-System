@@ -10,19 +10,24 @@ export const OPTION_PAGE_SIZE = 50
 /** 下拉全量拉取时的单页大小（与后端上限对齐） */
 export const OPTION_FETCH_PAGE_SIZE = 100
 export const OPTION_CACHE_TTL_MS = 5 * 60 * 1000
+const OPTION_PAGE_CONCURRENCY = 3
+const OPTION_MAX_PAGES = 50
 
 const cache = new Map()
 const inflight = new Map()
+let cacheGeneration = 0
+let sessionGeneration = 0
+
+const getSessionScope = () => JSON.stringify([
+  sessionGeneration,
+  typeof window === 'undefined' ? null : String(window.__erpUserId ?? ''),
+])
 
 const stableSerialize = (value) => {
-  if (value === undefined || value === null || value === '') return ''
-  if (typeof value !== 'object') return String(value)
-  if (Array.isArray(value)) return `[${value.map(stableSerialize).join(',')}]`
-
-  return Object.keys(value)
-    .sort()
-    .map(key => `${key}:${stableSerialize(value[key])}`)
-    .join('|')
+  if (value === undefined) return '["undefined"]'
+  if (value === null || typeof value !== 'object') return JSON.stringify(value)
+  if (Array.isArray(value)) return JSON.stringify(['array', value.map(stableSerialize)])
+  return JSON.stringify(['object', Object.keys(value).sort().map(key => [key, stableSerialize(value[key])])])
 }
 
 const clampPageSize = (value, fallback = OPTION_PAGE_SIZE) => {
@@ -39,6 +44,8 @@ const normalizePagedParams = (params = {}, defaults = {}) => ({
 })
 
 const withOptionCache = async (key, loader, ttl = OPTION_CACHE_TTL_MS) => {
+  const scope = getSessionScope()
+  key = `${scope}:${key}`
   const now = Date.now()
   const cached = cache.get(key)
   if (cached && cached.expiresAt > now) return cached.data
@@ -46,12 +53,19 @@ const withOptionCache = async (key, loader, ttl = OPTION_CACHE_TTL_MS) => {
   const running = inflight.get(key)
   if (running) return running
 
-  const promise = loader()
+  const generation = cacheGeneration
+  const assertSession = () => {
+    if (scope !== getSessionScope()) throw new Error('登录状态已变更，请重新加载选项')
+  }
+  const promise = loader(assertSession)
     .then(data => {
-      cache.set(key, { data, expiresAt: Date.now() + ttl })
+      assertSession()
+      if (generation === cacheGeneration) cache.set(key, { data, expiresAt: Date.now() + ttl })
       return data
     })
-    .finally(() => inflight.delete(key))
+    .finally(() => {
+      if (inflight.get(key) === promise) inflight.delete(key)
+    })
 
   inflight.set(key, promise)
   return promise
@@ -67,12 +81,17 @@ const loadCachedList = (namespace, request, params = {}, options = {}) => {
 }
 
 export const clearOptionLoaderCache = () => {
+  cacheGeneration++
   cache.clear()
   inflight.clear()
 }
 
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('erp:api-mutated', clearOptionLoaderCache)
+  window.addEventListener('erp:session-changed', () => {
+    sessionGeneration++
+    clearOptionLoaderCache()
+  })
 }
 
 export const loadUserOptions = (params = {}) =>
@@ -99,26 +118,60 @@ export const loadDepartmentOptions = (params = {}) => {
  * 分页拉全量列表（下拉选项用，避免只显示第一页 50 条）
  * @param {Function} request - API 方法
  * @param {Object} baseParams - 查询参数（不含 page/pageSize）
+ * @param {Function} assertSession - 在分页请求前确认仍属于原会话
  */
-const fetchAllOptionPages = async (request, baseParams = {}) => {
-  const pageSize = OPTION_FETCH_PAGE_SIZE
-  let page = 1
+const fetchAllOptionPages = async (request, baseParams = {}, assertSession = () => {}) => {
+  let pageSize = OPTION_FETCH_PAGE_SIZE
   const all = []
-  let total = Infinity
+  const seenIds = new Set()
+  const seenPages = new Set()
+  const fetchPage = async (page) => {
+    assertSession()
+    const response = await request({ ...baseParams, page, pageSize })
+    assertSession()
+    const parsed = parsePaginatedData(response, { enableLog: false, pageSize })
+    return { response, ...parsed, list: Array.isArray(response) ? parseListData(response, { enableLog: false }) : parsed.list }
+  }
+  const appendPage = (chunk) => {
+    if (!chunk.length) return false
+    // Some legacy endpoints ignore page. Stop on a repeated page instead of
+    // filling the selector with duplicates or making all 50 requests.
+    const fingerprint = JSON.stringify(chunk.map(row => row?.id == null ? row : String(row.id)))
+    if (seenPages.has(fingerprint)) return false
+    seenPages.add(fingerprint)
+    for (const row of chunk) {
+      if (row?.id != null) {
+        const id = String(row.id)
+        if (seenIds.has(id)) continue
+        seenIds.add(id)
+      }
+      all.push(row)
+    }
+    return chunk.length >= pageSize
+  }
 
-  while (all.length < total && page <= 50) {
-    const response = await request({
-      ...baseParams,
-      page,
-      pageSize,
-    })
-    const { list, total: t } = parsePaginatedData(response, { enableLog: false })
-    const chunk = Array.isArray(list) && list.length ? list : parseListData(response, { enableLog: false })
-    all.push(...chunk)
-    const knownTotal = Number(t)
-    total = Number.isFinite(knownTotal) && knownTotal >= 0 ? knownTotal : all.length
-    if (!chunk.length || chunk.length < pageSize || all.length >= total) break
-    page += 1
+  const first = await fetchPage(1)
+  pageSize = Math.min(first.pageSize, OPTION_FETCH_PAGE_SIZE)
+  if (!appendPage(first.list)) return all
+
+  // The shared parser falls back to list.length when total is absent. Only
+  // explicit totals may determine concurrent page ranges; otherwise probe
+  // sequentially until an empty/short/repeated page or the existing limit.
+  const data = first.response?.data
+  const rawTotal = data?.total ?? data?.totalCount ?? data?.pagination?.total ?? data?.pagination?.totalCount
+  const total = typeof rawTotal === 'number' || (typeof rawTotal === 'string' && rawTotal.trim())
+    ? Number(rawTotal) : NaN
+  const hasTotal = Number.isSafeInteger(total) && total >= 0
+  const lastPage = hasTotal ? Math.min(Math.ceil(total / pageSize), OPTION_MAX_PAGES) : OPTION_MAX_PAGES
+  const concurrency = hasTotal ? OPTION_PAGE_CONCURRENCY : 1
+
+  for (let page = 2; page <= lastPage; page += concurrency) {
+    const count = Math.min(concurrency, lastPage - page + 1)
+    const batch = await Promise.all(Array.from({ length: count }, (_, offset) => fetchPage(page + offset)))
+    // Promise.all retains page order even when the responses arrive out of order.
+    for (const result of batch) {
+      if (!appendPage(result.list)) return all
+    }
   }
 
   return all
@@ -177,8 +230,8 @@ export const loadSupplierOptions = (params = {}) => {
     status: status !== undefined && status !== '' ? status : 1,
   }
   const key = `suppliers:all:${stableSerialize(base)}`
-  return withOptionCache(key, async () => {
-    const suppliers = await fetchAllOptionPages(baseDataApi.getSuppliers, base)
+  return withOptionCache(key, async (assertSession) => {
+    const suppliers = await fetchAllOptionPages(baseDataApi.getSuppliers, base, assertSession)
     return suppliers.map(normalizeSupplierOption)
   })
 }
@@ -239,7 +292,7 @@ export const loadCustomerOptions = (params = {}) => {
     status: status !== undefined && status !== '' ? status : 1,
   }
   const key = `customers:all:${stableSerialize(base)}`
-  return withOptionCache(key, () => fetchAllOptionPages(baseDataApi.getCustomers, base))
+  return withOptionCache(key, (assertSession) => fetchAllOptionPages(baseDataApi.getCustomers, base, assertSession))
 }
 
 export const searchCustomerOptions = (keyword = '', params = {}) => {
@@ -277,8 +330,8 @@ export const loadMaterialOptions = (params = {}) => {
     status: status !== undefined && status !== '' ? status : 1,
   }
   const key = `materials:all:${stableSerialize(base)}`
-  return withOptionCache(key, async () => {
-    const materials = await fetchAllOptionPages(baseDataApi.getMaterials, base)
+  return withOptionCache(key, async (assertSession) => {
+    const materials = await fetchAllOptionPages(baseDataApi.getMaterials, base, assertSession)
     return materials.map(normalizeMaterialOption)
   })
 }

@@ -18,6 +18,8 @@ test('unpaid invoice paging filters both count and data and includes a stable ti
         invoice_number: 'AR-51',
         customer_name: '客户甲',
         balance_amount: 10,
+        currency_code: 'USD',
+        exchange_rate: '6.50000001',
       },
     ],
   ]);
@@ -33,17 +35,19 @@ test('unpaid invoice paging filters both count and data and includes a stable ti
   expect(rows[0]).toContain('ORDER BY i.due_date ASC, i.id ASC LIMIT 20 OFFSET 40');
   const payload = res.json.mock.calls[0][0];
   expect(payload.data.list[0]).toEqual(
-    expect.objectContaining({ id: 51, customerName: '客户甲', balanceAmount: 10 })
+    expect.objectContaining({ id: 51, customerName: '客户甲', balanceAmount: 10, currencyCode: 'USD', exchangeRate: 6.50000001 })
   );
   expect(payload.data.total).toBe(51);
 });
 test('legacy unpaged PC calls retain an array response without a silent first-page cap', async () => {
-  pool.execute.mockResolvedValueOnce([[{ id: 51, balance_amount: 10 }]]);
+  pool.execute.mockResolvedValueOnce([[{ id: 51, balance_amount: 10, currency_code: 'USD', exchange_rate: '6.50000001' }]]);
   const res = response();
   await controller.getUnpaidInvoices({ query: {} }, res);
   expect(pool.execute).toHaveBeenCalledTimes(1);
   expect(pool.execute.mock.calls[0][0]).not.toMatch(/LIMIT/);
   expect(Array.isArray(res.json.mock.calls[0][0].data)).toBe(true);
+  expect(pool.execute.mock.calls[0][0]).toContain('i.currency_code, i.exchange_rate');
+  expect(res.json.mock.calls[0][0].data[0]).toMatchObject({ currencyCode: 'USD', exchangeRate: 6.50000001 });
 });
 test('invalid selection filters do not execute queries', async () => {
   const res = response();

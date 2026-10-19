@@ -3,6 +3,7 @@ import { defineComponent, h, KeepAlive, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import APInvoices from '@/views/finance/ap/Invoices.vue'
+import APInvoiceFormDialog from '@/views/finance/ap/components/InvoiceFormDialog.vue'
 import CreditNoteActions from '@/views/finance/components/CreditNoteActions.vue'
 import Expenses from '@/views/finance/expenses/Expenses.vue'
 import EntryFormDialog from '@/views/finance/gl/entries/EntryFormDialog.vue'
@@ -19,7 +20,7 @@ const mocks = vi.hoisted(() => {
   const methods = names => Object.fromEntries(names.map(name => [name, vi.fn()]))
   return {
     api: {
-      ...methods(['getAPInvoices', 'getAPInvoice', 'getAPInvoicePayments', 'generateAPInvoiceNumber', 'createAPInvoice', 'updateAPInvoice', 'getBankAccounts', 'createPayment', 'createCreditNoteRefund', 'getExpenses', 'getExpense', 'getExpenseCategories', 'getExpenseStats', 'generateExpenseNumber', 'createExpense', 'updateExpense', 'submitExpense', 'payExpense', 'createEntry', 'getCashFlowStatistics']),
+      ...methods(['getAPInvoices', 'getAPInvoice', 'getAPInvoicePayments', 'generateAPInvoiceNumber', 'createAPInvoice', 'updateAPInvoice', 'getBankAccounts', 'createPayment', 'createCreditNoteRefund', 'getExpenses', 'getExpense', 'getExpenseCategories', 'getExpenseStats', 'generateExpenseNumber', 'createExpense', 'updateExpense', 'submitExpense', 'payExpense', 'createEntry', 'getEntryOptions', 'getCashFlowStatistics']),
       settings: methods(['getOptions']), cost: methods(['getCostCenterOptions']),
       tax: methods(['getRedLetterOriginals', 'createRedLetter', 'getInvoices', 'getReturns', 'payReturn']), accounts: methods(['getOptions']),
       budgets: methods(['getList']),
@@ -41,7 +42,7 @@ vi.mock('@/api', () => ({ financeApi: mocks.api, salesApi: { getCustomers: mocks
 vi.mock('@/api/finance', () => ({ financeApi: mocks.api }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ hasPermission: () => true, user: { id: 8 } }) }))
 vi.mock('@/stores/dictionary', () => ({ useDictionaryStore: () => ({ getOptions: () => [] }) }))
-vi.mock('@/utils/optionLoaders', () => ({ searchSupplierOptions: mocks.suppliers, searchMaterialOptions: mocks.materials, loadDepartmentOptions: async () => [], loadUserListOptions: async () => [] }))
+vi.mock('@/utils/optionLoaders', () => ({ searchSupplierOptions: mocks.suppliers, searchMaterialPageOptions: mocks.materials, loadDepartmentOptions: async () => [], loadUserListOptions: async () => [] }))
 vi.mock('vue-router', () => ({ useRouter: () => ({ push: mocks.push }), useRoute: () => ({ query: {} }) }))
 vi.mock('@/services/printService', () => ({ default: mocks.print }))
 vi.mock('element-plus/es/components/message/index', () => ({ ElMessage: mocks.message }))
@@ -49,6 +50,7 @@ vi.mock('element-plus/es/components/message/style/css', () => ({}))
 vi.mock('element-plus/es/components/message-box/index', () => ({ ElMessageBox: mocks.box }))
 
 let wrapper
+const settlementRequestOptions = { headers: { 'Idempotency-Key': expect.any(String) } }
 const open = async (component, props = {}) => {
   wrapper = mount(component, { props, global: { plugins: [createPinia()], stubs: financeStubs, directives: financeDirectives } })
   await flushPromises()
@@ -66,6 +68,8 @@ const resetMocks = object => Object.values(object).forEach(value => {
   else if (value && typeof value === 'object') resetMocks(value)
 })
 beforeEach(() => {
+  window.__erpUserId = 8
+  sessionStorage.clear()
   resetMocks(mocks)
   mocks.api.settings.getOptions.mockResolvedValue({ data: { bank: bankConfig } })
   mocks.box.confirm.mockResolvedValue('confirm')
@@ -89,13 +93,158 @@ beforeEach(() => {
     { id: 12, accountCode: '2241', accountName: '其他应付款', isActive: true },
     { id: 99, accountCode: '6602', accountName: '停用科目', isActive: false },
   ] })
+  mocks.api.getEntryOptions.mockImplementation(async () => ({ data: {
+    accounts: (await mocks.api.accounts.getOptions()).data,
+    customers: [], suppliers: [], departments: [], costCenters: [], employees: [],
+  } }))
   mocks.api.bankTransactions.getList.mockResolvedValue({ data: { list: [], total: 0 } })
   mocks.api.bankTransactions.getTransferRequests.mockResolvedValue({ data: { list: [], total: 0 } })
   mocks.api.getCashFlowStatistics.mockResolvedValue({ data: { summary: { totalCount: 0 } } })
   mocks.api.cashTransactions.getList.mockResolvedValue({ data: { transactions: [], total: 0 } })
   mocks.api.cashTransactions.getStats.mockResolvedValue({ data: {} })
 })
-afterEach(() => wrapper?.unmount())
+afterEach(() => { wrapper?.unmount(); delete window.__erpUserId; sessionStorage.clear() })
+
+const deferred = () => {
+  let resolve, reject
+  const promise = new Promise((res, rej) => { resolve = res; reject = rej })
+  return { promise, resolve, reject }
+}
+
+describe('应付发票按需加载及请求隔离', () => {
+  test('列表首屏不加载只有弹窗使用的供应商、物料或银行账户', async () => {
+    await open(APInvoices)
+    expect(mocks.api.getAPInvoices).toHaveBeenCalledOnce()
+    expect(mocks.suppliers).not.toHaveBeenCalled()
+    expect(mocks.materials).not.toHaveBeenCalled()
+    expect(mocks.api.getBankAccounts).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('339.00')
+  })
+
+  test('录入打开后取一页物料，失败后重新打开可重试', async () => {
+    mocks.materials.mockRejectedValueOnce(new Error('offline'))
+    await open(APInvoices)
+    await clickButton(wrapper, '期初/例外录入')
+    expect(mocks.materials).toHaveBeenCalledExactlyOnceWith('', { pageSize: 50 })
+    expect(mocks.api.getBankAccounts).not.toHaveBeenCalled()
+    await clickButton(wrapper.get('[data-dialog]'), '取消')
+    await clickButton(wrapper, '期初/例外录入')
+    expect(mocks.materials).toHaveBeenCalledTimes(2)
+    expect(wrapper.getComponent(APInvoiceFormDialog).props('materials')).toEqual(expect.arrayContaining([expect.objectContaining({ id: 501 })]))
+  })
+
+  test('历史选中物料不在搜索首页仍显示，搜索返回新价格不能替换原单据价格', async () => {
+    mocks.materials.mockResolvedValueOnce([{ id: 600, name: '其他物料', price: 99 }])
+    await open(APInvoices)
+    await clickButton(wrapper, '编辑')
+    const dialog = wrapper.getComponent(APInvoiceFormDialog)
+    expect(dialog.props('materials')).toEqual(expect.arrayContaining([expect.objectContaining({ id: 501, name: '办公产品', price: 100, purchasePrice: 100 })]))
+    expect(dialog.props('form').items[0].unitPrice).toBe(100)
+    mocks.materials.mockResolvedValueOnce([{ id: 501, name: '现价物料', price: 999, purchasePrice: 999 }])
+    dialog.vm.$emit('material-search', '501')
+    await flushPromises()
+    expect(dialog.props('materials').find(item => item.id === 501).purchasePrice).toBe(100)
+    expect(dialog.props('form').items[0].unitPrice).toBe(100)
+    expect(wrapper.get('[data-dialog]').text()).toContain('339.00')
+  })
+
+  test('快速搜索的旧响应不能覆盖较新结果', async () => {
+    await open(APInvoices); await clickButton(wrapper, '期初/例外录入')
+    const old = deferred()
+    const dialog = wrapper.getComponent(APInvoiceFormDialog)
+    mocks.materials.mockReturnValueOnce(old.promise).mockResolvedValueOnce([{ id: 700, name: '最新结果' }])
+    dialog.vm.$emit('material-search', 'old')
+    dialog.vm.$emit('material-search', 'new')
+    await flushPromises()
+    old.resolve([{ id: 600, name: '过期结果' }])
+    await flushPromises()
+    expect(dialog.props('materials').map(item => item.id)).toEqual([700])
+  })
+
+  test('关闭再打开录入时，前一次请求晚到不会污染新窗口', async () => {
+    const old = deferred()
+    mocks.materials.mockReturnValueOnce(old.promise).mockResolvedValueOnce([{ id: 700, name: '新窗口结果' }])
+    await open(APInvoices); await clickButton(wrapper, '期初/例外录入')
+    await clickButton(wrapper.get('[data-dialog]'), '取消')
+    await clickButton(wrapper, '期初/例外录入')
+    old.resolve([{ id: 600, name: '前窗口结果' }])
+    await flushPromises()
+    expect(wrapper.getComponent(APInvoiceFormDialog).props('materials').map(item => item.id)).toEqual([700])
+  })
+
+  test('付款弹窗按次读取账户，前一次关闭窗口的账户响应不能覆盖新结果', async () => {
+    const old = deferred()
+    mocks.api.getAPInvoices.mockResolvedValue({ data: { list: [{ ...apInvoice(), status: '已确认' }], total: 1 } })
+    mocks.api.getBankAccounts.mockReturnValueOnce(old.promise).mockResolvedValueOnce({ data: [{ id: 8, bankName: '新银行', accountName: '新账户', balance: 888 }] })
+    await open(APInvoices); await clickButton(wrapper, '付款')
+    await clickButton(wrapper.get('[data-dialog]'), '取消')
+    await clickButton(wrapper, '付款')
+    old.resolve({ data: [{ id: 9, bankName: '旧银行', accountName: '旧账户', balance: 999 }] })
+    await flushPromises()
+    expect(mocks.api.getBankAccounts).toHaveBeenCalledTimes(2)
+    const options = wrapper.get('[data-field="bankAccountId"]').findAll('option').map(option => option.text())
+    expect(options.join()).toContain('新银行')
+    expect(options.join()).not.toContain('旧银行')
+  })
+
+  test('较慢的旧编辑请求不会把另一个发票覆盖回来', async () => {
+    const old = deferred()
+    mocks.api.getAPInvoice.mockReturnValueOnce(old.promise).mockResolvedValueOnce({ data: { ...apInvoice(), id: 8, invoiceNumber: 'AP-8' } })
+    await open(APInvoices)
+    await clickButton(wrapper, '编辑')
+    await clickButton(wrapper, '编辑')
+    old.resolve({ data: apInvoice() }); await flushPromises()
+    expect(wrapper.getComponent(APInvoiceFormDialog).props('form').id).toBe(8)
+  })
+
+  test('切换账号会清除当前金额列表并拒收旧账号的编辑响应', async () => {
+    window.__erpUserId = 1
+    const old = deferred()
+    mocks.api.getAPInvoice.mockReturnValueOnce(old.promise)
+    await open(APInvoices); await clickButton(wrapper, '编辑')
+    window.__erpUserId = 2
+    window.dispatchEvent(new Event('erp:session-changed'))
+    old.resolve({ data: apInvoice() }); await flushPromises()
+    expect(wrapper.find('[data-dialog]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('339.00')
+    expect(mocks.materials).not.toHaveBeenCalled()
+  })
+
+  test('列表查询乱序时只显示最新查询的发票金额', async () => {
+    const old = deferred()
+    mocks.api.getAPInvoices.mockReturnValueOnce(old.promise).mockResolvedValueOnce({ data: {
+      list: [{ ...apInvoice(), invoiceNumber: 'AP-LATEST', totalAmount: 900, balanceAmount: 900 }], total: 1,
+    } })
+    await open(APInvoices); await clickButton(wrapper, '查询')
+    old.resolve({ data: { list: [apInvoice()], total: 1 } }); await flushPromises()
+    expect(wrapper.text()).toContain('AP-LATEST')
+    expect(wrapper.text()).toContain('900.00')
+    expect(wrapper.text()).not.toContain('339.00')
+  })
+
+  test('切换账号后迟到的详情不能重新打开金额弹窗或继续加载付款记录', async () => {
+    window.__erpUserId = 1
+    const old = deferred()
+    mocks.api.getAPInvoice.mockReturnValueOnce(old.promise)
+    await open(APInvoices); await clickButton(wrapper, '查看')
+    window.__erpUserId = 2
+    window.dispatchEvent(new Event('erp:session-changed'))
+    old.resolve({ data: apInvoice() }); await flushPromises()
+    expect(wrapper.find('[data-dialog]').exists()).toBe(false)
+    expect(mocks.api.getAPInvoicePayments).not.toHaveBeenCalled()
+  })
+
+  test('卸载后晚到的选项失败不会产生错误提示或新请求', async () => {
+    const old = deferred()
+    mocks.materials.mockReturnValueOnce(old.promise)
+    await open(APInvoices); await clickButton(wrapper, '期初/例外录入')
+    wrapper.unmount()
+    mocks.message.error.mockClear()
+    old.reject(new Error('late offline')); await flushPromises()
+    expect(mocks.message.error).not.toHaveBeenCalled()
+    expect(mocks.materials).toHaveBeenCalledOnce()
+  })
+})
 
 describe('采购发票父子表单', () => {
   test('缺物料阻止保存，选择物料后按明细计算339元并提交', async () => {
@@ -125,6 +274,30 @@ describe('采购发票父子表单', () => {
     await clickButton(form, '保存')
     expect(mocks.api.updateAPInvoice).toHaveBeenCalledExactlyOnceWith(7, expect.objectContaining({ totalAmount: 226, taxRate: 0.13, items: [expect.objectContaining({ id: 71, materialId: 501, quantity: 2, amount: 200 })] }))
   })
+  test('美元采购草稿编辑保留币种与确认前汇率，切换币种要求重填', async () => {
+    mocks.api.getAPInvoice.mockResolvedValue({ data: { ...apInvoice(), currencyCode: 'USD', exchangeRate: '7.12345678' } })
+    await open(APInvoices); await clickButton(wrapper, '编辑')
+    const form = wrapper.get('[data-dialog="编辑采购发票"]')
+    expect(form.get('[data-field="currencyCode"] select').element.value).toBe('USD')
+    expect(form.get('[data-field="exchangeRate"] input').element.value).toBe('7.12345678')
+    await clickButton(form, '保存')
+    expect(mocks.api.updateAPInvoice).toHaveBeenCalledExactlyOnceWith(7, expect.objectContaining({ currencyCode: 'USD', exchangeRate: '7.12345678', totalAmount: 339 }))
+    await clickButton(wrapper, '期初/例外录入')
+    const fresh = wrapper.get('[data-dialog="期初/例外录入采购发票"]')
+    await fillField(fresh, 'supplierId', 9)
+    await fillField(fresh, 'invoiceDate', '2026-10-17')
+    await fillField(fresh, 'dueDate', '2026-10-31')
+    await fillField(fresh, 'currencyCode', 'USD')
+    expect(fresh.get('[data-field="exchangeRate"] input').element.value).toBe('')
+    await fresh.get('[data-column="物料/服务"] select').setValue('501')
+    expect(fresh.get('[data-column="单价"] input').element.value).toBe('0')
+    await fresh.get('[data-column="单价"] input').setValue('100')
+    await clickButton(fresh, '保存')
+    expect(mocks.api.createAPInvoice).not.toHaveBeenCalled()
+    await fillField(fresh, 'exchangeRate', '7.12')
+    await clickButton(fresh, '保存')
+    expect(mocks.api.createAPInvoice).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ currencyCode: 'USD', exchangeRate: '7.12', totalAmount: 113 }))
+  })
   test('付款需要账户，填写后提交剩余339元', async () => {
     mocks.api.getAPInvoices.mockResolvedValue({ data: { list: [{ ...apInvoice(), status: '已确认' }], total: 1 } })
     await open(APInvoices); await clickButton(wrapper, '付款')
@@ -133,7 +306,28 @@ describe('采购发票父子表单', () => {
     expect(mocks.api.createPayment).not.toHaveBeenCalled()
     await fillField(form, 'bankAccountId', 3)
     await clickButton(form, '确认')
-    expect(mocks.api.createPayment).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ invoiceId: 7, amount: 339, bankAccountId: 3 }))
+    expect(mocks.api.createPayment).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ invoiceId: 7, amount: 339, bankAccountId: 3 }), settlementRequestOptions)
+  })
+  test('美元采购发票付款保留原币余额和确认汇率', async () => {
+    mocks.api.getAPInvoices.mockResolvedValue({ data: { list: [{
+      ...apInvoice(), status: '已确认', currencyCode: 'USD', exchangeRate: '7.18'
+    }], total: 1 } })
+    mocks.api.getBankAccounts.mockResolvedValue({ data: [
+      { id: 3, accountName: '人民币户', currencyCode: 'CNY' },
+      { id: 4, accountName: '美元户', currencyCode: 'USD', currentBalance: 1000 }
+    ] })
+    await open(APInvoices); await clickButton(wrapper, '付款')
+    const form = wrapper.get('[data-dialog="记录付款"]')
+    expect(form.get('[data-field="发票金额"] input').element.value).toBe('US$339.00')
+    expect(form.text()).toContain('1 USD = 7.18 CNY')
+    expect(form.text()).toContain('¥2,434.02 CNY')
+    expect(form.find('[data-field="bankAccountId"] option[value="3"]').exists()).toBe(false)
+    expect(form.find('[data-field="paymentMethod"] option[value="cash"]').exists()).toBe(false)
+    await fillField(form, 'bankAccountId', 4)
+    await clickButton(form, '确认')
+    expect(mocks.api.createPayment).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      invoiceId: 7, amount: 339, currencyCode: 'USD', exchangeRate: '7.18', bankAccountId: 4
+    }), settlementRequestOptions)
   })
   test('详情打印使用百分数税率和分摊后行税额', async () => {
     await open(APInvoices); await clickButton(wrapper, '查看'); await clickButton(wrapper, '打印')
@@ -238,10 +432,10 @@ describe('凭证表单实际字段交互', () => {
     await open(EntryFormDialog, { modelValue: false }); await wrapper.setProps({ modelValue: true }); await flushPromises()
     await wrapper.get('[data-column="selection"] input').setValue(true)
     await clickButton(wrapper, '预览凭证（1）')
-    const preview = wrapper.get('[data-dialog="凭证预览（1 张）"]')
+    const preview = wrapper.get('[data-dialog="应付凭证预览（1 张）"]')
     await preview.get('[data-column="数量"] input').setValue('2'); await flushPromises()
     expect(preview.text()).toContain('226.00')
-    await clickButton(preview, '确认生成合并凭证')
+    await clickButton(preview, '确认生成凭证')
     const data = mocks.api.integration.batchGenerateFromOrders.mock.calls[0][0]
     expect(data.overrides[0]).toMatchObject({ subtotal: 200, taxAmount: 26, totalAmount: 226,
       items: [expect.objectContaining({ material_id: 501, source_id: 30, unit_price: 100, quantity: 2, amount: 200 })],

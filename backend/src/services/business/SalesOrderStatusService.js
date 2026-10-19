@@ -330,9 +330,10 @@ class SalesOrderStatusService {
    * 这个方法应在采购入库、生产入库等导致库存增加的操作后调用。
    *
    * @param {Object} connection - 数据库连接（可选）
+   * @param {Object} options - throwOnError 让持久化事件处理器保留失败并重试
    * @returns {Promise<void>}
    */
-  static async checkAndReleasePendingOrders(connection = null) {
+  static async checkAndReleasePendingOrders(connection = null, { throwOnError = false } = {}) {
     const client = connection || (await getConnection());
     const shouldRelease = !connection;
 
@@ -461,6 +462,7 @@ class SalesOrderStatusService {
             }
           } catch (orderError) {
             logger.error(`检查销售订单 ${order.id} 时出错`, orderError);
+            if (throwOnError) throw orderError;
           }
         }
       }
@@ -473,6 +475,7 @@ class SalesOrderStatusService {
         await client.rollback();
       }
       logger.error('检查并流转采购/生产销售订单时发生错误:', error);
+      if (throwOnError) throw error;
     } finally {
       if (shouldRelease && client) {
         client.release();

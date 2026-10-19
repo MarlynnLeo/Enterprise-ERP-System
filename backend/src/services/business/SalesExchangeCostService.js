@@ -2,7 +2,7 @@
 
 const Precision = require('../../utils/precision');
 
-/** Recover the inventory cost actually issued by the selected original shipment(s). */
+/** Shared by sales returns and exchanges: recover the selected shipment's actual inventory cost. */
 class SalesExchangeCostService {
   static async getReturnCosts(connection, { orderId, outboundId = null, materialIds = null }) {
     const selectedMaterials = materialIds == null ? null : [...new Set(materialIds.map(Number))];
@@ -75,7 +75,7 @@ class SalesExchangeCostService {
         (!exact.length && Math.abs(issued.quantity - Number(shipment.material_quantity)) > 0.000001)
       ) {
         throw Object.assign(
-          new Error(`原销售出库 ${shipment.outbound_no} 缺少完整已过账库存成本，不能办理换货退回`),
+          new Error(`原销售出库 ${shipment.outbound_no} 缺少完整已过账库存成本，不能办理退回`),
           { statusCode: 400, code: 'VALIDATION_ERROR' }
         );
       }

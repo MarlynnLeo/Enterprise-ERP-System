@@ -443,8 +443,17 @@ exports.updateSalesReturn = async (req, res) => {
       if (persistedItems.length !== items.length)
         throw validationError('退货商品已失效，请核对物料资料');
       const InventoryService = require('../../../services/InventoryService');
+      const SalesExchangeCostService = require('../../../services/business/SalesExchangeCostService');
+      const returnCosts = await SalesExchangeCostService.getReturnCosts(connection, {
+        orderId,
+        outboundId,
+        materialIds: persistedItems.map((item) => item.product_id),
+      });
       for (const item of persistedItems) {
         if (!item.location_id) throw validationError(`物料 ${item.code} 未配置默认仓库`);
+        const returnUnitCost = returnCosts.get(Number(item.product_id));
+        if (!(returnUnitCost > 0))
+          throw validationError(`商品 ${item.code} 缺少原销售出库成本，不能退回`);
         await InventoryService.updateStock(
           {
             materialId: item.product_id,
@@ -457,6 +466,7 @@ exports.updateSalesReturn = async (req, res) => {
             sourceLineKey: `sales_return:${id}:${item.id}`,
             operator: getRequestActorLabel(req),
             unitId: item.unit_id,
+            unitCost: returnUnitCost,
             transactionDate: returnDate,
             remark: `销售退货入库：${item.code} ${item.name}`,
             batchNumber: `RT-${current.return_no}-${item.product_id}`,

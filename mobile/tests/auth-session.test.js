@@ -132,10 +132,44 @@ describe('mobile authentication session isolation', () => {
     api.get.mockReturnValueOnce(stale.promise)
       .mockResolvedValueOnce({ data: { id: 1, username: 'fresh-profile' } })
     const first = auth.fetchUserProfile()
-    expect(await auth.fetchUserProfile()).toBe(true)
+    expect(await auth.fetchUserProfile(true)).toBe(true)
     stale.resolve({ data: { id: 9, username: 'stale-profile' } })
     expect(await first).toBe(false)
     expect(auth.user.username).toBe('fresh-profile')
+  })
+
+  test('three concurrent profile callers share one session probe and all receive success', async () => {
+    const pending = deferred()
+    api.get.mockReturnValueOnce(pending.promise)
+    const reads = [auth.fetchUserProfile(), auth.fetchUserProfile(), auth.fetchUserProfile()]
+    expect(api.get).toHaveBeenCalledTimes(1)
+    pending.resolve({ data: { id: 1, username: 'confirmed-user' } })
+    expect(await Promise.all(reads)).toEqual([true, true, true])
+    expect(auth.user.username).toBe('confirmed-user')
+  })
+
+  test('a failed shared profile probe is cleared so a later navigation can retry', async () => {
+    const pending = deferred()
+    api.get.mockReturnValueOnce(pending.promise)
+    const first = auth.fetchUserProfile(), second = auth.fetchUserProfile()
+    pending.reject(new Error('offline'))
+    expect(await Promise.all([first, second])).toEqual([false, false])
+    api.get.mockResolvedValueOnce({ data: { id: 1, username: 'recovered-user' } })
+    expect(await auth.fetchUserProfile()).toBe(true)
+    expect(api.get).toHaveBeenCalledTimes(2)
+  })
+
+  test('an older forced profile completion cannot remove the current shared probe', async () => {
+    const old = deferred(), current = deferred()
+    api.get.mockReturnValueOnce(old.promise).mockReturnValueOnce(current.promise)
+    const first = auth.fetchUserProfile()
+    const forced = auth.fetchUserProfile(true)
+    old.resolve({ data: { id: 9, username: 'obsolete-user' } })
+    expect(await first).toBe(false)
+    const joined = auth.fetchUserProfile()
+    expect(api.get).toHaveBeenCalledTimes(2)
+    current.resolve({ data: { id: 1, username: 'current-user' } })
+    expect(await Promise.all([forced, joined])).toEqual([true, true])
   })
 
   test('malformed profile data cannot mark a session authenticated', async () => {
