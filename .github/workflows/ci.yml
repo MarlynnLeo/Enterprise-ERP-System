@@ -170,10 +170,16 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: mobile/package-lock.json
+          cache-dependency-path: |
+            mobile/package-lock.json
+            backend/package-lock.json
 
       - name: Install mobile dependencies
         working-directory: mobile
+        run: npm ci
+
+      - name: Install backend dependencies for shared contract tests
+        working-directory: backend
         run: npm ci
 
       - name: Lint mobile

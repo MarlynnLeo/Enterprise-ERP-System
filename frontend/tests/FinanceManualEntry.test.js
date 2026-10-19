@@ -139,13 +139,15 @@ test('auxiliary rules use Chinese required messages and real form clears error s
   await open({ ElForm, ElFormItem })
   await balancedRows()
   const auxForm = () => wrapper.findAllComponents(ElForm).find(form => form.classes().includes('manual-aux-grid'))
+  // Vue's template ref exposes the real form API even when VTU does not proxy it.
+  const auxFields = () => wrapper.vm.$refs.manualAuxFormRef.fields
   expect(auxForm().props('rules').customerId[0]).toMatchObject({ required: true, message: '请选择客户' })
   expect(auxForm().props('model').customerId).toBeNull()
-  expect(auxForm().vm.fields.map(field => field.prop)).toContain('customerId')
+  expect(auxFields().map(field => field.prop)).toContain('customerId')
   const validator = () => new AsyncValidator(auxForm().props('rules'))
   const invalid = await validator().validate(auxForm().props('model')).catch(error => error)
   expect(invalid.fields.customerId[0].message).toBe('请选择客户')
-  const field = auxForm().vm.fields.find(field => field.prop === 'customerId')
+  const field = auxFields().find(field => field.prop === 'customerId')
   field.validateMessage = invalid.fields.customerId[0].message
   field.validateState = 'error'
   await flushPromises()
